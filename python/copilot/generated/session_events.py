@@ -252,27 +252,27 @@ class Data:
 
 
 @dataclass
-class SessionStartDataContext:
+class WorkingDirectoryContext:
     "Working directory and git context at session start"
     cwd: str
     git_root: str | None = None
     repository: str | None = None
-    host_type: SessionStartDataContextHostType | None = None
+    host_type: WorkingDirectoryContextHostType | None = None
     branch: str | None = None
     head_commit: str | None = None
     base_commit: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionStartDataContext":
+    def from_dict(obj: Any) -> "WorkingDirectoryContext":
         assert isinstance(obj, dict)
         cwd = from_str(obj.get("cwd"))
         git_root = from_union([from_none, lambda x: from_str(x)], obj.get("gitRoot"))
         repository = from_union([from_none, lambda x: from_str(x)], obj.get("repository"))
-        host_type = from_union([from_none, lambda x: parse_enum(SessionStartDataContextHostType, x)], obj.get("hostType"))
+        host_type = from_union([from_none, lambda x: parse_enum(WorkingDirectoryContextHostType, x)], obj.get("hostType"))
         branch = from_union([from_none, lambda x: from_str(x)], obj.get("branch"))
         head_commit = from_union([from_none, lambda x: from_str(x)], obj.get("headCommit"))
         base_commit = from_union([from_none, lambda x: from_str(x)], obj.get("baseCommit"))
-        return SessionStartDataContext(
+        return WorkingDirectoryContext(
             cwd=cwd,
             git_root=git_root,
             repository=repository,
@@ -290,7 +290,7 @@ class SessionStartDataContext:
         if self.repository is not None:
             result["repository"] = from_union([from_none, lambda x: from_str(x)], self.repository)
         if self.host_type is not None:
-            result["hostType"] = from_union([from_none, lambda x: to_enum(SessionStartDataContextHostType, x)], self.host_type)
+            result["hostType"] = from_union([from_none, lambda x: to_enum(WorkingDirectoryContextHostType, x)], self.host_type)
         if self.branch is not None:
             result["branch"] = from_union([from_none, lambda x: from_str(x)], self.branch)
         if self.head_commit is not None:
@@ -310,7 +310,7 @@ class SessionStartData:
     start_time: datetime
     selected_model: str | None = None
     reasoning_effort: str | None = None
-    context: SessionStartDataContext | None = None
+    context: WorkingDirectoryContext | None = None
     already_in_use: bool | None = None
     remote_steerable: bool | None = None
 
@@ -324,7 +324,7 @@ class SessionStartData:
         start_time = from_datetime(obj.get("startTime"))
         selected_model = from_union([from_none, lambda x: from_str(x)], obj.get("selectedModel"))
         reasoning_effort = from_union([from_none, lambda x: from_str(x)], obj.get("reasoningEffort"))
-        context = from_union([from_none, lambda x: SessionStartDataContext.from_dict(x)], obj.get("context"))
+        context = from_union([from_none, lambda x: WorkingDirectoryContext.from_dict(x)], obj.get("context"))
         already_in_use = from_union([from_none, lambda x: from_bool(x)], obj.get("alreadyInUse"))
         remote_steerable = from_union([from_none, lambda x: from_bool(x)], obj.get("remoteSteerable"))
         return SessionStartData(
@@ -352,60 +352,11 @@ class SessionStartData:
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, lambda x: from_str(x)], self.reasoning_effort)
         if self.context is not None:
-            result["context"] = from_union([from_none, lambda x: to_class(SessionStartDataContext, x)], self.context)
+            result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.already_in_use is not None:
             result["alreadyInUse"] = from_union([from_none, lambda x: from_bool(x)], self.already_in_use)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, lambda x: from_bool(x)], self.remote_steerable)
-        return result
-
-
-@dataclass
-class SessionResumeDataContext:
-    "Updated working directory and git context at resume time"
-    cwd: str
-    git_root: str | None = None
-    repository: str | None = None
-    host_type: SessionResumeDataContextHostType | None = None
-    branch: str | None = None
-    head_commit: str | None = None
-    base_commit: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionResumeDataContext":
-        assert isinstance(obj, dict)
-        cwd = from_str(obj.get("cwd"))
-        git_root = from_union([from_none, lambda x: from_str(x)], obj.get("gitRoot"))
-        repository = from_union([from_none, lambda x: from_str(x)], obj.get("repository"))
-        host_type = from_union([from_none, lambda x: parse_enum(SessionResumeDataContextHostType, x)], obj.get("hostType"))
-        branch = from_union([from_none, lambda x: from_str(x)], obj.get("branch"))
-        head_commit = from_union([from_none, lambda x: from_str(x)], obj.get("headCommit"))
-        base_commit = from_union([from_none, lambda x: from_str(x)], obj.get("baseCommit"))
-        return SessionResumeDataContext(
-            cwd=cwd,
-            git_root=git_root,
-            repository=repository,
-            host_type=host_type,
-            branch=branch,
-            head_commit=head_commit,
-            base_commit=base_commit,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["cwd"] = from_str(self.cwd)
-        if self.git_root is not None:
-            result["gitRoot"] = from_union([from_none, lambda x: from_str(x)], self.git_root)
-        if self.repository is not None:
-            result["repository"] = from_union([from_none, lambda x: from_str(x)], self.repository)
-        if self.host_type is not None:
-            result["hostType"] = from_union([from_none, lambda x: to_enum(SessionResumeDataContextHostType, x)], self.host_type)
-        if self.branch is not None:
-            result["branch"] = from_union([from_none, lambda x: from_str(x)], self.branch)
-        if self.head_commit is not None:
-            result["headCommit"] = from_union([from_none, lambda x: from_str(x)], self.head_commit)
-        if self.base_commit is not None:
-            result["baseCommit"] = from_union([from_none, lambda x: from_str(x)], self.base_commit)
         return result
 
 
@@ -416,7 +367,7 @@ class SessionResumeData:
     event_count: float
     selected_model: str | None = None
     reasoning_effort: str | None = None
-    context: SessionResumeDataContext | None = None
+    context: WorkingDirectoryContext | None = None
     already_in_use: bool | None = None
     remote_steerable: bool | None = None
 
@@ -427,7 +378,7 @@ class SessionResumeData:
         event_count = from_float(obj.get("eventCount"))
         selected_model = from_union([from_none, lambda x: from_str(x)], obj.get("selectedModel"))
         reasoning_effort = from_union([from_none, lambda x: from_str(x)], obj.get("reasoningEffort"))
-        context = from_union([from_none, lambda x: SessionResumeDataContext.from_dict(x)], obj.get("context"))
+        context = from_union([from_none, lambda x: WorkingDirectoryContext.from_dict(x)], obj.get("context"))
         already_in_use = from_union([from_none, lambda x: from_bool(x)], obj.get("alreadyInUse"))
         remote_steerable = from_union([from_none, lambda x: from_bool(x)], obj.get("remoteSteerable"))
         return SessionResumeData(
@@ -449,7 +400,7 @@ class SessionResumeData:
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, lambda x: from_str(x)], self.reasoning_effort)
         if self.context is not None:
-            result["context"] = from_union([from_none, lambda x: to_class(SessionResumeDataContext, x)], self.context)
+            result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.already_in_use is not None:
             result["alreadyInUse"] = from_union([from_none, lambda x: from_bool(x)], self.already_in_use)
         if self.remote_steerable is not None:
@@ -1038,7 +989,7 @@ class SessionShutdownData:
 
 @dataclass
 class SessionContextChangedData:
-    "Updated working directory and git context after the change"
+    "Working directory and git context at session start"
     cwd: str
     git_root: str | None = None
     repository: str | None = None
@@ -1484,6 +1435,8 @@ class UserMessageData:
     content: str
     transformed_content: str | None = None
     attachments: list[UserMessageAttachment] | None = None
+    supported_native_document_mime_types: list[str] | None = None
+    native_document_path_fallback_paths: list[str] | None = None
     source: str | None = None
     agent_mode: UserMessageAgentMode | None = None
     interaction_id: str | None = None
@@ -1494,6 +1447,8 @@ class UserMessageData:
         content = from_str(obj.get("content"))
         transformed_content = from_union([from_none, lambda x: from_str(x)], obj.get("transformedContent"))
         attachments = from_union([from_none, lambda x: from_list(UserMessageAttachment.from_dict, x)], obj.get("attachments"))
+        supported_native_document_mime_types = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], obj.get("supportedNativeDocumentMimeTypes"))
+        native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], obj.get("nativeDocumentPathFallbackPaths"))
         source = from_union([from_none, lambda x: from_str(x)], obj.get("source"))
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
         interaction_id = from_union([from_none, lambda x: from_str(x)], obj.get("interactionId"))
@@ -1501,6 +1456,8 @@ class UserMessageData:
             content=content,
             transformed_content=transformed_content,
             attachments=attachments,
+            supported_native_document_mime_types=supported_native_document_mime_types,
+            native_document_path_fallback_paths=native_document_path_fallback_paths,
             source=source,
             agent_mode=agent_mode,
             interaction_id=interaction_id,
@@ -1513,6 +1470,10 @@ class UserMessageData:
             result["transformedContent"] = from_union([from_none, lambda x: from_str(x)], self.transformed_content)
         if self.attachments is not None:
             result["attachments"] = from_union([from_none, lambda x: from_list(lambda x: to_class(UserMessageAttachment, x), x)], self.attachments)
+        if self.supported_native_document_mime_types is not None:
+            result["supportedNativeDocumentMimeTypes"] = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], self.supported_native_document_mime_types)
+        if self.native_document_path_fallback_paths is not None:
+            result["nativeDocumentPathFallbackPaths"] = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], self.native_document_path_fallback_paths)
         if self.source is not None:
             result["source"] = from_union([from_none, lambda x: from_str(x)], self.source)
         if self.agent_mode is not None:
@@ -1703,6 +1664,7 @@ class AssistantMessageData:
     output_tokens: float | None = None
     interaction_id: str | None = None
     request_id: str | None = None
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
 
     @staticmethod
@@ -1763,6 +1725,7 @@ class AssistantMessageDeltaData:
     "Streaming assistant message delta for incremental response updates"
     message_id: str
     delta_content: str
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
 
     @staticmethod
@@ -1922,6 +1885,7 @@ class AssistantUsageData:
     initiator: str | None = None
     api_call_id: str | None = None
     provider_call_id: str | None = None
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     quota_snapshots: dict[str, AssistantUsageQuotaSnapshot] | None = None
     copilot_usage: AssistantUsageCopilotUsage | None = None
@@ -2060,6 +2024,7 @@ class ToolExecutionStartData:
     arguments: Any = None
     mcp_server_name: str | None = None
     mcp_tool_name: str | None = None
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
 
     @staticmethod
@@ -2318,6 +2283,7 @@ class ToolExecutionCompleteData:
     result: ToolExecutionCompleteDataResult | None = None
     error: ToolExecutionCompleteDataError | None = None
     tool_telemetry: dict[str, Any] | None = None
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
 
     @staticmethod
@@ -3939,13 +3905,7 @@ class SessionExtensionsLoadedData:
         return result
 
 
-class SessionStartDataContextHostType(Enum):
-    "Hosting platform type of the repository (github or ado)"
-    GITHUB = "github"
-    ADO = "ado"
-
-
-class SessionResumeDataContextHostType(Enum):
+class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
     GITHUB = "github"
     ADO = "ado"

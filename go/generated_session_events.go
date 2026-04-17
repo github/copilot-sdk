@@ -637,7 +637,7 @@ type SessionStartData struct {
 	// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Working directory and git context at session start
-	Context *StartContext `json:"context,omitempty"`
+	Context *WorkingDirectoryContext `json:"context,omitempty"`
 	// Whether the session was already in use by another client at start time
 	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
 	// Whether this session supports remote steering via Mission Control
@@ -657,7 +657,7 @@ type SessionResumeData struct {
 	// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Updated working directory and git context at resume time
-	Context *ResumeContext `json:"context,omitempty"`
+	Context *WorkingDirectoryContext `json:"context,omitempty"`
 	// Whether the session was already in use by another client at resume time
 	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
 	// Whether this session supports remote steering via Mission Control
@@ -856,7 +856,7 @@ type SessionShutdownData struct {
 
 func (*SessionShutdownData) sessionEventData() {}
 
-// Updated working directory and git context after the change
+// Working directory and git context at session start
 type SessionContextChangedData struct {
 	// Current working directory path
 	Cwd string `json:"cwd"`
@@ -865,7 +865,7 @@ type SessionContextChangedData struct {
 	// Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
 	Repository *string `json:"repository,omitempty"`
 	// Hosting platform type of the repository (github or ado)
-	HostType *ContextChangedHostType `json:"hostType,omitempty"`
+	HostType *WorkingDirectoryContextHostType `json:"hostType,omitempty"`
 	// Current git branch name
 	Branch *string `json:"branch,omitempty"`
 	// Head commit of current git branch at session start time
@@ -962,6 +962,10 @@ type UserMessageData struct {
 	TransformedContent *string `json:"transformedContent,omitempty"`
 	// Files, selections, or GitHub references attached to the message
 	Attachments []UserMessageAttachment `json:"attachments,omitempty"`
+	// Normalized document MIME types that were sent natively instead of through tagged_files XML
+	SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitempty"`
+	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
+	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitempty"`
 	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
 	Source *string `json:"source,omitempty"`
 	// The agent mode that was active when this message was sent
@@ -1047,6 +1051,7 @@ type AssistantMessageData struct {
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	RequestID *string `json:"requestId,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 }
 
@@ -1059,6 +1064,7 @@ type AssistantMessageDeltaData struct {
 	// Incremental text chunk to append to the message content
 	DeltaContent string `json:"deltaContent"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 }
 
@@ -1101,6 +1107,7 @@ type AssistantUsageData struct {
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
 	// Parent tool call ID when this usage originates from a sub-agent
+	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
 	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitempty"`
@@ -1145,6 +1152,7 @@ type ToolExecutionStartData struct {
 	// Original tool name on the MCP server, when the tool is an MCP tool
 	McpToolName *string `json:"mcpToolName,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 }
 
@@ -1189,6 +1197,7 @@ type ToolExecutionCompleteData struct {
 	// Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
 	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 }
 
@@ -1632,7 +1641,7 @@ type SessionExtensionsLoadedData struct {
 func (*SessionExtensionsLoadedData) sessionEventData() {}
 
 // Working directory and git context at session start
-type StartContext struct {
+type WorkingDirectoryContext struct {
 	// Current working directory path
 	Cwd string `json:"cwd"`
 	// Root directory of the git repository, resolved via git rev-parse
@@ -1640,25 +1649,7 @@ type StartContext struct {
 	// Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
 	Repository *string `json:"repository,omitempty"`
 	// Hosting platform type of the repository (github or ado)
-	HostType *StartContextHostType `json:"hostType,omitempty"`
-	// Current git branch name
-	Branch *string `json:"branch,omitempty"`
-	// Head commit of current git branch at session start time
-	HeadCommit *string `json:"headCommit,omitempty"`
-	// Base commit of current git branch at session start time
-	BaseCommit *string `json:"baseCommit,omitempty"`
-}
-
-// Updated working directory and git context at resume time
-type ResumeContext struct {
-	// Current working directory path
-	Cwd string `json:"cwd"`
-	// Root directory of the git repository, resolved via git rev-parse
-	GitRoot *string `json:"gitRoot,omitempty"`
-	// Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
-	Repository *string `json:"repository,omitempty"`
-	// Hosting platform type of the repository (github or ado)
-	HostType *ResumeContextHostType `json:"hostType,omitempty"`
+	HostType *WorkingDirectoryContextHostType `json:"hostType,omitempty"`
 	// Current git branch name
 	Branch *string `json:"branch,omitempty"`
 	// Head commit of current git branch at session start time
@@ -2109,19 +2100,11 @@ type ExtensionsLoadedExtension struct {
 }
 
 // Hosting platform type of the repository (github or ado)
-type StartContextHostType string
+type WorkingDirectoryContextHostType string
 
 const (
-	StartContextHostTypeGithub StartContextHostType = "github"
-	StartContextHostTypeAdo    StartContextHostType = "ado"
-)
-
-// Hosting platform type of the repository (github or ado)
-type ResumeContextHostType string
-
-const (
-	ResumeContextHostTypeGithub ResumeContextHostType = "github"
-	ResumeContextHostTypeAdo    ResumeContextHostType = "ado"
+	WorkingDirectoryContextHostTypeGithub WorkingDirectoryContextHostType = "github"
+	WorkingDirectoryContextHostTypeAdo    WorkingDirectoryContextHostType = "ado"
 )
 
 // The type of operation performed on the plan file
@@ -2155,14 +2138,6 @@ type ShutdownType string
 const (
 	ShutdownTypeRoutine ShutdownType = "routine"
 	ShutdownTypeError   ShutdownType = "error"
-)
-
-// Hosting platform type of the repository (github or ado)
-type ContextChangedHostType string
-
-const (
-	ContextChangedHostTypeGithub ContextChangedHostType = "github"
-	ContextChangedHostTypeAdo    ContextChangedHostType = "ado"
 )
 
 // Type discriminator for UserMessageAttachment.
