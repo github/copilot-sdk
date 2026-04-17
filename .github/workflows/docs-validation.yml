@@ -9,6 +9,7 @@ on:
       - 'python/copilot/**'
       - 'go/**/*.go'
       - 'dotnet/src/**'
+      - 'rust/src/**'
       - 'scripts/docs-validation/**'
       - '.github/workflows/docs-validation.yml'
   workflow_dispatch:

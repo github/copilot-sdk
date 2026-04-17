@@ -6,3 +6,4 @@ dotnet/src/Generated/* eol=lf linguist-generated=true
 python/copilot/generated/* eol=lf linguist-generated=true
 go/generated_session_events.go eol=lf linguist-generated=true
 go/rpc/generated_rpc.go eol=lf linguist-generated=true
+rust/src/generated/* eol=lf linguist-generated=true

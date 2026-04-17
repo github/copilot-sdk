@@ -8,7 +8,7 @@
 
 Agents for every app.
 
-Embed Copilot's agentic workflows in your application—now available in public preview as a programmable SDK for Python, TypeScript, Go, .NET, and Java.
+Embed Copilot's agentic workflows in your application—now available in public preview as a programmable SDK for Python, TypeScript, Go, .NET, Rust, and Java.
 
 The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-tested agent runtime you can invoke programmatically. No need to build your own orchestration—you define agent behavior, Copilot handles planning, tool invocation, file edits, and more.
 
@@ -20,6 +20,7 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 | **Python**               | [`python/`](./python/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`                                                                                                                                                                                                           |
 | **Go**                   | [`go/`](./go/)                                                          | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)     | `go get github.com/github/copilot-sdk/go`                                                                                                                                                                                                  |
 | **.NET**                 | [`dotnet/`](./dotnet/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`                                                                                                                                                                                                    |
+| **Rust**                 | [`rust/`](./rust/)                                                      |                                                                                                       | `copilot-sdk = { git = "https://github.com/github/copilot-sdk" }`                                                                                                                                                                         |
 | **Java**                 | [`github/copilot-sdk-java`](https://github.com/github/copilot-sdk-java) | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/java/README.md)                                                                                                   | Maven coordinates<br>`com.github:copilot-sdk-java`<br>See instructions for [Maven](https://github.com/github/copilot-sdk-java?tab=readme-ov-file#maven) and [Gradle](https://github.com/github/copilot-sdk-java?tab=readme-ov-file#gradle) |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
@@ -32,7 +33,7 @@ Quick steps:
 
 1. **(Optional) Install the Copilot CLI**
 
-For Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically and no separate installation is required.
+For Node.js, Python, .NET, and Rust SDKs, the Copilot CLI is bundled automatically and no separate installation is required.
 For the Go SDK, [install the CLI manually](https://github.com/features/copilot/cli) or ensure `copilot` is available in your PATH.
 
 2. **Install your preferred SDK** using the commands above.

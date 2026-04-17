@@ -3,13 +3,13 @@ default:
     @just --list
 
 # Format all code across all languages
-format: format-go format-python format-nodejs format-dotnet
+format: format-go format-python format-nodejs format-dotnet format-rust
 
 # Lint all code across all languages
-lint: lint-go lint-python lint-nodejs lint-dotnet
+lint: lint-go lint-python lint-nodejs lint-dotnet lint-rust
 
 # Run tests for all languages
-test: test-go test-python test-nodejs test-dotnet test-corrections
+test: test-go test-python test-nodejs test-dotnet test-corrections test-rust
 
 # Format Go code
 format-go:
@@ -31,6 +31,11 @@ format-dotnet:
     @echo "=== Formatting .NET code ==="
     @cd dotnet && dotnet format src/GitHub.Copilot.SDK.csproj
 
+# Format Rust code
+format-rust:
+    @echo "=== Formatting Rust code ==="
+    @cd rust && cargo fmt
+
 # Lint Go code
 lint-go:
     @echo "=== Linting Go code ==="
@@ -50,6 +55,11 @@ lint-nodejs:
 lint-dotnet:
     @echo "=== Linting .NET code ==="
     @cd dotnet && dotnet format src/GitHub.Copilot.SDK.csproj --verify-no-changes
+
+# Lint Rust code
+lint-rust:
+    @echo "=== Linting Rust code ==="
+    @cd rust && cargo clippy --all-targets --all-features -- -D warnings
 
 # Test Go code
 test-go:
@@ -71,13 +81,18 @@ test-dotnet:
     @echo "=== Testing .NET code ==="
     @cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj
 
+# Test Rust code
+test-rust:
+    @echo "=== Testing Rust code ==="
+    @cd rust && cargo test
+
 # Test correction collection scripts
 test-corrections:
     @echo "=== Testing correction scripts ==="
     @cd scripts/corrections && npm test
 
 # Install all dependencies across all languages
-install: install-go install-python install-nodejs install-dotnet install-corrections
+install: install-go install-python install-nodejs install-dotnet install-corrections install-rust
     @echo "✅ All dependencies installed"
 
 # Install Go dependencies and prerequisites for tests
@@ -94,6 +109,11 @@ install-python: install-nodejs install-test-harness
 install-dotnet: install-nodejs install-test-harness
     @echo "=== Installing .NET dependencies ==="
     @cd dotnet && dotnet restore
+
+# Install Rust dependencies
+install-rust:
+    @echo "=== Installing Rust dependencies ==="
+    @cd rust && cargo fetch
 
 # Install Node.js dependencies
 install-nodejs:
@@ -187,6 +207,9 @@ scenario-build:
     # C#: dotnet build
     build_lang "C#" "-name '*.csproj' -path '*/csharp/*'" "dotnet build --nologo -v quiet"
 
+    # Rust: cargo check
+    build_lang "Rust" "-path '*/rust/Cargo.toml'" "cargo check --quiet"
+
     echo ""
     echo "══════════════════════════════════════"
     echo " Scenario build summary: $PASS passed, $FAIL failed (of $TOTAL)"
@@ -247,8 +270,18 @@ scenario-build-lang LANG:
           fi
         done
         ;;
+      rust)
+        for target in $(find test/scenarios -path '*/rust/Cargo.toml' | sort); do
+          dir=$(dirname "$target"); scenario="${dir#test/scenarios/}"
+          if (cd "$dir" && cargo check --quiet >/dev/null 2>&1); then
+            printf "  ✅ %s\n" "$scenario"; PASS=$((PASS + 1))
+          else
+            printf "  ❌ %s\n" "$scenario"; FAIL=$((FAIL + 1))
+          fi
+        done
+        ;;
       *)
-        echo "Unknown language: {{LANG}}. Use: typescript, python, go, csharp"
+        echo "Unknown language: {{LANG}}. Use: typescript, python, go, csharp, rust"
         exit 1
         ;;
     esac

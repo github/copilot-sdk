@@ -1,0 +1,14 @@
+[package]
+name = "scenario-fully-bundled"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "scenario-fully-bundled"
+path = "main.rs"
+
+[dependencies]
+copilot = { package = "copilot-sdk", path = "../../../../../rust" }
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"

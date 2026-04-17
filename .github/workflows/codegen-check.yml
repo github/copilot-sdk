@@ -13,6 +13,7 @@ on:
       - 'python/copilot/generated/**'
       - 'go/generated_*.go'
       - 'go/rpc/**'
+      - 'rust/src/generated/**'
       - '.github/workflows/codegen-check.yml'
   workflow_dispatch:
 

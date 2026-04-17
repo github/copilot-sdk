@@ -9,6 +9,8 @@ on:
       - "python/copilot/**"
       - "go/**/*.go"
       - "dotnet/src/**"
+      - "rust/src/**"
+      - "rust/Cargo.toml"
       - ".github/workflows/scenario-builds.yml"
   push:
     branches:
@@ -181,6 +183,44 @@ jobs:
           done
           echo ""
           echo "C# builds: $PASS passed, $FAIL failed"
+          if [ "$FAIL" -gt 0 ]; then
+            echo -e "Failures:$FAILURES"
+            exit 1
+          fi
+
+  # ── Rust ────────────────────────────────────────────────────────────
+  build-rust:
+    name: "Rust scenarios"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust -> target"
+          cache-targets: false
+
+      - name: Check all Rust scenarios
+        run: |
+          PASS=0; FAIL=0; FAILURES=""
+          for manifest in $(find test/scenarios -path '*/rust/Cargo.toml' | sort); do
+            dir=$(dirname "$manifest")
+            scenario="${dir#test/scenarios/}"
+            echo "::group::$scenario"
+            if (cd "$dir" && cargo check 2>&1); then
+              echo "✅ $scenario"
+              PASS=$((PASS + 1))
+            else
+              echo "❌ $scenario"
+              FAIL=$((FAIL + 1))
+              FAILURES="$FAILURES\n  $scenario"
+            fi
+            echo "::endgroup::"
+          done
+          echo ""
+          echo "Rust checks: $PASS passed, $FAIL failed"
           if [ "$FAIL" -gt 0 ]; then
             echo -e "Failures:$FAILURES"
             exit 1

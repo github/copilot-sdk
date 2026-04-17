@@ -1,0 +1,15 @@
+[package]
+name = "scenario-user-input"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "scenario-user-input"
+path = "main.rs"
+
+[dependencies]
+copilot = { package = "copilot-sdk", path = "../../../../../rust" }
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"
+async-trait = "0.1"
