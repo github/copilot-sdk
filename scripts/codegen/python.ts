@@ -140,6 +140,17 @@ function modernizePython(code: string): string {
     return code;
 }
 
+/**
+ * Collapse lambdas that only forward their single argument into another callable.
+ * This keeps the generated Python readable and avoids CodeQL "unnecessary lambda" findings.
+ */
+function unwrapRedundantPythonLambdas(code: string): string {
+    return code.replace(
+        /lambda\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*((?:[A-Za-z_][A-Za-z0-9_]*)(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\(\1\)/g,
+        "$2"
+    );
+}
+
 function collapsePlaceholderPythonDataclasses(code: string): string {
     const classBlockRe = /(@dataclass\r?\nclass\s+(\w+):[\s\S]*?)(?=^@dataclass|^class\s+\w+|^def\s+\w+|\Z)/gm;
     const matches = [...code.matchAll(classBlockRe)].map((match) => ({
@@ -363,7 +374,7 @@ function postProcessPythonSessionEventCode(code: string): string {
     )) {
         code = code.replace(new RegExp(`\\b${from}\\b`, "g"), to);
     }
-    return code;
+    return unwrapRedundantPythonLambdas(code);
 }
 
 function pyPrimitiveResolvedType(annotation: string, fromFn: string, toFn = fromFn): PyResolvedType {
@@ -1604,6 +1615,7 @@ def _patch_model_capabilities(data: dict) -> dict:
         /(_patch_model_capabilities\(await self\._client\.request\("models\.list",\s*\{[^)]*\)[^)]*\))/,
         "$1)",
     );
+    finalCode = unwrapRedundantPythonLambdas(finalCode);
 
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
