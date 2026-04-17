@@ -5,6 +5,9 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete (with message)
+
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
