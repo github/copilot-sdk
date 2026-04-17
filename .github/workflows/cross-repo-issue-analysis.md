@@ -15,7 +15,9 @@ permissions:
   issues: read
 steps:
   - name: Clone copilot-agent-runtime
-    run: git clone --depth 1 https://x-access-token:${{ secrets.RUNTIME_TRIAGE_TOKEN }}@github.com/github/copilot-agent-runtime.git ${{ github.workspace }}/copilot-agent-runtime
+    env:
+      RUNTIME_TRIAGE_TOKEN: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
+    run: git clone --depth 1 https://x-access-token:${RUNTIME_TRIAGE_TOKEN}@github.com/github/copilot-agent-runtime.git ${{ github.workspace }}/copilot-agent-runtime
 tools:
   github:
     toolsets: [default]

@@ -18,7 +18,7 @@ jobs:
       - name: Install gh-aw CLI
         uses: github/gh-aw/actions/setup-cli@main
         with:
-          version: v0.65.5
+          version: v0.68.3
       - name: Recompile workflows
         run: gh aw compile
       - name: Check for uncommitted changes
