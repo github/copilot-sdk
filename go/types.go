@@ -527,6 +527,13 @@ type SessionConfig struct {
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
 	Streaming bool
+	// IncludeSubAgentStreamingEvents includes sub-agent streaming events in the
+	// event stream. When true, streaming delta events from sub-agents (e.g.,
+	// assistant.message_delta, assistant.reasoning_delta, assistant.streaming_delta
+	// with agentId set) are forwarded to this connection. When false, only
+	// non-streaming sub-agent events and subagent.* lifecycle events are forwarded;
+	// streaming deltas from sub-agents are suppressed. When nil, defaults to true.
+	IncludeSubAgentStreamingEvents *bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
@@ -740,6 +747,13 @@ type ResumeSessionConfig struct {
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
 	Streaming bool
+	// IncludeSubAgentStreamingEvents includes sub-agent streaming events in the
+	// event stream. When true, streaming delta events from sub-agents (e.g.,
+	// assistant.message_delta, assistant.reasoning_delta, assistant.streaming_delta
+	// with agentId set) are forwarded to this connection. When false, only
+	// non-streaming sub-agent events and subagent.* lifecycle events are forwarded;
+	// streaming deltas from sub-agents are suppressed. When nil, defaults to true.
+	IncludeSubAgentStreamingEvents *bool
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
@@ -952,6 +966,7 @@ type createSessionRequest struct {
 	Hooks                 *bool                          `json:"hooks,omitempty"`
 	WorkingDirectory      string                         `json:"workingDirectory,omitempty"`
 	Streaming             *bool                          `json:"streaming,omitempty"`
+	IncludeSubAgentStreamingEvents *bool                 `json:"includeSubAgentStreamingEvents,omitempty"`
 	MCPServers            map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
 	EnvValueMode          string                         `json:"envValueMode,omitempty"`
 	CustomAgents          []CustomAgentConfig            `json:"customAgents,omitempty"`
@@ -1000,6 +1015,7 @@ type resumeSessionRequest struct {
 	EnableConfigDiscovery *bool                          `json:"enableConfigDiscovery,omitempty"`
 	DisableResume         *bool                          `json:"disableResume,omitempty"`
 	Streaming             *bool                          `json:"streaming,omitempty"`
+	IncludeSubAgentStreamingEvents *bool                 `json:"includeSubAgentStreamingEvents,omitempty"`
 	MCPServers            map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
 	EnvValueMode          string                         `json:"envValueMode,omitempty"`
 	CustomAgents          []CustomAgentConfig            `json:"customAgents,omitempty"`
