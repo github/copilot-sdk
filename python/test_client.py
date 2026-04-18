@@ -595,6 +595,110 @@ class TestSessionConfigForwarding:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_session_defaults_include_sub_agent_streaming_events_to_true(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert captured["session.create"]["includeSubAgentStreamingEvents"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_preserves_explicit_false_include_sub_agent_streaming_events(
+        self,
+    ):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                include_sub_agent_streaming_events=False,
+            )
+            assert captured["session.create"]["includeSubAgentStreamingEvents"] is False
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_defaults_include_sub_agent_streaming_events_to_true(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert captured["session.resume"]["includeSubAgentStreamingEvents"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_preserves_explicit_false_include_sub_agent_streaming_events(
+        self,
+    ):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                include_sub_agent_streaming_events=False,
+            )
+            assert captured["session.resume"]["includeSubAgentStreamingEvents"] is False
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_set_model_sends_correct_rpc(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()

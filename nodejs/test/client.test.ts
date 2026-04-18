@@ -98,6 +98,74 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("defaults includeSubAgentStreamingEvents to true in session.create when not specified", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.includeSubAgentStreamingEvents).toBe(true);
+    });
+
+    it("forwards explicit false for includeSubAgentStreamingEvents in session.create", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            includeSubAgentStreamingEvents: false,
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.includeSubAgentStreamingEvents).toBe(false);
+    });
+
+    it("defaults includeSubAgentStreamingEvents to true in session.resume when not specified", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.includeSubAgentStreamingEvents).toBe(true);
+        spy.mockRestore();
+    });
+
+    it("forwards explicit false for includeSubAgentStreamingEvents in session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            includeSubAgentStreamingEvents: false,
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.includeSubAgentStreamingEvents).toBe(false);
+        spy.mockRestore();
+    });
+
     it("forwards provider headers in session.create request", async () => {
         const client = new CopilotClient();
         await client.start();

@@ -861,6 +861,80 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
+	t.Run("defaults to true when nil", func(t *testing.T) {
+		req := createSessionRequest{
+			IncludeSubAgentStreamingEvents: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["includeSubAgentStreamingEvents"] != true {
+			t.Errorf("Expected includeSubAgentStreamingEvents to be true, got %v", m["includeSubAgentStreamingEvents"])
+		}
+	})
+
+	t.Run("preserves explicit false", func(t *testing.T) {
+		req := createSessionRequest{
+			IncludeSubAgentStreamingEvents: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["includeSubAgentStreamingEvents"] != false {
+			t.Errorf("Expected includeSubAgentStreamingEvents to be false, got %v", m["includeSubAgentStreamingEvents"])
+		}
+	})
+}
+
+func TestResumeSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
+	t.Run("defaults to true when nil", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:                      "s1",
+			IncludeSubAgentStreamingEvents: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["includeSubAgentStreamingEvents"] != true {
+			t.Errorf("Expected includeSubAgentStreamingEvents to be true, got %v", m["includeSubAgentStreamingEvents"])
+		}
+	})
+
+	t.Run("preserves explicit false", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:                      "s1",
+			IncludeSubAgentStreamingEvents: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["includeSubAgentStreamingEvents"] != false {
+			t.Errorf("Expected includeSubAgentStreamingEvents to be false, got %v", m["includeSubAgentStreamingEvents"])
+		}
+	})
+}
+
 func TestCreateSessionResponse_Capabilities(t *testing.T) {
 	t.Run("reads capabilities from session.create response", func(t *testing.T) {
 		responseJSON := `{"sessionId":"s1","workspacePath":"/tmp","capabilities":{"ui":{"elicitation":true}}}`

@@ -1271,6 +1271,17 @@ export interface SessionConfig {
     streaming?: boolean;
 
     /**
+     * Include sub-agent streaming events in the event stream. When true, streaming
+     * delta events from sub-agents (e.g., `assistant.message_delta`,
+     * `assistant.reasoning_delta`, `assistant.streaming_delta` with `agentId` set)
+     * are forwarded to this connection. When false, only non-streaming sub-agent
+     * events and `subagent.*` lifecycle events are forwarded; streaming deltas from
+     * sub-agents are suppressed.
+     * @default true
+     */
+    includeSubAgentStreamingEvents?: boolean;
+
+    /**
      * MCP server configurations for the session.
      * Keys are server names, values are server configurations.
      */
@@ -1338,6 +1349,7 @@ export type ResumeSessionConfig = Pick<
     | "provider"
     | "modelCapabilities"
     | "streaming"
+    | "includeSubAgentStreamingEvents"
     | "reasoningEffort"
     | "onPermissionRequest"
     | "onUserInputRequest"

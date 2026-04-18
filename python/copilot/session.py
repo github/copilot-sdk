@@ -859,6 +859,13 @@ class SessionConfig(TypedDict, total=False):
     # When True, assistant.message_delta and assistant.reasoning_delta events
     # with delta_content are sent as the response is generated
     streaming: bool
+    # Include sub-agent streaming events in the event stream. When True, streaming
+    # delta events from sub-agents (e.g., assistant.message_delta,
+    # assistant.reasoning_delta, assistant.streaming_delta with agentId set) are
+    # forwarded to this connection. When False, only non-streaming sub-agent events
+    # and subagent.* lifecycle events are forwarded; streaming deltas from sub-agents
+    # are suppressed. Defaults to True.
+    include_sub_agent_streaming_events: bool
     # MCP server configurations for the session
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
@@ -920,6 +927,13 @@ class ResumeSessionConfig(TypedDict, total=False):
     config_dir: str
     # Enable streaming of assistant message chunks
     streaming: bool
+    # Include sub-agent streaming events in the event stream. When True, streaming
+    # delta events from sub-agents (e.g., assistant.message_delta,
+    # assistant.reasoning_delta, assistant.streaming_delta with agentId set) are
+    # forwarded to this connection. When False, only non-streaming sub-agent events
+    # and subagent.* lifecycle events are forwarded; streaming deltas from sub-agents
+    # are suppressed. Defaults to True.
+    include_sub_agent_streaming_events: bool
     # MCP server configurations for the session
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
