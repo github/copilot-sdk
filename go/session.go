@@ -1213,7 +1213,7 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
 		params.ReasoningEffort = opts.ReasoningEffort
-		params.ModelCapabilities = opts.ModelCapabilities
+		params.ModelCapabilities = convertModelCapabilitiesToClass(opts.ModelCapabilities)
 	}
 	_, err := s.RPC.Model.SwitchTo(ctx, params)
 	if err != nil {
@@ -1223,7 +1223,34 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	return nil
 }
 
-// LogOptions configures optional parameters for [Session.Log].
+// convertModelCapabilitiesToClass converts from ModelCapabilitiesOverride
+// (used in the public API) to ModelCapabilitiesClass (used internally by
+// the ModelSwitchToRequest RPC). The two types are structurally identical
+// but have different Go types due to code generation.
+func convertModelCapabilitiesToClass(src *rpc.ModelCapabilitiesOverride) *rpc.ModelCapabilitiesClass {
+	if src == nil {
+		return nil
+	}
+	dst := &rpc.ModelCapabilitiesClass{
+		Supports: src.Supports,
+	}
+	if src.Limits != nil {
+		dst.Limits = &rpc.ModelCapabilitiesLimitsClass{
+			MaxContextWindowTokens: src.Limits.MaxContextWindowTokens,
+			MaxOutputTokens:        src.Limits.MaxOutputTokens,
+			MaxPromptTokens:        src.Limits.MaxPromptTokens,
+		}
+		if src.Limits.Vision != nil {
+			dst.Limits.Vision = &rpc.FluffyModelCapabilitiesOverrideLimitsVision{
+				MaxPromptImageSize:  src.Limits.Vision.MaxPromptImageSize,
+				MaxPromptImages:     src.Limits.Vision.MaxPromptImages,
+				SupportedMediaTypes: src.Limits.Vision.SupportedMediaTypes,
+			}
+		}
+	}
+	return dst
+}
+
 type LogOptions struct {
 	// Level sets the log severity. Valid values are [rpc.SessionLogLevelInfo] (default),
 	// [rpc.SessionLogLevelWarning], and [rpc.SessionLogLevelError].

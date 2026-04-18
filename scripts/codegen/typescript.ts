@@ -11,6 +11,7 @@ import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
 import {
     getApiSchemaPath,
+    fixNullableRequiredRefsInApiSchema,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     normalizeSchemaTitles,
@@ -320,7 +321,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("TypeScript: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema;
+    const schema = fixNullableRequiredRefsInApiSchema(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
 
     const lines: string[] = [];
     lines.push(`/**

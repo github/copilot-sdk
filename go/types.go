@@ -848,7 +848,7 @@ type (
 	ModelCapabilitiesOverride             = rpc.ModelCapabilitiesOverride
 	ModelCapabilitiesOverrideSupports     = rpc.ModelCapabilitiesOverrideSupports
 	ModelCapabilitiesOverrideLimits       = rpc.ModelCapabilitiesOverrideLimits
-	ModelCapabilitiesOverrideLimitsVision = rpc.ModelCapabilitiesOverrideLimitsVision
+	ModelCapabilitiesOverrideLimitsVision = rpc.PurpleModelCapabilitiesOverrideLimitsVision
 )
 
 // ModelPolicy contains model policy state
