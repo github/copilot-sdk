@@ -43,7 +43,7 @@ from .generated.rpc import (
     UIElicitationSchemaPropertyNumberType,
     UIHandlePendingElicitationRequest,
 )
-from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
+from .generated.rpc import ModelCapabilitiesClass as _RpcModelCapabilitiesOverride
 from .generated.session_events import (
     AssistantMessageData,
     CapabilitiesChangedData,
