@@ -929,7 +929,7 @@ public sealed class AgentGetCurrentResult
 {
     /// <summary>Currently selected custom agent, or null if using the default agent.</summary>
     [JsonPropertyName("agent")]
-    public AgentInfo Agent { get => field ??= new(); set; }
+    public AgentInfo? Agent { get; set; }
 }
 
 /// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>

@@ -801,17 +801,7 @@ type AgentListAgent struct {
 // Experimental: AgentGetCurrentResult is part of an experimental API and may change or be removed.
 type AgentGetCurrentResult struct {
 	// Currently selected custom agent, or null if using the default agent
-	Agent AgentGetCurrentResultAgent `json:"agent"`
-}
-
-// Currently selected custom agent, or null if using the default agent
-type AgentGetCurrentResultAgent struct {
-	// Description of the agent's purpose
-	Description string `json:"description"`
-	// Human-readable display name
-	DisplayName string `json:"displayName"`
-	// Unique identifier of the custom agent
-	Name string `json:"name"`
+	Agent *AgentReloadResultAgent `json:"agent"`
 }
 
 // Experimental: AgentSelectResult is part of an experimental API and may change or be removed.

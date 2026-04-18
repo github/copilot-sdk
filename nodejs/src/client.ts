@@ -1019,6 +1019,28 @@ export class CopilotClient {
                 const result = await this.connection.sendRequest("models.list", {});
                 const response = result as { models: ModelInfo[] };
                 models = response.models;
+
+                // Normalize model capabilities — some models (e.g. embedding models)
+                // may omit 'supports' or 'limits' in their capabilities.
+                for (const model of models) {
+                    const caps = model.capabilities as Record<string, unknown> | undefined;
+                    if (!caps) {
+                        (model as Record<string, unknown>).capabilities = {
+                            supports: {},
+                            limits: { max_context_window_tokens: 0 },
+                        };
+                    } else {
+                        if (!caps.supports) caps.supports = {};
+                        if (!caps.limits) {
+                            caps.limits = { max_context_window_tokens: 0 };
+                        } else if (
+                            (caps.limits as Record<string, unknown>).max_context_window_tokens ===
+                            undefined
+                        ) {
+                            (caps.limits as Record<string, unknown>).max_context_window_tokens = 0;
+                        }
+                    }
+                }
             }
 
             // Update cache before releasing lock (copy to prevent external mutation)

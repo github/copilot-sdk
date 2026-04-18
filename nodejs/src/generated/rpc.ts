@@ -1279,34 +1279,20 @@ export interface AgentList {
 
 /** @experimental */
 export interface AgentGetCurrentResult {
-  agent: AgentInfo1;
-}
-/**
- * Currently selected custom agent, or null if using the default agent
- */
-export interface AgentInfo1 {
   /**
-   * Unique identifier of the custom agent
+   * Currently selected custom agent, or null if using the default agent
    */
-  name: string;
-  /**
-   * Human-readable display name
-   */
-  displayName: string;
-  /**
-   * Description of the agent's purpose
-   */
-  description: string;
+  agent?: AgentInfo | null;
 }
 
 /** @experimental */
 export interface AgentSelectResult {
-  agent: AgentInfo2;
+  agent: AgentInfo1;
 }
 /**
  * The newly selected custom agent
  */
-export interface AgentInfo2 {
+export interface AgentInfo1 {
   /**
    * Unique identifier of the custom agent
    */

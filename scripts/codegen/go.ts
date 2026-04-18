@@ -13,6 +13,7 @@ import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "
 import { promisify } from "util";
 import {
     cloneSchemaForCodegen,
+    fixNullableRequiredRefsInApiSchema,
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
@@ -968,7 +969,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("Go: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),

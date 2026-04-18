@@ -12,6 +12,7 @@ import type { JSONSchema7 } from "json-schema";
 import { fileURLToPath } from "url";
 import {
     cloneSchemaForCodegen,
+    fixNullableRequiredRefsInApiSchema,
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
@@ -182,6 +183,157 @@ function collapsePlaceholderPythonDataclasses(code: string): string {
     }
 
     return code.replace(/\n{3,}/g, "\n\n");
+}
+
+/**
+ * Reorder Python class/enum definitions so forward references are resolved.
+ * Quicktype may emit classes in an order where a class references another
+ * that hasn't been defined yet, causing NameError at import time.
+ * This performs a topological sort of type definitions while preserving
+ * the relative position of non-class blocks (functions, standalone code).
+ */
+function reorderPythonForwardRefs(code: string): string {
+    // Split code into top-level blocks. Each block starts at an unindented
+    // line that begins a class, decorated class, enum, or function definition.
+    const lines = code.split("\n");
+
+    interface Block {
+        name: string;
+        code: string;
+        isType: boolean; // true for class/enum definitions
+    }
+
+    const blocks: Block[] = [];
+    let currentLines: string[] = [];
+    let currentName: string | null = null;
+    let isType = false;
+
+    function flushBlock() {
+        if (currentLines.length === 0) return;
+        const blockCode = currentLines.join("\n");
+        blocks.push({
+            name: currentName ?? `__anon_${blocks.length}`,
+            code: blockCode,
+            isType,
+        });
+        currentLines = [];
+        currentName = null;
+        isType = false;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isTopLevel = line.length > 0 && line[0] !== " " && line[0] !== "\t";
+
+        if (isTopLevel) {
+            const classMatch = line.match(/^class\s+(\w+)/);
+            const defMatch = line.match(/^def\s+(\w+)/);
+            const decoratorMatch = line === "@dataclass";
+            const commentMatch = line.startsWith("# ");
+
+            if (classMatch) {
+                // If previous block was just a decorator waiting for a class, merge
+                if (currentLines.length > 0 && currentName === null && isType) {
+                    // This is the class line following @dataclass
+                    currentName = classMatch[1];
+                    currentLines.push(line);
+                    continue;
+                }
+                flushBlock();
+                currentLines = [line];
+                currentName = classMatch[1];
+                isType = true;
+            } else if (decoratorMatch) {
+                flushBlock();
+                currentLines = [line];
+                isType = true;
+            } else if (defMatch) {
+                flushBlock();
+                currentLines = [line];
+                currentName = defMatch[1];
+                isType = false;
+            } else if (commentMatch && currentLines.length === 0) {
+                // Standalone comment — attach to next block
+                currentLines = [line];
+            } else {
+                currentLines.push(line);
+            }
+        } else {
+            currentLines.push(line);
+        }
+    }
+    flushBlock();
+
+    if (blocks.length === 0) return code;
+
+    // Collect all type names (classes and enums)
+    const typeNames = new Set(blocks.filter((b) => b.isType).map((b) => b.name));
+    if (typeNames.size === 0) return code;
+
+    // Build dependency graph: for each type block, find references to other type names
+    const deps = new Map<string, Set<string>>();
+    for (const block of blocks) {
+        if (!block.isType) continue;
+        const blockDeps = new Set<string>();
+        for (const tn of typeNames) {
+            if (tn === block.name) continue;
+            if (new RegExp(`\\b${tn}\\b`).test(block.code)) {
+                blockDeps.add(tn);
+            }
+        }
+        deps.set(block.name, blockDeps);
+    }
+
+    // Kahn's algorithm for topological sort
+    const inDegree = new Map<string, number>();
+    for (const tn of typeNames) inDegree.set(tn, deps.get(tn)?.size ?? 0);
+
+    const dependents = new Map<string, string[]>();
+    for (const tn of typeNames) dependents.set(tn, []);
+    for (const [name, d] of deps) {
+        for (const dep of d) {
+            dependents.get(dep)!.push(name);
+        }
+    }
+
+    const queue: string[] = [];
+    for (const [tn, deg] of inDegree) {
+        if (deg === 0) queue.push(tn);
+    }
+
+    const sorted: string[] = [];
+    while (queue.length > 0) {
+        const node = queue.shift()!;
+        sorted.push(node);
+        for (const dep of dependents.get(node) ?? []) {
+            const newDeg = inDegree.get(dep)! - 1;
+            inDegree.set(dep, newDeg);
+            if (newDeg === 0) queue.push(dep);
+        }
+    }
+
+    // If there are cycles, keep remaining nodes in original order
+    for (const block of blocks) {
+        if (block.isType && !sorted.includes(block.name)) {
+            sorted.push(block.name);
+        }
+    }
+
+    // Rebuild: place type blocks in sorted order at the positions
+    // where type blocks originally appeared
+    const typeBlockMap = new Map(blocks.filter((b) => b.isType).map((b) => [b.name, b]));
+    let sortIdx = 0;
+    const result: string[] = [];
+    for (const block of blocks) {
+        if (block.isType) {
+            result.push(typeBlockMap.get(sorted[sortIdx])!.code);
+            sortIdx++;
+        } else {
+            result.push(block.code);
+        }
+    }
+
+    return result.join("\n");
 }
 
 function normalizePythonDataclassBlock(block: string, name: string): string {
@@ -1395,7 +1547,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } = await import("quicktype-core");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
@@ -1481,6 +1633,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Modernize to Python 3.11+ syntax
     typesCode = modernizePython(typesCode);
     typesCode = collapsePlaceholderPythonDataclasses(typesCode);
+
+    // Reorder class/enum definitions to resolve forward references.
+    // Quicktype may emit classes before their dependencies are defined.
+    typesCode = reorderPythonForwardRefs(typesCode);
 
     // Strip quicktype's import block and preamble — we provide our own unified header.
     // The preamble ends just before the first helper function (e.g. "def from_str")
