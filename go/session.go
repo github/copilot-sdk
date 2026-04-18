@@ -1250,6 +1250,7 @@ func convertModelCapabilitiesToClass(src *rpc.ModelCapabilitiesOverride) *rpc.Mo
 	}
 	return dst
 }
+
 type LogOptions struct {
 	// Level sets the log severity. Valid values are [rpc.SessionLogLevelInfo] (default),
 	// [rpc.SessionLogLevelWarning], and [rpc.SessionLogLevelError].
