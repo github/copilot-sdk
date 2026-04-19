@@ -4,7 +4,7 @@
 
 package com.github.copilot.sdk;
 
-import com.github.copilot.sdk.events.AbstractSessionEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
 
 /**
  * A handler for errors thrown by event handlers during event dispatch.
@@ -54,5 +54,5 @@ public interface EventErrorHandler {
      * @param exception
      *            the exception thrown by the event handler
      */
-    void handleError(AbstractSessionEvent event, Exception exception);
+    void handleError(SessionEvent event, Exception exception);
 }

@@ -16,8 +16,7 @@ import java.util.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.sdk.events.AbstractSessionEvent;
-import com.github.copilot.sdk.events.SessionEventParser;
+import com.github.copilot.sdk.generated.SessionEvent;
 import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.SessionLifecycleEvent;
@@ -93,7 +92,7 @@ final class RpcHandlerDispatcher {
 
             CopilotSession session = sessions.get(sessionId);
             if (session != null && eventNode != null) {
-                AbstractSessionEvent event = SessionEventParser.parse(eventNode);
+                SessionEvent event = MAPPER.treeToValue(eventNode, SessionEvent.class);
                 if (event != null) {
                     session.dispatchEvent(event);
                 }

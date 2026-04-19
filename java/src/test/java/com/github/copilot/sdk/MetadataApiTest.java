@@ -5,16 +5,12 @@
 package com.github.copilot.sdk;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.sdk.events.SessionEventParser;
-import com.github.copilot.sdk.events.ToolExecutionProgressEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
+import com.github.copilot.sdk.generated.ToolExecutionProgressEvent;
 import com.github.copilot.sdk.json.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -26,56 +22,11 @@ import static org.junit.jupiter.api.Assertions.*;
 public class MetadataApiTest {
 
     private static String cliPath;
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     @BeforeAll
     static void setup() {
-        cliPath = getCliPath();
-    }
-
-    private static String getCliPath() {
-        // First, try to find 'copilot' in PATH
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
-        // Fall back to COPILOT_CLI_PATH environment variable
-        String envPath = System.getenv("COPILOT_CLI_PATH");
-        if (envPath != null && !envPath.isEmpty()) {
-            return envPath;
-        }
-
-        // Search for the CLI in the parent directories (nodejs module)
-        Path current = Paths.get(System.getProperty("user.dir"));
-        while (current != null) {
-            Path cliPath = current.resolve("nodejs/node_modules/@github/copilot/index.js");
-            if (cliPath.toFile().exists()) {
-                return cliPath.toString();
-            }
-            current = current.getParent();
-        }
-
-        return null;
-    }
-
-    private static String findCopilotInPath() {
-        try {
-            String command = System.getProperty("os.name").toLowerCase().contains("win") ? "where" : "which";
-            var pb = new ProcessBuilder(command, "copilot");
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line = reader.readLine();
-                int exitCode = process.waitFor();
-                if (exitCode == 0 && line != null && !line.isEmpty()) {
-                    return line.trim();
-                }
-            }
-        } catch (Exception e) {
-            // Ignore - copilot not found in PATH
-        }
-        return null;
+        cliPath = TestUtil.findCliPath();
     }
 
     // ===== ToolExecutionProgressEvent Tests =====
@@ -94,7 +45,7 @@ public class MetadataApiTest {
                 }
                 """;
 
-        var event = SessionEventParser.parse(MAPPER.readTree(json));
+        var event = MAPPER.treeToValue(MAPPER.readTree(json), SessionEvent.class);
 
         assertNotNull(event);
         assertInstanceOf(ToolExecutionProgressEvent.class, event);
@@ -108,7 +59,7 @@ public class MetadataApiTest {
 
     @Test
     void testToolExecutionProgressEventType() {
-        assertEquals("tool.execution_progress", ToolExecutionProgressEvent.TYPE);
+        assertEquals("tool.execution_progress", new ToolExecutionProgressEvent().getType());
     }
 
     // ===== Response Type Deserialization Tests =====
@@ -262,10 +213,7 @@ public class MetadataApiTest {
 
     @Test
     void testGetStatus() throws Exception {
-        if (cliPath == null) {
-            System.out.println("Skipping test: CLI not found");
-            return;
-        }
+        assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath).setUseStdio(true))) {
             client.start().get();
@@ -281,10 +229,7 @@ public class MetadataApiTest {
 
     @Test
     void testGetAuthStatus() throws Exception {
-        if (cliPath == null) {
-            System.out.println("Skipping test: CLI not found");
-            return;
-        }
+        assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath).setUseStdio(true))) {
             client.start().get();
@@ -299,10 +244,7 @@ public class MetadataApiTest {
 
     @Test
     void testListModels() throws Exception {
-        if (cliPath == null) {
-            System.out.println("Skipping test: CLI not found");
-            return;
-        }
+        assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath).setUseStdio(true))) {
             client.start().get();

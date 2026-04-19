@@ -15,10 +15,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
-import com.github.copilot.sdk.events.AbstractSessionEvent;
-import com.github.copilot.sdk.events.AssistantMessageEvent;
-import com.github.copilot.sdk.events.SessionCompactionCompleteEvent;
-import com.github.copilot.sdk.events.SessionCompactionStartEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
+import com.github.copilot.sdk.generated.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.SessionCompactionCompleteEvent;
+import com.github.copilot.sdk.generated.SessionCompactionStartEvent;
 import com.github.copilot.sdk.json.InfiniteSessionConfig;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
@@ -71,7 +71,7 @@ public class CompactionTest {
         var config = new SessionConfig().setInfiniteSessions(infiniteConfig)
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 
-        var events = new ArrayList<AbstractSessionEvent>();
+        var events = new ArrayList<SessionEvent>();
         var compactionCompleteLatch = new CountDownLatch(1);
 
         try (CopilotClient client = ctx.createClient()) {
@@ -146,7 +146,7 @@ public class CompactionTest {
         var config = new SessionConfig().setInfiniteSessions(infiniteConfig)
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 
-        var compactionEvents = new ArrayList<AbstractSessionEvent>();
+        var compactionEvents = new ArrayList<SessionEvent>();
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();

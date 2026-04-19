@@ -16,9 +16,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.sdk.events.AbstractSessionEvent;
-import com.github.copilot.sdk.events.AssistantMessageDeltaEvent;
-import com.github.copilot.sdk.events.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
+import com.github.copilot.sdk.generated.AssistantMessageDeltaEvent;
+import com.github.copilot.sdk.generated.AssistantMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
@@ -63,13 +63,13 @@ public class StreamingFidelityTest {
             CopilotSession session = client.createSession(
                     new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
 
-            List<AbstractSessionEvent> events = new ArrayList<>();
+            List<SessionEvent> events = new ArrayList<>();
             session.on(events::add);
 
             session.sendAndWait(new MessageOptions().setPrompt("Count from 1 to 5, separated by commas.")).get(60,
                     TimeUnit.SECONDS);
 
-            List<String> types = events.stream().map(AbstractSessionEvent::getType).toList();
+            List<String> types = events.stream().map(SessionEvent::getType).toList();
 
             // Should have streaming deltas before the final message
             List<AssistantMessageDeltaEvent> deltaEvents = events.stream()
@@ -110,7 +110,7 @@ public class StreamingFidelityTest {
                     new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false))
                     .get();
 
-            List<AbstractSessionEvent> events = new ArrayList<>();
+            List<SessionEvent> events = new ArrayList<>();
             session.on(events::add);
 
             session.sendAndWait(new MessageOptions().setPrompt("Say 'hello world'.")).get(60, TimeUnit.SECONDS);
@@ -156,7 +156,7 @@ public class StreamingFidelityTest {
                 CopilotSession session2 = newClient.resumeSession(sessionId, new ResumeSessionConfig()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
 
-                List<AbstractSessionEvent> events = new ArrayList<>();
+                List<SessionEvent> events = new ArrayList<>();
                 session2.on(events::add);
 
                 AssistantMessageEvent answer = session2

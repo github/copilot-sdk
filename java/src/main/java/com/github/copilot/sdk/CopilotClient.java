@@ -21,6 +21,7 @@ import java.util.logging.Logger;
 
 import com.github.copilot.sdk.json.CopilotClientOptions;
 import com.github.copilot.sdk.json.CreateSessionResponse;
+import com.github.copilot.sdk.generated.rpc.ServerRpc;
 import com.github.copilot.sdk.json.DeleteSessionResponse;
 import com.github.copilot.sdk.json.GetAuthStatusResponse;
 import com.github.copilot.sdk.json.GetLastSessionIdResponse;
@@ -179,7 +180,7 @@ public final class CopilotClient implements AutoCloseable {
                         processInfo.port());
             }
 
-            Connection connection = new Connection(rpc, process);
+            Connection connection = new Connection(rpc, process, new ServerRpc(rpc::invoke));
 
             // Register handlers for server-to-client calls
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch,
@@ -476,6 +477,32 @@ public final class CopilotClient implements AutoCloseable {
         if (!connectionFuture.isDone())
             return ConnectionState.CONNECTING;
         return ConnectionState.CONNECTED;
+    }
+
+    /**
+     * Returns the typed RPC client for server-level methods.
+     * <p>
+     * Provides strongly-typed access to all server-level API namespaces such as
+     * {@code models}, {@code tools}, {@code account}, and {@code mcp}.
+     * <p>
+     * Example usage:
+     *
+     * <pre>{@code
+     * client.start().get();
+     * var models = client.getRpc().models.list().get();
+     * }</pre>
+     *
+     * @return the server-level typed RPC client
+     * @throws IllegalStateException
+     *             if the client is not connected; call {@link #start()} first
+     * @since 1.0.0
+     */
+    public ServerRpc getRpc() {
+        CompletableFuture<Connection> future = connectionFuture;
+        if (future == null || !future.isDone() || future.isCompletedExceptionally()) {
+            throw new IllegalStateException("Client not connected; call start() first");
+        }
+        return future.join().serverRpc();
     }
 
     /**
@@ -795,7 +822,7 @@ public final class CopilotClient implements AutoCloseable {
         }
     }
 
-    private static record Connection(JsonRpcClient rpc, Process process) {
+    private static record Connection(JsonRpcClient rpc, Process process, ServerRpc serverRpc) {
     };
 
 }

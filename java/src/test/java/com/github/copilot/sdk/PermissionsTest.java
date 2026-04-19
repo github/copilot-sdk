@@ -17,8 +17,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
-import com.github.copilot.sdk.events.AssistantMessageEvent;
-import com.github.copilot.sdk.events.ToolExecutionCompleteEvent;
+import com.github.copilot.sdk.generated.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.ToolExecutionCompleteEvent;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;

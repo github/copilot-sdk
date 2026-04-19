@@ -16,9 +16,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.sdk.events.AbstractSessionEvent;
-import com.github.copilot.sdk.events.AssistantMessageEvent;
-import com.github.copilot.sdk.events.SessionErrorEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
+import com.github.copilot.sdk.generated.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.SessionErrorEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.SessionConfig;
@@ -60,7 +60,7 @@ public class ErrorHandlingTest {
         LOG.info("Running test: testHandlesToolCallingErrors_toolErrorDoesNotCrashSession");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
-        var allEvents = new ArrayList<AbstractSessionEvent>();
+        var allEvents = new ArrayList<SessionEvent>();
 
         ToolDefinition errorTool = ToolDefinition.create("get_user_location", "Gets the user's location",
                 Map.of("type", "object", "properties", Map.of()), (invocation) -> {
@@ -84,7 +84,7 @@ public class ErrorHandlingTest {
             assertNotNull(response, "Should receive a response even when tool fails");
 
             // Should have received session.idle (indicating successful completion)
-            assertTrue(allEvents.stream().anyMatch(e -> e instanceof com.github.copilot.sdk.events.SessionIdleEvent),
+            assertTrue(allEvents.stream().anyMatch(e -> e instanceof com.github.copilot.sdk.generated.SessionIdleEvent),
                     "Session should reach idle state after handling tool error");
 
             session.close();

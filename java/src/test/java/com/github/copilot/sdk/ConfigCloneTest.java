@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.sdk.events.AbstractSessionEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
 import com.github.copilot.sdk.json.CopilotClientOptions;
 import com.github.copilot.sdk.json.InfiniteSessionConfig;
 import com.github.copilot.sdk.json.MessageOptions;
@@ -132,7 +132,7 @@ class ConfigCloneTest {
 
     @Test
     void sessionConfigAgentAndOnEventCloned() {
-        Consumer<AbstractSessionEvent> handler = event -> {
+        Consumer<SessionEvent> handler = event -> {
         };
         SessionConfig original = new SessionConfig();
         original.setAgent("my-agent");
@@ -158,7 +158,7 @@ class ConfigCloneTest {
 
     @Test
     void resumeSessionConfigAgentAndOnEventCloned() {
-        Consumer<AbstractSessionEvent> handler = event -> {
+        Consumer<SessionEvent> handler = event -> {
         };
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setAgent("my-agent");
