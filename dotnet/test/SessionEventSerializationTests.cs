@@ -93,22 +93,19 @@ public class SessionEventSerializationTests
                         LinesRemoved = 0,
                         FilesModified = ["README.md"],
                     },
-                    ModelMetrics = new Dictionary<string, object>
+                    ModelMetrics = new Dictionary<string, ShutdownModelMetric>
                     {
-                        ["gpt-5.4"] = ParseJsonElement("""
+                        ["gpt-5.4"] = new ShutdownModelMetric
+                        {
+                            Requests = new ShutdownModelMetricRequests { Count = 1, Cost = 1 },
+                            Usage = new ShutdownModelMetricUsage
                             {
-                              "requests": {
-                                "count": 1,
-                                "cost": 1
-                              },
-                              "usage": {
-                                "inputTokens": 10,
-                                "outputTokens": 5,
-                                "cacheReadTokens": 0,
-                                "cacheWriteTokens": 0
-                              }
-                            }
-                            """),
+                                InputTokens = 10,
+                                OutputTokens = 5,
+                                CacheReadTokens = 0,
+                                CacheWriteTokens = 0,
+                            },
+                        },
                     },
                     CurrentModel = "gpt-5.4",
                 },

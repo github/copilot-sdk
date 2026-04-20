@@ -1390,6 +1390,99 @@ public sealed class PermissionRequestResult
     public bool Success { get; set; }
 }
 
+/// <summary>Polymorphic base type discriminated by <c>kind</c>.</summary>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionDecisionApproved), "approved")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedByRules), "denied-by-rules")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser), "denied-no-approval-rule-and-could-not-request-from-user")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedInteractivelyByUser), "denied-interactively-by-user")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedByContentExclusionPolicy), "denied-by-content-exclusion-policy")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedByPermissionRequestHook), "denied-by-permission-request-hook")]
+public partial class PermissionDecision
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>approved</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApproved : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "approved";
+}
+
+/// <summary>The <c>denied-by-rules</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedByRules : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-rules";
+
+    /// <summary>Rules that denied the request.</summary>
+    [JsonPropertyName("rules")]
+    public required object[] Rules { get; set; }
+}
+
+/// <summary>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-no-approval-rule-and-could-not-request-from-user";
+}
+
+/// <summary>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-interactively-by-user";
+
+    /// <summary>Optional feedback from the user explaining the denial.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("feedback")]
+    public string? Feedback { get; set; }
+}
+
+/// <summary>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedByContentExclusionPolicy : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-content-exclusion-policy";
+
+    /// <summary>File path that triggered the exclusion.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    /// <summary>Human-readable explanation of why the path was excluded.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedByPermissionRequestHook : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-permission-request-hook";
+
+    /// <summary>Optional message from the hook explaining the denial.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>Whether to interrupt the current agent turn.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interrupt")]
+    public bool? Interrupt { get; set; }
+}
+
 /// <summary>RPC data type for PermissionDecision operations.</summary>
 internal sealed class PermissionDecisionRequest
 {
@@ -1403,7 +1496,7 @@ internal sealed class PermissionDecisionRequest
 
     /// <summary>Gets or sets the <c>result</c> value.</summary>
     [JsonPropertyName("result")]
-    public object Result { get; set; } = null!;
+    public PermissionDecision Result { get => field ??= new(); set; }
 }
 
 /// <summary>RPC data type for ShellExec operations.</summary>
@@ -3020,7 +3113,7 @@ public sealed class PermissionsApi
     }
 
     /// <summary>Calls "session.permissions.handlePendingPermissionRequest".</summary>
-    public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, object result, CancellationToken cancellationToken = default)
+    public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, PermissionDecision result, CancellationToken cancellationToken = default)
     {
         var request = new PermissionDecisionRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
         return await CopilotClient.InvokeRpcAsync<PermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
@@ -3306,6 +3399,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ModelSwitchToResult))]
 [JsonSerializable(typeof(NameGetResult))]
 [JsonSerializable(typeof(NameSetRequest))]
+[JsonSerializable(typeof(PermissionDecision))]
 [JsonSerializable(typeof(PermissionDecisionRequest))]
 [JsonSerializable(typeof(PermissionRequestResult))]
 [JsonSerializable(typeof(PingRequest))]

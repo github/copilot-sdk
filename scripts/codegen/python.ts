@@ -1624,15 +1624,19 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
     };
 
-    // Generate types via quicktype
+    // Generate types via quicktype — use a single combined schema source to avoid
+    // quicktype inventing Purple/Fluffy disambiguation prefixes for shared types
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    for (const [name, def] of Object.entries(rootDefinitions)) {
-        const schemaWithDefs = withSharedDefinitions(
-            typeof def === "object" ? (def as JSONSchema7) : {},
-            allDefinitionCollections
-        );
-        await schemaInput.addSource({ name, schema: JSON.stringify(schemaWithDefs) });
-    }
+    const singleSchema: Record<string, unknown> = {
+        $schema: "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        definitions: allDefinitions,
+        properties: Object.fromEntries(
+            Object.keys(rootDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
+        ),
+        required: Object.keys(rootDefinitions),
+    };
+    await schemaInput.addSource({ name: "RPC", schema: JSON.stringify(singleSchema) });
 
     const inputData = new InputData();
     inputData.addInput(schemaInput);

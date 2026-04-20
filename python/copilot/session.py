@@ -24,12 +24,12 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
-    Kind,
+    PermissionDecisionKind,
     LogRequest,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionRequest,
-    RequestedSchemaType,
+    UIElicitationSchemaType,
     SessionFsHandler,
     SessionLogLevel,
     SessionRpc,
@@ -43,7 +43,7 @@ from .generated.rpc import (
     UIElicitationSchemaPropertyNumberType,
     UIHandlePendingElicitationRequest,
 )
-from .generated.rpc import ModelCapabilitiesClass as _RpcModelCapabilitiesOverride
+from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
 from .generated.session_events import (
     AssistantMessageData,
     CapabilitiesChangedData,
@@ -471,7 +471,7 @@ class SessionUiApi:
             UIElicitationRequest(
                 message=message,
                 requested_schema=UIElicitationSchema(
-                    type=RequestedSchemaType.OBJECT,
+                    type=UIElicitationSchemaType.OBJECT,
                     properties={
                         "confirmed": UIElicitationSchemaProperty(
                             type=UIElicitationSchemaPropertyNumberType.BOOLEAN,
@@ -506,7 +506,7 @@ class SessionUiApi:
             UIElicitationRequest(
                 message=message,
                 requested_schema=UIElicitationSchema(
-                    type=RequestedSchemaType.OBJECT,
+                    type=UIElicitationSchemaType.OBJECT,
                     properties={
                         "selection": UIElicitationSchemaProperty(
                             type=UIElicitationSchemaPropertyNumberType.STRING,
@@ -1436,7 +1436,7 @@ class CopilotSession:
                 return
 
             perm_result = PermissionDecision(
-                kind=Kind(result.kind),
+                kind=PermissionDecisionKind(result.kind),
                 rules=result.rules,
                 feedback=result.feedback,
                 message=result.message,
@@ -1455,7 +1455,7 @@ class CopilotSession:
                     PermissionDecisionRequest(
                         request_id=request_id,
                         result=PermissionDecision(
-                            kind=Kind.DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER,
+                            kind=PermissionDecisionKind.DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER,
                         ),
                     )
                 )

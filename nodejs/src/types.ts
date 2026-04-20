@@ -739,9 +739,8 @@ export type SystemMessageConfig =
  * Permission request types from the server
  */
 export interface PermissionRequest {
-    kind: "shell" | "write" | "mcp" | "read" | "url" | "custom-tool";
+    kind: "shell" | "write" | "mcp" | "read" | "url" | "custom-tool" | "memory" | "hook";
     toolCallId?: string;
-    [key: string]: unknown;
 }
 
 import type { PermissionDecisionRequest } from "./generated/rpc.js";

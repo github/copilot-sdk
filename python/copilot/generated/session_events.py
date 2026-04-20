@@ -2117,21 +2117,21 @@ class ToolExecutionProgressData:
 
 
 @dataclass
-class ToolExecutionCompleteDataResultContentsItemIconsItem:
+class ToolExecutionCompleteContentResourceLinkIcon:
     "Icon image for a resource"
     src: str
     mime_type: str | None = None
     sizes: list[str] | None = None
-    theme: ToolExecutionCompleteDataResultContentsItemIconsItemTheme | None = None
+    theme: ToolExecutionCompleteContentResourceLinkIconTheme | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteDataResultContentsItemIconsItem":
+    def from_dict(obj: Any) -> "ToolExecutionCompleteContentResourceLinkIcon":
         assert isinstance(obj, dict)
         src = from_str(obj.get("src"))
         mime_type = from_union([from_none, from_str], obj.get("mimeType"))
         sizes = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("sizes"))
-        theme = from_union([from_none, lambda x: parse_enum(ToolExecutionCompleteDataResultContentsItemIconsItemTheme, x)], obj.get("theme"))
-        return ToolExecutionCompleteDataResultContentsItemIconsItem(
+        theme = from_union([from_none, lambda x: parse_enum(ToolExecutionCompleteContentResourceLinkIconTheme, x)], obj.get("theme"))
+        return ToolExecutionCompleteContentResourceLinkIcon(
             src=src,
             mime_type=mime_type,
             sizes=sizes,
@@ -2146,20 +2146,20 @@ class ToolExecutionCompleteDataResultContentsItemIconsItem:
         if self.sizes is not None:
             result["sizes"] = from_union([from_none, lambda x: from_list(from_str, x)], self.sizes)
         if self.theme is not None:
-            result["theme"] = from_union([from_none, lambda x: to_enum(ToolExecutionCompleteDataResultContentsItemIconsItemTheme, x)], self.theme)
+            result["theme"] = from_union([from_none, lambda x: to_enum(ToolExecutionCompleteContentResourceLinkIconTheme, x)], self.theme)
         return result
 
 
 @dataclass
-class ToolExecutionCompleteDataResultContentsItem:
+class ToolExecutionCompleteResultContentsItem:
     "A content block within a tool result, which may be text, terminal output, image, audio, or a resource"
-    type: ToolExecutionCompleteDataResultContentsItemType
+    type: ToolExecutionCompleteResultContentsItemType
     text: str | None = None
     exit_code: float | None = None
     cwd: str | None = None
     data: str | None = None
     mime_type: str | None = None
-    icons: list[ToolExecutionCompleteDataResultContentsItemIconsItem] | None = None
+    icons: list[ToolExecutionCompleteContentResourceLinkIcon] | None = None
     name: str | None = None
     title: str | None = None
     uri: str | None = None
@@ -2168,22 +2168,22 @@ class ToolExecutionCompleteDataResultContentsItem:
     resource: Any = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteDataResultContentsItem":
+    def from_dict(obj: Any) -> "ToolExecutionCompleteResultContentsItem":
         assert isinstance(obj, dict)
-        type = parse_enum(ToolExecutionCompleteDataResultContentsItemType, obj.get("type"))
+        type = parse_enum(ToolExecutionCompleteResultContentsItemType, obj.get("type"))
         text = from_union([from_none, from_str], obj.get("text"))
         exit_code = from_union([from_none, from_float], obj.get("exitCode"))
         cwd = from_union([from_none, from_str], obj.get("cwd"))
         data = from_union([from_none, from_str], obj.get("data"))
         mime_type = from_union([from_none, from_str], obj.get("mimeType"))
-        icons = from_union([from_none, lambda x: from_list(ToolExecutionCompleteDataResultContentsItemIconsItem.from_dict, x)], obj.get("icons"))
+        icons = from_union([from_none, lambda x: from_list(ToolExecutionCompleteContentResourceLinkIcon.from_dict, x)], obj.get("icons"))
         name = from_union([from_none, from_str], obj.get("name"))
         title = from_union([from_none, from_str], obj.get("title"))
         uri = from_union([from_none, from_str], obj.get("uri"))
         description = from_union([from_none, from_str], obj.get("description"))
         size = from_union([from_none, from_float], obj.get("size"))
         resource = obj.get("resource")
-        return ToolExecutionCompleteDataResultContentsItem(
+        return ToolExecutionCompleteResultContentsItem(
             type=type,
             text=text,
             exit_code=exit_code,
@@ -2201,7 +2201,7 @@ class ToolExecutionCompleteDataResultContentsItem:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["type"] = to_enum(ToolExecutionCompleteDataResultContentsItemType, self.type)
+        result["type"] = to_enum(ToolExecutionCompleteResultContentsItemType, self.type)
         if self.text is not None:
             result["text"] = from_union([from_none, from_str], self.text)
         if self.exit_code is not None:
@@ -2213,7 +2213,7 @@ class ToolExecutionCompleteDataResultContentsItem:
         if self.mime_type is not None:
             result["mimeType"] = from_union([from_none, from_str], self.mime_type)
         if self.icons is not None:
-            result["icons"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteDataResultContentsItemIconsItem, x), x)], self.icons)
+            result["icons"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteContentResourceLinkIcon, x), x)], self.icons)
         if self.name is not None:
             result["name"] = from_union([from_none, from_str], self.name)
         if self.title is not None:
@@ -2230,19 +2230,19 @@ class ToolExecutionCompleteDataResultContentsItem:
 
 
 @dataclass
-class ToolExecutionCompleteDataResult:
+class ToolExecutionCompleteResult:
     "Tool execution result on success"
     content: str
     detailed_content: str | None = None
-    contents: list[ToolExecutionCompleteDataResultContentsItem] | None = None
+    contents: list[ToolExecutionCompleteResultContentsItem] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteDataResult":
+    def from_dict(obj: Any) -> "ToolExecutionCompleteResult":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
-        contents = from_union([from_none, lambda x: from_list(ToolExecutionCompleteDataResultContentsItem.from_dict, x)], obj.get("contents"))
-        return ToolExecutionCompleteDataResult(
+        contents = from_union([from_none, lambda x: from_list(ToolExecutionCompleteResultContentsItem.from_dict, x)], obj.get("contents"))
+        return ToolExecutionCompleteResult(
             content=content,
             detailed_content=detailed_content,
             contents=contents,
@@ -2254,22 +2254,22 @@ class ToolExecutionCompleteDataResult:
         if self.detailed_content is not None:
             result["detailedContent"] = from_union([from_none, from_str], self.detailed_content)
         if self.contents is not None:
-            result["contents"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteDataResultContentsItem, x), x)], self.contents)
+            result["contents"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteResultContentsItem, x), x)], self.contents)
         return result
 
 
 @dataclass
-class ToolExecutionCompleteDataError:
+class ToolExecutionCompleteError:
     "Error details when the tool execution failed"
     message: str
     code: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteDataError":
+    def from_dict(obj: Any) -> "ToolExecutionCompleteError":
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         code = from_union([from_none, from_str], obj.get("code"))
-        return ToolExecutionCompleteDataError(
+        return ToolExecutionCompleteError(
             message=message,
             code=code,
         )
@@ -2290,8 +2290,8 @@ class ToolExecutionCompleteData:
     model: str | None = None
     interaction_id: str | None = None
     is_user_requested: bool | None = None
-    result: ToolExecutionCompleteDataResult | None = None
-    error: ToolExecutionCompleteDataError | None = None
+    result: ToolExecutionCompleteResult | None = None
+    error: ToolExecutionCompleteError | None = None
     tool_telemetry: dict[str, Any] | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
@@ -2304,8 +2304,8 @@ class ToolExecutionCompleteData:
         model = from_union([from_none, from_str], obj.get("model"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         is_user_requested = from_union([from_none, from_bool], obj.get("isUserRequested"))
-        result = from_union([from_none, ToolExecutionCompleteDataResult.from_dict], obj.get("result"))
-        error = from_union([from_none, ToolExecutionCompleteDataError.from_dict], obj.get("error"))
+        result = from_union([from_none, ToolExecutionCompleteResult.from_dict], obj.get("result"))
+        error = from_union([from_none, ToolExecutionCompleteError.from_dict], obj.get("error"))
         tool_telemetry = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("toolTelemetry"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         return ToolExecutionCompleteData(
@@ -2331,9 +2331,9 @@ class ToolExecutionCompleteData:
         if self.is_user_requested is not None:
             result["isUserRequested"] = from_union([from_none, from_bool], self.is_user_requested)
         if self.result is not None:
-            result["result"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteDataResult, x)], self.result)
+            result["result"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteResult, x)], self.result)
         if self.error is not None:
-            result["error"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteDataError, x)], self.error)
+            result["error"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteError, x)], self.error)
         if self.tool_telemetry is not None:
             result["toolTelemetry"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.tool_telemetry)
         if self.parent_tool_call_id is not None:
@@ -2585,17 +2585,17 @@ class HookStartData:
 
 
 @dataclass
-class HookEndDataError:
+class HookEndError:
     "Error details when the hook failed"
     message: str
     stack: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "HookEndDataError":
+    def from_dict(obj: Any) -> "HookEndError":
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         stack = from_union([from_none, from_str], obj.get("stack"))
-        return HookEndDataError(
+        return HookEndError(
             message=message,
             stack=stack,
         )
@@ -2615,7 +2615,7 @@ class HookEndData:
     hook_type: str
     success: bool
     output: Any = None
-    error: HookEndDataError | None = None
+    error: HookEndError | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "HookEndData":
@@ -2624,7 +2624,7 @@ class HookEndData:
         hook_type = from_str(obj.get("hookType"))
         success = from_bool(obj.get("success"))
         output = obj.get("output")
-        error = from_union([from_none, HookEndDataError.from_dict], obj.get("error"))
+        error = from_union([from_none, HookEndError.from_dict], obj.get("error"))
         return HookEndData(
             hook_invocation_id=hook_invocation_id,
             hook_type=hook_type,
@@ -2641,22 +2641,22 @@ class HookEndData:
         if self.output is not None:
             result["output"] = self.output
         if self.error is not None:
-            result["error"] = from_union([from_none, lambda x: to_class(HookEndDataError, x)], self.error)
+            result["error"] = from_union([from_none, lambda x: to_class(HookEndError, x)], self.error)
         return result
 
 
 @dataclass
-class SystemMessageDataMetadata:
+class SystemMessageMetadata:
     "Metadata about the prompt template and its construction"
     prompt_version: str | None = None
     variables: dict[str, Any] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemMessageDataMetadata":
+    def from_dict(obj: Any) -> "SystemMessageMetadata":
         assert isinstance(obj, dict)
         prompt_version = from_union([from_none, from_str], obj.get("promptVersion"))
         variables = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("variables"))
-        return SystemMessageDataMetadata(
+        return SystemMessageMetadata(
             prompt_version=prompt_version,
             variables=variables,
         )
@@ -2676,7 +2676,7 @@ class SystemMessageData:
     content: str
     role: SystemMessageDataRole
     name: str | None = None
-    metadata: SystemMessageDataMetadata | None = None
+    metadata: SystemMessageMetadata | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SystemMessageData":
@@ -2684,7 +2684,7 @@ class SystemMessageData:
         content = from_str(obj.get("content"))
         role = parse_enum(SystemMessageDataRole, obj.get("role"))
         name = from_union([from_none, from_str], obj.get("name"))
-        metadata = from_union([from_none, SystemMessageDataMetadata.from_dict], obj.get("metadata"))
+        metadata = from_union([from_none, SystemMessageMetadata.from_dict], obj.get("metadata"))
         return SystemMessageData(
             content=content,
             role=role,
@@ -2699,7 +2699,7 @@ class SystemMessageData:
         if self.name is not None:
             result["name"] = from_union([from_none, from_str], self.name)
         if self.metadata is not None:
-            result["metadata"] = from_union([from_none, lambda x: to_class(SystemMessageDataMetadata, x)], self.metadata)
+            result["metadata"] = from_union([from_none, lambda x: to_class(SystemMessageMetadata, x)], self.metadata)
         return result
 
 
@@ -2803,14 +2803,14 @@ class PermissionRequestShellCommand:
 
 
 @dataclass
-class PermissionRequestShellPossibleURL:
+class PermissionRequestShellPossibleUrl:
     url: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestShellPossibleURL":
+    def from_dict(obj: Any) -> "PermissionRequestShellPossibleUrl":
         assert isinstance(obj, dict)
         url = from_str(obj.get("url"))
-        return PermissionRequestShellPossibleURL(
+        return PermissionRequestShellPossibleUrl(
             url=url,
         )
 
@@ -2829,7 +2829,7 @@ class PermissionRequest:
     intention: str | None = None
     commands: list[PermissionRequestShellCommand] | None = None
     possible_paths: list[str] | None = None
-    possible_urls: list[PermissionRequestShellPossibleURL] | None = None
+    possible_urls: list[PermissionRequestShellPossibleUrl] | None = None
     has_write_file_redirection: bool | None = None
     can_offer_session_approval: bool | None = None
     warning: str | None = None
@@ -2862,7 +2862,7 @@ class PermissionRequest:
         intention = from_union([from_none, from_str], obj.get("intention"))
         commands = from_union([from_none, lambda x: from_list(PermissionRequestShellCommand.from_dict, x)], obj.get("commands"))
         possible_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("possiblePaths"))
-        possible_urls = from_union([from_none, lambda x: from_list(PermissionRequestShellPossibleURL.from_dict, x)], obj.get("possibleUrls"))
+        possible_urls = from_union([from_none, lambda x: from_list(PermissionRequestShellPossibleUrl.from_dict, x)], obj.get("possibleUrls"))
         has_write_file_redirection = from_union([from_none, from_bool], obj.get("hasWriteFileRedirection"))
         can_offer_session_approval = from_union([from_none, from_bool], obj.get("canOfferSessionApproval"))
         warning = from_union([from_none, from_str], obj.get("warning"))
@@ -2931,7 +2931,7 @@ class PermissionRequest:
         if self.possible_paths is not None:
             result["possiblePaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.possible_paths)
         if self.possible_urls is not None:
-            result["possibleUrls"] = from_union([from_none, lambda x: from_list(lambda x: to_class(PermissionRequestShellPossibleURL, x), x)], self.possible_urls)
+            result["possibleUrls"] = from_union([from_none, lambda x: from_list(lambda x: to_class(PermissionRequestShellPossibleUrl, x), x)], self.possible_urls)
         if self.has_write_file_redirection is not None:
             result["hasWriteFileRedirection"] = from_union([from_none, from_bool], self.has_write_file_redirection)
         if self.can_offer_session_approval is not None:
@@ -3008,21 +3008,21 @@ class PermissionRequestedData:
 
 
 @dataclass
-class PermissionCompletedDataResult:
+class PermissionCompletedResult:
     "The result of the permission request"
-    kind: PermissionCompletedKind
+    kind: PermissionCompletedResultKind
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionCompletedDataResult":
+    def from_dict(obj: Any) -> "PermissionCompletedResult":
         assert isinstance(obj, dict)
-        kind = parse_enum(PermissionCompletedKind, obj.get("kind"))
-        return PermissionCompletedDataResult(
+        kind = parse_enum(PermissionCompletedResultKind, obj.get("kind"))
+        return PermissionCompletedResult(
             kind=kind,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionCompletedKind, self.kind)
+        result["kind"] = to_enum(PermissionCompletedResultKind, self.kind)
         return result
 
 
@@ -3030,13 +3030,13 @@ class PermissionCompletedDataResult:
 class PermissionCompletedData:
     "Permission request completion notification signaling UI dismissal"
     request_id: str
-    result: PermissionCompletedDataResult
+    result: PermissionCompletedResult
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionCompletedData":
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
-        result = PermissionCompletedDataResult.from_dict(obj.get("result"))
+        result = PermissionCompletedResult.from_dict(obj.get("result"))
         return PermissionCompletedData(
             request_id=request_id,
             result=result,
@@ -3045,7 +3045,7 @@ class PermissionCompletedData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["requestId"] = from_str(self.request_id)
-        result["result"] = to_class(PermissionCompletedDataResult, self.result)
+        result["result"] = to_class(PermissionCompletedResult, self.result)
         return result
 
 
@@ -3268,17 +3268,17 @@ class SamplingCompletedData:
 
 
 @dataclass
-class MCPOauthRequiredStaticClientConfig:
+class McpOauthRequiredStaticClientConfig:
     "Static OAuth client configuration, if the server specifies one"
     client_id: str
     public_client: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "MCPOauthRequiredStaticClientConfig":
+    def from_dict(obj: Any) -> "McpOauthRequiredStaticClientConfig":
         assert isinstance(obj, dict)
         client_id = from_str(obj.get("clientId"))
         public_client = from_union([from_none, from_bool], obj.get("publicClient"))
-        return MCPOauthRequiredStaticClientConfig(
+        return McpOauthRequiredStaticClientConfig(
             client_id=client_id,
             public_client=public_client,
         )
@@ -3297,7 +3297,7 @@ class McpOauthRequiredData:
     request_id: str
     server_name: str
     server_url: str
-    static_client_config: MCPOauthRequiredStaticClientConfig | None = None
+    static_client_config: McpOauthRequiredStaticClientConfig | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "McpOauthRequiredData":
@@ -3305,7 +3305,7 @@ class McpOauthRequiredData:
         request_id = from_str(obj.get("requestId"))
         server_name = from_str(obj.get("serverName"))
         server_url = from_str(obj.get("serverUrl"))
-        static_client_config = from_union([from_none, MCPOauthRequiredStaticClientConfig.from_dict], obj.get("staticClientConfig"))
+        static_client_config = from_union([from_none, McpOauthRequiredStaticClientConfig.from_dict], obj.get("staticClientConfig"))
         return McpOauthRequiredData(
             request_id=request_id,
             server_name=server_name,
@@ -3319,7 +3319,7 @@ class McpOauthRequiredData:
         result["serverName"] = from_str(self.server_name)
         result["serverUrl"] = from_str(self.server_url)
         if self.static_client_config is not None:
-            result["staticClientConfig"] = from_union([from_none, lambda x: to_class(MCPOauthRequiredStaticClientConfig, x)], self.static_client_config)
+            result["staticClientConfig"] = from_union([from_none, lambda x: to_class(McpOauthRequiredStaticClientConfig, x)], self.static_client_config)
         return result
 
 
@@ -3796,20 +3796,20 @@ class SessionCustomAgentsUpdatedData:
 
 
 @dataclass
-class MCPServersLoadedServer:
+class McpServersLoadedServer:
     name: str
-    status: MCPServerStatus
+    status: McpServersLoadedServerStatus
     source: str | None = None
     error: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "MCPServersLoadedServer":
+    def from_dict(obj: Any) -> "McpServersLoadedServer":
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
-        status = parse_enum(MCPServerStatus, obj.get("status"))
+        status = parse_enum(McpServersLoadedServerStatus, obj.get("status"))
         source = from_union([from_none, from_str], obj.get("source"))
         error = from_union([from_none, from_str], obj.get("error"))
-        return MCPServersLoadedServer(
+        return McpServersLoadedServer(
             name=name,
             status=status,
             source=source,
@@ -3819,7 +3819,7 @@ class MCPServersLoadedServer:
     def to_dict(self) -> dict:
         result: dict = {}
         result["name"] = from_str(self.name)
-        result["status"] = to_enum(MCPServerStatus, self.status)
+        result["status"] = to_enum(McpServersLoadedServerStatus, self.status)
         if self.source is not None:
             result["source"] = from_union([from_none, from_str], self.source)
         if self.error is not None:
@@ -3829,19 +3829,19 @@ class MCPServersLoadedServer:
 
 @dataclass
 class SessionMcpServersLoadedData:
-    servers: list[MCPServersLoadedServer]
+    servers: list[McpServersLoadedServer]
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionMcpServersLoadedData":
         assert isinstance(obj, dict)
-        servers = from_list(MCPServersLoadedServer.from_dict, obj.get("servers"))
+        servers = from_list(McpServersLoadedServer.from_dict, obj.get("servers"))
         return SessionMcpServersLoadedData(
             servers=servers,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["servers"] = from_list(lambda x: to_class(MCPServersLoadedServer, x), self.servers)
+        result["servers"] = from_list(lambda x: to_class(McpServersLoadedServer, x), self.servers)
         return result
 
 
@@ -3982,7 +3982,7 @@ class AssistantMessageToolRequestType(Enum):
     CUSTOM = "custom"
 
 
-class ToolExecutionCompleteDataResultContentsItemType(Enum):
+class ToolExecutionCompleteResultContentsItemType(Enum):
     "A content block within a tool result, which may be text, terminal output, image, audio, or a resource discriminator"
     TEXT = "text"
     TERMINAL = "terminal"
@@ -3992,7 +3992,7 @@ class ToolExecutionCompleteDataResultContentsItemType(Enum):
     RESOURCE = "resource"
 
 
-class ToolExecutionCompleteDataResultContentsItemIconsItemTheme(Enum):
+class ToolExecutionCompleteContentResourceLinkIconTheme(Enum):
     "Theme variant this icon is intended for"
     LIGHT = "light"
     DARK = "dark"
@@ -4042,7 +4042,7 @@ class PermissionRequestMemoryDirection(Enum):
     DOWNVOTE = "downvote"
 
 
-class PermissionCompletedKind(Enum):
+class PermissionCompletedResultKind(Enum):
     "The outcome of the permission request"
     APPROVED = "approved"
     DENIED_BY_RULES = "denied-by-rules"
@@ -4065,7 +4065,7 @@ class ElicitationCompletedAction(Enum):
     CANCEL = "cancel"
 
 
-class MCPServerStatus(Enum):
+class McpServersLoadedServerStatus(Enum):
     "Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"
     CONNECTED = "connected"
     FAILED = "failed"

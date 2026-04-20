@@ -160,6 +160,10 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
         const refName = schema.$ref.split("/").pop()!;
         return knownTypes.get(refName) || refName;
     }
+    // Titled union schemas (anyOf with a title) — use the title if it's a known generated type
+    if (schema.title && schema.anyOf && knownTypes.has(schema.title)) {
+        return required ? schema.title : `${schema.title}?`;
+    }
     const type = schema.type;
     const format = schema.format;
     // Handle type: ["string", "null"] patterns (nullable string)
@@ -567,7 +571,14 @@ function resolveSessionPropertyType(
         // Discriminated union: anyOf with multiple object variants sharing a const discriminator
         const nonNull = propSchema.anyOf.filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
         if (nonNull.length > 1) {
-            const variants = nonNull as JSONSchema7[];
+            // Resolve $ref variants to their actual schemas
+            const variants = (nonNull as JSONSchema7[]).map((v) => {
+                if (v.$ref) {
+                    const resolved = resolveRef(v.$ref, sessionDefinitions);
+                    return resolved ?? v;
+                }
+                return v;
+            });
             const discriminatorInfo = findDiscriminator(variants);
             if (discriminatorInfo) {
                 const hasNull = propSchema.anyOf.length > nonNull.length;
@@ -601,6 +612,19 @@ function resolveSessionPropertyType(
             enumOutput
         );
         return isRequired ? `${itemType}[]` : `${itemType}[]?`;
+    }
+    if (propSchema.type === "object" && propSchema.additionalProperties && typeof propSchema.additionalProperties === "object") {
+        const valueSchema = propSchema.additionalProperties as JSONSchema7;
+        const valueType = resolveSessionPropertyType(
+            valueSchema,
+            parentClassName,
+            `${propName}Value`,
+            true,
+            knownTypes,
+            nestedClasses,
+            enumOutput
+        );
+        return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
     }
     return schemaTypeToCSharp(propSchema, isRequired, knownTypes);
 }
@@ -858,6 +882,32 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
     const nullableInner = getNullableInner(schema);
     if (nullableInner) {
         return resolveRpcType(nullableInner, false, parentClassName, propName, classes);
+    }
+    // Discriminated union: anyOf with multiple variants sharing a const discriminator
+    if (schema.anyOf && Array.isArray(schema.anyOf)) {
+        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
+        if (nonNull.length > 1) {
+            const variants = (nonNull as JSONSchema7[]).map((v) => {
+                if (v.$ref) {
+                    const resolved = resolveRef(v.$ref, rpcDefinitions);
+                    return resolved ?? v;
+                }
+                return v;
+            });
+            const discriminatorInfo = findDiscriminator(variants);
+            if (discriminatorInfo) {
+                const hasNull = schema.anyOf.length > nonNull.length;
+                const baseClassName = (schema.title as string) ?? `${parentClassName}${propName}`;
+                if (!emittedRpcClassSchemas.has(baseClassName)) {
+                    emittedRpcClassSchemas.set(baseClassName, "polymorphic");
+                    const nestedMap = new Map<string, string>();
+                    const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, rpcKnownTypes, nestedMap, rpcEnumOutput, schema.description);
+                    classes.push(polymorphicCode);
+                    for (const nested of nestedMap.values()) classes.push(nested);
+                }
+                return isRequired && !hasNull ? baseClassName : `${baseClassName}?`;
+            }
+        }
     }
     // Handle enums (string unions like "interactive" | "plan" | "autopilot")
     if (schema.enum && Array.isArray(schema.enum)) {

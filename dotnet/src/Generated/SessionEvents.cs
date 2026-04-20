@@ -1441,7 +1441,7 @@ public partial class SessionShutdownData
 
     /// <summary>Per-model usage breakdown, keyed by model identifier.</summary>
     [JsonPropertyName("modelMetrics")]
-    public required IDictionary<string, object> ModelMetrics { get; set; }
+    public required IDictionary<string, ShutdownModelMetric> ModelMetrics { get; set; }
 
     /// <summary>Model that was selected at the time of shutdown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1920,7 +1920,7 @@ public partial class AssistantUsageData
     /// <summary>Per-quota resource usage snapshots, keyed by quota identifier.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("quotaSnapshots")]
-    public IDictionary<string, object>? QuotaSnapshots { get; set; }
+    public IDictionary<string, AssistantUsageQuotaSnapshot>? QuotaSnapshots { get; set; }
 
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2771,6 +2771,57 @@ public partial class ShutdownCodeChanges
     public required string[] FilesModified { get; set; }
 }
 
+/// <summary>Request count and cost metrics.</summary>
+/// <remarks>Nested data type for <c>ShutdownModelMetricRequests</c>.</remarks>
+public partial class ShutdownModelMetricRequests
+{
+    /// <summary>Total number of API requests made to this model.</summary>
+    [JsonPropertyName("count")]
+    public required double Count { get; set; }
+
+    /// <summary>Cumulative cost multiplier for requests to this model.</summary>
+    [JsonPropertyName("cost")]
+    public required double Cost { get; set; }
+}
+
+/// <summary>Token usage breakdown.</summary>
+/// <remarks>Nested data type for <c>ShutdownModelMetricUsage</c>.</remarks>
+public partial class ShutdownModelMetricUsage
+{
+    /// <summary>Total input tokens consumed across all requests to this model.</summary>
+    [JsonPropertyName("inputTokens")]
+    public required double InputTokens { get; set; }
+
+    /// <summary>Total output tokens produced across all requests to this model.</summary>
+    [JsonPropertyName("outputTokens")]
+    public required double OutputTokens { get; set; }
+
+    /// <summary>Total tokens read from prompt cache across all requests.</summary>
+    [JsonPropertyName("cacheReadTokens")]
+    public required double CacheReadTokens { get; set; }
+
+    /// <summary>Total tokens written to prompt cache across all requests.</summary>
+    [JsonPropertyName("cacheWriteTokens")]
+    public required double CacheWriteTokens { get; set; }
+
+    /// <summary>Total reasoning tokens produced across all requests to this model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningTokens")]
+    public double? ReasoningTokens { get; set; }
+}
+
+/// <summary>Nested data type for <c>ShutdownModelMetric</c>.</summary>
+public partial class ShutdownModelMetric
+{
+    /// <summary>Request count and cost metrics.</summary>
+    [JsonPropertyName("requests")]
+    public required ShutdownModelMetricRequests Requests { get; set; }
+
+    /// <summary>Token usage breakdown.</summary>
+    [JsonPropertyName("usage")]
+    public required ShutdownModelMetricUsage Usage { get; set; }
+}
+
 /// <summary>Token usage breakdown for the compaction LLM call.</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsed</c>.</remarks>
 public partial class CompactionCompleteCompactionTokensUsed
@@ -3010,6 +3061,43 @@ public partial class AssistantMessageToolRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("intentionSummary")]
     public string? IntentionSummary { get; set; }
+}
+
+/// <summary>Nested data type for <c>AssistantUsageQuotaSnapshot</c>.</summary>
+public partial class AssistantUsageQuotaSnapshot
+{
+    /// <summary>Whether the user has an unlimited usage entitlement.</summary>
+    [JsonPropertyName("isUnlimitedEntitlement")]
+    public required bool IsUnlimitedEntitlement { get; set; }
+
+    /// <summary>Total requests allowed by the entitlement.</summary>
+    [JsonPropertyName("entitlementRequests")]
+    public required double EntitlementRequests { get; set; }
+
+    /// <summary>Number of requests already consumed.</summary>
+    [JsonPropertyName("usedRequests")]
+    public required double UsedRequests { get; set; }
+
+    /// <summary>Whether usage is still permitted after quota exhaustion.</summary>
+    [JsonPropertyName("usageAllowedWithExhaustedQuota")]
+    public required bool UsageAllowedWithExhaustedQuota { get; set; }
+
+    /// <summary>Number of requests over the entitlement limit.</summary>
+    [JsonPropertyName("overage")]
+    public required double Overage { get; set; }
+
+    /// <summary>Whether overage is allowed when quota is exhausted.</summary>
+    [JsonPropertyName("overageAllowedWithExhaustedQuota")]
+    public required bool OverageAllowedWithExhaustedQuota { get; set; }
+
+    /// <summary>Percentage of quota remaining (0.0 to 1.0).</summary>
+    [JsonPropertyName("remainingPercentage")]
+    public required double RemainingPercentage { get; set; }
+
+    /// <summary>Date when the quota resets.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resetDate")]
+    public DateTimeOffset? ResetDate { get; set; }
 }
 
 /// <summary>Token usage detail for a single billing category.</summary>
@@ -4182,6 +4270,7 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(AssistantUsageCopilotUsageTokenDetail))]
 [JsonSerializable(typeof(AssistantUsageData))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
+[JsonSerializable(typeof(AssistantUsageQuotaSnapshot))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedUI))]
@@ -4302,6 +4391,9 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(SessionWorkspaceFileChangedData))]
 [JsonSerializable(typeof(SessionWorkspaceFileChangedEvent))]
 [JsonSerializable(typeof(ShutdownCodeChanges))]
+[JsonSerializable(typeof(ShutdownModelMetric))]
+[JsonSerializable(typeof(ShutdownModelMetricRequests))]
+[JsonSerializable(typeof(ShutdownModelMetricUsage))]
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
 [JsonSerializable(typeof(SkillsLoadedSkill))]
