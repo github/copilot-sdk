@@ -542,9 +542,17 @@ public final class CopilotSession implements AutoCloseable {
             }
         }
 
-        // When inner future completes, run cleanup and propagate to result
+        // When inner future completes, run cleanup and propagate to result.
+        // Use whenCompleteAsync so that result.complete(r) is not called
+        // synchronously on the event-dispatch thread while dispatchEvent() is
+        // still iterating over handlers. Without async dispatch, a caller that
+        // registered its own session.on() listener before calling sendAndWait()
+        // could see its listener invoked *after* result.get() returned, because
+        // sendAndWait's internal handler would complete the future mid-loop. By
+        // submitting the completion to timeoutScheduler we allow the current
+        // dispatch loop to finish calling all other handlers first.
         final ScheduledFuture<?> taskToCancel = timeoutTask;
-        future.whenComplete((r, ex) -> {
+        future.whenCompleteAsync((r, ex) -> {
             try {
                 subscription.close();
             } catch (IOException e) {
@@ -560,7 +568,7 @@ public final class CopilotSession implements AutoCloseable {
                     result.complete(r);
                 }
             }
-        });
+        }, timeoutScheduler);
 
         // When result is cancelled externally, cancel inner future to trigger cleanup
         result.whenComplete((v, ex) -> {
