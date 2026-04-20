@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-package com.github.copilot.sdk;
+package com.github.copilot.sdk.generated.rpc;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -12,126 +12,12 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.sdk.generated.rpc.AccountGetQuotaResult;
-import com.github.copilot.sdk.generated.rpc.McpConfigListResult;
-import com.github.copilot.sdk.generated.rpc.McpConfigRemoveParams;
-import com.github.copilot.sdk.generated.rpc.McpConfigUpdateParams;
-import com.github.copilot.sdk.generated.rpc.McpDiscoverParams;
-import com.github.copilot.sdk.generated.rpc.McpDiscoverResult;
-import com.github.copilot.sdk.generated.rpc.ModelsListResult;
-import com.github.copilot.sdk.generated.rpc.PingParams;
-import com.github.copilot.sdk.generated.rpc.PingResult;
-import com.github.copilot.sdk.generated.rpc.SessionAgentDeselectParams;
-import com.github.copilot.sdk.generated.rpc.SessionAgentDeselectResult;
-import com.github.copilot.sdk.generated.rpc.SessionAgentGetCurrentParams;
-import com.github.copilot.sdk.generated.rpc.SessionAgentGetCurrentResult;
-import com.github.copilot.sdk.generated.rpc.SessionAgentListParams;
-import com.github.copilot.sdk.generated.rpc.SessionAgentListResult;
-import com.github.copilot.sdk.generated.rpc.SessionAgentReloadParams;
-import com.github.copilot.sdk.generated.rpc.SessionAgentReloadResult;
-import com.github.copilot.sdk.generated.rpc.SessionAgentSelectParams;
-import com.github.copilot.sdk.generated.rpc.SessionAgentSelectResult;
-import com.github.copilot.sdk.generated.rpc.SessionCommandsHandlePendingCommandParams;
-import com.github.copilot.sdk.generated.rpc.SessionCommandsHandlePendingCommandResult;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsDisableParams;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsDisableResult;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsEnableParams;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsEnableResult;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsListParams;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsListResult;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsReloadParams;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsReloadResult;
-import com.github.copilot.sdk.generated.rpc.SessionFleetStartParams;
-import com.github.copilot.sdk.generated.rpc.SessionFleetStartResult;
-import com.github.copilot.sdk.generated.rpc.SessionFsAppendFileParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsExistsParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsExistsResult;
-import com.github.copilot.sdk.generated.rpc.SessionFsMkdirParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsReadFileParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsReadFileResult;
-import com.github.copilot.sdk.generated.rpc.SessionFsReaddirParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsReaddirResult;
-import com.github.copilot.sdk.generated.rpc.SessionFsReaddirWithTypesParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsReaddirWithTypesResult;
-import com.github.copilot.sdk.generated.rpc.SessionFsRenameParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsRmParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsSetProviderParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsSetProviderResult;
-import com.github.copilot.sdk.generated.rpc.SessionFsStatParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsStatResult;
-import com.github.copilot.sdk.generated.rpc.SessionFsWriteFileParams;
-import com.github.copilot.sdk.generated.rpc.SessionHistoryCompactParams;
-import com.github.copilot.sdk.generated.rpc.SessionHistoryCompactResult;
-import com.github.copilot.sdk.generated.rpc.SessionHistoryTruncateParams;
-import com.github.copilot.sdk.generated.rpc.SessionHistoryTruncateResult;
-import com.github.copilot.sdk.generated.rpc.SessionLogParams;
-import com.github.copilot.sdk.generated.rpc.SessionLogResult;
-import com.github.copilot.sdk.generated.rpc.SessionMcpDisableParams;
-import com.github.copilot.sdk.generated.rpc.SessionMcpDisableResult;
-import com.github.copilot.sdk.generated.rpc.SessionMcpEnableParams;
-import com.github.copilot.sdk.generated.rpc.SessionMcpEnableResult;
-import com.github.copilot.sdk.generated.rpc.SessionMcpListParams;
-import com.github.copilot.sdk.generated.rpc.SessionMcpListResult;
-import com.github.copilot.sdk.generated.rpc.SessionMcpReloadParams;
-import com.github.copilot.sdk.generated.rpc.SessionMcpReloadResult;
-import com.github.copilot.sdk.generated.rpc.SessionModeGetParams;
-import com.github.copilot.sdk.generated.rpc.SessionModeGetResult;
-import com.github.copilot.sdk.generated.rpc.SessionModeSetParams;
-import com.github.copilot.sdk.generated.rpc.SessionModeSetResult;
-import com.github.copilot.sdk.generated.rpc.SessionModelGetCurrentParams;
-import com.github.copilot.sdk.generated.rpc.SessionModelGetCurrentResult;
-import com.github.copilot.sdk.generated.rpc.SessionModelSwitchToParams;
-import com.github.copilot.sdk.generated.rpc.SessionModelSwitchToResult;
-import com.github.copilot.sdk.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
-import com.github.copilot.sdk.generated.rpc.SessionPermissionsHandlePendingPermissionRequestResult;
-import com.github.copilot.sdk.generated.rpc.SessionPlanDeleteParams;
-import com.github.copilot.sdk.generated.rpc.SessionPlanDeleteResult;
-import com.github.copilot.sdk.generated.rpc.SessionPlanReadParams;
-import com.github.copilot.sdk.generated.rpc.SessionPlanReadResult;
-import com.github.copilot.sdk.generated.rpc.SessionPlanUpdateParams;
-import com.github.copilot.sdk.generated.rpc.SessionPlanUpdateResult;
-import com.github.copilot.sdk.generated.rpc.SessionPluginsListParams;
-import com.github.copilot.sdk.generated.rpc.SessionPluginsListResult;
-import com.github.copilot.sdk.generated.rpc.SessionShellExecParams;
-import com.github.copilot.sdk.generated.rpc.SessionShellExecResult;
-import com.github.copilot.sdk.generated.rpc.SessionShellKillParams;
-import com.github.copilot.sdk.generated.rpc.SessionShellKillResult;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsDisableParams;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsDisableResult;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsEnableParams;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsEnableResult;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsListParams;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsListResult;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsReloadParams;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsReloadResult;
-import com.github.copilot.sdk.generated.rpc.SessionToolsHandlePendingToolCallParams;
-import com.github.copilot.sdk.generated.rpc.SessionToolsHandlePendingToolCallResult;
-import com.github.copilot.sdk.generated.rpc.SessionUiElicitationParams;
-import com.github.copilot.sdk.generated.rpc.SessionUiElicitationResult;
-import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationParams;
-import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationResult;
-import com.github.copilot.sdk.generated.rpc.SessionUsageGetMetricsParams;
-import com.github.copilot.sdk.generated.rpc.SessionUsageGetMetricsResult;
-import com.github.copilot.sdk.generated.rpc.SessionWorkspaceCreateFileParams;
-import com.github.copilot.sdk.generated.rpc.SessionWorkspaceCreateFileResult;
-import com.github.copilot.sdk.generated.rpc.SessionWorkspaceListFilesParams;
-import com.github.copilot.sdk.generated.rpc.SessionWorkspaceListFilesResult;
-import com.github.copilot.sdk.generated.rpc.SessionWorkspaceReadFileParams;
-import com.github.copilot.sdk.generated.rpc.SessionWorkspaceReadFileResult;
-import com.github.copilot.sdk.generated.rpc.SessionsForkParams;
-import com.github.copilot.sdk.generated.rpc.SessionsForkResult;
-import com.github.copilot.sdk.generated.rpc.ToolsListParams;
-import com.github.copilot.sdk.generated.rpc.ToolsListResult;
-
 /**
  * Tests for generated RPC param and result record types. Exercises
  * constructors, field accessors, and enum variants to provide JaCoCo coverage
  * of the generated code without requiring network access.
  */
 class GeneratedRpcRecordsCoverageTest {
-
-    private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     // ── Params records ─────────────────────────────────────────────────────
 
@@ -338,11 +224,11 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsWriteFileParams_record() {
-        var params = new SessionFsWriteFileParams("sess-21", "/tmp/out.txt", "content here", 0644.0);
+        var params = new SessionFsWriteFileParams("sess-21", "/tmp/out.txt", "content here", 644.0);
         assertEquals("sess-21", params.sessionId());
         assertEquals("/tmp/out.txt", params.path());
         assertEquals("content here", params.content());
-        assertEquals(0644.0, params.mode());
+        assertEquals(644.0, params.mode());
     }
 
     @Test

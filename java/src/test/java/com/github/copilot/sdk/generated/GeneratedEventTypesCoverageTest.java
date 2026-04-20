@@ -2,25 +2,34 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-package com.github.copilot.sdk;
+package com.github.copilot.sdk.generated;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import com.github.copilot.sdk.generated.*;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
  * Deserialization tests for generated session event types that are not covered
- * in {@link SessionEventDeserializationTest}. Verifies that each event
- * deserializes correctly from JSON and that the {@code type} discriminator and
- * {@code data} fields are accessible.
+ * in {@link com.github.copilot.sdk.SessionEventDeserializationTest}. Verifies
+ * that each event deserializes correctly from JSON and that the {@code type}
+ * discriminator and {@code data} fields are accessible.
  */
 public class GeneratedEventTypesCoverageTest {
 
-    private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
+    private static final ObjectMapper MAPPER = createMapper();
+
+    private static ObjectMapper createMapper() {
+        var mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        return mapper;
+    }
 
     private static SessionEvent parse(String json) throws Exception {
         return MAPPER.readValue(json, SessionEvent.class);

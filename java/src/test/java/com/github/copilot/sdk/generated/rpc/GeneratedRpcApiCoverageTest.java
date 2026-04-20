@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-package com.github.copilot.sdk;
+package com.github.copilot.sdk.generated.rpc;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -12,36 +12,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
-
-import com.github.copilot.sdk.generated.rpc.McpConfigRemoveParams;
-import com.github.copilot.sdk.generated.rpc.McpConfigUpdateParams;
-import com.github.copilot.sdk.generated.rpc.RpcCaller;
-import com.github.copilot.sdk.generated.rpc.ServerRpc;
-import com.github.copilot.sdk.generated.rpc.SessionAgentDeselectResult;
-import com.github.copilot.sdk.generated.rpc.SessionCommandsHandlePendingCommandParams;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsDisableParams;
-import com.github.copilot.sdk.generated.rpc.SessionExtensionsEnableParams;
-import com.github.copilot.sdk.generated.rpc.SessionFleetStartParams;
-import com.github.copilot.sdk.generated.rpc.SessionFsSetProviderParams;
-import com.github.copilot.sdk.generated.rpc.SessionHistoryTruncateParams;
-import com.github.copilot.sdk.generated.rpc.SessionLogParams;
-import com.github.copilot.sdk.generated.rpc.SessionMcpDisableParams;
-import com.github.copilot.sdk.generated.rpc.SessionMcpEnableParams;
-import com.github.copilot.sdk.generated.rpc.SessionModeSetParams;
-import com.github.copilot.sdk.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
-import com.github.copilot.sdk.generated.rpc.SessionPlanUpdateParams;
-import com.github.copilot.sdk.generated.rpc.SessionRpc;
-import com.github.copilot.sdk.generated.rpc.SessionShellExecParams;
-import com.github.copilot.sdk.generated.rpc.SessionShellKillParams;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsDisableParams;
-import com.github.copilot.sdk.generated.rpc.SessionSkillsEnableParams;
-import com.github.copilot.sdk.generated.rpc.SessionToolsHandlePendingToolCallParams;
-import com.github.copilot.sdk.generated.rpc.SessionUiElicitationParams;
-import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationParams;
-import com.github.copilot.sdk.generated.rpc.SessionWorkspaceCreateFileParams;
-import com.github.copilot.sdk.generated.rpc.SessionWorkspaceReadFileParams;
-import com.github.copilot.sdk.generated.rpc.SessionsForkParams;
-import com.github.copilot.sdk.generated.rpc.ToolsListParams;
 
 /**
  * Coverage tests for generated RPC API classes that are not exercised in
