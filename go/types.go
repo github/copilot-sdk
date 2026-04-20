@@ -561,7 +561,7 @@ type SessionConfig struct {
 	OnEvent SessionEventHandler
 	// CreateSessionFsHandler supplies a handler for session filesystem operations.
 	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsHandler func(session *Session) rpc.SessionFsHandler
+	CreateSessionFsHandler func(session *Session) SessionFsProvider
 	// Commands registers slash-commands for this session. Each command appears as
 	// /name in the CLI TUI for the user to invoke. The Handler is called when the
 	// command is executed.
@@ -775,7 +775,7 @@ type ResumeSessionConfig struct {
 	OnEvent SessionEventHandler
 	// CreateSessionFsHandler supplies a handler for session filesystem operations.
 	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsHandler func(session *Session) rpc.SessionFsHandler
+	CreateSessionFsHandler func(session *Session) SessionFsProvider
 	// Commands registers slash-commands for this session. See SessionConfig.Commands.
 	Commands []CommandDefinition
 	// OnElicitationRequest is a handler for elicitation requests from the server.

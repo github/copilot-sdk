@@ -7,11 +7,13 @@
  */
 
 // Import and re-export generated session event types
-import type { SessionFsHandler } from "./generated/rpc.js";
+import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 export type SessionEvent = GeneratedSessionEvent;
-export type { SessionFsHandler } from "./generated/rpc.js";
+export type { SessionFsProvider } from "./sessionFsProvider.js";
+export { createSessionFsAdapter } from "./sessionFsProvider.js";
+export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 
 /**
  * Options for creating a CopilotClient
@@ -1330,7 +1332,7 @@ export interface SessionConfig {
      * Supplies a handler for session filesystem operations. This takes effect
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
-    createSessionFsHandler?: (session: CopilotSession) => SessionFsHandler;
+    createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider;
 }
 
 /**

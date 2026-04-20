@@ -30,7 +30,6 @@ from .generated.rpc import (
     PermissionDecision,
     PermissionDecisionRequest,
     UIElicitationSchemaType,
-    SessionFsHandler,
     SessionLogLevel,
     SessionRpc,
     ToolCallResult,
@@ -58,6 +57,7 @@ from .generated.session_events import (
     session_event_from_dict,
 )
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+from .session_fs_provider import SessionFsProvider
 
 if TYPE_CHECKING:
     from .client import ModelCapabilitiesOverride
@@ -410,7 +410,7 @@ ElicitationHandler = Callable[
 ]
 """Handler invoked when the server dispatches an elicitation request to this client."""
 
-CreateSessionFsHandler = Callable[["CopilotSession"], SessionFsHandler]
+CreateSessionFsHandler = Callable[["CopilotSession"], "SessionFsProvider"]
 
 
 # ============================================================================

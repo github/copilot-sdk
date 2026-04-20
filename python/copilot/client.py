@@ -60,6 +60,7 @@ from .session import (
     _PermissionHandlerFn,
 )
 from .tools import Tool, ToolInvocation, ToolResult
+from .session_fs_provider import create_session_fs_adapter
 
 # ============================================================================
 # Connection Types
@@ -1427,7 +1428,7 @@ class CopilotClient:
                     "create_session_fs_handler is required in session config when "
                     "session_fs is enabled in client options."
                 )
-            session._client_session_apis.session_fs = create_session_fs_handler(session)
+            session._client_session_apis.session_fs = create_session_fs_adapter(create_session_fs_handler(session))
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
@@ -1682,7 +1683,7 @@ class CopilotClient:
                     "create_session_fs_handler is required in session config when "
                     "session_fs is enabled in client options."
                 )
-            session._client_session_apis.session_fs = create_session_fs_handler(session)
+            session._client_session_apis.session_fs = create_session_fs_adapter(create_session_fs_handler(session))
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)

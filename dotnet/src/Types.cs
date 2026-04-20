@@ -1909,7 +1909,7 @@ public class SessionConfig
     /// Supplies a handler for session filesystem operations.
     /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
     /// </summary>
-    public Func<CopilotSession, ISessionFsHandler>? CreateSessionFsHandler { get; set; }
+    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsHandler { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
@@ -2148,7 +2148,7 @@ public class ResumeSessionConfig
     /// Supplies a handler for session filesystem operations.
     /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
     /// </summary>
-    public Func<CopilotSession, ISessionFsHandler>? CreateSessionFsHandler { get; set; }
+    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsHandler { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.

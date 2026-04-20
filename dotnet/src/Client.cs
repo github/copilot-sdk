@@ -1105,7 +1105,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             cancellationToken);
     }
 
-    private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, ISessionFsHandler>? createSessionFsHandler)
+    private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, SessionFsProvider>? createSessionFsHandler)
     {
         if (_options.SessionFs is null)
         {

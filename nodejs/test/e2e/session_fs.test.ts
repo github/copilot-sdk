@@ -6,13 +6,15 @@ import { SessionCompactionCompleteEvent } from "@github/copilot/sdk";
 import { MemoryProvider, VirtualProvider } from "@platformatic/vfs";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../../src/client.js";
-import { SessionFsHandler } from "../../src/generated/rpc.js";
+import type { SessionFsReaddirWithTypesEntry } from "../../src/generated/rpc.js";
 import {
     approveAll,
     CopilotSession,
     defineTool,
     SessionEvent,
     type SessionFsConfig,
+    type SessionFsProvider,
+    type SessionFsFileInfo,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -217,109 +219,56 @@ const sessionFsConfig: SessionFsConfig = {
 function createTestSessionFsHandler(
     session: CopilotSession,
     provider: VirtualProvider
-): SessionFsHandler {
-    const sp = (sessionId: string, path: string) =>
-        `/${sessionId}${path.startsWith("/") ? path : "/" + path}`;
-
-    function mapError(err: unknown): { code: "ENOENT" | "UNKNOWN"; message?: string } {
-        const e = err as NodeJS.ErrnoException;
-        if (e.code === "ENOENT") return { code: "ENOENT", message: e.message };
-        return { code: "UNKNOWN", message: e.message ?? String(err) };
-    }
+): SessionFsProvider {
+    const sp = (path: string) =>
+        `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
 
     return {
-        readFile: async ({ path }) => {
-            try {
-                const content = await provider.readFile(sp(session.sessionId, path), "utf8");
-                return { content: content as string };
-            } catch (err) {
-                return { content: "", error: mapError(err) };
-            }
+        async readFile(path: string): Promise<string> {
+            return (await provider.readFile(sp(path), "utf8")) as string;
         },
-        writeFile: async ({ path, content }) => {
-            try {
-                await provider.writeFile(sp(session.sessionId, path), content);
-                return undefined;
-            } catch (err) {
-                return mapError(err);
-            }
+        async writeFile(path: string, content: string): Promise<void> {
+            await provider.writeFile(sp(path), content);
         },
-        appendFile: async ({ path, content }) => {
-            try {
-                await provider.appendFile(sp(session.sessionId, path), content);
-                return undefined;
-            } catch (err) {
-                return mapError(err);
-            }
+        async appendFile(path: string, content: string): Promise<void> {
+            await provider.appendFile(sp(path), content);
         },
-        exists: async ({ path }) => {
-            return { exists: await provider.exists(sp(session.sessionId, path)) };
+        async exists(path: string): Promise<boolean> {
+            return provider.exists(sp(path));
         },
-        stat: async ({ path }) => {
-            try {
-                const st = await provider.stat(sp(session.sessionId, path));
-                return {
-                    isFile: st.isFile(),
-                    isDirectory: st.isDirectory(),
-                    size: st.size,
-                    mtime: new Date(st.mtimeMs).toISOString(),
-                    birthtime: new Date(st.birthtimeMs).toISOString(),
-                };
-            } catch (err) {
-                return { isFile: false, isDirectory: false, size: 0, mtime: new Date().toISOString(), birthtime: new Date().toISOString(), error: mapError(err) };
-            }
+        async stat(path: string): Promise<SessionFsFileInfo> {
+            const st = await provider.stat(sp(path));
+            return {
+                isFile: st.isFile(),
+                isDirectory: st.isDirectory(),
+                size: st.size,
+                mtime: new Date(st.mtimeMs).toISOString(),
+                birthtime: new Date(st.birthtimeMs).toISOString(),
+            };
         },
-        mkdir: async ({ path, recursive, mode }) => {
-            try {
-                await provider.mkdir(sp(session.sessionId, path), {
-                    recursive: recursive ?? false,
-                    mode,
-                });
-                return undefined;
-            } catch (err) {
-                return mapError(err);
-            }
+        async mkdir(path: string, recursive: boolean, mode?: number): Promise<void> {
+            await provider.mkdir(sp(path), { recursive, mode });
         },
-        readdir: async ({ path }) => {
-            try {
-                const entries = await provider.readdir(sp(session.sessionId, path));
-                return { entries: entries as string[] };
-            } catch (err) {
-                return { entries: [], error: mapError(err) };
-            }
+        async readdir(path: string): Promise<string[]> {
+            return (await provider.readdir(sp(path))) as string[];
         },
-        readdirWithTypes: async ({ path }) => {
-            try {
-                const names = (await provider.readdir(sp(session.sessionId, path))) as string[];
-                const entries = await Promise.all(
-                    names.map(async (name) => {
-                        const st = await provider.stat(sp(session.sessionId, `${path}/${name}`));
-                        return {
-                            name,
-                            type: st.isDirectory() ? ("directory" as const) : ("file" as const),
-                        };
-                    })
-                );
-                return { entries };
-            } catch (err) {
-                return { entries: [], error: mapError(err) };
-            }
+        async readdirWithTypes(path: string): Promise<SessionFsReaddirWithTypesEntry[]> {
+            const names = (await provider.readdir(sp(path))) as string[];
+            return Promise.all(
+                names.map(async (name) => {
+                    const st = await provider.stat(sp(`${path}/${name}`));
+                    return {
+                        name,
+                        type: st.isDirectory() ? ("directory" as const) : ("file" as const),
+                    };
+                })
+            );
         },
-        rm: async ({ path }) => {
-            try {
-                await provider.unlink(sp(session.sessionId, path));
-                return undefined;
-            } catch (err) {
-                return mapError(err);
-            }
+        async rm(path: string): Promise<void> {
+            await provider.unlink(sp(path));
         },
-        rename: async ({ src, dest }) => {
-            try {
-                await provider.rename(sp(session.sessionId, src), sp(session.sessionId, dest));
-                return undefined;
-            } catch (err) {
-                return mapError(err);
-            }
+        async rename(src: string, dest: string): Promise<void> {
+            await provider.rename(sp(src), sp(dest));
         },
     };
 }

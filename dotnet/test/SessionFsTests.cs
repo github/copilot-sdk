@@ -56,7 +56,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         try
         {
             await using var client = CreateSessionFsClient(providerRoot);
-            Func<CopilotSession, ISessionFsHandler> createSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot);
+            Func<CopilotSession, SessionFsProvider> createSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot);
 
             var session1 = await client.CreateSessionAsync(new SessionConfig
             {
@@ -95,7 +95,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         try
         {
             await using var client1 = CreateSessionFsClient(providerRoot, useStdio: false);
-            var createSessionFsHandler = (Func<CopilotSession, ISessionFsHandler>)(s => new TestSessionFsHandler(s.SessionId, providerRoot));
+            var createSessionFsHandler = (Func<CopilotSession, SessionFsProvider>)(s => new TestSessionFsHandler(s.SessionId, providerRoot));
 
             _ = await client1.CreateSessionAsync(new SessionConfig
             {
@@ -431,212 +431,135 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         return normalized;
     }
 
-    private sealed class TestSessionFsHandler(string sessionId, string rootDir) : ISessionFsHandler
+    private sealed class TestSessionFsHandler(string sessionId, string rootDir) : SessionFsProvider
     {
-        public async Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default)
+        protected override async Task<string> ReadFileAsync(string path, CancellationToken cancellationToken)
         {
-            try
-            {
-                var content = await File.ReadAllTextAsync(ResolvePath(request.Path), cancellationToken);
-                return new SessionFsReadFileResult { Content = content };
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-            {
-                return new SessionFsReadFileResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message } };
-            }
-            catch (Exception ex)
-            {
-                return new SessionFsReadFileResult { Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message } };
-            }
+            return await File.ReadAllTextAsync(ResolvePath(path), cancellationToken);
         }
 
-        public async Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default)
+        protected override async Task WriteFileAsync(string path, string content, CancellationToken cancellationToken)
         {
-            var fullPath = ResolvePath(request.Path);
+            var fullPath = ResolvePath(path);
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            await File.WriteAllTextAsync(fullPath, request.Content, cancellationToken);
-            return null;
+            await File.WriteAllTextAsync(fullPath, content, cancellationToken);
         }
 
-        public async Task<SessionFsError?> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default)
+        protected override async Task AppendFileAsync(string path, string content, CancellationToken cancellationToken)
         {
-            var fullPath = ResolvePath(request.Path);
+            var fullPath = ResolvePath(path);
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            await File.AppendAllTextAsync(fullPath, request.Content, cancellationToken);
-            return null;
+            await File.AppendAllTextAsync(fullPath, content, cancellationToken);
         }
 
-        public async Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default)
+        protected override Task<bool> ExistsAsync(string path, CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-            try
-            {
-                var fullPath = ResolvePath(request.Path);
-                return new SessionFsExistsResult
-                {
-                    Exists = File.Exists(fullPath) || Directory.Exists(fullPath),
-                };
-            }
-            catch
-            {
-                return new SessionFsExistsResult { Exists = false };
-            }
+            var fullPath = ResolvePath(path);
+            return Task.FromResult(File.Exists(fullPath) || Directory.Exists(fullPath));
         }
 
-        public async Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default)
+        protected override Task<SessionFsStatResult> StatAsync(string path, CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-            try
+            var fullPath = ResolvePath(path);
+            if (File.Exists(fullPath))
             {
-                var fullPath = ResolvePath(request.Path);
-                if (File.Exists(fullPath))
+                var info = new FileInfo(fullPath);
+                return Task.FromResult(new SessionFsStatResult
                 {
-                    var info = new FileInfo(fullPath);
-                    return new SessionFsStatResult
-                    {
-                        IsFile = true,
-                        IsDirectory = false,
-                        Size = info.Length,
-                        Mtime = info.LastWriteTimeUtc,
-                        Birthtime = info.CreationTimeUtc,
-                    };
-                }
+                    IsFile = true,
+                    IsDirectory = false,
+                    Size = info.Length,
+                    Mtime = info.LastWriteTimeUtc,
+                    Birthtime = info.CreationTimeUtc,
+                });
+            }
 
-                var dirInfo = new DirectoryInfo(fullPath);
-                if (!dirInfo.Exists)
-                {
-                    return new SessionFsStatResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = $"Path does not exist: {request.Path}" } };
-                }
+            var dirInfo = new DirectoryInfo(fullPath);
+            if (!dirInfo.Exists)
+            {
+                throw new DirectoryNotFoundException($"Path does not exist: {path}");
+            }
 
-                return new SessionFsStatResult
-                {
-                    IsFile = false,
-                    IsDirectory = true,
-                    Size = 0,
-                    Mtime = dirInfo.LastWriteTimeUtc,
-                    Birthtime = dirInfo.CreationTimeUtc,
-                };
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            return Task.FromResult(new SessionFsStatResult
             {
-                return new SessionFsStatResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message } };
-            }
-            catch (Exception ex)
-            {
-                return new SessionFsStatResult { Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message } };
-            }
+                IsFile = false,
+                IsDirectory = true,
+                Size = 0,
+                Mtime = dirInfo.LastWriteTimeUtc,
+                Birthtime = dirInfo.CreationTimeUtc,
+            });
         }
 
-        public async Task<SessionFsError?> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default)
+        protected override Task MkdirAsync(string path, bool recursive, CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-            Directory.CreateDirectory(ResolvePath(request.Path));
-            return null;
+            Directory.CreateDirectory(ResolvePath(path));
+            return Task.CompletedTask;
         }
 
-        public async Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default)
+        protected override Task<IList<string>> ReaddirAsync(string path, CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-            try
-            {
-                var entries = Directory
-                    .EnumerateFileSystemEntries(ResolvePath(request.Path))
-                    .Select(Path.GetFileName)
-                    .Where(name => name is not null)
-                    .Cast<string>()
-                    .ToList();
-
-                return new SessionFsReaddirResult { Entries = entries };
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-            {
-                return new SessionFsReaddirResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message } };
-            }
-            catch (Exception ex)
-            {
-                return new SessionFsReaddirResult { Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message } };
-            }
+            IList<string> entries = Directory
+                .EnumerateFileSystemEntries(ResolvePath(path))
+                .Select(Path.GetFileName)
+                .Where(name => name is not null)
+                .Cast<string>()
+                .ToList();
+            return Task.FromResult(entries);
         }
 
-        public async Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default)
+        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReaddirWithTypesAsync(string path, CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-            try
-            {
-                var entries = Directory
-                    .EnumerateFileSystemEntries(ResolvePath(request.Path))
-                    .Select(path => new SessionFsReaddirWithTypesEntry
-                    {
-                        Name = Path.GetFileName(path),
-                        Type = Directory.Exists(path) ? SessionFsReaddirWithTypesEntryType.Directory : SessionFsReaddirWithTypesEntryType.File,
-                    })
-                    .ToList();
-
-                return new SessionFsReaddirWithTypesResult { Entries = entries };
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-            {
-                return new SessionFsReaddirWithTypesResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message } };
-            }
-            catch (Exception ex)
-            {
-                return new SessionFsReaddirWithTypesResult { Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message } };
-            }
-        }
-
-        public async Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default)
-        {
-            await Task.CompletedTask;
-            try
-            {
-                var fullPath = ResolvePath(request.Path);
-
-                if (File.Exists(fullPath))
+            IList<SessionFsReaddirWithTypesEntry> entries = Directory
+                .EnumerateFileSystemEntries(ResolvePath(path))
+                .Select(p => new SessionFsReaddirWithTypesEntry
                 {
-                    File.Delete(fullPath);
-                    return null;
-                }
-
-                if (Directory.Exists(fullPath))
-                {
-                    Directory.Delete(fullPath, request.Recursive ?? false);
-                    return null;
-                }
-
-                if (request.Force == true)
-                {
-                    return null;
-                }
-
-                return new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = $"Path does not exist: {request.Path}" };
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-            {
-                return new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message };
-            }
-            catch (Exception ex)
-            {
-                return new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message };
-            }
+                    Name = Path.GetFileName(p),
+                    Type = Directory.Exists(p) ? SessionFsReaddirWithTypesEntryType.Directory : SessionFsReaddirWithTypesEntryType.File,
+                })
+                .ToList();
+            return Task.FromResult(entries);
         }
 
-        public async Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default)
+        protected override Task RmAsync(string path, bool recursive, bool force, CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-            var src = ResolvePath(request.Src);
-            var dest = ResolvePath(request.Dest);
-            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            var fullPath = ResolvePath(path);
 
-            if (Directory.Exists(src))
+            if (File.Exists(fullPath))
             {
-                Directory.Move(src, dest);
+                File.Delete(fullPath);
+                return Task.CompletedTask;
+            }
+
+            if (Directory.Exists(fullPath))
+            {
+                Directory.Delete(fullPath, recursive);
+                return Task.CompletedTask;
+            }
+
+            if (force)
+            {
+                return Task.CompletedTask;
+            }
+
+            throw new FileNotFoundException($"Path does not exist: {path}");
+        }
+
+        protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken)
+        {
+            var srcPath = ResolvePath(src);
+            var destPath = ResolvePath(dest);
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
+            if (Directory.Exists(srcPath))
+            {
+                Directory.Move(srcPath, destPath);
             }
             else
             {
-                File.Move(src, dest, overwrite: true);
+                File.Move(srcPath, destPath, overwrite: true);
             }
 
-            return null;
+            return Task.CompletedTask;
         }
 
         private string ResolvePath(string sessionPath)
