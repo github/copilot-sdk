@@ -10,11 +10,25 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * Shared test utilities for locating the Copilot CLI binary.
+ * Shared test utilities for locating the Copilot CLI binary and other
+ * cross-platform test helpers.
  */
-final class TestUtil {
+public final class TestUtil {
 
     private TestUtil() {
+    }
+
+    /**
+     * Returns a platform-independent path string for a file inside the system
+     * temporary directory. Uses {@code java.io.tmpdir} so tests run correctly on
+     * both POSIX and Windows.
+     *
+     * @param filename
+     *            the file name (no directory separator required)
+     * @return absolute path string in the system temp directory
+     */
+    public static String tempPath(String filename) {
+        return Path.of(System.getProperty("java.io.tmpdir"), filename).toString();
     }
 
     /**

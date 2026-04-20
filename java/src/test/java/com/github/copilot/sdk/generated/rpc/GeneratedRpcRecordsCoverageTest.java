@@ -12,6 +12,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.sdk.TestUtil;
+
 /**
  * Tests for generated RPC param and result record types. Exercises
  * constructors, field accessors, and enum variants to provide JaCoCo coverage
@@ -144,25 +146,25 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsAppendFileParams_record() {
-        var params = new SessionFsAppendFileParams("sess-12", "/tmp/log.txt", "new line\n", null);
+        var params = new SessionFsAppendFileParams("sess-12", TestUtil.tempPath("log.txt"), "new line\n", null);
         assertEquals("sess-12", params.sessionId());
-        assertEquals("/tmp/log.txt", params.path());
+        assertEquals(TestUtil.tempPath("log.txt"), params.path());
         assertEquals("new line\n", params.content());
         assertNull(params.mode());
     }
 
     @Test
     void sessionFsExistsParams_record() {
-        var params = new SessionFsExistsParams("sess-13", "/tmp/file.txt");
+        var params = new SessionFsExistsParams("sess-13", TestUtil.tempPath("file.txt"));
         assertEquals("sess-13", params.sessionId());
-        assertEquals("/tmp/file.txt", params.path());
+        assertEquals(TestUtil.tempPath("file.txt"), params.path());
     }
 
     @Test
     void sessionFsMkdirParams_record() {
-        var params = new SessionFsMkdirParams("sess-14", "/tmp/newdir", true, null);
+        var params = new SessionFsMkdirParams("sess-14", TestUtil.tempPath("newdir"), true, null);
         assertEquals("sess-14", params.sessionId());
-        assertEquals("/tmp/newdir", params.path());
+        assertEquals(TestUtil.tempPath("newdir"), params.path());
         assertTrue(params.recursive());
         assertNull(params.mode());
     }
@@ -198,9 +200,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsRmParams_record() {
-        var params = new SessionFsRmParams("sess-19", "/tmp/file.txt", false, true);
+        var params = new SessionFsRmParams("sess-19", TestUtil.tempPath("file.txt"), false, true);
         assertEquals("sess-19", params.sessionId());
-        assertEquals("/tmp/file.txt", params.path());
+        assertEquals(TestUtil.tempPath("file.txt"), params.path());
         assertFalse(params.recursive());
         assertTrue(params.force());
     }
@@ -224,11 +226,11 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsWriteFileParams_record() {
-        var params = new SessionFsWriteFileParams("sess-21", "/tmp/out.txt", "content here", 644.0);
+        var params = new SessionFsWriteFileParams("sess-21", TestUtil.tempPath("out.txt"), "content here", null);
         assertEquals("sess-21", params.sessionId());
-        assertEquals("/tmp/out.txt", params.path());
+        assertEquals(TestUtil.tempPath("out.txt"), params.path());
         assertEquals("content here", params.content());
-        assertEquals(644.0, params.mode());
+        assertNull(params.mode());
     }
 
     @Test
