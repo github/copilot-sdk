@@ -612,6 +612,11 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.Streaming {
 		req.Streaming = Bool(true)
 	}
+	if config.IncludeSubAgentStreamingEvents != nil {
+		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
+	} else {
+		req.IncludeSubAgentStreamingEvents = Bool(true)
+	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
 	}
@@ -744,6 +749,11 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ExcludedTools = config.ExcludedTools
 	if config.Streaming {
 		req.Streaming = Bool(true)
+	}
+	if config.IncludeSubAgentStreamingEvents != nil {
+		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
+	} else {
+		req.IncludeSubAgentStreamingEvents = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)

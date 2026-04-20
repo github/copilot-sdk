@@ -12,6 +12,319 @@ import (
 	"time"
 )
 
+type UIElicitationResponseContent map[string]*UIElicitationFieldValue
+
+// Model capabilities and limits
+type ModelCapabilities struct {
+	// Token limits for prompts, outputs, and context window
+	Limits *ModelCapabilitiesLimits `json:"limits,omitempty"`
+	// Feature flags indicating what the model supports
+	Supports *ModelCapabilitiesSupports `json:"supports,omitempty"`
+}
+
+// Token limits for prompts, outputs, and context window
+type ModelCapabilitiesLimits struct {
+	// Maximum total context window size in tokens
+	MaxContextWindowTokens *int64 `json:"max_context_window_tokens,omitempty"`
+	// Maximum number of output/completion tokens
+	MaxOutputTokens *int64 `json:"max_output_tokens,omitempty"`
+	// Maximum number of prompt/input tokens
+	MaxPromptTokens *int64 `json:"max_prompt_tokens,omitempty"`
+	// Vision-specific limits
+	Vision *PurpleModelCapabilitiesLimitsVision `json:"vision,omitempty"`
+}
+
+// Vision-specific limits
+type PurpleModelCapabilitiesLimitsVision struct {
+	// Maximum image size in bytes
+	MaxPromptImageSize int64 `json:"max_prompt_image_size"`
+	// Maximum number of images per prompt
+	MaxPromptImages int64 `json:"max_prompt_images"`
+	// MIME types the model accepts
+	SupportedMediaTypes []string `json:"supported_media_types"`
+}
+
+// Feature flags indicating what the model supports
+type ModelCapabilitiesSupports struct {
+	// Whether this model supports reasoning effort configuration
+	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	// Whether this model supports vision/image input
+	Vision *bool `json:"vision,omitempty"`
+}
+
+// Vision-specific limits
+type ModelCapabilitiesLimitsVision struct {
+	// Maximum image size in bytes
+	MaxPromptImageSize int64 `json:"max_prompt_image_size"`
+	// Maximum number of images per prompt
+	MaxPromptImages int64 `json:"max_prompt_images"`
+	// MIME types the model accepts
+	SupportedMediaTypes []string `json:"supported_media_types"`
+}
+
+// MCP server configuration (local/stdio or remote/http)
+type MCPServerConfig struct {
+	Args            []string          `json:"args,omitempty"`
+	Command         *string           `json:"command,omitempty"`
+	Cwd             *string           `json:"cwd,omitempty"`
+	Env             map[string]string `json:"env,omitempty"`
+	FilterMapping   *FilterMapping    `json:"filterMapping"`
+	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
+	// Timeout in milliseconds for tool calls to this server.
+	Timeout *int64 `json:"timeout,omitempty"`
+	// Tools to include. Defaults to all tools if not specified.
+	Tools []string `json:"tools,omitempty"`
+	// Remote transport type. Defaults to "http" when omitted.
+	Type              *MCPServerConfigType `json:"type,omitempty"`
+	Headers           map[string]string    `json:"headers,omitempty"`
+	OauthClientID     *string              `json:"oauthClientId,omitempty"`
+	OauthPublicClient *bool                `json:"oauthPublicClient,omitempty"`
+	URL               *string              `json:"url,omitempty"`
+}
+
+type DiscoveredMCPServer struct {
+	// Whether the server is enabled (not in the disabled list)
+	Enabled bool `json:"enabled"`
+	// Server name (config key)
+	Name string `json:"name"`
+	// Configuration source
+	Source MCPServerSource `json:"source"`
+	// Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+	Type *DiscoveredMCPServerType `json:"type,omitempty"`
+}
+
+type ServerSkillList struct {
+	// All discovered skills across all sources
+	Skills []SkillElement `json:"skills"`
+}
+
+type SkillElement struct {
+	// Description of what the skill does
+	Description string `json:"description"`
+	// Whether the skill is currently enabled (based on global config)
+	Enabled bool `json:"enabled"`
+	// Unique identifier for the skill
+	Name string `json:"name"`
+	// Absolute path to the skill file
+	Path *string `json:"path,omitempty"`
+	// The project path this skill belongs to (only for project/inherited skills)
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	Source string `json:"source"`
+	// Whether the skill can be invoked by the user as a slash command
+	UserInvocable bool `json:"userInvocable"`
+}
+
+type ServerSkill struct {
+	// Description of what the skill does
+	Description string `json:"description"`
+	// Whether the skill is currently enabled (based on global config)
+	Enabled bool `json:"enabled"`
+	// Unique identifier for the skill
+	Name string `json:"name"`
+	// Absolute path to the skill file
+	Path *string `json:"path,omitempty"`
+	// The project path this skill belongs to (only for project/inherited skills)
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	Source string `json:"source"`
+	// Whether the skill can be invoked by the user as a slash command
+	UserInvocable bool `json:"userInvocable"`
+}
+
+type CurrentModel struct {
+	// Currently active model identifier
+	ModelID *string `json:"modelId,omitempty"`
+}
+
+// Override individual model capabilities resolved by the runtime
+type ModelCapabilitiesOverride struct {
+	// Token limits for prompts, outputs, and context window
+	Limits *ModelCapabilitiesOverrideLimits `json:"limits,omitempty"`
+	// Feature flags indicating what the model supports
+	Supports *ModelCapabilitiesOverrideSupports `json:"supports,omitempty"`
+}
+
+// Token limits for prompts, outputs, and context window
+type ModelCapabilitiesOverrideLimits struct {
+	// Maximum total context window size in tokens
+	MaxContextWindowTokens *int64                                       `json:"max_context_window_tokens,omitempty"`
+	MaxOutputTokens        *int64                                       `json:"max_output_tokens,omitempty"`
+	MaxPromptTokens        *int64                                       `json:"max_prompt_tokens,omitempty"`
+	Vision                 *PurpleModelCapabilitiesOverrideLimitsVision `json:"vision,omitempty"`
+}
+
+type PurpleModelCapabilitiesOverrideLimitsVision struct {
+	// Maximum image size in bytes
+	MaxPromptImageSize *int64 `json:"max_prompt_image_size,omitempty"`
+	// Maximum number of images per prompt
+	MaxPromptImages *int64 `json:"max_prompt_images,omitempty"`
+	// MIME types the model accepts
+	SupportedMediaTypes []string `json:"supported_media_types,omitempty"`
+}
+
+// Feature flags indicating what the model supports
+type ModelCapabilitiesOverrideSupports struct {
+	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	Vision          *bool `json:"vision,omitempty"`
+}
+
+type AgentInfo struct {
+	// Description of the agent's purpose
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier of the custom agent
+	Name string `json:"name"`
+}
+
+type MCPServerList struct {
+	// Configured MCP servers
+	Servers []MCPServer `json:"servers"`
+}
+
+type MCPServer struct {
+	// Error message if the server failed to connect
+	Error *string `json:"error,omitempty"`
+	// Server name (config key)
+	Name string `json:"name"`
+	// Configuration source: user, workspace, plugin, or builtin
+	Source *MCPServerSource `json:"source,omitempty"`
+	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	Status MCPServerStatus `json:"status"`
+}
+
+type ToolCallResult struct {
+	// Error message if the tool call failed
+	Error *string `json:"error,omitempty"`
+	// Type of the tool result
+	ResultType *string `json:"resultType,omitempty"`
+	// Text result to send back to the LLM
+	TextResultForLlm string `json:"textResultForLlm"`
+	// Telemetry data from tool execution
+	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
+}
+
+type HandleToolCallResult struct {
+	// Whether the tool call result was handled successfully
+	Success bool `json:"success"`
+}
+
+type UIElicitationStringEnumField struct {
+	Default     *string                          `json:"default,omitempty"`
+	Description *string                          `json:"description,omitempty"`
+	Enum        []string                         `json:"enum"`
+	EnumNames   []string                         `json:"enumNames,omitempty"`
+	Title       *string                          `json:"title,omitempty"`
+	Type        UIElicitationStringEnumFieldType `json:"type"`
+}
+
+type UIElicitationStringOneOfField struct {
+	Default     *string                              `json:"default,omitempty"`
+	Description *string                              `json:"description,omitempty"`
+	OneOf       []UIElicitationStringOneOfFieldOneOf `json:"oneOf"`
+	Title       *string                              `json:"title,omitempty"`
+	Type        UIElicitationStringEnumFieldType     `json:"type"`
+}
+
+type UIElicitationStringOneOfFieldOneOf struct {
+	Const string `json:"const"`
+	Title string `json:"title"`
+}
+
+type UIElicitationArrayEnumField struct {
+	Default     []string                         `json:"default,omitempty"`
+	Description *string                          `json:"description,omitempty"`
+	Items       UIElicitationArrayEnumFieldItems `json:"items"`
+	MaxItems    *float64                         `json:"maxItems,omitempty"`
+	MinItems    *float64                         `json:"minItems,omitempty"`
+	Title       *string                          `json:"title,omitempty"`
+	Type        UIElicitationArrayEnumFieldType  `json:"type"`
+}
+
+type UIElicitationArrayEnumFieldItems struct {
+	Enum []string                         `json:"enum"`
+	Type UIElicitationStringEnumFieldType `json:"type"`
+}
+
+type UIElicitationArrayAnyOfField struct {
+	Default     []string                          `json:"default,omitempty"`
+	Description *string                           `json:"description,omitempty"`
+	Items       UIElicitationArrayAnyOfFieldItems `json:"items"`
+	MaxItems    *float64                          `json:"maxItems,omitempty"`
+	MinItems    *float64                          `json:"minItems,omitempty"`
+	Title       *string                           `json:"title,omitempty"`
+	Type        UIElicitationArrayEnumFieldType   `json:"type"`
+}
+
+type UIElicitationArrayAnyOfFieldItems struct {
+	AnyOf []PurpleUIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf"`
+}
+
+type PurpleUIElicitationArrayAnyOfFieldItemsAnyOf struct {
+	Const string `json:"const"`
+	Title string `json:"title"`
+}
+
+// The elicitation response (accept with form values, decline, or cancel)
+type UIElicitationResponse struct {
+	// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+	Action UIElicitationResponseAction `json:"action"`
+	// The form values submitted by the user (present when action is 'accept')
+	Content map[string]*UIElicitationFieldValue `json:"content,omitempty"`
+}
+
+type UIHandlePendingElicitationRequest struct {
+	// The unique request ID from the elicitation.requested event
+	RequestID string `json:"requestId"`
+	// The elicitation response (accept with form values, decline, or cancel)
+	Result UIElicitationResponse `json:"result"`
+}
+
+type UIElicitationResult struct {
+	// Whether the response was accepted. False if the request was already resolved by another
+	// client.
+	Success bool `json:"success"`
+}
+
+type PermissionDecisionRequest struct {
+	// Request ID of the pending permission request
+	RequestID string             `json:"requestId"`
+	Result    PermissionDecision `json:"result"`
+}
+
+type PermissionDecision struct {
+	// The permission request was approved
+	//
+	// Denied because approval rules explicitly blocked it
+	//
+	// Denied because no approval rule matched and user confirmation was unavailable
+	//
+	// Denied by the user during an interactive prompt
+	//
+	// Denied by the organization's content exclusion policy
+	//
+	// Denied by a permission request hook registered by an extension or plugin
+	Kind Kind `json:"kind"`
+	// Rules that denied the request
+	Rules []any `json:"rules,omitempty"`
+	// Optional feedback from the user explaining the denial
+	Feedback *string `json:"feedback,omitempty"`
+	// Human-readable explanation of why the path was excluded
+	//
+	// Optional message from the hook explaining the denial
+	Message *string `json:"message,omitempty"`
+	// File path that triggered the exclusion
+	Path *string `json:"path,omitempty"`
+	// Whether to interrupt the current agent turn
+	Interrupt *bool `json:"interrupt,omitempty"`
+}
+
+type PermissionRequestResult struct {
+	// Whether the permission request was handled successfully
+	Success bool `json:"success"`
+}
+
 type PingResult struct {
 	// Echoed message (or default greeting)
 	Message string `json:"message"`
@@ -28,14 +341,14 @@ type PingRequest struct {
 
 type ModelList struct {
 	// List of available models with full metadata
-	Models []Model `json:"models"`
+	Models []ModelElement `json:"models"`
 }
 
-type Model struct {
+type ModelElement struct {
 	// Billing information
 	Billing *ModelBilling `json:"billing,omitempty"`
 	// Model capabilities and limits
-	Capabilities ModelCapabilities `json:"capabilities"`
+	Capabilities CapabilitiesClass `json:"capabilities"`
 	// Default reasoning effort level (only present if model supports reasoning effort)
 	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
 	// Model identifier (e.g., "claude-sonnet-4.5")
@@ -55,15 +368,15 @@ type ModelBilling struct {
 }
 
 // Model capabilities and limits
-type ModelCapabilities struct {
+type CapabilitiesClass struct {
 	// Token limits for prompts, outputs, and context window
-	Limits *ModelCapabilitiesLimits `json:"limits,omitempty"`
+	Limits *CapabilitiesLimits `json:"limits,omitempty"`
 	// Feature flags indicating what the model supports
-	Supports *ModelCapabilitiesSupports `json:"supports,omitempty"`
+	Supports *CapabilitiesSupports `json:"supports,omitempty"`
 }
 
 // Token limits for prompts, outputs, and context window
-type ModelCapabilitiesLimits struct {
+type CapabilitiesLimits struct {
 	// Maximum total context window size in tokens
 	MaxContextWindowTokens *int64 `json:"max_context_window_tokens,omitempty"`
 	// Maximum number of output/completion tokens
@@ -71,11 +384,11 @@ type ModelCapabilitiesLimits struct {
 	// Maximum number of prompt/input tokens
 	MaxPromptTokens *int64 `json:"max_prompt_tokens,omitempty"`
 	// Vision-specific limits
-	Vision *ModelCapabilitiesLimitsVision `json:"vision,omitempty"`
+	Vision *FluffyModelCapabilitiesLimitsVision `json:"vision,omitempty"`
 }
 
 // Vision-specific limits
-type ModelCapabilitiesLimitsVision struct {
+type FluffyModelCapabilitiesLimitsVision struct {
 	// Maximum image size in bytes
 	MaxPromptImageSize int64 `json:"max_prompt_image_size"`
 	// Maximum number of images per prompt
@@ -85,7 +398,7 @@ type ModelCapabilitiesLimitsVision struct {
 }
 
 // Feature flags indicating what the model supports
-type ModelCapabilitiesSupports struct {
+type CapabilitiesSupports struct {
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
 	// Whether this model supports vision/image input
@@ -147,27 +460,27 @@ type AccountQuotaSnapshot struct {
 
 type MCPConfigList struct {
 	// All MCP servers from user config, keyed by name
-	Servers map[string]MCPConfigServer `json:"servers"`
+	Servers map[string]MCPServerConfigValue `json:"servers"`
 }
 
 // MCP server configuration (local/stdio or remote/http)
-type MCPConfigServer struct {
-	Args            []string                `json:"args,omitempty"`
-	Command         *string                 `json:"command,omitempty"`
-	Cwd             *string                 `json:"cwd,omitempty"`
-	Env             map[string]string       `json:"env,omitempty"`
-	FilterMapping   *MCPConfigFilterMapping `json:"filterMapping"`
-	IsDefaultServer *bool                   `json:"isDefaultServer,omitempty"`
+type MCPServerConfigValue struct {
+	Args            []string          `json:"args,omitempty"`
+	Command         *string           `json:"command,omitempty"`
+	Cwd             *string           `json:"cwd,omitempty"`
+	Env             map[string]string `json:"env,omitempty"`
+	FilterMapping   *FilterMapping    `json:"filterMapping"`
+	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
 	Tools []string `json:"tools,omitempty"`
 	// Remote transport type. Defaults to "http" when omitted.
-	Type              *MCPConfigType    `json:"type,omitempty"`
-	Headers           map[string]string `json:"headers,omitempty"`
-	OauthClientID     *string           `json:"oauthClientId,omitempty"`
-	OauthPublicClient *bool             `json:"oauthPublicClient,omitempty"`
-	URL               *string           `json:"url,omitempty"`
+	Type              *MCPServerConfigType `json:"type,omitempty"`
+	Headers           map[string]string    `json:"headers,omitempty"`
+	OauthClientID     *string              `json:"oauthClientId,omitempty"`
+	OauthPublicClient *bool                `json:"oauthPublicClient,omitempty"`
+	URL               *string              `json:"url,omitempty"`
 }
 
 type MCPConfigAddResult struct {
@@ -175,29 +488,29 @@ type MCPConfigAddResult struct {
 
 type MCPConfigAddRequest struct {
 	// MCP server configuration (local/stdio or remote/http)
-	Config MCPConfigAddConfig `json:"config"`
+	Config MCPConfigAddRequestMCPServerConfig `json:"config"`
 	// Unique name for the MCP server
 	Name string `json:"name"`
 }
 
 // MCP server configuration (local/stdio or remote/http)
-type MCPConfigAddConfig struct {
-	Args            []string                `json:"args,omitempty"`
-	Command         *string                 `json:"command,omitempty"`
-	Cwd             *string                 `json:"cwd,omitempty"`
-	Env             map[string]string       `json:"env,omitempty"`
-	FilterMapping   *MCPConfigFilterMapping `json:"filterMapping"`
-	IsDefaultServer *bool                   `json:"isDefaultServer,omitempty"`
+type MCPConfigAddRequestMCPServerConfig struct {
+	Args            []string          `json:"args,omitempty"`
+	Command         *string           `json:"command,omitempty"`
+	Cwd             *string           `json:"cwd,omitempty"`
+	Env             map[string]string `json:"env,omitempty"`
+	FilterMapping   *FilterMapping    `json:"filterMapping"`
+	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
 	Tools []string `json:"tools,omitempty"`
 	// Remote transport type. Defaults to "http" when omitted.
-	Type              *MCPConfigType    `json:"type,omitempty"`
-	Headers           map[string]string `json:"headers,omitempty"`
-	OauthClientID     *string           `json:"oauthClientId,omitempty"`
-	OauthPublicClient *bool             `json:"oauthPublicClient,omitempty"`
-	URL               *string           `json:"url,omitempty"`
+	Type              *MCPServerConfigType `json:"type,omitempty"`
+	Headers           map[string]string    `json:"headers,omitempty"`
+	OauthClientID     *string              `json:"oauthClientId,omitempty"`
+	OauthPublicClient *bool                `json:"oauthPublicClient,omitempty"`
+	URL               *string              `json:"url,omitempty"`
 }
 
 type MCPConfigUpdateResult struct {
@@ -205,29 +518,29 @@ type MCPConfigUpdateResult struct {
 
 type MCPConfigUpdateRequest struct {
 	// MCP server configuration (local/stdio or remote/http)
-	Config MCPConfigUpdateConfig `json:"config"`
+	Config MCPConfigUpdateRequestMCPServerConfig `json:"config"`
 	// Name of the MCP server to update
 	Name string `json:"name"`
 }
 
 // MCP server configuration (local/stdio or remote/http)
-type MCPConfigUpdateConfig struct {
-	Args            []string                `json:"args,omitempty"`
-	Command         *string                 `json:"command,omitempty"`
-	Cwd             *string                 `json:"cwd,omitempty"`
-	Env             map[string]string       `json:"env,omitempty"`
-	FilterMapping   *MCPConfigFilterMapping `json:"filterMapping"`
-	IsDefaultServer *bool                   `json:"isDefaultServer,omitempty"`
+type MCPConfigUpdateRequestMCPServerConfig struct {
+	Args            []string          `json:"args,omitempty"`
+	Command         *string           `json:"command,omitempty"`
+	Cwd             *string           `json:"cwd,omitempty"`
+	Env             map[string]string `json:"env,omitempty"`
+	FilterMapping   *FilterMapping    `json:"filterMapping"`
+	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
 	Tools []string `json:"tools,omitempty"`
 	// Remote transport type. Defaults to "http" when omitted.
-	Type              *MCPConfigType    `json:"type,omitempty"`
-	Headers           map[string]string `json:"headers,omitempty"`
-	OauthClientID     *string           `json:"oauthClientId,omitempty"`
-	OauthPublicClient *bool             `json:"oauthPublicClient,omitempty"`
-	URL               *string           `json:"url,omitempty"`
+	Type              *MCPServerConfigType `json:"type,omitempty"`
+	Headers           map[string]string    `json:"headers,omitempty"`
+	OauthClientID     *string              `json:"oauthClientId,omitempty"`
+	OauthPublicClient *bool                `json:"oauthPublicClient,omitempty"`
+	URL               *string              `json:"url,omitempty"`
 }
 
 type MCPConfigRemoveResult struct {
@@ -240,10 +553,10 @@ type MCPConfigRemoveRequest struct {
 
 type MCPDiscoverResult struct {
 	// MCP servers discovered from all sources
-	Servers []DiscoveredMCPServer `json:"servers"`
+	Servers []ServerElement `json:"servers"`
 }
 
-type DiscoveredMCPServer struct {
+type ServerElement struct {
 	// Whether the server is enabled (not in the disabled list)
 	Enabled bool `json:"enabled"`
 	// Server name (config key)
@@ -265,28 +578,6 @@ type SkillsConfigSetDisabledSkillsResult struct {
 type SkillsConfigSetDisabledSkillsRequest struct {
 	// List of skill names to disable
 	DisabledSkills []string `json:"disabledSkills"`
-}
-
-type ServerSkillList struct {
-	// All discovered skills across all sources
-	Skills []ServerSkill `json:"skills"`
-}
-
-type ServerSkill struct {
-	// Description of what the skill does
-	Description string `json:"description"`
-	// Whether the skill is currently enabled (based on global config)
-	Enabled bool `json:"enabled"`
-	// Unique identifier for the skill
-	Name string `json:"name"`
-	// Absolute path to the skill file
-	Path *string `json:"path,omitempty"`
-	// The project path this skill belongs to (only for project/inherited skills)
-	ProjectPath *string `json:"projectPath,omitempty"`
-	// Source location type (e.g., project, personal-copilot, plugin, builtin)
-	Source string `json:"source"`
-	// Whether the skill can be invoked by the user as a slash command
-	UserInvocable bool `json:"userInvocable"`
 }
 
 type SkillsDiscoverRequest struct {
@@ -325,11 +616,6 @@ type SessionsForkRequest struct {
 	ToEventID *string `json:"toEventId,omitempty"`
 }
 
-type CurrentModel struct {
-	// Currently active model identifier
-	ModelID *string `json:"modelId,omitempty"`
-}
-
 type ModelSwitchToResult struct {
 	// Currently active model identifier after the switch
 	ModelID *string `json:"modelId,omitempty"`
@@ -337,7 +623,7 @@ type ModelSwitchToResult struct {
 
 type ModelSwitchToRequest struct {
 	// Override individual model capabilities resolved by the runtime
-	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
+	ModelCapabilities *ModelCapabilitiesClass `json:"modelCapabilities,omitempty"`
 	// Model identifier to switch to
 	ModelID string `json:"modelId"`
 	// Reasoning effort level to use for the model
@@ -345,35 +631,29 @@ type ModelSwitchToRequest struct {
 }
 
 // Override individual model capabilities resolved by the runtime
-type ModelCapabilitiesOverride struct {
+type ModelCapabilitiesClass struct {
 	// Token limits for prompts, outputs, and context window
-	Limits *ModelCapabilitiesOverrideLimits `json:"limits,omitempty"`
+	Limits *ModelCapabilitiesLimitsClass `json:"limits,omitempty"`
 	// Feature flags indicating what the model supports
 	Supports *ModelCapabilitiesOverrideSupports `json:"supports,omitempty"`
 }
 
 // Token limits for prompts, outputs, and context window
-type ModelCapabilitiesOverrideLimits struct {
+type ModelCapabilitiesLimitsClass struct {
 	// Maximum total context window size in tokens
-	MaxContextWindowTokens *int64                                 `json:"max_context_window_tokens,omitempty"`
-	MaxOutputTokens        *int64                                 `json:"max_output_tokens,omitempty"`
-	MaxPromptTokens        *int64                                 `json:"max_prompt_tokens,omitempty"`
-	Vision                 *ModelCapabilitiesOverrideLimitsVision `json:"vision,omitempty"`
+	MaxContextWindowTokens *int64                                       `json:"max_context_window_tokens,omitempty"`
+	MaxOutputTokens        *int64                                       `json:"max_output_tokens,omitempty"`
+	MaxPromptTokens        *int64                                       `json:"max_prompt_tokens,omitempty"`
+	Vision                 *FluffyModelCapabilitiesOverrideLimitsVision `json:"vision,omitempty"`
 }
 
-type ModelCapabilitiesOverrideLimitsVision struct {
+type FluffyModelCapabilitiesOverrideLimitsVision struct {
 	// Maximum image size in bytes
 	MaxPromptImageSize *int64 `json:"max_prompt_image_size,omitempty"`
 	// Maximum number of images per prompt
 	MaxPromptImages *int64 `json:"max_prompt_images,omitempty"`
 	// MIME types the model accepts
 	SupportedMediaTypes []string `json:"supported_media_types,omitempty"`
-}
-
-// Feature flags indicating what the model supports
-type ModelCapabilitiesOverrideSupports struct {
-	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
-	Vision          *bool `json:"vision,omitempty"`
 }
 
 type ModeSetResult struct {
@@ -467,6 +747,30 @@ type WorkspacesCreateFileRequest struct {
 	Path string `json:"path"`
 }
 
+type InstructionsGetSourcesResult struct {
+	// Instruction sources for the session
+	Sources []InstructionsSources `json:"sources"`
+}
+
+type InstructionsSources struct {
+	// Glob pattern from frontmatter — when set, this instruction applies only to matching files
+	ApplyTo *string `json:"applyTo,omitempty"`
+	// Raw content of the instruction file
+	Content string `json:"content"`
+	// Short description (body after frontmatter) for use in instruction tables
+	Description *string `json:"description,omitempty"`
+	// Unique identifier for this source (used for toggling)
+	ID string `json:"id"`
+	// Human-readable label
+	Label string `json:"label"`
+	// Where this source lives — used for UI grouping
+	Location InstructionsSourcesLocation `json:"location"`
+	// File path relative to repo or absolute for home
+	SourcePath string `json:"sourcePath"`
+	// Category of instruction source — used for merge logic
+	Type InstructionsSourcesType `json:"type"`
+}
+
 // Experimental: FleetStartResult is part of an experimental API and may change or be removed.
 type FleetStartResult struct {
 	// Whether fleet mode was successfully activated
@@ -482,10 +786,10 @@ type FleetStartRequest struct {
 // Experimental: AgentList is part of an experimental API and may change or be removed.
 type AgentList struct {
 	// Available custom agents
-	Agents []Agent `json:"agents"`
+	Agents []AgentListAgent `json:"agents"`
 }
 
-type Agent struct {
+type AgentListAgent struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
 	// Human-readable display name
@@ -497,26 +801,17 @@ type Agent struct {
 // Experimental: AgentGetCurrentResult is part of an experimental API and may change or be removed.
 type AgentGetCurrentResult struct {
 	// Currently selected custom agent, or null if using the default agent
-	Agent *AgentGetCurrentResultAgent `json:"agent"`
-}
-
-type AgentGetCurrentResultAgent struct {
-	// Description of the agent's purpose
-	Description string `json:"description"`
-	// Human-readable display name
-	DisplayName string `json:"displayName"`
-	// Unique identifier of the custom agent
-	Name string `json:"name"`
+	Agent *AgentReloadResultAgent `json:"agent"`
 }
 
 // Experimental: AgentSelectResult is part of an experimental API and may change or be removed.
 type AgentSelectResult struct {
 	// The newly selected custom agent
-	Agent AgentSelectAgent `json:"agent"`
+	Agent AgentSelectResultAgent `json:"agent"`
 }
 
 // The newly selected custom agent
-type AgentSelectAgent struct {
+type AgentSelectResultAgent struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
 	// Human-readable display name
@@ -538,10 +833,10 @@ type AgentDeselectResult struct {
 // Experimental: AgentReloadResult is part of an experimental API and may change or be removed.
 type AgentReloadResult struct {
 	// Reloaded custom agents
-	Agents []AgentReloadAgent `json:"agents"`
+	Agents []AgentReloadResultAgent `json:"agents"`
 }
 
-type AgentReloadAgent struct {
+type AgentReloadResultAgent struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
 	// Human-readable display name
@@ -593,22 +888,6 @@ type SkillsDisableRequest struct {
 
 // Experimental: SkillsReloadResult is part of an experimental API and may change or be removed.
 type SkillsReloadResult struct {
-}
-
-type MCPServerList struct {
-	// Configured MCP servers
-	Servers []MCPServer `json:"servers"`
-}
-
-type MCPServer struct {
-	// Error message if the server failed to connect
-	Error *string `json:"error,omitempty"`
-	// Server name (config key)
-	Name string `json:"name"`
-	// Configuration source: user, workspace, plugin, or builtin
-	Source *MCPServerSource `json:"source,omitempty"`
-	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status MCPServerStatus `json:"status"`
 }
 
 type MCPEnableResult struct {
@@ -690,11 +969,6 @@ type ExtensionsDisableRequest struct {
 type ExtensionsReloadResult struct {
 }
 
-type HandleToolCallResult struct {
-	// Whether the tool call result was handled successfully
-	Success bool `json:"success"`
-}
-
 type ToolsHandlePendingToolCallRequest struct {
 	// Error message if the tool call failed
 	Error *string `json:"error,omitempty"`
@@ -702,17 +976,6 @@ type ToolsHandlePendingToolCallRequest struct {
 	RequestID string `json:"requestId"`
 	// Tool call result (string or expanded result object)
 	Result *ToolsHandlePendingToolCall `json:"result"`
-}
-
-type ToolCallResult struct {
-	// Error message if the tool call failed
-	Error *string `json:"error,omitempty"`
-	// Type of the tool result
-	ResultType *string `json:"resultType,omitempty"`
-	// Text result to send back to the LLM
-	TextResultForLlm string `json:"textResultForLlm"`
-	// Telemetry data from tool execution
-	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
 }
 
 type CommandsHandlePendingCommandResult struct {
@@ -725,14 +988,6 @@ type CommandsHandlePendingCommandRequest struct {
 	Error *string `json:"error,omitempty"`
 	// Request ID from the command invocation event
 	RequestID string `json:"requestId"`
-}
-
-// The elicitation response (accept with form values, decline, or cancel)
-type UIElicitationResponse struct {
-	// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-	Action UIElicitationResponseAction `json:"action"`
-	// The form values submitted by the user (present when action is 'accept')
-	Content map[string]*UIElicitationFieldValue `json:"content,omitempty"`
 }
 
 type UIElicitationRequest struct {
@@ -759,7 +1014,7 @@ type UIElicitationSchemaProperty struct {
 	EnumNames   []string                                 `json:"enumNames,omitempty"`
 	Title       *string                                  `json:"title,omitempty"`
 	Type        UIElicitationSchemaPropertyNumberType    `json:"type"`
-	OneOf       []UIElicitationStringOneOfFieldOneOf     `json:"oneOf,omitempty"`
+	OneOf       []UIElicitationSchemaPropertyOneOf       `json:"oneOf,omitempty"`
 	Items       *UIElicitationArrayFieldItems            `json:"items,omitempty"`
 	MaxItems    *float64                                 `json:"maxItems,omitempty"`
 	MinItems    *float64                                 `json:"minItems,omitempty"`
@@ -771,70 +1026,19 @@ type UIElicitationSchemaProperty struct {
 }
 
 type UIElicitationArrayFieldItems struct {
-	Enum  []string                                 `json:"enum,omitempty"`
-	Type  *ItemsType                               `json:"type,omitempty"`
-	AnyOf []UIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf,omitempty"`
+	Enum  []string                                       `json:"enum,omitempty"`
+	Type  *UIElicitationStringEnumFieldType              `json:"type,omitempty"`
+	AnyOf []FluffyUIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf,omitempty"`
 }
 
-type UIElicitationArrayAnyOfFieldItemsAnyOf struct {
+type FluffyUIElicitationArrayAnyOfFieldItemsAnyOf struct {
 	Const string `json:"const"`
 	Title string `json:"title"`
 }
 
-type UIElicitationStringOneOfFieldOneOf struct {
+type UIElicitationSchemaPropertyOneOf struct {
 	Const string `json:"const"`
 	Title string `json:"title"`
-}
-
-type UIElicitationResult struct {
-	// Whether the response was accepted. False if the request was already resolved by another
-	// client.
-	Success bool `json:"success"`
-}
-
-type UIHandlePendingElicitationRequest struct {
-	// The unique request ID from the elicitation.requested event
-	RequestID string `json:"requestId"`
-	// The elicitation response (accept with form values, decline, or cancel)
-	Result UIElicitationResponse `json:"result"`
-}
-
-type PermissionRequestResult struct {
-	// Whether the permission request was handled successfully
-	Success bool `json:"success"`
-}
-
-type PermissionDecisionRequest struct {
-	// Request ID of the pending permission request
-	RequestID string             `json:"requestId"`
-	Result    PermissionDecision `json:"result"`
-}
-
-type PermissionDecision struct {
-	// The permission request was approved
-	//
-	// Denied because approval rules explicitly blocked it
-	//
-	// Denied because no approval rule matched and user confirmation was unavailable
-	//
-	// Denied by the user during an interactive prompt
-	//
-	// Denied by the organization's content exclusion policy
-	//
-	// Denied by a permission request hook registered by an extension or plugin
-	Kind Kind `json:"kind"`
-	// Rules that denied the request
-	Rules []any `json:"rules,omitempty"`
-	// Optional feedback from the user explaining the denial
-	Feedback *string `json:"feedback,omitempty"`
-	// Human-readable explanation of why the path was excluded
-	//
-	// Optional message from the hook explaining the denial
-	Message *string `json:"message,omitempty"`
-	// File path that triggered the exclusion
-	Path *string `json:"path,omitempty"`
-	// Whether to interrupt the current agent turn
-	Interrupt *bool `json:"interrupt,omitempty"`
 }
 
 type LogResult struct {
@@ -1125,22 +1329,22 @@ type SessionFSRenameRequest struct {
 	Src string `json:"src"`
 }
 
-type MCPConfigFilterMappingString string
+type FilterMappingString string
 
 const (
-	MCPConfigFilterMappingStringHiddenCharacters MCPConfigFilterMappingString = "hidden_characters"
-	MCPConfigFilterMappingStringMarkdown         MCPConfigFilterMappingString = "markdown"
-	MCPConfigFilterMappingStringNone             MCPConfigFilterMappingString = "none"
+	FilterMappingStringHiddenCharacters FilterMappingString = "hidden_characters"
+	FilterMappingStringMarkdown         FilterMappingString = "markdown"
+	FilterMappingStringNone             FilterMappingString = "none"
 )
 
 // Remote transport type. Defaults to "http" when omitted.
-type MCPConfigType string
+type MCPServerConfigType string
 
 const (
-	MCPConfigTypeHTTP  MCPConfigType = "http"
-	MCPConfigTypeLocal MCPConfigType = "local"
-	MCPConfigTypeSSE   MCPConfigType = "sse"
-	MCPConfigTypeStdio MCPConfigType = "stdio"
+	MCPServerConfigTypeHTTP  MCPServerConfigType = "http"
+	MCPServerConfigTypeLocal MCPServerConfigType = "local"
+	MCPServerConfigTypeSSE   MCPServerConfigType = "sse"
+	MCPServerConfigTypeStdio MCPServerConfigType = "stdio"
 )
 
 // Configuration source
@@ -1163,6 +1367,50 @@ const (
 	DiscoveredMCPServerTypeSSE    DiscoveredMCPServerType = "sse"
 	DiscoveredMCPServerTypeStdio  DiscoveredMCPServerType = "stdio"
 	DiscoveredMCPServerTypeMemory DiscoveredMCPServerType = "memory"
+)
+
+// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+type MCPServerStatus string
+
+const (
+	MCPServerStatusConnected     MCPServerStatus = "connected"
+	MCPServerStatusDisabled      MCPServerStatus = "disabled"
+	MCPServerStatusFailed        MCPServerStatus = "failed"
+	MCPServerStatusNeedsAuth     MCPServerStatus = "needs-auth"
+	MCPServerStatusNotConfigured MCPServerStatus = "not_configured"
+	MCPServerStatusPending       MCPServerStatus = "pending"
+)
+
+type UIElicitationStringEnumFieldType string
+
+const (
+	UIElicitationStringEnumFieldTypeString UIElicitationStringEnumFieldType = "string"
+)
+
+type UIElicitationArrayEnumFieldType string
+
+const (
+	UIElicitationArrayEnumFieldTypeArray UIElicitationArrayEnumFieldType = "array"
+)
+
+// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+type UIElicitationResponseAction string
+
+const (
+	UIElicitationResponseActionAccept  UIElicitationResponseAction = "accept"
+	UIElicitationResponseActionCancel  UIElicitationResponseAction = "cancel"
+	UIElicitationResponseActionDecline UIElicitationResponseAction = "decline"
+)
+
+type Kind string
+
+const (
+	KindApproved                                       Kind = "approved"
+	KindDeniedByContentExclusionPolicy                 Kind = "denied-by-content-exclusion-policy"
+	KindDeniedByPermissionRequestHook                  Kind = "denied-by-permission-request-hook"
+	KindDeniedByRules                                  Kind = "denied-by-rules"
+	KindDeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
+	KindDeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"
 )
 
 // Path conventions used by this filesystem
@@ -1197,16 +1445,25 @@ const (
 	SessionSyncLevelUser        SessionSyncLevel = "user"
 )
 
-// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-type MCPServerStatus string
+// Where this source lives — used for UI grouping
+type InstructionsSourcesLocation string
 
 const (
-	MCPServerStatusConnected     MCPServerStatus = "connected"
-	MCPServerStatusDisabled      MCPServerStatus = "disabled"
-	MCPServerStatusFailed        MCPServerStatus = "failed"
-	MCPServerStatusNeedsAuth     MCPServerStatus = "needs-auth"
-	MCPServerStatusNotConfigured MCPServerStatus = "not_configured"
-	MCPServerStatusPending       MCPServerStatus = "pending"
+	InstructionsSourcesLocationUser             InstructionsSourcesLocation = "user"
+	InstructionsSourcesLocationRepository       InstructionsSourcesLocation = "repository"
+	InstructionsSourcesLocationWorkingDirectory InstructionsSourcesLocation = "working-directory"
+)
+
+// Category of instruction source — used for merge logic
+type InstructionsSourcesType string
+
+const (
+	InstructionsSourcesTypeChildInstructions InstructionsSourcesType = "child-instructions"
+	InstructionsSourcesTypeHome              InstructionsSourcesType = "home"
+	InstructionsSourcesTypeModel             InstructionsSourcesType = "model"
+	InstructionsSourcesTypeNestedAgents      InstructionsSourcesType = "nested-agents"
+	InstructionsSourcesTypeRepo              InstructionsSourcesType = "repo"
+	InstructionsSourcesTypeVscode            InstructionsSourcesType = "vscode"
 )
 
 // Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
@@ -1227,15 +1484,6 @@ const (
 	ExtensionStatusStarting ExtensionStatus = "starting"
 )
 
-// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-type UIElicitationResponseAction string
-
-const (
-	UIElicitationResponseActionAccept  UIElicitationResponseAction = "accept"
-	UIElicitationResponseActionCancel  UIElicitationResponseAction = "cancel"
-	UIElicitationResponseActionDecline UIElicitationResponseAction = "decline"
-)
-
 type UIElicitationSchemaPropertyStringFormat string
 
 const (
@@ -1245,19 +1493,13 @@ const (
 	UIElicitationSchemaPropertyStringFormatURI      UIElicitationSchemaPropertyStringFormat = "uri"
 )
 
-type ItemsType string
-
-const (
-	ItemsTypeString ItemsType = "string"
-)
-
 type UIElicitationSchemaPropertyNumberType string
 
 const (
-	UIElicitationSchemaPropertyNumberTypeArray   UIElicitationSchemaPropertyNumberType = "array"
 	UIElicitationSchemaPropertyNumberTypeBoolean UIElicitationSchemaPropertyNumberType = "boolean"
 	UIElicitationSchemaPropertyNumberTypeInteger UIElicitationSchemaPropertyNumberType = "integer"
 	UIElicitationSchemaPropertyNumberTypeNumber  UIElicitationSchemaPropertyNumberType = "number"
+	UIElicitationSchemaPropertyNumberTypeArray   UIElicitationSchemaPropertyNumberType = "array"
 	UIElicitationSchemaPropertyNumberTypeString  UIElicitationSchemaPropertyNumberType = "string"
 )
 
@@ -1265,17 +1507,6 @@ type RequestedSchemaType string
 
 const (
 	RequestedSchemaTypeObject RequestedSchemaType = "object"
-)
-
-type Kind string
-
-const (
-	KindApproved                                       Kind = "approved"
-	KindDeniedByContentExclusionPolicy                 Kind = "denied-by-content-exclusion-policy"
-	KindDeniedByPermissionRequestHook                  Kind = "denied-by-permission-request-hook"
-	KindDeniedByRules                                  Kind = "denied-by-rules"
-	KindDeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
-	KindDeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"
 )
 
 // Log severity level. Determines how the message is displayed in the timeline. Defaults to
@@ -1305,15 +1536,9 @@ const (
 	SessionFSReaddirWithTypesEntryTypeFile      SessionFSReaddirWithTypesEntryType = "file"
 )
 
-type MCPConfigFilterMapping struct {
-	Enum    *MCPConfigFilterMappingString
-	EnumMap map[string]MCPConfigFilterMappingString
-}
-
-// Tool call result (string or expanded result object)
-type ToolsHandlePendingToolCall struct {
-	String         *string
-	ToolCallResult *ToolCallResult
+type FilterMapping struct {
+	Enum    *FilterMappingString
+	EnumMap map[string]FilterMappingString
 }
 
 type UIElicitationFieldValue struct {
@@ -1321,6 +1546,12 @@ type UIElicitationFieldValue struct {
 	Double      *float64
 	String      *string
 	StringArray []string
+}
+
+// Tool call result (string or expanded result object)
+type ToolsHandlePendingToolCall struct {
+	String         *string
+	ToolCallResult *ToolCallResult
 }
 
 type serverApi struct {
@@ -1739,6 +1970,21 @@ func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreate
 		return nil, err
 	}
 	var result WorkspacesCreateFileResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type InstructionsApi sessionApi
+
+func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourcesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.instructions.getSources", req)
+	if err != nil {
+		return nil, err
+	}
+	var result InstructionsGetSourcesResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -2231,24 +2477,25 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 type SessionRpc struct {
 	common sessionApi // Reuse a single struct instead of allocating one for each service on the heap.
 
-	Model       *ModelApi
-	Mode        *ModeApi
-	Name        *NameApi
-	Plan        *PlanApi
-	Workspaces  *WorkspacesApi
-	Fleet       *FleetApi
-	Agent       *AgentApi
-	Skills      *SkillsApi
-	Mcp         *McpApi
-	Plugins     *PluginsApi
-	Extensions  *ExtensionsApi
-	Tools       *ToolsApi
-	Commands    *CommandsApi
-	UI          *UIApi
-	Permissions *PermissionsApi
-	Shell       *ShellApi
-	History     *HistoryApi
-	Usage       *UsageApi
+	Model        *ModelApi
+	Mode         *ModeApi
+	Name         *NameApi
+	Plan         *PlanApi
+	Workspaces   *WorkspacesApi
+	Instructions *InstructionsApi
+	Fleet        *FleetApi
+	Agent        *AgentApi
+	Skills       *SkillsApi
+	Mcp          *McpApi
+	Plugins      *PluginsApi
+	Extensions   *ExtensionsApi
+	Tools        *ToolsApi
+	Commands     *CommandsApi
+	UI           *UIApi
+	Permissions  *PermissionsApi
+	Shell        *ShellApi
+	History      *HistoryApi
+	Usage        *UsageApi
 }
 
 func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, error) {
@@ -2284,6 +2531,7 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Name = (*NameApi)(&r.common)
 	r.Plan = (*PlanApi)(&r.common)
 	r.Workspaces = (*WorkspacesApi)(&r.common)
+	r.Instructions = (*InstructionsApi)(&r.common)
 	r.Fleet = (*FleetApi)(&r.common)
 	r.Agent = (*AgentApi)(&r.common)
 	r.Skills = (*SkillsApi)(&r.common)

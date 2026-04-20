@@ -12,6 +12,7 @@ import type { JSONSchema7 } from "json-schema";
 import { fileURLToPath } from "url";
 import {
     cloneSchemaForCodegen,
+    fixNullableRequiredRefsInApiSchema,
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
@@ -20,6 +21,8 @@ import {
     isVoidSchema,
     isRpcMethod,
     isNodeFullyExperimental,
+    isNodeFullyDeprecated,
+    isSchemaDeprecated,
     postProcessSchema,
     writeGeneratedFile,
     collectDefinitionCollections,
@@ -138,6 +141,17 @@ function modernizePython(code: string): string {
     return code;
 }
 
+/**
+ * Collapse lambdas that only forward their single argument into another callable.
+ * This keeps the generated Python readable and avoids CodeQL "unnecessary lambda" findings.
+ */
+function unwrapRedundantPythonLambdas(code: string): string {
+    return code.replace(
+        /lambda\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*((?:[A-Za-z_][A-Za-z0-9_]*)(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\(\1\)/g,
+        "$2"
+    );
+}
+
 function collapsePlaceholderPythonDataclasses(code: string): string {
     const classBlockRe = /(@dataclass\r?\nclass\s+(\w+):[\s\S]*?)(?=^@dataclass|^class\s+\w+|^def\s+\w+|\Z)/gm;
     const matches = [...code.matchAll(classBlockRe)].map((match) => ({
@@ -169,6 +183,157 @@ function collapsePlaceholderPythonDataclasses(code: string): string {
     }
 
     return code.replace(/\n{3,}/g, "\n\n");
+}
+
+/**
+ * Reorder Python class/enum definitions so forward references are resolved.
+ * Quicktype may emit classes in an order where a class references another
+ * that hasn't been defined yet, causing NameError at import time.
+ * This performs a topological sort of type definitions while preserving
+ * the relative position of non-class blocks (functions, standalone code).
+ */
+function reorderPythonForwardRefs(code: string): string {
+    // Split code into top-level blocks. Each block starts at an unindented
+    // line that begins a class, decorated class, enum, or function definition.
+    const lines = code.split("\n");
+
+    interface Block {
+        name: string;
+        code: string;
+        isType: boolean; // true for class/enum definitions
+    }
+
+    const blocks: Block[] = [];
+    let currentLines: string[] = [];
+    let currentName: string | null = null;
+    let isType = false;
+
+    function flushBlock() {
+        if (currentLines.length === 0) return;
+        const blockCode = currentLines.join("\n");
+        blocks.push({
+            name: currentName ?? `__anon_${blocks.length}`,
+            code: blockCode,
+            isType,
+        });
+        currentLines = [];
+        currentName = null;
+        isType = false;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isTopLevel = line.length > 0 && line[0] !== " " && line[0] !== "\t";
+
+        if (isTopLevel) {
+            const classMatch = line.match(/^class\s+(\w+)/);
+            const defMatch = line.match(/^def\s+(\w+)/);
+            const decoratorMatch = line === "@dataclass";
+            const commentMatch = line.startsWith("# ");
+
+            if (classMatch) {
+                // If previous block was just a decorator waiting for a class, merge
+                if (currentLines.length > 0 && currentName === null && isType) {
+                    // This is the class line following @dataclass
+                    currentName = classMatch[1];
+                    currentLines.push(line);
+                    continue;
+                }
+                flushBlock();
+                currentLines = [line];
+                currentName = classMatch[1];
+                isType = true;
+            } else if (decoratorMatch) {
+                flushBlock();
+                currentLines = [line];
+                isType = true;
+            } else if (defMatch) {
+                flushBlock();
+                currentLines = [line];
+                currentName = defMatch[1];
+                isType = false;
+            } else if (commentMatch && currentLines.length === 0) {
+                // Standalone comment — attach to next block
+                currentLines = [line];
+            } else {
+                currentLines.push(line);
+            }
+        } else {
+            currentLines.push(line);
+        }
+    }
+    flushBlock();
+
+    if (blocks.length === 0) return code;
+
+    // Collect all type names (classes and enums)
+    const typeNames = new Set(blocks.filter((b) => b.isType).map((b) => b.name));
+    if (typeNames.size === 0) return code;
+
+    // Build dependency graph: for each type block, find references to other type names
+    const deps = new Map<string, Set<string>>();
+    for (const block of blocks) {
+        if (!block.isType) continue;
+        const blockDeps = new Set<string>();
+        for (const tn of typeNames) {
+            if (tn === block.name) continue;
+            if (new RegExp(`\\b${tn}\\b`).test(block.code)) {
+                blockDeps.add(tn);
+            }
+        }
+        deps.set(block.name, blockDeps);
+    }
+
+    // Kahn's algorithm for topological sort
+    const inDegree = new Map<string, number>();
+    for (const tn of typeNames) inDegree.set(tn, deps.get(tn)?.size ?? 0);
+
+    const dependents = new Map<string, string[]>();
+    for (const tn of typeNames) dependents.set(tn, []);
+    for (const [name, d] of deps) {
+        for (const dep of d) {
+            dependents.get(dep)!.push(name);
+        }
+    }
+
+    const queue: string[] = [];
+    for (const [tn, deg] of inDegree) {
+        if (deg === 0) queue.push(tn);
+    }
+
+    const sorted: string[] = [];
+    while (queue.length > 0) {
+        const node = queue.shift()!;
+        sorted.push(node);
+        for (const dep of dependents.get(node) ?? []) {
+            const newDeg = inDegree.get(dep)! - 1;
+            inDegree.set(dep, newDeg);
+            if (newDeg === 0) queue.push(dep);
+        }
+    }
+
+    // If there are cycles, keep remaining nodes in original order
+    for (const block of blocks) {
+        if (block.isType && !sorted.includes(block.name)) {
+            sorted.push(block.name);
+        }
+    }
+
+    // Rebuild: place type blocks in sorted order at the positions
+    // where type blocks originally appeared
+    const typeBlockMap = new Map(blocks.filter((b) => b.isType).map((b) => [b.name, b]));
+    let sortIdx = 0;
+    const result: string[] = [];
+    for (const block of blocks) {
+        if (block.isType) {
+            result.push(typeBlockMap.get(sorted[sortIdx])!.code);
+            sortIdx++;
+        } else {
+            result.push(block.code);
+        }
+    }
+
+    return result.join("\n");
 }
 
 function normalizePythonDataclassBlock(block: string, name: string): string {
@@ -361,7 +526,7 @@ function postProcessPythonSessionEventCode(code: string): string {
     )) {
         code = code.replace(new RegExp(`\\b${from}\\b`, "g"), to);
     }
-    return code;
+    return unwrapRedundantPythonLambdas(code);
 }
 
 function pyPrimitiveResolvedType(annotation: string, fromFn: string, toFn = fromFn): PyResolvedType {
@@ -507,7 +672,8 @@ function getOrCreatePyEnum(
     enumName: string,
     values: string[],
     ctx: PyCodegenCtx,
-    description?: string
+    description?: string,
+    deprecated?: boolean
 ): string {
     const existing = ctx.enumsByName.get(enumName);
     if (existing) {
@@ -515,6 +681,9 @@ function getOrCreatePyEnum(
     }
 
     const lines: string[] = [];
+    if (deprecated) {
+        lines.push(`# Deprecated: this enum is deprecated and will be removed in a future version.`);
+    }
     if (description) {
         lines.push(`class ${enumName}(Enum):`);
         lines.push(`    ${pyDocstringLiteral(description)}`);
@@ -543,7 +712,7 @@ function resolvePyPropertyType(
         const resolved = resolveSchema(propSchema, ctx.definitions);
         if (resolved && resolved !== propSchema) {
             if (resolved.enum && Array.isArray(resolved.enum) && resolved.enum.every((value) => typeof value === "string")) {
-                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description);
+                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
                 const enumResolved: PyResolvedType = {
                     annotation: enumType,
                     fromExpr: (expr) => `parse_enum(${enumType}, ${expr})`,
@@ -621,7 +790,8 @@ function resolvePyPropertyType(
             nestedName,
             propSchema.enum as string[],
             ctx,
-            propSchema.description
+            propSchema.description,
+            isSchemaDeprecated(propSchema)
         );
         const resolved: PyResolvedType = {
             annotation: enumType,
@@ -842,6 +1012,9 @@ function emitPyClass(
     });
 
     const lines: string[] = [];
+    if (isSchemaDeprecated(schema)) {
+        lines.push(`# Deprecated: this type is deprecated and will be removed in a future version.`);
+    }
     lines.push(`@dataclass`);
     lines.push(`class ${typeName}:`);
     if (description || schema.description) {
@@ -862,6 +1035,9 @@ function emitPyClass(
 
     for (const field of fieldInfos) {
         const suffix = field.isRequired ? "" : " = None";
+        if (isSchemaDeprecated(orderedFieldEntries.find(([n]) => n === field.jsonName)?.[1] as JSONSchema7)) {
+            lines.push(`    # Deprecated: this field is deprecated.`);
+        }
         lines.push(`    ${field.fieldName}: ${field.resolved.annotation}${suffix}`);
     }
 
@@ -997,6 +1173,10 @@ function emitPyFlatDiscriminatedUnion(
     }
     for (const field of fieldInfos) {
         const suffix = field.isRequired ? "" : " = None";
+        const fieldSchema = orderedFieldEntries.find(([n]) => n === field.jsonName)?.[1];
+        if (fieldSchema && isSchemaDeprecated(fieldSchema)) {
+            lines.push(`    # Deprecated: this field is deprecated.`);
+        }
         lines.push(`    ${field.fieldName}: ${field.resolved.annotation}${suffix}`);
     }
     lines.push(``);
@@ -1367,7 +1547,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } = await import("quicktype-core");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
@@ -1454,6 +1634,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = modernizePython(typesCode);
     typesCode = collapsePlaceholderPythonDataclasses(typesCode);
 
+    // Reorder class/enum definitions to resolve forward references.
+    // Quicktype may emit classes before their dependencies are defined.
+    typesCode = reorderPythonForwardRefs(typesCode);
+
     // Strip quicktype's import block and preamble — we provide our own unified header.
     // The preamble ends just before the first helper function (e.g. "def from_str")
     // or class definition.
@@ -1476,6 +1660,27 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         typesCode = typesCode.replace(
             new RegExp(`^(@dataclass\\n)?class ${typeName}[:(]`, "m"),
             (match) => `# Experimental: this type is part of an experimental API and may change or be removed.\n${match}`
+        );
+    }
+
+    // Annotate deprecated data types
+    const deprecatedTypeNames = new Set<string>();
+    for (const method of allMethods) {
+        if (!method.deprecated) continue;
+        if (!method.result?.$ref) {
+            deprecatedTypeNames.add(pythonResultTypeName(method));
+        }
+        if (!method.params?.$ref) {
+            const paramsTypeName = pythonParamsTypeName(method);
+            if (rootDefinitions[paramsTypeName]) {
+                deprecatedTypeNames.add(paramsTypeName);
+            }
+        }
+    }
+    for (const typeName of deprecatedTypeNames) {
+        typesCode = typesCode.replace(
+            new RegExp(`^(@dataclass\\n)?class ${typeName}[:(]`, "m"),
+            (match) => `# Deprecated: this type is part of a deprecated API and will be removed in a future version.\n${match}`
         );
     }
 
@@ -1566,6 +1771,7 @@ def _patch_model_capabilities(data: dict) -> dict:
         /(_patch_model_capabilities\(await self\._client\.request\("models\.list",\s*\{[^)]*\)[^)]*\))/,
         "$1)",
     );
+    finalCode = unwrapRedundantPythonLambdas(finalCode);
 
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
@@ -1577,7 +1783,8 @@ function emitPyApiGroup(
     node: Record<string, unknown>,
     isSession: boolean,
     resolveType: (name: string) => string,
-    groupExperimental: boolean
+    groupExperimental: boolean,
+    groupDeprecated: boolean = false
 ): void {
     const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
 
@@ -1585,10 +1792,14 @@ function emitPyApiGroup(
     for (const [subGroupName, subGroupNode] of subGroups) {
         const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
         const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
-        emitPyApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, resolveType, subGroupExperimental);
+        const subGroupDeprecated = isNodeFullyDeprecated(subGroupNode as Record<string, unknown>);
+        emitPyApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, resolveType, subGroupExperimental, subGroupDeprecated);
     }
 
     // Emit this class
+    if (groupDeprecated) {
+        lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
+    }
     if (groupExperimental) {
         lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
     }
@@ -1613,7 +1824,7 @@ function emitPyApiGroup(
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, key, value, isSession, resolveType, groupExperimental);
+        emitMethod(lines, key, value, isSession, resolveType, groupExperimental, groupDeprecated);
     }
     lines.push(``);
 }
@@ -1629,7 +1840,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + "Api";
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
-        emitPyApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, resolveType, groupExperimental);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
+        emitPyApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, resolveType, groupExperimental, groupDeprecated);
     }
 
     // Emit wrapper class
@@ -1661,7 +1873,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
 }
 
-function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false): void {
+function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false, groupDeprecated = false): void {
     const methodName = toSnakeCase(name);
     const resultSchema = getMethodResultSchema(method);
     const hasResult = !isVoidSchema(resultSchema);
@@ -1681,6 +1893,9 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
 
     lines.push(sig);
 
+    if (method.deprecated && !groupDeprecated) {
+        lines.push(`        """.. deprecated:: This API is deprecated and will be removed in a future version."""`);
+    }
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
     }
@@ -1734,13 +1949,17 @@ function emitClientSessionApiRegistration(
     for (const [groupName, groupNode] of groups) {
         const handlerName = `${toPascalCase(groupName)}Handler`;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
+        if (groupDeprecated) {
+            lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
+        }
         if (groupExperimental) {
             lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
         }
         lines.push(`class ${handlerName}(Protocol):`);
         for (const [methodName, value] of Object.entries(groupNode as Record<string, unknown>)) {
             if (!isRpcMethod(value)) continue;
-            emitClientSessionHandlerMethod(lines, methodName, value, resolveType, groupExperimental);
+            emitClientSessionHandlerMethod(lines, methodName, value, resolveType, groupExperimental, groupDeprecated);
         }
         lines.push(``);
     }
@@ -1785,12 +2004,16 @@ function emitClientSessionHandlerMethod(
     name: string,
     method: RpcMethod,
     resolveType: (name: string) => string,
-    groupExperimental = false
+    groupExperimental = false,
+    groupDeprecated = false
 ): void {
     const paramsType = resolveType(pythonParamsTypeName(method));
     const resultSchema = getMethodResultSchema(method);
     const resultType = !isVoidSchema(resultSchema) ? resolveType(pythonResultTypeName(method)) : "None";
     lines.push(`    async def ${toSnakeCase(name)}(self, params: ${paramsType}) -> ${resultType}:`);
+    if (method.deprecated && !groupDeprecated) {
+        lines.push(`        """.. deprecated:: This API is deprecated and will be removed in a future version."""`);
+    }
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
     }

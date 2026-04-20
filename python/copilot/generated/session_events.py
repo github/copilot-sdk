@@ -252,27 +252,27 @@ class Data:
 
 
 @dataclass
-class SessionStartDataContext:
+class WorkingDirectoryContext:
     "Working directory and git context at session start"
     cwd: str
     git_root: str | None = None
     repository: str | None = None
-    host_type: SessionStartDataContextHostType | None = None
+    host_type: WorkingDirectoryContextHostType | None = None
     branch: str | None = None
     head_commit: str | None = None
     base_commit: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionStartDataContext":
+    def from_dict(obj: Any) -> "WorkingDirectoryContext":
         assert isinstance(obj, dict)
         cwd = from_str(obj.get("cwd"))
-        git_root = from_union([from_none, lambda x: from_str(x)], obj.get("gitRoot"))
-        repository = from_union([from_none, lambda x: from_str(x)], obj.get("repository"))
-        host_type = from_union([from_none, lambda x: parse_enum(SessionStartDataContextHostType, x)], obj.get("hostType"))
-        branch = from_union([from_none, lambda x: from_str(x)], obj.get("branch"))
-        head_commit = from_union([from_none, lambda x: from_str(x)], obj.get("headCommit"))
-        base_commit = from_union([from_none, lambda x: from_str(x)], obj.get("baseCommit"))
-        return SessionStartDataContext(
+        git_root = from_union([from_none, from_str], obj.get("gitRoot"))
+        repository = from_union([from_none, from_str], obj.get("repository"))
+        host_type = from_union([from_none, lambda x: parse_enum(WorkingDirectoryContextHostType, x)], obj.get("hostType"))
+        branch = from_union([from_none, from_str], obj.get("branch"))
+        head_commit = from_union([from_none, from_str], obj.get("headCommit"))
+        base_commit = from_union([from_none, from_str], obj.get("baseCommit"))
+        return WorkingDirectoryContext(
             cwd=cwd,
             git_root=git_root,
             repository=repository,
@@ -286,17 +286,17 @@ class SessionStartDataContext:
         result: dict = {}
         result["cwd"] = from_str(self.cwd)
         if self.git_root is not None:
-            result["gitRoot"] = from_union([from_none, lambda x: from_str(x)], self.git_root)
+            result["gitRoot"] = from_union([from_none, from_str], self.git_root)
         if self.repository is not None:
-            result["repository"] = from_union([from_none, lambda x: from_str(x)], self.repository)
+            result["repository"] = from_union([from_none, from_str], self.repository)
         if self.host_type is not None:
-            result["hostType"] = from_union([from_none, lambda x: to_enum(SessionStartDataContextHostType, x)], self.host_type)
+            result["hostType"] = from_union([from_none, lambda x: to_enum(WorkingDirectoryContextHostType, x)], self.host_type)
         if self.branch is not None:
-            result["branch"] = from_union([from_none, lambda x: from_str(x)], self.branch)
+            result["branch"] = from_union([from_none, from_str], self.branch)
         if self.head_commit is not None:
-            result["headCommit"] = from_union([from_none, lambda x: from_str(x)], self.head_commit)
+            result["headCommit"] = from_union([from_none, from_str], self.head_commit)
         if self.base_commit is not None:
-            result["baseCommit"] = from_union([from_none, lambda x: from_str(x)], self.base_commit)
+            result["baseCommit"] = from_union([from_none, from_str], self.base_commit)
         return result
 
 
@@ -310,7 +310,7 @@ class SessionStartData:
     start_time: datetime
     selected_model: str | None = None
     reasoning_effort: str | None = None
-    context: SessionStartDataContext | None = None
+    context: WorkingDirectoryContext | None = None
     already_in_use: bool | None = None
     remote_steerable: bool | None = None
 
@@ -322,11 +322,11 @@ class SessionStartData:
         producer = from_str(obj.get("producer"))
         copilot_version = from_str(obj.get("copilotVersion"))
         start_time = from_datetime(obj.get("startTime"))
-        selected_model = from_union([from_none, lambda x: from_str(x)], obj.get("selectedModel"))
-        reasoning_effort = from_union([from_none, lambda x: from_str(x)], obj.get("reasoningEffort"))
-        context = from_union([from_none, lambda x: SessionStartDataContext.from_dict(x)], obj.get("context"))
-        already_in_use = from_union([from_none, lambda x: from_bool(x)], obj.get("alreadyInUse"))
-        remote_steerable = from_union([from_none, lambda x: from_bool(x)], obj.get("remoteSteerable"))
+        selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
+        context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
+        already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
+        remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
         return SessionStartData(
             session_id=session_id,
             version=version,
@@ -348,64 +348,15 @@ class SessionStartData:
         result["copilotVersion"] = from_str(self.copilot_version)
         result["startTime"] = to_datetime(self.start_time)
         if self.selected_model is not None:
-            result["selectedModel"] = from_union([from_none, lambda x: from_str(x)], self.selected_model)
+            result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
         if self.reasoning_effort is not None:
-            result["reasoningEffort"] = from_union([from_none, lambda x: from_str(x)], self.reasoning_effort)
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.context is not None:
-            result["context"] = from_union([from_none, lambda x: to_class(SessionStartDataContext, x)], self.context)
+            result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.already_in_use is not None:
-            result["alreadyInUse"] = from_union([from_none, lambda x: from_bool(x)], self.already_in_use)
+            result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
         if self.remote_steerable is not None:
-            result["remoteSteerable"] = from_union([from_none, lambda x: from_bool(x)], self.remote_steerable)
-        return result
-
-
-@dataclass
-class SessionResumeDataContext:
-    "Updated working directory and git context at resume time"
-    cwd: str
-    git_root: str | None = None
-    repository: str | None = None
-    host_type: SessionResumeDataContextHostType | None = None
-    branch: str | None = None
-    head_commit: str | None = None
-    base_commit: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionResumeDataContext":
-        assert isinstance(obj, dict)
-        cwd = from_str(obj.get("cwd"))
-        git_root = from_union([from_none, lambda x: from_str(x)], obj.get("gitRoot"))
-        repository = from_union([from_none, lambda x: from_str(x)], obj.get("repository"))
-        host_type = from_union([from_none, lambda x: parse_enum(SessionResumeDataContextHostType, x)], obj.get("hostType"))
-        branch = from_union([from_none, lambda x: from_str(x)], obj.get("branch"))
-        head_commit = from_union([from_none, lambda x: from_str(x)], obj.get("headCommit"))
-        base_commit = from_union([from_none, lambda x: from_str(x)], obj.get("baseCommit"))
-        return SessionResumeDataContext(
-            cwd=cwd,
-            git_root=git_root,
-            repository=repository,
-            host_type=host_type,
-            branch=branch,
-            head_commit=head_commit,
-            base_commit=base_commit,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["cwd"] = from_str(self.cwd)
-        if self.git_root is not None:
-            result["gitRoot"] = from_union([from_none, lambda x: from_str(x)], self.git_root)
-        if self.repository is not None:
-            result["repository"] = from_union([from_none, lambda x: from_str(x)], self.repository)
-        if self.host_type is not None:
-            result["hostType"] = from_union([from_none, lambda x: to_enum(SessionResumeDataContextHostType, x)], self.host_type)
-        if self.branch is not None:
-            result["branch"] = from_union([from_none, lambda x: from_str(x)], self.branch)
-        if self.head_commit is not None:
-            result["headCommit"] = from_union([from_none, lambda x: from_str(x)], self.head_commit)
-        if self.base_commit is not None:
-            result["baseCommit"] = from_union([from_none, lambda x: from_str(x)], self.base_commit)
+            result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
         return result
 
 
@@ -416,7 +367,7 @@ class SessionResumeData:
     event_count: float
     selected_model: str | None = None
     reasoning_effort: str | None = None
-    context: SessionResumeDataContext | None = None
+    context: WorkingDirectoryContext | None = None
     already_in_use: bool | None = None
     remote_steerable: bool | None = None
 
@@ -425,11 +376,11 @@ class SessionResumeData:
         assert isinstance(obj, dict)
         resume_time = from_datetime(obj.get("resumeTime"))
         event_count = from_float(obj.get("eventCount"))
-        selected_model = from_union([from_none, lambda x: from_str(x)], obj.get("selectedModel"))
-        reasoning_effort = from_union([from_none, lambda x: from_str(x)], obj.get("reasoningEffort"))
-        context = from_union([from_none, lambda x: SessionResumeDataContext.from_dict(x)], obj.get("context"))
-        already_in_use = from_union([from_none, lambda x: from_bool(x)], obj.get("alreadyInUse"))
-        remote_steerable = from_union([from_none, lambda x: from_bool(x)], obj.get("remoteSteerable"))
+        selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
+        context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
+        already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
+        remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
         return SessionResumeData(
             resume_time=resume_time,
             event_count=event_count,
@@ -445,15 +396,15 @@ class SessionResumeData:
         result["resumeTime"] = to_datetime(self.resume_time)
         result["eventCount"] = to_float(self.event_count)
         if self.selected_model is not None:
-            result["selectedModel"] = from_union([from_none, lambda x: from_str(x)], self.selected_model)
+            result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
         if self.reasoning_effort is not None:
-            result["reasoningEffort"] = from_union([from_none, lambda x: from_str(x)], self.reasoning_effort)
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.context is not None:
-            result["context"] = from_union([from_none, lambda x: to_class(SessionResumeDataContext, x)], self.context)
+            result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.already_in_use is not None:
-            result["alreadyInUse"] = from_union([from_none, lambda x: from_bool(x)], self.already_in_use)
+            result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
         if self.remote_steerable is not None:
-            result["remoteSteerable"] = from_union([from_none, lambda x: from_bool(x)], self.remote_steerable)
+            result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
         return result
 
 
@@ -491,10 +442,10 @@ class SessionErrorData:
         assert isinstance(obj, dict)
         error_type = from_str(obj.get("errorType"))
         message = from_str(obj.get("message"))
-        stack = from_union([from_none, lambda x: from_str(x)], obj.get("stack"))
-        status_code = from_union([from_none, lambda x: from_int(x)], obj.get("statusCode"))
-        provider_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("providerCallId"))
-        url = from_union([from_none, lambda x: from_str(x)], obj.get("url"))
+        stack = from_union([from_none, from_str], obj.get("stack"))
+        status_code = from_union([from_none, from_int], obj.get("statusCode"))
+        provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
+        url = from_union([from_none, from_str], obj.get("url"))
         return SessionErrorData(
             error_type=error_type,
             message=message,
@@ -509,13 +460,13 @@ class SessionErrorData:
         result["errorType"] = from_str(self.error_type)
         result["message"] = from_str(self.message)
         if self.stack is not None:
-            result["stack"] = from_union([from_none, lambda x: from_str(x)], self.stack)
+            result["stack"] = from_union([from_none, from_str], self.stack)
         if self.status_code is not None:
-            result["statusCode"] = from_union([from_none, lambda x: to_int(x)], self.status_code)
+            result["statusCode"] = from_union([from_none, to_int], self.status_code)
         if self.provider_call_id is not None:
-            result["providerCallId"] = from_union([from_none, lambda x: from_str(x)], self.provider_call_id)
+            result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
         if self.url is not None:
-            result["url"] = from_union([from_none, lambda x: from_str(x)], self.url)
+            result["url"] = from_union([from_none, from_str], self.url)
         return result
 
 
@@ -527,7 +478,7 @@ class SessionIdleData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionIdleData":
         assert isinstance(obj, dict)
-        aborted = from_union([from_none, lambda x: from_bool(x)], obj.get("aborted"))
+        aborted = from_union([from_none, from_bool], obj.get("aborted"))
         return SessionIdleData(
             aborted=aborted,
         )
@@ -535,7 +486,7 @@ class SessionIdleData:
     def to_dict(self) -> dict:
         result: dict = {}
         if self.aborted is not None:
-            result["aborted"] = from_union([from_none, lambda x: from_bool(x)], self.aborted)
+            result["aborted"] = from_union([from_none, from_bool], self.aborted)
         return result
 
 
@@ -570,7 +521,7 @@ class SessionInfoData:
         assert isinstance(obj, dict)
         info_type = from_str(obj.get("infoType"))
         message = from_str(obj.get("message"))
-        url = from_union([from_none, lambda x: from_str(x)], obj.get("url"))
+        url = from_union([from_none, from_str], obj.get("url"))
         return SessionInfoData(
             info_type=info_type,
             message=message,
@@ -582,7 +533,7 @@ class SessionInfoData:
         result["infoType"] = from_str(self.info_type)
         result["message"] = from_str(self.message)
         if self.url is not None:
-            result["url"] = from_union([from_none, lambda x: from_str(x)], self.url)
+            result["url"] = from_union([from_none, from_str], self.url)
         return result
 
 
@@ -598,7 +549,7 @@ class SessionWarningData:
         assert isinstance(obj, dict)
         warning_type = from_str(obj.get("warningType"))
         message = from_str(obj.get("message"))
-        url = from_union([from_none, lambda x: from_str(x)], obj.get("url"))
+        url = from_union([from_none, from_str], obj.get("url"))
         return SessionWarningData(
             warning_type=warning_type,
             message=message,
@@ -610,7 +561,7 @@ class SessionWarningData:
         result["warningType"] = from_str(self.warning_type)
         result["message"] = from_str(self.message)
         if self.url is not None:
-            result["url"] = from_union([from_none, lambda x: from_str(x)], self.url)
+            result["url"] = from_union([from_none, from_str], self.url)
         return result
 
 
@@ -626,9 +577,9 @@ class SessionModelChangeData:
     def from_dict(obj: Any) -> "SessionModelChangeData":
         assert isinstance(obj, dict)
         new_model = from_str(obj.get("newModel"))
-        previous_model = from_union([from_none, lambda x: from_str(x)], obj.get("previousModel"))
-        previous_reasoning_effort = from_union([from_none, lambda x: from_str(x)], obj.get("previousReasoningEffort"))
-        reasoning_effort = from_union([from_none, lambda x: from_str(x)], obj.get("reasoningEffort"))
+        previous_model = from_union([from_none, from_str], obj.get("previousModel"))
+        previous_reasoning_effort = from_union([from_none, from_str], obj.get("previousReasoningEffort"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         return SessionModelChangeData(
             new_model=new_model,
             previous_model=previous_model,
@@ -640,11 +591,11 @@ class SessionModelChangeData:
         result: dict = {}
         result["newModel"] = from_str(self.new_model)
         if self.previous_model is not None:
-            result["previousModel"] = from_union([from_none, lambda x: from_str(x)], self.previous_model)
+            result["previousModel"] = from_union([from_none, from_str], self.previous_model)
         if self.previous_reasoning_effort is not None:
-            result["previousReasoningEffort"] = from_union([from_none, lambda x: from_str(x)], self.previous_reasoning_effort)
+            result["previousReasoningEffort"] = from_union([from_none, from_str], self.previous_reasoning_effort)
         if self.reasoning_effort is not None:
-            result["reasoningEffort"] = from_union([from_none, lambda x: from_str(x)], self.reasoning_effort)
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         return result
 
 
@@ -725,7 +676,7 @@ class HandoffRepository:
         assert isinstance(obj, dict)
         owner = from_str(obj.get("owner"))
         name = from_str(obj.get("name"))
-        branch = from_union([from_none, lambda x: from_str(x)], obj.get("branch"))
+        branch = from_union([from_none, from_str], obj.get("branch"))
         return HandoffRepository(
             owner=owner,
             name=name,
@@ -737,7 +688,7 @@ class HandoffRepository:
         result["owner"] = from_str(self.owner)
         result["name"] = from_str(self.name)
         if self.branch is not None:
-            result["branch"] = from_union([from_none, lambda x: from_str(x)], self.branch)
+            result["branch"] = from_union([from_none, from_str], self.branch)
         return result
 
 
@@ -757,11 +708,11 @@ class SessionHandoffData:
         assert isinstance(obj, dict)
         handoff_time = from_datetime(obj.get("handoffTime"))
         source_type = parse_enum(HandoffSourceType, obj.get("sourceType"))
-        repository = from_union([from_none, lambda x: HandoffRepository.from_dict(x)], obj.get("repository"))
-        context = from_union([from_none, lambda x: from_str(x)], obj.get("context"))
-        summary = from_union([from_none, lambda x: from_str(x)], obj.get("summary"))
-        remote_session_id = from_union([from_none, lambda x: from_str(x)], obj.get("remoteSessionId"))
-        host = from_union([from_none, lambda x: from_str(x)], obj.get("host"))
+        repository = from_union([from_none, HandoffRepository.from_dict], obj.get("repository"))
+        context = from_union([from_none, from_str], obj.get("context"))
+        summary = from_union([from_none, from_str], obj.get("summary"))
+        remote_session_id = from_union([from_none, from_str], obj.get("remoteSessionId"))
+        host = from_union([from_none, from_str], obj.get("host"))
         return SessionHandoffData(
             handoff_time=handoff_time,
             source_type=source_type,
@@ -779,13 +730,13 @@ class SessionHandoffData:
         if self.repository is not None:
             result["repository"] = from_union([from_none, lambda x: to_class(HandoffRepository, x)], self.repository)
         if self.context is not None:
-            result["context"] = from_union([from_none, lambda x: from_str(x)], self.context)
+            result["context"] = from_union([from_none, from_str], self.context)
         if self.summary is not None:
-            result["summary"] = from_union([from_none, lambda x: from_str(x)], self.summary)
+            result["summary"] = from_union([from_none, from_str], self.summary)
         if self.remote_session_id is not None:
-            result["remoteSessionId"] = from_union([from_none, lambda x: from_str(x)], self.remote_session_id)
+            result["remoteSessionId"] = from_union([from_none, from_str], self.remote_session_id)
         if self.host is not None:
-            result["host"] = from_union([from_none, lambda x: from_str(x)], self.host)
+            result["host"] = from_union([from_none, from_str], self.host)
         return result
 
 
@@ -871,7 +822,7 @@ class ShutdownCodeChanges:
         assert isinstance(obj, dict)
         lines_added = from_float(obj.get("linesAdded"))
         lines_removed = from_float(obj.get("linesRemoved"))
-        files_modified = from_list(lambda x: from_str(x), obj.get("filesModified"))
+        files_modified = from_list(from_str, obj.get("filesModified"))
         return ShutdownCodeChanges(
             lines_added=lines_added,
             lines_removed=lines_removed,
@@ -882,7 +833,7 @@ class ShutdownCodeChanges:
         result: dict = {}
         result["linesAdded"] = to_float(self.lines_added)
         result["linesRemoved"] = to_float(self.lines_removed)
-        result["filesModified"] = from_list(lambda x: from_str(x), self.files_modified)
+        result["filesModified"] = from_list(from_str, self.files_modified)
         return result
 
 
@@ -925,7 +876,7 @@ class ShutdownModelMetricUsage:
         output_tokens = from_float(obj.get("outputTokens"))
         cache_read_tokens = from_float(obj.get("cacheReadTokens"))
         cache_write_tokens = from_float(obj.get("cacheWriteTokens"))
-        reasoning_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("reasoningTokens"))
+        reasoning_tokens = from_union([from_none, from_float], obj.get("reasoningTokens"))
         return ShutdownModelMetricUsage(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -941,7 +892,7 @@ class ShutdownModelMetricUsage:
         result["cacheReadTokens"] = to_float(self.cache_read_tokens)
         result["cacheWriteTokens"] = to_float(self.cache_write_tokens)
         if self.reasoning_tokens is not None:
-            result["reasoningTokens"] = from_union([from_none, lambda x: to_float(x)], self.reasoning_tokens)
+            result["reasoningTokens"] = from_union([from_none, to_float], self.reasoning_tokens)
         return result
 
 
@@ -991,13 +942,13 @@ class SessionShutdownData:
         total_api_duration_ms = from_float(obj.get("totalApiDurationMs"))
         session_start_time = from_float(obj.get("sessionStartTime"))
         code_changes = ShutdownCodeChanges.from_dict(obj.get("codeChanges"))
-        model_metrics = from_dict(lambda x: ShutdownModelMetric.from_dict(x), obj.get("modelMetrics"))
-        error_reason = from_union([from_none, lambda x: from_str(x)], obj.get("errorReason"))
-        current_model = from_union([from_none, lambda x: from_str(x)], obj.get("currentModel"))
-        current_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("currentTokens"))
-        system_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("systemTokens"))
-        conversation_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("conversationTokens"))
-        tool_definitions_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("toolDefinitionsTokens"))
+        model_metrics = from_dict(ShutdownModelMetric.from_dict, obj.get("modelMetrics"))
+        error_reason = from_union([from_none, from_str], obj.get("errorReason"))
+        current_model = from_union([from_none, from_str], obj.get("currentModel"))
+        current_tokens = from_union([from_none, from_float], obj.get("currentTokens"))
+        system_tokens = from_union([from_none, from_float], obj.get("systemTokens"))
+        conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
+        tool_definitions_tokens = from_union([from_none, from_float], obj.get("toolDefinitionsTokens"))
         return SessionShutdownData(
             shutdown_type=shutdown_type,
             total_premium_requests=total_premium_requests,
@@ -1022,23 +973,23 @@ class SessionShutdownData:
         result["codeChanges"] = to_class(ShutdownCodeChanges, self.code_changes)
         result["modelMetrics"] = from_dict(lambda x: to_class(ShutdownModelMetric, x), self.model_metrics)
         if self.error_reason is not None:
-            result["errorReason"] = from_union([from_none, lambda x: from_str(x)], self.error_reason)
+            result["errorReason"] = from_union([from_none, from_str], self.error_reason)
         if self.current_model is not None:
-            result["currentModel"] = from_union([from_none, lambda x: from_str(x)], self.current_model)
+            result["currentModel"] = from_union([from_none, from_str], self.current_model)
         if self.current_tokens is not None:
-            result["currentTokens"] = from_union([from_none, lambda x: to_float(x)], self.current_tokens)
+            result["currentTokens"] = from_union([from_none, to_float], self.current_tokens)
         if self.system_tokens is not None:
-            result["systemTokens"] = from_union([from_none, lambda x: to_float(x)], self.system_tokens)
+            result["systemTokens"] = from_union([from_none, to_float], self.system_tokens)
         if self.conversation_tokens is not None:
-            result["conversationTokens"] = from_union([from_none, lambda x: to_float(x)], self.conversation_tokens)
+            result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
         if self.tool_definitions_tokens is not None:
-            result["toolDefinitionsTokens"] = from_union([from_none, lambda x: to_float(x)], self.tool_definitions_tokens)
+            result["toolDefinitionsTokens"] = from_union([from_none, to_float], self.tool_definitions_tokens)
         return result
 
 
 @dataclass
 class SessionContextChangedData:
-    "Updated working directory and git context after the change"
+    "Working directory and git context at session start"
     cwd: str
     git_root: str | None = None
     repository: str | None = None
@@ -1051,12 +1002,12 @@ class SessionContextChangedData:
     def from_dict(obj: Any) -> "SessionContextChangedData":
         assert isinstance(obj, dict)
         cwd = from_str(obj.get("cwd"))
-        git_root = from_union([from_none, lambda x: from_str(x)], obj.get("gitRoot"))
-        repository = from_union([from_none, lambda x: from_str(x)], obj.get("repository"))
+        git_root = from_union([from_none, from_str], obj.get("gitRoot"))
+        repository = from_union([from_none, from_str], obj.get("repository"))
         host_type = from_union([from_none, lambda x: parse_enum(SessionContextChangedDataHostType, x)], obj.get("hostType"))
-        branch = from_union([from_none, lambda x: from_str(x)], obj.get("branch"))
-        head_commit = from_union([from_none, lambda x: from_str(x)], obj.get("headCommit"))
-        base_commit = from_union([from_none, lambda x: from_str(x)], obj.get("baseCommit"))
+        branch = from_union([from_none, from_str], obj.get("branch"))
+        head_commit = from_union([from_none, from_str], obj.get("headCommit"))
+        base_commit = from_union([from_none, from_str], obj.get("baseCommit"))
         return SessionContextChangedData(
             cwd=cwd,
             git_root=git_root,
@@ -1071,17 +1022,17 @@ class SessionContextChangedData:
         result: dict = {}
         result["cwd"] = from_str(self.cwd)
         if self.git_root is not None:
-            result["gitRoot"] = from_union([from_none, lambda x: from_str(x)], self.git_root)
+            result["gitRoot"] = from_union([from_none, from_str], self.git_root)
         if self.repository is not None:
-            result["repository"] = from_union([from_none, lambda x: from_str(x)], self.repository)
+            result["repository"] = from_union([from_none, from_str], self.repository)
         if self.host_type is not None:
             result["hostType"] = from_union([from_none, lambda x: to_enum(SessionContextChangedDataHostType, x)], self.host_type)
         if self.branch is not None:
-            result["branch"] = from_union([from_none, lambda x: from_str(x)], self.branch)
+            result["branch"] = from_union([from_none, from_str], self.branch)
         if self.head_commit is not None:
-            result["headCommit"] = from_union([from_none, lambda x: from_str(x)], self.head_commit)
+            result["headCommit"] = from_union([from_none, from_str], self.head_commit)
         if self.base_commit is not None:
-            result["baseCommit"] = from_union([from_none, lambda x: from_str(x)], self.base_commit)
+            result["baseCommit"] = from_union([from_none, from_str], self.base_commit)
         return result
 
 
@@ -1102,10 +1053,10 @@ class SessionUsageInfoData:
         token_limit = from_float(obj.get("tokenLimit"))
         current_tokens = from_float(obj.get("currentTokens"))
         messages_length = from_float(obj.get("messagesLength"))
-        system_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("systemTokens"))
-        conversation_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("conversationTokens"))
-        tool_definitions_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("toolDefinitionsTokens"))
-        is_initial = from_union([from_none, lambda x: from_bool(x)], obj.get("isInitial"))
+        system_tokens = from_union([from_none, from_float], obj.get("systemTokens"))
+        conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
+        tool_definitions_tokens = from_union([from_none, from_float], obj.get("toolDefinitionsTokens"))
+        is_initial = from_union([from_none, from_bool], obj.get("isInitial"))
         return SessionUsageInfoData(
             token_limit=token_limit,
             current_tokens=current_tokens,
@@ -1122,13 +1073,13 @@ class SessionUsageInfoData:
         result["currentTokens"] = to_float(self.current_tokens)
         result["messagesLength"] = to_float(self.messages_length)
         if self.system_tokens is not None:
-            result["systemTokens"] = from_union([from_none, lambda x: to_float(x)], self.system_tokens)
+            result["systemTokens"] = from_union([from_none, to_float], self.system_tokens)
         if self.conversation_tokens is not None:
-            result["conversationTokens"] = from_union([from_none, lambda x: to_float(x)], self.conversation_tokens)
+            result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
         if self.tool_definitions_tokens is not None:
-            result["toolDefinitionsTokens"] = from_union([from_none, lambda x: to_float(x)], self.tool_definitions_tokens)
+            result["toolDefinitionsTokens"] = from_union([from_none, to_float], self.tool_definitions_tokens)
         if self.is_initial is not None:
-            result["isInitial"] = from_union([from_none, lambda x: from_bool(x)], self.is_initial)
+            result["isInitial"] = from_union([from_none, from_bool], self.is_initial)
         return result
 
 
@@ -1142,9 +1093,9 @@ class SessionCompactionStartData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionCompactionStartData":
         assert isinstance(obj, dict)
-        system_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("systemTokens"))
-        conversation_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("conversationTokens"))
-        tool_definitions_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("toolDefinitionsTokens"))
+        system_tokens = from_union([from_none, from_float], obj.get("systemTokens"))
+        conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
+        tool_definitions_tokens = from_union([from_none, from_float], obj.get("toolDefinitionsTokens"))
         return SessionCompactionStartData(
             system_tokens=system_tokens,
             conversation_tokens=conversation_tokens,
@@ -1154,11 +1105,11 @@ class SessionCompactionStartData:
     def to_dict(self) -> dict:
         result: dict = {}
         if self.system_tokens is not None:
-            result["systemTokens"] = from_union([from_none, lambda x: to_float(x)], self.system_tokens)
+            result["systemTokens"] = from_union([from_none, to_float], self.system_tokens)
         if self.conversation_tokens is not None:
-            result["conversationTokens"] = from_union([from_none, lambda x: to_float(x)], self.conversation_tokens)
+            result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
         if self.tool_definitions_tokens is not None:
-            result["toolDefinitionsTokens"] = from_union([from_none, lambda x: to_float(x)], self.tool_definitions_tokens)
+            result["toolDefinitionsTokens"] = from_union([from_none, to_float], self.tool_definitions_tokens)
         return result
 
 
@@ -1212,20 +1163,20 @@ class SessionCompactionCompleteData:
     def from_dict(obj: Any) -> "SessionCompactionCompleteData":
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
-        error = from_union([from_none, lambda x: from_str(x)], obj.get("error"))
-        pre_compaction_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("preCompactionTokens"))
-        post_compaction_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("postCompactionTokens"))
-        pre_compaction_messages_length = from_union([from_none, lambda x: from_float(x)], obj.get("preCompactionMessagesLength"))
-        messages_removed = from_union([from_none, lambda x: from_float(x)], obj.get("messagesRemoved"))
-        tokens_removed = from_union([from_none, lambda x: from_float(x)], obj.get("tokensRemoved"))
-        summary_content = from_union([from_none, lambda x: from_str(x)], obj.get("summaryContent"))
-        checkpoint_number = from_union([from_none, lambda x: from_float(x)], obj.get("checkpointNumber"))
-        checkpoint_path = from_union([from_none, lambda x: from_str(x)], obj.get("checkpointPath"))
-        compaction_tokens_used = from_union([from_none, lambda x: CompactionCompleteCompactionTokensUsed.from_dict(x)], obj.get("compactionTokensUsed"))
-        request_id = from_union([from_none, lambda x: from_str(x)], obj.get("requestId"))
-        system_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("systemTokens"))
-        conversation_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("conversationTokens"))
-        tool_definitions_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("toolDefinitionsTokens"))
+        error = from_union([from_none, from_str], obj.get("error"))
+        pre_compaction_tokens = from_union([from_none, from_float], obj.get("preCompactionTokens"))
+        post_compaction_tokens = from_union([from_none, from_float], obj.get("postCompactionTokens"))
+        pre_compaction_messages_length = from_union([from_none, from_float], obj.get("preCompactionMessagesLength"))
+        messages_removed = from_union([from_none, from_float], obj.get("messagesRemoved"))
+        tokens_removed = from_union([from_none, from_float], obj.get("tokensRemoved"))
+        summary_content = from_union([from_none, from_str], obj.get("summaryContent"))
+        checkpoint_number = from_union([from_none, from_float], obj.get("checkpointNumber"))
+        checkpoint_path = from_union([from_none, from_str], obj.get("checkpointPath"))
+        compaction_tokens_used = from_union([from_none, CompactionCompleteCompactionTokensUsed.from_dict], obj.get("compactionTokensUsed"))
+        request_id = from_union([from_none, from_str], obj.get("requestId"))
+        system_tokens = from_union([from_none, from_float], obj.get("systemTokens"))
+        conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
+        tool_definitions_tokens = from_union([from_none, from_float], obj.get("toolDefinitionsTokens"))
         return SessionCompactionCompleteData(
             success=success,
             error=error,
@@ -1248,33 +1199,33 @@ class SessionCompactionCompleteData:
         result: dict = {}
         result["success"] = from_bool(self.success)
         if self.error is not None:
-            result["error"] = from_union([from_none, lambda x: from_str(x)], self.error)
+            result["error"] = from_union([from_none, from_str], self.error)
         if self.pre_compaction_tokens is not None:
-            result["preCompactionTokens"] = from_union([from_none, lambda x: to_float(x)], self.pre_compaction_tokens)
+            result["preCompactionTokens"] = from_union([from_none, to_float], self.pre_compaction_tokens)
         if self.post_compaction_tokens is not None:
-            result["postCompactionTokens"] = from_union([from_none, lambda x: to_float(x)], self.post_compaction_tokens)
+            result["postCompactionTokens"] = from_union([from_none, to_float], self.post_compaction_tokens)
         if self.pre_compaction_messages_length is not None:
-            result["preCompactionMessagesLength"] = from_union([from_none, lambda x: to_float(x)], self.pre_compaction_messages_length)
+            result["preCompactionMessagesLength"] = from_union([from_none, to_float], self.pre_compaction_messages_length)
         if self.messages_removed is not None:
-            result["messagesRemoved"] = from_union([from_none, lambda x: to_float(x)], self.messages_removed)
+            result["messagesRemoved"] = from_union([from_none, to_float], self.messages_removed)
         if self.tokens_removed is not None:
-            result["tokensRemoved"] = from_union([from_none, lambda x: to_float(x)], self.tokens_removed)
+            result["tokensRemoved"] = from_union([from_none, to_float], self.tokens_removed)
         if self.summary_content is not None:
-            result["summaryContent"] = from_union([from_none, lambda x: from_str(x)], self.summary_content)
+            result["summaryContent"] = from_union([from_none, from_str], self.summary_content)
         if self.checkpoint_number is not None:
-            result["checkpointNumber"] = from_union([from_none, lambda x: to_float(x)], self.checkpoint_number)
+            result["checkpointNumber"] = from_union([from_none, to_float], self.checkpoint_number)
         if self.checkpoint_path is not None:
-            result["checkpointPath"] = from_union([from_none, lambda x: from_str(x)], self.checkpoint_path)
+            result["checkpointPath"] = from_union([from_none, from_str], self.checkpoint_path)
         if self.compaction_tokens_used is not None:
             result["compactionTokensUsed"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsed, x)], self.compaction_tokens_used)
         if self.request_id is not None:
-            result["requestId"] = from_union([from_none, lambda x: from_str(x)], self.request_id)
+            result["requestId"] = from_union([from_none, from_str], self.request_id)
         if self.system_tokens is not None:
-            result["systemTokens"] = from_union([from_none, lambda x: to_float(x)], self.system_tokens)
+            result["systemTokens"] = from_union([from_none, to_float], self.system_tokens)
         if self.conversation_tokens is not None:
-            result["conversationTokens"] = from_union([from_none, lambda x: to_float(x)], self.conversation_tokens)
+            result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
         if self.tool_definitions_tokens is not None:
-            result["toolDefinitionsTokens"] = from_union([from_none, lambda x: to_float(x)], self.tool_definitions_tokens)
+            result["toolDefinitionsTokens"] = from_union([from_none, to_float], self.tool_definitions_tokens)
         return result
 
 
@@ -1287,8 +1238,8 @@ class SessionTaskCompleteData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionTaskCompleteData":
         assert isinstance(obj, dict)
-        summary = from_union([from_none, lambda x: from_str(x)], obj.get("summary", ""))
-        success = from_union([from_none, lambda x: from_bool(x)], obj.get("success"))
+        summary = from_union([from_none, from_str], obj.get("summary", ""))
+        success = from_union([from_none, from_bool], obj.get("success"))
         return SessionTaskCompleteData(
             summary=summary,
             success=success,
@@ -1297,9 +1248,9 @@ class SessionTaskCompleteData:
     def to_dict(self) -> dict:
         result: dict = {}
         if self.summary is not None:
-            result["summary"] = from_union([from_none, lambda x: from_str(x)], self.summary)
+            result["summary"] = from_union([from_none, from_str], self.summary)
         if self.success is not None:
-            result["success"] = from_union([from_none, lambda x: from_bool(x)], self.success)
+            result["success"] = from_union([from_none, from_bool], self.success)
         return result
 
 
@@ -1417,19 +1368,19 @@ class UserMessageAttachment:
     def from_dict(obj: Any) -> "UserMessageAttachment":
         assert isinstance(obj, dict)
         type = parse_enum(UserMessageAttachmentType, obj.get("type"))
-        path = from_union([from_none, lambda x: from_str(x)], obj.get("path"))
-        display_name = from_union([from_none, lambda x: from_str(x)], obj.get("displayName"))
-        line_range = from_union([from_none, lambda x: UserMessageAttachmentFileLineRange.from_dict(x)], obj.get("lineRange"))
-        file_path = from_union([from_none, lambda x: from_str(x)], obj.get("filePath"))
-        text = from_union([from_none, lambda x: from_str(x)], obj.get("text"))
-        selection = from_union([from_none, lambda x: UserMessageAttachmentSelectionDetails.from_dict(x)], obj.get("selection"))
-        number = from_union([from_none, lambda x: from_float(x)], obj.get("number"))
-        title = from_union([from_none, lambda x: from_str(x)], obj.get("title"))
+        path = from_union([from_none, from_str], obj.get("path"))
+        display_name = from_union([from_none, from_str], obj.get("displayName"))
+        line_range = from_union([from_none, UserMessageAttachmentFileLineRange.from_dict], obj.get("lineRange"))
+        file_path = from_union([from_none, from_str], obj.get("filePath"))
+        text = from_union([from_none, from_str], obj.get("text"))
+        selection = from_union([from_none, UserMessageAttachmentSelectionDetails.from_dict], obj.get("selection"))
+        number = from_union([from_none, from_float], obj.get("number"))
+        title = from_union([from_none, from_str], obj.get("title"))
         reference_type = from_union([from_none, lambda x: parse_enum(UserMessageAttachmentGithubReferenceType, x)], obj.get("referenceType"))
-        state = from_union([from_none, lambda x: from_str(x)], obj.get("state"))
-        url = from_union([from_none, lambda x: from_str(x)], obj.get("url"))
-        data = from_union([from_none, lambda x: from_str(x)], obj.get("data"))
-        mime_type = from_union([from_none, lambda x: from_str(x)], obj.get("mimeType"))
+        state = from_union([from_none, from_str], obj.get("state"))
+        url = from_union([from_none, from_str], obj.get("url"))
+        data = from_union([from_none, from_str], obj.get("data"))
+        mime_type = from_union([from_none, from_str], obj.get("mimeType"))
         return UserMessageAttachment(
             type=type,
             path=path,
@@ -1451,31 +1402,31 @@ class UserMessageAttachment:
         result: dict = {}
         result["type"] = to_enum(UserMessageAttachmentType, self.type)
         if self.path is not None:
-            result["path"] = from_union([from_none, lambda x: from_str(x)], self.path)
+            result["path"] = from_union([from_none, from_str], self.path)
         if self.display_name is not None:
-            result["displayName"] = from_union([from_none, lambda x: from_str(x)], self.display_name)
+            result["displayName"] = from_union([from_none, from_str], self.display_name)
         if self.line_range is not None:
             result["lineRange"] = from_union([from_none, lambda x: to_class(UserMessageAttachmentFileLineRange, x)], self.line_range)
         if self.file_path is not None:
-            result["filePath"] = from_union([from_none, lambda x: from_str(x)], self.file_path)
+            result["filePath"] = from_union([from_none, from_str], self.file_path)
         if self.text is not None:
-            result["text"] = from_union([from_none, lambda x: from_str(x)], self.text)
+            result["text"] = from_union([from_none, from_str], self.text)
         if self.selection is not None:
             result["selection"] = from_union([from_none, lambda x: to_class(UserMessageAttachmentSelectionDetails, x)], self.selection)
         if self.number is not None:
-            result["number"] = from_union([from_none, lambda x: to_float(x)], self.number)
+            result["number"] = from_union([from_none, to_float], self.number)
         if self.title is not None:
-            result["title"] = from_union([from_none, lambda x: from_str(x)], self.title)
+            result["title"] = from_union([from_none, from_str], self.title)
         if self.reference_type is not None:
             result["referenceType"] = from_union([from_none, lambda x: to_enum(UserMessageAttachmentGithubReferenceType, x)], self.reference_type)
         if self.state is not None:
-            result["state"] = from_union([from_none, lambda x: from_str(x)], self.state)
+            result["state"] = from_union([from_none, from_str], self.state)
         if self.url is not None:
-            result["url"] = from_union([from_none, lambda x: from_str(x)], self.url)
+            result["url"] = from_union([from_none, from_str], self.url)
         if self.data is not None:
-            result["data"] = from_union([from_none, lambda x: from_str(x)], self.data)
+            result["data"] = from_union([from_none, from_str], self.data)
         if self.mime_type is not None:
-            result["mimeType"] = from_union([from_none, lambda x: from_str(x)], self.mime_type)
+            result["mimeType"] = from_union([from_none, from_str], self.mime_type)
         return result
 
 
@@ -1484,6 +1435,8 @@ class UserMessageData:
     content: str
     transformed_content: str | None = None
     attachments: list[UserMessageAttachment] | None = None
+    supported_native_document_mime_types: list[str] | None = None
+    native_document_path_fallback_paths: list[str] | None = None
     source: str | None = None
     agent_mode: UserMessageAgentMode | None = None
     interaction_id: str | None = None
@@ -1492,15 +1445,19 @@ class UserMessageData:
     def from_dict(obj: Any) -> "UserMessageData":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
-        transformed_content = from_union([from_none, lambda x: from_str(x)], obj.get("transformedContent"))
+        transformed_content = from_union([from_none, from_str], obj.get("transformedContent"))
         attachments = from_union([from_none, lambda x: from_list(UserMessageAttachment.from_dict, x)], obj.get("attachments"))
-        source = from_union([from_none, lambda x: from_str(x)], obj.get("source"))
+        supported_native_document_mime_types = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("supportedNativeDocumentMimeTypes"))
+        native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("nativeDocumentPathFallbackPaths"))
+        source = from_union([from_none, from_str], obj.get("source"))
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
-        interaction_id = from_union([from_none, lambda x: from_str(x)], obj.get("interactionId"))
+        interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         return UserMessageData(
             content=content,
             transformed_content=transformed_content,
             attachments=attachments,
+            supported_native_document_mime_types=supported_native_document_mime_types,
+            native_document_path_fallback_paths=native_document_path_fallback_paths,
             source=source,
             agent_mode=agent_mode,
             interaction_id=interaction_id,
@@ -1510,15 +1467,19 @@ class UserMessageData:
         result: dict = {}
         result["content"] = from_str(self.content)
         if self.transformed_content is not None:
-            result["transformedContent"] = from_union([from_none, lambda x: from_str(x)], self.transformed_content)
+            result["transformedContent"] = from_union([from_none, from_str], self.transformed_content)
         if self.attachments is not None:
             result["attachments"] = from_union([from_none, lambda x: from_list(lambda x: to_class(UserMessageAttachment, x), x)], self.attachments)
+        if self.supported_native_document_mime_types is not None:
+            result["supportedNativeDocumentMimeTypes"] = from_union([from_none, lambda x: from_list(from_str, x)], self.supported_native_document_mime_types)
+        if self.native_document_path_fallback_paths is not None:
+            result["nativeDocumentPathFallbackPaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.native_document_path_fallback_paths)
         if self.source is not None:
-            result["source"] = from_union([from_none, lambda x: from_str(x)], self.source)
+            result["source"] = from_union([from_none, from_str], self.source)
         if self.agent_mode is not None:
             result["agentMode"] = from_union([from_none, lambda x: to_enum(UserMessageAgentMode, x)], self.agent_mode)
         if self.interaction_id is not None:
-            result["interactionId"] = from_union([from_none, lambda x: from_str(x)], self.interaction_id)
+            result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         return result
 
 
@@ -1544,7 +1505,7 @@ class AssistantTurnStartData:
     def from_dict(obj: Any) -> "AssistantTurnStartData":
         assert isinstance(obj, dict)
         turn_id = from_str(obj.get("turnId"))
-        interaction_id = from_union([from_none, lambda x: from_str(x)], obj.get("interactionId"))
+        interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         return AssistantTurnStartData(
             turn_id=turn_id,
             interaction_id=interaction_id,
@@ -1554,7 +1515,7 @@ class AssistantTurnStartData:
         result: dict = {}
         result["turnId"] = from_str(self.turn_id)
         if self.interaction_id is not None:
-            result["interactionId"] = from_union([from_none, lambda x: from_str(x)], self.interaction_id)
+            result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         return result
 
 
@@ -1660,9 +1621,9 @@ class AssistantMessageToolRequest:
         name = from_str(obj.get("name"))
         arguments = obj.get("arguments")
         type = from_union([from_none, lambda x: parse_enum(AssistantMessageToolRequestType, x)], obj.get("type"))
-        tool_title = from_union([from_none, lambda x: from_str(x)], obj.get("toolTitle"))
-        mcp_server_name = from_union([from_none, lambda x: from_str(x)], obj.get("mcpServerName"))
-        intention_summary = from_union([from_none, lambda x: from_str(x)], obj.get("intentionSummary"))
+        tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
+        mcp_server_name = from_union([from_none, from_str], obj.get("mcpServerName"))
+        intention_summary = from_union([from_none, from_str], obj.get("intentionSummary"))
         return AssistantMessageToolRequest(
             tool_call_id=tool_call_id,
             name=name,
@@ -1682,11 +1643,11 @@ class AssistantMessageToolRequest:
         if self.type is not None:
             result["type"] = from_union([from_none, lambda x: to_enum(AssistantMessageToolRequestType, x)], self.type)
         if self.tool_title is not None:
-            result["toolTitle"] = from_union([from_none, lambda x: from_str(x)], self.tool_title)
+            result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
         if self.mcp_server_name is not None:
-            result["mcpServerName"] = from_union([from_none, lambda x: from_str(x)], self.mcp_server_name)
+            result["mcpServerName"] = from_union([from_none, from_str], self.mcp_server_name)
         if self.intention_summary is not None:
-            result["intentionSummary"] = from_union([from_none, lambda x: from_str(x)], self.intention_summary)
+            result["intentionSummary"] = from_union([from_none, from_str], self.intention_summary)
         return result
 
 
@@ -1703,6 +1664,7 @@ class AssistantMessageData:
     output_tokens: float | None = None
     interaction_id: str | None = None
     request_id: str | None = None
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
 
     @staticmethod
@@ -1710,15 +1672,15 @@ class AssistantMessageData:
         assert isinstance(obj, dict)
         message_id = from_str(obj.get("messageId"))
         content = from_str(obj.get("content"))
-        tool_requests = from_union([from_none, lambda x: from_list(lambda x: AssistantMessageToolRequest.from_dict(x), x)], obj.get("toolRequests"))
-        reasoning_opaque = from_union([from_none, lambda x: from_str(x)], obj.get("reasoningOpaque"))
-        reasoning_text = from_union([from_none, lambda x: from_str(x)], obj.get("reasoningText"))
-        encrypted_content = from_union([from_none, lambda x: from_str(x)], obj.get("encryptedContent"))
-        phase = from_union([from_none, lambda x: from_str(x)], obj.get("phase"))
-        output_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("outputTokens"))
-        interaction_id = from_union([from_none, lambda x: from_str(x)], obj.get("interactionId"))
-        request_id = from_union([from_none, lambda x: from_str(x)], obj.get("requestId"))
-        parent_tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("parentToolCallId"))
+        tool_requests = from_union([from_none, lambda x: from_list(AssistantMessageToolRequest.from_dict, x)], obj.get("toolRequests"))
+        reasoning_opaque = from_union([from_none, from_str], obj.get("reasoningOpaque"))
+        reasoning_text = from_union([from_none, from_str], obj.get("reasoningText"))
+        encrypted_content = from_union([from_none, from_str], obj.get("encryptedContent"))
+        phase = from_union([from_none, from_str], obj.get("phase"))
+        output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
+        interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        request_id = from_union([from_none, from_str], obj.get("requestId"))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         return AssistantMessageData(
             message_id=message_id,
             content=content,
@@ -1740,21 +1702,21 @@ class AssistantMessageData:
         if self.tool_requests is not None:
             result["toolRequests"] = from_union([from_none, lambda x: from_list(lambda x: to_class(AssistantMessageToolRequest, x), x)], self.tool_requests)
         if self.reasoning_opaque is not None:
-            result["reasoningOpaque"] = from_union([from_none, lambda x: from_str(x)], self.reasoning_opaque)
+            result["reasoningOpaque"] = from_union([from_none, from_str], self.reasoning_opaque)
         if self.reasoning_text is not None:
-            result["reasoningText"] = from_union([from_none, lambda x: from_str(x)], self.reasoning_text)
+            result["reasoningText"] = from_union([from_none, from_str], self.reasoning_text)
         if self.encrypted_content is not None:
-            result["encryptedContent"] = from_union([from_none, lambda x: from_str(x)], self.encrypted_content)
+            result["encryptedContent"] = from_union([from_none, from_str], self.encrypted_content)
         if self.phase is not None:
-            result["phase"] = from_union([from_none, lambda x: from_str(x)], self.phase)
+            result["phase"] = from_union([from_none, from_str], self.phase)
         if self.output_tokens is not None:
-            result["outputTokens"] = from_union([from_none, lambda x: to_float(x)], self.output_tokens)
+            result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
         if self.interaction_id is not None:
-            result["interactionId"] = from_union([from_none, lambda x: from_str(x)], self.interaction_id)
+            result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.request_id is not None:
-            result["requestId"] = from_union([from_none, lambda x: from_str(x)], self.request_id)
+            result["requestId"] = from_union([from_none, from_str], self.request_id)
         if self.parent_tool_call_id is not None:
-            result["parentToolCallId"] = from_union([from_none, lambda x: from_str(x)], self.parent_tool_call_id)
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         return result
 
 
@@ -1763,6 +1725,7 @@ class AssistantMessageDeltaData:
     "Streaming assistant message delta for incremental response updates"
     message_id: str
     delta_content: str
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
 
     @staticmethod
@@ -1770,7 +1733,7 @@ class AssistantMessageDeltaData:
         assert isinstance(obj, dict)
         message_id = from_str(obj.get("messageId"))
         delta_content = from_str(obj.get("deltaContent"))
-        parent_tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("parentToolCallId"))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         return AssistantMessageDeltaData(
             message_id=message_id,
             delta_content=delta_content,
@@ -1782,7 +1745,7 @@ class AssistantMessageDeltaData:
         result["messageId"] = from_str(self.message_id)
         result["deltaContent"] = from_str(self.delta_content)
         if self.parent_tool_call_id is not None:
-            result["parentToolCallId"] = from_union([from_none, lambda x: from_str(x)], self.parent_tool_call_id)
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         return result
 
 
@@ -1826,7 +1789,7 @@ class AssistantUsageQuotaSnapshot:
         overage = from_float(obj.get("overage"))
         overage_allowed_with_exhausted_quota = from_bool(obj.get("overageAllowedWithExhaustedQuota"))
         remaining_percentage = from_float(obj.get("remainingPercentage"))
-        reset_date = from_union([from_none, lambda x: from_datetime(x)], obj.get("resetDate"))
+        reset_date = from_union([from_none, from_datetime], obj.get("resetDate"))
         return AssistantUsageQuotaSnapshot(
             is_unlimited_entitlement=is_unlimited_entitlement,
             entitlement_requests=entitlement_requests,
@@ -1848,7 +1811,7 @@ class AssistantUsageQuotaSnapshot:
         result["overageAllowedWithExhaustedQuota"] = from_bool(self.overage_allowed_with_exhausted_quota)
         result["remainingPercentage"] = to_float(self.remaining_percentage)
         if self.reset_date is not None:
-            result["resetDate"] = from_union([from_none, lambda x: to_datetime(x)], self.reset_date)
+            result["resetDate"] = from_union([from_none, to_datetime], self.reset_date)
         return result
 
 
@@ -1892,7 +1855,7 @@ class AssistantUsageCopilotUsage:
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageCopilotUsage":
         assert isinstance(obj, dict)
-        token_details = from_list(lambda x: AssistantUsageCopilotUsageTokenDetail.from_dict(x), obj.get("tokenDetails"))
+        token_details = from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
         return AssistantUsageCopilotUsage(
             token_details=token_details,
@@ -1922,6 +1885,7 @@ class AssistantUsageData:
     initiator: str | None = None
     api_call_id: str | None = None
     provider_call_id: str | None = None
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     quota_snapshots: dict[str, AssistantUsageQuotaSnapshot] | None = None
     copilot_usage: AssistantUsageCopilotUsage | None = None
@@ -1931,22 +1895,22 @@ class AssistantUsageData:
     def from_dict(obj: Any) -> "AssistantUsageData":
         assert isinstance(obj, dict)
         model = from_str(obj.get("model"))
-        input_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("inputTokens"))
-        output_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("outputTokens"))
-        cache_read_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("cacheReadTokens"))
-        cache_write_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("cacheWriteTokens"))
-        reasoning_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("reasoningTokens"))
-        cost = from_union([from_none, lambda x: from_float(x)], obj.get("cost"))
-        duration = from_union([from_none, lambda x: from_float(x)], obj.get("duration"))
-        ttft_ms = from_union([from_none, lambda x: from_float(x)], obj.get("ttftMs"))
-        inter_token_latency_ms = from_union([from_none, lambda x: from_float(x)], obj.get("interTokenLatencyMs"))
-        initiator = from_union([from_none, lambda x: from_str(x)], obj.get("initiator"))
-        api_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("apiCallId"))
-        provider_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("providerCallId"))
-        parent_tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("parentToolCallId"))
-        quota_snapshots = from_union([from_none, lambda x: from_dict(lambda x: AssistantUsageQuotaSnapshot.from_dict(x), x)], obj.get("quotaSnapshots"))
-        copilot_usage = from_union([from_none, lambda x: AssistantUsageCopilotUsage.from_dict(x)], obj.get("copilotUsage"))
-        reasoning_effort = from_union([from_none, lambda x: from_str(x)], obj.get("reasoningEffort"))
+        input_tokens = from_union([from_none, from_float], obj.get("inputTokens"))
+        output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
+        cache_read_tokens = from_union([from_none, from_float], obj.get("cacheReadTokens"))
+        cache_write_tokens = from_union([from_none, from_float], obj.get("cacheWriteTokens"))
+        reasoning_tokens = from_union([from_none, from_float], obj.get("reasoningTokens"))
+        cost = from_union([from_none, from_float], obj.get("cost"))
+        duration = from_union([from_none, from_float], obj.get("duration"))
+        ttft_ms = from_union([from_none, from_float], obj.get("ttftMs"))
+        inter_token_latency_ms = from_union([from_none, from_float], obj.get("interTokenLatencyMs"))
+        initiator = from_union([from_none, from_str], obj.get("initiator"))
+        api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
+        provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        quota_snapshots = from_union([from_none, lambda x: from_dict(AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
+        copilot_usage = from_union([from_none, AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         return AssistantUsageData(
             model=model,
             input_tokens=input_tokens,
@@ -1971,37 +1935,37 @@ class AssistantUsageData:
         result: dict = {}
         result["model"] = from_str(self.model)
         if self.input_tokens is not None:
-            result["inputTokens"] = from_union([from_none, lambda x: to_float(x)], self.input_tokens)
+            result["inputTokens"] = from_union([from_none, to_float], self.input_tokens)
         if self.output_tokens is not None:
-            result["outputTokens"] = from_union([from_none, lambda x: to_float(x)], self.output_tokens)
+            result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
         if self.cache_read_tokens is not None:
-            result["cacheReadTokens"] = from_union([from_none, lambda x: to_float(x)], self.cache_read_tokens)
+            result["cacheReadTokens"] = from_union([from_none, to_float], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
-            result["cacheWriteTokens"] = from_union([from_none, lambda x: to_float(x)], self.cache_write_tokens)
+            result["cacheWriteTokens"] = from_union([from_none, to_float], self.cache_write_tokens)
         if self.reasoning_tokens is not None:
-            result["reasoningTokens"] = from_union([from_none, lambda x: to_float(x)], self.reasoning_tokens)
+            result["reasoningTokens"] = from_union([from_none, to_float], self.reasoning_tokens)
         if self.cost is not None:
-            result["cost"] = from_union([from_none, lambda x: to_float(x)], self.cost)
+            result["cost"] = from_union([from_none, to_float], self.cost)
         if self.duration is not None:
-            result["duration"] = from_union([from_none, lambda x: to_float(x)], self.duration)
+            result["duration"] = from_union([from_none, to_float], self.duration)
         if self.ttft_ms is not None:
-            result["ttftMs"] = from_union([from_none, lambda x: to_float(x)], self.ttft_ms)
+            result["ttftMs"] = from_union([from_none, to_float], self.ttft_ms)
         if self.inter_token_latency_ms is not None:
-            result["interTokenLatencyMs"] = from_union([from_none, lambda x: to_float(x)], self.inter_token_latency_ms)
+            result["interTokenLatencyMs"] = from_union([from_none, to_float], self.inter_token_latency_ms)
         if self.initiator is not None:
-            result["initiator"] = from_union([from_none, lambda x: from_str(x)], self.initiator)
+            result["initiator"] = from_union([from_none, from_str], self.initiator)
         if self.api_call_id is not None:
-            result["apiCallId"] = from_union([from_none, lambda x: from_str(x)], self.api_call_id)
+            result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
         if self.provider_call_id is not None:
-            result["providerCallId"] = from_union([from_none, lambda x: from_str(x)], self.provider_call_id)
+            result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
         if self.parent_tool_call_id is not None:
-            result["parentToolCallId"] = from_union([from_none, lambda x: from_str(x)], self.parent_tool_call_id)
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.quota_snapshots is not None:
             result["quotaSnapshots"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(AssistantUsageQuotaSnapshot, x), x)], self.quota_snapshots)
         if self.copilot_usage is not None:
             result["copilotUsage"] = from_union([from_none, lambda x: to_class(AssistantUsageCopilotUsage, x)], self.copilot_usage)
         if self.reasoning_effort is not None:
-            result["reasoningEffort"] = from_union([from_none, lambda x: from_str(x)], self.reasoning_effort)
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         return result
 
 
@@ -2060,6 +2024,7 @@ class ToolExecutionStartData:
     arguments: Any = None
     mcp_server_name: str | None = None
     mcp_tool_name: str | None = None
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
 
     @staticmethod
@@ -2068,9 +2033,9 @@ class ToolExecutionStartData:
         tool_call_id = from_str(obj.get("toolCallId"))
         tool_name = from_str(obj.get("toolName"))
         arguments = obj.get("arguments")
-        mcp_server_name = from_union([from_none, lambda x: from_str(x)], obj.get("mcpServerName"))
-        mcp_tool_name = from_union([from_none, lambda x: from_str(x)], obj.get("mcpToolName"))
-        parent_tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("parentToolCallId"))
+        mcp_server_name = from_union([from_none, from_str], obj.get("mcpServerName"))
+        mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         return ToolExecutionStartData(
             tool_call_id=tool_call_id,
             tool_name=tool_name,
@@ -2087,11 +2052,11 @@ class ToolExecutionStartData:
         if self.arguments is not None:
             result["arguments"] = self.arguments
         if self.mcp_server_name is not None:
-            result["mcpServerName"] = from_union([from_none, lambda x: from_str(x)], self.mcp_server_name)
+            result["mcpServerName"] = from_union([from_none, from_str], self.mcp_server_name)
         if self.mcp_tool_name is not None:
-            result["mcpToolName"] = from_union([from_none, lambda x: from_str(x)], self.mcp_tool_name)
+            result["mcpToolName"] = from_union([from_none, from_str], self.mcp_tool_name)
         if self.parent_tool_call_id is not None:
-            result["parentToolCallId"] = from_union([from_none, lambda x: from_str(x)], self.parent_tool_call_id)
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         return result
 
 
@@ -2153,8 +2118,8 @@ class ToolExecutionCompleteDataResultContentsItemIconsItem:
     def from_dict(obj: Any) -> "ToolExecutionCompleteDataResultContentsItemIconsItem":
         assert isinstance(obj, dict)
         src = from_str(obj.get("src"))
-        mime_type = from_union([from_none, lambda x: from_str(x)], obj.get("mimeType"))
-        sizes = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], obj.get("sizes"))
+        mime_type = from_union([from_none, from_str], obj.get("mimeType"))
+        sizes = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("sizes"))
         theme = from_union([from_none, lambda x: parse_enum(ToolExecutionCompleteDataResultContentsItemIconsItemTheme, x)], obj.get("theme"))
         return ToolExecutionCompleteDataResultContentsItemIconsItem(
             src=src,
@@ -2167,9 +2132,9 @@ class ToolExecutionCompleteDataResultContentsItemIconsItem:
         result: dict = {}
         result["src"] = from_str(self.src)
         if self.mime_type is not None:
-            result["mimeType"] = from_union([from_none, lambda x: from_str(x)], self.mime_type)
+            result["mimeType"] = from_union([from_none, from_str], self.mime_type)
         if self.sizes is not None:
-            result["sizes"] = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], self.sizes)
+            result["sizes"] = from_union([from_none, lambda x: from_list(from_str, x)], self.sizes)
         if self.theme is not None:
             result["theme"] = from_union([from_none, lambda x: to_enum(ToolExecutionCompleteDataResultContentsItemIconsItemTheme, x)], self.theme)
         return result
@@ -2196,17 +2161,17 @@ class ToolExecutionCompleteDataResultContentsItem:
     def from_dict(obj: Any) -> "ToolExecutionCompleteDataResultContentsItem":
         assert isinstance(obj, dict)
         type = parse_enum(ToolExecutionCompleteDataResultContentsItemType, obj.get("type"))
-        text = from_union([from_none, lambda x: from_str(x)], obj.get("text"))
-        exit_code = from_union([from_none, lambda x: from_float(x)], obj.get("exitCode"))
-        cwd = from_union([from_none, lambda x: from_str(x)], obj.get("cwd"))
-        data = from_union([from_none, lambda x: from_str(x)], obj.get("data"))
-        mime_type = from_union([from_none, lambda x: from_str(x)], obj.get("mimeType"))
-        icons = from_union([from_none, lambda x: from_list(lambda x: ToolExecutionCompleteDataResultContentsItemIconsItem.from_dict(x), x)], obj.get("icons"))
-        name = from_union([from_none, lambda x: from_str(x)], obj.get("name"))
-        title = from_union([from_none, lambda x: from_str(x)], obj.get("title"))
-        uri = from_union([from_none, lambda x: from_str(x)], obj.get("uri"))
-        description = from_union([from_none, lambda x: from_str(x)], obj.get("description"))
-        size = from_union([from_none, lambda x: from_float(x)], obj.get("size"))
+        text = from_union([from_none, from_str], obj.get("text"))
+        exit_code = from_union([from_none, from_float], obj.get("exitCode"))
+        cwd = from_union([from_none, from_str], obj.get("cwd"))
+        data = from_union([from_none, from_str], obj.get("data"))
+        mime_type = from_union([from_none, from_str], obj.get("mimeType"))
+        icons = from_union([from_none, lambda x: from_list(ToolExecutionCompleteDataResultContentsItemIconsItem.from_dict, x)], obj.get("icons"))
+        name = from_union([from_none, from_str], obj.get("name"))
+        title = from_union([from_none, from_str], obj.get("title"))
+        uri = from_union([from_none, from_str], obj.get("uri"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        size = from_union([from_none, from_float], obj.get("size"))
         resource = obj.get("resource")
         return ToolExecutionCompleteDataResultContentsItem(
             type=type,
@@ -2228,27 +2193,27 @@ class ToolExecutionCompleteDataResultContentsItem:
         result: dict = {}
         result["type"] = to_enum(ToolExecutionCompleteDataResultContentsItemType, self.type)
         if self.text is not None:
-            result["text"] = from_union([from_none, lambda x: from_str(x)], self.text)
+            result["text"] = from_union([from_none, from_str], self.text)
         if self.exit_code is not None:
-            result["exitCode"] = from_union([from_none, lambda x: to_float(x)], self.exit_code)
+            result["exitCode"] = from_union([from_none, to_float], self.exit_code)
         if self.cwd is not None:
-            result["cwd"] = from_union([from_none, lambda x: from_str(x)], self.cwd)
+            result["cwd"] = from_union([from_none, from_str], self.cwd)
         if self.data is not None:
-            result["data"] = from_union([from_none, lambda x: from_str(x)], self.data)
+            result["data"] = from_union([from_none, from_str], self.data)
         if self.mime_type is not None:
-            result["mimeType"] = from_union([from_none, lambda x: from_str(x)], self.mime_type)
+            result["mimeType"] = from_union([from_none, from_str], self.mime_type)
         if self.icons is not None:
             result["icons"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteDataResultContentsItemIconsItem, x), x)], self.icons)
         if self.name is not None:
-            result["name"] = from_union([from_none, lambda x: from_str(x)], self.name)
+            result["name"] = from_union([from_none, from_str], self.name)
         if self.title is not None:
-            result["title"] = from_union([from_none, lambda x: from_str(x)], self.title)
+            result["title"] = from_union([from_none, from_str], self.title)
         if self.uri is not None:
-            result["uri"] = from_union([from_none, lambda x: from_str(x)], self.uri)
+            result["uri"] = from_union([from_none, from_str], self.uri)
         if self.description is not None:
-            result["description"] = from_union([from_none, lambda x: from_str(x)], self.description)
+            result["description"] = from_union([from_none, from_str], self.description)
         if self.size is not None:
-            result["size"] = from_union([from_none, lambda x: to_float(x)], self.size)
+            result["size"] = from_union([from_none, to_float], self.size)
         if self.resource is not None:
             result["resource"] = self.resource
         return result
@@ -2265,7 +2230,7 @@ class ToolExecutionCompleteDataResult:
     def from_dict(obj: Any) -> "ToolExecutionCompleteDataResult":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
-        detailed_content = from_union([from_none, lambda x: from_str(x)], obj.get("detailedContent"))
+        detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
         contents = from_union([from_none, lambda x: from_list(ToolExecutionCompleteDataResultContentsItem.from_dict, x)], obj.get("contents"))
         return ToolExecutionCompleteDataResult(
             content=content,
@@ -2277,7 +2242,7 @@ class ToolExecutionCompleteDataResult:
         result: dict = {}
         result["content"] = from_str(self.content)
         if self.detailed_content is not None:
-            result["detailedContent"] = from_union([from_none, lambda x: from_str(x)], self.detailed_content)
+            result["detailedContent"] = from_union([from_none, from_str], self.detailed_content)
         if self.contents is not None:
             result["contents"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteDataResultContentsItem, x), x)], self.contents)
         return result
@@ -2293,7 +2258,7 @@ class ToolExecutionCompleteDataError:
     def from_dict(obj: Any) -> "ToolExecutionCompleteDataError":
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
-        code = from_union([from_none, lambda x: from_str(x)], obj.get("code"))
+        code = from_union([from_none, from_str], obj.get("code"))
         return ToolExecutionCompleteDataError(
             message=message,
             code=code,
@@ -2303,7 +2268,7 @@ class ToolExecutionCompleteDataError:
         result: dict = {}
         result["message"] = from_str(self.message)
         if self.code is not None:
-            result["code"] = from_union([from_none, lambda x: from_str(x)], self.code)
+            result["code"] = from_union([from_none, from_str], self.code)
         return result
 
 
@@ -2318,6 +2283,7 @@ class ToolExecutionCompleteData:
     result: ToolExecutionCompleteDataResult | None = None
     error: ToolExecutionCompleteDataError | None = None
     tool_telemetry: dict[str, Any] | None = None
+    # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
 
     @staticmethod
@@ -2325,13 +2291,13 @@ class ToolExecutionCompleteData:
         assert isinstance(obj, dict)
         tool_call_id = from_str(obj.get("toolCallId"))
         success = from_bool(obj.get("success"))
-        model = from_union([from_none, lambda x: from_str(x)], obj.get("model"))
-        interaction_id = from_union([from_none, lambda x: from_str(x)], obj.get("interactionId"))
-        is_user_requested = from_union([from_none, lambda x: from_bool(x)], obj.get("isUserRequested"))
-        result = from_union([from_none, lambda x: ToolExecutionCompleteDataResult.from_dict(x)], obj.get("result"))
-        error = from_union([from_none, lambda x: ToolExecutionCompleteDataError.from_dict(x)], obj.get("error"))
+        model = from_union([from_none, from_str], obj.get("model"))
+        interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        is_user_requested = from_union([from_none, from_bool], obj.get("isUserRequested"))
+        result = from_union([from_none, ToolExecutionCompleteDataResult.from_dict], obj.get("result"))
+        error = from_union([from_none, ToolExecutionCompleteDataError.from_dict], obj.get("error"))
         tool_telemetry = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("toolTelemetry"))
-        parent_tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("parentToolCallId"))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         return ToolExecutionCompleteData(
             tool_call_id=tool_call_id,
             success=success,
@@ -2349,11 +2315,11 @@ class ToolExecutionCompleteData:
         result["toolCallId"] = from_str(self.tool_call_id)
         result["success"] = from_bool(self.success)
         if self.model is not None:
-            result["model"] = from_union([from_none, lambda x: from_str(x)], self.model)
+            result["model"] = from_union([from_none, from_str], self.model)
         if self.interaction_id is not None:
-            result["interactionId"] = from_union([from_none, lambda x: from_str(x)], self.interaction_id)
+            result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.is_user_requested is not None:
-            result["isUserRequested"] = from_union([from_none, lambda x: from_bool(x)], self.is_user_requested)
+            result["isUserRequested"] = from_union([from_none, from_bool], self.is_user_requested)
         if self.result is not None:
             result["result"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteDataResult, x)], self.result)
         if self.error is not None:
@@ -2361,7 +2327,7 @@ class ToolExecutionCompleteData:
         if self.tool_telemetry is not None:
             result["toolTelemetry"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.tool_telemetry)
         if self.parent_tool_call_id is not None:
-            result["parentToolCallId"] = from_union([from_none, lambda x: from_str(x)], self.parent_tool_call_id)
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         return result
 
 
@@ -2382,10 +2348,10 @@ class SkillInvokedData:
         name = from_str(obj.get("name"))
         path = from_str(obj.get("path"))
         content = from_str(obj.get("content"))
-        allowed_tools = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], obj.get("allowedTools"))
-        plugin_name = from_union([from_none, lambda x: from_str(x)], obj.get("pluginName"))
-        plugin_version = from_union([from_none, lambda x: from_str(x)], obj.get("pluginVersion"))
-        description = from_union([from_none, lambda x: from_str(x)], obj.get("description"))
+        allowed_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("allowedTools"))
+        plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
+        plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
+        description = from_union([from_none, from_str], obj.get("description"))
         return SkillInvokedData(
             name=name,
             path=path,
@@ -2402,13 +2368,13 @@ class SkillInvokedData:
         result["path"] = from_str(self.path)
         result["content"] = from_str(self.content)
         if self.allowed_tools is not None:
-            result["allowedTools"] = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], self.allowed_tools)
+            result["allowedTools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.allowed_tools)
         if self.plugin_name is not None:
-            result["pluginName"] = from_union([from_none, lambda x: from_str(x)], self.plugin_name)
+            result["pluginName"] = from_union([from_none, from_str], self.plugin_name)
         if self.plugin_version is not None:
-            result["pluginVersion"] = from_union([from_none, lambda x: from_str(x)], self.plugin_version)
+            result["pluginVersion"] = from_union([from_none, from_str], self.plugin_version)
         if self.description is not None:
-            result["description"] = from_union([from_none, lambda x: from_str(x)], self.description)
+            result["description"] = from_union([from_none, from_str], self.description)
         return result
 
 
@@ -2460,10 +2426,10 @@ class SubagentCompletedData:
         tool_call_id = from_str(obj.get("toolCallId"))
         agent_name = from_str(obj.get("agentName"))
         agent_display_name = from_str(obj.get("agentDisplayName"))
-        model = from_union([from_none, lambda x: from_str(x)], obj.get("model"))
-        total_tool_calls = from_union([from_none, lambda x: from_float(x)], obj.get("totalToolCalls"))
-        total_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("totalTokens"))
-        duration_ms = from_union([from_none, lambda x: from_float(x)], obj.get("durationMs"))
+        model = from_union([from_none, from_str], obj.get("model"))
+        total_tool_calls = from_union([from_none, from_float], obj.get("totalToolCalls"))
+        total_tokens = from_union([from_none, from_float], obj.get("totalTokens"))
+        duration_ms = from_union([from_none, from_float], obj.get("durationMs"))
         return SubagentCompletedData(
             tool_call_id=tool_call_id,
             agent_name=agent_name,
@@ -2480,13 +2446,13 @@ class SubagentCompletedData:
         result["agentName"] = from_str(self.agent_name)
         result["agentDisplayName"] = from_str(self.agent_display_name)
         if self.model is not None:
-            result["model"] = from_union([from_none, lambda x: from_str(x)], self.model)
+            result["model"] = from_union([from_none, from_str], self.model)
         if self.total_tool_calls is not None:
-            result["totalToolCalls"] = from_union([from_none, lambda x: to_float(x)], self.total_tool_calls)
+            result["totalToolCalls"] = from_union([from_none, to_float], self.total_tool_calls)
         if self.total_tokens is not None:
-            result["totalTokens"] = from_union([from_none, lambda x: to_float(x)], self.total_tokens)
+            result["totalTokens"] = from_union([from_none, to_float], self.total_tokens)
         if self.duration_ms is not None:
-            result["durationMs"] = from_union([from_none, lambda x: to_float(x)], self.duration_ms)
+            result["durationMs"] = from_union([from_none, to_float], self.duration_ms)
         return result
 
 
@@ -2509,10 +2475,10 @@ class SubagentFailedData:
         agent_name = from_str(obj.get("agentName"))
         agent_display_name = from_str(obj.get("agentDisplayName"))
         error = from_str(obj.get("error"))
-        model = from_union([from_none, lambda x: from_str(x)], obj.get("model"))
-        total_tool_calls = from_union([from_none, lambda x: from_float(x)], obj.get("totalToolCalls"))
-        total_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("totalTokens"))
-        duration_ms = from_union([from_none, lambda x: from_float(x)], obj.get("durationMs"))
+        model = from_union([from_none, from_str], obj.get("model"))
+        total_tool_calls = from_union([from_none, from_float], obj.get("totalToolCalls"))
+        total_tokens = from_union([from_none, from_float], obj.get("totalTokens"))
+        duration_ms = from_union([from_none, from_float], obj.get("durationMs"))
         return SubagentFailedData(
             tool_call_id=tool_call_id,
             agent_name=agent_name,
@@ -2531,13 +2497,13 @@ class SubagentFailedData:
         result["agentDisplayName"] = from_str(self.agent_display_name)
         result["error"] = from_str(self.error)
         if self.model is not None:
-            result["model"] = from_union([from_none, lambda x: from_str(x)], self.model)
+            result["model"] = from_union([from_none, from_str], self.model)
         if self.total_tool_calls is not None:
-            result["totalToolCalls"] = from_union([from_none, lambda x: to_float(x)], self.total_tool_calls)
+            result["totalToolCalls"] = from_union([from_none, to_float], self.total_tool_calls)
         if self.total_tokens is not None:
-            result["totalTokens"] = from_union([from_none, lambda x: to_float(x)], self.total_tokens)
+            result["totalTokens"] = from_union([from_none, to_float], self.total_tokens)
         if self.duration_ms is not None:
-            result["durationMs"] = from_union([from_none, lambda x: to_float(x)], self.duration_ms)
+            result["durationMs"] = from_union([from_none, to_float], self.duration_ms)
         return result
 
 
@@ -2553,7 +2519,7 @@ class SubagentSelectedData:
         assert isinstance(obj, dict)
         agent_name = from_str(obj.get("agentName"))
         agent_display_name = from_str(obj.get("agentDisplayName"))
-        tools = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], obj.get("tools"))
+        tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("tools"))
         return SubagentSelectedData(
             agent_name=agent_name,
             agent_display_name=agent_display_name,
@@ -2564,7 +2530,7 @@ class SubagentSelectedData:
         result: dict = {}
         result["agentName"] = from_str(self.agent_name)
         result["agentDisplayName"] = from_str(self.agent_display_name)
-        result["tools"] = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], self.tools)
+        result["tools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.tools)
         return result
 
 
@@ -2618,7 +2584,7 @@ class HookEndDataError:
     def from_dict(obj: Any) -> "HookEndDataError":
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
-        stack = from_union([from_none, lambda x: from_str(x)], obj.get("stack"))
+        stack = from_union([from_none, from_str], obj.get("stack"))
         return HookEndDataError(
             message=message,
             stack=stack,
@@ -2628,7 +2594,7 @@ class HookEndDataError:
         result: dict = {}
         result["message"] = from_str(self.message)
         if self.stack is not None:
-            result["stack"] = from_union([from_none, lambda x: from_str(x)], self.stack)
+            result["stack"] = from_union([from_none, from_str], self.stack)
         return result
 
 
@@ -2648,7 +2614,7 @@ class HookEndData:
         hook_type = from_str(obj.get("hookType"))
         success = from_bool(obj.get("success"))
         output = obj.get("output")
-        error = from_union([from_none, lambda x: HookEndDataError.from_dict(x)], obj.get("error"))
+        error = from_union([from_none, HookEndDataError.from_dict], obj.get("error"))
         return HookEndData(
             hook_invocation_id=hook_invocation_id,
             hook_type=hook_type,
@@ -2678,7 +2644,7 @@ class SystemMessageDataMetadata:
     @staticmethod
     def from_dict(obj: Any) -> "SystemMessageDataMetadata":
         assert isinstance(obj, dict)
-        prompt_version = from_union([from_none, lambda x: from_str(x)], obj.get("promptVersion"))
+        prompt_version = from_union([from_none, from_str], obj.get("promptVersion"))
         variables = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("variables"))
         return SystemMessageDataMetadata(
             prompt_version=prompt_version,
@@ -2688,7 +2654,7 @@ class SystemMessageDataMetadata:
     def to_dict(self) -> dict:
         result: dict = {}
         if self.prompt_version is not None:
-            result["promptVersion"] = from_union([from_none, lambda x: from_str(x)], self.prompt_version)
+            result["promptVersion"] = from_union([from_none, from_str], self.prompt_version)
         if self.variables is not None:
             result["variables"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.variables)
         return result
@@ -2696,7 +2662,7 @@ class SystemMessageDataMetadata:
 
 @dataclass
 class SystemMessageData:
-    "System or developer message content with role and optional template metadata"
+    "System/developer instruction content with role and optional template metadata"
     content: str
     role: SystemMessageDataRole
     name: str | None = None
@@ -2707,8 +2673,8 @@ class SystemMessageData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         role = parse_enum(SystemMessageDataRole, obj.get("role"))
-        name = from_union([from_none, lambda x: from_str(x)], obj.get("name"))
-        metadata = from_union([from_none, lambda x: SystemMessageDataMetadata.from_dict(x)], obj.get("metadata"))
+        name = from_union([from_none, from_str], obj.get("name"))
+        metadata = from_union([from_none, SystemMessageDataMetadata.from_dict], obj.get("metadata"))
         return SystemMessageData(
             content=content,
             role=role,
@@ -2721,7 +2687,7 @@ class SystemMessageData:
         result["content"] = from_str(self.content)
         result["role"] = to_enum(SystemMessageDataRole, self.role)
         if self.name is not None:
-            result["name"] = from_union([from_none, lambda x: from_str(x)], self.name)
+            result["name"] = from_union([from_none, from_str], self.name)
         if self.metadata is not None:
             result["metadata"] = from_union([from_none, lambda x: to_class(SystemMessageDataMetadata, x)], self.metadata)
         return result
@@ -2743,13 +2709,13 @@ class SystemNotificationDataKind:
     def from_dict(obj: Any) -> "SystemNotificationDataKind":
         assert isinstance(obj, dict)
         type = parse_enum(SystemNotificationDataKindType, obj.get("type"))
-        agent_id = from_union([from_none, lambda x: from_str(x)], obj.get("agentId"))
-        agent_type = from_union([from_none, lambda x: from_str(x)], obj.get("agentType"))
+        agent_id = from_union([from_none, from_str], obj.get("agentId"))
+        agent_type = from_union([from_none, from_str], obj.get("agentType"))
         status = from_union([from_none, lambda x: parse_enum(SystemNotificationDataKindStatus, x)], obj.get("status"))
-        description = from_union([from_none, lambda x: from_str(x)], obj.get("description"))
-        prompt = from_union([from_none, lambda x: from_str(x)], obj.get("prompt"))
-        shell_id = from_union([from_none, lambda x: from_str(x)], obj.get("shellId"))
-        exit_code = from_union([from_none, lambda x: from_float(x)], obj.get("exitCode"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        prompt = from_union([from_none, from_str], obj.get("prompt"))
+        shell_id = from_union([from_none, from_str], obj.get("shellId"))
+        exit_code = from_union([from_none, from_float], obj.get("exitCode"))
         return SystemNotificationDataKind(
             type=type,
             agent_id=agent_id,
@@ -2765,19 +2731,19 @@ class SystemNotificationDataKind:
         result: dict = {}
         result["type"] = to_enum(SystemNotificationDataKindType, self.type)
         if self.agent_id is not None:
-            result["agentId"] = from_union([from_none, lambda x: from_str(x)], self.agent_id)
+            result["agentId"] = from_union([from_none, from_str], self.agent_id)
         if self.agent_type is not None:
-            result["agentType"] = from_union([from_none, lambda x: from_str(x)], self.agent_type)
+            result["agentType"] = from_union([from_none, from_str], self.agent_type)
         if self.status is not None:
             result["status"] = from_union([from_none, lambda x: to_enum(SystemNotificationDataKindStatus, x)], self.status)
         if self.description is not None:
-            result["description"] = from_union([from_none, lambda x: from_str(x)], self.description)
+            result["description"] = from_union([from_none, from_str], self.description)
         if self.prompt is not None:
-            result["prompt"] = from_union([from_none, lambda x: from_str(x)], self.prompt)
+            result["prompt"] = from_union([from_none, from_str], self.prompt)
         if self.shell_id is not None:
-            result["shellId"] = from_union([from_none, lambda x: from_str(x)], self.shell_id)
+            result["shellId"] = from_union([from_none, from_str], self.shell_id)
         if self.exit_code is not None:
-            result["exitCode"] = from_union([from_none, lambda x: to_float(x)], self.exit_code)
+            result["exitCode"] = from_union([from_none, to_float], self.exit_code)
         return result
 
 
@@ -2881,34 +2847,34 @@ class PermissionRequest:
     def from_dict(obj: Any) -> "PermissionRequest":
         assert isinstance(obj, dict)
         kind = parse_enum(PermissionRequestedDataPermissionRequestKind, obj.get("kind"))
-        tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("toolCallId"))
-        full_command_text = from_union([from_none, lambda x: from_str(x)], obj.get("fullCommandText"))
-        intention = from_union([from_none, lambda x: from_str(x)], obj.get("intention"))
-        commands = from_union([from_none, lambda x: from_list(lambda x: PermissionRequestShellCommand.from_dict(x), x)], obj.get("commands"))
-        possible_paths = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], obj.get("possiblePaths"))
-        possible_urls = from_union([from_none, lambda x: from_list(lambda x: PermissionRequestShellPossibleURL.from_dict(x), x)], obj.get("possibleUrls"))
-        has_write_file_redirection = from_union([from_none, lambda x: from_bool(x)], obj.get("hasWriteFileRedirection"))
-        can_offer_session_approval = from_union([from_none, lambda x: from_bool(x)], obj.get("canOfferSessionApproval"))
-        warning = from_union([from_none, lambda x: from_str(x)], obj.get("warning"))
-        file_name = from_union([from_none, lambda x: from_str(x)], obj.get("fileName"))
-        diff = from_union([from_none, lambda x: from_str(x)], obj.get("diff"))
-        new_file_contents = from_union([from_none, lambda x: from_str(x)], obj.get("newFileContents"))
-        path = from_union([from_none, lambda x: from_str(x)], obj.get("path"))
-        server_name = from_union([from_none, lambda x: from_str(x)], obj.get("serverName"))
-        tool_name = from_union([from_none, lambda x: from_str(x)], obj.get("toolName"))
-        tool_title = from_union([from_none, lambda x: from_str(x)], obj.get("toolTitle"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        full_command_text = from_union([from_none, from_str], obj.get("fullCommandText"))
+        intention = from_union([from_none, from_str], obj.get("intention"))
+        commands = from_union([from_none, lambda x: from_list(PermissionRequestShellCommand.from_dict, x)], obj.get("commands"))
+        possible_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("possiblePaths"))
+        possible_urls = from_union([from_none, lambda x: from_list(PermissionRequestShellPossibleURL.from_dict, x)], obj.get("possibleUrls"))
+        has_write_file_redirection = from_union([from_none, from_bool], obj.get("hasWriteFileRedirection"))
+        can_offer_session_approval = from_union([from_none, from_bool], obj.get("canOfferSessionApproval"))
+        warning = from_union([from_none, from_str], obj.get("warning"))
+        file_name = from_union([from_none, from_str], obj.get("fileName"))
+        diff = from_union([from_none, from_str], obj.get("diff"))
+        new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
+        path = from_union([from_none, from_str], obj.get("path"))
+        server_name = from_union([from_none, from_str], obj.get("serverName"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
         args = obj.get("args")
-        read_only = from_union([from_none, lambda x: from_bool(x)], obj.get("readOnly"))
-        url = from_union([from_none, lambda x: from_str(x)], obj.get("url"))
+        read_only = from_union([from_none, from_bool], obj.get("readOnly"))
+        url = from_union([from_none, from_str], obj.get("url"))
         action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action", "store"))
-        subject = from_union([from_none, lambda x: from_str(x)], obj.get("subject"))
-        fact = from_union([from_none, lambda x: from_str(x)], obj.get("fact"))
-        citations = from_union([from_none, lambda x: from_str(x)], obj.get("citations"))
+        subject = from_union([from_none, from_str], obj.get("subject"))
+        fact = from_union([from_none, from_str], obj.get("fact"))
+        citations = from_union([from_none, from_str], obj.get("citations"))
         direction = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryDirection, x)], obj.get("direction"))
-        reason = from_union([from_none, lambda x: from_str(x)], obj.get("reason"))
-        tool_description = from_union([from_none, lambda x: from_str(x)], obj.get("toolDescription"))
+        reason = from_union([from_none, from_str], obj.get("reason"))
+        tool_description = from_union([from_none, from_str], obj.get("toolDescription"))
         tool_args = obj.get("toolArgs")
-        hook_message = from_union([from_none, lambda x: from_str(x)], obj.get("hookMessage"))
+        hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
         return PermissionRequest(
             kind=kind,
             tool_call_id=tool_call_id,
@@ -2945,61 +2911,61 @@ class PermissionRequest:
         result: dict = {}
         result["kind"] = to_enum(PermissionRequestedDataPermissionRequestKind, self.kind)
         if self.tool_call_id is not None:
-            result["toolCallId"] = from_union([from_none, lambda x: from_str(x)], self.tool_call_id)
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         if self.full_command_text is not None:
-            result["fullCommandText"] = from_union([from_none, lambda x: from_str(x)], self.full_command_text)
+            result["fullCommandText"] = from_union([from_none, from_str], self.full_command_text)
         if self.intention is not None:
-            result["intention"] = from_union([from_none, lambda x: from_str(x)], self.intention)
+            result["intention"] = from_union([from_none, from_str], self.intention)
         if self.commands is not None:
             result["commands"] = from_union([from_none, lambda x: from_list(lambda x: to_class(PermissionRequestShellCommand, x), x)], self.commands)
         if self.possible_paths is not None:
-            result["possiblePaths"] = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], self.possible_paths)
+            result["possiblePaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.possible_paths)
         if self.possible_urls is not None:
             result["possibleUrls"] = from_union([from_none, lambda x: from_list(lambda x: to_class(PermissionRequestShellPossibleURL, x), x)], self.possible_urls)
         if self.has_write_file_redirection is not None:
-            result["hasWriteFileRedirection"] = from_union([from_none, lambda x: from_bool(x)], self.has_write_file_redirection)
+            result["hasWriteFileRedirection"] = from_union([from_none, from_bool], self.has_write_file_redirection)
         if self.can_offer_session_approval is not None:
-            result["canOfferSessionApproval"] = from_union([from_none, lambda x: from_bool(x)], self.can_offer_session_approval)
+            result["canOfferSessionApproval"] = from_union([from_none, from_bool], self.can_offer_session_approval)
         if self.warning is not None:
-            result["warning"] = from_union([from_none, lambda x: from_str(x)], self.warning)
+            result["warning"] = from_union([from_none, from_str], self.warning)
         if self.file_name is not None:
-            result["fileName"] = from_union([from_none, lambda x: from_str(x)], self.file_name)
+            result["fileName"] = from_union([from_none, from_str], self.file_name)
         if self.diff is not None:
-            result["diff"] = from_union([from_none, lambda x: from_str(x)], self.diff)
+            result["diff"] = from_union([from_none, from_str], self.diff)
         if self.new_file_contents is not None:
-            result["newFileContents"] = from_union([from_none, lambda x: from_str(x)], self.new_file_contents)
+            result["newFileContents"] = from_union([from_none, from_str], self.new_file_contents)
         if self.path is not None:
-            result["path"] = from_union([from_none, lambda x: from_str(x)], self.path)
+            result["path"] = from_union([from_none, from_str], self.path)
         if self.server_name is not None:
-            result["serverName"] = from_union([from_none, lambda x: from_str(x)], self.server_name)
+            result["serverName"] = from_union([from_none, from_str], self.server_name)
         if self.tool_name is not None:
-            result["toolName"] = from_union([from_none, lambda x: from_str(x)], self.tool_name)
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
         if self.tool_title is not None:
-            result["toolTitle"] = from_union([from_none, lambda x: from_str(x)], self.tool_title)
+            result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
         if self.args is not None:
             result["args"] = self.args
         if self.read_only is not None:
-            result["readOnly"] = from_union([from_none, lambda x: from_bool(x)], self.read_only)
+            result["readOnly"] = from_union([from_none, from_bool], self.read_only)
         if self.url is not None:
-            result["url"] = from_union([from_none, lambda x: from_str(x)], self.url)
+            result["url"] = from_union([from_none, from_str], self.url)
         if self.action is not None:
             result["action"] = from_union([from_none, lambda x: to_enum(PermissionRequestMemoryAction, x)], self.action)
         if self.subject is not None:
-            result["subject"] = from_union([from_none, lambda x: from_str(x)], self.subject)
+            result["subject"] = from_union([from_none, from_str], self.subject)
         if self.fact is not None:
-            result["fact"] = from_union([from_none, lambda x: from_str(x)], self.fact)
+            result["fact"] = from_union([from_none, from_str], self.fact)
         if self.citations is not None:
-            result["citations"] = from_union([from_none, lambda x: from_str(x)], self.citations)
+            result["citations"] = from_union([from_none, from_str], self.citations)
         if self.direction is not None:
             result["direction"] = from_union([from_none, lambda x: to_enum(PermissionRequestMemoryDirection, x)], self.direction)
         if self.reason is not None:
-            result["reason"] = from_union([from_none, lambda x: from_str(x)], self.reason)
+            result["reason"] = from_union([from_none, from_str], self.reason)
         if self.tool_description is not None:
-            result["toolDescription"] = from_union([from_none, lambda x: from_str(x)], self.tool_description)
+            result["toolDescription"] = from_union([from_none, from_str], self.tool_description)
         if self.tool_args is not None:
             result["toolArgs"] = self.tool_args
         if self.hook_message is not None:
-            result["hookMessage"] = from_union([from_none, lambda x: from_str(x)], self.hook_message)
+            result["hookMessage"] = from_union([from_none, from_str], self.hook_message)
         return result
 
 
@@ -3015,7 +2981,7 @@ class PermissionRequestedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         permission_request = PermissionRequest.from_dict(obj.get("permissionRequest"))
-        resolved_by_hook = from_union([from_none, lambda x: from_bool(x)], obj.get("resolvedByHook"))
+        resolved_by_hook = from_union([from_none, from_bool], obj.get("resolvedByHook"))
         return PermissionRequestedData(
             request_id=request_id,
             permission_request=permission_request,
@@ -3027,7 +2993,7 @@ class PermissionRequestedData:
         result["requestId"] = from_str(self.request_id)
         result["permissionRequest"] = to_class(PermissionRequest, self.permission_request)
         if self.resolved_by_hook is not None:
-            result["resolvedByHook"] = from_union([from_none, lambda x: from_bool(x)], self.resolved_by_hook)
+            result["resolvedByHook"] = from_union([from_none, from_bool], self.resolved_by_hook)
         return result
 
 
@@ -3087,9 +3053,9 @@ class UserInputRequestedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         question = from_str(obj.get("question"))
-        choices = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], obj.get("choices"))
-        allow_freeform = from_union([from_none, lambda x: from_bool(x)], obj.get("allowFreeform"))
-        tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("toolCallId"))
+        choices = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("choices"))
+        allow_freeform = from_union([from_none, from_bool], obj.get("allowFreeform"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return UserInputRequestedData(
             request_id=request_id,
             question=question,
@@ -3103,11 +3069,11 @@ class UserInputRequestedData:
         result["requestId"] = from_str(self.request_id)
         result["question"] = from_str(self.question)
         if self.choices is not None:
-            result["choices"] = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], self.choices)
+            result["choices"] = from_union([from_none, lambda x: from_list(from_str, x)], self.choices)
         if self.allow_freeform is not None:
-            result["allowFreeform"] = from_union([from_none, lambda x: from_bool(x)], self.allow_freeform)
+            result["allowFreeform"] = from_union([from_none, from_bool], self.allow_freeform)
         if self.tool_call_id is not None:
-            result["toolCallId"] = from_union([from_none, lambda x: from_str(x)], self.tool_call_id)
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
 
 
@@ -3122,8 +3088,8 @@ class UserInputCompletedData:
     def from_dict(obj: Any) -> "UserInputCompletedData":
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
-        answer = from_union([from_none, lambda x: from_str(x)], obj.get("answer"))
-        was_freeform = from_union([from_none, lambda x: from_bool(x)], obj.get("wasFreeform"))
+        answer = from_union([from_none, from_str], obj.get("answer"))
+        was_freeform = from_union([from_none, from_bool], obj.get("wasFreeform"))
         return UserInputCompletedData(
             request_id=request_id,
             answer=answer,
@@ -3134,9 +3100,9 @@ class UserInputCompletedData:
         result: dict = {}
         result["requestId"] = from_str(self.request_id)
         if self.answer is not None:
-            result["answer"] = from_union([from_none, lambda x: from_str(x)], self.answer)
+            result["answer"] = from_union([from_none, from_str], self.answer)
         if self.was_freeform is not None:
-            result["wasFreeform"] = from_union([from_none, lambda x: from_bool(x)], self.was_freeform)
+            result["wasFreeform"] = from_union([from_none, from_bool], self.was_freeform)
         return result
 
 
@@ -3152,7 +3118,7 @@ class ElicitationRequestedSchema:
         assert isinstance(obj, dict)
         type = from_str(obj.get("type"))
         properties = from_dict(lambda x: x, obj.get("properties"))
-        required = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], obj.get("required"))
+        required = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("required"))
         return ElicitationRequestedSchema(
             type=type,
             properties=properties,
@@ -3164,7 +3130,7 @@ class ElicitationRequestedSchema:
         result["type"] = from_str(self.type)
         result["properties"] = from_dict(lambda x: x, self.properties)
         if self.required is not None:
-            result["required"] = from_union([from_none, lambda x: from_list(lambda x: from_str(x), x)], self.required)
+            result["required"] = from_union([from_none, lambda x: from_list(from_str, x)], self.required)
         return result
 
 
@@ -3184,11 +3150,11 @@ class ElicitationRequestedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         message = from_str(obj.get("message"))
-        tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("toolCallId"))
-        elicitation_source = from_union([from_none, lambda x: from_str(x)], obj.get("elicitationSource"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        elicitation_source = from_union([from_none, from_str], obj.get("elicitationSource"))
         mode = from_union([from_none, lambda x: parse_enum(ElicitationRequestedMode, x)], obj.get("mode"))
-        requested_schema = from_union([from_none, lambda x: ElicitationRequestedSchema.from_dict(x)], obj.get("requestedSchema"))
-        url = from_union([from_none, lambda x: from_str(x)], obj.get("url"))
+        requested_schema = from_union([from_none, ElicitationRequestedSchema.from_dict], obj.get("requestedSchema"))
+        url = from_union([from_none, from_str], obj.get("url"))
         return ElicitationRequestedData(
             request_id=request_id,
             message=message,
@@ -3204,15 +3170,15 @@ class ElicitationRequestedData:
         result["requestId"] = from_str(self.request_id)
         result["message"] = from_str(self.message)
         if self.tool_call_id is not None:
-            result["toolCallId"] = from_union([from_none, lambda x: from_str(x)], self.tool_call_id)
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         if self.elicitation_source is not None:
-            result["elicitationSource"] = from_union([from_none, lambda x: from_str(x)], self.elicitation_source)
+            result["elicitationSource"] = from_union([from_none, from_str], self.elicitation_source)
         if self.mode is not None:
             result["mode"] = from_union([from_none, lambda x: to_enum(ElicitationRequestedMode, x)], self.mode)
         if self.requested_schema is not None:
             result["requestedSchema"] = from_union([from_none, lambda x: to_class(ElicitationRequestedSchema, x)], self.requested_schema)
         if self.url is not None:
-            result["url"] = from_union([from_none, lambda x: from_str(x)], self.url)
+            result["url"] = from_union([from_none, from_str], self.url)
         return result
 
 
@@ -3301,7 +3267,7 @@ class MCPOauthRequiredStaticClientConfig:
     def from_dict(obj: Any) -> "MCPOauthRequiredStaticClientConfig":
         assert isinstance(obj, dict)
         client_id = from_str(obj.get("clientId"))
-        public_client = from_union([from_none, lambda x: from_bool(x)], obj.get("publicClient"))
+        public_client = from_union([from_none, from_bool], obj.get("publicClient"))
         return MCPOauthRequiredStaticClientConfig(
             client_id=client_id,
             public_client=public_client,
@@ -3311,7 +3277,7 @@ class MCPOauthRequiredStaticClientConfig:
         result: dict = {}
         result["clientId"] = from_str(self.client_id)
         if self.public_client is not None:
-            result["publicClient"] = from_union([from_none, lambda x: from_bool(x)], self.public_client)
+            result["publicClient"] = from_union([from_none, from_bool], self.public_client)
         return result
 
 
@@ -3329,7 +3295,7 @@ class McpOauthRequiredData:
         request_id = from_str(obj.get("requestId"))
         server_name = from_str(obj.get("serverName"))
         server_url = from_str(obj.get("serverUrl"))
-        static_client_config = from_union([from_none, lambda x: MCPOauthRequiredStaticClientConfig.from_dict(x)], obj.get("staticClientConfig"))
+        static_client_config = from_union([from_none, MCPOauthRequiredStaticClientConfig.from_dict], obj.get("staticClientConfig"))
         return McpOauthRequiredData(
             request_id=request_id,
             server_name=server_name,
@@ -3385,8 +3351,8 @@ class ExternalToolRequestedData:
         tool_call_id = from_str(obj.get("toolCallId"))
         tool_name = from_str(obj.get("toolName"))
         arguments = obj.get("arguments")
-        traceparent = from_union([from_none, lambda x: from_str(x)], obj.get("traceparent"))
-        tracestate = from_union([from_none, lambda x: from_str(x)], obj.get("tracestate"))
+        traceparent = from_union([from_none, from_str], obj.get("traceparent"))
+        tracestate = from_union([from_none, from_str], obj.get("tracestate"))
         return ExternalToolRequestedData(
             request_id=request_id,
             session_id=session_id,
@@ -3406,9 +3372,9 @@ class ExternalToolRequestedData:
         if self.arguments is not None:
             result["arguments"] = self.arguments
         if self.traceparent is not None:
-            result["traceparent"] = from_union([from_none, lambda x: from_str(x)], self.traceparent)
+            result["traceparent"] = from_union([from_none, from_str], self.traceparent)
         if self.tracestate is not None:
-            result["tracestate"] = from_union([from_none, lambda x: from_str(x)], self.tracestate)
+            result["tracestate"] = from_union([from_none, from_str], self.tracestate)
         return result
 
 
@@ -3513,7 +3479,7 @@ class CommandsChangedCommand:
     def from_dict(obj: Any) -> "CommandsChangedCommand":
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
-        description = from_union([from_none, lambda x: from_str(x)], obj.get("description"))
+        description = from_union([from_none, from_str], obj.get("description"))
         return CommandsChangedCommand(
             name=name,
             description=description,
@@ -3523,7 +3489,7 @@ class CommandsChangedCommand:
         result: dict = {}
         result["name"] = from_str(self.name)
         if self.description is not None:
-            result["description"] = from_union([from_none, lambda x: from_str(x)], self.description)
+            result["description"] = from_union([from_none, from_str], self.description)
         return result
 
 
@@ -3535,7 +3501,7 @@ class CommandsChangedData:
     @staticmethod
     def from_dict(obj: Any) -> "CommandsChangedData":
         assert isinstance(obj, dict)
-        commands = from_list(lambda x: CommandsChangedCommand.from_dict(x), obj.get("commands"))
+        commands = from_list(CommandsChangedCommand.from_dict, obj.get("commands"))
         return CommandsChangedData(
             commands=commands,
         )
@@ -3554,7 +3520,7 @@ class CapabilitiesChangedUI:
     @staticmethod
     def from_dict(obj: Any) -> "CapabilitiesChangedUI":
         assert isinstance(obj, dict)
-        elicitation = from_union([from_none, lambda x: from_bool(x)], obj.get("elicitation"))
+        elicitation = from_union([from_none, from_bool], obj.get("elicitation"))
         return CapabilitiesChangedUI(
             elicitation=elicitation,
         )
@@ -3562,7 +3528,7 @@ class CapabilitiesChangedUI:
     def to_dict(self) -> dict:
         result: dict = {}
         if self.elicitation is not None:
-            result["elicitation"] = from_union([from_none, lambda x: from_bool(x)], self.elicitation)
+            result["elicitation"] = from_union([from_none, from_bool], self.elicitation)
         return result
 
 
@@ -3574,7 +3540,7 @@ class CapabilitiesChangedData:
     @staticmethod
     def from_dict(obj: Any) -> "CapabilitiesChangedData":
         assert isinstance(obj, dict)
-        ui = from_union([from_none, lambda x: CapabilitiesChangedUI.from_dict(x)], obj.get("ui"))
+        ui = from_union([from_none, CapabilitiesChangedUI.from_dict], obj.get("ui"))
         return CapabilitiesChangedData(
             ui=ui,
         )
@@ -3601,7 +3567,7 @@ class ExitPlanModeRequestedData:
         request_id = from_str(obj.get("requestId"))
         summary = from_str(obj.get("summary"))
         plan_content = from_str(obj.get("planContent"))
-        actions = from_list(lambda x: from_str(x), obj.get("actions"))
+        actions = from_list(from_str, obj.get("actions"))
         recommended_action = from_str(obj.get("recommendedAction"))
         return ExitPlanModeRequestedData(
             request_id=request_id,
@@ -3616,7 +3582,7 @@ class ExitPlanModeRequestedData:
         result["requestId"] = from_str(self.request_id)
         result["summary"] = from_str(self.summary)
         result["planContent"] = from_str(self.plan_content)
-        result["actions"] = from_list(lambda x: from_str(x), self.actions)
+        result["actions"] = from_list(from_str, self.actions)
         result["recommendedAction"] = from_str(self.recommended_action)
         return result
 
@@ -3634,10 +3600,10 @@ class ExitPlanModeCompletedData:
     def from_dict(obj: Any) -> "ExitPlanModeCompletedData":
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
-        approved = from_union([from_none, lambda x: from_bool(x)], obj.get("approved"))
-        selected_action = from_union([from_none, lambda x: from_str(x)], obj.get("selectedAction"))
-        auto_approve_edits = from_union([from_none, lambda x: from_bool(x)], obj.get("autoApproveEdits"))
-        feedback = from_union([from_none, lambda x: from_str(x)], obj.get("feedback"))
+        approved = from_union([from_none, from_bool], obj.get("approved"))
+        selected_action = from_union([from_none, from_str], obj.get("selectedAction"))
+        auto_approve_edits = from_union([from_none, from_bool], obj.get("autoApproveEdits"))
+        feedback = from_union([from_none, from_str], obj.get("feedback"))
         return ExitPlanModeCompletedData(
             request_id=request_id,
             approved=approved,
@@ -3650,13 +3616,13 @@ class ExitPlanModeCompletedData:
         result: dict = {}
         result["requestId"] = from_str(self.request_id)
         if self.approved is not None:
-            result["approved"] = from_union([from_none, lambda x: from_bool(x)], self.approved)
+            result["approved"] = from_union([from_none, from_bool], self.approved)
         if self.selected_action is not None:
-            result["selectedAction"] = from_union([from_none, lambda x: from_str(x)], self.selected_action)
+            result["selectedAction"] = from_union([from_none, from_str], self.selected_action)
         if self.auto_approve_edits is not None:
-            result["autoApproveEdits"] = from_union([from_none, lambda x: from_bool(x)], self.auto_approve_edits)
+            result["autoApproveEdits"] = from_union([from_none, from_bool], self.auto_approve_edits)
         if self.feedback is not None:
-            result["feedback"] = from_union([from_none, lambda x: from_str(x)], self.feedback)
+            result["feedback"] = from_union([from_none, from_str], self.feedback)
         return result
 
 
@@ -3706,7 +3672,7 @@ class SkillsLoadedSkill:
         source = from_str(obj.get("source"))
         user_invocable = from_bool(obj.get("userInvocable"))
         enabled = from_bool(obj.get("enabled"))
-        path = from_union([from_none, lambda x: from_str(x)], obj.get("path"))
+        path = from_union([from_none, from_str], obj.get("path"))
         return SkillsLoadedSkill(
             name=name,
             description=description,
@@ -3724,7 +3690,7 @@ class SkillsLoadedSkill:
         result["userInvocable"] = from_bool(self.user_invocable)
         result["enabled"] = from_bool(self.enabled)
         if self.path is not None:
-            result["path"] = from_union([from_none, lambda x: from_str(x)], self.path)
+            result["path"] = from_union([from_none, from_str], self.path)
         return result
 
 
@@ -3735,7 +3701,7 @@ class SessionSkillsLoadedData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionSkillsLoadedData":
         assert isinstance(obj, dict)
-        skills = from_list(lambda x: SkillsLoadedSkill.from_dict(x), obj.get("skills"))
+        skills = from_list(SkillsLoadedSkill.from_dict, obj.get("skills"))
         return SessionSkillsLoadedData(
             skills=skills,
         )
@@ -3765,9 +3731,9 @@ class CustomAgentsUpdatedAgent:
         display_name = from_str(obj.get("displayName"))
         description = from_str(obj.get("description"))
         source = from_str(obj.get("source"))
-        tools = from_list(lambda x: from_str(x), obj.get("tools"))
+        tools = from_list(from_str, obj.get("tools"))
         user_invocable = from_bool(obj.get("userInvocable"))
-        model = from_union([from_none, lambda x: from_str(x)], obj.get("model"))
+        model = from_union([from_none, from_str], obj.get("model"))
         return CustomAgentsUpdatedAgent(
             id=id,
             name=name,
@@ -3786,10 +3752,10 @@ class CustomAgentsUpdatedAgent:
         result["displayName"] = from_str(self.display_name)
         result["description"] = from_str(self.description)
         result["source"] = from_str(self.source)
-        result["tools"] = from_list(lambda x: from_str(x), self.tools)
+        result["tools"] = from_list(from_str, self.tools)
         result["userInvocable"] = from_bool(self.user_invocable)
         if self.model is not None:
-            result["model"] = from_union([from_none, lambda x: from_str(x)], self.model)
+            result["model"] = from_union([from_none, from_str], self.model)
         return result
 
 
@@ -3802,9 +3768,9 @@ class SessionCustomAgentsUpdatedData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionCustomAgentsUpdatedData":
         assert isinstance(obj, dict)
-        agents = from_list(lambda x: CustomAgentsUpdatedAgent.from_dict(x), obj.get("agents"))
-        warnings = from_list(lambda x: from_str(x), obj.get("warnings"))
-        errors = from_list(lambda x: from_str(x), obj.get("errors"))
+        agents = from_list(CustomAgentsUpdatedAgent.from_dict, obj.get("agents"))
+        warnings = from_list(from_str, obj.get("warnings"))
+        errors = from_list(from_str, obj.get("errors"))
         return SessionCustomAgentsUpdatedData(
             agents=agents,
             warnings=warnings,
@@ -3814,8 +3780,8 @@ class SessionCustomAgentsUpdatedData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["agents"] = from_list(lambda x: to_class(CustomAgentsUpdatedAgent, x), self.agents)
-        result["warnings"] = from_list(lambda x: from_str(x), self.warnings)
-        result["errors"] = from_list(lambda x: from_str(x), self.errors)
+        result["warnings"] = from_list(from_str, self.warnings)
+        result["errors"] = from_list(from_str, self.errors)
         return result
 
 
@@ -3831,8 +3797,8 @@ class MCPServersLoadedServer:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         status = parse_enum(MCPServerStatus, obj.get("status"))
-        source = from_union([from_none, lambda x: from_str(x)], obj.get("source"))
-        error = from_union([from_none, lambda x: from_str(x)], obj.get("error"))
+        source = from_union([from_none, from_str], obj.get("source"))
+        error = from_union([from_none, from_str], obj.get("error"))
         return MCPServersLoadedServer(
             name=name,
             status=status,
@@ -3845,9 +3811,9 @@ class MCPServersLoadedServer:
         result["name"] = from_str(self.name)
         result["status"] = to_enum(MCPServerStatus, self.status)
         if self.source is not None:
-            result["source"] = from_union([from_none, lambda x: from_str(x)], self.source)
+            result["source"] = from_union([from_none, from_str], self.source)
         if self.error is not None:
-            result["error"] = from_union([from_none, lambda x: from_str(x)], self.error)
+            result["error"] = from_union([from_none, from_str], self.error)
         return result
 
 
@@ -3858,7 +3824,7 @@ class SessionMcpServersLoadedData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionMcpServersLoadedData":
         assert isinstance(obj, dict)
-        servers = from_list(lambda x: MCPServersLoadedServer.from_dict(x), obj.get("servers"))
+        servers = from_list(MCPServersLoadedServer.from_dict, obj.get("servers"))
         return SessionMcpServersLoadedData(
             servers=servers,
         )
@@ -3928,7 +3894,7 @@ class SessionExtensionsLoadedData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionExtensionsLoadedData":
         assert isinstance(obj, dict)
-        extensions = from_list(lambda x: ExtensionsLoadedExtension.from_dict(x), obj.get("extensions"))
+        extensions = from_list(ExtensionsLoadedExtension.from_dict, obj.get("extensions"))
         return SessionExtensionsLoadedData(
             extensions=extensions,
         )
@@ -3939,13 +3905,7 @@ class SessionExtensionsLoadedData:
         return result
 
 
-class SessionStartDataContextHostType(Enum):
-    "Hosting platform type of the repository (github or ado)"
-    GITHUB = "github"
-    ADO = "ado"
-
-
-class SessionResumeDataContextHostType(Enum):
+class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
     GITHUB = "github"
     ADO = "ado"

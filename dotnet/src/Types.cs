@@ -1748,6 +1748,7 @@ public class SessionConfig
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         Streaming = other.Streaming;
+        IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
         Tools = other.Tools is not null ? [.. other.Tools] : null;
         WorkingDirectory = other.WorkingDirectory;
@@ -1863,6 +1864,17 @@ public class SessionConfig
     /// with deltaContent are sent as the response is generated.
     /// </summary>
     public bool Streaming { get; set; }
+
+    /// <summary>
+    /// Include sub-agent streaming events in the event stream. When true, streaming
+    /// delta events from sub-agents (e.g., <c>assistant.message_delta</c>,
+    /// <c>assistant.reasoning_delta</c>, <c>assistant.streaming_delta</c> with
+    /// <c>agentId</c> set) are forwarded to this connection. When false, only
+    /// non-streaming sub-agent events and <c>subagent.*</c> lifecycle events are
+    /// forwarded; streaming deltas from sub-agents are suppressed.
+    /// Default: true.
+    /// </summary>
+    public bool IncludeSubAgentStreamingEvents { get; set; } = true;
 
     /// <summary>
     /// MCP server configurations for the session.
@@ -1985,6 +1997,7 @@ public class ResumeSessionConfig
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         Streaming = other.Streaming;
+        IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
         Tools = other.Tools is not null ? [.. other.Tools] : null;
         WorkingDirectory = other.WorkingDirectory;
@@ -2105,6 +2118,17 @@ public class ResumeSessionConfig
     /// with deltaContent are sent as the response is generated.
     /// </summary>
     public bool Streaming { get; set; }
+
+    /// <summary>
+    /// Include sub-agent streaming events in the event stream. When true, streaming
+    /// delta events from sub-agents (e.g., <c>assistant.message_delta</c>,
+    /// <c>assistant.reasoning_delta</c>, <c>assistant.streaming_delta</c> with
+    /// <c>agentId</c> set) are forwarded to this connection. When false, only
+    /// non-streaming sub-agent events and <c>subagent.*</c> lifecycle events are
+    /// forwarded; streaming deltas from sub-agents are suppressed.
+    /// Default: true.
+    /// </summary>
+    public bool IncludeSubAgentStreamingEvents { get; set; } = true;
 
     /// <summary>
     /// MCP server configurations for the session.

@@ -128,6 +128,78 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
     return processed;
 }
 
+/**
+ * Normalize schema defects where a required property with a `$ref` to an object type
+ * has a description explicitly mentioning "null" as a valid value.
+ *
+ * In JSON Schema, `required` only means the key must be present — it doesn't prevent
+ * the value from being null. Some schemas mark properties as required but describe them
+ * as nullable (e.g., "Currently selected agent, or null if using the default").
+ *
+ * This function converts such properties from:
+ *   `{ "$ref": "#/definitions/Foo", "description": "...null..." }`
+ * to:
+ *   `{ "anyOf": [{ "$ref": "#/definitions/Foo" }, { "type": "null" }], "description": "...null..." }`
+ *
+ * This makes all downstream codegen (Go, C#, Python/quicktype, TypeScript) correctly
+ * emit nullable/optional types without per-language heuristics.
+ */
+export function normalizeNullableRequiredRefs(schema: JSONSchema7): JSONSchema7 {
+    if (typeof schema !== "object" || schema === null) return schema;
+
+    const processed = { ...schema };
+
+    if (processed.properties && processed.required) {
+        const requiredSet = new Set(processed.required);
+        const newProps: Record<string, JSONSchema7Definition> = {};
+        const newRequired = [...processed.required];
+
+        for (const [key, value] of Object.entries(processed.properties)) {
+            if (typeof value !== "object" || value === null) {
+                newProps[key] = value;
+                continue;
+            }
+            const prop = value as JSONSchema7;
+            if (
+                requiredSet.has(key) &&
+                prop.$ref &&
+                typeof prop.description === "string" &&
+                /\bnull\b/i.test(prop.description)
+            ) {
+                // Convert to anyOf: [$ref, null] and remove from required
+                const { $ref, ...rest } = prop;
+                newProps[key] = {
+                    ...rest,
+                    anyOf: [{ $ref }, { type: "null" as const }],
+                };
+                const idx = newRequired.indexOf(key);
+                if (idx !== -1) newRequired.splice(idx, 1);
+            } else {
+                newProps[key] = normalizeNullableRequiredRefs(prop);
+            }
+        }
+
+        processed.properties = newProps;
+        processed.required = newRequired;
+    }
+
+    // Recurse into nested schemas
+    if (processed.items) {
+        if (typeof processed.items === "object" && !Array.isArray(processed.items)) {
+            processed.items = normalizeNullableRequiredRefs(processed.items as JSONSchema7);
+        }
+    }
+    for (const combiner of ["anyOf", "allOf", "oneOf"] as const) {
+        if (processed[combiner]) {
+            processed[combiner] = processed[combiner]!.map((item) =>
+                typeof item === "object" ? normalizeNullableRequiredRefs(item as JSONSchema7) : item
+            ) as JSONSchema7Definition[];
+        }
+    }
+
+    return processed;
+}
+
 // ── File output ─────────────────────────────────────────────────────────────
 
 export async function writeGeneratedFile(relativePath: string, content: string): Promise<string> {
@@ -144,6 +216,7 @@ export interface RpcMethod {
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
     stability?: string;
+    deprecated?: boolean;
 }
 
 export function getRpcSchemaTypeName(schema: JSONSchema7 | null | undefined, fallback: string): string {
@@ -451,6 +524,52 @@ export function normalizeApiSchema(schema: ApiSchema): ApiSchema {
     };
 }
 
+/**
+ * Apply `normalizeNullableRequiredRefs` to every JSON Schema reachable from the API schema
+ * (method params, results, and shared definitions). Call after `cloneSchemaForCodegen` to
+ * fix schema defects before any per-language codegen runs.
+ */
+export function fixNullableRequiredRefsInApiSchema(schema: ApiSchema): ApiSchema {
+    function walkApiNode(node: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+        if (!node) return undefined;
+        const result: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(node)) {
+            if (isRpcMethod(value)) {
+                const method = value as RpcMethod;
+                result[key] = {
+                    ...method,
+                    params: method.params ? normalizeNullableRequiredRefs(method.params) : method.params,
+                    result: method.result ? normalizeNullableRequiredRefs(method.result) : method.result,
+                };
+            } else if (typeof value === "object" && value !== null) {
+                result[key] = walkApiNode(value as Record<string, unknown>);
+            } else {
+                result[key] = value;
+            }
+        }
+        return result;
+    }
+
+    function normalizeDefs(defs: Record<string, JSONSchema7Definition> | undefined): Record<string, JSONSchema7Definition> | undefined {
+        if (!defs) return undefined;
+        return Object.fromEntries(
+            Object.entries(defs).map(([key, value]) => [
+                key,
+                typeof value === "object" && value !== null ? normalizeNullableRequiredRefs(value as JSONSchema7) : value,
+            ])
+        );
+    }
+
+    return {
+        ...schema,
+        definitions: normalizeDefs(schema.definitions),
+        $defs: normalizeDefs(schema.$defs),
+        server: walkApiNode(schema.server),
+        session: walkApiNode(schema.session),
+        clientSession: walkApiNode(schema.clientSession),
+    };
+}
+
 /** Returns true when every leaf RPC method inside `node` is marked experimental. */
 export function isNodeFullyExperimental(node: Record<string, unknown>): boolean {
     const methods: RpcMethod[] = [];
@@ -464,6 +583,26 @@ export function isNodeFullyExperimental(node: Record<string, unknown>): boolean 
         }
     })(node);
     return methods.length > 0 && methods.every(m => m.stability === "experimental");
+}
+
+/** Returns true when every leaf RPC method inside `node` is marked deprecated. */
+export function isNodeFullyDeprecated(node: Record<string, unknown>): boolean {
+    const methods: RpcMethod[] = [];
+    (function collect(n: Record<string, unknown>) {
+        for (const value of Object.values(n)) {
+            if (isRpcMethod(value)) {
+                methods.push(value);
+            } else if (typeof value === "object" && value !== null) {
+                collect(value as Record<string, unknown>);
+            }
+        }
+    })(node);
+    return methods.length > 0 && methods.every(m => m.deprecated === true);
+}
+
+/** Returns true when a JSON Schema node is marked as deprecated. */
+export function isSchemaDeprecated(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).deprecated === true;
 }
 
 // ── $ref resolution ─────────────────────────────────────────────────────────

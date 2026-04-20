@@ -1197,6 +1197,7 @@ class CopilotClient:
         provider: ProviderConfig | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         streaming: bool | None = None,
+        include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
@@ -1235,6 +1236,11 @@ class CopilotClient:
             provider: Provider configuration for Azure or custom endpoints.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
+            include_sub_agent_streaming_events: Whether to include sub-agent streaming
+                delta events (e.g., ``assistant.message_delta``,
+                ``assistant.reasoning_delta``, ``assistant.streaming_delta`` with
+                ``agentId`` set). When False, only non-streaming sub-agent events and
+                ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
             custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
@@ -1344,6 +1350,13 @@ class CopilotClient:
         # Add streaming option if provided
         if streaming is not None:
             payload["streaming"] = streaming
+
+        # Include sub-agent streaming events (defaults to True)
+        payload["includeSubAgentStreamingEvents"] = (
+            include_sub_agent_streaming_events
+            if include_sub_agent_streaming_events is not None
+            else True
+        )
 
         # Add provider configuration if provided
         if provider:
@@ -1469,6 +1482,7 @@ class CopilotClient:
         provider: ProviderConfig | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         streaming: bool | None = None,
+        include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
@@ -1507,6 +1521,11 @@ class CopilotClient:
             provider: Provider configuration for Azure or custom endpoints.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
+            include_sub_agent_streaming_events: Whether to include sub-agent streaming
+                delta events (e.g., ``assistant.message_delta``,
+                ``assistant.reasoning_delta``, ``assistant.streaming_delta`` with
+                ``agentId`` set). When False, only non-streaming sub-agent events and
+                ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
             custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
@@ -1594,6 +1613,13 @@ class CopilotClient:
             payload["modelCapabilities"] = _capabilities_to_dict(model_capabilities)
         if streaming is not None:
             payload["streaming"] = streaming
+
+        # Include sub-agent streaming events (defaults to True)
+        payload["includeSubAgentStreamingEvents"] = (
+            include_sub_agent_streaming_events
+            if include_sub_agent_streaming_events is not None
+            else True
+        )
 
         # Always enable permission request callback
         payload["requestPermission"] = True

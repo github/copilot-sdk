@@ -11,6 +11,7 @@ import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
 import {
     getApiSchemaPath,
+    fixNullableRequiredRefsInApiSchema,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     normalizeSchemaTitles,
@@ -23,6 +24,7 @@ import {
     withSharedDefinitions,
     isRpcMethod,
     isNodeFullyExperimental,
+    isNodeFullyDeprecated,
     isVoidSchema,
     stripNonAnnotationTitles,
     type ApiSchema,
@@ -319,7 +321,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("TypeScript: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema;
+    const schema = fixNullableRequiredRefsInApiSchema(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
 
     const lines: string[] = [];
     lines.push(`/**
@@ -347,6 +349,8 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     // Track which type names come from experimental methods for JSDoc annotations.
     const experimentalTypes = new Set<string>();
+    // Track which type names come from deprecated methods for JSDoc annotations.
+    const deprecatedTypes = new Set<string>();
 
     for (const method of [...allMethods, ...clientSessionMethods]) {
         const resultSchema = getMethodResultSchema(method);
@@ -357,6 +361,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
             );
             if (method.stability === "experimental") {
                 experimentalTypes.add(resultTypeName(method));
+            }
+            if (method.deprecated && !method.result?.$ref) {
+                deprecatedTypes.add(resultTypeName(method));
             }
         }
 
@@ -378,6 +385,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                     if (method.stability === "experimental") {
                         experimentalTypes.add(paramsTypeName(method));
                     }
+                    if (method.deprecated) {
+                        deprecatedTypes.add(paramsTypeName(method));
+                    }
                 }
             } else {
                 combinedSchema.definitions![paramsTypeName(method)] = withRootTitle(
@@ -386,6 +396,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                 );
                 if (method.stability === "experimental") {
                     experimentalTypes.add(paramsTypeName(method));
+                }
+                if (method.deprecated && !method.params?.$ref) {
+                    deprecatedTypes.add(paramsTypeName(method));
                 }
             }
         }
@@ -416,6 +429,13 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
             annotatedTs = annotatedTs.replace(
                 new RegExp(`(^|\\n)(export (?:interface|type) ${expType}\\b)`, "m"),
                 `$1/** @experimental */\n$2`
+            );
+        }
+        // Add @deprecated JSDoc annotations for types from deprecated methods
+        for (const depType of deprecatedTypes) {
+            annotatedTs = annotatedTs.replace(
+                new RegExp(`(^|\\n)(export (?:interface|type) ${depType}\\b)`, "m"),
+                `$1/** @deprecated */\n$2`
             );
         }
         lines.push(annotatedTs);
@@ -452,7 +472,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     console.log(`  ✓ ${outPath}`);
 }
 
-function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean, parentExperimental = false): string[] {
+function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean, parentExperimental = false, parentDeprecated = false): string[] {
     const lines: string[] = [];
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
@@ -486,6 +506,9 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
                 }
             }
 
+            if ((value as RpcMethod).deprecated && !parentDeprecated) {
+                lines.push(`${indent}/** @deprecated */`);
+            }
             if ((value as RpcMethod).stability === "experimental" && !parentExperimental) {
                 lines.push(`${indent}/** @experimental */`);
             }
@@ -493,11 +516,15 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
             lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
         } else if (typeof value === "object" && value !== null) {
             const groupExperimental = isNodeFullyExperimental(value as Record<string, unknown>);
+            const groupDeprecated = isNodeFullyDeprecated(value as Record<string, unknown>);
+            if (groupDeprecated) {
+                lines.push(`${indent}/** @deprecated */`);
+            }
             if (groupExperimental) {
                 lines.push(`${indent}/** @experimental */`);
             }
             lines.push(`${indent}${key}: {`);
-            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession, groupExperimental));
+            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession, groupExperimental, groupDeprecated));
             lines.push(`${indent}},`);
         }
     }
@@ -544,7 +571,12 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
     // Emit a handler interface per group
     for (const [groupName, methods] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
-        lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
+        const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
+        if (groupDeprecated) {
+            lines.push(`/** @deprecated Handler for \`${groupName}\` client session API methods. */`);
+        } else {
+            lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
+        }
         lines.push(`export interface ${interfaceName} {`);
         for (const method of methods) {
             const name = handlerMethodName(method.rpcMethod);
@@ -552,6 +584,9 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
             const pType = hasParams ? paramsTypeName(method) : "";
             const rType = !isVoidSchema(getMethodResultSchema(method)) ? resultTypeName(method) : "void";
 
+            if (method.deprecated && !groupDeprecated) {
+                lines.push(`    /** @deprecated */`);
+            }
             if (hasParams) {
                 lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
             } else {

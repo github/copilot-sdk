@@ -748,6 +748,7 @@ export class CopilotClient {
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
+                includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: config.mcpServers,
                 envValueMode: "direct",
                 customAgents: config.customAgents,
@@ -889,6 +890,7 @@ export class CopilotClient {
                 configDir: config.configDir,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 streaming: config.streaming,
+                includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: config.mcpServers,
                 envValueMode: "direct",
                 customAgents: config.customAgents,
@@ -1021,6 +1023,26 @@ export class CopilotClient {
                 const result = await this.connection.sendRequest("models.list", {});
                 const response = result as { models: ModelInfo[] };
                 models = response.models;
+
+                // Normalize model capabilities — some models (e.g. embedding models)
+                // may omit 'supports' or 'limits' in their capabilities.
+                for (const model of models) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const m = model as any;
+                    if (!m.capabilities) {
+                        m.capabilities = {
+                            supports: {},
+                            limits: { max_context_window_tokens: 0 },
+                        };
+                    } else {
+                        if (!m.capabilities.supports) m.capabilities.supports = {};
+                        if (!m.capabilities.limits) {
+                            m.capabilities.limits = { max_context_window_tokens: 0 };
+                        } else if (m.capabilities.limits.max_context_window_tokens === undefined) {
+                            m.capabilities.limits.max_context_window_tokens = 0;
+                        }
+                    }
+                }
             }
 
             // Update cache before releasing lock (copy to prevent external mutation)
