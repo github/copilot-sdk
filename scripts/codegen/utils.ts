@@ -251,8 +251,10 @@ export function cloneSchemaForCodegen<T>(value: T): T {
     }
 
     if (value && typeof value === "object") {
+        const source = value as Record<string, unknown>;
         const result: Record<string, unknown> = {};
-        for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+
+        for (const [key, child] of Object.entries(source)) {
             if (key === "titleSource") {
                 continue;
             }

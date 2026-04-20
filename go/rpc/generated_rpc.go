@@ -31,17 +31,7 @@ type ModelCapabilitiesLimits struct {
 	// Maximum number of prompt/input tokens
 	MaxPromptTokens *int64 `json:"max_prompt_tokens,omitempty"`
 	// Vision-specific limits
-	Vision *PurpleModelCapabilitiesLimitsVision `json:"vision,omitempty"`
-}
-
-// Vision-specific limits
-type PurpleModelCapabilitiesLimitsVision struct {
-	// Maximum image size in bytes
-	MaxPromptImageSize int64 `json:"max_prompt_image_size"`
-	// Maximum number of images per prompt
-	MaxPromptImages int64 `json:"max_prompt_images"`
-	// MIME types the model accepts
-	SupportedMediaTypes []string `json:"supported_media_types"`
+	Vision *ModelCapabilitiesLimitsVision `json:"vision,omitempty"`
 }
 
 // Feature flags indicating what the model supports
@@ -95,24 +85,7 @@ type DiscoveredMCPServer struct {
 
 type ServerSkillList struct {
 	// All discovered skills across all sources
-	Skills []SkillElement `json:"skills"`
-}
-
-type SkillElement struct {
-	// Description of what the skill does
-	Description string `json:"description"`
-	// Whether the skill is currently enabled (based on global config)
-	Enabled bool `json:"enabled"`
-	// Unique identifier for the skill
-	Name string `json:"name"`
-	// Absolute path to the skill file
-	Path *string `json:"path,omitempty"`
-	// The project path this skill belongs to (only for project/inherited skills)
-	ProjectPath *string `json:"projectPath,omitempty"`
-	// Source location type (e.g., project, personal-copilot, plugin, builtin)
-	Source string `json:"source"`
-	// Whether the skill can be invoked by the user as a slash command
-	UserInvocable bool `json:"userInvocable"`
+	Skills []ServerSkill `json:"skills"`
 }
 
 type ServerSkill struct {
@@ -258,12 +231,7 @@ type UIElicitationArrayAnyOfField struct {
 }
 
 type UIElicitationArrayAnyOfFieldItems struct {
-	AnyOf []PurpleUIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf"`
-}
-
-type PurpleUIElicitationArrayAnyOfFieldItemsAnyOf struct {
-	Const string `json:"const"`
-	Title string `json:"title"`
+	AnyOf []UIElicitationStringOneOfFieldOneOf `json:"anyOf"`
 }
 
 // The elicitation response (accept with form values, decline, or cancel)
@@ -325,6 +293,14 @@ type PermissionRequestResult struct {
 	Success bool `json:"success"`
 }
 
+// Describes a filesystem error.
+type SessionFSError struct {
+	// Error classification
+	Code SessionFSErrorCode `json:"code"`
+	// Free-form detail about the error, for logging/diagnostics
+	Message *string `json:"message,omitempty"`
+}
+
 type PingResult struct {
 	// Echoed message (or default greeting)
 	Message string `json:"message"`
@@ -372,7 +348,7 @@ type CapabilitiesClass struct {
 	// Token limits for prompts, outputs, and context window
 	Limits *CapabilitiesLimits `json:"limits,omitempty"`
 	// Feature flags indicating what the model supports
-	Supports *CapabilitiesSupports `json:"supports,omitempty"`
+	Supports *ModelCapabilitiesSupports `json:"supports,omitempty"`
 }
 
 // Token limits for prompts, outputs, and context window
@@ -384,25 +360,7 @@ type CapabilitiesLimits struct {
 	// Maximum number of prompt/input tokens
 	MaxPromptTokens *int64 `json:"max_prompt_tokens,omitempty"`
 	// Vision-specific limits
-	Vision *FluffyModelCapabilitiesLimitsVision `json:"vision,omitempty"`
-}
-
-// Vision-specific limits
-type FluffyModelCapabilitiesLimitsVision struct {
-	// Maximum image size in bytes
-	MaxPromptImageSize int64 `json:"max_prompt_image_size"`
-	// Maximum number of images per prompt
-	MaxPromptImages int64 `json:"max_prompt_images"`
-	// MIME types the model accepts
-	SupportedMediaTypes []string `json:"supported_media_types"`
-}
-
-// Feature flags indicating what the model supports
-type CapabilitiesSupports struct {
-	// Whether this model supports reasoning effort configuration
-	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
-	// Whether this model supports vision/image input
-	Vision *bool `json:"vision,omitempty"`
+	Vision *ModelCapabilitiesLimitsVision `json:"vision,omitempty"`
 }
 
 // Policy state (if applicable)
@@ -460,27 +418,7 @@ type AccountQuotaSnapshot struct {
 
 type MCPConfigList struct {
 	// All MCP servers from user config, keyed by name
-	Servers map[string]MCPServerConfigValue `json:"servers"`
-}
-
-// MCP server configuration (local/stdio or remote/http)
-type MCPServerConfigValue struct {
-	Args            []string          `json:"args,omitempty"`
-	Command         *string           `json:"command,omitempty"`
-	Cwd             *string           `json:"cwd,omitempty"`
-	Env             map[string]string `json:"env,omitempty"`
-	FilterMapping   *FilterMapping    `json:"filterMapping"`
-	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
-	// Timeout in milliseconds for tool calls to this server.
-	Timeout *int64 `json:"timeout,omitempty"`
-	// Tools to include. Defaults to all tools if not specified.
-	Tools []string `json:"tools,omitempty"`
-	// Remote transport type. Defaults to "http" when omitted.
-	Type              *MCPServerConfigType `json:"type,omitempty"`
-	Headers           map[string]string    `json:"headers,omitempty"`
-	OauthClientID     *string              `json:"oauthClientId,omitempty"`
-	OauthPublicClient *bool                `json:"oauthPublicClient,omitempty"`
-	URL               *string              `json:"url,omitempty"`
+	Servers map[string]MCPServerConfig `json:"servers"`
 }
 
 type MCPConfigAddResult struct {
@@ -488,29 +426,9 @@ type MCPConfigAddResult struct {
 
 type MCPConfigAddRequest struct {
 	// MCP server configuration (local/stdio or remote/http)
-	Config MCPConfigAddRequestMCPServerConfig `json:"config"`
+	Config MCPServerConfig `json:"config"`
 	// Unique name for the MCP server
 	Name string `json:"name"`
-}
-
-// MCP server configuration (local/stdio or remote/http)
-type MCPConfigAddRequestMCPServerConfig struct {
-	Args            []string          `json:"args,omitempty"`
-	Command         *string           `json:"command,omitempty"`
-	Cwd             *string           `json:"cwd,omitempty"`
-	Env             map[string]string `json:"env,omitempty"`
-	FilterMapping   *FilterMapping    `json:"filterMapping"`
-	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
-	// Timeout in milliseconds for tool calls to this server.
-	Timeout *int64 `json:"timeout,omitempty"`
-	// Tools to include. Defaults to all tools if not specified.
-	Tools []string `json:"tools,omitempty"`
-	// Remote transport type. Defaults to "http" when omitted.
-	Type              *MCPServerConfigType `json:"type,omitempty"`
-	Headers           map[string]string    `json:"headers,omitempty"`
-	OauthClientID     *string              `json:"oauthClientId,omitempty"`
-	OauthPublicClient *bool                `json:"oauthPublicClient,omitempty"`
-	URL               *string              `json:"url,omitempty"`
 }
 
 type MCPConfigUpdateResult struct {
@@ -518,29 +436,9 @@ type MCPConfigUpdateResult struct {
 
 type MCPConfigUpdateRequest struct {
 	// MCP server configuration (local/stdio or remote/http)
-	Config MCPConfigUpdateRequestMCPServerConfig `json:"config"`
+	Config MCPServerConfig `json:"config"`
 	// Name of the MCP server to update
 	Name string `json:"name"`
-}
-
-// MCP server configuration (local/stdio or remote/http)
-type MCPConfigUpdateRequestMCPServerConfig struct {
-	Args            []string          `json:"args,omitempty"`
-	Command         *string           `json:"command,omitempty"`
-	Cwd             *string           `json:"cwd,omitempty"`
-	Env             map[string]string `json:"env,omitempty"`
-	FilterMapping   *FilterMapping    `json:"filterMapping"`
-	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
-	// Timeout in milliseconds for tool calls to this server.
-	Timeout *int64 `json:"timeout,omitempty"`
-	// Tools to include. Defaults to all tools if not specified.
-	Tools []string `json:"tools,omitempty"`
-	// Remote transport type. Defaults to "http" when omitted.
-	Type              *MCPServerConfigType `json:"type,omitempty"`
-	Headers           map[string]string    `json:"headers,omitempty"`
-	OauthClientID     *string              `json:"oauthClientId,omitempty"`
-	OauthPublicClient *bool                `json:"oauthPublicClient,omitempty"`
-	URL               *string              `json:"url,omitempty"`
 }
 
 type MCPConfigRemoveResult struct {
@@ -553,18 +451,7 @@ type MCPConfigRemoveRequest struct {
 
 type MCPDiscoverResult struct {
 	// MCP servers discovered from all sources
-	Servers []ServerElement `json:"servers"`
-}
-
-type ServerElement struct {
-	// Whether the server is enabled (not in the disabled list)
-	Enabled bool `json:"enabled"`
-	// Server name (config key)
-	Name string `json:"name"`
-	// Configuration source
-	Source MCPServerSource `json:"source"`
-	// Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
-	Type *DiscoveredMCPServerType `json:"type,omitempty"`
+	Servers []DiscoveredMCPServer `json:"servers"`
 }
 
 type MCPDiscoverRequest struct {
@@ -644,16 +531,7 @@ type ModelCapabilitiesLimitsClass struct {
 	MaxContextWindowTokens *int64                                       `json:"max_context_window_tokens,omitempty"`
 	MaxOutputTokens        *int64                                       `json:"max_output_tokens,omitempty"`
 	MaxPromptTokens        *int64                                       `json:"max_prompt_tokens,omitempty"`
-	Vision                 *FluffyModelCapabilitiesOverrideLimitsVision `json:"vision,omitempty"`
-}
-
-type FluffyModelCapabilitiesOverrideLimitsVision struct {
-	// Maximum image size in bytes
-	MaxPromptImageSize *int64 `json:"max_prompt_image_size,omitempty"`
-	// Maximum number of images per prompt
-	MaxPromptImages *int64 `json:"max_prompt_images,omitempty"`
-	// MIME types the model accepts
-	SupportedMediaTypes []string `json:"supported_media_types,omitempty"`
+	Vision                 *PurpleModelCapabilitiesOverrideLimitsVision `json:"vision,omitempty"`
 }
 
 type ModeSetResult struct {
@@ -714,7 +592,6 @@ type WorkspaceClass struct {
 	McSessionID            *string           `json:"mc_session_id,omitempty"`
 	McTaskID               *string           `json:"mc_task_id,omitempty"`
 	Name                   *string           `json:"name,omitempty"`
-	PRCreateSyncDismissed  *bool             `json:"pr_create_sync_dismissed,omitempty"`
 	Repository             *string           `json:"repository,omitempty"`
 	SessionSyncLevel       *SessionSyncLevel `json:"session_sync_level,omitempty"`
 	Summary                *string           `json:"summary,omitempty"`
@@ -786,38 +663,19 @@ type FleetStartRequest struct {
 // Experimental: AgentList is part of an experimental API and may change or be removed.
 type AgentList struct {
 	// Available custom agents
-	Agents []AgentListAgent `json:"agents"`
-}
-
-type AgentListAgent struct {
-	// Description of the agent's purpose
-	Description string `json:"description"`
-	// Human-readable display name
-	DisplayName string `json:"displayName"`
-	// Unique identifier of the custom agent
-	Name string `json:"name"`
+	Agents []AgentInfo `json:"agents"`
 }
 
 // Experimental: AgentGetCurrentResult is part of an experimental API and may change or be removed.
 type AgentGetCurrentResult struct {
 	// Currently selected custom agent, or null if using the default agent
-	Agent *AgentReloadResultAgent `json:"agent"`
+	Agent *AgentInfo `json:"agent"`
 }
 
 // Experimental: AgentSelectResult is part of an experimental API and may change or be removed.
 type AgentSelectResult struct {
 	// The newly selected custom agent
-	Agent AgentSelectResultAgent `json:"agent"`
-}
-
-// The newly selected custom agent
-type AgentSelectResultAgent struct {
-	// Description of the agent's purpose
-	Description string `json:"description"`
-	// Human-readable display name
-	DisplayName string `json:"displayName"`
-	// Unique identifier of the custom agent
-	Name string `json:"name"`
+	Agent AgentInfo `json:"agent"`
 }
 
 // Experimental: AgentSelectRequest is part of an experimental API and may change or be removed.
@@ -833,16 +691,7 @@ type AgentDeselectResult struct {
 // Experimental: AgentReloadResult is part of an experimental API and may change or be removed.
 type AgentReloadResult struct {
 	// Reloaded custom agents
-	Agents []AgentReloadResultAgent `json:"agents"`
-}
-
-type AgentReloadResultAgent struct {
-	// Description of the agent's purpose
-	Description string `json:"description"`
-	// Human-readable display name
-	DisplayName string `json:"displayName"`
-	// Unique identifier of the custom agent
-	Name string `json:"name"`
+	Agents []AgentInfo `json:"agents"`
 }
 
 // Experimental: SkillList is part of an experimental API and may change or be removed.
@@ -1014,7 +863,7 @@ type UIElicitationSchemaProperty struct {
 	EnumNames   []string                                 `json:"enumNames,omitempty"`
 	Title       *string                                  `json:"title,omitempty"`
 	Type        UIElicitationSchemaPropertyNumberType    `json:"type"`
-	OneOf       []UIElicitationSchemaPropertyOneOf       `json:"oneOf,omitempty"`
+	OneOf       []UIElicitationStringOneOfFieldOneOf     `json:"oneOf,omitempty"`
 	Items       *UIElicitationArrayFieldItems            `json:"items,omitempty"`
 	MaxItems    *float64                                 `json:"maxItems,omitempty"`
 	MinItems    *float64                                 `json:"minItems,omitempty"`
@@ -1026,19 +875,9 @@ type UIElicitationSchemaProperty struct {
 }
 
 type UIElicitationArrayFieldItems struct {
-	Enum  []string                                       `json:"enum,omitempty"`
-	Type  *UIElicitationStringEnumFieldType              `json:"type,omitempty"`
-	AnyOf []FluffyUIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf,omitempty"`
-}
-
-type FluffyUIElicitationArrayAnyOfFieldItemsAnyOf struct {
-	Const string `json:"const"`
-	Title string `json:"title"`
-}
-
-type UIElicitationSchemaPropertyOneOf struct {
-	Const string `json:"const"`
-	Title string `json:"title"`
+	Enum  []string                             `json:"enum,omitempty"`
+	Type  *UIElicitationStringEnumFieldType    `json:"type,omitempty"`
+	AnyOf []UIElicitationStringOneOfFieldOneOf `json:"anyOf,omitempty"`
 }
 
 type LogResult struct {
@@ -1189,6 +1028,8 @@ type UsageMetricsModelMetricUsage struct {
 type SessionFSReadFileResult struct {
 	// File content as UTF-8 string
 	Content string `json:"content"`
+	// Describes a filesystem error.
+	Error *SessionFSError `json:"error,omitempty"`
 }
 
 type SessionFSReadFileRequest struct {
@@ -1196,9 +1037,6 @@ type SessionFSReadFileRequest struct {
 	Path string `json:"path"`
 	// Target session identifier
 	SessionID string `json:"sessionId"`
-}
-
-type SessionFSWriteFileResult struct {
 }
 
 type SessionFSWriteFileRequest struct {
@@ -1210,9 +1048,6 @@ type SessionFSWriteFileRequest struct {
 	Path string `json:"path"`
 	// Target session identifier
 	SessionID string `json:"sessionId"`
-}
-
-type SessionFSAppendFileResult struct {
 }
 
 type SessionFSAppendFileRequest struct {
@@ -1241,6 +1076,8 @@ type SessionFSExistsRequest struct {
 type SessionFSStatResult struct {
 	// ISO 8601 timestamp of creation
 	Birthtime time.Time `json:"birthtime"`
+	// Describes a filesystem error.
+	Error *SessionFSError `json:"error,omitempty"`
 	// Whether the path is a directory
 	IsDirectory bool `json:"isDirectory"`
 	// Whether the path is a file
@@ -1258,9 +1095,6 @@ type SessionFSStatRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-type SessionFSMkdirResult struct {
-}
-
 type SessionFSMkdirRequest struct {
 	// Optional POSIX-style mode for newly created directories
 	Mode *int64 `json:"mode,omitempty"`
@@ -1275,6 +1109,8 @@ type SessionFSMkdirRequest struct {
 type SessionFSReaddirResult struct {
 	// Entry names in the directory
 	Entries []string `json:"entries"`
+	// Describes a filesystem error.
+	Error *SessionFSError `json:"error,omitempty"`
 }
 
 type SessionFSReaddirRequest struct {
@@ -1287,6 +1123,8 @@ type SessionFSReaddirRequest struct {
 type SessionFSReaddirWithTypesResult struct {
 	// Directory entries with type information
 	Entries []SessionFSReaddirWithTypesEntry `json:"entries"`
+	// Describes a filesystem error.
+	Error *SessionFSError `json:"error,omitempty"`
 }
 
 type SessionFSReaddirWithTypesEntry struct {
@@ -1303,9 +1141,6 @@ type SessionFSReaddirWithTypesRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-type SessionFSRmResult struct {
-}
-
 type SessionFSRmRequest struct {
 	// Ignore errors if the path does not exist
 	Force *bool `json:"force,omitempty"`
@@ -1315,9 +1150,6 @@ type SessionFSRmRequest struct {
 	Recursive *bool `json:"recursive,omitempty"`
 	// Target session identifier
 	SessionID string `json:"sessionId"`
-}
-
-type SessionFSRenameResult struct {
 }
 
 type SessionFSRenameRequest struct {
@@ -1411,6 +1243,14 @@ const (
 	KindDeniedByRules                                  Kind = "denied-by-rules"
 	KindDeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
 	KindDeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+)
+
+// Error classification
+type SessionFSErrorCode string
+
+const (
+	SessionFSErrorCodeENOENT  SessionFSErrorCode = "ENOENT"
+	SessionFSErrorCodeUNKNOWN SessionFSErrorCode = "UNKNOWN"
 )
 
 // Path conventions used by this filesystem
@@ -2550,15 +2390,15 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 
 type SessionFsHandler interface {
 	ReadFile(request *SessionFSReadFileRequest) (*SessionFSReadFileResult, error)
-	WriteFile(request *SessionFSWriteFileRequest) (*SessionFSWriteFileResult, error)
-	AppendFile(request *SessionFSAppendFileRequest) (*SessionFSAppendFileResult, error)
+	WriteFile(request *SessionFSWriteFileRequest) (*SessionFSError, error)
+	AppendFile(request *SessionFSAppendFileRequest) (*SessionFSError, error)
 	Exists(request *SessionFSExistsRequest) (*SessionFSExistsResult, error)
 	Stat(request *SessionFSStatRequest) (*SessionFSStatResult, error)
-	Mkdir(request *SessionFSMkdirRequest) (*SessionFSMkdirResult, error)
+	Mkdir(request *SessionFSMkdirRequest) (*SessionFSError, error)
 	Readdir(request *SessionFSReaddirRequest) (*SessionFSReaddirResult, error)
 	ReaddirWithTypes(request *SessionFSReaddirWithTypesRequest) (*SessionFSReaddirWithTypesResult, error)
-	Rm(request *SessionFSRmRequest) (*SessionFSRmResult, error)
-	Rename(request *SessionFSRenameRequest) (*SessionFSRenameResult, error)
+	Rm(request *SessionFSRmRequest) (*SessionFSError, error)
+	Rename(request *SessionFSRenameRequest) (*SessionFSError, error)
 }
 
 // ClientSessionApiHandlers provides all client session API handler groups for a session.

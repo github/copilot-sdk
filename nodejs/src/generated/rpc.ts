@@ -1393,10 +1393,6 @@ export interface SessionFsReadFileRequest {
   path: string;
 }
 
-export interface SessionFsWriteFileResult {
-  error?: SessionFsError;
-}
-
 export interface SessionFsWriteFileRequest {
   /**
    * Target session identifier
@@ -1414,10 +1410,6 @@ export interface SessionFsWriteFileRequest {
    * Optional POSIX-style mode for newly created files
    */
   mode?: number;
-}
-
-export interface SessionFsAppendFileResult {
-  error?: SessionFsError;
 }
 
 export interface SessionFsAppendFileRequest {
@@ -1492,10 +1484,6 @@ export interface SessionFsStatRequest {
   path: string;
 }
 
-export interface SessionFsMkdirResult {
-  error?: SessionFsError;
-}
-
 export interface SessionFsMkdirRequest {
   /**
    * Target session identifier
@@ -1562,10 +1550,6 @@ export interface SessionFsReaddirWithTypesRequest {
   path: string;
 }
 
-export interface SessionFsRmResult {
-  error?: SessionFsError;
-}
-
 export interface SessionFsRmRequest {
   /**
    * Target session identifier
@@ -1583,10 +1567,6 @@ export interface SessionFsRmRequest {
    * Ignore errors if the path does not exist
    */
   force?: boolean;
-}
-
-export interface SessionFsRenameResult {
-  error?: SessionFsError;
 }
 
 export interface SessionFsRenameRequest {
@@ -1798,15 +1778,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
 /** Handler for `sessionFs` client session API methods. */
 export interface SessionFsHandler {
     readFile(params: SessionFsReadFileRequest): Promise<SessionFsReadFileResult>;
-    writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsWriteFileResult>;
-    appendFile(params: SessionFsAppendFileRequest): Promise<SessionFsAppendFileResult>;
+    writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsError>;
+    appendFile(params: SessionFsAppendFileRequest): Promise<SessionFsError>;
     exists(params: SessionFsExistsRequest): Promise<SessionFsExistsResult>;
     stat(params: SessionFsStatRequest): Promise<SessionFsStatResult>;
-    mkdir(params: SessionFsMkdirRequest): Promise<SessionFsMkdirResult>;
+    mkdir(params: SessionFsMkdirRequest): Promise<SessionFsError>;
     readdir(params: SessionFsReaddirRequest): Promise<SessionFsReaddirResult>;
     readdirWithTypes(params: SessionFsReaddirWithTypesRequest): Promise<SessionFsReaddirWithTypesResult>;
-    rm(params: SessionFsRmRequest): Promise<SessionFsRmResult>;
-    rename(params: SessionFsRenameRequest): Promise<SessionFsRenameResult>;
+    rm(params: SessionFsRmRequest): Promise<SessionFsError>;
+    rename(params: SessionFsRenameRequest): Promise<SessionFsError>;
 }
 
 /** All client session API handler groups. */

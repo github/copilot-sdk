@@ -110,7 +110,7 @@ function postProcessEnumConstants(code: string): string {
     return code;
 }
 
-function collapsePlaceholderGoStructs(code: string): string {
+function collapsePlaceholderGoStructs(code: string, knownDefinitionNames?: Set<string>): string {
     const structBlockRe = /((?:\/\/.*\r?\n)*)type\s+(\w+)\s+struct\s*\{[\s\S]*?^\}/gm;
     const matches = [...code.matchAll(structBlockRe)].map((match) => ({
         fullBlock: match[0],
@@ -128,12 +128,14 @@ function collapsePlaceholderGoStructs(code: string): string {
     for (const group of groups.values()) {
         if (group.length < 2) continue;
 
-        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name));
+        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name), knownDefinitionNames);
         if (!canonical) continue;
 
         for (const duplicate of group) {
             if (duplicate.name === canonical) continue;
-            if (!isPlaceholderTypeName(duplicate.name)) continue;
+            // Only collapse types that quicktype invented (Class suffix or not
+            // in the schema's named definitions). Preserve intentionally-named types.
+            if (!isPlaceholderTypeName(duplicate.name) && knownDefinitionNames?.has(duplicate.name.toLowerCase())) continue;
 
             code = code.replace(duplicate.fullBlock, "");
             code = code.replace(new RegExp(`\\b${duplicate.name}\\b`, "g"), canonical);
@@ -153,10 +155,16 @@ function normalizeGoStructBlock(block: string, name: string): string {
         .join("\n");
 }
 
-function chooseCanonicalPlaceholderDuplicate(names: string[]): string | undefined {
+function chooseCanonicalPlaceholderDuplicate(names: string[], knownDefinitionNames?: Set<string>): string | undefined {
+    // Prefer the name that matches a schema definition — it's intentionally named.
+    if (knownDefinitionNames) {
+        const definedName = names.find((name) => knownDefinitionNames.has(name.toLowerCase()));
+        if (definedName) return definedName;
+    }
+    // Fallback for Class-suffix placeholders: pick the non-placeholder name.
     const specificNames = names.filter((name) => !isPlaceholderTypeName(name));
     if (specificNames.length === 0) return undefined;
-    return specificNames.sort((left, right) => right.length - left.length || left.localeCompare(right))[0];
+    return specificNames[0];
 }
 
 function isPlaceholderTypeName(name: string): boolean {
@@ -1060,7 +1068,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const quicktypeImports = extractQuicktypeImports(qtCode);
     qtCode = quicktypeImports.code;
     qtCode = postProcessEnumConstants(qtCode);
-    qtCode = collapsePlaceholderGoStructs(qtCode);
+    const knownDefNames = new Set(Object.keys(allDefinitions).map((n) => n.toLowerCase()));
+    qtCode = collapsePlaceholderGoStructs(qtCode, knownDefNames);
     // Strip trailing whitespace from quicktype output (gofmt requirement)
     qtCode = qtCode.replace(/[ \t]+$/gm, "");
 

@@ -152,7 +152,7 @@ function unwrapRedundantPythonLambdas(code: string): string {
     );
 }
 
-function collapsePlaceholderPythonDataclasses(code: string): string {
+function collapsePlaceholderPythonDataclasses(code: string, knownDefinitionNames?: Set<string>): string {
     const classBlockRe = /(@dataclass\r?\nclass\s+(\w+):[\s\S]*?)(?=^@dataclass|^class\s+\w+|^def\s+\w+|\Z)/gm;
     const matches = [...code.matchAll(classBlockRe)].map((match) => ({
         fullBlock: match[1],
@@ -170,12 +170,14 @@ function collapsePlaceholderPythonDataclasses(code: string): string {
     for (const group of groups.values()) {
         if (group.length < 2) continue;
 
-        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name));
+        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name), knownDefinitionNames);
         if (!canonical) continue;
 
         for (const duplicate of group) {
             if (duplicate.name === canonical) continue;
-            if (!isPlaceholderTypeName(duplicate.name)) continue;
+            // Only collapse types that quicktype invented (Class suffix or not
+            // in the schema's named definitions). Preserve intentionally-named types.
+            if (!isPlaceholderTypeName(duplicate.name) && knownDefinitionNames?.has(duplicate.name.toLowerCase())) continue;
 
             code = code.replace(duplicate.fullBlock, "");
             code = code.replace(new RegExp(`\\b${duplicate.name}\\b`, "g"), canonical);
@@ -346,15 +348,22 @@ function normalizePythonDataclassBlock(block: string, name: string): string {
         .join("\n");
 }
 
-function chooseCanonicalPlaceholderDuplicate(names: string[]): string | undefined {
+function chooseCanonicalPlaceholderDuplicate(names: string[], knownDefinitionNames?: Set<string>): string | undefined {
+    // Prefer the name that matches a schema definition — it's intentionally named.
+    if (knownDefinitionNames) {
+        const definedName = names.find((name) => knownDefinitionNames.has(name.toLowerCase()));
+        if (definedName) return definedName;
+    }
+    // Fallback for Class-suffix placeholders: pick the non-placeholder name.
     const specificNames = names.filter((name) => !isPlaceholderTypeName(name));
     if (specificNames.length === 0) return undefined;
-    return specificNames.sort((left, right) => right.length - left.length || left.localeCompare(right))[0];
+    return specificNames[0];
 }
 
 function isPlaceholderTypeName(name: string): boolean {
     return name.endsWith("Class");
 }
+
 
 function toSnakeCase(s: string): string {
     return s
@@ -1632,7 +1641,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = typesCode.replace(/^(\s*)pass\n\n(\s*@staticmethod)/gm, "$2");
     // Modernize to Python 3.11+ syntax
     typesCode = modernizePython(typesCode);
-    typesCode = collapsePlaceholderPythonDataclasses(typesCode);
+    const knownDefNames = new Set(Object.keys(allDefinitions).map((n) => n.toLowerCase()));
+    typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
 
     // Reorder class/enum definitions to resolve forward references.
     // Quicktype may emit classes before their dependencies are defined.

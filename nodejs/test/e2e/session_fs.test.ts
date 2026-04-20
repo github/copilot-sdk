@@ -239,17 +239,17 @@ function createTestSessionFsHandler(
         writeFile: async ({ path, content }) => {
             try {
                 await provider.writeFile(sp(session.sessionId, path), content);
-                return {};
+                return undefined;
             } catch (err) {
-                return { error: mapError(err) };
+                return mapError(err);
             }
         },
         appendFile: async ({ path, content }) => {
             try {
                 await provider.appendFile(sp(session.sessionId, path), content);
-                return {};
+                return undefined;
             } catch (err) {
-                return { error: mapError(err) };
+                return mapError(err);
             }
         },
         exists: async ({ path }) => {
@@ -275,9 +275,9 @@ function createTestSessionFsHandler(
                     recursive: recursive ?? false,
                     mode,
                 });
-                return {};
+                return undefined;
             } catch (err) {
-                return { error: mapError(err) };
+                return mapError(err);
             }
         },
         readdir: async ({ path }) => {
@@ -308,17 +308,17 @@ function createTestSessionFsHandler(
         rm: async ({ path }) => {
             try {
                 await provider.unlink(sp(session.sessionId, path));
-                return {};
+                return undefined;
             } catch (err) {
-                return { error: mapError(err) };
+                return mapError(err);
             }
         },
         rename: async ({ src, dest }) => {
             try {
                 await provider.rename(sp(session.sessionId, src), sp(session.sessionId, dest));
-                return {};
+                return undefined;
             } catch (err) {
-                return { error: mapError(err) };
+                return mapError(err);
             }
         },
     };

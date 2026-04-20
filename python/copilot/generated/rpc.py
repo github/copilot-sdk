@@ -73,34 +73,6 @@ def from_datetime(x: Any) -> datetime:
     return dateutil.parser.parse(x)
 
 @dataclass
-class PurpleModelCapabilitiesLimitsVision:
-    """Vision-specific limits"""
-
-    max_prompt_image_size: int
-    """Maximum image size in bytes"""
-
-    max_prompt_images: int
-    """Maximum number of images per prompt"""
-
-    supported_media_types: list[str]
-    """MIME types the model accepts"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PurpleModelCapabilitiesLimitsVision':
-        assert isinstance(obj, dict)
-        max_prompt_image_size = from_int(obj.get("max_prompt_image_size"))
-        max_prompt_images = from_int(obj.get("max_prompt_images"))
-        supported_media_types = from_list(from_str, obj.get("supported_media_types"))
-        return PurpleModelCapabilitiesLimitsVision(max_prompt_image_size, max_prompt_images, supported_media_types)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["max_prompt_image_size"] = from_int(self.max_prompt_image_size)
-        result["max_prompt_images"] = from_int(self.max_prompt_images)
-        result["supported_media_types"] = from_list(from_str, self.supported_media_types)
-        return result
-
-@dataclass
 class ModelCapabilitiesSupports:
     """Feature flags indicating what the model supports"""
 
@@ -183,54 +155,6 @@ class DiscoveredMCPServerType(Enum):
     MEMORY = "memory"
     SSE = "sse"
     STDIO = "stdio"
-
-@dataclass
-class SkillElement:
-    description: str
-    """Description of what the skill does"""
-
-    enabled: bool
-    """Whether the skill is currently enabled (based on global config)"""
-
-    name: str
-    """Unique identifier for the skill"""
-
-    source: str
-    """Source location type (e.g., project, personal-copilot, plugin, builtin)"""
-
-    user_invocable: bool
-    """Whether the skill can be invoked by the user as a slash command"""
-
-    path: str | None = None
-    """Absolute path to the skill file"""
-
-    project_path: str | None = None
-    """The project path this skill belongs to (only for project/inherited skills)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SkillElement':
-        assert isinstance(obj, dict)
-        description = from_str(obj.get("description"))
-        enabled = from_bool(obj.get("enabled"))
-        name = from_str(obj.get("name"))
-        source = from_str(obj.get("source"))
-        user_invocable = from_bool(obj.get("userInvocable"))
-        path = from_union([from_str, from_none], obj.get("path"))
-        project_path = from_union([from_str, from_none], obj.get("projectPath"))
-        return SkillElement(description, enabled, name, source, user_invocable, path, project_path)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["description"] = from_str(self.description)
-        result["enabled"] = from_bool(self.enabled)
-        result["name"] = from_str(self.name)
-        result["source"] = from_str(self.source)
-        result["userInvocable"] = from_bool(self.user_invocable)
-        if self.path is not None:
-            result["path"] = from_union([from_str, from_none], self.path)
-        if self.project_path is not None:
-            result["projectPath"] = from_union([from_str, from_none], self.project_path)
-        return result
 
 @dataclass
 class ServerSkill:
@@ -458,24 +382,6 @@ class UIElicitationStringOneOfFieldOneOf:
 class UIElicitationArrayEnumFieldType(Enum):
     ARRAY = "array"
 
-@dataclass
-class PurpleUIElicitationArrayAnyOfFieldItemsAnyOf:
-    const: str
-    title: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PurpleUIElicitationArrayAnyOfFieldItemsAnyOf':
-        assert isinstance(obj, dict)
-        const = from_str(obj.get("const"))
-        title = from_str(obj.get("title"))
-        return PurpleUIElicitationArrayAnyOfFieldItemsAnyOf(const, title)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["const"] = from_str(self.const)
-        result["title"] = from_str(self.title)
-        return result
-
 class UIElicitationResponseAction(Enum):
     """The user's response: accept (submitted), decline (rejected), or cancel (dismissed)"""
 
@@ -524,6 +430,12 @@ class PermissionRequestResult:
         result: dict = {}
         result["success"] = from_bool(self.success)
         return result
+
+class SessionFSErrorCode(Enum):
+    """Error classification"""
+
+    ENOENT = "ENOENT"
+    UNKNOWN = "UNKNOWN"
 
 @dataclass
 class PingResult:
@@ -584,59 +496,6 @@ class ModelBilling:
     def to_dict(self) -> dict:
         result: dict = {}
         result["multiplier"] = to_float(self.multiplier)
-        return result
-
-@dataclass
-class FluffyModelCapabilitiesLimitsVision:
-    """Vision-specific limits"""
-
-    max_prompt_image_size: int
-    """Maximum image size in bytes"""
-
-    max_prompt_images: int
-    """Maximum number of images per prompt"""
-
-    supported_media_types: list[str]
-    """MIME types the model accepts"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'FluffyModelCapabilitiesLimitsVision':
-        assert isinstance(obj, dict)
-        max_prompt_image_size = from_int(obj.get("max_prompt_image_size"))
-        max_prompt_images = from_int(obj.get("max_prompt_images"))
-        supported_media_types = from_list(from_str, obj.get("supported_media_types"))
-        return FluffyModelCapabilitiesLimitsVision(max_prompt_image_size, max_prompt_images, supported_media_types)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["max_prompt_image_size"] = from_int(self.max_prompt_image_size)
-        result["max_prompt_images"] = from_int(self.max_prompt_images)
-        result["supported_media_types"] = from_list(from_str, self.supported_media_types)
-        return result
-
-@dataclass
-class CapabilitiesSupports:
-    """Feature flags indicating what the model supports"""
-
-    reasoning_effort: bool | None = None
-    """Whether this model supports reasoning effort configuration"""
-
-    vision: bool | None = None
-    """Whether this model supports vision/image input"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CapabilitiesSupports':
-        assert isinstance(obj, dict)
-        reasoning_effort = from_union([from_bool, from_none], obj.get("reasoningEffort"))
-        vision = from_union([from_bool, from_none], obj.get("vision"))
-        return CapabilitiesSupports(reasoning_effort, vision)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.reasoning_effort is not None:
-            result["reasoningEffort"] = from_union([from_bool, from_none], self.reasoning_effort)
-        if self.vision is not None:
-            result["vision"] = from_union([from_bool, from_none], self.vision)
         return result
 
 @dataclass
@@ -916,35 +775,6 @@ class ModelSwitchToResult:
             result["modelId"] = from_union([from_str, from_none], self.model_id)
         return result
 
-@dataclass
-class FluffyModelCapabilitiesOverrideLimitsVision:
-    max_prompt_image_size: int | None = None
-    """Maximum image size in bytes"""
-
-    max_prompt_images: int | None = None
-    """Maximum number of images per prompt"""
-
-    supported_media_types: list[str] | None = None
-    """MIME types the model accepts"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'FluffyModelCapabilitiesOverrideLimitsVision':
-        assert isinstance(obj, dict)
-        max_prompt_image_size = from_union([from_int, from_none], obj.get("max_prompt_image_size"))
-        max_prompt_images = from_union([from_int, from_none], obj.get("max_prompt_images"))
-        supported_media_types = from_union([lambda x: from_list(from_str, x), from_none], obj.get("supported_media_types"))
-        return FluffyModelCapabilitiesOverrideLimitsVision(max_prompt_image_size, max_prompt_images, supported_media_types)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.max_prompt_image_size is not None:
-            result["max_prompt_image_size"] = from_union([from_int, from_none], self.max_prompt_image_size)
-        if self.max_prompt_images is not None:
-            result["max_prompt_images"] = from_union([from_int, from_none], self.max_prompt_images)
-        if self.supported_media_types is not None:
-            result["supported_media_types"] = from_union([lambda x: from_list(from_str, x), from_none], self.supported_media_types)
-        return result
-
 class SessionMode(Enum):
     """The agent mode. Valid values: "interactive", "plan", "autopilot"."""
 
@@ -1157,32 +987,6 @@ class FleetStartRequest:
         return result
 
 @dataclass
-class AgentListAgent:
-    description: str
-    """Description of the agent's purpose"""
-
-    display_name: str
-    """Human-readable display name"""
-
-    name: str
-    """Unique identifier of the custom agent"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'AgentListAgent':
-        assert isinstance(obj, dict)
-        description = from_str(obj.get("description"))
-        display_name = from_str(obj.get("displayName"))
-        name = from_str(obj.get("name"))
-        return AgentListAgent(description, display_name, name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["description"] = from_str(self.description)
-        result["displayName"] = from_str(self.display_name)
-        result["name"] = from_str(self.name)
-        return result
-
-@dataclass
 class AgentSelectResultAgent:
     """The newly selected custom agent"""
 
@@ -1224,32 +1028,6 @@ class AgentSelectRequest:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["name"] = from_str(self.name)
-        return result
-
-@dataclass
-class AgentReloadResultAgent:
-    description: str
-    """Description of the agent's purpose"""
-
-    display_name: str
-    """Human-readable display name"""
-
-    name: str
-    """Unique identifier of the custom agent"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'AgentReloadResultAgent':
-        assert isinstance(obj, dict)
-        description = from_str(obj.get("description"))
-        display_name = from_str(obj.get("displayName"))
-        name = from_str(obj.get("name"))
-        return AgentReloadResultAgent(description, display_name, name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["description"] = from_str(self.description)
-        result["displayName"] = from_str(self.display_name)
         result["name"] = from_str(self.name)
         return result
 
@@ -1484,42 +1262,6 @@ class UIElicitationSchemaPropertyStringFormat(Enum):
     DATE_TIME = "date-time"
     EMAIL = "email"
     URI = "uri"
-
-@dataclass
-class FluffyUIElicitationArrayAnyOfFieldItemsAnyOf:
-    const: str
-    title: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'FluffyUIElicitationArrayAnyOfFieldItemsAnyOf':
-        assert isinstance(obj, dict)
-        const = from_str(obj.get("const"))
-        title = from_str(obj.get("title"))
-        return FluffyUIElicitationArrayAnyOfFieldItemsAnyOf(const, title)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["const"] = from_str(self.const)
-        result["title"] = from_str(self.title)
-        return result
-
-@dataclass
-class UIElicitationSchemaPropertyOneOf:
-    const: str
-    title: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyOneOf':
-        assert isinstance(obj, dict)
-        const = from_str(obj.get("const"))
-        title = from_str(obj.get("title"))
-        return UIElicitationSchemaPropertyOneOf(const, title)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["const"] = from_str(self.const)
-        result["title"] = from_str(self.title)
-        return result
 
 class UIElicitationSchemaPropertyNumberType(Enum):
     ARRAY = "array"
@@ -1793,22 +1535,6 @@ class UsageMetricsModelMetricUsage:
         return result
 
 @dataclass
-class SessionFSReadFileResult:
-    content: str
-    """File content as UTF-8 string"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReadFileResult':
-        assert isinstance(obj, dict)
-        content = from_str(obj.get("content"))
-        return SessionFSReadFileResult(content)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["content"] = from_str(self.content)
-        return result
-
-@dataclass
 class SessionFSReadFileRequest:
     path: str
     """Path using SessionFs conventions"""
@@ -1931,42 +1657,6 @@ class SessionFSExistsRequest:
         return result
 
 @dataclass
-class SessionFSStatResult:
-    birthtime: datetime
-    """ISO 8601 timestamp of creation"""
-
-    is_directory: bool
-    """Whether the path is a directory"""
-
-    is_file: bool
-    """Whether the path is a file"""
-
-    mtime: datetime
-    """ISO 8601 timestamp of last modification"""
-
-    size: int
-    """File size in bytes"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSStatResult':
-        assert isinstance(obj, dict)
-        birthtime = from_datetime(obj.get("birthtime"))
-        is_directory = from_bool(obj.get("isDirectory"))
-        is_file = from_bool(obj.get("isFile"))
-        mtime = from_datetime(obj.get("mtime"))
-        size = from_int(obj.get("size"))
-        return SessionFSStatResult(birthtime, is_directory, is_file, mtime, size)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["birthtime"] = self.birthtime.isoformat()
-        result["isDirectory"] = from_bool(self.is_directory)
-        result["isFile"] = from_bool(self.is_file)
-        result["mtime"] = self.mtime.isoformat()
-        result["size"] = from_int(self.size)
-        return result
-
-@dataclass
 class SessionFSStatRequest:
     path: str
     """Path using SessionFs conventions"""
@@ -2018,22 +1708,6 @@ class SessionFSMkdirRequest:
             result["mode"] = from_union([from_int, from_none], self.mode)
         if self.recursive is not None:
             result["recursive"] = from_union([from_bool, from_none], self.recursive)
-        return result
-
-@dataclass
-class SessionFSReaddirResult:
-    entries: list[str]
-    """Entry names in the directory"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReaddirResult':
-        assert isinstance(obj, dict)
-        entries = from_list(from_str, obj.get("entries"))
-        return SessionFSReaddirResult(entries)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["entries"] = from_list(from_str, self.entries)
         return result
 
 @dataclass
@@ -2156,7 +1830,7 @@ class ModelCapabilitiesLimits:
     max_prompt_tokens: int | None = None
     """Maximum number of prompt/input tokens"""
 
-    vision: PurpleModelCapabilitiesLimitsVision | None = None
+    vision: ModelCapabilitiesLimitsVision | None = None
     """Vision-specific limits"""
 
     @staticmethod
@@ -2165,7 +1839,7 @@ class ModelCapabilitiesLimits:
         max_context_window_tokens = from_union([from_int, from_none], obj.get("max_context_window_tokens"))
         max_output_tokens = from_union([from_int, from_none], obj.get("max_output_tokens"))
         max_prompt_tokens = from_union([from_int, from_none], obj.get("max_prompt_tokens"))
-        vision = from_union([PurpleModelCapabilitiesLimitsVision.from_dict, from_none], obj.get("vision"))
+        vision = from_union([ModelCapabilitiesLimitsVision.from_dict, from_none], obj.get("vision"))
         return ModelCapabilitiesLimits(max_context_window_tokens, max_output_tokens, max_prompt_tokens, vision)
 
     def to_dict(self) -> dict:
@@ -2177,7 +1851,44 @@ class ModelCapabilitiesLimits:
         if self.max_prompt_tokens is not None:
             result["max_prompt_tokens"] = from_union([from_int, from_none], self.max_prompt_tokens)
         if self.vision is not None:
-            result["vision"] = from_union([lambda x: to_class(PurpleModelCapabilitiesLimitsVision, x), from_none], self.vision)
+            result["vision"] = from_union([lambda x: to_class(ModelCapabilitiesLimitsVision, x), from_none], self.vision)
+        return result
+
+@dataclass
+class CapabilitiesLimits:
+    """Token limits for prompts, outputs, and context window"""
+
+    max_context_window_tokens: int | None = None
+    """Maximum total context window size in tokens"""
+
+    max_output_tokens: int | None = None
+    """Maximum number of output/completion tokens"""
+
+    max_prompt_tokens: int | None = None
+    """Maximum number of prompt/input tokens"""
+
+    vision: ModelCapabilitiesLimitsVision | None = None
+    """Vision-specific limits"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CapabilitiesLimits':
+        assert isinstance(obj, dict)
+        max_context_window_tokens = from_union([from_int, from_none], obj.get("max_context_window_tokens"))
+        max_output_tokens = from_union([from_int, from_none], obj.get("max_output_tokens"))
+        max_prompt_tokens = from_union([from_int, from_none], obj.get("max_prompt_tokens"))
+        vision = from_union([ModelCapabilitiesLimitsVision.from_dict, from_none], obj.get("vision"))
+        return CapabilitiesLimits(max_context_window_tokens, max_output_tokens, max_prompt_tokens, vision)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_context_window_tokens is not None:
+            result["max_context_window_tokens"] = from_union([from_int, from_none], self.max_context_window_tokens)
+        if self.max_output_tokens is not None:
+            result["max_output_tokens"] = from_union([from_int, from_none], self.max_output_tokens)
+        if self.max_prompt_tokens is not None:
+            result["max_prompt_tokens"] = from_union([from_int, from_none], self.max_prompt_tokens)
+        if self.vision is not None:
+            result["vision"] = from_union([lambda x: to_class(ModelCapabilitiesLimitsVision, x), from_none], self.vision)
         return result
 
 @dataclass
@@ -2253,222 +1964,6 @@ class MCPServerConfig:
         return result
 
 @dataclass
-class MCPServerConfigValue:
-    """MCP server configuration (local/stdio or remote/http)"""
-
-    args: list[str] | None = None
-    command: str | None = None
-    cwd: str | None = None
-    env: dict[str, str] | None = None
-    filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
-    is_default_server: bool | None = None
-    timeout: int | None = None
-    """Timeout in milliseconds for tool calls to this server."""
-
-    tools: list[str] | None = None
-    """Tools to include. Defaults to all tools if not specified."""
-
-    type: MCPServerConfigType | None = None
-    """Remote transport type. Defaults to "http" when omitted."""
-
-    headers: dict[str, str] | None = None
-    oauth_client_id: str | None = None
-    oauth_public_client: bool | None = None
-    url: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerConfigValue':
-        assert isinstance(obj, dict)
-        args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
-        command = from_union([from_str, from_none], obj.get("command"))
-        cwd = from_union([from_str, from_none], obj.get("cwd"))
-        env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
-        filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString, from_none], obj.get("filterMapping"))
-        is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
-        timeout = from_union([from_int, from_none], obj.get("timeout"))
-        tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
-        type = from_union([MCPServerConfigType, from_none], obj.get("type"))
-        headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("headers"))
-        oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
-        oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
-        url = from_union([from_str, from_none], obj.get("url"))
-        return MCPServerConfigValue(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, type, headers, oauth_client_id, oauth_public_client, url)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.args is not None:
-            result["args"] = from_union([lambda x: from_list(from_str, x), from_none], self.args)
-        if self.command is not None:
-            result["command"] = from_union([from_str, from_none], self.command)
-        if self.cwd is not None:
-            result["cwd"] = from_union([from_str, from_none], self.cwd)
-        if self.env is not None:
-            result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
-        if self.filter_mapping is not None:
-            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x), from_none], self.filter_mapping)
-        if self.is_default_server is not None:
-            result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
-        if self.timeout is not None:
-            result["timeout"] = from_union([from_int, from_none], self.timeout)
-        if self.tools is not None:
-            result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
-        if self.type is not None:
-            result["type"] = from_union([lambda x: to_enum(MCPServerConfigType, x), from_none], self.type)
-        if self.headers is not None:
-            result["headers"] = from_union([lambda x: from_dict(from_str, x), from_none], self.headers)
-        if self.oauth_client_id is not None:
-            result["oauthClientId"] = from_union([from_str, from_none], self.oauth_client_id)
-        if self.oauth_public_client is not None:
-            result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
-        if self.url is not None:
-            result["url"] = from_union([from_str, from_none], self.url)
-        return result
-
-@dataclass
-class MCPConfigAddRequestMCPServerConfig:
-    """MCP server configuration (local/stdio or remote/http)"""
-
-    args: list[str] | None = None
-    command: str | None = None
-    cwd: str | None = None
-    env: dict[str, str] | None = None
-    filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
-    is_default_server: bool | None = None
-    timeout: int | None = None
-    """Timeout in milliseconds for tool calls to this server."""
-
-    tools: list[str] | None = None
-    """Tools to include. Defaults to all tools if not specified."""
-
-    type: MCPServerConfigType | None = None
-    """Remote transport type. Defaults to "http" when omitted."""
-
-    headers: dict[str, str] | None = None
-    oauth_client_id: str | None = None
-    oauth_public_client: bool | None = None
-    url: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigAddRequestMCPServerConfig':
-        assert isinstance(obj, dict)
-        args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
-        command = from_union([from_str, from_none], obj.get("command"))
-        cwd = from_union([from_str, from_none], obj.get("cwd"))
-        env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
-        filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString, from_none], obj.get("filterMapping"))
-        is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
-        timeout = from_union([from_int, from_none], obj.get("timeout"))
-        tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
-        type = from_union([MCPServerConfigType, from_none], obj.get("type"))
-        headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("headers"))
-        oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
-        oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
-        url = from_union([from_str, from_none], obj.get("url"))
-        return MCPConfigAddRequestMCPServerConfig(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, type, headers, oauth_client_id, oauth_public_client, url)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.args is not None:
-            result["args"] = from_union([lambda x: from_list(from_str, x), from_none], self.args)
-        if self.command is not None:
-            result["command"] = from_union([from_str, from_none], self.command)
-        if self.cwd is not None:
-            result["cwd"] = from_union([from_str, from_none], self.cwd)
-        if self.env is not None:
-            result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
-        if self.filter_mapping is not None:
-            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x), from_none], self.filter_mapping)
-        if self.is_default_server is not None:
-            result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
-        if self.timeout is not None:
-            result["timeout"] = from_union([from_int, from_none], self.timeout)
-        if self.tools is not None:
-            result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
-        if self.type is not None:
-            result["type"] = from_union([lambda x: to_enum(MCPServerConfigType, x), from_none], self.type)
-        if self.headers is not None:
-            result["headers"] = from_union([lambda x: from_dict(from_str, x), from_none], self.headers)
-        if self.oauth_client_id is not None:
-            result["oauthClientId"] = from_union([from_str, from_none], self.oauth_client_id)
-        if self.oauth_public_client is not None:
-            result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
-        if self.url is not None:
-            result["url"] = from_union([from_str, from_none], self.url)
-        return result
-
-@dataclass
-class MCPConfigUpdateRequestMCPServerConfig:
-    """MCP server configuration (local/stdio or remote/http)"""
-
-    args: list[str] | None = None
-    command: str | None = None
-    cwd: str | None = None
-    env: dict[str, str] | None = None
-    filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
-    is_default_server: bool | None = None
-    timeout: int | None = None
-    """Timeout in milliseconds for tool calls to this server."""
-
-    tools: list[str] | None = None
-    """Tools to include. Defaults to all tools if not specified."""
-
-    type: MCPServerConfigType | None = None
-    """Remote transport type. Defaults to "http" when omitted."""
-
-    headers: dict[str, str] | None = None
-    oauth_client_id: str | None = None
-    oauth_public_client: bool | None = None
-    url: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigUpdateRequestMCPServerConfig':
-        assert isinstance(obj, dict)
-        args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
-        command = from_union([from_str, from_none], obj.get("command"))
-        cwd = from_union([from_str, from_none], obj.get("cwd"))
-        env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
-        filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString, from_none], obj.get("filterMapping"))
-        is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
-        timeout = from_union([from_int, from_none], obj.get("timeout"))
-        tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
-        type = from_union([MCPServerConfigType, from_none], obj.get("type"))
-        headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("headers"))
-        oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
-        oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
-        url = from_union([from_str, from_none], obj.get("url"))
-        return MCPConfigUpdateRequestMCPServerConfig(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, type, headers, oauth_client_id, oauth_public_client, url)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.args is not None:
-            result["args"] = from_union([lambda x: from_list(from_str, x), from_none], self.args)
-        if self.command is not None:
-            result["command"] = from_union([from_str, from_none], self.command)
-        if self.cwd is not None:
-            result["cwd"] = from_union([from_str, from_none], self.cwd)
-        if self.env is not None:
-            result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
-        if self.filter_mapping is not None:
-            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x), from_none], self.filter_mapping)
-        if self.is_default_server is not None:
-            result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
-        if self.timeout is not None:
-            result["timeout"] = from_union([from_int, from_none], self.timeout)
-        if self.tools is not None:
-            result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
-        if self.type is not None:
-            result["type"] = from_union([lambda x: to_enum(MCPServerConfigType, x), from_none], self.type)
-        if self.headers is not None:
-            result["headers"] = from_union([lambda x: from_dict(from_str, x), from_none], self.headers)
-        if self.oauth_client_id is not None:
-            result["oauthClientId"] = from_union([from_str, from_none], self.oauth_client_id)
-        if self.oauth_public_client is not None:
-            result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
-        if self.url is not None:
-            result["url"] = from_union([from_str, from_none], self.url)
-        return result
-
-@dataclass
 class DiscoveredMCPServer:
     enabled: bool
     """Whether the server is enabled (not in the disabled list)"""
@@ -2501,51 +1996,19 @@ class DiscoveredMCPServer:
         return result
 
 @dataclass
-class ServerElement:
-    enabled: bool
-    """Whether the server is enabled (not in the disabled list)"""
-
-    name: str
-    """Server name (config key)"""
-
-    source: MCPServerSource
-    """Configuration source"""
-
-    type: DiscoveredMCPServerType | None = None
-    """Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ServerElement':
-        assert isinstance(obj, dict)
-        enabled = from_bool(obj.get("enabled"))
-        name = from_str(obj.get("name"))
-        source = MCPServerSource(obj.get("source"))
-        type = from_union([DiscoveredMCPServerType, from_none], obj.get("type"))
-        return ServerElement(enabled, name, source, type)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["enabled"] = from_bool(self.enabled)
-        result["name"] = from_str(self.name)
-        result["source"] = to_enum(MCPServerSource, self.source)
-        if self.type is not None:
-            result["type"] = from_union([lambda x: to_enum(DiscoveredMCPServerType, x), from_none], self.type)
-        return result
-
-@dataclass
 class ServerSkillList:
-    skills: list[SkillElement]
+    skills: list[ServerSkill]
     """All discovered skills across all sources"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ServerSkillList':
         assert isinstance(obj, dict)
-        skills = from_list(SkillElement.from_dict, obj.get("skills"))
+        skills = from_list(ServerSkill.from_dict, obj.get("skills"))
         return ServerSkillList(skills)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["skills"] = from_list(lambda x: to_class(SkillElement, x), self.skills)
+        result["skills"] = from_list(lambda x: to_class(ServerSkill, x), self.skills)
         return result
 
 @dataclass
@@ -2578,6 +2041,90 @@ class ModelCapabilitiesOverrideLimits:
             result["max_prompt_tokens"] = from_union([from_int, from_none], self.max_prompt_tokens)
         if self.vision is not None:
             result["vision"] = from_union([lambda x: to_class(PurpleModelCapabilitiesOverrideLimitsVision, x), from_none], self.vision)
+        return result
+
+@dataclass
+class ModelCapabilitiesLimitsClass:
+    """Token limits for prompts, outputs, and context window"""
+
+    max_context_window_tokens: int | None = None
+    """Maximum total context window size in tokens"""
+
+    max_output_tokens: int | None = None
+    max_prompt_tokens: int | None = None
+    vision: PurpleModelCapabilitiesOverrideLimitsVision | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelCapabilitiesLimitsClass':
+        assert isinstance(obj, dict)
+        max_context_window_tokens = from_union([from_int, from_none], obj.get("max_context_window_tokens"))
+        max_output_tokens = from_union([from_int, from_none], obj.get("max_output_tokens"))
+        max_prompt_tokens = from_union([from_int, from_none], obj.get("max_prompt_tokens"))
+        vision = from_union([PurpleModelCapabilitiesOverrideLimitsVision.from_dict, from_none], obj.get("vision"))
+        return ModelCapabilitiesLimitsClass(max_context_window_tokens, max_output_tokens, max_prompt_tokens, vision)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_context_window_tokens is not None:
+            result["max_context_window_tokens"] = from_union([from_int, from_none], self.max_context_window_tokens)
+        if self.max_output_tokens is not None:
+            result["max_output_tokens"] = from_union([from_int, from_none], self.max_output_tokens)
+        if self.max_prompt_tokens is not None:
+            result["max_prompt_tokens"] = from_union([from_int, from_none], self.max_prompt_tokens)
+        if self.vision is not None:
+            result["vision"] = from_union([lambda x: to_class(PurpleModelCapabilitiesOverrideLimitsVision, x), from_none], self.vision)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class AgentList:
+    agents: list[AgentInfo]
+    """Available custom agents"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'AgentList':
+        assert isinstance(obj, dict)
+        agents = from_list(AgentInfo.from_dict, obj.get("agents"))
+        return AgentList(agents)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agents"] = from_list(lambda x: to_class(AgentInfo, x), self.agents)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class AgentGetCurrentResult:
+    agent: AgentInfo | None = None
+    """Currently selected custom agent, or null if using the default agent"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'AgentGetCurrentResult':
+        assert isinstance(obj, dict)
+        agent = from_union([AgentInfo.from_dict, from_none], obj.get("agent"))
+        return AgentGetCurrentResult(agent)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.agent is not None:
+            result["agent"] = from_union([lambda x: to_class(AgentInfo, x), from_none], self.agent)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class AgentReloadResult:
+    agents: list[AgentInfo]
+    """Reloaded custom agents"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'AgentReloadResult':
+        assert isinstance(obj, dict)
+        agents = from_list(AgentInfo.from_dict, obj.get("agents"))
+        return AgentReloadResult(agents)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agents"] = from_list(lambda x: to_class(AgentInfo, x), self.agents)
         return result
 
 @dataclass
@@ -2697,17 +2244,41 @@ class UIElicitationStringOneOfField:
 
 @dataclass
 class UIElicitationArrayAnyOfFieldItems:
-    any_of: list[PurpleUIElicitationArrayAnyOfFieldItemsAnyOf]
+    any_of: list[UIElicitationStringOneOfFieldOneOf]
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationArrayAnyOfFieldItems':
         assert isinstance(obj, dict)
-        any_of = from_list(PurpleUIElicitationArrayAnyOfFieldItemsAnyOf.from_dict, obj.get("anyOf"))
+        any_of = from_list(UIElicitationStringOneOfFieldOneOf.from_dict, obj.get("anyOf"))
         return UIElicitationArrayAnyOfFieldItems(any_of)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["anyOf"] = from_list(lambda x: to_class(PurpleUIElicitationArrayAnyOfFieldItemsAnyOf, x), self.any_of)
+        result["anyOf"] = from_list(lambda x: to_class(UIElicitationStringOneOfFieldOneOf, x), self.any_of)
+        return result
+
+@dataclass
+class UIElicitationArrayFieldItems:
+    enum: list[str] | None = None
+    type: UIElicitationStringEnumFieldType | None = None
+    any_of: list[UIElicitationStringOneOfFieldOneOf] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'UIElicitationArrayFieldItems':
+        assert isinstance(obj, dict)
+        enum = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enum"))
+        type = from_union([UIElicitationStringEnumFieldType, from_none], obj.get("type"))
+        any_of = from_union([lambda x: from_list(UIElicitationStringOneOfFieldOneOf.from_dict, x), from_none], obj.get("anyOf"))
+        return UIElicitationArrayFieldItems(enum, type, any_of)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.enum is not None:
+            result["enum"] = from_union([lambda x: from_list(from_str, x), from_none], self.enum)
+        if self.type is not None:
+            result["type"] = from_union([lambda x: to_enum(UIElicitationStringEnumFieldType, x), from_none], self.type)
+        if self.any_of is not None:
+            result["anyOf"] = from_union([lambda x: from_list(lambda x: to_class(UIElicitationStringOneOfFieldOneOf, x), x), from_none], self.any_of)
         return result
 
 @dataclass
@@ -2793,40 +2364,27 @@ class PermissionDecision:
         return result
 
 @dataclass
-class CapabilitiesLimits:
-    """Token limits for prompts, outputs, and context window"""
+class SessionFSError:
+    """Describes a filesystem error."""
 
-    max_context_window_tokens: int | None = None
-    """Maximum total context window size in tokens"""
+    code: SessionFSErrorCode
+    """Error classification"""
 
-    max_output_tokens: int | None = None
-    """Maximum number of output/completion tokens"""
-
-    max_prompt_tokens: int | None = None
-    """Maximum number of prompt/input tokens"""
-
-    vision: FluffyModelCapabilitiesLimitsVision | None = None
-    """Vision-specific limits"""
+    message: str | None = None
+    """Free-form detail about the error, for logging/diagnostics"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CapabilitiesLimits':
+    def from_dict(obj: Any) -> 'SessionFSError':
         assert isinstance(obj, dict)
-        max_context_window_tokens = from_union([from_int, from_none], obj.get("max_context_window_tokens"))
-        max_output_tokens = from_union([from_int, from_none], obj.get("max_output_tokens"))
-        max_prompt_tokens = from_union([from_int, from_none], obj.get("max_prompt_tokens"))
-        vision = from_union([FluffyModelCapabilitiesLimitsVision.from_dict, from_none], obj.get("vision"))
-        return CapabilitiesLimits(max_context_window_tokens, max_output_tokens, max_prompt_tokens, vision)
+        code = SessionFSErrorCode(obj.get("code"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        return SessionFSError(code, message)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        if self.max_context_window_tokens is not None:
-            result["max_context_window_tokens"] = from_union([from_int, from_none], self.max_context_window_tokens)
-        if self.max_output_tokens is not None:
-            result["max_output_tokens"] = from_union([from_int, from_none], self.max_output_tokens)
-        if self.max_prompt_tokens is not None:
-            result["max_prompt_tokens"] = from_union([from_int, from_none], self.max_prompt_tokens)
-        if self.vision is not None:
-            result["vision"] = from_union([lambda x: to_class(FluffyModelCapabilitiesLimitsVision, x), from_none], self.vision)
+        result["code"] = to_enum(SessionFSErrorCode, self.code)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
         return result
 
 @dataclass
@@ -2916,38 +2474,6 @@ class SessionFSSetProviderRequest:
         return result
 
 @dataclass
-class ModelCapabilitiesLimitsClass:
-    """Token limits for prompts, outputs, and context window"""
-
-    max_context_window_tokens: int | None = None
-    """Maximum total context window size in tokens"""
-
-    max_output_tokens: int | None = None
-    max_prompt_tokens: int | None = None
-    vision: FluffyModelCapabilitiesOverrideLimitsVision | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesLimitsClass':
-        assert isinstance(obj, dict)
-        max_context_window_tokens = from_union([from_int, from_none], obj.get("max_context_window_tokens"))
-        max_output_tokens = from_union([from_int, from_none], obj.get("max_output_tokens"))
-        max_prompt_tokens = from_union([from_int, from_none], obj.get("max_prompt_tokens"))
-        vision = from_union([FluffyModelCapabilitiesOverrideLimitsVision.from_dict, from_none], obj.get("vision"))
-        return ModelCapabilitiesLimitsClass(max_context_window_tokens, max_output_tokens, max_prompt_tokens, vision)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.max_context_window_tokens is not None:
-            result["max_context_window_tokens"] = from_union([from_int, from_none], self.max_context_window_tokens)
-        if self.max_output_tokens is not None:
-            result["max_output_tokens"] = from_union([from_int, from_none], self.max_output_tokens)
-        if self.max_prompt_tokens is not None:
-            result["max_prompt_tokens"] = from_union([from_int, from_none], self.max_prompt_tokens)
-        if self.vision is not None:
-            result["vision"] = from_union([lambda x: to_class(FluffyModelCapabilitiesOverrideLimitsVision, x), from_none], self.vision)
-        return result
-
-@dataclass
 class ModeSetRequest:
     mode: SessionMode
     """The agent mode. Valid values: "interactive", "plan", "autopilot"."""
@@ -2976,7 +2502,6 @@ class Workspace:
     mc_session_id: str | None = None
     mc_task_id: str | None = None
     name: str | None = None
-    pr_create_sync_dismissed: bool | None = None
     repository: str | None = None
     session_sync_level: SessionSyncLevel | None = None
     summary: str | None = None
@@ -2997,13 +2522,12 @@ class Workspace:
         mc_session_id = from_union([from_str, from_none], obj.get("mc_session_id"))
         mc_task_id = from_union([from_str, from_none], obj.get("mc_task_id"))
         name = from_union([from_str, from_none], obj.get("name"))
-        pr_create_sync_dismissed = from_union([from_bool, from_none], obj.get("pr_create_sync_dismissed"))
         repository = from_union([from_str, from_none], obj.get("repository"))
         session_sync_level = from_union([SessionSyncLevel, from_none], obj.get("session_sync_level"))
         summary = from_union([from_str, from_none], obj.get("summary"))
         summary_count = from_union([from_int, from_none], obj.get("summary_count"))
         updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
-        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, pr_create_sync_dismissed, repository, session_sync_level, summary, summary_count, updated_at)
+        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, repository, session_sync_level, summary, summary_count, updated_at)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3028,8 +2552,6 @@ class Workspace:
             result["mc_task_id"] = from_union([from_str, from_none], self.mc_task_id)
         if self.name is not None:
             result["name"] = from_union([from_str, from_none], self.name)
-        if self.pr_create_sync_dismissed is not None:
-            result["pr_create_sync_dismissed"] = from_union([from_bool, from_none], self.pr_create_sync_dismissed)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
         if self.session_sync_level is not None:
@@ -3097,23 +2619,6 @@ class InstructionsSources:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class AgentList:
-    agents: list[AgentListAgent]
-    """Available custom agents"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'AgentList':
-        assert isinstance(obj, dict)
-        agents = from_list(AgentListAgent.from_dict, obj.get("agents"))
-        return AgentList(agents)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["agents"] = from_list(lambda x: to_class(AgentListAgent, x), self.agents)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class AgentSelectResult:
     agent: AgentSelectResultAgent
     """The newly selected custom agent"""
@@ -3127,41 +2632,6 @@ class AgentSelectResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["agent"] = to_class(AgentSelectResultAgent, self.agent)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class AgentGetCurrentResult:
-    agent: AgentReloadResultAgent | None = None
-    """Currently selected custom agent, or null if using the default agent"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'AgentGetCurrentResult':
-        assert isinstance(obj, dict)
-        agent = from_union([AgentReloadResultAgent.from_dict, from_none], obj.get("agent"))
-        return AgentGetCurrentResult(agent)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.agent is not None:
-            result["agent"] = from_union([lambda x: to_class(AgentReloadResultAgent, x), from_none], self.agent)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class AgentReloadResult:
-    agents: list[AgentReloadResultAgent]
-    """Reloaded custom agents"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'AgentReloadResult':
-        assert isinstance(obj, dict)
-        agents = from_list(AgentReloadResultAgent.from_dict, obj.get("agents"))
-        return AgentReloadResult(agents)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["agents"] = from_list(lambda x: to_class(AgentReloadResultAgent, x), self.agents)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -3233,30 +2703,6 @@ class Extension:
         result["status"] = to_enum(ExtensionStatus, self.status)
         if self.pid is not None:
             result["pid"] = from_union([from_int, from_none], self.pid)
-        return result
-
-@dataclass
-class UIElicitationArrayFieldItems:
-    enum: list[str] | None = None
-    type: UIElicitationStringEnumFieldType | None = None
-    any_of: list[FluffyUIElicitationArrayAnyOfFieldItemsAnyOf] | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationArrayFieldItems':
-        assert isinstance(obj, dict)
-        enum = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enum"))
-        type = from_union([UIElicitationStringEnumFieldType, from_none], obj.get("type"))
-        any_of = from_union([lambda x: from_list(FluffyUIElicitationArrayAnyOfFieldItemsAnyOf.from_dict, x), from_none], obj.get("anyOf"))
-        return UIElicitationArrayFieldItems(enum, type, any_of)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.enum is not None:
-            result["enum"] = from_union([lambda x: from_list(from_str, x), from_none], self.enum)
-        if self.type is not None:
-            result["type"] = from_union([lambda x: to_enum(UIElicitationStringEnumFieldType, x), from_none], self.type)
-        if self.any_of is not None:
-            result["anyOf"] = from_union([lambda x: from_list(lambda x: to_class(FluffyUIElicitationArrayAnyOfFieldItemsAnyOf, x), x), from_none], self.any_of)
         return result
 
 @dataclass
@@ -3393,23 +2839,23 @@ class SessionFSReaddirWithTypesEntry:
 
 @dataclass
 class MCPConfigList:
-    servers: dict[str, MCPServerConfigValue]
+    servers: dict[str, MCPServerConfig]
     """All MCP servers from user config, keyed by name"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'MCPConfigList':
         assert isinstance(obj, dict)
-        servers = from_dict(MCPServerConfigValue.from_dict, obj.get("servers"))
+        servers = from_dict(MCPServerConfig.from_dict, obj.get("servers"))
         return MCPConfigList(servers)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["servers"] = from_dict(lambda x: to_class(MCPServerConfigValue, x), self.servers)
+        result["servers"] = from_dict(lambda x: to_class(MCPServerConfig, x), self.servers)
         return result
 
 @dataclass
 class MCPConfigAddRequest:
-    config: MCPConfigAddRequestMCPServerConfig
+    config: MCPServerConfig
     """MCP server configuration (local/stdio or remote/http)"""
 
     name: str
@@ -3418,19 +2864,19 @@ class MCPConfigAddRequest:
     @staticmethod
     def from_dict(obj: Any) -> 'MCPConfigAddRequest':
         assert isinstance(obj, dict)
-        config = MCPConfigAddRequestMCPServerConfig.from_dict(obj.get("config"))
+        config = MCPServerConfig.from_dict(obj.get("config"))
         name = from_str(obj.get("name"))
         return MCPConfigAddRequest(config, name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["config"] = to_class(MCPConfigAddRequestMCPServerConfig, self.config)
+        result["config"] = to_class(MCPServerConfig, self.config)
         result["name"] = from_str(self.name)
         return result
 
 @dataclass
 class MCPConfigUpdateRequest:
-    config: MCPConfigUpdateRequestMCPServerConfig
+    config: MCPServerConfig
     """MCP server configuration (local/stdio or remote/http)"""
 
     name: str
@@ -3439,30 +2885,30 @@ class MCPConfigUpdateRequest:
     @staticmethod
     def from_dict(obj: Any) -> 'MCPConfigUpdateRequest':
         assert isinstance(obj, dict)
-        config = MCPConfigUpdateRequestMCPServerConfig.from_dict(obj.get("config"))
+        config = MCPServerConfig.from_dict(obj.get("config"))
         name = from_str(obj.get("name"))
         return MCPConfigUpdateRequest(config, name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["config"] = to_class(MCPConfigUpdateRequestMCPServerConfig, self.config)
+        result["config"] = to_class(MCPServerConfig, self.config)
         result["name"] = from_str(self.name)
         return result
 
 @dataclass
 class MCPDiscoverResult:
-    servers: list[ServerElement]
+    servers: list[DiscoveredMCPServer]
     """MCP servers discovered from all sources"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'MCPDiscoverResult':
         assert isinstance(obj, dict)
-        servers = from_list(ServerElement.from_dict, obj.get("servers"))
+        servers = from_list(DiscoveredMCPServer.from_dict, obj.get("servers"))
         return MCPDiscoverResult(servers)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["servers"] = from_list(lambda x: to_class(ServerElement, x), self.servers)
+        result["servers"] = from_list(lambda x: to_class(DiscoveredMCPServer, x), self.servers)
         return result
 
 @dataclass
@@ -3486,6 +2932,31 @@ class ModelCapabilitiesOverride:
         result: dict = {}
         if self.limits is not None:
             result["limits"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideLimits, x), from_none], self.limits)
+        if self.supports is not None:
+            result["supports"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideSupports, x), from_none], self.supports)
+        return result
+
+@dataclass
+class ModelCapabilitiesClass:
+    """Override individual model capabilities resolved by the runtime"""
+
+    limits: ModelCapabilitiesLimitsClass | None = None
+    """Token limits for prompts, outputs, and context window"""
+
+    supports: ModelCapabilitiesOverrideSupports | None = None
+    """Feature flags indicating what the model supports"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelCapabilitiesClass':
+        assert isinstance(obj, dict)
+        limits = from_union([ModelCapabilitiesLimitsClass.from_dict, from_none], obj.get("limits"))
+        supports = from_union([ModelCapabilitiesOverrideSupports.from_dict, from_none], obj.get("supports"))
+        return ModelCapabilitiesClass(limits, supports)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.limits is not None:
+            result["limits"] = from_union([lambda x: to_class(ModelCapabilitiesLimitsClass, x), from_none], self.limits)
         if self.supports is not None:
             result["supports"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideSupports, x), from_none], self.supports)
         return result
@@ -3583,6 +3054,77 @@ class UIElicitationArrayAnyOfField:
         return result
 
 @dataclass
+class UIElicitationSchemaProperty:
+    type: UIElicitationSchemaPropertyNumberType
+    default: float | bool | list[str] | str | None = None
+    description: str | None = None
+    enum: list[str] | None = None
+    enum_names: list[str] | None = None
+    title: str | None = None
+    one_of: list[UIElicitationStringOneOfFieldOneOf] | None = None
+    items: UIElicitationArrayFieldItems | None = None
+    max_items: float | None = None
+    min_items: float | None = None
+    format: UIElicitationSchemaPropertyStringFormat | None = None
+    max_length: float | None = None
+    min_length: float | None = None
+    maximum: float | None = None
+    minimum: float | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'UIElicitationSchemaProperty':
+        assert isinstance(obj, dict)
+        type = UIElicitationSchemaPropertyNumberType(obj.get("type"))
+        default = from_union([from_float, from_bool, lambda x: from_list(from_str, x), from_str, from_none], obj.get("default"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        enum = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enum"))
+        enum_names = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enumNames"))
+        title = from_union([from_str, from_none], obj.get("title"))
+        one_of = from_union([lambda x: from_list(UIElicitationStringOneOfFieldOneOf.from_dict, x), from_none], obj.get("oneOf"))
+        items = from_union([UIElicitationArrayFieldItems.from_dict, from_none], obj.get("items"))
+        max_items = from_union([from_float, from_none], obj.get("maxItems"))
+        min_items = from_union([from_float, from_none], obj.get("minItems"))
+        format = from_union([UIElicitationSchemaPropertyStringFormat, from_none], obj.get("format"))
+        max_length = from_union([from_float, from_none], obj.get("maxLength"))
+        min_length = from_union([from_float, from_none], obj.get("minLength"))
+        maximum = from_union([from_float, from_none], obj.get("maximum"))
+        minimum = from_union([from_float, from_none], obj.get("minimum"))
+        return UIElicitationSchemaProperty(type, default, description, enum, enum_names, title, one_of, items, max_items, min_items, format, max_length, min_length, maximum, minimum)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["type"] = to_enum(UIElicitationSchemaPropertyNumberType, self.type)
+        if self.default is not None:
+            result["default"] = from_union([to_float, from_bool, lambda x: from_list(from_str, x), from_str, from_none], self.default)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.enum is not None:
+            result["enum"] = from_union([lambda x: from_list(from_str, x), from_none], self.enum)
+        if self.enum_names is not None:
+            result["enumNames"] = from_union([lambda x: from_list(from_str, x), from_none], self.enum_names)
+        if self.title is not None:
+            result["title"] = from_union([from_str, from_none], self.title)
+        if self.one_of is not None:
+            result["oneOf"] = from_union([lambda x: from_list(lambda x: to_class(UIElicitationStringOneOfFieldOneOf, x), x), from_none], self.one_of)
+        if self.items is not None:
+            result["items"] = from_union([lambda x: to_class(UIElicitationArrayFieldItems, x), from_none], self.items)
+        if self.max_items is not None:
+            result["maxItems"] = from_union([to_float, from_none], self.max_items)
+        if self.min_items is not None:
+            result["minItems"] = from_union([to_float, from_none], self.min_items)
+        if self.format is not None:
+            result["format"] = from_union([lambda x: to_enum(UIElicitationSchemaPropertyStringFormat, x), from_none], self.format)
+        if self.max_length is not None:
+            result["maxLength"] = from_union([to_float, from_none], self.max_length)
+        if self.min_length is not None:
+            result["minLength"] = from_union([to_float, from_none], self.min_length)
+        if self.maximum is not None:
+            result["maximum"] = from_union([to_float, from_none], self.maximum)
+        if self.minimum is not None:
+            result["minimum"] = from_union([to_float, from_none], self.minimum)
+        return result
+
+@dataclass
 class UIHandlePendingElicitationRequest:
     request_id: str
     """The unique request ID from the elicitation.requested event"""
@@ -3624,28 +3166,89 @@ class PermissionDecisionRequest:
         return result
 
 @dataclass
-class ModelCapabilitiesClass:
-    """Override individual model capabilities resolved by the runtime"""
+class SessionFSReadFileResult:
+    content: str
+    """File content as UTF-8 string"""
 
-    limits: ModelCapabilitiesLimitsClass | None = None
-    """Token limits for prompts, outputs, and context window"""
-
-    supports: ModelCapabilitiesOverrideSupports | None = None
-    """Feature flags indicating what the model supports"""
+    error: SessionFSError | None = None
+    """Describes a filesystem error."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesClass':
+    def from_dict(obj: Any) -> 'SessionFSReadFileResult':
         assert isinstance(obj, dict)
-        limits = from_union([ModelCapabilitiesLimitsClass.from_dict, from_none], obj.get("limits"))
-        supports = from_union([ModelCapabilitiesOverrideSupports.from_dict, from_none], obj.get("supports"))
-        return ModelCapabilitiesClass(limits, supports)
+        content = from_str(obj.get("content"))
+        error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
+        return SessionFSReadFileResult(content, error)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        if self.limits is not None:
-            result["limits"] = from_union([lambda x: to_class(ModelCapabilitiesLimitsClass, x), from_none], self.limits)
-        if self.supports is not None:
-            result["supports"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideSupports, x), from_none], self.supports)
+        result["content"] = from_str(self.content)
+        if self.error is not None:
+            result["error"] = from_union([lambda x: to_class(SessionFSError, x), from_none], self.error)
+        return result
+
+@dataclass
+class SessionFSStatResult:
+    birthtime: datetime
+    """ISO 8601 timestamp of creation"""
+
+    is_directory: bool
+    """Whether the path is a directory"""
+
+    is_file: bool
+    """Whether the path is a file"""
+
+    mtime: datetime
+    """ISO 8601 timestamp of last modification"""
+
+    size: int
+    """File size in bytes"""
+
+    error: SessionFSError | None = None
+    """Describes a filesystem error."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSStatResult':
+        assert isinstance(obj, dict)
+        birthtime = from_datetime(obj.get("birthtime"))
+        is_directory = from_bool(obj.get("isDirectory"))
+        is_file = from_bool(obj.get("isFile"))
+        mtime = from_datetime(obj.get("mtime"))
+        size = from_int(obj.get("size"))
+        error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
+        return SessionFSStatResult(birthtime, is_directory, is_file, mtime, size, error)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["birthtime"] = self.birthtime.isoformat()
+        result["isDirectory"] = from_bool(self.is_directory)
+        result["isFile"] = from_bool(self.is_file)
+        result["mtime"] = self.mtime.isoformat()
+        result["size"] = from_int(self.size)
+        if self.error is not None:
+            result["error"] = from_union([lambda x: to_class(SessionFSError, x), from_none], self.error)
+        return result
+
+@dataclass
+class SessionFSReaddirResult:
+    entries: list[str]
+    """Entry names in the directory"""
+
+    error: SessionFSError | None = None
+    """Describes a filesystem error."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReaddirResult':
+        assert isinstance(obj, dict)
+        entries = from_list(from_str, obj.get("entries"))
+        error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
+        return SessionFSReaddirResult(entries, error)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["entries"] = from_list(from_str, self.entries)
+        if self.error is not None:
+            result["error"] = from_union([lambda x: to_class(SessionFSError, x), from_none], self.error)
         return result
 
 @dataclass
@@ -3695,77 +3298,6 @@ class ExtensionList:
     def to_dict(self) -> dict:
         result: dict = {}
         result["extensions"] = from_list(lambda x: to_class(Extension, x), self.extensions)
-        return result
-
-@dataclass
-class UIElicitationSchemaProperty:
-    type: UIElicitationSchemaPropertyNumberType
-    default: float | bool | list[str] | str | None = None
-    description: str | None = None
-    enum: list[str] | None = None
-    enum_names: list[str] | None = None
-    title: str | None = None
-    one_of: list[UIElicitationSchemaPropertyOneOf] | None = None
-    items: UIElicitationArrayFieldItems | None = None
-    max_items: float | None = None
-    min_items: float | None = None
-    format: UIElicitationSchemaPropertyStringFormat | None = None
-    max_length: float | None = None
-    min_length: float | None = None
-    maximum: float | None = None
-    minimum: float | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationSchemaProperty':
-        assert isinstance(obj, dict)
-        type = UIElicitationSchemaPropertyNumberType(obj.get("type"))
-        default = from_union([from_float, from_bool, lambda x: from_list(from_str, x), from_str, from_none], obj.get("default"))
-        description = from_union([from_str, from_none], obj.get("description"))
-        enum = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enum"))
-        enum_names = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enumNames"))
-        title = from_union([from_str, from_none], obj.get("title"))
-        one_of = from_union([lambda x: from_list(UIElicitationSchemaPropertyOneOf.from_dict, x), from_none], obj.get("oneOf"))
-        items = from_union([UIElicitationArrayFieldItems.from_dict, from_none], obj.get("items"))
-        max_items = from_union([from_float, from_none], obj.get("maxItems"))
-        min_items = from_union([from_float, from_none], obj.get("minItems"))
-        format = from_union([UIElicitationSchemaPropertyStringFormat, from_none], obj.get("format"))
-        max_length = from_union([from_float, from_none], obj.get("maxLength"))
-        min_length = from_union([from_float, from_none], obj.get("minLength"))
-        maximum = from_union([from_float, from_none], obj.get("maximum"))
-        minimum = from_union([from_float, from_none], obj.get("minimum"))
-        return UIElicitationSchemaProperty(type, default, description, enum, enum_names, title, one_of, items, max_items, min_items, format, max_length, min_length, maximum, minimum)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["type"] = to_enum(UIElicitationSchemaPropertyNumberType, self.type)
-        if self.default is not None:
-            result["default"] = from_union([to_float, from_bool, lambda x: from_list(from_str, x), from_str, from_none], self.default)
-        if self.description is not None:
-            result["description"] = from_union([from_str, from_none], self.description)
-        if self.enum is not None:
-            result["enum"] = from_union([lambda x: from_list(from_str, x), from_none], self.enum)
-        if self.enum_names is not None:
-            result["enumNames"] = from_union([lambda x: from_list(from_str, x), from_none], self.enum_names)
-        if self.title is not None:
-            result["title"] = from_union([from_str, from_none], self.title)
-        if self.one_of is not None:
-            result["oneOf"] = from_union([lambda x: from_list(lambda x: to_class(UIElicitationSchemaPropertyOneOf, x), x), from_none], self.one_of)
-        if self.items is not None:
-            result["items"] = from_union([lambda x: to_class(UIElicitationArrayFieldItems, x), from_none], self.items)
-        if self.max_items is not None:
-            result["maxItems"] = from_union([to_float, from_none], self.max_items)
-        if self.min_items is not None:
-            result["minItems"] = from_union([to_float, from_none], self.min_items)
-        if self.format is not None:
-            result["format"] = from_union([lambda x: to_enum(UIElicitationSchemaPropertyStringFormat, x), from_none], self.format)
-        if self.max_length is not None:
-            result["maxLength"] = from_union([to_float, from_none], self.max_length)
-        if self.min_length is not None:
-            result["minLength"] = from_union([to_float, from_none], self.min_length)
-        if self.maximum is not None:
-            result["maximum"] = from_union([to_float, from_none], self.maximum)
-        if self.minimum is not None:
-            result["minimum"] = from_union([to_float, from_none], self.minimum)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -3832,15 +3364,21 @@ class SessionFSReaddirWithTypesResult:
     entries: list[SessionFSReaddirWithTypesEntry]
     """Directory entries with type information"""
 
+    error: SessionFSError | None = None
+    """Describes a filesystem error."""
+
     @staticmethod
     def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesResult':
         assert isinstance(obj, dict)
         entries = from_list(SessionFSReaddirWithTypesEntry.from_dict, obj.get("entries"))
-        return SessionFSReaddirWithTypesResult(entries)
+        error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
+        return SessionFSReaddirWithTypesResult(entries, error)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["entries"] = from_list(lambda x: to_class(SessionFSReaddirWithTypesEntry, x), self.entries)
+        if self.error is not None:
+            result["error"] = from_union([lambda x: to_class(SessionFSError, x), from_none], self.error)
         return result
 
 @dataclass
@@ -3925,14 +3463,14 @@ class CapabilitiesClass:
     limits: CapabilitiesLimits | None = None
     """Token limits for prompts, outputs, and context window"""
 
-    supports: CapabilitiesSupports | None = None
+    supports: ModelCapabilitiesSupports | None = None
     """Feature flags indicating what the model supports"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'CapabilitiesClass':
         assert isinstance(obj, dict)
         limits = from_union([CapabilitiesLimits.from_dict, from_none], obj.get("limits"))
-        supports = from_union([CapabilitiesSupports.from_dict, from_none], obj.get("supports"))
+        supports = from_union([ModelCapabilitiesSupports.from_dict, from_none], obj.get("supports"))
         return CapabilitiesClass(limits, supports)
 
     def to_dict(self) -> dict:
@@ -3940,7 +3478,7 @@ class CapabilitiesClass:
         if self.limits is not None:
             result["limits"] = from_union([lambda x: to_class(CapabilitiesLimits, x), from_none], self.limits)
         if self.supports is not None:
-            result["supports"] = from_union([lambda x: to_class(CapabilitiesSupports, x), from_none], self.supports)
+            result["supports"] = from_union([lambda x: to_class(ModelCapabilitiesSupports, x), from_none], self.supports)
         return result
 
 @dataclass
@@ -4204,6 +3742,12 @@ def session_log_level_from_dict(s: Any) -> SessionLogLevel:
 
 def session_log_level_to_dict(x: SessionLogLevel) -> Any:
     return to_enum(SessionLogLevel, x)
+
+def session_fs_error_from_dict(s: Any) -> SessionFSError:
+    return SessionFSError.from_dict(s)
+
+def session_fs_error_to_dict(x: SessionFSError) -> Any:
+    return to_class(SessionFSError, x)
 
 def ping_result_from_dict(s: Any) -> PingResult:
     return PingResult.from_dict(s)
@@ -5129,23 +4673,23 @@ class SessionRpc:
 class SessionFsHandler(Protocol):
     async def read_file(self, params: SessionFSReadFileRequest) -> SessionFSReadFileResult:
         pass
-    async def write_file(self, params: SessionFSWriteFileRequest) -> None:
+    async def write_file(self, params: SessionFSWriteFileRequest) -> SessionFSError:
         pass
-    async def append_file(self, params: SessionFSAppendFileRequest) -> None:
+    async def append_file(self, params: SessionFSAppendFileRequest) -> SessionFSError:
         pass
     async def exists(self, params: SessionFSExistsRequest) -> SessionFSExistsResult:
         pass
     async def stat(self, params: SessionFSStatRequest) -> SessionFSStatResult:
         pass
-    async def mkdir(self, params: SessionFSMkdirRequest) -> None:
+    async def mkdir(self, params: SessionFSMkdirRequest) -> SessionFSError:
         pass
     async def readdir(self, params: SessionFSReaddirRequest) -> SessionFSReaddirResult:
         pass
     async def readdir_with_types(self, params: SessionFSReaddirWithTypesRequest) -> SessionFSReaddirWithTypesResult:
         pass
-    async def rm(self, params: SessionFSRmRequest) -> None:
+    async def rm(self, params: SessionFSRmRequest) -> SessionFSError:
         pass
-    async def rename(self, params: SessionFSRenameRequest) -> None:
+    async def rename(self, params: SessionFSRenameRequest) -> SessionFSError:
         pass
 
 @dataclass
@@ -5168,15 +4712,15 @@ def register_client_session_api_handlers(
         request = SessionFSWriteFileRequest.from_dict(params)
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
-        await handler.write_file(request)
-        return None
+        result = await handler.write_file(request)
+        return result.to_dict()
     client.set_request_handler("sessionFs.writeFile", handle_session_fs_write_file)
     async def handle_session_fs_append_file(params: dict) -> dict | None:
         request = SessionFSAppendFileRequest.from_dict(params)
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
-        await handler.append_file(request)
-        return None
+        result = await handler.append_file(request)
+        return result.to_dict()
     client.set_request_handler("sessionFs.appendFile", handle_session_fs_append_file)
     async def handle_session_fs_exists(params: dict) -> dict | None:
         request = SessionFSExistsRequest.from_dict(params)
@@ -5196,8 +4740,8 @@ def register_client_session_api_handlers(
         request = SessionFSMkdirRequest.from_dict(params)
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
-        await handler.mkdir(request)
-        return None
+        result = await handler.mkdir(request)
+        return result.to_dict()
     client.set_request_handler("sessionFs.mkdir", handle_session_fs_mkdir)
     async def handle_session_fs_readdir(params: dict) -> dict | None:
         request = SessionFSReaddirRequest.from_dict(params)
@@ -5217,13 +4761,13 @@ def register_client_session_api_handlers(
         request = SessionFSRmRequest.from_dict(params)
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
-        await handler.rm(request)
-        return None
+        result = await handler.rm(request)
+        return result.to_dict()
     client.set_request_handler("sessionFs.rm", handle_session_fs_rm)
     async def handle_session_fs_rename(params: dict) -> dict | None:
         request = SessionFSRenameRequest.from_dict(params)
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
-        await handler.rename(request)
-        return None
+        result = await handler.rename(request)
+        return result.to_dict()
     client.set_request_handler("sessionFs.rename", handle_session_fs_rename)

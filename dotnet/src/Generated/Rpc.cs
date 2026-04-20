@@ -738,10 +738,6 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("session_sync_level")]
     public WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel? SessionSyncLevel { get; set; }
 
-    /// <summary>Gets or sets the <c>pr_create_sync_dismissed</c> value.</summary>
-    [JsonPropertyName("pr_create_sync_dismissed")]
-    public bool? PrCreateSyncDismissed { get; set; }
-
     /// <summary>Gets or sets the <c>chronicle_sync_dismissed</c> value.</summary>
     [JsonPropertyName("chronicle_sync_dismissed")]
     public bool? ChronicleSyncDismissed { get; set; }
@@ -1673,12 +1669,28 @@ internal sealed class SessionUsageGetMetricsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Describes a filesystem error.</summary>
+public sealed class SessionFsError
+{
+    /// <summary>Error classification.</summary>
+    [JsonPropertyName("code")]
+    public SessionFsErrorCode Code { get; set; }
+
+    /// <summary>Free-form detail about the error, for logging/diagnostics.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
 /// <summary>RPC data type for SessionFsReadFile operations.</summary>
 public sealed class SessionFsReadFileResult
 {
     /// <summary>File content as UTF-8 string.</summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsReadFile operations.</summary>
@@ -1778,6 +1790,10 @@ public sealed class SessionFsStatResult
     /// <summary>ISO 8601 timestamp of creation.</summary>
     [JsonPropertyName("birthtime")]
     public DateTimeOffset Birthtime { get; set; }
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsStat operations.</summary>
@@ -1819,6 +1835,10 @@ public sealed class SessionFsReaddirResult
     /// <summary>Entry names in the directory.</summary>
     [JsonPropertyName("entries")]
     public IList<string> Entries { get => field ??= []; set; }
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsReaddir operations.</summary>
@@ -1851,6 +1871,10 @@ public sealed class SessionFsReaddirWithTypesResult
     /// <summary>Directory entries with type information.</summary>
     [JsonPropertyName("entries")]
     public IList<SessionFsReaddirWithTypesEntry> Entries { get => field ??= []; set; }
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
@@ -2159,6 +2183,19 @@ public enum ShellKillSignal
     /// <summary>The <c>SIGINT</c> variant.</summary>
     [JsonStringEnumMemberName("SIGINT")]
     SIGINT,
+}
+
+
+/// <summary>Error classification.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SessionFsErrorCode>))]
+public enum SessionFsErrorCode
+{
+    /// <summary>The <c>ENOENT</c> variant.</summary>
+    [JsonStringEnumMemberName("ENOENT")]
+    ENOENT,
+    /// <summary>The <c>UNKNOWN</c> variant.</summary>
+    [JsonStringEnumMemberName("UNKNOWN")]
+    UNKNOWN,
 }
 
 
@@ -3068,23 +3105,23 @@ public interface ISessionFsHandler
     /// <summary>Handles "sessionFs.readFile".</summary>
     Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.writeFile".</summary>
-    Task WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.appendFile".</summary>
-    Task AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.exists".</summary>
     Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.stat".</summary>
     Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.mkdir".</summary>
-    Task MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.readdir".</summary>
     Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.readdirWithTypes".</summary>
     Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.rm".</summary>
-    Task RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.rename".</summary>
-    Task RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -3114,21 +3151,21 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsWriteFileMethod = (Func<SessionFsWriteFileRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsWriteFileMethod = (Func<SessionFsWriteFileRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.WriteFileAsync(request, cancellationToken);
+            return await handler.WriteFileAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsWriteFileMethod.Method, registerSessionFsWriteFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.writeFile")
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsAppendFileMethod = (Func<SessionFsAppendFileRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsAppendFileMethod = (Func<SessionFsAppendFileRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.AppendFileAsync(request, cancellationToken);
+            return await handler.AppendFileAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsAppendFileMethod.Method, registerSessionFsAppendFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.appendFile")
         {
@@ -3154,11 +3191,11 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsMkdirMethod = (Func<SessionFsMkdirRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsMkdirMethod = (Func<SessionFsMkdirRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.MkdirAsync(request, cancellationToken);
+            return await handler.MkdirAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsMkdirMethod.Method, registerSessionFsMkdirMethod.Target!, new JsonRpcMethodAttribute("sessionFs.mkdir")
         {
@@ -3184,21 +3221,21 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsRmMethod = (Func<SessionFsRmRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsRmMethod = (Func<SessionFsRmRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.RmAsync(request, cancellationToken);
+            return await handler.RmAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsRmMethod.Method, registerSessionFsRmMethod.Target!, new JsonRpcMethodAttribute("sessionFs.rm")
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsRenameMethod = (Func<SessionFsRenameRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsRenameMethod = (Func<SessionFsRenameRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.RenameAsync(request, cancellationToken);
+            return await handler.RenameAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsRenameMethod.Method, registerSessionFsRenameMethod.Target!, new JsonRpcMethodAttribute("sessionFs.rename")
         {
@@ -3282,6 +3319,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionExtensionsListRequest))]
 [JsonSerializable(typeof(SessionExtensionsReloadRequest))]
 [JsonSerializable(typeof(SessionFsAppendFileRequest))]
+[JsonSerializable(typeof(SessionFsError))]
 [JsonSerializable(typeof(SessionFsExistsRequest))]
 [JsonSerializable(typeof(SessionFsExistsResult))]
 [JsonSerializable(typeof(SessionFsMkdirRequest))]
