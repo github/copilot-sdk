@@ -435,8 +435,19 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         public async Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default)
         {
-            var content = await File.ReadAllTextAsync(ResolvePath(request.Path), cancellationToken);
-            return new SessionFsReadFileResult { Content = content };
+            try
+            {
+                var content = await File.ReadAllTextAsync(ResolvePath(request.Path), cancellationToken);
+                return new SessionFsReadFileResult { Content = content };
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return new SessionFsReadFileResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message } };
+            }
+            catch (Exception ex)
+            {
+                return new SessionFsReadFileResult { Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message } };
+            }
         }
 
         public async Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default)
@@ -455,105 +466,163 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             return null;
         }
 
-        public Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default)
+        public async Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default)
         {
-            var fullPath = ResolvePath(request.Path);
-            return Task.FromResult(new SessionFsExistsResult
+            await Task.CompletedTask;
+            try
             {
-                Exists = File.Exists(fullPath) || Directory.Exists(fullPath),
-            });
-        }
-
-        public Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default)
-        {
-            var fullPath = ResolvePath(request.Path);
-            if (File.Exists(fullPath))
-            {
-                var info = new FileInfo(fullPath);
-                return Task.FromResult(new SessionFsStatResult
+                var fullPath = ResolvePath(request.Path);
+                return new SessionFsExistsResult
                 {
-                    IsFile = true,
-                    IsDirectory = false,
-                    Size = info.Length,
-                    Mtime = info.LastWriteTimeUtc,
-                    Birthtime = info.CreationTimeUtc,
-                });
+                    Exists = File.Exists(fullPath) || Directory.Exists(fullPath),
+                };
             }
-
-            var dirInfo = new DirectoryInfo(fullPath);
-            if (!dirInfo.Exists)
+            catch
             {
-                throw new FileNotFoundException($"Path does not exist: {request.Path}");
+                return new SessionFsExistsResult { Exists = false };
             }
-
-            return Task.FromResult(new SessionFsStatResult
-            {
-                IsFile = false,
-                IsDirectory = true,
-                Size = 0,
-                Mtime = dirInfo.LastWriteTimeUtc,
-                Birthtime = dirInfo.CreationTimeUtc,
-            });
         }
 
-        public Task<SessionFsError?> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default)
+        public async Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default)
         {
+            await Task.CompletedTask;
+            try
+            {
+                var fullPath = ResolvePath(request.Path);
+                if (File.Exists(fullPath))
+                {
+                    var info = new FileInfo(fullPath);
+                    return new SessionFsStatResult
+                    {
+                        IsFile = true,
+                        IsDirectory = false,
+                        Size = info.Length,
+                        Mtime = info.LastWriteTimeUtc,
+                        Birthtime = info.CreationTimeUtc,
+                    };
+                }
+
+                var dirInfo = new DirectoryInfo(fullPath);
+                if (!dirInfo.Exists)
+                {
+                    return new SessionFsStatResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = $"Path does not exist: {request.Path}" } };
+                }
+
+                return new SessionFsStatResult
+                {
+                    IsFile = false,
+                    IsDirectory = true,
+                    Size = 0,
+                    Mtime = dirInfo.LastWriteTimeUtc,
+                    Birthtime = dirInfo.CreationTimeUtc,
+                };
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return new SessionFsStatResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message } };
+            }
+            catch (Exception ex)
+            {
+                return new SessionFsStatResult { Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message } };
+            }
+        }
+
+        public async Task<SessionFsError?> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
             Directory.CreateDirectory(ResolvePath(request.Path));
-            return Task.FromResult<SessionFsError?>(null);
+            return null;
         }
 
-        public Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default)
+        public async Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default)
         {
-            var entries = Directory
-                .EnumerateFileSystemEntries(ResolvePath(request.Path))
-                .Select(Path.GetFileName)
-                .Where(name => name is not null)
-                .Cast<string>()
-                .ToList();
+            await Task.CompletedTask;
+            try
+            {
+                var entries = Directory
+                    .EnumerateFileSystemEntries(ResolvePath(request.Path))
+                    .Select(Path.GetFileName)
+                    .Where(name => name is not null)
+                    .Cast<string>()
+                    .ToList();
 
-            return Task.FromResult(new SessionFsReaddirResult { Entries = entries });
+                return new SessionFsReaddirResult { Entries = entries };
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return new SessionFsReaddirResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message } };
+            }
+            catch (Exception ex)
+            {
+                return new SessionFsReaddirResult { Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message } };
+            }
         }
 
-        public Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default)
+        public async Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default)
         {
-            var entries = Directory
-                .EnumerateFileSystemEntries(ResolvePath(request.Path))
-                .Select(path => new SessionFsReaddirWithTypesEntry
+            await Task.CompletedTask;
+            try
+            {
+                var entries = Directory
+                    .EnumerateFileSystemEntries(ResolvePath(request.Path))
+                    .Select(path => new SessionFsReaddirWithTypesEntry
+                    {
+                        Name = Path.GetFileName(path),
+                        Type = Directory.Exists(path) ? SessionFsReaddirWithTypesEntryType.Directory : SessionFsReaddirWithTypesEntryType.File,
+                    })
+                    .ToList();
+
+                return new SessionFsReaddirWithTypesResult { Entries = entries };
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return new SessionFsReaddirWithTypesResult { Error = new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message } };
+            }
+            catch (Exception ex)
+            {
+                return new SessionFsReaddirWithTypesResult { Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message } };
+            }
+        }
+
+        public async Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            try
+            {
+                var fullPath = ResolvePath(request.Path);
+
+                if (File.Exists(fullPath))
                 {
-                    Name = Path.GetFileName(path),
-                    Type = Directory.Exists(path) ? SessionFsReaddirWithTypesEntryType.Directory : SessionFsReaddirWithTypesEntryType.File,
-                })
-                .ToList();
+                    File.Delete(fullPath);
+                    return null;
+                }
 
-            return Task.FromResult(new SessionFsReaddirWithTypesResult { Entries = entries });
+                if (Directory.Exists(fullPath))
+                {
+                    Directory.Delete(fullPath, request.Recursive ?? false);
+                    return null;
+                }
+
+                if (request.Force == true)
+                {
+                    return null;
+                }
+
+                return new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = $"Path does not exist: {request.Path}" };
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return new SessionFsError { Code = SessionFsErrorCode.ENOENT, Message = ex.Message };
+            }
+            catch (Exception ex)
+            {
+                return new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = ex.Message };
+            }
         }
 
-        public Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default)
+        public async Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default)
         {
-            var fullPath = ResolvePath(request.Path);
-
-            if (File.Exists(fullPath))
-            {
-                File.Delete(fullPath);
-                return Task.FromResult<SessionFsError?>(null);
-            }
-
-            if (Directory.Exists(fullPath))
-            {
-                Directory.Delete(fullPath, request.Recursive ?? false);
-                return Task.FromResult<SessionFsError?>(null);
-            }
-
-            if (request.Force == true)
-            {
-                return Task.FromResult<SessionFsError?>(null);
-            }
-
-            throw new FileNotFoundException($"Path does not exist: {request.Path}");
-        }
-
-        public Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default)
-        {
+            await Task.CompletedTask;
             var src = ResolvePath(request.Src);
             var dest = ResolvePath(request.Dest);
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
@@ -567,7 +636,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
                 File.Move(src, dest, overwrite: true);
             }
 
-            return Task.FromResult<SessionFsError?>(null);
+            return null;
         }
 
         private string ResolvePath(string sessionPath)
