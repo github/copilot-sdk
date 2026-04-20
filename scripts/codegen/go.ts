@@ -148,7 +148,7 @@ function collapsePlaceholderGoStructs(code: string, knownDefinitionNames?: Set<s
 
 function normalizeGoStructBlock(block: string, name: string): string {
     return block
-        .replace(/^\/\/.*\r?\n/gm, "")
+        .replace(/^\s*\/\/.*\r?\n/gm, "")
         .replace(new RegExp(`^type\\s+${name}\\s+struct\\s*\\{`, "m"), "type struct {")
         .split(/\r?\n/)
         .map((line) => line.trim())
@@ -470,8 +470,15 @@ function resolveGoPropertyType(
         }
 
         if (nonNull.length > 1) {
+            // Resolve $refs in variants before discriminator analysis
+            const resolvedVariants = nonNull.map((v) => {
+                if (v.$ref && typeof v.$ref === "string") {
+                    return resolveRef(v.$ref, ctx.definitions) ?? v;
+                }
+                return v;
+            });
             // Check for discriminated union
-            const disc = findGoDiscriminator(nonNull);
+            const disc = findGoDiscriminator(resolvedVariants);
             if (disc) {
                 const unionName = (propSchema.title as string) || nestedName;
                 emitGoFlatDiscriminatedUnion(unionName, disc.property, disc.mapping, ctx, propSchema.description);
@@ -946,7 +953,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     // Type aliases for types referenced by non-generated SDK code under their short names.
     const TYPE_ALIASES: Record<string, string> = {
         PermissionRequestCommand: "PermissionRequestShellCommand",
-        PossibleURL: "PermissionRequestShellPossibleUrl",
+        PossibleURL: "PermissionRequestShellPossibleURL",
         Attachment: "UserMessageAttachment",
         AttachmentType: "UserMessageAttachmentType",
     };
@@ -1067,15 +1074,19 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
     };
 
-    // Generate types via quicktype
+    // Generate types via quicktype — use a single combined schema source so quicktype
+    // sees each definition exactly once, preventing whimsical prefix disambiguation.
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    for (const [name, def] of Object.entries(rootDefinitions)) {
-        const schemaWithDefs = withSharedDefinitions(
-            typeof def === "object" ? (def as JSONSchema7) : {},
-            allDefinitionCollections
-        );
-        await schemaInput.addSource({ name, schema: JSON.stringify(schemaWithDefs) });
-    }
+    const singleSchema: JSONSchema7 = {
+        $schema: "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        definitions: allDefinitions as Record<string, JSONSchema7>,
+        properties: Object.fromEntries(
+            Object.keys(rootDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
+        ),
+        required: Object.keys(rootDefinitions),
+    };
+    await schemaInput.addSource({ name: "RpcTypes", schema: JSON.stringify(singleSchema) });
 
     const inputData = new InputData();
     inputData.addInput(schemaInput);

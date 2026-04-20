@@ -1945,7 +1945,7 @@ type PermissionRequestShellCommand struct {
 	ReadOnly bool `json:"readOnly"`
 }
 
-type PermissionRequestShellPossibleUrl struct {
+type PermissionRequestShellPossibleURL struct {
 	// URL that may be accessed by the command
 	URL string `json:"url"`
 }
@@ -1965,7 +1965,7 @@ type PermissionRequest struct {
 	// File paths that may be read or written by the command
 	PossiblePaths []string `json:"possiblePaths,omitempty"`
 	// URLs that may be accessed by the command
-	PossibleUrls []PermissionRequestShellPossibleUrl `json:"possibleUrls,omitempty"`
+	PossibleUrls []PermissionRequestShellPossibleURL `json:"possibleUrls,omitempty"`
 	// Whether the command includes a file write redirection (e.g., > or >>)
 	HasWriteFileRedirection *bool `json:"hasWriteFileRedirection,omitempty"`
 	// Whether the UI can offer session-wide approval for this command pattern
@@ -2332,7 +2332,7 @@ const (
 // Type aliases for convenience.
 type (
 	PermissionRequestCommand = PermissionRequestShellCommand
-	PossibleURL              = PermissionRequestShellPossibleUrl
+	PossibleURL              = PermissionRequestShellPossibleURL
 	Attachment               = UserMessageAttachment
 	AttachmentType           = UserMessageAttachmentType
 )
