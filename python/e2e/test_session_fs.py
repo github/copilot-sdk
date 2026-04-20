@@ -214,6 +214,60 @@ class TestSessionFs:
 
         await wait_for_content(events_path, "checkpointNumber")
 
+    async def test_should_write_workspace_metadata_via_sessionfs(
+        self, ctx: E2ETestContext, session_fs_client: CopilotClient
+    ):
+        provider_root = Path(ctx.work_dir) / "provider"
+        session = await session_fs_client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            create_session_fs_handler=create_test_session_fs_handler(provider_root),
+        )
+
+        msg = await session.send_and_wait("What is 7 * 8?")
+        assert msg is not None
+        assert msg.data.content is not None
+        assert "56" in msg.data.content
+
+        # WorkspaceManager should have created workspace.yaml via sessionFs
+        workspace_yaml_path = provider_path(
+            provider_root, session.session_id, "/session-state/workspace.yaml"
+        )
+        await wait_for_path(workspace_yaml_path)
+        yaml_content = workspace_yaml_path.read_text(encoding="utf-8")
+        assert "id:" in yaml_content
+
+        # Checkpoint index should also exist
+        index_path = provider_path(
+            provider_root, session.session_id, "/session-state/checkpoints/index.md"
+        )
+        await wait_for_path(index_path)
+
+        await session.disconnect()
+
+    async def test_should_persist_plan_md_via_sessionfs(
+        self, ctx: E2ETestContext, session_fs_client: CopilotClient
+    ):
+        from copilot.generated.rpc import PlanUpdateRequest
+
+        provider_root = Path(ctx.work_dir) / "provider"
+        session = await session_fs_client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            create_session_fs_handler=create_test_session_fs_handler(provider_root),
+        )
+
+        # Write a plan via the session RPC
+        await session.send_and_wait("What is 2 + 3?")
+        await session.rpc.plan.update(PlanUpdateRequest(content="# Test Plan\n\nThis is a test."))
+
+        plan_path = provider_path(
+            provider_root, session.session_id, "/session-state/plan.md"
+        )
+        await wait_for_path(plan_path)
+        content = plan_path.read_text(encoding="utf-8")
+        assert "# Test Plan" in content
+
+        await session.disconnect()
+
 
 class _SessionFsHandler:
     def __init__(self, provider_root: Path, session_id: str):

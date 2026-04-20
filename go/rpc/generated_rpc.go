@@ -592,6 +592,7 @@ type WorkspaceClass struct {
 	McSessionID            *string           `json:"mc_session_id,omitempty"`
 	McTaskID               *string           `json:"mc_task_id,omitempty"`
 	Name                   *string           `json:"name,omitempty"`
+	RemoteSteerable        *bool             `json:"remote_steerable,omitempty"`
 	Repository             *string           `json:"repository,omitempty"`
 	SessionSyncLevel       *SessionSyncLevel `json:"session_sync_level,omitempty"`
 	Summary                *string           `json:"summary,omitempty"`

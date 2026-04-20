@@ -1241,7 +1241,7 @@ func convertModelCapabilitiesToClass(src *rpc.ModelCapabilitiesOverride) *rpc.Mo
 			MaxPromptTokens:        src.Limits.MaxPromptTokens,
 		}
 		if src.Limits.Vision != nil {
-			dst.Limits.Vision = &rpc.FluffyModelCapabilitiesOverrideLimitsVision{
+			dst.Limits.Vision = &rpc.PurpleModelCapabilitiesOverrideLimitsVision{
 				MaxPromptImageSize:  src.Limits.Vision.MaxPromptImageSize,
 				MaxPromptImages:     src.Limits.Vision.MaxPromptImages,
 				SupportedMediaTypes: src.Limits.Vision.SupportedMediaTypes,

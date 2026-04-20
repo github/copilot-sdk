@@ -245,6 +245,28 @@ export function isVoidSchema(schema: JSONSchema7 | null | undefined): boolean {
     return schema.type === "null";
 }
 
+/**
+ * If the schema is a nullable anyOf (anyOf: [nullLike, T] or [T, nullLike]),
+ * returns the non-null inner schema. Recognizes both `{ type: "null" }` and
+ * `{ not: {} }` (zod-to-json-schema 2019-09 format for undefined).
+ * Returns undefined if the schema is not a nullable wrapper.
+ */
+export function getNullableInner(schema: JSONSchema7): JSONSchema7 | undefined {
+    if (!schema.anyOf || !Array.isArray(schema.anyOf) || schema.anyOf.length !== 2) return undefined;
+    const [a, b] = schema.anyOf;
+    if (isNullLike(a) && !isNullLike(b)) return b as JSONSchema7;
+    if (isNullLike(b) && !isNullLike(a)) return a as JSONSchema7;
+    return undefined;
+}
+
+function isNullLike(s: unknown): boolean {
+    if (!s || typeof s !== "object") return false;
+    const obj = s as Record<string, unknown>;
+    if (obj.type === "null") return true;
+    if ("not" in obj && typeof obj.not === "object" && obj.not !== null && Object.keys(obj.not).length === 0) return true;
+    return false;
+}
+
 export function cloneSchemaForCodegen<T>(value: T): T {
     if (Array.isArray(value)) {
         return value.map((item) => cloneSchemaForCodegen(item)) as T;

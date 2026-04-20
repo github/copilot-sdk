@@ -258,6 +258,7 @@ class WorkingDirectoryContext:
     git_root: str | None = None
     repository: str | None = None
     host_type: WorkingDirectoryContextHostType | None = None
+    repository_host: str | None = None
     branch: str | None = None
     head_commit: str | None = None
     base_commit: str | None = None
@@ -269,6 +270,7 @@ class WorkingDirectoryContext:
         git_root = from_union([from_none, from_str], obj.get("gitRoot"))
         repository = from_union([from_none, from_str], obj.get("repository"))
         host_type = from_union([from_none, lambda x: parse_enum(WorkingDirectoryContextHostType, x)], obj.get("hostType"))
+        repository_host = from_union([from_none, from_str], obj.get("repositoryHost"))
         branch = from_union([from_none, from_str], obj.get("branch"))
         head_commit = from_union([from_none, from_str], obj.get("headCommit"))
         base_commit = from_union([from_none, from_str], obj.get("baseCommit"))
@@ -277,6 +279,7 @@ class WorkingDirectoryContext:
             git_root=git_root,
             repository=repository,
             host_type=host_type,
+            repository_host=repository_host,
             branch=branch,
             head_commit=head_commit,
             base_commit=base_commit,
@@ -291,6 +294,8 @@ class WorkingDirectoryContext:
             result["repository"] = from_union([from_none, from_str], self.repository)
         if self.host_type is not None:
             result["hostType"] = from_union([from_none, lambda x: to_enum(WorkingDirectoryContextHostType, x)], self.host_type)
+        if self.repository_host is not None:
+            result["repositoryHost"] = from_union([from_none, from_str], self.repository_host)
         if self.branch is not None:
             result["branch"] = from_union([from_none, from_str], self.branch)
         if self.head_commit is not None:
@@ -994,6 +999,7 @@ class SessionContextChangedData:
     git_root: str | None = None
     repository: str | None = None
     host_type: SessionContextChangedDataHostType | None = None
+    repository_host: str | None = None
     branch: str | None = None
     head_commit: str | None = None
     base_commit: str | None = None
@@ -1005,6 +1011,7 @@ class SessionContextChangedData:
         git_root = from_union([from_none, from_str], obj.get("gitRoot"))
         repository = from_union([from_none, from_str], obj.get("repository"))
         host_type = from_union([from_none, lambda x: parse_enum(SessionContextChangedDataHostType, x)], obj.get("hostType"))
+        repository_host = from_union([from_none, from_str], obj.get("repositoryHost"))
         branch = from_union([from_none, from_str], obj.get("branch"))
         head_commit = from_union([from_none, from_str], obj.get("headCommit"))
         base_commit = from_union([from_none, from_str], obj.get("baseCommit"))
@@ -1013,6 +1020,7 @@ class SessionContextChangedData:
             git_root=git_root,
             repository=repository,
             host_type=host_type,
+            repository_host=repository_host,
             branch=branch,
             head_commit=head_commit,
             base_commit=base_commit,
@@ -1027,6 +1035,8 @@ class SessionContextChangedData:
             result["repository"] = from_union([from_none, from_str], self.repository)
         if self.host_type is not None:
             result["hostType"] = from_union([from_none, lambda x: to_enum(SessionContextChangedDataHostType, x)], self.host_type)
+        if self.repository_host is not None:
+            result["repositoryHost"] = from_union([from_none, from_str], self.repository_host)
         if self.branch is not None:
             result["branch"] = from_union([from_none, from_str], self.branch)
         if self.head_commit is not None:

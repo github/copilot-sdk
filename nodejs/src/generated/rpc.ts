@@ -805,6 +805,7 @@ export interface WorkspacesGetWorkspaceResult {
     summary_count?: number;
     created_at?: string;
     updated_at?: string;
+    remote_steerable?: boolean;
     mc_task_id?: string;
     mc_session_id?: string;
     mc_last_event_id?: string;
@@ -1778,15 +1779,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
 /** Handler for `sessionFs` client session API methods. */
 export interface SessionFsHandler {
     readFile(params: SessionFsReadFileRequest): Promise<SessionFsReadFileResult>;
-    writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsError>;
-    appendFile(params: SessionFsAppendFileRequest): Promise<SessionFsError>;
+    writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsError | undefined>;
+    appendFile(params: SessionFsAppendFileRequest): Promise<SessionFsError | undefined>;
     exists(params: SessionFsExistsRequest): Promise<SessionFsExistsResult>;
     stat(params: SessionFsStatRequest): Promise<SessionFsStatResult>;
-    mkdir(params: SessionFsMkdirRequest): Promise<SessionFsError>;
+    mkdir(params: SessionFsMkdirRequest): Promise<SessionFsError | undefined>;
     readdir(params: SessionFsReaddirRequest): Promise<SessionFsReaddirResult>;
     readdirWithTypes(params: SessionFsReaddirWithTypesRequest): Promise<SessionFsReaddirWithTypesResult>;
-    rm(params: SessionFsRmRequest): Promise<SessionFsError>;
-    rename(params: SessionFsRenameRequest): Promise<SessionFsError>;
+    rm(params: SessionFsRmRequest): Promise<SessionFsError | undefined>;
+    rename(params: SessionFsRenameRequest): Promise<SessionFsError | undefined>;
 }
 
 /** All client session API handler groups. */

@@ -3970,6 +3970,10 @@ export interface WorkingDirectoryContext {
    */
   hostType?: "github" | "ado";
   /**
+   * Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
+   */
+  repositoryHost?: string;
+  /**
    * Current git branch name
    */
   branch?: string;

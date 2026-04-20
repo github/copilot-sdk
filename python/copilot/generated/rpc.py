@@ -2502,6 +2502,7 @@ class Workspace:
     mc_session_id: str | None = None
     mc_task_id: str | None = None
     name: str | None = None
+    remote_steerable: bool | None = None
     repository: str | None = None
     session_sync_level: SessionSyncLevel | None = None
     summary: str | None = None
@@ -2522,12 +2523,13 @@ class Workspace:
         mc_session_id = from_union([from_str, from_none], obj.get("mc_session_id"))
         mc_task_id = from_union([from_str, from_none], obj.get("mc_task_id"))
         name = from_union([from_str, from_none], obj.get("name"))
+        remote_steerable = from_union([from_bool, from_none], obj.get("remote_steerable"))
         repository = from_union([from_str, from_none], obj.get("repository"))
         session_sync_level = from_union([SessionSyncLevel, from_none], obj.get("session_sync_level"))
         summary = from_union([from_str, from_none], obj.get("summary"))
         summary_count = from_union([from_int, from_none], obj.get("summary_count"))
         updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
-        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, repository, session_sync_level, summary, summary_count, updated_at)
+        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, session_sync_level, summary, summary_count, updated_at)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2552,6 +2554,8 @@ class Workspace:
             result["mc_task_id"] = from_union([from_str, from_none], self.mc_task_id)
         if self.name is not None:
             result["name"] = from_union([from_str, from_none], self.name)
+        if self.remote_steerable is not None:
+            result["remote_steerable"] = from_union([from_bool, from_none], self.remote_steerable)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
         if self.session_sync_level is not None:
@@ -4673,23 +4677,23 @@ class SessionRpc:
 class SessionFsHandler(Protocol):
     async def read_file(self, params: SessionFSReadFileRequest) -> SessionFSReadFileResult:
         pass
-    async def write_file(self, params: SessionFSWriteFileRequest) -> SessionFSError:
+    async def write_file(self, params: SessionFSWriteFileRequest) -> SessionFSError | None:
         pass
-    async def append_file(self, params: SessionFSAppendFileRequest) -> SessionFSError:
+    async def append_file(self, params: SessionFSAppendFileRequest) -> SessionFSError | None:
         pass
     async def exists(self, params: SessionFSExistsRequest) -> SessionFSExistsResult:
         pass
     async def stat(self, params: SessionFSStatRequest) -> SessionFSStatResult:
         pass
-    async def mkdir(self, params: SessionFSMkdirRequest) -> SessionFSError:
+    async def mkdir(self, params: SessionFSMkdirRequest) -> SessionFSError | None:
         pass
     async def readdir(self, params: SessionFSReaddirRequest) -> SessionFSReaddirResult:
         pass
     async def readdir_with_types(self, params: SessionFSReaddirWithTypesRequest) -> SessionFSReaddirWithTypesResult:
         pass
-    async def rm(self, params: SessionFSRmRequest) -> SessionFSError:
+    async def rm(self, params: SessionFSRmRequest) -> SessionFSError | None:
         pass
-    async def rename(self, params: SessionFSRenameRequest) -> SessionFSError:
+    async def rename(self, params: SessionFSRenameRequest) -> SessionFSError | None:
         pass
 
 @dataclass
@@ -4713,14 +4717,14 @@ def register_client_session_api_handlers(
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
         result = await handler.write_file(request)
-        return result.to_dict()
+        return result.to_dict() if result is not None else None
     client.set_request_handler("sessionFs.writeFile", handle_session_fs_write_file)
     async def handle_session_fs_append_file(params: dict) -> dict | None:
         request = SessionFSAppendFileRequest.from_dict(params)
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
         result = await handler.append_file(request)
-        return result.to_dict()
+        return result.to_dict() if result is not None else None
     client.set_request_handler("sessionFs.appendFile", handle_session_fs_append_file)
     async def handle_session_fs_exists(params: dict) -> dict | None:
         request = SessionFSExistsRequest.from_dict(params)
@@ -4741,7 +4745,7 @@ def register_client_session_api_handlers(
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
         result = await handler.mkdir(request)
-        return result.to_dict()
+        return result.to_dict() if result is not None else None
     client.set_request_handler("sessionFs.mkdir", handle_session_fs_mkdir)
     async def handle_session_fs_readdir(params: dict) -> dict | None:
         request = SessionFSReaddirRequest.from_dict(params)
@@ -4762,12 +4766,12 @@ def register_client_session_api_handlers(
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
         result = await handler.rm(request)
-        return result.to_dict()
+        return result.to_dict() if result is not None else None
     client.set_request_handler("sessionFs.rm", handle_session_fs_rm)
     async def handle_session_fs_rename(params: dict) -> dict | None:
         request = SessionFSRenameRequest.from_dict(params)
         handler = get_handlers(request.session_id).session_fs
         if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
         result = await handler.rename(request)
-        return result.to_dict()
+        return result.to_dict() if result is not None else None
     client.set_request_handler("sessionFs.rename", handle_session_fs_rename)

@@ -1491,6 +1491,11 @@ public partial class SessionContextChangedData
     [JsonPropertyName("hostType")]
     public WorkingDirectoryContextHostType? HostType { get; set; }
 
+    /// <summary>Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("repositoryHost")]
+    public string? RepositoryHost { get; set; }
+
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("branch")]
@@ -2709,6 +2714,11 @@ public partial class WorkingDirectoryContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
     public WorkingDirectoryContextHostType? HostType { get; set; }
+
+    /// <summary>Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("repositoryHost")]
+    public string? RepositoryHost { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

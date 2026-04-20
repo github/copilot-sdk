@@ -12,6 +12,7 @@ import { compile } from "json-schema-to-typescript";
 import {
     getApiSchemaPath,
     fixNullableRequiredRefsInApiSchema,
+    getNullableInner,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     normalizeSchemaTitles,
@@ -318,6 +319,25 @@ function resultTypeName(method: RpcMethod): string {
     );
 }
 
+function tsNullableResultTypeName(method: RpcMethod): string | undefined {
+    const resultSchema = getMethodResultSchema(method);
+    if (!resultSchema) return undefined;
+    const inner = getNullableInner(resultSchema);
+    if (!inner) return undefined;
+    // Resolve $ref to a type name
+    if (inner.$ref) {
+        const refName = inner.$ref.split("/").pop();
+        if (refName) return `${toPascalCase(refName)} | undefined`;
+    }
+    const innerName = getRpcSchemaTypeName(inner, method.rpcMethod.split(".").map(toPascalCase).join("") + "Result");
+    return `${innerName} | undefined`;
+}
+
+function tsResultType(method: RpcMethod): string {
+    if (isVoidSchema(getMethodResultSchema(method))) return "void";
+    return tsNullableResultTypeName(method) ?? resultTypeName(method);
+}
+
 function paramsTypeName(method: RpcMethod): string {
     const fallback = rpcRequestFallbackName(method);
     if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
@@ -363,7 +383,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     for (const method of [...allMethods, ...clientSessionMethods]) {
         const resultSchema = getMethodResultSchema(method);
-        if (!isVoidSchema(resultSchema)) {
+        if (!isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
             combinedSchema.definitions![resultTypeName(method)] = withRootTitle(
                 schemaSourceForNamedDefinition(method.result, resultSchema),
                 resultTypeName(method)
@@ -486,7 +506,7 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
             const { rpcMethod, params } = value;
-            const resultType = !isVoidSchema(getMethodResultSchema(value)) ? resultTypeName(value) : "void";
+            const resultType = tsResultType(value);
             const paramsType = paramsTypeName(value);
             const effectiveParams = getMethodParamsSchema(value);
 
@@ -591,7 +611,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
             const name = handlerMethodName(method.rpcMethod);
             const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
             const pType = hasParams ? paramsTypeName(method) : "";
-            const rType = !isVoidSchema(getMethodResultSchema(method)) ? resultTypeName(method) : "void";
+            const rType = tsResultType(method);
 
             if (method.deprecated && !groupDeprecated) {
                 lines.push(`    /** @deprecated */`);

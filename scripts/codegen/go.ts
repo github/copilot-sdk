@@ -23,6 +23,7 @@ import {
     isNodeFullyDeprecated,
     isSchemaDeprecated,
     isVoidSchema,
+    getNullableInner,
     isRpcMethod,
     postProcessSchema,
     writeGeneratedFile,
@@ -274,6 +275,14 @@ function goResultTypeName(method: RpcMethod): string {
     return getRpcSchemaTypeName(getMethodResultSchema(method), toPascalCase(method.rpcMethod) + "Result");
 }
 
+function goNullableResultTypeName(method: RpcMethod, innerSchema: JSONSchema7): string {
+    if (innerSchema.$ref) {
+        const refName = innerSchema.$ref.split("/").pop();
+        if (refName) return toPascalCase(refName);
+    }
+    return getRpcSchemaTypeName(innerSchema, toPascalCase(method.rpcMethod) + "Result");
+}
+
 function goParamsTypeName(method: RpcMethod): string {
     const fallback = goRequestFallbackName(method);
     if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
@@ -436,6 +445,17 @@ function resolveGoPropertyType(
 
     // Handle anyOf
     if (propSchema.anyOf) {
+        const nullableInnerSchema = getNullableInner(propSchema);
+        if (nullableInnerSchema) {
+            // anyOf [T, null/{not:{}}] → nullable T
+            const innerType = resolveGoPropertyType(nullableInnerSchema, parentTypeName, jsonPropName, true, ctx);
+            if (isRequired) return innerType;
+            // Pointer-wrap if not already a pointer, slice, or map
+            if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
+                return innerType;
+            }
+            return `*${innerType}`;
+        }
         const nonNull = (propSchema.anyOf as JSONSchema7[]).filter((s) => s.type !== "null");
         const hasNull = (propSchema.anyOf as JSONSchema7[]).some((s) => s.type === "null");
 
@@ -443,7 +463,6 @@ function resolveGoPropertyType(
             // anyOf [T, null] → nullable T
             const innerType = resolveGoPropertyType(nonNull[0], parentTypeName, jsonPropName, true, ctx);
             if (isRequired && !hasNull) return innerType;
-            // Pointer-wrap if not already a pointer, slice, or map
             if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
                 return innerType;
             }
@@ -997,7 +1016,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     for (const method of allMethods) {
         const resultSchema = getMethodResultSchema(method);
-        if (isVoidSchema(resultSchema)) {
+        const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+        if (nullableInner) {
+            // Nullable results (e.g., *SessionFSError) don't need a wrapper type;
+            // the inner type is already in definitions via shared hoisting.
+        } else if (isVoidSchema(resultSchema)) {
             // Emit an empty struct for void results (forward-compatible with adding fields later)
             combinedSchema.definitions![goResultTypeName(method)] = {
                 title: goResultTypeName(method),
@@ -1286,7 +1309,11 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
 function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false, groupDeprecated = false): void {
     const methodName = toPascalCase(name);
-    const resultType = resolveType(goResultTypeName(method));
+    const resultSchema = getMethodResultSchema(method);
+    const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+    const resultType = nullableInner
+        ? resolveType(goNullableResultTypeName(method, nullableInner))
+        : resolveType(goResultTypeName(method));
 
     const effectiveParams = getMethodParamsSchema(method);
     const paramProps = effectiveParams?.properties || {};
@@ -1397,7 +1424,11 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
                 lines.push(`\t// Experimental: ${clientHandlerMethodName(method.rpcMethod)} is an experimental API and may change or be removed in future versions.`);
             }
             const paramsType = resolveType(goParamsTypeName(method));
-            const resultType = resolveType(goResultTypeName(method));
+            const resultSchema = getMethodResultSchema(method);
+            const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+            const resultType = nullableInner
+                ? resolveType(goNullableResultTypeName(method, nullableInner))
+                : resolveType(goResultTypeName(method));
             lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (*${resultType}, error)`);
         }
         lines.push(`}`);

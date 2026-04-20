@@ -722,6 +722,10 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("updated_at")]
     public DateTimeOffset? UpdatedAt { get; set; }
 
+    /// <summary>Gets or sets the <c>remote_steerable</c> value.</summary>
+    [JsonPropertyName("remote_steerable")]
+    public bool? RemoteSteerable { get; set; }
+
     /// <summary>Gets or sets the <c>mc_task_id</c> value.</summary>
     [JsonPropertyName("mc_task_id")]
     public string? McTaskId { get; set; }
@@ -3105,23 +3109,23 @@ public interface ISessionFsHandler
     /// <summary>Handles "sessionFs.readFile".</summary>
     Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.writeFile".</summary>
-    Task<SessionFsError> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.appendFile".</summary>
-    Task<SessionFsError> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.exists".</summary>
     Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.stat".</summary>
     Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.mkdir".</summary>
-    Task<SessionFsError> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.readdir".</summary>
     Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.readdirWithTypes".</summary>
     Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.rm".</summary>
-    Task<SessionFsError> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.rename".</summary>
-    Task<SessionFsError> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -3151,7 +3155,7 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsWriteFileMethod = (Func<SessionFsWriteFileRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
+        var registerSessionFsWriteFileMethod = (Func<SessionFsWriteFileRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
@@ -3161,7 +3165,7 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsAppendFileMethod = (Func<SessionFsAppendFileRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
+        var registerSessionFsAppendFileMethod = (Func<SessionFsAppendFileRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
@@ -3191,7 +3195,7 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsMkdirMethod = (Func<SessionFsMkdirRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
+        var registerSessionFsMkdirMethod = (Func<SessionFsMkdirRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
@@ -3221,7 +3225,7 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsRmMethod = (Func<SessionFsRmRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
+        var registerSessionFsRmMethod = (Func<SessionFsRmRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
@@ -3231,7 +3235,7 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsRenameMethod = (Func<SessionFsRenameRequest, CancellationToken, Task<SessionFsError>>)(async (request, cancellationToken) =>
+        var registerSessionFsRenameMethod = (Func<SessionFsRenameRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");

@@ -866,6 +866,8 @@ type SessionContextChangedData struct {
 	Repository *string `json:"repository,omitempty"`
 	// Hosting platform type of the repository (github or ado)
 	HostType *WorkingDirectoryContextHostType `json:"hostType,omitempty"`
+	// Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
+	RepositoryHost *string `json:"repositoryHost,omitempty"`
 	// Current git branch name
 	Branch *string `json:"branch,omitempty"`
 	// Head commit of current git branch at session start time
@@ -1650,6 +1652,8 @@ type WorkingDirectoryContext struct {
 	Repository *string `json:"repository,omitempty"`
 	// Hosting platform type of the repository (github or ado)
 	HostType *WorkingDirectoryContextHostType `json:"hostType,omitempty"`
+	// Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
+	RepositoryHost *string `json:"repositoryHost,omitempty"`
 	// Current git branch name
 	Branch *string `json:"branch,omitempty"`
 	// Head commit of current git branch at session start time
