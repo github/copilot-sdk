@@ -143,15 +143,14 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     const draftDefinitionAliases = new Map<string, string>();
 
     for (const [key, value] of Object.entries(root.$defs ?? {})) {
-        let alias = key;
-        if (alias in definitions) {
-            alias = `$defs_${key}`;
-            while (alias in definitions) {
-                alias = `$defs_${alias}`;
-            }
+        if (key in definitions) {
+            // The definitions entry is authoritative (it went through the full pipeline).
+            // Drop the $defs duplicate and rewrite any $ref pointing at it to use definitions.
+            draftDefinitionAliases.set(key, key);
+        } else {
+            draftDefinitionAliases.set(key, key);
+            definitions[key] = value;
         }
-        draftDefinitionAliases.set(key, alias);
-        definitions[alias] = value;
     }
 
     root.definitions = definitions;
@@ -169,9 +168,19 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
             Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
         ) as Record<string, unknown>;
 
-        if (typeof rewritten.$ref === "string" && rewritten.$ref.startsWith("#/$defs/")) {
-            const definitionName = rewritten.$ref.slice("#/$defs/".length);
-            rewritten.$ref = `#/definitions/${draftDefinitionAliases.get(definitionName) ?? definitionName}`;
+        if (typeof rewritten.$ref === "string") {
+            if (rewritten.$ref.startsWith("#/$defs/")) {
+                const definitionName = rewritten.$ref.slice("#/$defs/".length);
+                rewritten.$ref = `#/definitions/${draftDefinitionAliases.get(definitionName) ?? definitionName}`;
+            }
+            // json-schema-to-typescript treats sibling keywords alongside $ref as a
+            // new inline type instead of reusing the referenced definition.  Strip
+            // siblings so that $ref-only objects compile to a single shared type.
+            for (const key of Object.keys(rewritten)) {
+                if (key !== "$ref") {
+                    delete rewritten[key];
+                }
+            }
         }
 
         return rewritten;

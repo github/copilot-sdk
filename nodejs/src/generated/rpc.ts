@@ -66,8 +66,6 @@ export type FilterMapping =
  * via the `definition` "SessionMode".
  */
 export type SessionMode = "interactive" | "plan" | "autopilot";
-
-export type UIElicitationFieldValue = string | number | boolean | string[];
 /**
  * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
  *
@@ -75,6 +73,8 @@ export type UIElicitationFieldValue = string | number | boolean | string[];
  * via the `definition` "UIElicitationResponseAction".
  */
 export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
+
+export type UIElicitationFieldValue = string | number | boolean | string[];
 
 export type PermissionDecision =
   | {
@@ -144,145 +144,6 @@ export type PermissionDecision =
  * via the `definition` "SessionLogLevel".
  */
 export type SessionLogLevel = "info" | "warning" | "error";
-/**
- * MCP server configuration (local/stdio or remote/http)
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_McpServerConfig".
- */
-export type $Defs_McpServerConfig =
-  | {
-      /**
-       * Tools to include. Defaults to all tools if not specified.
-       */
-      tools?: string[];
-      type?: "local" | "stdio";
-      isDefaultServer?: boolean;
-      filterMapping?: FilterMapping;
-      /**
-       * Timeout in milliseconds for tool calls to this server.
-       */
-      timeout?: number;
-      command: string;
-      args: string[];
-      cwd?: string;
-      env?: {
-        [k: string]: string;
-      };
-    }
-  | {
-      /**
-       * Tools to include. Defaults to all tools if not specified.
-       */
-      tools?: string[];
-      /**
-       * Remote transport type. Defaults to "http" when omitted.
-       */
-      type?: "http" | "sse";
-      isDefaultServer?: boolean;
-      filterMapping?: FilterMapping;
-      /**
-       * Timeout in milliseconds for tool calls to this server.
-       */
-      timeout?: number;
-      url: string;
-      headers?: {
-        [k: string]: string;
-      };
-      oauthClientId?: string;
-      oauthPublicClient?: boolean;
-    };
-
-export type $Defs_FilterMapping =
-  | {
-      [k: string]: "none" | "markdown" | "hidden_characters";
-    }
-  | ("none" | "markdown" | "hidden_characters");
-/**
- * The agent mode. Valid values: "interactive", "plan", "autopilot".
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_SessionMode".
- */
-export type $Defs_SessionMode = "interactive" | "plan" | "autopilot";
-/**
- * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_UIElicitationResponseAction".
- */
-export type $Defs_UIElicitationResponseAction = "accept" | "decline" | "cancel";
-
-export type $Defs_UIElicitationFieldValue = string | number | boolean | string[];
-
-export type $Defs_PermissionDecision =
-  | {
-      /**
-       * The permission request was approved
-       */
-      kind: "approved";
-    }
-  | {
-      /**
-       * Denied because approval rules explicitly blocked it
-       */
-      kind: "denied-by-rules";
-      /**
-       * Rules that denied the request
-       */
-      rules: unknown[];
-    }
-  | {
-      /**
-       * Denied because no approval rule matched and user confirmation was unavailable
-       */
-      kind: "denied-no-approval-rule-and-could-not-request-from-user";
-    }
-  | {
-      /**
-       * Denied by the user during an interactive prompt
-       */
-      kind: "denied-interactively-by-user";
-      /**
-       * Optional feedback from the user explaining the denial
-       */
-      feedback?: string;
-    }
-  | {
-      /**
-       * Denied by the organization's content exclusion policy
-       */
-      kind: "denied-by-content-exclusion-policy";
-      /**
-       * File path that triggered the exclusion
-       */
-      path: string;
-      /**
-       * Human-readable explanation of why the path was excluded
-       */
-      message: string;
-    }
-  | {
-      /**
-       * Denied by a permission request hook registered by an extension or plugin
-       */
-      kind: "denied-by-permission-request-hook";
-      /**
-       * Optional message from the hook explaining the denial
-       */
-      message?: string;
-      /**
-       * Whether to interrupt the current agent turn
-       */
-      interrupt?: boolean;
-    };
-/**
- * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_SessionLogLevel".
- */
-export type $Defs_SessionLogLevel = "info" | "warning" | "error";
 
 /**
  * Model capabilities and limits
@@ -325,28 +186,11 @@ export interface ModelCapabilities {
 }
 /**
  * Vision-specific limits
- */
-export interface ModelCapabilitiesLimitsVision {
-  /**
-   * MIME types the model accepts
-   */
-  supported_media_types: string[];
-  /**
-   * Maximum number of images per prompt
-   */
-  max_prompt_images: number;
-  /**
-   * Maximum image size in bytes
-   */
-  max_prompt_image_size: number;
-}
-/**
- * Vision-specific limits
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelCapabilitiesLimitsVision".
  */
-export interface ModelCapabilitiesLimitsVision1 {
+export interface ModelCapabilitiesLimitsVision {
   /**
    * MIME types the model accepts
    */
@@ -581,17 +425,8 @@ export interface UIElicitationArrayAnyOfField {
  * via the `definition` "UIElicitationResponse".
  */
 export interface UIElicitationResponse {
-  /**
-   * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-   */
-  action: "accept" | "decline" | "cancel";
+  action: UIElicitationResponseAction;
   content?: UIElicitationResponseContent;
-}
-/**
- * The form values submitted by the user (present when action is 'accept')
- */
-export interface UIElicitationResponseContent {
-  [k: string]: UIElicitationFieldValue;
 }
 /**
  * The form values submitted by the user (present when action is 'accept')
@@ -599,7 +434,7 @@ export interface UIElicitationResponseContent {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIElicitationResponseContent".
  */
-export interface UIElicitationResponseContent1 {
+export interface UIElicitationResponseContent {
   [k: string]: UIElicitationFieldValue;
 }
 
@@ -608,17 +443,7 @@ export interface UIHandlePendingElicitationRequest {
    * The unique request ID from the elicitation.requested event
    */
   requestId: string;
-  result: UIElicitationResponse1;
-}
-/**
- * The elicitation response (accept with form values, decline, or cancel)
- */
-export interface UIElicitationResponse1 {
-  /**
-   * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-   */
-  action: "accept" | "decline" | "cancel";
-  content?: UIElicitationResponseContent;
+  result: UIElicitationResponse;
 }
 
 export interface UIElicitationResult {
@@ -694,7 +519,7 @@ export interface ModelList {
      * Display name
      */
     name: string;
-    capabilities: ModelCapabilities1;
+    capabilities: ModelCapabilities;
     /**
      * Policy state (if applicable)
      */
@@ -726,42 +551,6 @@ export interface ModelList {
      */
     defaultReasoningEffort?: string;
   }[];
-}
-/**
- * Model capabilities and limits
- */
-export interface ModelCapabilities1 {
-  /**
-   * Feature flags indicating what the model supports
-   */
-  supports?: {
-    /**
-     * Whether this model supports vision/image input
-     */
-    vision?: boolean;
-    /**
-     * Whether this model supports reasoning effort configuration
-     */
-    reasoningEffort?: boolean;
-  };
-  /**
-   * Token limits for prompts, outputs, and context window
-   */
-  limits?: {
-    /**
-     * Maximum number of prompt/input tokens
-     */
-    max_prompt_tokens?: number;
-    /**
-     * Maximum number of output/completion tokens
-     */
-    max_output_tokens?: number;
-    /**
-     * Maximum total context window size in tokens
-     */
-    max_context_window_tokens?: number;
-    vision?: ModelCapabilitiesLimitsVision;
-  };
 }
 
 export interface ToolList {
@@ -840,51 +629,7 @@ export interface McpConfigList {
    * All MCP servers from user config, keyed by name
    */
   servers: {
-    /**
-     * MCP server configuration (local/stdio or remote/http)
-     */
-    [k: string]:
-      | {
-          /**
-           * Tools to include. Defaults to all tools if not specified.
-           */
-          tools?: string[];
-          type?: "local" | "stdio";
-          isDefaultServer?: boolean;
-          filterMapping?: FilterMapping;
-          /**
-           * Timeout in milliseconds for tool calls to this server.
-           */
-          timeout?: number;
-          command: string;
-          args: string[];
-          cwd?: string;
-          env?: {
-            [k: string]: string;
-          };
-        }
-      | {
-          /**
-           * Tools to include. Defaults to all tools if not specified.
-           */
-          tools?: string[];
-          /**
-           * Remote transport type. Defaults to "http" when omitted.
-           */
-          type?: "http" | "sse";
-          isDefaultServer?: boolean;
-          filterMapping?: FilterMapping;
-          /**
-           * Timeout in milliseconds for tool calls to this server.
-           */
-          timeout?: number;
-          url: string;
-          headers?: {
-            [k: string]: string;
-          };
-          oauthClientId?: string;
-          oauthPublicClient?: boolean;
-        };
+    [k: string]: McpServerConfig;
   };
 }
 
@@ -893,51 +638,7 @@ export interface McpConfigAddRequest {
    * Unique name for the MCP server
    */
   name: string;
-  /**
-   * MCP server configuration (local/stdio or remote/http)
-   */
-  config:
-    | {
-        /**
-         * Tools to include. Defaults to all tools if not specified.
-         */
-        tools?: string[];
-        type?: "local" | "stdio";
-        isDefaultServer?: boolean;
-        filterMapping?: FilterMapping;
-        /**
-         * Timeout in milliseconds for tool calls to this server.
-         */
-        timeout?: number;
-        command: string;
-        args: string[];
-        cwd?: string;
-        env?: {
-          [k: string]: string;
-        };
-      }
-    | {
-        /**
-         * Tools to include. Defaults to all tools if not specified.
-         */
-        tools?: string[];
-        /**
-         * Remote transport type. Defaults to "http" when omitted.
-         */
-        type?: "http" | "sse";
-        isDefaultServer?: boolean;
-        filterMapping?: FilterMapping;
-        /**
-         * Timeout in milliseconds for tool calls to this server.
-         */
-        timeout?: number;
-        url: string;
-        headers?: {
-          [k: string]: string;
-        };
-        oauthClientId?: string;
-        oauthPublicClient?: boolean;
-      };
+  config: McpServerConfig;
 }
 
 export interface McpConfigUpdateRequest {
@@ -945,51 +646,7 @@ export interface McpConfigUpdateRequest {
    * Name of the MCP server to update
    */
   name: string;
-  /**
-   * MCP server configuration (local/stdio or remote/http)
-   */
-  config:
-    | {
-        /**
-         * Tools to include. Defaults to all tools if not specified.
-         */
-        tools?: string[];
-        type?: "local" | "stdio";
-        isDefaultServer?: boolean;
-        filterMapping?: FilterMapping;
-        /**
-         * Timeout in milliseconds for tool calls to this server.
-         */
-        timeout?: number;
-        command: string;
-        args: string[];
-        cwd?: string;
-        env?: {
-          [k: string]: string;
-        };
-      }
-    | {
-        /**
-         * Tools to include. Defaults to all tools if not specified.
-         */
-        tools?: string[];
-        /**
-         * Remote transport type. Defaults to "http" when omitted.
-         */
-        type?: "http" | "sse";
-        isDefaultServer?: boolean;
-        filterMapping?: FilterMapping;
-        /**
-         * Timeout in milliseconds for tool calls to this server.
-         */
-        timeout?: number;
-        url: string;
-        headers?: {
-          [k: string]: string;
-        };
-        oauthClientId?: string;
-        oauthPublicClient?: boolean;
-      };
+  config: McpServerConfig;
 }
 
 export interface McpConfigRemoveRequest {
@@ -1089,51 +746,11 @@ export interface ModelSwitchToRequest {
    * Reasoning effort level to use for the model
    */
   reasoningEffort?: string;
-  modelCapabilities?: ModelCapabilitiesOverride1;
-}
-/**
- * Override individual model capabilities resolved by the runtime
- */
-export interface ModelCapabilitiesOverride1 {
-  /**
-   * Feature flags indicating what the model supports
-   */
-  supports?: {
-    vision?: boolean;
-    reasoningEffort?: boolean;
-  };
-  /**
-   * Token limits for prompts, outputs, and context window
-   */
-  limits?: {
-    max_prompt_tokens?: number;
-    max_output_tokens?: number;
-    /**
-     * Maximum total context window size in tokens
-     */
-    max_context_window_tokens?: number;
-    vision?: {
-      /**
-       * MIME types the model accepts
-       */
-      supported_media_types?: string[];
-      /**
-       * Maximum number of images per prompt
-       */
-      max_prompt_images?: number;
-      /**
-       * Maximum image size in bytes
-       */
-      max_prompt_image_size?: number;
-    };
-  };
+  modelCapabilities?: ModelCapabilitiesOverride;
 }
 
 export interface ModeSetRequest {
-  /**
-   * The agent mode. Valid values: "interactive", "plan", "autopilot".
-   */
-  mode: "interactive" | "plan" | "autopilot";
+  mode: SessionMode;
 }
 
 export interface NameGetResult {
@@ -1302,24 +919,7 @@ export interface AgentGetCurrentResult {
 
 /** @experimental */
 export interface AgentSelectResult {
-  agent: AgentInfo1;
-}
-/**
- * The newly selected custom agent
- */
-export interface AgentInfo1 {
-  /**
-   * Unique identifier of the custom agent
-   */
-  name: string;
-  /**
-   * Human-readable display name
-   */
-  displayName: string;
-  /**
-   * Description of the agent's purpose
-   */
-  description: string;
+  agent: AgentInfo;
 }
 
 /** @experimental */
@@ -1568,10 +1168,7 @@ export interface LogRequest {
    * Human-readable message
    */
   message: string;
-  /**
-   * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
-   */
-  level?: "info" | "warning" | "error";
+  level?: SessionLogLevel;
   /**
    * When true, the message is transient and not persisted to the session event log on disk
    */
@@ -1782,20 +1379,7 @@ export interface SessionFsReadFileResult {
    * File content as UTF-8 string
    */
   content: string;
-  error?: SessionFsError1;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError1 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsReadFileRequest {
@@ -1810,20 +1394,7 @@ export interface SessionFsReadFileRequest {
 }
 
 export interface SessionFsWriteFileResult {
-  error?: SessionFsError2;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError2 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsWriteFileRequest {
@@ -1846,20 +1417,7 @@ export interface SessionFsWriteFileRequest {
 }
 
 export interface SessionFsAppendFileResult {
-  error?: SessionFsError3;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError3 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsAppendFileRequest {
@@ -1920,20 +1478,7 @@ export interface SessionFsStatResult {
    * ISO 8601 timestamp of creation
    */
   birthtime: string;
-  error?: SessionFsError4;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError4 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsStatRequest {
@@ -1948,20 +1493,7 @@ export interface SessionFsStatRequest {
 }
 
 export interface SessionFsMkdirResult {
-  error?: SessionFsError5;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError5 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsMkdirRequest {
@@ -1988,20 +1520,7 @@ export interface SessionFsReaddirResult {
    * Entry names in the directory
    */
   entries: string[];
-  error?: SessionFsError6;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError6 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsReaddirRequest {
@@ -2029,20 +1548,7 @@ export interface SessionFsReaddirWithTypesResult {
      */
     type: "file" | "directory";
   }[];
-  error?: SessionFsError7;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError7 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsReaddirWithTypesRequest {
@@ -2057,20 +1563,7 @@ export interface SessionFsReaddirWithTypesRequest {
 }
 
 export interface SessionFsRmResult {
-  error?: SessionFsError8;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError8 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsRmRequest {
@@ -2093,20 +1586,7 @@ export interface SessionFsRmRequest {
 }
 
 export interface SessionFsRenameResult {
-  error?: SessionFsError9;
-}
-/**
- * Describes a filesystem error.
- */
-export interface SessionFsError9 {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
+  error?: SessionFsError;
 }
 
 export interface SessionFsRenameRequest {
@@ -2122,379 +1602,6 @@ export interface SessionFsRenameRequest {
    * Destination path using SessionFs conventions
    */
   dest: string;
-}
-/**
- * Model capabilities and limits
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_ModelCapabilities".
- */
-export interface $Defs_ModelCapabilities {
-  /**
-   * Feature flags indicating what the model supports
-   */
-  supports?: {
-    /**
-     * Whether this model supports vision/image input
-     */
-    vision?: boolean;
-    /**
-     * Whether this model supports reasoning effort configuration
-     */
-    reasoningEffort?: boolean;
-  };
-  /**
-   * Token limits for prompts, outputs, and context window
-   */
-  limits?: {
-    /**
-     * Maximum number of prompt/input tokens
-     */
-    max_prompt_tokens?: number;
-    /**
-     * Maximum number of output/completion tokens
-     */
-    max_output_tokens?: number;
-    /**
-     * Maximum total context window size in tokens
-     */
-    max_context_window_tokens?: number;
-    vision?: ModelCapabilitiesLimitsVision2;
-  };
-}
-/**
- * Vision-specific limits
- */
-export interface ModelCapabilitiesLimitsVision2 {
-  /**
-   * MIME types the model accepts
-   */
-  supported_media_types: string[];
-  /**
-   * Maximum number of images per prompt
-   */
-  max_prompt_images: number;
-  /**
-   * Maximum image size in bytes
-   */
-  max_prompt_image_size: number;
-}
-/**
- * Vision-specific limits
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_ModelCapabilitiesLimitsVision".
- */
-export interface $Defs_ModelCapabilitiesLimitsVision {
-  /**
-   * MIME types the model accepts
-   */
-  supported_media_types: string[];
-  /**
-   * Maximum number of images per prompt
-   */
-  max_prompt_images: number;
-  /**
-   * Maximum image size in bytes
-   */
-  max_prompt_image_size: number;
-}
-
-export interface $Defs_DiscoveredMcpServer {
-  /**
-   * Server name (config key)
-   */
-  name: string;
-  /**
-   * Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
-   */
-  type?: "stdio" | "http" | "sse" | "memory";
-  /**
-   * Configuration source
-   */
-  source: "user" | "workspace" | "plugin" | "builtin";
-  /**
-   * Whether the server is enabled (not in the disabled list)
-   */
-  enabled: boolean;
-}
-
-export interface $Defs_ServerSkillList {
-  /**
-   * All discovered skills across all sources
-   */
-  skills: ServerSkill[];
-}
-
-export interface $Defs_ServerSkill {
-  /**
-   * Unique identifier for the skill
-   */
-  name: string;
-  /**
-   * Description of what the skill does
-   */
-  description: string;
-  /**
-   * Source location type (e.g., project, personal-copilot, plugin, builtin)
-   */
-  source: string;
-  /**
-   * Whether the skill can be invoked by the user as a slash command
-   */
-  userInvocable: boolean;
-  /**
-   * Whether the skill is currently enabled (based on global config)
-   */
-  enabled: boolean;
-  /**
-   * Absolute path to the skill file
-   */
-  path?: string;
-  /**
-   * The project path this skill belongs to (only for project/inherited skills)
-   */
-  projectPath?: string;
-}
-
-export interface $Defs_CurrentModel {
-  /**
-   * Currently active model identifier
-   */
-  modelId?: string;
-}
-/**
- * Override individual model capabilities resolved by the runtime
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_ModelCapabilitiesOverride".
- */
-export interface $Defs_ModelCapabilitiesOverride {
-  /**
-   * Feature flags indicating what the model supports
-   */
-  supports?: {
-    vision?: boolean;
-    reasoningEffort?: boolean;
-  };
-  /**
-   * Token limits for prompts, outputs, and context window
-   */
-  limits?: {
-    max_prompt_tokens?: number;
-    max_output_tokens?: number;
-    /**
-     * Maximum total context window size in tokens
-     */
-    max_context_window_tokens?: number;
-    vision?: {
-      /**
-       * MIME types the model accepts
-       */
-      supported_media_types?: string[];
-      /**
-       * Maximum number of images per prompt
-       */
-      max_prompt_images?: number;
-      /**
-       * Maximum image size in bytes
-       */
-      max_prompt_image_size?: number;
-    };
-  };
-}
-
-export interface $Defs_AgentInfo {
-  /**
-   * Unique identifier of the custom agent
-   */
-  name: string;
-  /**
-   * Human-readable display name
-   */
-  displayName: string;
-  /**
-   * Description of the agent's purpose
-   */
-  description: string;
-}
-
-export interface $Defs_McpServerList {
-  /**
-   * Configured MCP servers
-   */
-  servers: {
-    /**
-     * Server name (config key)
-     */
-    name: string;
-    /**
-     * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-     */
-    status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
-    /**
-     * Configuration source: user, workspace, plugin, or builtin
-     */
-    source?: "user" | "workspace" | "plugin" | "builtin";
-    /**
-     * Error message if the server failed to connect
-     */
-    error?: string;
-  }[];
-}
-
-export interface $Defs_ToolCallResult {
-  /**
-   * Text result to send back to the LLM
-   */
-  textResultForLlm: string;
-  /**
-   * Type of the tool result
-   */
-  resultType?: string;
-  /**
-   * Error message if the tool call failed
-   */
-  error?: string;
-  /**
-   * Telemetry data from tool execution
-   */
-  toolTelemetry?: {
-    [k: string]: unknown;
-  };
-}
-
-export interface $Defs_HandleToolCallResult {
-  /**
-   * Whether the tool call result was handled successfully
-   */
-  success: boolean;
-}
-
-export interface $Defs_UIElicitationStringEnumField {
-  type: "string";
-  description?: string;
-  enum: string[];
-  enumNames?: string[];
-  default?: string;
-}
-
-export interface $Defs_UIElicitationStringOneOfField {
-  type: "string";
-  description?: string;
-  oneOf: {
-    const: string;
-  }[];
-  default?: string;
-}
-
-export interface $Defs_UIElicitationArrayEnumField {
-  type: "array";
-  description?: string;
-  minItems?: number;
-  maxItems?: number;
-  items: {
-    type: "string";
-    enum: string[];
-  };
-  default?: string[];
-}
-
-export interface $Defs_UIElicitationArrayAnyOfField {
-  type: "array";
-  description?: string;
-  minItems?: number;
-  maxItems?: number;
-  items: {
-    anyOf: {
-      const: string;
-    }[];
-  };
-  default?: string[];
-}
-/**
- * The elicitation response (accept with form values, decline, or cancel)
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_UIElicitationResponse".
- */
-export interface $Defs_UIElicitationResponse {
-  /**
-   * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-   */
-  action: "accept" | "decline" | "cancel";
-  content?: UIElicitationResponseContent2;
-}
-/**
- * The form values submitted by the user (present when action is 'accept')
- */
-export interface UIElicitationResponseContent2 {
-  [k: string]: UIElicitationFieldValue;
-}
-/**
- * The form values submitted by the user (present when action is 'accept')
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_UIElicitationResponseContent".
- */
-export interface $Defs_UIElicitationResponseContent {
-  [k: string]: UIElicitationFieldValue;
-}
-
-export interface $Defs_UIHandlePendingElicitationRequest {
-  /**
-   * The unique request ID from the elicitation.requested event
-   */
-  requestId: string;
-  result: UIElicitationResponse2;
-}
-/**
- * The elicitation response (accept with form values, decline, or cancel)
- */
-export interface UIElicitationResponse2 {
-  /**
-   * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-   */
-  action: "accept" | "decline" | "cancel";
-  content?: UIElicitationResponseContent;
-}
-
-export interface $Defs_UIElicitationResult {
-  /**
-   * Whether the response was accepted. False if the request was already resolved by another client.
-   */
-  success: boolean;
-}
-
-export interface $Defs_PermissionDecisionRequest {
-  /**
-   * Request ID of the pending permission request
-   */
-  requestId: string;
-  result: PermissionDecision;
-}
-
-export interface $Defs_PermissionRequestResult {
-  /**
-   * Whether the permission request was handled successfully
-   */
-  success: boolean;
-}
-/**
- * Describes a filesystem error.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "$defs_SessionFsError".
- */
-export interface $Defs_SessionFsError {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
 }
 
 /** Create typed server-scoped RPC methods (no session required). */
