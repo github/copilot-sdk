@@ -724,7 +724,6 @@ public class GeneratedEventTypesCoverageTest {
 
     @Test
     void testSessionMcpServersLoadedStatusEnumFromValue() {
-        var s = SessionMcpServersLoadedEvent.SessionMcpServersLoadedEventData.SessionMcpServersLoadedEventDataServersItem.SessionMcpServersLoadedEventDataServersItemStatus.class;
         assertThrows(IllegalArgumentException.class,
                 () -> SessionMcpServersLoadedEvent.SessionMcpServersLoadedEventData.SessionMcpServersLoadedEventDataServersItem.SessionMcpServersLoadedEventDataServersItemStatus
                         .fromValue("unknown"));
