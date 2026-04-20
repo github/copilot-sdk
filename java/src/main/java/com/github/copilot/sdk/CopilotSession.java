@@ -460,6 +460,7 @@ public final class CopilotSession implements AutoCloseable {
         request.setPrompt(options.getPrompt());
         request.setAttachments(options.getAttachments());
         request.setMode(options.getMode());
+        request.setRequestHeaders(options.getRequestHeaders());
 
         return rpc.invoke("session.send", request, SendMessageResponse.class).thenApply(SendMessageResponse::messageId);
     }
@@ -1549,6 +1550,51 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
         return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null))
+                .thenApply(r -> null);
+    }
+
+    /**
+     * Changes the model for this session with optional reasoning effort and
+     * capability overrides.
+     * <p>
+     * The new model takes effect for the next message. Conversation history is
+     * preserved.
+     *
+     * <pre>{@code
+     * session.setModel("claude-sonnet-4.5", null,
+     * 		new ModelCapabilitiesOverride().setSupports(new ModelCapabilitiesOverride.Supports().setVision(false)))
+     * 		.get();
+     * }</pre>
+     *
+     * @param model
+     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     * @param reasoningEffort
+     *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
+     *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
+     * @param modelCapabilities
+     *            per-property overrides for model capabilities; {@code null} to use
+     *            runtime defaults
+     * @return a future that completes when the model switch is acknowledged
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.3.0
+     */
+    public CompletableFuture<Void> setModel(String model, String reasoningEffort,
+            com.github.copilot.sdk.json.ModelCapabilitiesOverride modelCapabilities) {
+        ensureNotTerminated();
+        SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities generatedCapabilities = null;
+        if (modelCapabilities != null) {
+            SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesSupports supports = null;
+            if (modelCapabilities.getSupports() != null) {
+                var s = modelCapabilities.getSupports();
+                supports = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesSupports(
+                        s.getVision(), s.getReasoningEffort());
+            }
+            generatedCapabilities = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities(supports,
+                    null);
+        }
+        return getRpc().model
+                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, generatedCapabilities))
                 .thenApply(r -> null);
     }
 

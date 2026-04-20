@@ -115,6 +115,7 @@ final class SessionRequestBuilder {
         request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());
         request.setStreaming(config.isStreaming() ? true : null);
+        request.setIncludeSubAgentStreamingEvents(config.getIncludeSubAgentStreamingEvents());
         request.setMcpServers(config.getMcpServers());
         request.setCustomAgents(config.getCustomAgents());
         request.setAgent(config.getAgent());
@@ -122,6 +123,8 @@ final class SessionRequestBuilder {
         request.setSkillDirectories(config.getSkillDirectories());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setConfigDir(config.getConfigDir());
+        request.setEnableConfigDiscovery(config.getEnableConfigDiscovery());
+        request.setModelCapabilities(config.getModelCapabilities());
 
         if (config.getCommands() != null && !config.getCommands().isEmpty()) {
             var wireCommands = config.getCommands().stream()
@@ -185,14 +188,17 @@ final class SessionRequestBuilder {
         request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());
         request.setConfigDir(config.getConfigDir());
+        request.setEnableConfigDiscovery(config.getEnableConfigDiscovery());
         request.setDisableResume(config.isDisableResume() ? true : null);
         request.setStreaming(config.isStreaming() ? true : null);
+        request.setIncludeSubAgentStreamingEvents(config.getIncludeSubAgentStreamingEvents());
         request.setMcpServers(config.getMcpServers());
         request.setCustomAgents(config.getCustomAgents());
         request.setAgent(config.getAgent());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setInfiniteSessions(config.getInfiniteSessions());
+        request.setModelCapabilities(config.getModelCapabilities());
 
         if (config.getCommands() != null && !config.getCommands().isEmpty()) {
             var wireCommands = config.getCommands().stream()

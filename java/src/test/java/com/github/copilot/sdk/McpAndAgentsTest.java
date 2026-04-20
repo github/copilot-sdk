@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -17,6 +16,8 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.generated.AssistantMessageEvent;
 import com.github.copilot.sdk.json.CustomAgentConfig;
+import com.github.copilot.sdk.json.McpServerConfig;
+import com.github.copilot.sdk.json.McpStdioServerConfig;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
@@ -46,14 +47,9 @@ public class McpAndAgentsTest {
         }
     }
 
-    // Helper method to create an MCP local server configuration
-    private Map<String, Object> createLocalMcpServer(String command, List<String> args) {
-        var server = new HashMap<String, Object>();
-        server.put("type", "local");
-        server.put("command", command);
-        server.put("args", args);
-        server.put("tools", List.of("*"));
-        return server;
+    // Helper method to create an MCP stdio server configuration
+    private McpStdioServerConfig createLocalMcpServer(String command, List<String> args) {
+        return new McpStdioServerConfig().setCommand(command).setArgs(args).setTools(List.of("*"));
     }
 
     // ============ MCP Server Tests ============
@@ -68,7 +64,7 @@ public class McpAndAgentsTest {
     void testShouldAcceptMcpServerConfigurationOnSessionCreate() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
-        var mcpServers = new HashMap<String, Object>();
+        var mcpServers = new HashMap<String, McpServerConfig>();
         mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
 
         try (CopilotClient client = ctx.createClient()) {
@@ -108,7 +104,7 @@ public class McpAndAgentsTest {
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
             // Resume with MCP servers
-            var mcpServers = new HashMap<String, Object>();
+            var mcpServers = new HashMap<String, McpServerConfig>();
             mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
 
             CopilotSession session2 = client.resumeSession(sessionId, new ResumeSessionConfig()
@@ -139,7 +135,7 @@ public class McpAndAgentsTest {
         // count
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
-        var mcpServers = new HashMap<String, Object>();
+        var mcpServers = new HashMap<String, McpServerConfig>();
         mcpServers.put("server1", createLocalMcpServer("echo", List.of("server1")));
         mcpServers.put("server2", createLocalMcpServer("echo", List.of("server2")));
 
@@ -261,7 +257,7 @@ public class McpAndAgentsTest {
         // Use combined snapshot since this uses both MCP servers and custom agents
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 
-        var agentMcpServers = new HashMap<String, Object>();
+        var agentMcpServers = new HashMap<String, McpServerConfig>();
         agentMcpServers.put("agent-server", createLocalMcpServer("echo", List.of("agent-mcp")));
 
         List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("mcp-agent")
@@ -315,7 +311,7 @@ public class McpAndAgentsTest {
     void testShouldAcceptBothMcpServersAndCustomAgents() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 
-        var mcpServers = new HashMap<String, Object>();
+        var mcpServers = new HashMap<String, McpServerConfig>();
         mcpServers.put("shared-server", createLocalMcpServer("echo", List.of("shared")));
 
         List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("combined-agent")

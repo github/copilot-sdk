@@ -68,14 +68,20 @@ public final class ResumeSessionRequest {
     @JsonProperty("configDir")
     private String configDir;
 
+    @JsonProperty("enableConfigDiscovery")
+    private Boolean enableConfigDiscovery;
+
     @JsonProperty("disableResume")
     private Boolean disableResume;
 
     @JsonProperty("streaming")
     private Boolean streaming;
 
+    @JsonProperty("includeSubAgentStreamingEvents")
+    private Boolean includeSubAgentStreamingEvents;
+
     @JsonProperty("mcpServers")
-    private Map<String, Object> mcpServers;
+    private Map<String, McpServerConfig> mcpServers;
 
     @JsonProperty("envValueMode")
     private String envValueMode;
@@ -100,6 +106,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("requestElicitation")
     private Boolean requestElicitation;
+
+    @JsonProperty("modelCapabilities")
+    private ModelCapabilitiesOverride modelCapabilities;
 
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
@@ -246,6 +255,16 @@ public final class ResumeSessionRequest {
         this.configDir = configDir;
     }
 
+    /** Gets enable config discovery flag. @return the flag */
+    public Boolean getEnableConfigDiscovery() {
+        return enableConfigDiscovery;
+    }
+
+    /** Sets enable config discovery flag. @param enableConfigDiscovery the flag */
+    public void setEnableConfigDiscovery(Boolean enableConfigDiscovery) {
+        this.enableConfigDiscovery = enableConfigDiscovery;
+    }
+
     /** Gets disable resume flag. @return the flag */
     public Boolean getDisableResume() {
         return disableResume;
@@ -266,13 +285,26 @@ public final class ResumeSessionRequest {
         this.streaming = streaming;
     }
 
+    /** Gets include sub-agent streaming events flag. @return the flag */
+    public Boolean getIncludeSubAgentStreamingEvents() {
+        return includeSubAgentStreamingEvents;
+    }
+
+    /**
+     * Sets include sub-agent streaming events flag. @param
+     * includeSubAgentStreamingEvents the flag
+     */
+    public void setIncludeSubAgentStreamingEvents(Boolean includeSubAgentStreamingEvents) {
+        this.includeSubAgentStreamingEvents = includeSubAgentStreamingEvents;
+    }
+
     /** Gets MCP servers. @return the servers map */
-    public Map<String, Object> getMcpServers() {
+    public Map<String, McpServerConfig> getMcpServers() {
         return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
     /** Sets MCP servers. @param mcpServers the servers map */
-    public void setMcpServers(Map<String, Object> mcpServers) {
+    public void setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
     }
 
@@ -357,5 +389,17 @@ public final class ResumeSessionRequest {
     /** Sets the requestElicitation flag. @param requestElicitation the flag */
     public void setRequestElicitation(Boolean requestElicitation) {
         this.requestElicitation = requestElicitation;
+    }
+
+    /** Gets the model capabilities override. @return the override */
+    public ModelCapabilitiesOverride getModelCapabilities() {
+        return modelCapabilities;
+    }
+
+    /**
+     * Sets the model capabilities override. @param modelCapabilities the override
+     */
+    public void setModelCapabilities(ModelCapabilitiesOverride modelCapabilities) {
+        this.modelCapabilities = modelCapabilities;
     }
 }

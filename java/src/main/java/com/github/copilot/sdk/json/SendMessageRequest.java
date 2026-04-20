@@ -6,6 +6,7 @@ package com.github.copilot.sdk.json;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -35,6 +36,9 @@ public final class SendMessageRequest {
 
     @JsonProperty("mode")
     private String mode;
+
+    @JsonProperty("requestHeaders")
+    private Map<String, String> requestHeaders;
 
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
@@ -74,5 +78,15 @@ public final class SendMessageRequest {
     /** Sets the mode. @param mode the message mode */
     public void setMode(String mode) {
         this.mode = mode;
+    }
+
+    /** Gets the per-turn request headers. @return the headers map */
+    public Map<String, String> getRequestHeaders() {
+        return requestHeaders == null ? null : Collections.unmodifiableMap(requestHeaders);
+    }
+
+    /** Sets the per-turn request headers. @param requestHeaders the headers map */
+    public void setRequestHeaders(Map<String, String> requestHeaders) {
+        this.requestHeaders = requestHeaders;
     }
 }

@@ -7,6 +7,9 @@ package com.github.copilot.sdk.json;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * Configuration for a custom API provider (BYOK - Bring Your Own Key).
  * <p>
@@ -50,6 +53,9 @@ public class ProviderConfig {
 
     @JsonProperty("azure")
     private AzureOptions azure;
+
+    @JsonProperty("headers")
+    private Map<String, String> headers;
 
     /**
      * Gets the provider type.
@@ -193,6 +199,30 @@ public class ProviderConfig {
      */
     public ProviderConfig setAzure(AzureOptions azure) {
         this.azure = azure;
+        return this;
+    }
+
+    /**
+     * Gets the custom HTTP headers for outbound provider requests.
+     *
+     * @return the headers map, or {@code null} if not set
+     */
+    public Map<String, String> getHeaders() {
+        return headers == null ? null : Collections.unmodifiableMap(headers);
+    }
+
+    /**
+     * Sets custom HTTP headers to include in outbound provider requests.
+     * <p>
+     * Use this to pass additional authentication headers or custom metadata to the
+     * provider API.
+     *
+     * @param headers
+     *            the headers map
+     * @return this config for method chaining
+     */
+    public ProviderConfig setHeaders(Map<String, String> headers) {
+        this.headers = headers;
         return this;
     }
 }

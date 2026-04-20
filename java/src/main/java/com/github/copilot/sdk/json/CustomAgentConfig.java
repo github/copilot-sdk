@@ -50,10 +50,13 @@ public class CustomAgentConfig {
     private String prompt;
 
     @JsonProperty("mcpServers")
-    private Map<String, Object> mcpServers;
+    private Map<String, McpServerConfig> mcpServers;
 
     @JsonProperty("infer")
     private Boolean infer;
+
+    @JsonProperty("skills")
+    private List<String> skills;
 
     /**
      * Gets the unique identifier name for this agent.
@@ -175,7 +178,7 @@ public class CustomAgentConfig {
      *
      * @return the MCP servers map
      */
-    public Map<String, Object> getMcpServers() {
+    public Map<String, McpServerConfig> getMcpServers() {
         return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
@@ -186,7 +189,7 @@ public class CustomAgentConfig {
      *            the MCP server configurations
      * @return this config for method chaining
      */
-    public CustomAgentConfig setMcpServers(Map<String, Object> mcpServers) {
+    public CustomAgentConfig setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
         return this;
     }
@@ -209,6 +212,33 @@ public class CustomAgentConfig {
      */
     public CustomAgentConfig setInfer(Boolean infer) {
         this.infer = infer;
+        return this;
+    }
+
+    /**
+     * Gets the list of skill names to preload into this agent's context.
+     *
+     * @return the list of skill names, or {@code null} if not set
+     */
+    public List<String> getSkills() {
+        return skills == null ? null : Collections.unmodifiableList(skills);
+    }
+
+    /**
+     * Sets the list of skill names to preload into this agent's context.
+     * <p>
+     * When set, the full content of each listed skill is eagerly injected into the
+     * agent's context at startup. Skills are resolved by name from the session's
+     * configured skill directories
+     * ({@link SessionConfig#setSkillDirectories(List)}). When omitted, no skills
+     * are injected (opt-in model).
+     *
+     * @param skills
+     *            the list of skill names to preload
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setSkills(List<String> skills) {
+        this.skills = skills;
         return this;
     }
 }
