@@ -46,8 +46,9 @@ public abstract class SessionFsProvider : ISessionFsHandler
     /// <summary>Creates a directory (and optionally parents). Does not fail if it already exists.</summary>
     /// <param name="path">SessionFs-relative path.</param>
     /// <param name="recursive">Whether to create parent directories.</param>
+    /// <param name="mode">Optional POSIX-style permission mode (e.g., 0x1FF for 0777). Null means use OS default.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task MkdirAsync(string path, bool recursive, CancellationToken cancellationToken);
+    protected abstract Task MkdirAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken);
 
     /// <summary>Lists entry names in a directory. Throw if the directory does not exist.</summary>
     /// <param name="path">SessionFs-relative path.</param>
@@ -142,7 +143,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
     {
         try
         {
-            await MkdirAsync(request.Path, request.Recursive ?? false, cancellationToken).ConfigureAwait(false);
+            await MkdirAsync(request.Path, request.Recursive ?? false, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
             return null;
         }
         catch (Exception ex)

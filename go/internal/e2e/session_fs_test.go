@@ -398,12 +398,16 @@ func (h *testSessionFsHandler) Stat(path string) (*copilot.SessionFsFileInfo, er
 	}, nil
 }
 
-func (h *testSessionFsHandler) Mkdir(path string, recursive bool) error {
+func (h *testSessionFsHandler) Mkdir(path string, recursive bool, mode *int) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
-	if recursive {
-		return os.MkdirAll(fullPath, 0o777)
+	perm := os.FileMode(0o777)
+	if mode != nil {
+		perm = os.FileMode(*mode)
 	}
-	return os.Mkdir(fullPath, 0o777)
+	if recursive {
+		return os.MkdirAll(fullPath, perm)
+	}
+	return os.Mkdir(fullPath, perm)
 }
 
 func (h *testSessionFsHandler) Readdir(path string) ([]string, error) {

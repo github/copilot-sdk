@@ -29,7 +29,8 @@ type SessionFsProvider interface {
 	// Return os.ErrNotExist if the path does not exist.
 	Stat(path string) (*SessionFsFileInfo, error)
 	// Mkdir creates a directory. If recursive is true, create parent directories as needed.
-	Mkdir(path string, recursive bool) error
+	// mode is an optional POSIX-style permission mode (e.g., 0o755). Pass nil to use the OS default.
+	Mkdir(path string, recursive bool, mode *int) error
 	// Readdir lists the names of entries in a directory.
 	// Return os.ErrNotExist if the directory does not exist.
 	Readdir(path string) ([]string, error)
@@ -108,7 +109,12 @@ func (a *sessionFsAdapter) Stat(request *rpc.SessionFSStatRequest) (*rpc.Session
 
 func (a *sessionFsAdapter) Mkdir(request *rpc.SessionFSMkdirRequest) (*rpc.SessionFSError, error) {
 	recursive := request.Recursive != nil && *request.Recursive
-	if err := a.provider.Mkdir(request.Path, recursive); err != nil {
+	var mode *int
+	if request.Mode != nil {
+		m := int(*request.Mode)
+		mode = &m
+	}
+	if err := a.provider.Mkdir(request.Path, recursive, mode); err != nil {
 		return toSessionFsError(err), nil
 	}
 	return nil, nil

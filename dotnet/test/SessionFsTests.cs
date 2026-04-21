@@ -490,7 +490,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             });
         }
 
-        protected override Task MkdirAsync(string path, bool recursive, CancellationToken cancellationToken)
+        protected override Task MkdirAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken)
         {
             Directory.CreateDirectory(ResolvePath(path));
             return Task.CompletedTask;
