@@ -218,9 +218,7 @@ func NewClient(options *ClientOptions) *Client {
 		if options.Telemetry != nil {
 			opts.Telemetry = options.Telemetry
 		}
-		if options.SessionIdleTimeoutSeconds > 0 {
-			opts.SessionIdleTimeoutSeconds = options.SessionIdleTimeoutSeconds
-		}
+		opts.SessionIdleTimeoutSeconds = options.SessionIdleTimeoutSeconds
 	}
 
 	// Default Env to current environment if not set
