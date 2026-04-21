@@ -33,8 +33,9 @@ def from_float(x: Any) -> float:
     assert isinstance(x, (float, int)) and not isinstance(x, bool)
     return float(x)
 
-def from_datetime(x: Any) -> datetime:
-    return dateutil.parser.parse(x)
+def from_str(x: Any) -> str:
+    assert isinstance(x, str)
+    return x
 
 def from_none(x: Any) -> Any:
     assert x is None
@@ -60,10 +61,6 @@ def to_class(c: type[T], x: Any) -> dict:
     assert isinstance(x, c)
     return cast(Any, x).to_dict()
 
-def from_str(x: Any) -> str:
-    assert isinstance(x, str)
-    return x
-
 def from_list(f: Callable[[Any], T], x: Any) -> list[T]:
     assert isinstance(x, list)
     return [f(y) for y in x]
@@ -72,46 +69,59 @@ def to_enum(c: type[EnumT], x: Any) -> EnumT:
     assert isinstance(x, c)
     return x.value
 
+def from_datetime(x: Any) -> datetime:
+    return dateutil.parser.parse(x)
+
 @dataclass
 class AccountQuotaSnapshot:
     entitlement_requests: int
     """Number of requests included in the entitlement"""
 
-    overage: int
+    is_unlimited_entitlement: bool
+    """Whether the user has an unlimited usage entitlement"""
+
+    overage: float
     """Number of overage requests made this period"""
 
     overage_allowed_with_exhausted_quota: bool
-    """Whether pay-per-request usage is allowed when quota is exhausted"""
+    """Whether overage is allowed when quota is exhausted"""
 
     remaining_percentage: float
     """Percentage of entitlement remaining"""
 
+    usage_allowed_with_exhausted_quota: bool
+    """Whether usage is still permitted after quota exhaustion"""
+
     used_requests: int
     """Number of requests used so far this period"""
 
-    reset_date: datetime | None = None
-    """Date when the quota resets (ISO 8601)"""
+    reset_date: str | None = None
+    """Date when the quota resets (ISO 8601 string)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'AccountQuotaSnapshot':
         assert isinstance(obj, dict)
         entitlement_requests = from_int(obj.get("entitlementRequests"))
-        overage = from_int(obj.get("overage"))
+        is_unlimited_entitlement = from_bool(obj.get("isUnlimitedEntitlement"))
+        overage = from_float(obj.get("overage"))
         overage_allowed_with_exhausted_quota = from_bool(obj.get("overageAllowedWithExhaustedQuota"))
         remaining_percentage = from_float(obj.get("remainingPercentage"))
+        usage_allowed_with_exhausted_quota = from_bool(obj.get("usageAllowedWithExhaustedQuota"))
         used_requests = from_int(obj.get("usedRequests"))
-        reset_date = from_union([from_datetime, from_none], obj.get("resetDate"))
-        return AccountQuotaSnapshot(entitlement_requests, overage, overage_allowed_with_exhausted_quota, remaining_percentage, used_requests, reset_date)
+        reset_date = from_union([from_str, from_none], obj.get("resetDate"))
+        return AccountQuotaSnapshot(entitlement_requests, is_unlimited_entitlement, overage, overage_allowed_with_exhausted_quota, remaining_percentage, usage_allowed_with_exhausted_quota, used_requests, reset_date)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["entitlementRequests"] = from_int(self.entitlement_requests)
-        result["overage"] = from_int(self.overage)
+        result["isUnlimitedEntitlement"] = from_bool(self.is_unlimited_entitlement)
+        result["overage"] = to_float(self.overage)
         result["overageAllowedWithExhaustedQuota"] = from_bool(self.overage_allowed_with_exhausted_quota)
         result["remainingPercentage"] = to_float(self.remaining_percentage)
+        result["usageAllowedWithExhaustedQuota"] = from_bool(self.usage_allowed_with_exhausted_quota)
         result["usedRequests"] = from_int(self.used_requests)
         if self.reset_date is not None:
-            result["resetDate"] = from_union([lambda x: x.isoformat(), from_none], self.reset_date)
+            result["resetDate"] = from_union([from_str, from_none], self.reset_date)
         return result
 
 @dataclass

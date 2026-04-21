@@ -204,14 +204,18 @@ type AccountGetQuotaResult struct {
 type AccountQuotaSnapshot struct {
 	// Number of requests included in the entitlement
 	EntitlementRequests int64 `json:"entitlementRequests"`
+	// Whether the user has an unlimited usage entitlement
+	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
 	// Number of overage requests made this period
-	Overage int64 `json:"overage"`
-	// Whether pay-per-request usage is allowed when quota is exhausted
+	Overage float64 `json:"overage"`
+	// Whether overage is allowed when quota is exhausted
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
 	// Percentage of entitlement remaining
 	RemainingPercentage float64 `json:"remainingPercentage"`
-	// Date when the quota resets (ISO 8601)
-	ResetDate *time.Time `json:"resetDate,omitempty"`
+	// Date when the quota resets (ISO 8601 string)
+	ResetDate *string `json:"resetDate,omitempty"`
+	// Whether usage is still permitted after quota exhaustion
+	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
 	// Number of requests used so far this period
 	UsedRequests int64 `json:"usedRequests"`
 }

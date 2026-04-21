@@ -1916,14 +1916,22 @@ type SystemNotification struct {
 	AgentType *string `json:"agentType,omitempty"`
 	// Human-readable description of the agent task
 	Description *string `json:"description,omitempty"`
+	// Unique identifier of the inbox entry
+	EntryID *string `json:"entryId,omitempty"`
 	// Exit code of the shell command, if available
 	ExitCode *float64 `json:"exitCode,omitempty"`
 	// The full prompt given to the background agent
 	Prompt *string `json:"prompt,omitempty"`
+	// Human-readable name of the sender
+	SenderName *string `json:"senderName,omitempty"`
+	// Category of the sender (e.g., ambient-agent, plugin, hook)
+	SenderType *string `json:"senderType,omitempty"`
 	// Unique identifier of the shell session
 	ShellID *string `json:"shellId,omitempty"`
 	// Whether the agent completed successfully or failed
 	Status *SystemNotificationAgentCompletedStatus `json:"status,omitempty"`
+	// Short summary shown before the agent decides whether to read the inbox
+	Summary *string `json:"summary,omitempty"`
 }
 
 // The result of the permission request
@@ -2253,6 +2261,7 @@ type SystemNotificationType string
 const (
 	SystemNotificationTypeAgentCompleted         SystemNotificationType = "agent_completed"
 	SystemNotificationTypeAgentIdle              SystemNotificationType = "agent_idle"
+	SystemNotificationTypeNewInboxMessage        SystemNotificationType = "new_inbox_message"
 	SystemNotificationTypeShellCompleted         SystemNotificationType = "shell_completed"
 	SystemNotificationTypeShellDetachedCompleted SystemNotificationType = "shell_detached_completed"
 )

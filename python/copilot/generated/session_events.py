@@ -3152,10 +3152,14 @@ class SystemNotification:
     agent_id: str | None = None
     agent_type: str | None = None
     description: str | None = None
+    entry_id: str | None = None
     exit_code: float | None = None
     prompt: str | None = None
+    sender_name: str | None = None
+    sender_type: str | None = None
     shell_id: str | None = None
     status: SystemNotificationAgentCompletedStatus | None = None
+    summary: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SystemNotification":
@@ -3164,19 +3168,27 @@ class SystemNotification:
         agent_id = from_union([from_none, from_str], obj.get("agentId"))
         agent_type = from_union([from_none, from_str], obj.get("agentType"))
         description = from_union([from_none, from_str], obj.get("description"))
+        entry_id = from_union([from_none, from_str], obj.get("entryId"))
         exit_code = from_union([from_none, from_float], obj.get("exitCode"))
         prompt = from_union([from_none, from_str], obj.get("prompt"))
+        sender_name = from_union([from_none, from_str], obj.get("senderName"))
+        sender_type = from_union([from_none, from_str], obj.get("senderType"))
         shell_id = from_union([from_none, from_str], obj.get("shellId"))
         status = from_union([from_none, lambda x: parse_enum(SystemNotificationAgentCompletedStatus, x)], obj.get("status"))
+        summary = from_union([from_none, from_str], obj.get("summary"))
         return SystemNotification(
             type=type,
             agent_id=agent_id,
             agent_type=agent_type,
             description=description,
+            entry_id=entry_id,
             exit_code=exit_code,
             prompt=prompt,
+            sender_name=sender_name,
+            sender_type=sender_type,
             shell_id=shell_id,
             status=status,
+            summary=summary,
         )
 
     def to_dict(self) -> dict:
@@ -3188,14 +3200,22 @@ class SystemNotification:
             result["agentType"] = from_union([from_none, from_str], self.agent_type)
         if self.description is not None:
             result["description"] = from_union([from_none, from_str], self.description)
+        if self.entry_id is not None:
+            result["entryId"] = from_union([from_none, from_str], self.entry_id)
         if self.exit_code is not None:
             result["exitCode"] = from_union([from_none, to_float], self.exit_code)
         if self.prompt is not None:
             result["prompt"] = from_union([from_none, from_str], self.prompt)
+        if self.sender_name is not None:
+            result["senderName"] = from_union([from_none, from_str], self.sender_name)
+        if self.sender_type is not None:
+            result["senderType"] = from_union([from_none, from_str], self.sender_type)
         if self.shell_id is not None:
             result["shellId"] = from_union([from_none, from_str], self.shell_id)
         if self.status is not None:
             result["status"] = from_union([from_none, lambda x: to_enum(SystemNotificationAgentCompletedStatus, x)], self.status)
+        if self.summary is not None:
+            result["summary"] = from_union([from_none, from_str], self.summary)
         return result
 
 
@@ -4037,6 +4057,7 @@ class SystemNotificationType(Enum):
     "Structured metadata identifying what triggered this notification discriminator"
     AGENT_COMPLETED = "agent_completed"
     AGENT_IDLE = "agent_idle"
+    NEW_INBOX_MESSAGE = "new_inbox_message"
     SHELL_COMPLETED = "shell_completed"
     SHELL_DETACHED_COMPLETED = "shell_detached_completed"
 

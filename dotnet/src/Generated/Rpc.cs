@@ -219,12 +219,16 @@ public sealed class AccountQuotaSnapshot
     [JsonPropertyName("entitlementRequests")]
     public long EntitlementRequests { get; set; }
 
-    /// <summary>Number of overage requests made this period.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("overage")]
-    public long Overage { get; set; }
+    /// <summary>Whether the user has an unlimited usage entitlement.</summary>
+    [JsonPropertyName("isUnlimitedEntitlement")]
+    public bool IsUnlimitedEntitlement { get; set; }
 
-    /// <summary>Whether pay-per-request usage is allowed when quota is exhausted.</summary>
+    /// <summary>Number of overage requests made this period.</summary>
+    [Range(0, double.MaxValue)]
+    [JsonPropertyName("overage")]
+    public double Overage { get; set; }
+
+    /// <summary>Whether overage is allowed when quota is exhausted.</summary>
     [JsonPropertyName("overageAllowedWithExhaustedQuota")]
     public bool OverageAllowedWithExhaustedQuota { get; set; }
 
@@ -232,9 +236,13 @@ public sealed class AccountQuotaSnapshot
     [JsonPropertyName("remainingPercentage")]
     public double RemainingPercentage { get; set; }
 
-    /// <summary>Date when the quota resets (ISO 8601).</summary>
+    /// <summary>Date when the quota resets (ISO 8601 string).</summary>
     [JsonPropertyName("resetDate")]
-    public DateTimeOffset? ResetDate { get; set; }
+    public string? ResetDate { get; set; }
+
+    /// <summary>Whether usage is still permitted after quota exhaustion.</summary>
+    [JsonPropertyName("usageAllowedWithExhaustedQuota")]
+    public bool UsageAllowedWithExhaustedQuota { get; set; }
 
     /// <summary>Number of requests used so far this period.</summary>
     [Range((double)0, (double)long.MaxValue)]

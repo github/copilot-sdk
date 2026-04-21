@@ -147,6 +147,7 @@ export type SystemMessageRole = "system" | "developer";
 export type SystemNotification =
   | SystemNotificationAgentCompleted
   | SystemNotificationAgentIdle
+  | SystemNotificationNewInboxMessage
   | SystemNotificationShellCompleted
   | SystemNotificationShellDetachedCompleted;
 /**
@@ -3009,6 +3010,25 @@ export interface SystemNotificationAgentIdle {
    */
   description?: string;
   type: "agent_idle";
+}
+export interface SystemNotificationNewInboxMessage {
+  /**
+   * Unique identifier of the inbox entry
+   */
+  entryId: string;
+  /**
+   * Human-readable name of the sender
+   */
+  senderName: string;
+  /**
+   * Category of the sender (e.g., ambient-agent, plugin, hook)
+   */
+  senderType: string;
+  /**
+   * Short summary shown before the agent decides whether to read the inbox
+   */
+  summary: string;
+  type: "new_inbox_message";
 }
 export interface SystemNotificationShellCompleted {
   /**

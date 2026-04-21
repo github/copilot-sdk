@@ -178,6 +178,10 @@ export interface AccountGetQuotaResult {
 
 export interface AccountQuotaSnapshot {
   /**
+   * Whether the user has an unlimited usage entitlement
+   */
+  isUnlimitedEntitlement: boolean;
+  /**
    * Number of requests included in the entitlement
    */
   entitlementRequests: number;
@@ -185,6 +189,10 @@ export interface AccountQuotaSnapshot {
    * Number of requests used so far this period
    */
   usedRequests: number;
+  /**
+   * Whether usage is still permitted after quota exhaustion
+   */
+  usageAllowedWithExhaustedQuota: boolean;
   /**
    * Percentage of entitlement remaining
    */
@@ -194,11 +202,11 @@ export interface AccountQuotaSnapshot {
    */
   overage: number;
   /**
-   * Whether pay-per-request usage is allowed when quota is exhausted
+   * Whether overage is allowed when quota is exhausted
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**
-   * Date when the quota resets (ISO 8601)
+   * Date when the quota resets (ISO 8601 string)
    */
   resetDate?: string;
 }

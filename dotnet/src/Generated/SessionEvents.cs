@@ -3417,6 +3417,30 @@ public partial class SystemNotificationAgentIdle : SystemNotification
     public string? Description { get; set; }
 }
 
+/// <summary>The <c>new_inbox_message</c> variant of <see cref="SystemNotification"/>.</summary>
+public partial class SystemNotificationNewInboxMessage : SystemNotification
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "new_inbox_message";
+
+    /// <summary>Unique identifier of the inbox entry.</summary>
+    [JsonPropertyName("entryId")]
+    public required string EntryId { get; set; }
+
+    /// <summary>Human-readable name of the sender.</summary>
+    [JsonPropertyName("senderName")]
+    public required string SenderName { get; set; }
+
+    /// <summary>Category of the sender (e.g., ambient-agent, plugin, hook).</summary>
+    [JsonPropertyName("senderType")]
+    public required string SenderType { get; set; }
+
+    /// <summary>Short summary shown before the agent decides whether to read the inbox.</summary>
+    [JsonPropertyName("summary")]
+    public required string Summary { get; set; }
+}
+
 /// <summary>The <c>shell_completed</c> variant of <see cref="SystemNotification"/>.</summary>
 public partial class SystemNotificationShellCompleted : SystemNotification
 {
@@ -3463,6 +3487,7 @@ public partial class SystemNotificationShellDetachedCompleted : SystemNotificati
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(SystemNotificationAgentCompleted), "agent_completed")]
 [JsonDerivedType(typeof(SystemNotificationAgentIdle), "agent_idle")]
+[JsonDerivedType(typeof(SystemNotificationNewInboxMessage), "new_inbox_message")]
 [JsonDerivedType(typeof(SystemNotificationShellCompleted), "shell_completed")]
 [JsonDerivedType(typeof(SystemNotificationShellDetachedCompleted), "shell_detached_completed")]
 public partial class SystemNotification
@@ -4415,6 +4440,7 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(SystemNotificationAgentIdle))]
 [JsonSerializable(typeof(SystemNotificationData))]
 [JsonSerializable(typeof(SystemNotificationEvent))]
+[JsonSerializable(typeof(SystemNotificationNewInboxMessage))]
 [JsonSerializable(typeof(SystemNotificationShellCompleted))]
 [JsonSerializable(typeof(SystemNotificationShellDetachedCompleted))]
 [JsonSerializable(typeof(ToolExecutionCompleteContent))]
