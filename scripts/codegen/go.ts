@@ -17,7 +17,6 @@ import {
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    hoistTitledSchemas,
     hasSchemaPayload,
     isNodeFullyExperimental,
     isNodeFullyDeprecated,
@@ -1067,8 +1066,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         }
     }
 
-    const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
-    const allDefinitions = { ...rootDefinitions, ...sharedDefinitions };
+    const allDefinitions = combinedSchema.definitions! as Record<string, JSONSchema7>;
     const allDefinitionCollections: DefinitionCollections = {
         definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
@@ -1082,9 +1080,9 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         type: "object",
         definitions: allDefinitions as Record<string, JSONSchema7>,
         properties: Object.fromEntries(
-            Object.keys(rootDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
+            Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
         ),
-        required: Object.keys(rootDefinitions),
+        required: Object.keys(allDefinitions),
     };
     await schemaInput.addSource({ name: "RpcTypes", schema: JSON.stringify(singleSchema) });
 
@@ -1125,7 +1123,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         if (method.stability !== "experimental") continue;
         experimentalTypeNames.add(goResultTypeName(method));
         const paramsTypeName = goParamsTypeName(method);
-        if (rootDefinitions[paramsTypeName]) {
+        if (allDefinitions[paramsTypeName]) {
             experimentalTypeNames.add(paramsTypeName);
         }
     }
@@ -1145,7 +1143,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         }
         if (!method.params?.$ref) {
             const paramsTypeName = goParamsTypeName(method);
-            if (rootDefinitions[paramsTypeName]) {
+            if (allDefinitions[paramsTypeName]) {
                 deprecatedTypeNames.add(paramsTypeName);
             }
         }

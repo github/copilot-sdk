@@ -15,7 +15,6 @@ import {
     getNullableInner,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    normalizeSchemaTitles,
     postProcessSchema,
     writeGeneratedFile,
     collectDefinitionCollections,
@@ -27,7 +26,6 @@ import {
     isNodeFullyExperimental,
     isNodeFullyDeprecated,
     isVoidSchema,
-    stripNonAnnotationTitles,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
@@ -190,65 +188,6 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     return rewrite(root) as JSONSchema7;
 }
 
-function stableStringify(value: unknown): string {
-    if (Array.isArray(value)) {
-        return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-    }
-    if (value && typeof value === "object") {
-        const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
-        return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${stableStringify(child)}`).join(",")}}`;
-    }
-    return JSON.stringify(value);
-}
-
-function replaceDuplicateTitledSchemasWithRefs(
-    value: unknown,
-    definitions: Record<string, unknown>,
-    isRoot = false
-): unknown {
-    if (Array.isArray(value)) {
-        return value.map((item) => replaceDuplicateTitledSchemasWithRefs(item, definitions));
-    }
-    if (!value || typeof value !== "object") {
-        return value;
-    }
-
-    const rewritten = Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([key, child]) => [
-            key,
-            replaceDuplicateTitledSchemasWithRefs(child, definitions),
-        ])
-    ) as Record<string, unknown>;
-
-    if (!isRoot && typeof rewritten.title === "string") {
-        const sharedSchema = definitions[rewritten.title];
-        if (
-            sharedSchema &&
-            typeof sharedSchema === "object" &&
-            stableStringify(normalizeSchemaTitles(rewritten as JSONSchema7)) ===
-                stableStringify(normalizeSchemaTitles(sharedSchema as JSONSchema7))
-        ) {
-            return { $ref: `#/definitions/${rewritten.title}` };
-        }
-    }
-
-    return rewritten;
-}
-
-function reuseSharedTitledSchemas(schema: JSONSchema7): JSONSchema7 {
-    const definitions = { ...((schema.definitions ?? {}) as Record<string, unknown>) };
-
-    return {
-        ...schema,
-        definitions: Object.fromEntries(
-            Object.entries(definitions).map(([name, definition]) => [
-                name,
-                replaceDuplicateTitledSchemasWithRefs(definition, definitions, true),
-            ])
-        ),
-    };
-}
-
 // ── Session Events ──────────────────────────────────────────────────────────
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
@@ -256,7 +195,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
-    const processed = postProcessSchema(stripNonAnnotationTitles(schema));
+    const processed = postProcessSchema(schema);
     const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
     const sessionEvent =
         resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
@@ -433,7 +372,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         }
     }
 
-    const schemaForCompile = reuseSharedTitledSchemas(stripNonAnnotationTitles(combinedSchema));
+    const schemaForCompile = combinedSchema;
 
     const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile), "_RpcSchemaRoot", {
         bannerComment: "",

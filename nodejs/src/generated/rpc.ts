@@ -6,6 +6,65 @@
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
 /**
+ * Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredMcpServerType".
+ */
+export type DiscoveredMcpServerType = "stdio" | "http" | "sse" | "memory";
+/**
+ * Configuration source
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredMcpServerSource".
+ */
+export type DiscoveredMcpServerSource = "user" | "workspace" | "plugin" | "builtin";
+/**
+ * Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionSource".
+ */
+export type ExtensionSource = "project" | "user";
+/**
+ * Current status: running, disabled, failed, or starting
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionStatus".
+ */
+export type ExtensionStatus = "running" | "disabled" | "failed" | "starting";
+
+export type FilterMapping =
+  | {
+      [k: string]: FilterMappingValue;
+    }
+  | FilterMappingString;
+
+export type FilterMappingValue = "none" | "markdown" | "hidden_characters";
+
+export type FilterMappingString = "none" | "markdown" | "hidden_characters";
+/**
+ * Category of instruction source — used for merge logic
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstructionsSourcesType".
+ */
+export type InstructionsSourcesType = "home" | "repo" | "model" | "vscode" | "nested-agents" | "child-instructions";
+/**
+ * Where this source lives — used for UI grouping
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstructionsSourcesLocation".
+ */
+export type InstructionsSourcesLocation = "user" | "repository" | "working-directory";
+/**
+ * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionLogLevel".
+ */
+export type SessionLogLevel = "info" | "warning" | "error";
+/**
  * MCP server configuration (local/stdio or remote/http)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -13,11 +72,28 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
  */
 export type McpServerConfig = McpServerConfigLocal | McpServerConfigHttp;
 
-export type FilterMapping =
-  | {
-      [k: string]: "none" | "markdown" | "hidden_characters";
-    }
-  | ("none" | "markdown" | "hidden_characters");
+export type McpServerConfigLocalType = "local" | "stdio";
+/**
+ * Remote transport type. Defaults to "http" when omitted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigHttpType".
+ */
+export type McpServerConfigHttpType = "http" | "sse";
+/**
+ * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerStatus".
+ */
+export type McpServerStatus = "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
+/**
+ * Configuration source: user, workspace, plugin, or builtin
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerSource".
+ */
+export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
 /**
  * The agent mode. Valid values: "interactive", "plan", "autopilot".
  *
@@ -25,15 +101,6 @@ export type FilterMapping =
  * via the `definition` "SessionMode".
  */
 export type SessionMode = "interactive" | "plan" | "autopilot";
-/**
- * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UIElicitationResponseAction".
- */
-export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
-
-export type UIElicitationFieldValue = string | number | boolean | string[];
 
 export type PermissionDecision =
   | PermissionDecisionApproved
@@ -43,40 +110,498 @@ export type PermissionDecision =
   | PermissionDecisionDeniedByContentExclusionPolicy
   | PermissionDecisionDeniedByPermissionRequestHook;
 /**
- * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
+ * Error classification
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionLogLevel".
+ * via the `definition` "SessionFsErrorCode".
  */
-export type SessionLogLevel = "info" | "warning" | "error";
+export type SessionFsErrorCode = "ENOENT" | "UNKNOWN";
+/**
+ * Entry type
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsReaddirWithTypesEntryType".
+ */
+export type SessionFsReaddirWithTypesEntryType = "file" | "directory";
+/**
+ * Path conventions used by this filesystem
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSetProviderConventions".
+ */
+export type SessionFsSetProviderConventions = "windows" | "posix";
+/**
+ * Signal to send (default: SIGTERM)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ShellKillSignal".
+ */
+export type ShellKillSignal = "SIGTERM" | "SIGKILL" | "SIGINT";
+/**
+ * Tool call result (string or expanded result object)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ToolsHandlePendingToolCall".
+ */
+export type ToolsHandlePendingToolCall = string | ToolCallResult;
 
-export interface PingRequest {
+export type UIElicitationFieldValue = string | number | boolean | string[];
+
+export type UIElicitationSchemaProperty =
+  | UIElicitationStringEnumField
+  | UIElicitationStringOneOfField
+  | UIElicitationArrayEnumField
+  | UIElicitationArrayAnyOfField
+  | UIElicitationSchemaPropertyBoolean
+  | UIElicitationSchemaPropertyString
+  | UIElicitationSchemaPropertyNumber;
+
+export type UIElicitationSchemaPropertyStringFormat = "email" | "uri" | "date" | "date-time";
+
+export type UIElicitationSchemaPropertyNumberType = "number" | "integer";
+/**
+ * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UIElicitationResponseAction".
+ */
+export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
+
+export interface AccountGetQuotaResult {
   /**
-   * Optional message to echo back
+   * Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
    */
-  message?: string;
+  quotaSnapshots: {
+    [k: string]: AccountQuotaSnapshot;
+  };
 }
 
-export interface PingResult {
+export interface AccountQuotaSnapshot {
   /**
-   * Echoed message (or default greeting)
+   * Number of requests included in the entitlement
+   */
+  entitlementRequests: number;
+  /**
+   * Number of requests used so far this period
+   */
+  usedRequests: number;
+  /**
+   * Percentage of entitlement remaining
+   */
+  remainingPercentage: number;
+  /**
+   * Number of overage requests made this period
+   */
+  overage: number;
+  /**
+   * Whether pay-per-request usage is allowed when quota is exhausted
+   */
+  overageAllowedWithExhaustedQuota: boolean;
+  /**
+   * Date when the quota resets (ISO 8601)
+   */
+  resetDate?: string;
+}
+
+/** @experimental */
+export interface AgentGetCurrentResult {
+  /**
+   * Currently selected custom agent, or null if using the default agent
+   */
+  agent?: AgentInfo | null;
+}
+
+export interface AgentInfo {
+  /**
+   * Unique identifier of the custom agent
+   */
+  name: string;
+  /**
+   * Human-readable display name
+   */
+  displayName: string;
+  /**
+   * Description of the agent's purpose
+   */
+  description: string;
+}
+
+/** @experimental */
+export interface AgentList {
+  /**
+   * Available custom agents
+   */
+  agents: AgentInfo[];
+}
+
+/** @experimental */
+export interface AgentReloadResult {
+  /**
+   * Reloaded custom agents
+   */
+  agents: AgentInfo[];
+}
+
+/** @experimental */
+export interface AgentSelectRequest {
+  /**
+   * Name of the custom agent to select
+   */
+  name: string;
+}
+
+/** @experimental */
+export interface AgentSelectResult {
+  agent: AgentInfo;
+}
+
+export interface CommandsHandlePendingCommandRequest {
+  /**
+   * Request ID from the command invocation event
+   */
+  requestId: string;
+  /**
+   * Error message if the command handler failed
+   */
+  error?: string;
+}
+
+export interface CommandsHandlePendingCommandResult {
+  /**
+   * Whether the command was handled successfully
+   */
+  success: boolean;
+}
+
+export interface CurrentModel {
+  /**
+   * Currently active model identifier
+   */
+  modelId?: string;
+}
+
+export interface DiscoveredMcpServer {
+  /**
+   * Server name (config key)
+   */
+  name: string;
+  type?: DiscoveredMcpServerType;
+  source: DiscoveredMcpServerSource;
+  /**
+   * Whether the server is enabled (not in the disabled list)
+   */
+  enabled: boolean;
+}
+
+export interface Extension {
+  /**
+   * Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
+   */
+  id: string;
+  /**
+   * Extension name (directory name)
+   */
+  name: string;
+  source: ExtensionSource;
+  status: ExtensionStatus;
+  /**
+   * Process ID if the extension is running
+   */
+  pid?: number;
+}
+
+/** @experimental */
+export interface ExtensionList {
+  /**
+   * Discovered extensions and their current status
+   */
+  extensions: Extension[];
+}
+
+/** @experimental */
+export interface ExtensionsDisableRequest {
+  /**
+   * Source-qualified extension ID to disable
+   */
+  id: string;
+}
+
+/** @experimental */
+export interface ExtensionsEnableRequest {
+  /**
+   * Source-qualified extension ID to enable
+   */
+  id: string;
+}
+
+/** @experimental */
+export interface FleetStartRequest {
+  /**
+   * Optional user prompt to combine with fleet instructions
+   */
+  prompt?: string;
+}
+
+/** @experimental */
+export interface FleetStartResult {
+  /**
+   * Whether fleet mode was successfully activated
+   */
+  started: boolean;
+}
+
+export interface HandleToolCallResult {
+  /**
+   * Whether the tool call result was handled successfully
+   */
+  success: boolean;
+}
+/**
+ * Post-compaction context window usage breakdown
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HistoryCompactContextWindow".
+ */
+export interface HistoryCompactContextWindow {
+  /**
+   * Maximum token count for the model's context window
+   */
+  tokenLimit: number;
+  /**
+   * Current total tokens in the context window (system + conversation + tool definitions)
+   */
+  currentTokens: number;
+  /**
+   * Current number of messages in the conversation
+   */
+  messagesLength: number;
+  /**
+   * Token count from system message(s)
+   */
+  systemTokens?: number;
+  /**
+   * Token count from non-system messages (user, assistant, tool)
+   */
+  conversationTokens?: number;
+  /**
+   * Token count from tool definitions
+   */
+  toolDefinitionsTokens?: number;
+}
+
+/** @experimental */
+export interface HistoryCompactResult {
+  /**
+   * Whether compaction completed successfully
+   */
+  success: boolean;
+  /**
+   * Number of tokens freed by compaction
+   */
+  tokensRemoved: number;
+  /**
+   * Number of messages removed during compaction
+   */
+  messagesRemoved: number;
+  contextWindow?: HistoryCompactContextWindow;
+}
+
+/** @experimental */
+export interface HistoryTruncateRequest {
+  /**
+   * Event ID to truncate to. This event and all events after it are removed from the session.
+   */
+  eventId: string;
+}
+
+/** @experimental */
+export interface HistoryTruncateResult {
+  /**
+   * Number of events that were removed
+   */
+  eventsRemoved: number;
+}
+
+export interface InstructionsGetSourcesResult {
+  /**
+   * Instruction sources for the session
+   */
+  sources: InstructionsSources[];
+}
+
+export interface InstructionsSources {
+  /**
+   * Unique identifier for this source (used for toggling)
+   */
+  id: string;
+  /**
+   * Human-readable label
+   */
+  label: string;
+  /**
+   * File path relative to repo or absolute for home
+   */
+  sourcePath: string;
+  /**
+   * Raw content of the instruction file
+   */
+  content: string;
+  type: InstructionsSourcesType;
+  location: InstructionsSourcesLocation;
+  /**
+   * Glob pattern from frontmatter — when set, this instruction applies only to matching files
+   */
+  applyTo?: string;
+  /**
+   * Short description (body after frontmatter) for use in instruction tables
+   */
+  description?: string;
+}
+
+export interface LogRequest {
+  /**
+   * Human-readable message
    */
   message: string;
+  level?: SessionLogLevel;
   /**
-   * Server timestamp in milliseconds
+   * When true, the message is transient and not persisted to the session event log on disk
    */
-  timestamp: number;
+  ephemeral?: boolean;
   /**
-   * Server protocol version number
+   * Optional URL the user can open in their browser for more details
    */
-  protocolVersion: number;
+  url?: string;
 }
 
-export interface ModelList {
+export interface LogResult {
   /**
-   * List of available models with full metadata
+   * The unique identifier of the emitted session event
    */
-  models: Model[];
+  eventId: string;
+}
+
+export interface McpConfigAddRequest {
+  /**
+   * Unique name for the MCP server
+   */
+  name: string;
+  config: McpServerConfig;
+}
+
+export interface McpServerConfigLocal {
+  /**
+   * Tools to include. Defaults to all tools if not specified.
+   */
+  tools?: string[];
+  type?: McpServerConfigLocalType;
+  isDefaultServer?: boolean;
+  filterMapping?: FilterMapping;
+  /**
+   * Timeout in milliseconds for tool calls to this server.
+   */
+  timeout?: number;
+  command: string;
+  args: string[];
+  cwd?: string;
+  env?: {
+    [k: string]: string;
+  };
+}
+
+export interface McpServerConfigHttp {
+  /**
+   * Tools to include. Defaults to all tools if not specified.
+   */
+  tools?: string[];
+  type?: McpServerConfigHttpType;
+  isDefaultServer?: boolean;
+  filterMapping?: FilterMapping;
+  /**
+   * Timeout in milliseconds for tool calls to this server.
+   */
+  timeout?: number;
+  url: string;
+  headers?: {
+    [k: string]: string;
+  };
+  oauthClientId?: string;
+  oauthPublicClient?: boolean;
+}
+
+export interface McpConfigList {
+  /**
+   * All MCP servers from user config, keyed by name
+   */
+  servers: {
+    [k: string]: McpServerConfig;
+  };
+}
+
+export interface McpConfigRemoveRequest {
+  /**
+   * Name of the MCP server to remove
+   */
+  name: string;
+}
+
+export interface McpConfigUpdateRequest {
+  /**
+   * Name of the MCP server to update
+   */
+  name: string;
+  config: McpServerConfig;
+}
+
+/** @experimental */
+export interface McpDisableRequest {
+  /**
+   * Name of the MCP server to disable
+   */
+  serverName: string;
+}
+
+export interface McpDiscoverRequest {
+  /**
+   * Working directory used as context for discovery (e.g., plugin resolution)
+   */
+  workingDirectory?: string;
+}
+
+export interface McpDiscoverResult {
+  /**
+   * MCP servers discovered from all sources
+   */
+  servers: DiscoveredMcpServer[];
+}
+
+/** @experimental */
+export interface McpEnableRequest {
+  /**
+   * Name of the MCP server to enable
+   */
+  serverName: string;
+}
+
+export interface McpServer {
+  /**
+   * Server name (config key)
+   */
+  name: string;
+  status: McpServerStatus;
+  source?: McpServerSource;
+  /**
+   * Error message if the server failed to connect
+   */
+  error?: string;
+}
+
+/** @experimental */
+export interface McpServerList {
+  /**
+   * Configured MCP servers
+   */
+  servers: McpServer[];
 }
 
 export interface Model {
@@ -195,306 +720,6 @@ export interface ModelBilling {
    */
   multiplier: number;
 }
-
-export interface ToolsListRequest {
-  /**
-   * Optional model ID — when provided, the returned tool list reflects model-specific overrides
-   */
-  model?: string;
-}
-
-export interface ToolList {
-  /**
-   * List of available built-in tools with metadata
-   */
-  tools: Tool[];
-}
-
-export interface Tool {
-  /**
-   * Tool identifier (e.g., "bash", "grep", "str_replace_editor")
-   */
-  name: string;
-  /**
-   * Optional namespaced name for declarative filtering (e.g., "playwright/navigate" for MCP tools)
-   */
-  namespacedName?: string;
-  /**
-   * Description of what the tool does
-   */
-  description: string;
-  /**
-   * JSON Schema for the tool's input parameters
-   */
-  parameters?: {
-    [k: string]: unknown;
-  };
-  /**
-   * Optional instructions for how to use this tool effectively
-   */
-  instructions?: string;
-}
-
-export interface AccountGetQuotaResult {
-  /**
-   * Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
-   */
-  quotaSnapshots: {
-    [k: string]: AccountQuotaSnapshot;
-  };
-}
-
-export interface AccountQuotaSnapshot {
-  /**
-   * Number of requests included in the entitlement
-   */
-  entitlementRequests: number;
-  /**
-   * Number of requests used so far this period
-   */
-  usedRequests: number;
-  /**
-   * Percentage of entitlement remaining
-   */
-  remainingPercentage: number;
-  /**
-   * Number of overage requests made this period
-   */
-  overage: number;
-  /**
-   * Whether pay-per-request usage is allowed when quota is exhausted
-   */
-  overageAllowedWithExhaustedQuota: boolean;
-  /**
-   * Date when the quota resets (ISO 8601)
-   */
-  resetDate?: string;
-}
-
-export interface McpConfigList {
-  /**
-   * All MCP servers from user config, keyed by name
-   */
-  servers: {
-    [k: string]: McpServerConfig;
-  };
-}
-
-export interface McpServerConfigLocal {
-  /**
-   * Tools to include. Defaults to all tools if not specified.
-   */
-  tools?: string[];
-  type?: "local" | "stdio";
-  isDefaultServer?: boolean;
-  filterMapping?: FilterMapping;
-  /**
-   * Timeout in milliseconds for tool calls to this server.
-   */
-  timeout?: number;
-  command: string;
-  args: string[];
-  cwd?: string;
-  env?: {
-    [k: string]: string;
-  };
-}
-
-export interface McpServerConfigHttp {
-  /**
-   * Tools to include. Defaults to all tools if not specified.
-   */
-  tools?: string[];
-  /**
-   * Remote transport type. Defaults to "http" when omitted.
-   */
-  type?: "http" | "sse";
-  isDefaultServer?: boolean;
-  filterMapping?: FilterMapping;
-  /**
-   * Timeout in milliseconds for tool calls to this server.
-   */
-  timeout?: number;
-  url: string;
-  headers?: {
-    [k: string]: string;
-  };
-  oauthClientId?: string;
-  oauthPublicClient?: boolean;
-}
-
-export interface McpConfigAddRequest {
-  /**
-   * Unique name for the MCP server
-   */
-  name: string;
-  config: McpServerConfig;
-}
-
-export interface McpConfigUpdateRequest {
-  /**
-   * Name of the MCP server to update
-   */
-  name: string;
-  config: McpServerConfig;
-}
-
-export interface McpConfigRemoveRequest {
-  /**
-   * Name of the MCP server to remove
-   */
-  name: string;
-}
-
-export interface McpDiscoverRequest {
-  /**
-   * Working directory used as context for discovery (e.g., plugin resolution)
-   */
-  workingDirectory?: string;
-}
-
-export interface McpDiscoverResult {
-  /**
-   * MCP servers discovered from all sources
-   */
-  servers: DiscoveredMcpServer[];
-}
-
-export interface DiscoveredMcpServer {
-  /**
-   * Server name (config key)
-   */
-  name: string;
-  /**
-   * Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
-   */
-  type?: "stdio" | "http" | "sse" | "memory";
-  /**
-   * Configuration source
-   */
-  source: "user" | "workspace" | "plugin" | "builtin";
-  /**
-   * Whether the server is enabled (not in the disabled list)
-   */
-  enabled: boolean;
-}
-
-export interface SkillsConfigSetDisabledSkillsRequest {
-  /**
-   * List of skill names to disable
-   */
-  disabledSkills: string[];
-}
-
-export interface SkillsDiscoverRequest {
-  /**
-   * Optional list of project directory paths to scan for project-scoped skills
-   */
-  projectPaths?: string[];
-  /**
-   * Optional list of additional skill directory paths to include
-   */
-  skillDirectories?: string[];
-}
-
-export interface ServerSkillList {
-  /**
-   * All discovered skills across all sources
-   */
-  skills: ServerSkill[];
-}
-
-export interface ServerSkill {
-  /**
-   * Unique identifier for the skill
-   */
-  name: string;
-  /**
-   * Description of what the skill does
-   */
-  description: string;
-  /**
-   * Source location type (e.g., project, personal-copilot, plugin, builtin)
-   */
-  source: string;
-  /**
-   * Whether the skill can be invoked by the user as a slash command
-   */
-  userInvocable: boolean;
-  /**
-   * Whether the skill is currently enabled (based on global config)
-   */
-  enabled: boolean;
-  /**
-   * Absolute path to the skill file
-   */
-  path?: string;
-  /**
-   * The project path this skill belongs to (only for project/inherited skills)
-   */
-  projectPath?: string;
-}
-
-export interface SessionFsSetProviderRequest {
-  /**
-   * Initial working directory for sessions
-   */
-  initialCwd: string;
-  /**
-   * Path within each session's SessionFs where the runtime stores files for that session
-   */
-  sessionStatePath: string;
-  /**
-   * Path conventions used by this filesystem
-   */
-  conventions: "windows" | "posix";
-}
-
-export interface SessionFsSetProviderResult {
-  /**
-   * Whether the provider was set successfully
-   */
-  success: boolean;
-}
-
-/** @experimental */
-export interface SessionsForkRequest {
-  /**
-   * Source session ID to fork from
-   */
-  sessionId: string;
-  /**
-   * Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.
-   */
-  toEventId?: string;
-}
-
-/** @experimental */
-export interface SessionsForkResult {
-  /**
-   * The new forked session's ID
-   */
-  sessionId: string;
-}
-
-export interface CurrentModel {
-  /**
-   * Currently active model identifier
-   */
-  modelId?: string;
-}
-
-export interface ModelSwitchToRequest {
-  /**
-   * Model identifier to switch to
-   */
-  modelId: string;
-  /**
-   * Reasoning effort level to use for the model
-   */
-  reasoningEffort?: string;
-  modelCapabilities?: ModelCapabilitiesOverride;
-}
 /**
  * Override individual model capabilities resolved by the runtime
  *
@@ -546,6 +771,25 @@ export interface ModelCapabilitiesOverrideLimitsVision {
   max_prompt_image_size?: number;
 }
 
+export interface ModelList {
+  /**
+   * List of available models with full metadata
+   */
+  models: Model[];
+}
+
+export interface ModelSwitchToRequest {
+  /**
+   * Model identifier to switch to
+   */
+  modelId: string;
+  /**
+   * Reasoning effort level to use for the model
+   */
+  reasoningEffort?: string;
+  modelCapabilities?: ModelCapabilitiesOverride;
+}
+
 export interface ModelSwitchToResult {
   /**
    * Currently active model identifier after the switch
@@ -569,576 +813,6 @@ export interface NameSetRequest {
    * New session name (1–100 characters, trimmed of leading/trailing whitespace)
    */
   name: string;
-}
-
-export interface PlanReadResult {
-  /**
-   * Whether the plan file exists in the workspace
-   */
-  exists: boolean;
-  /**
-   * The content of the plan file, or null if it does not exist
-   */
-  content: string | null;
-  /**
-   * Absolute file path of the plan file, or null if workspace is not enabled
-   */
-  path: string | null;
-}
-
-export interface PlanUpdateRequest {
-  /**
-   * The new content for the plan file
-   */
-  content: string;
-}
-
-export interface WorkspacesGetWorkspaceResult {
-  /**
-   * Current workspace metadata, or null if not available
-   */
-  workspace: {
-    id: string;
-    cwd?: string;
-    git_root?: string;
-    repository?: string;
-    host_type?: "github" | "ado";
-    branch?: string;
-    summary?: string;
-    name?: string;
-    summary_count?: number;
-    created_at?: string;
-    updated_at?: string;
-    remote_steerable?: boolean;
-    mc_task_id?: string;
-    mc_session_id?: string;
-    mc_last_event_id?: string;
-    session_sync_level?: "local" | "user" | "repo_and_user";
-    chronicle_sync_dismissed?: boolean;
-  } | null;
-}
-
-export interface WorkspacesListFilesResult {
-  /**
-   * Relative file paths in the workspace files directory
-   */
-  files: string[];
-}
-
-export interface WorkspacesReadFileRequest {
-  /**
-   * Relative path within the workspace files directory
-   */
-  path: string;
-}
-
-export interface WorkspacesReadFileResult {
-  /**
-   * File content as a UTF-8 string
-   */
-  content: string;
-}
-
-export interface WorkspacesCreateFileRequest {
-  /**
-   * Relative path within the workspace files directory
-   */
-  path: string;
-  /**
-   * File content to write as a UTF-8 string
-   */
-  content: string;
-}
-
-export interface InstructionsGetSourcesResult {
-  /**
-   * Instruction sources for the session
-   */
-  sources: InstructionsSources[];
-}
-
-export interface InstructionsSources {
-  /**
-   * Unique identifier for this source (used for toggling)
-   */
-  id: string;
-  /**
-   * Human-readable label
-   */
-  label: string;
-  /**
-   * File path relative to repo or absolute for home
-   */
-  sourcePath: string;
-  /**
-   * Raw content of the instruction file
-   */
-  content: string;
-  /**
-   * Category of instruction source — used for merge logic
-   */
-  type: "home" | "repo" | "model" | "vscode" | "nested-agents" | "child-instructions";
-  /**
-   * Where this source lives — used for UI grouping
-   */
-  location: "user" | "repository" | "working-directory";
-  /**
-   * Glob pattern from frontmatter — when set, this instruction applies only to matching files
-   */
-  applyTo?: string;
-  /**
-   * Short description (body after frontmatter) for use in instruction tables
-   */
-  description?: string;
-}
-
-/** @experimental */
-export interface FleetStartRequest {
-  /**
-   * Optional user prompt to combine with fleet instructions
-   */
-  prompt?: string;
-}
-
-/** @experimental */
-export interface FleetStartResult {
-  /**
-   * Whether fleet mode was successfully activated
-   */
-  started: boolean;
-}
-
-/** @experimental */
-export interface AgentList {
-  /**
-   * Available custom agents
-   */
-  agents: AgentInfo[];
-}
-
-export interface AgentInfo {
-  /**
-   * Unique identifier of the custom agent
-   */
-  name: string;
-  /**
-   * Human-readable display name
-   */
-  displayName: string;
-  /**
-   * Description of the agent's purpose
-   */
-  description: string;
-}
-
-/** @experimental */
-export interface AgentGetCurrentResult {
-  /**
-   * Currently selected custom agent, or null if using the default agent
-   */
-  agent?: AgentInfo | null;
-}
-
-/** @experimental */
-export interface AgentSelectRequest {
-  /**
-   * Name of the custom agent to select
-   */
-  name: string;
-}
-
-/** @experimental */
-export interface AgentSelectResult {
-  agent: AgentInfo;
-}
-
-/** @experimental */
-export interface AgentReloadResult {
-  /**
-   * Reloaded custom agents
-   */
-  agents: AgentInfo[];
-}
-
-/** @experimental */
-export interface SkillList {
-  /**
-   * Available skills
-   */
-  skills: Skill[];
-}
-
-export interface Skill {
-  /**
-   * Unique identifier for the skill
-   */
-  name: string;
-  /**
-   * Description of what the skill does
-   */
-  description: string;
-  /**
-   * Source location type (e.g., project, personal, plugin)
-   */
-  source: string;
-  /**
-   * Whether the skill can be invoked by the user as a slash command
-   */
-  userInvocable: boolean;
-  /**
-   * Whether the skill is currently enabled
-   */
-  enabled: boolean;
-  /**
-   * Absolute path to the skill file
-   */
-  path?: string;
-}
-
-/** @experimental */
-export interface SkillsEnableRequest {
-  /**
-   * Name of the skill to enable
-   */
-  name: string;
-}
-
-/** @experimental */
-export interface SkillsDisableRequest {
-  /**
-   * Name of the skill to disable
-   */
-  name: string;
-}
-
-/** @experimental */
-export interface McpServerList {
-  /**
-   * Configured MCP servers
-   */
-  servers: McpServer[];
-}
-
-export interface McpServer {
-  /**
-   * Server name (config key)
-   */
-  name: string;
-  /**
-   * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-   */
-  status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
-  /**
-   * Configuration source: user, workspace, plugin, or builtin
-   */
-  source?: "user" | "workspace" | "plugin" | "builtin";
-  /**
-   * Error message if the server failed to connect
-   */
-  error?: string;
-}
-
-/** @experimental */
-export interface McpEnableRequest {
-  /**
-   * Name of the MCP server to enable
-   */
-  serverName: string;
-}
-
-/** @experimental */
-export interface McpDisableRequest {
-  /**
-   * Name of the MCP server to disable
-   */
-  serverName: string;
-}
-
-/** @experimental */
-export interface PluginList {
-  /**
-   * Installed plugins
-   */
-  plugins: Plugin[];
-}
-
-export interface Plugin {
-  /**
-   * Plugin name
-   */
-  name: string;
-  /**
-   * Marketplace the plugin came from
-   */
-  marketplace: string;
-  /**
-   * Installed version
-   */
-  version?: string;
-  /**
-   * Whether the plugin is currently enabled
-   */
-  enabled: boolean;
-}
-
-/** @experimental */
-export interface ExtensionList {
-  /**
-   * Discovered extensions and their current status
-   */
-  extensions: Extension[];
-}
-
-export interface Extension {
-  /**
-   * Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
-   */
-  id: string;
-  /**
-   * Extension name (directory name)
-   */
-  name: string;
-  /**
-   * Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
-   */
-  source: "project" | "user";
-  /**
-   * Current status: running, disabled, failed, or starting
-   */
-  status: "running" | "disabled" | "failed" | "starting";
-  /**
-   * Process ID if the extension is running
-   */
-  pid?: number;
-}
-
-/** @experimental */
-export interface ExtensionsEnableRequest {
-  /**
-   * Source-qualified extension ID to enable
-   */
-  id: string;
-}
-
-/** @experimental */
-export interface ExtensionsDisableRequest {
-  /**
-   * Source-qualified extension ID to disable
-   */
-  id: string;
-}
-
-export interface ToolsHandlePendingToolCallRequest {
-  /**
-   * Request ID of the pending tool call
-   */
-  requestId: string;
-  /**
-   * Tool call result (string or expanded result object)
-   */
-  result?: string | ToolCallResult;
-  /**
-   * Error message if the tool call failed
-   */
-  error?: string;
-}
-
-export interface ToolCallResult {
-  /**
-   * Text result to send back to the LLM
-   */
-  textResultForLlm: string;
-  /**
-   * Type of the tool result
-   */
-  resultType?: string;
-  /**
-   * Error message if the tool call failed
-   */
-  error?: string;
-  /**
-   * Telemetry data from tool execution
-   */
-  toolTelemetry?: {
-    [k: string]: unknown;
-  };
-}
-
-export interface HandleToolCallResult {
-  /**
-   * Whether the tool call result was handled successfully
-   */
-  success: boolean;
-}
-
-export interface CommandsHandlePendingCommandRequest {
-  /**
-   * Request ID from the command invocation event
-   */
-  requestId: string;
-  /**
-   * Error message if the command handler failed
-   */
-  error?: string;
-}
-
-export interface CommandsHandlePendingCommandResult {
-  /**
-   * Whether the command was handled successfully
-   */
-  success: boolean;
-}
-
-export interface UIElicitationRequest {
-  /**
-   * Message describing what information is needed from the user
-   */
-  message: string;
-  requestedSchema: UIElicitationSchema;
-}
-/**
- * JSON Schema describing the form fields to present to the user
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UIElicitationSchema".
- */
-export interface UIElicitationSchema {
-  /**
-   * Schema type indicator (always 'object')
-   */
-  type: "object";
-  /**
-   * Form field definitions, keyed by field name
-   */
-  properties: {
-    [k: string]:
-      | UIElicitationStringEnumField
-      | UIElicitationStringOneOfField
-      | UIElicitationArrayEnumField
-      | UIElicitationArrayAnyOfField
-      | UIElicitationSchemaPropertyBoolean
-      | UIElicitationSchemaPropertyString
-      | UIElicitationSchemaPropertyNumber;
-  };
-  /**
-   * List of required field names
-   */
-  required?: string[];
-}
-
-export interface UIElicitationStringEnumField {
-  type: "string";
-  description?: string;
-  enum: string[];
-  enumNames?: string[];
-  default?: string;
-}
-
-export interface UIElicitationStringOneOfField {
-  type: "string";
-  description?: string;
-  oneOf: UIElicitationStringOneOfFieldOneOf[];
-  default?: string;
-}
-
-export interface UIElicitationStringOneOfFieldOneOf {
-  const: string;
-}
-
-export interface UIElicitationArrayEnumField {
-  type: "array";
-  description?: string;
-  minItems?: number;
-  maxItems?: number;
-  items: UIElicitationArrayEnumFieldItems;
-  default?: string[];
-}
-
-export interface UIElicitationArrayEnumFieldItems {
-  type: "string";
-  enum: string[];
-}
-
-export interface UIElicitationArrayAnyOfField {
-  type: "array";
-  description?: string;
-  minItems?: number;
-  maxItems?: number;
-  items: UIElicitationArrayAnyOfFieldItems;
-  default?: string[];
-}
-
-export interface UIElicitationArrayAnyOfFieldItems {
-  anyOf: UIElicitationArrayAnyOfFieldItemsAnyOf[];
-}
-
-export interface UIElicitationArrayAnyOfFieldItemsAnyOf {
-  const: string;
-}
-
-export interface UIElicitationSchemaPropertyBoolean {
-  type: "boolean";
-  description?: string;
-  default?: boolean;
-}
-
-export interface UIElicitationSchemaPropertyString {
-  type: "string";
-  description?: string;
-  minLength?: number;
-  maxLength?: number;
-  format?: "email" | "uri" | "date" | "date-time";
-  default?: string;
-}
-
-export interface UIElicitationSchemaPropertyNumber {
-  type: "number" | "integer";
-  description?: string;
-  minimum?: number;
-  maximum?: number;
-  default?: number;
-}
-/**
- * The elicitation response (accept with form values, decline, or cancel)
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UIElicitationResponse".
- */
-export interface UIElicitationResponse {
-  action: UIElicitationResponseAction;
-  content?: UIElicitationResponseContent;
-}
-/**
- * The form values submitted by the user (present when action is 'accept')
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UIElicitationResponseContent".
- */
-export interface UIElicitationResponseContent {
-  [k: string]: UIElicitationFieldValue;
-}
-
-export interface UIHandlePendingElicitationRequest {
-  /**
-   * The unique request ID from the elicitation.requested event
-   */
-  requestId: string;
-  result: UIElicitationResponse;
-}
-
-export interface UIElicitationResult {
-  /**
-   * Whether the response was accepted. False if the request was already resolved by another client.
-   */
-  success: boolean;
-}
-
-export interface PermissionDecisionRequest {
-  /**
-   * Request ID of the pending permission request
-   */
-  requestId: string;
-  result: PermissionDecision;
 }
 
 export interface PermissionDecisionApproved {
@@ -1207,6 +881,14 @@ export interface PermissionDecisionDeniedByPermissionRequestHook {
   interrupt?: boolean;
 }
 
+export interface PermissionDecisionRequest {
+  /**
+   * Request ID of the pending permission request
+   */
+  requestId: string;
+  result: PermissionDecision;
+}
+
 export interface PermissionRequestResult {
   /**
    * Whether the permission request was handled successfully
@@ -1214,27 +896,374 @@ export interface PermissionRequestResult {
   success: boolean;
 }
 
-export interface LogRequest {
+export interface PingRequest {
   /**
-   * Human-readable message
+   * Optional message to echo back
    */
-  message: string;
-  level?: SessionLogLevel;
-  /**
-   * When true, the message is transient and not persisted to the session event log on disk
-   */
-  ephemeral?: boolean;
-  /**
-   * Optional URL the user can open in their browser for more details
-   */
-  url?: string;
+  message?: string;
 }
 
-export interface LogResult {
+export interface PingResult {
   /**
-   * The unique identifier of the emitted session event
+   * Echoed message (or default greeting)
    */
-  eventId: string;
+  message: string;
+  /**
+   * Server timestamp in milliseconds
+   */
+  timestamp: number;
+  /**
+   * Server protocol version number
+   */
+  protocolVersion: number;
+}
+
+export interface PlanReadResult {
+  /**
+   * Whether the plan file exists in the workspace
+   */
+  exists: boolean;
+  /**
+   * The content of the plan file, or null if it does not exist
+   */
+  content: string | null;
+  /**
+   * Absolute file path of the plan file, or null if workspace is not enabled
+   */
+  path: string | null;
+}
+
+export interface PlanUpdateRequest {
+  /**
+   * The new content for the plan file
+   */
+  content: string;
+}
+
+export interface Plugin {
+  /**
+   * Plugin name
+   */
+  name: string;
+  /**
+   * Marketplace the plugin came from
+   */
+  marketplace: string;
+  /**
+   * Installed version
+   */
+  version?: string;
+  /**
+   * Whether the plugin is currently enabled
+   */
+  enabled: boolean;
+}
+
+/** @experimental */
+export interface PluginList {
+  /**
+   * Installed plugins
+   */
+  plugins: Plugin[];
+}
+
+export interface ServerSkill {
+  /**
+   * Unique identifier for the skill
+   */
+  name: string;
+  /**
+   * Description of what the skill does
+   */
+  description: string;
+  /**
+   * Source location type (e.g., project, personal-copilot, plugin, builtin)
+   */
+  source: string;
+  /**
+   * Whether the skill can be invoked by the user as a slash command
+   */
+  userInvocable: boolean;
+  /**
+   * Whether the skill is currently enabled (based on global config)
+   */
+  enabled: boolean;
+  /**
+   * Absolute path to the skill file
+   */
+  path?: string;
+  /**
+   * The project path this skill belongs to (only for project/inherited skills)
+   */
+  projectPath?: string;
+}
+
+export interface ServerSkillList {
+  /**
+   * All discovered skills across all sources
+   */
+  skills: ServerSkill[];
+}
+
+export interface SessionFsAppendFileRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Content to append
+   */
+  content: string;
+  /**
+   * Optional POSIX-style mode for newly created files
+   */
+  mode?: number;
+}
+/**
+ * Describes a filesystem error.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsError".
+ */
+export interface SessionFsError {
+  code: SessionFsErrorCode;
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
+}
+
+export interface SessionFsExistsRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsExistsResult {
+  /**
+   * Whether the path exists
+   */
+  exists: boolean;
+}
+
+export interface SessionFsMkdirRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Create parent directories as needed
+   */
+  recursive?: boolean;
+  /**
+   * Optional POSIX-style mode for newly created directories
+   */
+  mode?: number;
+}
+
+export interface SessionFsReaddirRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsReaddirResult {
+  /**
+   * Entry names in the directory
+   */
+  entries: string[];
+  error?: SessionFsError;
+}
+
+export interface SessionFsReaddirWithTypesEntry {
+  /**
+   * Entry name
+   */
+  name: string;
+  type: SessionFsReaddirWithTypesEntryType;
+}
+
+export interface SessionFsReaddirWithTypesRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsReaddirWithTypesResult {
+  /**
+   * Directory entries with type information
+   */
+  entries: SessionFsReaddirWithTypesEntry[];
+  error?: SessionFsError;
+}
+
+export interface SessionFsReadFileRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsReadFileResult {
+  /**
+   * File content as UTF-8 string
+   */
+  content: string;
+  error?: SessionFsError;
+}
+
+export interface SessionFsRenameRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Source path using SessionFs conventions
+   */
+  src: string;
+  /**
+   * Destination path using SessionFs conventions
+   */
+  dest: string;
+}
+
+export interface SessionFsRmRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Remove directories and their contents recursively
+   */
+  recursive?: boolean;
+  /**
+   * Ignore errors if the path does not exist
+   */
+  force?: boolean;
+}
+
+export interface SessionFsSetProviderRequest {
+  /**
+   * Initial working directory for sessions
+   */
+  initialCwd: string;
+  /**
+   * Path within each session's SessionFs where the runtime stores files for that session
+   */
+  sessionStatePath: string;
+  conventions: SessionFsSetProviderConventions;
+}
+
+export interface SessionFsSetProviderResult {
+  /**
+   * Whether the provider was set successfully
+   */
+  success: boolean;
+}
+
+export interface SessionFsStatRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsStatResult {
+  /**
+   * Whether the path is a file
+   */
+  isFile: boolean;
+  /**
+   * Whether the path is a directory
+   */
+  isDirectory: boolean;
+  /**
+   * File size in bytes
+   */
+  size: number;
+  /**
+   * ISO 8601 timestamp of last modification
+   */
+  mtime: string;
+  /**
+   * ISO 8601 timestamp of creation
+   */
+  birthtime: string;
+  error?: SessionFsError;
+}
+
+export interface SessionFsWriteFileRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Content to write
+   */
+  content: string;
+  /**
+   * Optional POSIX-style mode for newly created files
+   */
+  mode?: number;
+}
+
+/** @experimental */
+export interface SessionsForkRequest {
+  /**
+   * Source session ID to fork from
+   */
+  sessionId: string;
+  /**
+   * Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.
+   */
+  toEventId?: string;
+}
+
+/** @experimental */
+export interface SessionsForkResult {
+  /**
+   * The new forked session's ID
+   */
+  sessionId: string;
 }
 
 export interface ShellExecRequest {
@@ -1264,10 +1293,7 @@ export interface ShellKillRequest {
    * Process identifier returned by shell.exec
    */
   processId: string;
-  /**
-   * Signal to send (default: SIGTERM)
-   */
-  signal?: "SIGTERM" | "SIGKILL" | "SIGINT";
+  signal?: ShellKillSignal;
 }
 
 export interface ShellKillResult {
@@ -1277,69 +1303,291 @@ export interface ShellKillResult {
   killed: boolean;
 }
 
+export interface Skill {
+  /**
+   * Unique identifier for the skill
+   */
+  name: string;
+  /**
+   * Description of what the skill does
+   */
+  description: string;
+  /**
+   * Source location type (e.g., project, personal, plugin)
+   */
+  source: string;
+  /**
+   * Whether the skill can be invoked by the user as a slash command
+   */
+  userInvocable: boolean;
+  /**
+   * Whether the skill is currently enabled
+   */
+  enabled: boolean;
+  /**
+   * Absolute path to the skill file
+   */
+  path?: string;
+}
+
 /** @experimental */
-export interface HistoryCompactResult {
+export interface SkillList {
   /**
-   * Whether compaction completed successfully
+   * Available skills
    */
-  success: boolean;
+  skills: Skill[];
+}
+
+export interface SkillsConfigSetDisabledSkillsRequest {
   /**
-   * Number of tokens freed by compaction
+   * List of skill names to disable
    */
-  tokensRemoved: number;
+  disabledSkills: string[];
+}
+
+/** @experimental */
+export interface SkillsDisableRequest {
   /**
-   * Number of messages removed during compaction
+   * Name of the skill to disable
    */
-  messagesRemoved: number;
-  contextWindow?: HistoryCompactContextWindow;
+  name: string;
+}
+
+export interface SkillsDiscoverRequest {
+  /**
+   * Optional list of project directory paths to scan for project-scoped skills
+   */
+  projectPaths?: string[];
+  /**
+   * Optional list of additional skill directory paths to include
+   */
+  skillDirectories?: string[];
+}
+
+/** @experimental */
+export interface SkillsEnableRequest {
+  /**
+   * Name of the skill to enable
+   */
+  name: string;
+}
+
+export interface Tool {
+  /**
+   * Tool identifier (e.g., "bash", "grep", "str_replace_editor")
+   */
+  name: string;
+  /**
+   * Optional namespaced name for declarative filtering (e.g., "playwright/navigate" for MCP tools)
+   */
+  namespacedName?: string;
+  /**
+   * Description of what the tool does
+   */
+  description: string;
+  /**
+   * JSON Schema for the tool's input parameters
+   */
+  parameters?: {
+    [k: string]: unknown;
+  };
+  /**
+   * Optional instructions for how to use this tool effectively
+   */
+  instructions?: string;
+}
+
+export interface ToolCallResult {
+  /**
+   * Text result to send back to the LLM
+   */
+  textResultForLlm: string;
+  /**
+   * Type of the tool result
+   */
+  resultType?: string;
+  /**
+   * Error message if the tool call failed
+   */
+  error?: string;
+  /**
+   * Telemetry data from tool execution
+   */
+  toolTelemetry?: {
+    [k: string]: unknown;
+  };
+}
+
+export interface ToolList {
+  /**
+   * List of available built-in tools with metadata
+   */
+  tools: Tool[];
+}
+
+export interface ToolsHandlePendingToolCallRequest {
+  /**
+   * Request ID of the pending tool call
+   */
+  requestId: string;
+  result?: ToolsHandlePendingToolCall;
+  /**
+   * Error message if the tool call failed
+   */
+  error?: string;
+}
+
+export interface ToolsListRequest {
+  /**
+   * Optional model ID — when provided, the returned tool list reflects model-specific overrides
+   */
+  model?: string;
+}
+
+export interface UIElicitationArrayAnyOfField {
+  type: "array";
+  title?: string;
+  description?: string;
+  minItems?: number;
+  maxItems?: number;
+  items: UIElicitationArrayAnyOfFieldItems;
+  default?: string[];
+}
+
+export interface UIElicitationArrayAnyOfFieldItems {
+  anyOf: UIElicitationArrayAnyOfFieldItemsAnyOf[];
+}
+
+export interface UIElicitationArrayAnyOfFieldItemsAnyOf {
+  const: string;
+  title: string;
+}
+
+export interface UIElicitationArrayEnumField {
+  type: "array";
+  title?: string;
+  description?: string;
+  minItems?: number;
+  maxItems?: number;
+  items: UIElicitationArrayEnumFieldItems;
+  default?: string[];
+}
+
+export interface UIElicitationArrayEnumFieldItems {
+  type: "string";
+  enum: string[];
+}
+
+export interface UIElicitationRequest {
+  /**
+   * Message describing what information is needed from the user
+   */
+  message: string;
+  requestedSchema: UIElicitationSchema;
 }
 /**
- * Post-compaction context window usage breakdown
+ * JSON Schema describing the form fields to present to the user
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HistoryCompactContextWindow".
+ * via the `definition` "UIElicitationSchema".
  */
-export interface HistoryCompactContextWindow {
+export interface UIElicitationSchema {
   /**
-   * Maximum token count for the model's context window
+   * Schema type indicator (always 'object')
    */
-  tokenLimit: number;
+  type: "object";
   /**
-   * Current total tokens in the context window (system + conversation + tool definitions)
+   * Form field definitions, keyed by field name
    */
-  currentTokens: number;
+  properties: {
+    [k: string]: UIElicitationSchemaProperty;
+  };
   /**
-   * Current number of messages in the conversation
+   * List of required field names
    */
-  messagesLength: number;
-  /**
-   * Token count from system message(s)
-   */
-  systemTokens?: number;
-  /**
-   * Token count from non-system messages (user, assistant, tool)
-   */
-  conversationTokens?: number;
-  /**
-   * Token count from tool definitions
-   */
-  toolDefinitionsTokens?: number;
+  required?: string[];
 }
 
-/** @experimental */
-export interface HistoryTruncateRequest {
-  /**
-   * Event ID to truncate to. This event and all events after it are removed from the session.
-   */
-  eventId: string;
+export interface UIElicitationStringEnumField {
+  type: "string";
+  title?: string;
+  description?: string;
+  enum: string[];
+  enumNames?: string[];
+  default?: string;
 }
 
-/** @experimental */
-export interface HistoryTruncateResult {
+export interface UIElicitationStringOneOfField {
+  type: "string";
+  title?: string;
+  description?: string;
+  oneOf: UIElicitationStringOneOfFieldOneOf[];
+  default?: string;
+}
+
+export interface UIElicitationStringOneOfFieldOneOf {
+  const: string;
+  title: string;
+}
+
+export interface UIElicitationSchemaPropertyBoolean {
+  type: "boolean";
+  title?: string;
+  description?: string;
+  default?: boolean;
+}
+
+export interface UIElicitationSchemaPropertyString {
+  type: "string";
+  title?: string;
+  description?: string;
+  minLength?: number;
+  maxLength?: number;
+  format?: UIElicitationSchemaPropertyStringFormat;
+  default?: string;
+}
+
+export interface UIElicitationSchemaPropertyNumber {
+  type: UIElicitationSchemaPropertyNumberType;
+  title?: string;
+  description?: string;
+  minimum?: number;
+  maximum?: number;
+  default?: number;
+}
+/**
+ * The elicitation response (accept with form values, decline, or cancel)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UIElicitationResponse".
+ */
+export interface UIElicitationResponse {
+  action: UIElicitationResponseAction;
+  content?: UIElicitationResponseContent;
+}
+/**
+ * The form values submitted by the user (present when action is 'accept')
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UIElicitationResponseContent".
+ */
+export interface UIElicitationResponseContent {
+  [k: string]: UIElicitationFieldValue;
+}
+
+export interface UIElicitationResult {
   /**
-   * Number of events that were removed
+   * Whether the response was accepted. False if the request was already resolved by another client.
    */
-  eventsRemoved: number;
+  success: boolean;
+}
+
+export interface UIHandlePendingElicitationRequest {
+  /**
+   * The unique request ID from the elicitation.requested event
+   */
+  requestId: string;
+  result: UIElicitationResponse;
 }
 
 /** @experimental */
@@ -1450,232 +1698,61 @@ export interface UsageMetricsModelMetricUsage {
   reasoningTokens?: number;
 }
 
-export interface SessionFsReadFileRequest {
+export interface WorkspacesCreateFileRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Path using SessionFs conventions
+   * Relative path within the workspace files directory
    */
   path: string;
-}
-
-export interface SessionFsReadFileResult {
   /**
-   * File content as UTF-8 string
+   * File content to write as a UTF-8 string
    */
   content: string;
-  error?: SessionFsError;
-}
-/**
- * Describes a filesystem error.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionFsError".
- */
-export interface SessionFsError {
-  /**
-   * Error classification
-   */
-  code: "ENOENT" | "UNKNOWN";
-  /**
-   * Free-form detail about the error, for logging/diagnostics
-   */
-  message?: string;
 }
 
-export interface SessionFsWriteFileRequest {
+export interface WorkspacesGetWorkspaceResult {
   /**
-   * Target session identifier
+   * Current workspace metadata, or null if not available
    */
-  sessionId: string;
+  workspace: {
+    id: string;
+    cwd?: string;
+    git_root?: string;
+    repository?: string;
+    host_type?: "github" | "ado";
+    branch?: string;
+    summary?: string;
+    name?: string;
+    summary_count?: number;
+    created_at?: string;
+    updated_at?: string;
+    remote_steerable?: boolean;
+    mc_task_id?: string;
+    mc_session_id?: string;
+    mc_last_event_id?: string;
+    session_sync_level?: "local" | "user" | "repo_and_user";
+    chronicle_sync_dismissed?: boolean;
+  } | null;
+}
+
+export interface WorkspacesListFilesResult {
   /**
-   * Path using SessionFs conventions
+   * Relative file paths in the workspace files directory
+   */
+  files: string[];
+}
+
+export interface WorkspacesReadFileRequest {
+  /**
+   * Relative path within the workspace files directory
    */
   path: string;
+}
+
+export interface WorkspacesReadFileResult {
   /**
-   * Content to write
+   * File content as a UTF-8 string
    */
   content: string;
-  /**
-   * Optional POSIX-style mode for newly created files
-   */
-  mode?: number;
-}
-
-export interface SessionFsAppendFileRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Path using SessionFs conventions
-   */
-  path: string;
-  /**
-   * Content to append
-   */
-  content: string;
-  /**
-   * Optional POSIX-style mode for newly created files
-   */
-  mode?: number;
-}
-
-export interface SessionFsExistsRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Path using SessionFs conventions
-   */
-  path: string;
-}
-
-export interface SessionFsExistsResult {
-  /**
-   * Whether the path exists
-   */
-  exists: boolean;
-}
-
-export interface SessionFsStatRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Path using SessionFs conventions
-   */
-  path: string;
-}
-
-export interface SessionFsStatResult {
-  /**
-   * Whether the path is a file
-   */
-  isFile: boolean;
-  /**
-   * Whether the path is a directory
-   */
-  isDirectory: boolean;
-  /**
-   * File size in bytes
-   */
-  size: number;
-  /**
-   * ISO 8601 timestamp of last modification
-   */
-  mtime: string;
-  /**
-   * ISO 8601 timestamp of creation
-   */
-  birthtime: string;
-  error?: SessionFsError;
-}
-
-export interface SessionFsMkdirRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Path using SessionFs conventions
-   */
-  path: string;
-  /**
-   * Create parent directories as needed
-   */
-  recursive?: boolean;
-  /**
-   * Optional POSIX-style mode for newly created directories
-   */
-  mode?: number;
-}
-
-export interface SessionFsReaddirRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Path using SessionFs conventions
-   */
-  path: string;
-}
-
-export interface SessionFsReaddirResult {
-  /**
-   * Entry names in the directory
-   */
-  entries: string[];
-  error?: SessionFsError;
-}
-
-export interface SessionFsReaddirWithTypesRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Path using SessionFs conventions
-   */
-  path: string;
-}
-
-export interface SessionFsReaddirWithTypesResult {
-  /**
-   * Directory entries with type information
-   */
-  entries: SessionFsReaddirWithTypesEntry[];
-  error?: SessionFsError;
-}
-
-export interface SessionFsReaddirWithTypesEntry {
-  /**
-   * Entry name
-   */
-  name: string;
-  /**
-   * Entry type
-   */
-  type: "file" | "directory";
-}
-
-export interface SessionFsRmRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Path using SessionFs conventions
-   */
-  path: string;
-  /**
-   * Remove directories and their contents recursively
-   */
-  recursive?: boolean;
-  /**
-   * Ignore errors if the path does not exist
-   */
-  force?: boolean;
-}
-
-export interface SessionFsRenameRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Source path using SessionFs conventions
-   */
-  src: string;
-  /**
-   * Destination path using SessionFs conventions
-   */
-  dest: string;
 }
 
 /** Create typed server-scoped RPC methods (no session required). */

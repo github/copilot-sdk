@@ -16,7 +16,6 @@ import {
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    hoistTitledSchemas,
     isObjectSchema,
     isVoidSchema,
     getNullableInner,
@@ -721,7 +720,8 @@ function resolvePyPropertyType(
     isRequired: boolean,
     ctx: PyCodegenCtx
 ): PyResolvedType {
-    const nestedName = parentTypeName + toPascalCase(jsonPropName);
+    const fallbackName = parentTypeName + toPascalCase(jsonPropName);
+    const nestedName = typeof propSchema.title === "string" ? propSchema.title : fallbackName;
 
     if (propSchema.$ref && typeof propSchema.$ref === "string") {
         const typeName = toPascalCase(refTypeName(propSchema.$ref, ctx.definitions));
@@ -1617,8 +1617,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         }
     }
 
-    const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
-    const allDefinitions = { ...rootDefinitions, ...sharedDefinitions };
+    const allDefinitions = combinedSchema.definitions! as Record<string, JSONSchema7>;
     const allDefinitionCollections: DefinitionCollections = {
         definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
@@ -1632,9 +1631,9 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         type: "object",
         definitions: allDefinitions,
         properties: Object.fromEntries(
-            Object.keys(rootDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
+            Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
         ),
-        required: Object.keys(rootDefinitions),
+        required: Object.keys(allDefinitions),
     };
     await schemaInput.addSource({ name: "RPC", schema: JSON.stringify(singleSchema) });
 
@@ -1677,7 +1676,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         if (method.stability !== "experimental") continue;
         experimentalTypeNames.add(pythonResultTypeName(method));
         const paramsTypeName = pythonParamsTypeName(method);
-        if (rootDefinitions[paramsTypeName]) {
+        if (allDefinitions[paramsTypeName]) {
             experimentalTypeNames.add(paramsTypeName);
         }
     }
@@ -1697,7 +1696,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         }
         if (!method.params?.$ref) {
             const paramsTypeName = pythonParamsTypeName(method);
-            if (rootDefinitions[paramsTypeName]) {
+            if (allDefinitions[paramsTypeName]) {
                 deprecatedTypeNames.add(paramsTypeName);
             }
         }

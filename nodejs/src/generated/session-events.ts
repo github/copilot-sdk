@@ -78,6 +78,148 @@ export type SessionEvent =
   | McpServersLoadedEvent
   | McpServerStatusChangedEvent
   | ExtensionsLoadedEvent;
+/**
+ * Hosting platform type of the repository (github or ado)
+ */
+export type WorkingDirectoryContextHostType = "github" | "ado";
+/**
+ * The type of operation performed on the plan file
+ */
+export type PlanChangedOperation = "create" | "update" | "delete";
+/**
+ * Whether the file was newly created or updated
+ */
+export type WorkspaceFileChangedOperation = "create" | "update";
+/**
+ * Origin type of the session being handed off
+ */
+export type HandoffSourceType = "remote" | "local";
+/**
+ * Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
+ */
+export type ShutdownType = "routine" | "error";
+/**
+ * A user message attachment — a file, directory, code selection, blob, or GitHub reference
+ */
+export type UserMessageAttachment =
+  | UserMessageAttachmentFile
+  | UserMessageAttachmentDirectory
+  | UserMessageAttachmentSelection
+  | UserMessageAttachmentGithubReference
+  | UserMessageAttachmentBlob;
+/**
+ * Type of GitHub reference
+ */
+export type UserMessageAttachmentGithubReferenceType = "issue" | "pr" | "discussion";
+/**
+ * The agent mode that was active when this message was sent
+ */
+export type UserMessageAgentMode = "interactive" | "plan" | "autopilot" | "shell";
+/**
+ * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
+ */
+export type AssistantMessageToolRequestType = "function" | "custom";
+/**
+ * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
+ */
+export type ToolExecutionCompleteContent =
+  | ToolExecutionCompleteContentText
+  | ToolExecutionCompleteContentTerminal
+  | ToolExecutionCompleteContentImage
+  | ToolExecutionCompleteContentAudio
+  | ToolExecutionCompleteContentResourceLink
+  | ToolExecutionCompleteContentResource;
+/**
+ * Theme variant this icon is intended for
+ */
+export type ToolExecutionCompleteContentResourceLinkIconTheme = "light" | "dark";
+/**
+ * The embedded resource contents, either text or base64-encoded binary
+ */
+export type ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceContents | EmbeddedBlobResourceContents;
+/**
+ * Message role: "system" for system prompts, "developer" for developer-injected instructions
+ */
+export type SystemMessageRole = "system" | "developer";
+/**
+ * Structured metadata identifying what triggered this notification
+ */
+export type SystemNotification =
+  | SystemNotificationAgentCompleted
+  | SystemNotificationAgentIdle
+  | SystemNotificationShellCompleted
+  | SystemNotificationShellDetachedCompleted;
+/**
+ * Whether the agent completed successfully or failed
+ */
+export type SystemNotificationAgentCompletedStatus = "completed" | "failed";
+/**
+ * Details of the permission being requested
+ */
+export type PermissionRequest =
+  | PermissionRequestShell
+  | PermissionRequestWrite
+  | PermissionRequestRead
+  | PermissionRequestMcp
+  | PermissionRequestUrl
+  | PermissionRequestMemory
+  | PermissionRequestCustomTool
+  | PermissionRequestHook;
+/**
+ * Whether this is a store or vote memory operation
+ */
+export type PermissionRequestMemoryAction = "store" | "vote";
+/**
+ * Vote direction (vote only)
+ */
+export type PermissionRequestMemoryDirection = "upvote" | "downvote";
+/**
+ * The outcome of the permission request
+ */
+export type PermissionCompletedKind =
+  | "approved"
+  | "denied-by-rules"
+  | "denied-no-approval-rule-and-could-not-request-from-user"
+  | "denied-interactively-by-user"
+  | "denied-by-content-exclusion-policy"
+  | "denied-by-permission-request-hook";
+/**
+ * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
+ */
+export type ElicitationRequestedMode = "form" | "url";
+/**
+ * The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
+ */
+export type ElicitationCompletedAction = "accept" | "decline" | "cancel";
+export type ElicitationCompletedContent = string | number | boolean | string[];
+/**
+ * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+ */
+export type McpServersLoadedServerStatus =
+  | "connected"
+  | "failed"
+  | "needs-auth"
+  | "pending"
+  | "disabled"
+  | "not_configured";
+/**
+ * New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+ */
+export type McpServerStatusChangedStatus =
+  | "connected"
+  | "failed"
+  | "needs-auth"
+  | "pending"
+  | "disabled"
+  | "not_configured";
+/**
+ * Discovery source
+ */
+export type ExtensionsLoadedExtensionSource = "project" | "user";
+/**
+ * Current status: running, disabled, failed, or starting
+ */
+export type ExtensionsLoadedExtensionStatus = "running" | "disabled" | "failed" | "starting";
 
 export interface StartEvent {
   /**
@@ -161,10 +303,7 @@ export interface WorkingDirectoryContext {
    * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
    */
   repository?: string;
-  /**
-   * Hosting platform type of the repository (github or ado)
-   */
-  hostType?: "github" | "ado";
+  hostType?: WorkingDirectoryContextHostType;
   /**
    * Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
    */
@@ -376,7 +515,12 @@ export interface TitleChangedEvent {
 /**
  * Session title change payload containing the new display title
  */
-export interface TitleChangedData {}
+export interface TitleChangedData {
+  /**
+   * The new display title for the session
+   */
+  title: string;
+}
 export interface InfoEvent {
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -569,10 +713,7 @@ export interface PlanChangedEvent {
  * Plan file operation details indicating what changed
  */
 export interface PlanChangedData {
-  /**
-   * The type of operation performed on the plan file
-   */
-  operation: "create" | "update" | "delete";
+  operation: PlanChangedOperation;
 }
 export interface WorkspaceFileChangedEvent {
   /**
@@ -606,10 +747,7 @@ export interface WorkspaceFileChangedData {
    * Relative path within the session workspace files directory
    */
   path: string;
-  /**
-   * Whether the file was newly created or updated
-   */
-  operation: "create" | "update";
+  operation: WorkspaceFileChangedOperation;
 }
 export interface HandoffEvent {
   /**
@@ -643,10 +781,7 @@ export interface HandoffData {
    * ISO 8601 timestamp when the handoff occurred
    */
   handoffTime: string;
-  /**
-   * Origin type of the session being handed off
-   */
-  sourceType: "remote" | "local";
+  sourceType: HandoffSourceType;
   repository?: HandoffRepository;
   /**
    * Additional context information for the handoff
@@ -805,10 +940,7 @@ export interface ShutdownEvent {
  * Session termination metrics including usage statistics, code changes, and shutdown reason
  */
 export interface ShutdownData {
-  /**
-   * Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
-   */
-  shutdownType: "routine" | "error";
+  shutdownType: ShutdownType;
   /**
    * Error description when shutdownType is "error"
    */
@@ -1207,13 +1339,7 @@ export interface UserMessageData {
   /**
    * Files, selections, or GitHub references attached to the message
    */
-  attachments?: (
-    | UserMessageAttachmentFile
-    | UserMessageAttachmentDirectory
-    | UserMessageAttachmentSelection
-    | UserMessageAttachmentGithubReference
-    | UserMessageAttachmentBlob
-  )[];
+  attachments?: UserMessageAttachment[];
   /**
    * Normalized document MIME types that were sent natively instead of through tagged_files XML
    */
@@ -1226,10 +1352,7 @@ export interface UserMessageData {
    * Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
    */
   source?: string;
-  /**
-   * The agent mode that was active when this message was sent
-   */
-  agentMode?: "interactive" | "plan" | "autopilot" | "shell";
+  agentMode?: UserMessageAgentMode;
   /**
    * CAPI interaction ID for correlating this user message with its turn
    */
@@ -1351,9 +1474,10 @@ export interface UserMessageAttachmentGithubReference {
    */
   number: number;
   /**
-   * Type of GitHub reference
+   * Title of the referenced item
    */
-  referenceType: "issue" | "pr" | "discussion";
+  title: string;
+  referenceType: UserMessageAttachmentGithubReferenceType;
   /**
    * Current state of the referenced item (e.g., open, closed, merged)
    */
@@ -1669,10 +1793,7 @@ export interface AssistantMessageToolRequest {
   arguments?: {
     [k: string]: unknown;
   };
-  /**
-   * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
-   */
-  type?: "function" | "custom";
+  type?: AssistantMessageToolRequestType;
   /**
    * Human-readable display title for the tool
    */
@@ -2197,14 +2318,7 @@ export interface ToolExecutionCompleteResult {
   /**
    * Structured content blocks (text, images, audio, resources) returned by the tool in their native format
    */
-  contents?: (
-    | ToolExecutionCompleteContentText
-    | ToolExecutionCompleteContentTerminal
-    | ToolExecutionCompleteContentImage
-    | ToolExecutionCompleteContentAudio
-    | ToolExecutionCompleteContentResourceLink
-    | ToolExecutionCompleteContentResource
-  )[];
+  contents?: ToolExecutionCompleteContent[];
 }
 /**
  * Plain text content block
@@ -2287,6 +2401,10 @@ export interface ToolExecutionCompleteContentResourceLink {
    */
   name: string;
   /**
+   * Human-readable display title for the resource
+   */
+  title?: string;
+  /**
    * URI identifying the resource
    */
   uri: string;
@@ -2323,10 +2441,7 @@ export interface ToolExecutionCompleteContentResourceLinkIcon {
    * Available icon sizes (e.g., ['16x16', '32x32'])
    */
   sizes?: string[];
-  /**
-   * Theme variant this icon is intended for
-   */
-  theme?: "light" | "dark";
+  theme?: ToolExecutionCompleteContentResourceLinkIconTheme;
 }
 /**
  * Embedded resource content block with inline text or binary data
@@ -2336,10 +2451,7 @@ export interface ToolExecutionCompleteContentResource {
    * Content block type discriminator
    */
   type: "resource";
-  /**
-   * The embedded resource contents, either text or base64-encoded binary
-   */
-  resource: EmbeddedTextResourceContents | EmbeddedBlobResourceContents;
+  resource: ToolExecutionCompleteContentResourceDetails;
 }
 export interface EmbeddedTextResourceContents {
   /**
@@ -2807,10 +2919,7 @@ export interface SystemMessageData {
    * The system or developer prompt text sent as model input
    */
   content: string;
-  /**
-   * Message role: "system" for system prompts, "developer" for developer-injected instructions
-   */
-  role: "system" | "developer";
+  role: SystemMessageRole;
   /**
    * Optional name identifier for the message source
    */
@@ -2864,14 +2973,7 @@ export interface SystemNotificationData {
    * The notification text, typically wrapped in <system_notification> XML tags
    */
   content: string;
-  /**
-   * Structured metadata identifying what triggered this notification
-   */
-  kind:
-    | SystemNotificationAgentCompleted
-    | SystemNotificationAgentIdle
-    | SystemNotificationShellCompleted
-    | SystemNotificationShellDetachedCompleted;
+  kind: SystemNotification;
 }
 export interface SystemNotificationAgentCompleted {
   type: "agent_completed";
@@ -2883,10 +2985,7 @@ export interface SystemNotificationAgentCompleted {
    * Type of the agent (e.g., explore, task, general-purpose)
    */
   agentType: string;
-  /**
-   * Whether the agent completed successfully or failed
-   */
-  status: "completed" | "failed";
+  status: SystemNotificationAgentCompletedStatus;
   /**
    * Human-readable description of the agent task
    */
@@ -2966,18 +3065,7 @@ export interface PermissionRequestedData {
    * Unique identifier for this permission request; used to respond via session.respondToPermission()
    */
   requestId: string;
-  /**
-   * Details of the permission being requested
-   */
-  permissionRequest:
-    | PermissionRequestShell
-    | PermissionRequestWrite
-    | PermissionRequestRead
-    | PermissionRequestMcp
-    | PermissionRequestUrl
-    | PermissionRequestMemory
-    | PermissionRequestCustomTool
-    | PermissionRequestHook;
+  permissionRequest: PermissionRequest;
   /**
    * When true, this permission was already resolved by a permissionRequest hook and requires no client action
    */
@@ -3166,10 +3254,7 @@ export interface PermissionRequestMemory {
    * Tool call ID that triggered this permission request
    */
   toolCallId?: string;
-  /**
-   * Whether this is a store or vote memory operation
-   */
-  action?: "store" | "vote";
+  action?: PermissionRequestMemoryAction;
   /**
    * Topic or subject of the memory (store only)
    */
@@ -3182,10 +3267,7 @@ export interface PermissionRequestMemory {
    * Source references for the stored fact (store only)
    */
   citations?: string;
-  /**
-   * Vote direction (vote only)
-   */
-  direction?: "upvote" | "downvote";
+  direction?: PermissionRequestMemoryDirection;
   /**
    * Reason for the vote (vote only)
    */
@@ -3280,16 +3362,7 @@ export interface PermissionCompletedData {
  * The result of the permission request
  */
 export interface PermissionCompletedResult {
-  /**
-   * The outcome of the permission request
-   */
-  kind:
-    | "approved"
-    | "denied-by-rules"
-    | "denied-no-approval-rule-and-could-not-request-from-user"
-    | "denied-interactively-by-user"
-    | "denied-by-content-exclusion-policy"
-    | "denied-by-permission-request-hook";
+  kind: PermissionCompletedKind;
 }
 export interface UserInputRequestedEvent {
   /**
@@ -3416,10 +3489,7 @@ export interface ElicitationRequestedData {
    * Message describing what information is needed from the user
    */
   message: string;
-  /**
-   * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
-   */
-  mode?: "form" | "url";
+  mode?: ElicitationRequestedMode;
   requestedSchema?: ElicitationRequestedSchema;
   /**
    * URL to open in the user's browser (url mode only)
@@ -3475,15 +3545,12 @@ export interface ElicitationCompletedData {
    * Request ID of the resolved elicitation request; clients should dismiss any UI for this request
    */
   requestId: string;
-  /**
-   * The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
-   */
-  action?: "accept" | "decline" | "cancel";
+  action?: ElicitationCompletedAction;
   /**
    * The submitted form data when action is 'accept'; keys match the requested schema fields
    */
   content?: {
-    [k: string]: string | number | boolean | string[];
+    [k: string]: ElicitationCompletedContent;
   };
 }
 export interface SamplingRequestedEvent {
@@ -4191,10 +4258,7 @@ export interface McpServersLoadedServer {
    * Server name (config key)
    */
   name: string;
-  /**
-   * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-   */
-  status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
+  status: McpServersLoadedServerStatus;
   /**
    * Configuration source: user, workspace, plugin, or builtin
    */
@@ -4230,10 +4294,7 @@ export interface McpServerStatusChangedData {
    * Name of the MCP server whose status changed
    */
   serverName: string;
-  /**
-   * New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-   */
-  status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
+  status: McpServerStatusChangedStatus;
 }
 export interface ExtensionsLoadedEvent {
   /**
@@ -4271,12 +4332,6 @@ export interface ExtensionsLoadedExtension {
    * Extension name (directory name)
    */
   name: string;
-  /**
-   * Discovery source
-   */
-  source: "project" | "user";
-  /**
-   * Current status: running, disabled, failed, or starting
-   */
-  status: "running" | "disabled" | "failed" | "starting";
+  source: ExtensionsLoadedExtensionSource;
+  status: ExtensionsLoadedExtensionStatus;
 }

@@ -26,14 +26,20 @@ type RPCTypes struct {
 	CommandsHandlePendingCommandResult                               CommandsHandlePendingCommandResult                               `json:"CommandsHandlePendingCommandResult"`
 	CurrentModel                                                     CurrentModel                                                     `json:"CurrentModel"`
 	DiscoveredMCPServer                                              DiscoveredMCPServer                                              `json:"DiscoveredMcpServer"`
+	DiscoveredMCPServerSource                                        MCPServerSource                                                  `json:"DiscoveredMcpServerSource"`
+	DiscoveredMCPServerType                                          DiscoveredMCPServerType                                          `json:"DiscoveredMcpServerType"`
 	Extension                                                        Extension                                                        `json:"Extension"`
 	ExtensionList                                                    ExtensionList                                                    `json:"ExtensionList"`
 	ExtensionsDisableRequest                                         ExtensionsDisableRequest                                         `json:"ExtensionsDisableRequest"`
 	ExtensionsDisableResult                                          ExtensionsDisableResult                                          `json:"ExtensionsDisableResult"`
 	ExtensionsEnableRequest                                          ExtensionsEnableRequest                                          `json:"ExtensionsEnableRequest"`
 	ExtensionsEnableResult                                           ExtensionsEnableResult                                           `json:"ExtensionsEnableResult"`
+	ExtensionSource                                                  ExtensionSource                                                  `json:"ExtensionSource"`
 	ExtensionsReloadResult                                           ExtensionsReloadResult                                           `json:"ExtensionsReloadResult"`
+	ExtensionStatus                                                  ExtensionStatus                                                  `json:"ExtensionStatus"`
 	FilterMapping                                                    *FilterMapping                                                   `json:"FilterMapping"`
+	FilterMappingString                                              FilterMappingString                                              `json:"FilterMappingString"`
+	FilterMappingValue                                               FilterMappingString                                              `json:"FilterMappingValue"`
 	FleetStartRequest                                                FleetStartRequest                                                `json:"FleetStartRequest"`
 	FleetStartResult                                                 FleetStartResult                                                 `json:"FleetStartResult"`
 	HandleToolCallResult                                             HandleToolCallResult                                             `json:"HandleToolCallResult"`
@@ -43,6 +49,8 @@ type RPCTypes struct {
 	HistoryTruncateResult                                            HistoryTruncateResult                                            `json:"HistoryTruncateResult"`
 	InstructionsGetSourcesResult                                     InstructionsGetSourcesResult                                     `json:"InstructionsGetSourcesResult"`
 	InstructionsSources                                              InstructionsSources                                              `json:"InstructionsSources"`
+	InstructionsSourcesLocation                                      InstructionsSourcesLocation                                      `json:"InstructionsSourcesLocation"`
+	InstructionsSourcesType                                          InstructionsSourcesType                                          `json:"InstructionsSourcesType"`
 	LogRequest                                                       LogRequest                                                       `json:"LogRequest"`
 	LogResult                                                        LogResult                                                        `json:"LogResult"`
 	MCPConfigAddRequest                                              MCPConfigAddRequest                                              `json:"McpConfigAddRequest"`
@@ -62,8 +70,12 @@ type RPCTypes struct {
 	MCPServer                                                        MCPServer                                                        `json:"McpServer"`
 	MCPServerConfig                                                  MCPServerConfig                                                  `json:"McpServerConfig"`
 	MCPServerConfigHTTP                                              MCPServerConfigHTTP                                              `json:"McpServerConfigHttp"`
+	MCPServerConfigHTTPType                                          MCPServerConfigHTTPType                                          `json:"McpServerConfigHttpType"`
 	MCPServerConfigLocal                                             MCPServerConfigLocal                                             `json:"McpServerConfigLocal"`
+	MCPServerConfigLocalType                                         MCPServerConfigLocalType                                         `json:"McpServerConfigLocalType"`
 	MCPServerList                                                    MCPServerList                                                    `json:"McpServerList"`
+	MCPServerSource                                                  MCPServerSource                                                  `json:"McpServerSource"`
+	MCPServerStatus                                                  MCPServerStatus                                                  `json:"McpServerStatus"`
 	Model                                                            ModelElement                                                     `json:"Model"`
 	ModelBilling                                                     ModelBilling                                                     `json:"ModelBilling"`
 	ModelCapabilities                                                ModelCapabilities                                                `json:"ModelCapabilities"`
@@ -104,18 +116,21 @@ type RPCTypes struct {
 	ServerSkillList                                                  ServerSkillList                                                  `json:"ServerSkillList"`
 	SessionFSAppendFileRequest                                       SessionFSAppendFileRequest                                       `json:"SessionFsAppendFileRequest"`
 	SessionFSError                                                   SessionFSError                                                   `json:"SessionFsError"`
+	SessionFSErrorCode                                               SessionFSErrorCode                                               `json:"SessionFsErrorCode"`
 	SessionFSExistsRequest                                           SessionFSExistsRequest                                           `json:"SessionFsExistsRequest"`
 	SessionFSExistsResult                                            SessionFSExistsResult                                            `json:"SessionFsExistsResult"`
 	SessionFSMkdirRequest                                            SessionFSMkdirRequest                                            `json:"SessionFsMkdirRequest"`
 	SessionFSReaddirRequest                                          SessionFSReaddirRequest                                          `json:"SessionFsReaddirRequest"`
 	SessionFSReaddirResult                                           SessionFSReaddirResult                                           `json:"SessionFsReaddirResult"`
 	SessionFSReaddirWithTypesEntry                                   SessionFSReaddirWithTypesEntry                                   `json:"SessionFsReaddirWithTypesEntry"`
+	SessionFSReaddirWithTypesEntryType                               SessionFSReaddirWithTypesEntryType                               `json:"SessionFsReaddirWithTypesEntryType"`
 	SessionFSReaddirWithTypesRequest                                 SessionFSReaddirWithTypesRequest                                 `json:"SessionFsReaddirWithTypesRequest"`
 	SessionFSReaddirWithTypesResult                                  SessionFSReaddirWithTypesResult                                  `json:"SessionFsReaddirWithTypesResult"`
 	SessionFSReadFileRequest                                         SessionFSReadFileRequest                                         `json:"SessionFsReadFileRequest"`
 	SessionFSReadFileResult                                          SessionFSReadFileResult                                          `json:"SessionFsReadFileResult"`
 	SessionFSRenameRequest                                           SessionFSRenameRequest                                           `json:"SessionFsRenameRequest"`
 	SessionFSRmRequest                                               SessionFSRmRequest                                               `json:"SessionFsRmRequest"`
+	SessionFSSetProviderConventions                                  SessionFSSetProviderConventions                                  `json:"SessionFsSetProviderConventions"`
 	SessionFSSetProviderRequest                                      SessionFSSetProviderRequest                                      `json:"SessionFsSetProviderRequest"`
 	SessionFSSetProviderResult                                       SessionFSSetProviderResult                                       `json:"SessionFsSetProviderResult"`
 	SessionFSStatRequest                                             SessionFSStatRequest                                             `json:"SessionFsStatRequest"`
@@ -129,6 +144,7 @@ type RPCTypes struct {
 	ShellExecResult                                                  ShellExecResult                                                  `json:"ShellExecResult"`
 	ShellKillRequest                                                 ShellKillRequest                                                 `json:"ShellKillRequest"`
 	ShellKillResult                                                  ShellKillResult                                                  `json:"ShellKillResult"`
+	ShellKillSignal                                                  ShellKillSignal                                                  `json:"ShellKillSignal"`
 	Skill                                                            Skill                                                            `json:"Skill"`
 	SkillList                                                        SkillList                                                        `json:"SkillList"`
 	SkillsConfigSetDisabledSkillsRequest                             SkillsConfigSetDisabledSkillsRequest                             `json:"SkillsConfigSetDisabledSkillsRequest"`
@@ -142,6 +158,7 @@ type RPCTypes struct {
 	Tool                                                             Tool                                                             `json:"Tool"`
 	ToolCallResult                                                   ToolCallResult                                                   `json:"ToolCallResult"`
 	ToolList                                                         ToolList                                                         `json:"ToolList"`
+	ToolsHandlePendingToolCall                                       *ToolsHandlePendingToolCall                                      `json:"ToolsHandlePendingToolCall"`
 	ToolsHandlePendingToolCallRequest                                ToolsHandlePendingToolCallRequest                                `json:"ToolsHandlePendingToolCallRequest"`
 	ToolsListRequest                                                 ToolsListRequest                                                 `json:"ToolsListRequest"`
 	UIElicitationArrayAnyOfField                                     UIElicitationArrayAnyOfField                                     `json:"UIElicitationArrayAnyOfField"`
@@ -156,9 +173,12 @@ type RPCTypes struct {
 	UIElicitationResponseContent                                     map[string]*UIElicitationFieldValue                              `json:"UIElicitationResponseContent"`
 	UIElicitationResult                                              UIElicitationResult                                              `json:"UIElicitationResult"`
 	UIElicitationSchema                                              UIElicitationSchema                                              `json:"UIElicitationSchema"`
+	UIElicitationSchemaProperty                                      UIElicitationSchemaProperty                                      `json:"UIElicitationSchemaProperty"`
 	UIElicitationSchemaPropertyBoolean                               UIElicitationSchemaPropertyBoolean                               `json:"UIElicitationSchemaPropertyBoolean"`
 	UIElicitationSchemaPropertyNumber                                UIElicitationSchemaPropertyNumber                                `json:"UIElicitationSchemaPropertyNumber"`
+	UIElicitationSchemaPropertyNumberType                            UIElicitationSchemaPropertyNumberTypeEnum                        `json:"UIElicitationSchemaPropertyNumberType"`
 	UIElicitationSchemaPropertyString                                UIElicitationSchemaPropertyString                                `json:"UIElicitationSchemaPropertyString"`
+	UIElicitationSchemaPropertyStringFormat                          UIElicitationSchemaPropertyStringFormat                          `json:"UIElicitationSchemaPropertyStringFormat"`
 	UIElicitationStringEnumField                                     UIElicitationStringEnumField                                     `json:"UIElicitationStringEnumField"`
 	UIElicitationStringOneOfField                                    UIElicitationStringOneOfField                                    `json:"UIElicitationStringOneOfField"`
 	UIElicitationStringOneOfFieldOneOf                               UIElicitationStringOneOfFieldOneOf                               `json:"UIElicitationStringOneOfFieldOneOf"`
@@ -1236,12 +1256,12 @@ type UIElicitationSchemaPropertyBoolean struct {
 }
 
 type UIElicitationSchemaPropertyNumber struct {
-	Default     *float64                              `json:"default,omitempty"`
-	Description *string                               `json:"description,omitempty"`
-	Maximum     *float64                              `json:"maximum,omitempty"`
-	Minimum     *float64                              `json:"minimum,omitempty"`
-	Title       *string                               `json:"title,omitempty"`
-	Type        UIElicitationSchemaPropertyNumberType `json:"type"`
+	Default     *float64                                  `json:"default,omitempty"`
+	Description *string                                   `json:"description,omitempty"`
+	Maximum     *float64                                  `json:"maximum,omitempty"`
+	Minimum     *float64                                  `json:"minimum,omitempty"`
+	Title       *string                                   `json:"title,omitempty"`
+	Type        UIElicitationSchemaPropertyNumberTypeEnum `json:"type"`
 }
 
 type UIElicitationSchemaPropertyString struct {
@@ -1647,11 +1667,11 @@ const (
 	UIElicitationSchemaPropertyBooleanTypeBoolean UIElicitationSchemaPropertyBooleanType = "boolean"
 )
 
-type UIElicitationSchemaPropertyNumberType string
+type UIElicitationSchemaPropertyNumberTypeEnum string
 
 const (
-	UIElicitationSchemaPropertyNumberTypeInteger UIElicitationSchemaPropertyNumberType = "integer"
-	UIElicitationSchemaPropertyNumberTypeNumber  UIElicitationSchemaPropertyNumberType = "number"
+	UIElicitationSchemaPropertyNumberTypeEnumInteger UIElicitationSchemaPropertyNumberTypeEnum = "integer"
+	UIElicitationSchemaPropertyNumberTypeEnumNumber  UIElicitationSchemaPropertyNumberTypeEnum = "number"
 )
 
 type HostType string

@@ -630,19 +630,19 @@ class SessionModeChangedData:
 @dataclass
 class SessionPlanChangedData:
     "Plan file operation details indicating what changed"
-    operation: SessionPlanChangedDataOperation
+    operation: PlanChangedOperation
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionPlanChangedData":
         assert isinstance(obj, dict)
-        operation = parse_enum(SessionPlanChangedDataOperation, obj.get("operation"))
+        operation = parse_enum(PlanChangedOperation, obj.get("operation"))
         return SessionPlanChangedData(
             operation=operation,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["operation"] = to_enum(SessionPlanChangedDataOperation, self.operation)
+        result["operation"] = to_enum(PlanChangedOperation, self.operation)
         return result
 
 
@@ -650,13 +650,13 @@ class SessionPlanChangedData:
 class SessionWorkspaceFileChangedData:
     "Workspace file change details including path and operation type"
     path: str
-    operation: SessionWorkspaceFileChangedDataOperation
+    operation: WorkspaceFileChangedOperation
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionWorkspaceFileChangedData":
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
-        operation = parse_enum(SessionWorkspaceFileChangedDataOperation, obj.get("operation"))
+        operation = parse_enum(WorkspaceFileChangedOperation, obj.get("operation"))
         return SessionWorkspaceFileChangedData(
             path=path,
             operation=operation,
@@ -665,7 +665,7 @@ class SessionWorkspaceFileChangedData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["path"] = from_str(self.path)
-        result["operation"] = to_enum(SessionWorkspaceFileChangedDataOperation, self.operation)
+        result["operation"] = to_enum(WorkspaceFileChangedOperation, self.operation)
         return result
 
 
@@ -998,7 +998,7 @@ class SessionContextChangedData:
     cwd: str
     git_root: str | None = None
     repository: str | None = None
-    host_type: SessionContextChangedDataHostType | None = None
+    host_type: WorkingDirectoryContextHostType | None = None
     repository_host: str | None = None
     branch: str | None = None
     head_commit: str | None = None
@@ -1010,7 +1010,7 @@ class SessionContextChangedData:
         cwd = from_str(obj.get("cwd"))
         git_root = from_union([from_none, from_str], obj.get("gitRoot"))
         repository = from_union([from_none, from_str], obj.get("repository"))
-        host_type = from_union([from_none, lambda x: parse_enum(SessionContextChangedDataHostType, x)], obj.get("hostType"))
+        host_type = from_union([from_none, lambda x: parse_enum(WorkingDirectoryContextHostType, x)], obj.get("hostType"))
         repository_host = from_union([from_none, from_str], obj.get("repositoryHost"))
         branch = from_union([from_none, from_str], obj.get("branch"))
         head_commit = from_union([from_none, from_str], obj.get("headCommit"))
@@ -1034,7 +1034,7 @@ class SessionContextChangedData:
         if self.repository is not None:
             result["repository"] = from_union([from_none, from_str], self.repository)
         if self.host_type is not None:
-            result["hostType"] = from_union([from_none, lambda x: to_enum(SessionContextChangedDataHostType, x)], self.host_type)
+            result["hostType"] = from_union([from_none, lambda x: to_enum(WorkingDirectoryContextHostType, x)], self.host_type)
         if self.repository_host is not None:
             result["repositoryHost"] = from_union([from_none, from_str], self.repository_host)
         if self.branch is not None:
@@ -2151,9 +2151,9 @@ class ToolExecutionCompleteContentResourceLinkIcon:
 
 
 @dataclass
-class ToolExecutionCompleteResultContentsItem:
+class ToolExecutionCompleteContent:
     "A content block within a tool result, which may be text, terminal output, image, audio, or a resource"
-    type: ToolExecutionCompleteResultContentsItemType
+    type: ToolExecutionCompleteContentType
     text: str | None = None
     exit_code: float | None = None
     cwd: str | None = None
@@ -2168,9 +2168,9 @@ class ToolExecutionCompleteResultContentsItem:
     resource: Any = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteResultContentsItem":
+    def from_dict(obj: Any) -> "ToolExecutionCompleteContent":
         assert isinstance(obj, dict)
-        type = parse_enum(ToolExecutionCompleteResultContentsItemType, obj.get("type"))
+        type = parse_enum(ToolExecutionCompleteContentType, obj.get("type"))
         text = from_union([from_none, from_str], obj.get("text"))
         exit_code = from_union([from_none, from_float], obj.get("exitCode"))
         cwd = from_union([from_none, from_str], obj.get("cwd"))
@@ -2183,7 +2183,7 @@ class ToolExecutionCompleteResultContentsItem:
         description = from_union([from_none, from_str], obj.get("description"))
         size = from_union([from_none, from_float], obj.get("size"))
         resource = obj.get("resource")
-        return ToolExecutionCompleteResultContentsItem(
+        return ToolExecutionCompleteContent(
             type=type,
             text=text,
             exit_code=exit_code,
@@ -2201,7 +2201,7 @@ class ToolExecutionCompleteResultContentsItem:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["type"] = to_enum(ToolExecutionCompleteResultContentsItemType, self.type)
+        result["type"] = to_enum(ToolExecutionCompleteContentType, self.type)
         if self.text is not None:
             result["text"] = from_union([from_none, from_str], self.text)
         if self.exit_code is not None:
@@ -2234,14 +2234,14 @@ class ToolExecutionCompleteResult:
     "Tool execution result on success"
     content: str
     detailed_content: str | None = None
-    contents: list[ToolExecutionCompleteResultContentsItem] | None = None
+    contents: list[ToolExecutionCompleteContent] | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionCompleteResult":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
-        contents = from_union([from_none, lambda x: from_list(ToolExecutionCompleteResultContentsItem.from_dict, x)], obj.get("contents"))
+        contents = from_union([from_none, lambda x: from_list(ToolExecutionCompleteContent.from_dict, x)], obj.get("contents"))
         return ToolExecutionCompleteResult(
             content=content,
             detailed_content=detailed_content,
@@ -2254,7 +2254,7 @@ class ToolExecutionCompleteResult:
         if self.detailed_content is not None:
             result["detailedContent"] = from_union([from_none, from_str], self.detailed_content)
         if self.contents is not None:
-            result["contents"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteResultContentsItem, x), x)], self.contents)
+            result["contents"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteContent, x), x)], self.contents)
         return result
 
 
@@ -2674,7 +2674,7 @@ class SystemMessageMetadata:
 class SystemMessageData:
     "System/developer instruction content with role and optional template metadata"
     content: str
-    role: SystemMessageDataRole
+    role: SystemMessageRole
     name: str | None = None
     metadata: SystemMessageMetadata | None = None
 
@@ -2682,7 +2682,7 @@ class SystemMessageData:
     def from_dict(obj: Any) -> "SystemMessageData":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
-        role = parse_enum(SystemMessageDataRole, obj.get("role"))
+        role = parse_enum(SystemMessageRole, obj.get("role"))
         name = from_union([from_none, from_str], obj.get("name"))
         metadata = from_union([from_none, SystemMessageMetadata.from_dict], obj.get("metadata"))
         return SystemMessageData(
@@ -2695,7 +2695,7 @@ class SystemMessageData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
-        result["role"] = to_enum(SystemMessageDataRole, self.role)
+        result["role"] = to_enum(SystemMessageRole, self.role)
         if self.name is not None:
             result["name"] = from_union([from_none, from_str], self.name)
         if self.metadata is not None:
@@ -2704,29 +2704,29 @@ class SystemMessageData:
 
 
 @dataclass
-class SystemNotificationDataKind:
+class SystemNotification:
     "Structured metadata identifying what triggered this notification"
-    type: SystemNotificationDataKindType
+    type: SystemNotificationType
     agent_id: str | None = None
     agent_type: str | None = None
-    status: SystemNotificationDataKindStatus | None = None
+    status: SystemNotificationAgentCompletedStatus | None = None
     description: str | None = None
     prompt: str | None = None
     shell_id: str | None = None
     exit_code: float | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemNotificationDataKind":
+    def from_dict(obj: Any) -> "SystemNotification":
         assert isinstance(obj, dict)
-        type = parse_enum(SystemNotificationDataKindType, obj.get("type"))
+        type = parse_enum(SystemNotificationType, obj.get("type"))
         agent_id = from_union([from_none, from_str], obj.get("agentId"))
         agent_type = from_union([from_none, from_str], obj.get("agentType"))
-        status = from_union([from_none, lambda x: parse_enum(SystemNotificationDataKindStatus, x)], obj.get("status"))
+        status = from_union([from_none, lambda x: parse_enum(SystemNotificationAgentCompletedStatus, x)], obj.get("status"))
         description = from_union([from_none, from_str], obj.get("description"))
         prompt = from_union([from_none, from_str], obj.get("prompt"))
         shell_id = from_union([from_none, from_str], obj.get("shellId"))
         exit_code = from_union([from_none, from_float], obj.get("exitCode"))
-        return SystemNotificationDataKind(
+        return SystemNotification(
             type=type,
             agent_id=agent_id,
             agent_type=agent_type,
@@ -2739,13 +2739,13 @@ class SystemNotificationDataKind:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["type"] = to_enum(SystemNotificationDataKindType, self.type)
+        result["type"] = to_enum(SystemNotificationType, self.type)
         if self.agent_id is not None:
             result["agentId"] = from_union([from_none, from_str], self.agent_id)
         if self.agent_type is not None:
             result["agentType"] = from_union([from_none, from_str], self.agent_type)
         if self.status is not None:
-            result["status"] = from_union([from_none, lambda x: to_enum(SystemNotificationDataKindStatus, x)], self.status)
+            result["status"] = from_union([from_none, lambda x: to_enum(SystemNotificationAgentCompletedStatus, x)], self.status)
         if self.description is not None:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.prompt is not None:
@@ -2761,13 +2761,13 @@ class SystemNotificationDataKind:
 class SystemNotificationData:
     "System-generated notification for runtime events like background task completion"
     content: str
-    kind: SystemNotificationDataKind
+    kind: SystemNotification
 
     @staticmethod
     def from_dict(obj: Any) -> "SystemNotificationData":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
-        kind = SystemNotificationDataKind.from_dict(obj.get("kind"))
+        kind = SystemNotification.from_dict(obj.get("kind"))
         return SystemNotificationData(
             content=content,
             kind=kind,
@@ -2776,7 +2776,7 @@ class SystemNotificationData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
-        result["kind"] = to_class(SystemNotificationDataKind, self.kind)
+        result["kind"] = to_class(SystemNotification, self.kind)
         return result
 
 
@@ -2823,7 +2823,7 @@ class PermissionRequestShellPossibleUrl:
 @dataclass
 class PermissionRequest:
     "Details of the permission being requested"
-    kind: PermissionRequestedDataPermissionRequestKind
+    kind: PermissionRequestKind
     tool_call_id: str | None = None
     full_command_text: str | None = None
     intention: str | None = None
@@ -2856,7 +2856,7 @@ class PermissionRequest:
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequest":
         assert isinstance(obj, dict)
-        kind = parse_enum(PermissionRequestedDataPermissionRequestKind, obj.get("kind"))
+        kind = parse_enum(PermissionRequestKind, obj.get("kind"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         full_command_text = from_union([from_none, from_str], obj.get("fullCommandText"))
         intention = from_union([from_none, from_str], obj.get("intention"))
@@ -2876,7 +2876,7 @@ class PermissionRequest:
         args = obj.get("args")
         read_only = from_union([from_none, from_bool], obj.get("readOnly"))
         url = from_union([from_none, from_str], obj.get("url"))
-        action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action", "store"))
+        action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
         subject = from_union([from_none, from_str], obj.get("subject"))
         fact = from_union([from_none, from_str], obj.get("fact"))
         citations = from_union([from_none, from_str], obj.get("citations"))
@@ -2919,7 +2919,7 @@ class PermissionRequest:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionRequestedDataPermissionRequestKind, self.kind)
+        result["kind"] = to_enum(PermissionRequestKind, self.kind)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         if self.full_command_text is not None:
@@ -3010,19 +3010,19 @@ class PermissionRequestedData:
 @dataclass
 class PermissionCompletedResult:
     "The result of the permission request"
-    kind: PermissionCompletedResultKind
+    kind: PermissionCompletedKind
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionCompletedResult":
         assert isinstance(obj, dict)
-        kind = parse_enum(PermissionCompletedResultKind, obj.get("kind"))
+        kind = parse_enum(PermissionCompletedKind, obj.get("kind"))
         return PermissionCompletedResult(
             kind=kind,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionCompletedResultKind, self.kind)
+        result["kind"] = to_enum(PermissionCompletedKind, self.kind)
         return result
 
 
@@ -3848,13 +3848,13 @@ class SessionMcpServersLoadedData:
 @dataclass
 class SessionMcpServerStatusChangedData:
     server_name: str
-    status: SessionMcpServerStatusChangedDataStatus
+    status: McpServerStatusChangedStatus
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionMcpServerStatusChangedData":
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
-        status = parse_enum(SessionMcpServerStatusChangedDataStatus, obj.get("status"))
+        status = parse_enum(McpServerStatusChangedStatus, obj.get("status"))
         return SessionMcpServerStatusChangedData(
             server_name=server_name,
             status=status,
@@ -3863,7 +3863,7 @@ class SessionMcpServerStatusChangedData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["serverName"] = from_str(self.server_name)
-        result["status"] = to_enum(SessionMcpServerStatusChangedDataStatus, self.status)
+        result["status"] = to_enum(McpServerStatusChangedStatus, self.status)
         return result
 
 
@@ -3921,14 +3921,14 @@ class WorkingDirectoryContextHostType(Enum):
     ADO = "ado"
 
 
-class SessionPlanChangedDataOperation(Enum):
+class PlanChangedOperation(Enum):
     "The type of operation performed on the plan file"
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
 
 
-class SessionWorkspaceFileChangedDataOperation(Enum):
+class WorkspaceFileChangedOperation(Enum):
     "Whether the file was newly created or updated"
     CREATE = "create"
     UPDATE = "update"
@@ -3944,12 +3944,6 @@ class ShutdownType(Enum):
     "Whether the session ended normally (\"routine\") or due to a crash/fatal error (\"error\")"
     ROUTINE = "routine"
     ERROR = "error"
-
-
-class SessionContextChangedDataHostType(Enum):
-    "Hosting platform type of the repository (github or ado)"
-    GITHUB = "github"
-    ADO = "ado"
 
 
 class UserMessageAttachmentType(Enum):
@@ -3982,7 +3976,7 @@ class AssistantMessageToolRequestType(Enum):
     CUSTOM = "custom"
 
 
-class ToolExecutionCompleteResultContentsItemType(Enum):
+class ToolExecutionCompleteContentType(Enum):
     "A content block within a tool result, which may be text, terminal output, image, audio, or a resource discriminator"
     TEXT = "text"
     TERMINAL = "terminal"
@@ -3998,13 +3992,13 @@ class ToolExecutionCompleteContentResourceLinkIconTheme(Enum):
     DARK = "dark"
 
 
-class SystemMessageDataRole(Enum):
+class SystemMessageRole(Enum):
     "Message role: \"system\" for system prompts, \"developer\" for developer-injected instructions"
     SYSTEM = "system"
     DEVELOPER = "developer"
 
 
-class SystemNotificationDataKindType(Enum):
+class SystemNotificationType(Enum):
     "Structured metadata identifying what triggered this notification discriminator"
     AGENT_COMPLETED = "agent_completed"
     AGENT_IDLE = "agent_idle"
@@ -4012,13 +4006,13 @@ class SystemNotificationDataKindType(Enum):
     SHELL_DETACHED_COMPLETED = "shell_detached_completed"
 
 
-class SystemNotificationDataKindStatus(Enum):
+class SystemNotificationAgentCompletedStatus(Enum):
     "Whether the agent completed successfully or failed"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class PermissionRequestedDataPermissionRequestKind(Enum):
+class PermissionRequestKind(Enum):
     "Details of the permission being requested discriminator"
     SHELL = "shell"
     WRITE = "write"
@@ -4042,7 +4036,7 @@ class PermissionRequestMemoryDirection(Enum):
     DOWNVOTE = "downvote"
 
 
-class PermissionCompletedResultKind(Enum):
+class PermissionCompletedKind(Enum):
     "The outcome of the permission request"
     APPROVED = "approved"
     DENIED_BY_RULES = "denied-by-rules"
@@ -4075,7 +4069,7 @@ class McpServersLoadedServerStatus(Enum):
     NOT_CONFIGURED = "not_configured"
 
 
-class SessionMcpServerStatusChangedDataStatus(Enum):
+class McpServerStatusChangedStatus(Enum):
     "New connection status: connected, failed, needs-auth, pending, disabled, or not_configured"
     CONNECTED = "connected"
     FAILED = "failed"

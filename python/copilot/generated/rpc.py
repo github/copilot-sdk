@@ -1672,7 +1672,7 @@ class UIElicitationResult:
 class UIElicitationSchemaPropertyBooleanType(Enum):
     BOOLEAN = "boolean"
 
-class UIElicitationSchemaPropertyNumberType(Enum):
+class UIElicitationSchemaPropertyNumberTypeEnum(Enum):
     INTEGER = "integer"
     NUMBER = "number"
 
@@ -2998,7 +2998,7 @@ class UIElicitationSchemaPropertyBoolean:
 
 @dataclass
 class UIElicitationSchemaPropertyNumber:
-    type: UIElicitationSchemaPropertyNumberType
+    type: UIElicitationSchemaPropertyNumberTypeEnum
     default: float | None = None
     description: str | None = None
     maximum: float | None = None
@@ -3008,7 +3008,7 @@ class UIElicitationSchemaPropertyNumber:
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyNumber':
         assert isinstance(obj, dict)
-        type = UIElicitationSchemaPropertyNumberType(obj.get("type"))
+        type = UIElicitationSchemaPropertyNumberTypeEnum(obj.get("type"))
         default = from_union([from_float, from_none], obj.get("default"))
         description = from_union([from_str, from_none], obj.get("description"))
         maximum = from_union([from_float, from_none], obj.get("maximum"))
@@ -3018,7 +3018,7 @@ class UIElicitationSchemaPropertyNumber:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["type"] = to_enum(UIElicitationSchemaPropertyNumberType, self.type)
+        result["type"] = to_enum(UIElicitationSchemaPropertyNumberTypeEnum, self.type)
         if self.default is not None:
             result["default"] = from_union([to_float, from_none], self.default)
         if self.description is not None:
@@ -3833,11 +3833,17 @@ class RPC:
     commands_handle_pending_command_result: CommandsHandlePendingCommandResult
     current_model: CurrentModel
     discovered_mcp_server: DiscoveredMCPServer
+    discovered_mcp_server_source: MCPServerSource
+    discovered_mcp_server_type: DiscoveredMCPServerType
     extension: Extension
     extension_list: ExtensionList
     extensions_disable_request: ExtensionsDisableRequest
     extensions_enable_request: ExtensionsEnableRequest
+    extension_source: ExtensionSource
+    extension_status: ExtensionStatus
     filter_mapping: dict[str, FilterMappingString] | FilterMappingString
+    filter_mapping_string: FilterMappingString
+    filter_mapping_value: FilterMappingString
     fleet_start_request: FleetStartRequest
     fleet_start_result: FleetStartResult
     handle_tool_call_result: HandleToolCallResult
@@ -3847,6 +3853,8 @@ class RPC:
     history_truncate_result: HistoryTruncateResult
     instructions_get_sources_result: InstructionsGetSourcesResult
     instructions_sources: InstructionsSources
+    instructions_sources_location: InstructionsSourcesLocation
+    instructions_sources_type: InstructionsSourcesType
     log_request: LogRequest
     log_result: LogResult
     mcp_config_add_request: MCPConfigAddRequest
@@ -3860,8 +3868,12 @@ class RPC:
     mcp_server: MCPServer
     mcp_server_config: MCPServerConfig
     mcp_server_config_http: MCPServerConfigHTTP
+    mcp_server_config_http_type: MCPServerConfigHTTPType
     mcp_server_config_local: MCPServerConfigLocal
+    mcp_server_config_local_type: MCPServerConfigLocalType
     mcp_server_list: MCPServerList
+    mcp_server_source: MCPServerSource
+    mcp_server_status: MCPServerStatus
     model: Model
     model_billing: ModelBilling
     model_capabilities: ModelCapabilities
@@ -3898,18 +3910,21 @@ class RPC:
     server_skill_list: ServerSkillList
     session_fs_append_file_request: SessionFSAppendFileRequest
     session_fs_error: SessionFSError
+    session_fs_error_code: SessionFSErrorCode
     session_fs_exists_request: SessionFSExistsRequest
     session_fs_exists_result: SessionFSExistsResult
     session_fs_mkdir_request: SessionFSMkdirRequest
     session_fs_readdir_request: SessionFSReaddirRequest
     session_fs_readdir_result: SessionFSReaddirResult
     session_fs_readdir_with_types_entry: SessionFSReaddirWithTypesEntry
+    session_fs_readdir_with_types_entry_type: SessionFSReaddirWithTypesEntryType
     session_fs_readdir_with_types_request: SessionFSReaddirWithTypesRequest
     session_fs_readdir_with_types_result: SessionFSReaddirWithTypesResult
     session_fs_read_file_request: SessionFSReadFileRequest
     session_fs_read_file_result: SessionFSReadFileResult
     session_fs_rename_request: SessionFSRenameRequest
     session_fs_rm_request: SessionFSRmRequest
+    session_fs_set_provider_conventions: SessionFSSetProviderConventions
     session_fs_set_provider_request: SessionFSSetProviderRequest
     session_fs_set_provider_result: SessionFSSetProviderResult
     session_fs_stat_request: SessionFSStatRequest
@@ -3923,6 +3938,7 @@ class RPC:
     shell_exec_result: ShellExecResult
     shell_kill_request: ShellKillRequest
     shell_kill_result: ShellKillResult
+    shell_kill_signal: ShellKillSignal
     skill: Skill
     skill_list: SkillList
     skills_config_set_disabled_skills_request: SkillsConfigSetDisabledSkillsRequest
@@ -3932,6 +3948,7 @@ class RPC:
     tool: Tool
     tool_call_result: ToolCallResult
     tool_list: ToolList
+    tools_handle_pending_tool_call: ToolCallResult | str
     tools_handle_pending_tool_call_request: ToolsHandlePendingToolCallRequest
     tools_list_request: ToolsListRequest
     ui_elicitation_array_any_of_field: UIElicitationArrayAnyOfField
@@ -3946,9 +3963,12 @@ class RPC:
     ui_elicitation_response_content: dict[str, float | bool | list[str] | str]
     ui_elicitation_result: UIElicitationResult
     ui_elicitation_schema: UIElicitationSchema
+    ui_elicitation_schema_property: UIElicitationSchemaProperty
     ui_elicitation_schema_property_boolean: UIElicitationSchemaPropertyBoolean
     ui_elicitation_schema_property_number: UIElicitationSchemaPropertyNumber
+    ui_elicitation_schema_property_number_type: UIElicitationSchemaPropertyNumberTypeEnum
     ui_elicitation_schema_property_string: UIElicitationSchemaPropertyString
+    ui_elicitation_schema_property_string_format: UIElicitationSchemaPropertyStringFormat
     ui_elicitation_string_enum_field: UIElicitationStringEnumField
     ui_elicitation_string_one_of_field: UIElicitationStringOneOfField
     ui_elicitation_string_one_of_field_one_of: UIElicitationStringOneOfFieldOneOf
@@ -3979,11 +3999,17 @@ class RPC:
         commands_handle_pending_command_result = CommandsHandlePendingCommandResult.from_dict(obj.get("CommandsHandlePendingCommandResult"))
         current_model = CurrentModel.from_dict(obj.get("CurrentModel"))
         discovered_mcp_server = DiscoveredMCPServer.from_dict(obj.get("DiscoveredMcpServer"))
+        discovered_mcp_server_source = MCPServerSource(obj.get("DiscoveredMcpServerSource"))
+        discovered_mcp_server_type = DiscoveredMCPServerType(obj.get("DiscoveredMcpServerType"))
         extension = Extension.from_dict(obj.get("Extension"))
         extension_list = ExtensionList.from_dict(obj.get("ExtensionList"))
         extensions_disable_request = ExtensionsDisableRequest.from_dict(obj.get("ExtensionsDisableRequest"))
         extensions_enable_request = ExtensionsEnableRequest.from_dict(obj.get("ExtensionsEnableRequest"))
+        extension_source = ExtensionSource(obj.get("ExtensionSource"))
+        extension_status = ExtensionStatus(obj.get("ExtensionStatus"))
         filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString], obj.get("FilterMapping"))
+        filter_mapping_string = FilterMappingString(obj.get("FilterMappingString"))
+        filter_mapping_value = FilterMappingString(obj.get("FilterMappingValue"))
         fleet_start_request = FleetStartRequest.from_dict(obj.get("FleetStartRequest"))
         fleet_start_result = FleetStartResult.from_dict(obj.get("FleetStartResult"))
         handle_tool_call_result = HandleToolCallResult.from_dict(obj.get("HandleToolCallResult"))
@@ -3993,6 +4019,8 @@ class RPC:
         history_truncate_result = HistoryTruncateResult.from_dict(obj.get("HistoryTruncateResult"))
         instructions_get_sources_result = InstructionsGetSourcesResult.from_dict(obj.get("InstructionsGetSourcesResult"))
         instructions_sources = InstructionsSources.from_dict(obj.get("InstructionsSources"))
+        instructions_sources_location = InstructionsSourcesLocation(obj.get("InstructionsSourcesLocation"))
+        instructions_sources_type = InstructionsSourcesType(obj.get("InstructionsSourcesType"))
         log_request = LogRequest.from_dict(obj.get("LogRequest"))
         log_result = LogResult.from_dict(obj.get("LogResult"))
         mcp_config_add_request = MCPConfigAddRequest.from_dict(obj.get("McpConfigAddRequest"))
@@ -4006,8 +4034,12 @@ class RPC:
         mcp_server = MCPServer.from_dict(obj.get("McpServer"))
         mcp_server_config = MCPServerConfig.from_dict(obj.get("McpServerConfig"))
         mcp_server_config_http = MCPServerConfigHTTP.from_dict(obj.get("McpServerConfigHttp"))
+        mcp_server_config_http_type = MCPServerConfigHTTPType(obj.get("McpServerConfigHttpType"))
         mcp_server_config_local = MCPServerConfigLocal.from_dict(obj.get("McpServerConfigLocal"))
+        mcp_server_config_local_type = MCPServerConfigLocalType(obj.get("McpServerConfigLocalType"))
         mcp_server_list = MCPServerList.from_dict(obj.get("McpServerList"))
+        mcp_server_source = MCPServerSource(obj.get("McpServerSource"))
+        mcp_server_status = MCPServerStatus(obj.get("McpServerStatus"))
         model = Model.from_dict(obj.get("Model"))
         model_billing = ModelBilling.from_dict(obj.get("ModelBilling"))
         model_capabilities = ModelCapabilities.from_dict(obj.get("ModelCapabilities"))
@@ -4044,18 +4076,21 @@ class RPC:
         server_skill_list = ServerSkillList.from_dict(obj.get("ServerSkillList"))
         session_fs_append_file_request = SessionFSAppendFileRequest.from_dict(obj.get("SessionFsAppendFileRequest"))
         session_fs_error = SessionFSError.from_dict(obj.get("SessionFsError"))
+        session_fs_error_code = SessionFSErrorCode(obj.get("SessionFsErrorCode"))
         session_fs_exists_request = SessionFSExistsRequest.from_dict(obj.get("SessionFsExistsRequest"))
         session_fs_exists_result = SessionFSExistsResult.from_dict(obj.get("SessionFsExistsResult"))
         session_fs_mkdir_request = SessionFSMkdirRequest.from_dict(obj.get("SessionFsMkdirRequest"))
         session_fs_readdir_request = SessionFSReaddirRequest.from_dict(obj.get("SessionFsReaddirRequest"))
         session_fs_readdir_result = SessionFSReaddirResult.from_dict(obj.get("SessionFsReaddirResult"))
         session_fs_readdir_with_types_entry = SessionFSReaddirWithTypesEntry.from_dict(obj.get("SessionFsReaddirWithTypesEntry"))
+        session_fs_readdir_with_types_entry_type = SessionFSReaddirWithTypesEntryType(obj.get("SessionFsReaddirWithTypesEntryType"))
         session_fs_readdir_with_types_request = SessionFSReaddirWithTypesRequest.from_dict(obj.get("SessionFsReaddirWithTypesRequest"))
         session_fs_readdir_with_types_result = SessionFSReaddirWithTypesResult.from_dict(obj.get("SessionFsReaddirWithTypesResult"))
         session_fs_read_file_request = SessionFSReadFileRequest.from_dict(obj.get("SessionFsReadFileRequest"))
         session_fs_read_file_result = SessionFSReadFileResult.from_dict(obj.get("SessionFsReadFileResult"))
         session_fs_rename_request = SessionFSRenameRequest.from_dict(obj.get("SessionFsRenameRequest"))
         session_fs_rm_request = SessionFSRmRequest.from_dict(obj.get("SessionFsRmRequest"))
+        session_fs_set_provider_conventions = SessionFSSetProviderConventions(obj.get("SessionFsSetProviderConventions"))
         session_fs_set_provider_request = SessionFSSetProviderRequest.from_dict(obj.get("SessionFsSetProviderRequest"))
         session_fs_set_provider_result = SessionFSSetProviderResult.from_dict(obj.get("SessionFsSetProviderResult"))
         session_fs_stat_request = SessionFSStatRequest.from_dict(obj.get("SessionFsStatRequest"))
@@ -4069,6 +4104,7 @@ class RPC:
         shell_exec_result = ShellExecResult.from_dict(obj.get("ShellExecResult"))
         shell_kill_request = ShellKillRequest.from_dict(obj.get("ShellKillRequest"))
         shell_kill_result = ShellKillResult.from_dict(obj.get("ShellKillResult"))
+        shell_kill_signal = ShellKillSignal(obj.get("ShellKillSignal"))
         skill = Skill.from_dict(obj.get("Skill"))
         skill_list = SkillList.from_dict(obj.get("SkillList"))
         skills_config_set_disabled_skills_request = SkillsConfigSetDisabledSkillsRequest.from_dict(obj.get("SkillsConfigSetDisabledSkillsRequest"))
@@ -4078,6 +4114,7 @@ class RPC:
         tool = Tool.from_dict(obj.get("Tool"))
         tool_call_result = ToolCallResult.from_dict(obj.get("ToolCallResult"))
         tool_list = ToolList.from_dict(obj.get("ToolList"))
+        tools_handle_pending_tool_call = from_union([ToolCallResult.from_dict, from_str], obj.get("ToolsHandlePendingToolCall"))
         tools_handle_pending_tool_call_request = ToolsHandlePendingToolCallRequest.from_dict(obj.get("ToolsHandlePendingToolCallRequest"))
         tools_list_request = ToolsListRequest.from_dict(obj.get("ToolsListRequest"))
         ui_elicitation_array_any_of_field = UIElicitationArrayAnyOfField.from_dict(obj.get("UIElicitationArrayAnyOfField"))
@@ -4092,9 +4129,12 @@ class RPC:
         ui_elicitation_response_content = from_dict(lambda x: from_union([from_float, from_bool, lambda x: from_list(from_str, x), from_str], x), obj.get("UIElicitationResponseContent"))
         ui_elicitation_result = UIElicitationResult.from_dict(obj.get("UIElicitationResult"))
         ui_elicitation_schema = UIElicitationSchema.from_dict(obj.get("UIElicitationSchema"))
+        ui_elicitation_schema_property = UIElicitationSchemaProperty.from_dict(obj.get("UIElicitationSchemaProperty"))
         ui_elicitation_schema_property_boolean = UIElicitationSchemaPropertyBoolean.from_dict(obj.get("UIElicitationSchemaPropertyBoolean"))
         ui_elicitation_schema_property_number = UIElicitationSchemaPropertyNumber.from_dict(obj.get("UIElicitationSchemaPropertyNumber"))
+        ui_elicitation_schema_property_number_type = UIElicitationSchemaPropertyNumberTypeEnum(obj.get("UIElicitationSchemaPropertyNumberType"))
         ui_elicitation_schema_property_string = UIElicitationSchemaPropertyString.from_dict(obj.get("UIElicitationSchemaPropertyString"))
+        ui_elicitation_schema_property_string_format = UIElicitationSchemaPropertyStringFormat(obj.get("UIElicitationSchemaPropertyStringFormat"))
         ui_elicitation_string_enum_field = UIElicitationStringEnumField.from_dict(obj.get("UIElicitationStringEnumField"))
         ui_elicitation_string_one_of_field = UIElicitationStringOneOfField.from_dict(obj.get("UIElicitationStringOneOfField"))
         ui_elicitation_string_one_of_field_one_of = UIElicitationStringOneOfFieldOneOf.from_dict(obj.get("UIElicitationStringOneOfFieldOneOf"))
@@ -4109,7 +4149,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, commands_handle_pending_command_request, commands_handle_pending_command_result, current_model, discovered_mcp_server, extension, extension_list, extensions_disable_request, extensions_enable_request, filter_mapping, fleet_start_request, fleet_start_result, handle_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, log_request, log_result, mcp_config_add_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_local, mcp_server_list, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approved, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_request, permission_request_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, server_skill, server_skill_list, session_fs_append_file_request, session_fs_error, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, tool, tool_call_result, tool_list, tools_handle_pending_tool_call_request, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_string, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_usage, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, commands_handle_pending_command_request, commands_handle_pending_command_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approved, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_request, permission_request_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, server_skill, server_skill_list, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, tool, tool_call_result, tool_list, tools_handle_pending_tool_call, tools_handle_pending_tool_call_request, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_usage, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -4125,11 +4165,17 @@ class RPC:
         result["CommandsHandlePendingCommandResult"] = to_class(CommandsHandlePendingCommandResult, self.commands_handle_pending_command_result)
         result["CurrentModel"] = to_class(CurrentModel, self.current_model)
         result["DiscoveredMcpServer"] = to_class(DiscoveredMCPServer, self.discovered_mcp_server)
+        result["DiscoveredMcpServerSource"] = to_enum(MCPServerSource, self.discovered_mcp_server_source)
+        result["DiscoveredMcpServerType"] = to_enum(DiscoveredMCPServerType, self.discovered_mcp_server_type)
         result["Extension"] = to_class(Extension, self.extension)
         result["ExtensionList"] = to_class(ExtensionList, self.extension_list)
         result["ExtensionsDisableRequest"] = to_class(ExtensionsDisableRequest, self.extensions_disable_request)
         result["ExtensionsEnableRequest"] = to_class(ExtensionsEnableRequest, self.extensions_enable_request)
+        result["ExtensionSource"] = to_enum(ExtensionSource, self.extension_source)
+        result["ExtensionStatus"] = to_enum(ExtensionStatus, self.extension_status)
         result["FilterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x)], self.filter_mapping)
+        result["FilterMappingString"] = to_enum(FilterMappingString, self.filter_mapping_string)
+        result["FilterMappingValue"] = to_enum(FilterMappingString, self.filter_mapping_value)
         result["FleetStartRequest"] = to_class(FleetStartRequest, self.fleet_start_request)
         result["FleetStartResult"] = to_class(FleetStartResult, self.fleet_start_result)
         result["HandleToolCallResult"] = to_class(HandleToolCallResult, self.handle_tool_call_result)
@@ -4139,6 +4185,8 @@ class RPC:
         result["HistoryTruncateResult"] = to_class(HistoryTruncateResult, self.history_truncate_result)
         result["InstructionsGetSourcesResult"] = to_class(InstructionsGetSourcesResult, self.instructions_get_sources_result)
         result["InstructionsSources"] = to_class(InstructionsSources, self.instructions_sources)
+        result["InstructionsSourcesLocation"] = to_enum(InstructionsSourcesLocation, self.instructions_sources_location)
+        result["InstructionsSourcesType"] = to_enum(InstructionsSourcesType, self.instructions_sources_type)
         result["LogRequest"] = to_class(LogRequest, self.log_request)
         result["LogResult"] = to_class(LogResult, self.log_result)
         result["McpConfigAddRequest"] = to_class(MCPConfigAddRequest, self.mcp_config_add_request)
@@ -4152,8 +4200,12 @@ class RPC:
         result["McpServer"] = to_class(MCPServer, self.mcp_server)
         result["McpServerConfig"] = to_class(MCPServerConfig, self.mcp_server_config)
         result["McpServerConfigHttp"] = to_class(MCPServerConfigHTTP, self.mcp_server_config_http)
+        result["McpServerConfigHttpType"] = to_enum(MCPServerConfigHTTPType, self.mcp_server_config_http_type)
         result["McpServerConfigLocal"] = to_class(MCPServerConfigLocal, self.mcp_server_config_local)
+        result["McpServerConfigLocalType"] = to_enum(MCPServerConfigLocalType, self.mcp_server_config_local_type)
         result["McpServerList"] = to_class(MCPServerList, self.mcp_server_list)
+        result["McpServerSource"] = to_enum(MCPServerSource, self.mcp_server_source)
+        result["McpServerStatus"] = to_enum(MCPServerStatus, self.mcp_server_status)
         result["Model"] = to_class(Model, self.model)
         result["ModelBilling"] = to_class(ModelBilling, self.model_billing)
         result["ModelCapabilities"] = to_class(ModelCapabilities, self.model_capabilities)
@@ -4190,18 +4242,21 @@ class RPC:
         result["ServerSkillList"] = to_class(ServerSkillList, self.server_skill_list)
         result["SessionFsAppendFileRequest"] = to_class(SessionFSAppendFileRequest, self.session_fs_append_file_request)
         result["SessionFsError"] = to_class(SessionFSError, self.session_fs_error)
+        result["SessionFsErrorCode"] = to_enum(SessionFSErrorCode, self.session_fs_error_code)
         result["SessionFsExistsRequest"] = to_class(SessionFSExistsRequest, self.session_fs_exists_request)
         result["SessionFsExistsResult"] = to_class(SessionFSExistsResult, self.session_fs_exists_result)
         result["SessionFsMkdirRequest"] = to_class(SessionFSMkdirRequest, self.session_fs_mkdir_request)
         result["SessionFsReaddirRequest"] = to_class(SessionFSReaddirRequest, self.session_fs_readdir_request)
         result["SessionFsReaddirResult"] = to_class(SessionFSReaddirResult, self.session_fs_readdir_result)
         result["SessionFsReaddirWithTypesEntry"] = to_class(SessionFSReaddirWithTypesEntry, self.session_fs_readdir_with_types_entry)
+        result["SessionFsReaddirWithTypesEntryType"] = to_enum(SessionFSReaddirWithTypesEntryType, self.session_fs_readdir_with_types_entry_type)
         result["SessionFsReaddirWithTypesRequest"] = to_class(SessionFSReaddirWithTypesRequest, self.session_fs_readdir_with_types_request)
         result["SessionFsReaddirWithTypesResult"] = to_class(SessionFSReaddirWithTypesResult, self.session_fs_readdir_with_types_result)
         result["SessionFsReadFileRequest"] = to_class(SessionFSReadFileRequest, self.session_fs_read_file_request)
         result["SessionFsReadFileResult"] = to_class(SessionFSReadFileResult, self.session_fs_read_file_result)
         result["SessionFsRenameRequest"] = to_class(SessionFSRenameRequest, self.session_fs_rename_request)
         result["SessionFsRmRequest"] = to_class(SessionFSRmRequest, self.session_fs_rm_request)
+        result["SessionFsSetProviderConventions"] = to_enum(SessionFSSetProviderConventions, self.session_fs_set_provider_conventions)
         result["SessionFsSetProviderRequest"] = to_class(SessionFSSetProviderRequest, self.session_fs_set_provider_request)
         result["SessionFsSetProviderResult"] = to_class(SessionFSSetProviderResult, self.session_fs_set_provider_result)
         result["SessionFsStatRequest"] = to_class(SessionFSStatRequest, self.session_fs_stat_request)
@@ -4215,6 +4270,7 @@ class RPC:
         result["ShellExecResult"] = to_class(ShellExecResult, self.shell_exec_result)
         result["ShellKillRequest"] = to_class(ShellKillRequest, self.shell_kill_request)
         result["ShellKillResult"] = to_class(ShellKillResult, self.shell_kill_result)
+        result["ShellKillSignal"] = to_enum(ShellKillSignal, self.shell_kill_signal)
         result["Skill"] = to_class(Skill, self.skill)
         result["SkillList"] = to_class(SkillList, self.skill_list)
         result["SkillsConfigSetDisabledSkillsRequest"] = to_class(SkillsConfigSetDisabledSkillsRequest, self.skills_config_set_disabled_skills_request)
@@ -4224,6 +4280,7 @@ class RPC:
         result["Tool"] = to_class(Tool, self.tool)
         result["ToolCallResult"] = to_class(ToolCallResult, self.tool_call_result)
         result["ToolList"] = to_class(ToolList, self.tool_list)
+        result["ToolsHandlePendingToolCall"] = from_union([lambda x: to_class(ToolCallResult, x), from_str], self.tools_handle_pending_tool_call)
         result["ToolsHandlePendingToolCallRequest"] = to_class(ToolsHandlePendingToolCallRequest, self.tools_handle_pending_tool_call_request)
         result["ToolsListRequest"] = to_class(ToolsListRequest, self.tools_list_request)
         result["UIElicitationArrayAnyOfField"] = to_class(UIElicitationArrayAnyOfField, self.ui_elicitation_array_any_of_field)
@@ -4238,9 +4295,12 @@ class RPC:
         result["UIElicitationResponseContent"] = from_dict(lambda x: from_union([to_float, from_bool, lambda x: from_list(from_str, x), from_str], x), self.ui_elicitation_response_content)
         result["UIElicitationResult"] = to_class(UIElicitationResult, self.ui_elicitation_result)
         result["UIElicitationSchema"] = to_class(UIElicitationSchema, self.ui_elicitation_schema)
+        result["UIElicitationSchemaProperty"] = to_class(UIElicitationSchemaProperty, self.ui_elicitation_schema_property)
         result["UIElicitationSchemaPropertyBoolean"] = to_class(UIElicitationSchemaPropertyBoolean, self.ui_elicitation_schema_property_boolean)
         result["UIElicitationSchemaPropertyNumber"] = to_class(UIElicitationSchemaPropertyNumber, self.ui_elicitation_schema_property_number)
+        result["UIElicitationSchemaPropertyNumberType"] = to_enum(UIElicitationSchemaPropertyNumberTypeEnum, self.ui_elicitation_schema_property_number_type)
         result["UIElicitationSchemaPropertyString"] = to_class(UIElicitationSchemaPropertyString, self.ui_elicitation_schema_property_string)
+        result["UIElicitationSchemaPropertyStringFormat"] = to_enum(UIElicitationSchemaPropertyStringFormat, self.ui_elicitation_schema_property_string_format)
         result["UIElicitationStringEnumField"] = to_class(UIElicitationStringEnumField, self.ui_elicitation_string_enum_field)
         result["UIElicitationStringOneOfField"] = to_class(UIElicitationStringOneOfField, self.ui_elicitation_string_one_of_field)
         result["UIElicitationStringOneOfFieldOneOf"] = to_class(UIElicitationStringOneOfFieldOneOf, self.ui_elicitation_string_one_of_field_one_of)
