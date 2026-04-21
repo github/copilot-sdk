@@ -9,7 +9,9 @@ from .testharness import E2ETestContext
 
 pytestmark = [
     pytest.mark.asyncio(loop_scope="module"),
-    pytest.mark.skip(reason="Compaction tests are skipped due to flakiness — re-enable once stabilized"),
+    pytest.mark.skip(
+        reason="Compaction tests are skipped due to flakiness — re-enable once stabilized"
+    ),
 ]
 
 
