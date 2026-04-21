@@ -74,7 +74,7 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
 
     if (processed.properties) {
         const newProps: Record<string, JSONSchema7Definition> = {};
-        for (const [key, value] of Object.entries(processed.properties)) {
+        for (const [key, value] of Object.entries(processed.properties).sort(([a], [b]) => a.localeCompare(b))) {
             newProps[key] = typeof value === "object" ? postProcessSchema(value as JSONSchema7) : value;
         }
         processed.properties = newProps;

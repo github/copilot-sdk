@@ -1011,8 +1011,8 @@ function emitPyClass(
         ([, value]) => typeof value === "object"
     ) as Array<[string, JSONSchema7]>;
     const orderedFieldEntries = [
-        ...fieldEntries.filter(([name]) => required.has(name)),
-        ...fieldEntries.filter(([name]) => !required.has(name)),
+        ...fieldEntries.filter(([name]) => required.has(name)).sort(([a], [b]) => a.localeCompare(b)),
+        ...fieldEntries.filter(([name]) => !required.has(name)).sort(([a], [b]) => a.localeCompare(b)),
     ];
 
     const fieldInfos = orderedFieldEntries.map(([propName, propSchema]) => {
@@ -1156,8 +1156,8 @@ function emitPyFlatDiscriminatedUnion(
     ];
 
     const orderedFieldEntries = [
-        ...fieldEntries.filter(([, , requiredInAll]) => requiredInAll),
-        ...fieldEntries.filter(([, , requiredInAll]) => !requiredInAll),
+        ...fieldEntries.filter(([, , requiredInAll]) => requiredInAll).sort(([a], [b]) => a.localeCompare(b)),
+        ...fieldEntries.filter(([, , requiredInAll]) => !requiredInAll).sort(([a], [b]) => a.localeCompare(b)),
     ];
 
     const fieldInfos = orderedFieldEntries.map(([propName, propSchema, requiredInAll]) => {
@@ -1462,12 +1462,12 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     );
     out.push(``);
     out.push(``);
-    for (const classDef of ctx.classes) {
+    for (const classDef of ctx.classes.sort()) {
         out.push(classDef);
         out.push(``);
         out.push(``);
     }
-    for (const enumDef of ctx.enums) {
+    for (const enumDef of ctx.enums.sort()) {
         out.push(enumDef);
         out.push(``);
         out.push(``);

@@ -381,7 +381,7 @@ function findDiscriminator(variants: JSONSchema7[]): { property: string; mapping
     const firstVariant = variants[0];
     if (!firstVariant.properties) return null;
 
-    for (const [propName, propSchema] of Object.entries(firstVariant.properties)) {
+    for (const [propName, propSchema] of Object.entries(firstVariant.properties).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const schema = propSchema as JSONSchema7;
         if (schema.const === undefined) continue;
@@ -474,7 +474,7 @@ function generateDerivedClass(
     lines.push("");
 
     if (schema.properties) {
-        for (const [propName, propSchema] of Object.entries(schema.properties)) {
+        for (const [propName, propSchema] of Object.entries(schema.properties).sort(([a], [b]) => a.localeCompare(b))) {
             if (typeof propSchema !== "object") continue;
             if (propName === discriminatorProperty) continue;
 
@@ -511,7 +511,7 @@ function generateNestedClass(
     if (isSchemaDeprecated(schema)) lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     lines.push(`public partial class ${className}`, `{`);
 
-    for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
+    for (const [propName, propSchema] of Object.entries(schema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
@@ -644,7 +644,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     }
     lines.push(`public partial class ${variant.dataClassName}`, `{`);
 
-    for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties)) {
+    for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const isReq = required.has(propName);
         const csharpName = toPascalCase(propName);
@@ -979,7 +979,7 @@ function emitRpcClass(
     }
     lines.push(`${visibility} sealed class ${className}`, `{`);
 
-    const props = Object.entries(effectiveSchema.properties || {});
+    const props = Object.entries(effectiveSchema.properties || {}).sort(([a], [b]) => a.localeCompare(b));
     for (let i = 0; i < props.length; i++) {
         const [propName, propSchema] = props[i];
         if (typeof propSchema !== "object") continue;
@@ -1156,6 +1156,13 @@ function emitServerInstanceMethod(
     const effectiveParams = resolveMethodParamsSchema(method);
     const paramEntries = effectiveParams?.properties ? Object.entries(effectiveParams.properties) : [];
     const requiredSet = new Set(effectiveParams?.required || []);
+
+    // Sort so required params come before optional (C# requires defaults at end)
+    paramEntries.sort((a, b) => {
+        const aReq = requiredSet.has(a[0]) ? 0 : 1;
+        const bReq = requiredSet.has(b[0]) ? 0 : 1;
+        return aReq - bReq;
+    });
 
     let requestClassName: string | null = null;
     if (paramEntries.length > 0) {

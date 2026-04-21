@@ -604,7 +604,7 @@ function emitGoStruct(
     }
     lines.push(`type ${typeName} struct {`);
 
-    for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
+    for (const [propName, propSchema] of Object.entries(schema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
@@ -700,7 +700,7 @@ function emitGoFlatDiscriminatedUnion(
     lines.push(`\t${discGoName} ${discEnumName} \`json:"${discriminatorProp}"\``);
 
     // Emit remaining fields
-    for (const [propName, info] of allProps) {
+    for (const [propName, info] of [...allProps.entries()].sort(([a], [b]) => a.localeCompare(b))) {
         if (propName === discriminatorProp) continue;
         const goName = toGoFieldName(propName);
         const goType = resolveGoPropertyType(info.schema, typeName, propName, info.requiredInAll, ctx);
@@ -746,7 +746,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
         }
         lines.push(`type ${variant.dataClassName} struct {`);
 
-        for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties || {})) {
+        for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
             const isReq = required.has(propName);
@@ -932,19 +932,19 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     out.push(``);
 
     // Per-event data structs
-    for (const ds of dataStructs) {
+    for (const ds of dataStructs.sort()) {
         out.push(ds);
         out.push(``);
     }
 
     // Nested structs
-    for (const s of ctx.structs) {
+    for (const s of ctx.structs.sort()) {
         out.push(s);
         out.push(``);
     }
 
     // Enums
-    for (const e of ctx.enums) {
+    for (const e of ctx.enums.sort()) {
         out.push(e);
         out.push(``);
     }
