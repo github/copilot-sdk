@@ -6,7 +6,9 @@ package com.github.copilot.sdk.json;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -43,6 +45,7 @@ public class MessageOptions {
     private String prompt;
     private List<MessageAttachment> attachments;
     private String mode;
+    private Map<String, String> requestHeaders;
 
     /**
      * Gets the message prompt.
@@ -124,6 +127,31 @@ public class MessageOptions {
     }
 
     /**
+     * Gets the custom per-turn HTTP headers for outbound model requests.
+     *
+     * @return the headers map, or {@code null} if not set
+     */
+    public Map<String, String> getRequestHeaders() {
+        return requestHeaders == null ? null : Collections.unmodifiableMap(requestHeaders);
+    }
+
+    /**
+     * Sets custom per-turn HTTP headers for outbound model requests.
+     * <p>
+     * These headers are included in the model API request for this specific message
+     * turn. Use this to pass per-request authentication, tracing, or custom
+     * metadata.
+     *
+     * @param requestHeaders
+     *            the headers map
+     * @return this options instance for method chaining
+     */
+    public MessageOptions setRequestHeaders(Map<String, String> requestHeaders) {
+        this.requestHeaders = requestHeaders;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code MessageOptions} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -139,6 +167,7 @@ public class MessageOptions {
         copy.prompt = this.prompt;
         copy.attachments = this.attachments != null ? new ArrayList<>(this.attachments) : null;
         copy.mode = this.mode;
+        copy.requestHeaders = this.requestHeaders != null ? new HashMap<>(this.requestHeaders) : null;
         return copy;
     }
 

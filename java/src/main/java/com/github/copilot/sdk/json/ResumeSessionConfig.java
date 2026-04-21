@@ -44,14 +44,17 @@ public class ResumeSessionConfig {
     private List<String> excludedTools;
     private ProviderConfig provider;
     private String reasoningEffort;
+    private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
     private String configDir;
+    private Boolean enableConfigDiscovery;
     private boolean disableResume;
     private boolean streaming;
-    private Map<String, Object> mcpServers;
+    private Boolean includeSubAgentStreamingEvents;
+    private Map<String, McpServerConfig> mcpServers;
     private List<CustomAgentConfig> customAgents;
     private String agent;
     private List<String> skillDirectories;
@@ -357,6 +360,80 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets whether automatic configuration discovery is enabled.
+     *
+     * @return {@code true} to enable discovery, {@code false} to disable, or
+     *         {@code null} to use the runtime default
+     */
+    public Boolean getEnableConfigDiscovery() {
+        return enableConfigDiscovery;
+    }
+
+    /**
+     * Sets whether to automatically discover MCP server configurations and skill
+     * directories from the working directory.
+     * <p>
+     * When {@code true}, the CLI scans the working directory for {@code .mcp.json},
+     * {@code .vscode/mcp.json} and skill directories, and merges them with
+     * explicitly provided configurations.
+     *
+     * @param enableConfigDiscovery
+     *            {@code true} to enable discovery, {@code false} to disable, or
+     *            {@code null} to use the runtime default
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableConfigDiscovery(Boolean enableConfigDiscovery) {
+        this.enableConfigDiscovery = enableConfigDiscovery;
+        return this;
+    }
+
+    /**
+     * Gets whether sub-agent streaming events are included.
+     *
+     * @return {@code true} to include sub-agent streaming events, {@code false} to
+     *         suppress them, or {@code null} to use the runtime default
+     */
+    public Boolean getIncludeSubAgentStreamingEvents() {
+        return includeSubAgentStreamingEvents;
+    }
+
+    /**
+     * Sets whether to include sub-agent streaming events in the event stream.
+     *
+     * @param includeSubAgentStreamingEvents
+     *            {@code true} to include streaming events, {@code false} to
+     *            suppress
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setIncludeSubAgentStreamingEvents(Boolean includeSubAgentStreamingEvents) {
+        this.includeSubAgentStreamingEvents = includeSubAgentStreamingEvents;
+        return this;
+    }
+
+    /**
+     * Gets the model capabilities override.
+     *
+     * @return the model capabilities override, or {@code null} if not set
+     */
+    public ModelCapabilitiesOverride getModelCapabilities() {
+        return modelCapabilities;
+    }
+
+    /**
+     * Sets per-property overrides for model capabilities, deep-merged over runtime
+     * defaults.
+     *
+     * @param modelCapabilities
+     *            the model capabilities override
+     * @return this config for method chaining
+     * @see ModelCapabilitiesOverride
+     */
+    public ResumeSessionConfig setModelCapabilities(ModelCapabilitiesOverride modelCapabilities) {
+        this.modelCapabilities = modelCapabilities;
+        return this;
+    }
+
+    /**
      * Returns whether the resume event is disabled.
      *
      * @return {@code true} if the session.resume event is suppressed
@@ -405,7 +482,7 @@ public class ResumeSessionConfig {
      *
      * @return the MCP servers map
      */
-    public Map<String, Object> getMcpServers() {
+    public Map<String, McpServerConfig> getMcpServers() {
         return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
@@ -416,7 +493,7 @@ public class ResumeSessionConfig {
      *            the MCP servers configuration map
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setMcpServers(Map<String, Object> mcpServers) {
+    public ResumeSessionConfig setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
         return this;
     }
@@ -629,13 +706,16 @@ public class ResumeSessionConfig {
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
         copy.reasoningEffort = this.reasoningEffort;
+        copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
         copy.configDir = this.configDir;
+        copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.disableResume = this.disableResume;
         copy.streaming = this.streaming;
+        copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
         copy.agent = this.agent;

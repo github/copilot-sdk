@@ -52,8 +52,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -72,8 +72,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -92,8 +92,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -112,8 +112,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -132,8 +132,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -152,8 +152,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -174,8 +174,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -196,8 +196,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -216,8 +216,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -236,8 +236,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -258,8 +258,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -278,8 +278,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionIdBeforeClose = session.getSessionId();
             session.close();
 
@@ -297,8 +297,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String pathBeforeClose = session.getWorkspacePath();
             session.close();
 
@@ -315,8 +315,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             // First close should succeed
             assertDoesNotThrow(() -> session.close());
@@ -337,8 +337,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try (session) {
                 // Manual close within try-with-resources
@@ -362,8 +362,8 @@ public class ClosedSessionGuardTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             assertThrows(IllegalStateException.class, () -> {

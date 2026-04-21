@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.generated.AssistantMessageEvent;
+import com.github.copilot.sdk.json.CustomAgentConfig;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.SessionConfig;
@@ -154,6 +155,80 @@ public class SkillsTest {
             assertNotNull(response);
             assertFalse(response.getData().content().contains(SKILL_MARKER),
                     "Response should NOT contain skill marker when skill is disabled: " + response.getData().content());
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that an agent with a Skills field can preload and invoke the skill.
+     *
+     * @see Snapshot: skills/should_allow_agent_with_skills_to_invoke_skill
+     */
+    @Test
+    void testShouldAllowAgentWithSkillsToInvokeSkill() throws Exception {
+        ctx.configureForTest("skills", "should_allow_agent_with_skills_to_invoke_skill");
+
+        Path skillsDirPath = createSkillDir();
+
+        var agent = new CustomAgentConfig().setName("skill-agent").setDescription("An agent with access to test-skill")
+                .setPrompt("You are a helpful test agent.").setSkills(List.of("test-skill"));
+
+        SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setSkillDirectories(List.of(skillsDirPath.toString())).setCustomAgents(List.of(agent))
+                .setAgent("skill-agent");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(config).get();
+
+            assertNotNull(session.getSessionId());
+
+            // The agent has Skills = ["test-skill"], so the skill content is preloaded
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Say hello briefly using the test skill."))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().content().contains(SKILL_MARKER),
+                    "Response should contain skill marker '" + SKILL_MARKER + "': " + response.getData().content());
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that an agent without a Skills field does not get skill content
+     * injected.
+     *
+     * @see Snapshot: skills/should_not_provide_skills_to_agent_without_skills_field
+     */
+    @Test
+    void testShouldNotProvideSkillsToAgentWithoutSkillsField() throws Exception {
+        ctx.configureForTest("skills", "should_not_provide_skills_to_agent_without_skills_field");
+
+        Path skillsDirPath = createSkillDir();
+
+        var agent = new CustomAgentConfig().setName("no-skill-agent").setDescription("An agent without skills access")
+                .setPrompt("You are a helpful test agent.");
+
+        SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setSkillDirectories(List.of(skillsDirPath.toString())).setCustomAgents(List.of(agent))
+                .setAgent("no-skill-agent");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(config).get();
+
+            assertNotNull(session.getSessionId());
+
+            // The agent has no Skills field, so no skill content is injected
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Say hello briefly using the test skill."))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertFalse(response.getData().content().contains(SKILL_MARKER),
+                    "Response should NOT contain skill marker when agent has no Skills field: "
+                            + response.getData().content());
 
             session.close();
         }

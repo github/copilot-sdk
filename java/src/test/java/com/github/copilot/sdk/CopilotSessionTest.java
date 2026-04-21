@@ -71,8 +71,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertNotNull(session.getSessionId());
             assertTrue(session.getSessionId().matches("^[a-f0-9-]+$"));

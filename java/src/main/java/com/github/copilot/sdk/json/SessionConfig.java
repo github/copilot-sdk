@@ -50,13 +50,16 @@ public class SessionConfig {
     private SessionHooks hooks;
     private String workingDirectory;
     private boolean streaming;
-    private Map<String, Object> mcpServers;
+    private Boolean includeSubAgentStreamingEvents;
+    private Map<String, McpServerConfig> mcpServers;
     private List<CustomAgentConfig> customAgents;
     private String agent;
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
     private List<String> disabledSkills;
     private String configDir;
+    private Boolean enableConfigDiscovery;
+    private ModelCapabilitiesOverride modelCapabilities;
     private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
     private ElicitationHandler onElicitationRequest;
@@ -401,7 +404,7 @@ public class SessionConfig {
      *
      * @return the MCP servers map
      */
-    public Map<String, Object> getMcpServers() {
+    public Map<String, McpServerConfig> getMcpServers() {
         return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
@@ -415,7 +418,7 @@ public class SessionConfig {
      *            the MCP servers configuration map
      * @return this config instance for method chaining
      */
-    public SessionConfig setMcpServers(Map<String, Object> mcpServers) {
+    public SessionConfig setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
         return this;
     }
@@ -569,6 +572,92 @@ public class SessionConfig {
     }
 
     /**
+     * Gets whether automatic configuration discovery is enabled.
+     *
+     * @return {@code true} to enable discovery, {@code false} to disable, or
+     *         {@code null} to use the runtime default
+     */
+    public Boolean getEnableConfigDiscovery() {
+        return enableConfigDiscovery;
+    }
+
+    /**
+     * Sets whether to automatically discover MCP server configurations and skill
+     * directories from the working directory.
+     * <p>
+     * When {@code true}, the CLI scans the working directory for {@code .mcp.json},
+     * {@code .vscode/mcp.json} and skill directories, and merges them with
+     * explicitly provided {@link #setMcpServers(Map)} and
+     * {@link #setSkillDirectories(List)}, with explicit values taking precedence on
+     * name collision.
+     *
+     * @param enableConfigDiscovery
+     *            {@code true} to enable discovery, {@code false} to disable, or
+     *            {@code null} to use the runtime default
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableConfigDiscovery(Boolean enableConfigDiscovery) {
+        this.enableConfigDiscovery = enableConfigDiscovery;
+        return this;
+    }
+
+    /**
+     * Gets whether sub-agent streaming events are included.
+     *
+     * @return {@code true} to include sub-agent streaming events, {@code false} to
+     *         suppress them, or {@code null} to use the runtime default
+     */
+    public Boolean getIncludeSubAgentStreamingEvents() {
+        return includeSubAgentStreamingEvents;
+    }
+
+    /**
+     * Sets whether to include sub-agent streaming events in the event stream.
+     * <p>
+     * When {@code true}, streaming delta events from sub-agents (e.g.,
+     * {@code assistant.message_delta} with {@code agentId} set) are forwarded to
+     * this connection. When {@code false}, only non-streaming sub-agent events and
+     * {@code subagent.*} lifecycle events are forwarded; streaming deltas from
+     * sub-agents are suppressed. Default: {@code true}.
+     *
+     * @param includeSubAgentStreamingEvents
+     *            {@code true} to include streaming events, {@code false} to
+     *            suppress
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setIncludeSubAgentStreamingEvents(Boolean includeSubAgentStreamingEvents) {
+        this.includeSubAgentStreamingEvents = includeSubAgentStreamingEvents;
+        return this;
+    }
+
+    /**
+     * Gets the model capabilities override.
+     *
+     * @return the model capabilities override, or {@code null} if not set
+     */
+    public ModelCapabilitiesOverride getModelCapabilities() {
+        return modelCapabilities;
+    }
+
+    /**
+     * Sets per-property overrides for model capabilities, deep-merged over runtime
+     * defaults.
+     * <p>
+     * Use this to override specific model capabilities (such as vision support) for
+     * this session. Only non-null fields in the override are applied; unset fields
+     * retain their runtime defaults.
+     *
+     * @param modelCapabilities
+     *            the model capabilities override
+     * @return this config instance for method chaining
+     * @see ModelCapabilitiesOverride
+     */
+    public SessionConfig setModelCapabilities(ModelCapabilitiesOverride modelCapabilities) {
+        this.modelCapabilities = modelCapabilities;
+        return this;
+    }
+
+    /**
      * Gets the event handler registered before the session.create RPC is issued.
      *
      * @return the event handler, or {@code null} if not set
@@ -675,6 +764,7 @@ public class SessionConfig {
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
         copy.streaming = this.streaming;
+        copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
         copy.agent = this.agent;
@@ -682,6 +772,8 @@ public class SessionConfig {
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.configDir = this.configDir;
+        copy.enableConfigDiscovery = this.enableConfigDiscovery;
+        copy.modelCapabilities = this.modelCapabilities;
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
