@@ -56,11 +56,11 @@ from .generated.session_events import (
     SessionIdleData,
     session_event_from_dict,
 )
-from .session_fs_provider import SessionFsProvider
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 if TYPE_CHECKING:
     from .client import ModelCapabilitiesOverride
+    from .session_fs_provider import SessionFsProvider
 
 # Re-export SessionEvent under an alias used internally
 SessionEventTypeAlias = SessionEvent

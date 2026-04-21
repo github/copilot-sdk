@@ -151,7 +151,7 @@ class _SessionFsAdapter:
                 birthtime=info.birthtime,
             )
         except Exception as exc:
-            now = datetime.now()
+            now = datetime.now(datetime.UTC)
             err = _to_session_fs_error(exc)
             return SessionFSStatResult(
                 is_file=False,
