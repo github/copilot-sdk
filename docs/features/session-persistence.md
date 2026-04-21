@@ -441,7 +441,7 @@ const client = new CopilotClient({
 });
 ```
 
-When a timeout is configured, sessions without activity for that duration are automatically cleaned up. The minimum value is 300 seconds (5 minutes). Set to `0` or omit to disable.
+When a timeout is configured, sessions without activity for that duration are automatically cleaned up. Set to `0` or omit to disable.
 
 > **Note:** This option only applies when the SDK spawns the runtime process. When connecting to an existing server via `cliUrl`, the server's own timeout configuration applies.
 

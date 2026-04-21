@@ -170,7 +170,6 @@ public class CopilotClientOptions
     /// Server-wide idle timeout for sessions in seconds.
     /// Sessions without activity for this duration are automatically cleaned up.
     /// Set to <c>0</c> or leave as <see langword="null"/> to disable (sessions live indefinitely).
-    /// Minimum value: 300 (5 minutes).
     /// This option is only used when the SDK spawns the CLI process; it is ignored
     /// when connecting to an external server via <see cref="CliUrl"/>.
     /// </summary>

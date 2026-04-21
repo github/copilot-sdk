@@ -74,7 +74,6 @@ type ClientOptions struct {
 	// SessionIdleTimeoutSeconds configures the server-wide session idle timeout in seconds.
 	// Sessions without activity for this duration are automatically cleaned up.
 	// Set to 0 or leave unset to disable (sessions live indefinitely).
-	// Minimum value: 300 (5 minutes).
 	// This option is only used when the SDK spawns the CLI process; it is ignored
 	// when connecting to an external server via CLIUrl.
 	SessionIdleTimeoutSeconds int
