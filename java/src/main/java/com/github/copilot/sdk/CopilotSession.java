@@ -1590,8 +1590,13 @@ public final class CopilotSession implements AutoCloseable {
                 supports = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesSupports(
                         s.getVision(), s.getReasoningEffort());
             }
+            SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesLimits limits = null;
+            if (modelCapabilities.getLimits() != null) {
+                limits = new ObjectMapper().convertValue(modelCapabilities.getLimits(),
+                        SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesLimits.class);
+            }
             generatedCapabilities = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities(supports,
-                    null);
+                    limits);
         }
         return getRpc().model
                 .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, generatedCapabilities))

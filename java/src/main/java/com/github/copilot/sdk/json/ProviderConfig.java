@@ -4,11 +4,11 @@
 
 package com.github.copilot.sdk.json;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.Collections;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Configuration for a custom API provider (BYOK - Bring Your Own Key).
