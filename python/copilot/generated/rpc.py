@@ -1682,7 +1682,7 @@ class UIElicitationResult:
 class UIElicitationSchemaPropertyBooleanType(Enum):
     BOOLEAN = "boolean"
 
-class UIElicitationSchemaPropertyNumberTypeEnum(Enum):
+class UIElicitationSchemaPropertyNumberType(Enum):
     INTEGER = "integer"
     NUMBER = "number"
 
@@ -3008,7 +3008,7 @@ class UIElicitationSchemaPropertyBoolean:
 
 @dataclass
 class UIElicitationSchemaPropertyNumber:
-    type: UIElicitationSchemaPropertyNumberTypeEnum
+    type: UIElicitationSchemaPropertyNumberType
     default: float | None = None
     description: str | None = None
     maximum: float | None = None
@@ -3018,7 +3018,7 @@ class UIElicitationSchemaPropertyNumber:
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyNumber':
         assert isinstance(obj, dict)
-        type = UIElicitationSchemaPropertyNumberTypeEnum(obj.get("type"))
+        type = UIElicitationSchemaPropertyNumberType(obj.get("type"))
         default = from_union([from_float, from_none], obj.get("default"))
         description = from_union([from_str, from_none], obj.get("description"))
         maximum = from_union([from_float, from_none], obj.get("maximum"))
@@ -3028,7 +3028,7 @@ class UIElicitationSchemaPropertyNumber:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["type"] = to_enum(UIElicitationSchemaPropertyNumberTypeEnum, self.type)
+        result["type"] = to_enum(UIElicitationSchemaPropertyNumberType, self.type)
         if self.default is not None:
             result["default"] = from_union([to_float, from_none], self.default)
         if self.description is not None:
@@ -3976,7 +3976,7 @@ class RPC:
     ui_elicitation_schema_property: UIElicitationSchemaProperty
     ui_elicitation_schema_property_boolean: UIElicitationSchemaPropertyBoolean
     ui_elicitation_schema_property_number: UIElicitationSchemaPropertyNumber
-    ui_elicitation_schema_property_number_type: UIElicitationSchemaPropertyNumberTypeEnum
+    ui_elicitation_schema_property_number_type: UIElicitationSchemaPropertyNumberType
     ui_elicitation_schema_property_string: UIElicitationSchemaPropertyString
     ui_elicitation_schema_property_string_format: UIElicitationSchemaPropertyStringFormat
     ui_elicitation_string_enum_field: UIElicitationStringEnumField
@@ -4142,7 +4142,7 @@ class RPC:
         ui_elicitation_schema_property = UIElicitationSchemaProperty.from_dict(obj.get("UIElicitationSchemaProperty"))
         ui_elicitation_schema_property_boolean = UIElicitationSchemaPropertyBoolean.from_dict(obj.get("UIElicitationSchemaPropertyBoolean"))
         ui_elicitation_schema_property_number = UIElicitationSchemaPropertyNumber.from_dict(obj.get("UIElicitationSchemaPropertyNumber"))
-        ui_elicitation_schema_property_number_type = UIElicitationSchemaPropertyNumberTypeEnum(obj.get("UIElicitationSchemaPropertyNumberType"))
+        ui_elicitation_schema_property_number_type = UIElicitationSchemaPropertyNumberType(obj.get("UIElicitationSchemaPropertyNumberType"))
         ui_elicitation_schema_property_string = UIElicitationSchemaPropertyString.from_dict(obj.get("UIElicitationSchemaPropertyString"))
         ui_elicitation_schema_property_string_format = UIElicitationSchemaPropertyStringFormat(obj.get("UIElicitationSchemaPropertyStringFormat"))
         ui_elicitation_string_enum_field = UIElicitationStringEnumField.from_dict(obj.get("UIElicitationStringEnumField"))
@@ -4308,7 +4308,7 @@ class RPC:
         result["UIElicitationSchemaProperty"] = to_class(UIElicitationSchemaProperty, self.ui_elicitation_schema_property)
         result["UIElicitationSchemaPropertyBoolean"] = to_class(UIElicitationSchemaPropertyBoolean, self.ui_elicitation_schema_property_boolean)
         result["UIElicitationSchemaPropertyNumber"] = to_class(UIElicitationSchemaPropertyNumber, self.ui_elicitation_schema_property_number)
-        result["UIElicitationSchemaPropertyNumberType"] = to_enum(UIElicitationSchemaPropertyNumberTypeEnum, self.ui_elicitation_schema_property_number_type)
+        result["UIElicitationSchemaPropertyNumberType"] = to_enum(UIElicitationSchemaPropertyNumberType, self.ui_elicitation_schema_property_number_type)
         result["UIElicitationSchemaPropertyString"] = to_class(UIElicitationSchemaPropertyString, self.ui_elicitation_schema_property_string)
         result["UIElicitationSchemaPropertyStringFormat"] = to_enum(UIElicitationSchemaPropertyStringFormat, self.ui_elicitation_schema_property_string_format)
         result["UIElicitationStringEnumField"] = to_class(UIElicitationStringEnumField, self.ui_elicitation_string_enum_field)

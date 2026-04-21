@@ -361,7 +361,7 @@ function chooseCanonicalPlaceholderDuplicate(names: string[], knownDefinitionNam
 }
 
 function isPlaceholderTypeName(name: string): boolean {
-    return name.endsWith("Class");
+    return name.endsWith("Class") || name.endsWith("Enum");
 }
 
 
@@ -1657,6 +1657,24 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = modernizePython(typesCode);
     const knownDefNames = new Set(Object.keys(allDefinitions).map((n) => n.toLowerCase()));
     typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
+
+    // Fix quicktype's Enum-suffix renaming: quicktype sometimes renames "Xyz" to
+    // "XyzEnum" to avoid internal collisions. Strip the suffix to match our schema
+    // definition names, but fail the build if that introduces a duplicate definition.
+    for (const defName of Object.keys(allDefinitions)) {
+        const enumSuffixed = defName + "Enum";
+        if (!new RegExp(`\\bclass ${enumSuffixed}\\b`).test(typesCode)) continue;
+        const renamed = typesCode.replace(new RegExp(`\\b${enumSuffixed}\\b`, "g"), defName);
+        const classCount = (renamed.match(new RegExp(`^class ${defName}\\b`, "gm")) ?? []).length;
+        if (classCount > 1) {
+            throw new Error(
+                `Python codegen: stripping quicktype's "Enum" suffix from "${enumSuffixed}" ` +
+                `would produce a duplicate definition for "${defName}". ` +
+                `Fix the schema definition name or add .withTypeName() to disambiguate.`
+            );
+        }
+        typesCode = renamed;
+    }
 
     // Reorder class/enum definitions to resolve forward references.
     // Quicktype may emit classes before their dependencies are defined.
