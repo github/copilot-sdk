@@ -14,6 +14,7 @@ export {
     defineTool,
     approveAll,
     convertMcpCallToolResult,
+    createSessionFsAdapter,
     SYSTEM_PROMPT_SECTIONS,
 } from "./types.js";
 export type {
@@ -68,7 +69,6 @@ export type {
     SessionFsConfig,
     SessionFsProvider,
     SessionFsFileInfo,
-    createSessionFsAdapter,
     SystemMessageAppendConfig,
     SystemMessageConfig,
     SystemMessageCustomizeConfig,
