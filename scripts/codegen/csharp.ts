@@ -30,6 +30,7 @@ import {
     isSchemaDeprecated,
     isObjectSchema,
     isVoidSchema,
+    getNullableInner,
     REPO_ROOT,
     type ApiSchema,
     type DefinitionCollections,
@@ -150,16 +151,18 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
 }
 
 function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: Map<string, string>): string {
-    if (schema.anyOf) {
-        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && s.type !== "null");
-        if (nonNull.length === 1 && typeof nonNull[0] === "object") {
-            // Pass required=true to get the base type, then add "?" for nullable
-            return schemaTypeToCSharp(nonNull[0] as JSONSchema7, true, knownTypes) + "?";
-        }
+    const nullableInner = getNullableInner(schema);
+    if (nullableInner) {
+        // Pass required=true to get the base type, then add "?" for nullable
+        return schemaTypeToCSharp(nullableInner, true, knownTypes) + "?";
     }
     if (schema.$ref) {
         const refName = schema.$ref.split("/").pop()!;
         return knownTypes.get(refName) || refName;
+    }
+    // Titled union schemas (anyOf with a title) — use the title if it's a known generated type
+    if (schema.title && schema.anyOf && knownTypes.has(schema.title)) {
+        return required ? schema.title : `${schema.title}?`;
     }
     const type = schema.type;
     const format = schema.format;
@@ -378,7 +381,7 @@ function findDiscriminator(variants: JSONSchema7[]): { property: string; mapping
     const firstVariant = variants[0];
     if (!firstVariant.properties) return null;
 
-    for (const [propName, propSchema] of Object.entries(firstVariant.properties)) {
+    for (const [propName, propSchema] of Object.entries(firstVariant.properties).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const schema = propSchema as JSONSchema7;
         if (schema.const === undefined) continue;
@@ -471,7 +474,7 @@ function generateDerivedClass(
     lines.push("");
 
     if (schema.properties) {
-        for (const [propName, propSchema] of Object.entries(schema.properties)) {
+        for (const [propName, propSchema] of Object.entries(schema.properties).sort(([a], [b]) => a.localeCompare(b))) {
             if (typeof propSchema !== "object") continue;
             if (propName === discriminatorProperty) continue;
 
@@ -508,7 +511,7 @@ function generateNestedClass(
     if (isSchemaDeprecated(schema)) lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     lines.push(`public partial class ${className}`, `{`);
 
-    for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
+    for (const [propName, propSchema] of Object.entries(schema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
@@ -561,16 +564,24 @@ function resolveSessionPropertyType(
         return resolveSessionPropertyType(refSchema, parentClassName, propName, isRequired, knownTypes, nestedClasses, enumOutput);
     }
     if (propSchema.anyOf) {
-        const hasNull = propSchema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
-        const nonNull = propSchema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
-        if (nonNull.length === 1) {
-            return resolveSessionPropertyType(nonNull[0] as JSONSchema7, parentClassName, propName, isRequired && !hasNull, knownTypes, nestedClasses, enumOutput);
+        const simpleNullable = getNullableInner(propSchema);
+        if (simpleNullable) {
+            return resolveSessionPropertyType(simpleNullable, parentClassName, propName, false, knownTypes, nestedClasses, enumOutput);
         }
         // Discriminated union: anyOf with multiple object variants sharing a const discriminator
+        const nonNull = propSchema.anyOf.filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
         if (nonNull.length > 1) {
-            const variants = nonNull as JSONSchema7[];
+            // Resolve $ref variants to their actual schemas
+            const variants = (nonNull as JSONSchema7[]).map((v) => {
+                if (v.$ref) {
+                    const resolved = resolveRef(v.$ref, sessionDefinitions);
+                    return resolved ?? v;
+                }
+                return v;
+            });
             const discriminatorInfo = findDiscriminator(variants);
             if (discriminatorInfo) {
+                const hasNull = propSchema.anyOf.length > nonNull.length;
                 const baseClassName = (propSchema.title as string) ?? `${parentClassName}${propName}`;
                 const renamedBase = applyTypeRename(baseClassName);
                 const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, knownTypes, nestedClasses, enumOutput, propSchema.description);
@@ -578,7 +589,7 @@ function resolveSessionPropertyType(
                 return isRequired && !hasNull ? renamedBase : `${renamedBase}?`;
             }
         }
-        return hasNull || !isRequired ? "object?" : "object";
+        return !isRequired ? "object?" : "object";
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
         const enumName = getOrCreateEnum(parentClassName, propName, propSchema.enum as string[], enumOutput, propSchema.description, propSchema.title as string | undefined, isSchemaDeprecated(propSchema));
@@ -602,6 +613,19 @@ function resolveSessionPropertyType(
         );
         return isRequired ? `${itemType}[]` : `${itemType}[]?`;
     }
+    if (propSchema.type === "object" && propSchema.additionalProperties && typeof propSchema.additionalProperties === "object") {
+        const valueSchema = propSchema.additionalProperties as JSONSchema7;
+        const valueType = resolveSessionPropertyType(
+            valueSchema,
+            parentClassName,
+            `${propName}Value`,
+            true,
+            knownTypes,
+            nestedClasses,
+            enumOutput
+        );
+        return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
+    }
     return schemaTypeToCSharp(propSchema, isRequired, knownTypes);
 }
 
@@ -620,7 +644,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     }
     lines.push(`public partial class ${variant.dataClassName}`, `{`);
 
-    for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties)) {
+    for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const isReq = required.has(propName);
         const csharpName = toPascalCase(propName);
@@ -787,6 +811,27 @@ function resultTypeName(method: RpcMethod): string {
     return getRpcSchemaTypeName(getMethodResultSchema(method), `${typeToClassName(method.rpcMethod)}Result`);
 }
 
+/** Returns the C# type for a method's result, accounting for nullable anyOf wrappers. */
+function resolvedResultTypeName(method: RpcMethod): string {
+    const schema = getMethodResultSchema(method);
+    if (!schema) return resultTypeName(method);
+    const inner = getNullableInner(schema);
+    if (inner) {
+        // Nullable wrapper: resolve the inner $ref type name with "?" suffix
+        const innerName = inner.$ref
+            ? typeToClassName(refTypeName(inner.$ref, rpcDefinitions))
+            : getRpcSchemaTypeName(inner, resultTypeName(method));
+        return `${innerName}?`;
+    }
+    return resultTypeName(method);
+}
+
+/** Returns the Task<T> or Task string for a method's result type. */
+function resultTaskType(method: RpcMethod): string {
+    const schema = getMethodResultSchema(method);
+    return !isVoidSchema(schema) ? `Task<${resolvedResultTypeName(method)}>` : "Task";
+}
+
 function paramsTypeName(method: RpcMethod): string {
     return getRpcSchemaTypeName(resolveMethodParamsSchema(method), `${typeToClassName(method.rpcMethod)}Request`);
 }
@@ -833,12 +878,35 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
 
         return resolveRpcType(refSchema, isRequired, parentClassName, propName, classes);
     }
-    // Handle anyOf: [T, null] → T? (nullable typed property)
-    if (schema.anyOf) {
-        const hasNull = schema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
-        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
-        if (nonNull.length === 1) {
-            return resolveRpcType(nonNull[0] as JSONSchema7, isRequired && !hasNull, parentClassName, propName, classes);
+    // Handle anyOf: [T, null/{not:{}}] → T? (nullable typed property)
+    const nullableInner = getNullableInner(schema);
+    if (nullableInner) {
+        return resolveRpcType(nullableInner, false, parentClassName, propName, classes);
+    }
+    // Discriminated union: anyOf with multiple variants sharing a const discriminator
+    if (schema.anyOf && Array.isArray(schema.anyOf)) {
+        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
+        if (nonNull.length > 1) {
+            const variants = (nonNull as JSONSchema7[]).map((v) => {
+                if (v.$ref) {
+                    const resolved = resolveRef(v.$ref, rpcDefinitions);
+                    return resolved ?? v;
+                }
+                return v;
+            });
+            const discriminatorInfo = findDiscriminator(variants);
+            if (discriminatorInfo) {
+                const hasNull = schema.anyOf.length > nonNull.length;
+                const baseClassName = (schema.title as string) ?? `${parentClassName}${propName}`;
+                if (!emittedRpcClassSchemas.has(baseClassName)) {
+                    emittedRpcClassSchemas.set(baseClassName, "polymorphic");
+                    const nestedMap = new Map<string, string>();
+                    const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, rpcKnownTypes, nestedMap, rpcEnumOutput, schema.description);
+                    classes.push(polymorphicCode);
+                    for (const nested of nestedMap.values()) classes.push(nested);
+                }
+                return isRequired && !hasNull ? baseClassName : `${baseClassName}?`;
+            }
         }
     }
     // Handle enums (string unions like "interactive" | "plan" | "autopilot")
@@ -911,7 +979,7 @@ function emitRpcClass(
     }
     lines.push(`${visibility} sealed class ${className}`, `{`);
 
-    const props = Object.entries(effectiveSchema.properties || {});
+    const props = Object.entries(effectiveSchema.properties || {}).sort(([a], [b]) => a.localeCompare(b));
     for (let i = 0; i < props.length; i++) {
         const [propName, propSchema] = props[i];
         if (typeof propSchema !== "object") continue;
@@ -1088,6 +1156,13 @@ function emitServerInstanceMethod(
     const effectiveParams = resolveMethodParamsSchema(method);
     const paramEntries = effectiveParams?.properties ? Object.entries(effectiveParams.properties) : [];
     const requiredSet = new Set(effectiveParams?.required || []);
+
+    // Sort so required params come before optional (C# requires defaults at end)
+    paramEntries.sort((a, b) => {
+        const aReq = requiredSet.has(a[0]) ? 0 : 1;
+        const bReq = requiredSet.has(b[0]) ? 0 : 1;
+        return aReq - bReq;
+    });
 
     let requestClassName: string | null = null;
     if (paramEntries.length > 0) {
@@ -1337,7 +1412,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             const effectiveParams = resolveMethodParamsSchema(method);
             const hasParams = !!effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0;
             const resultSchema = getMethodResultSchema(method);
-            const taskType = !isVoidSchema(resultSchema) ? `Task<${resultTypeName(method)}>` : "Task";
+            const taskType = resultTaskType(method);
             lines.push(`    /// <summary>Handles "${method.rpcMethod}".</summary>`);
             if (method.stability === "experimental" && !groupExperimental) {
                 lines.push(`    [Experimental(Diagnostics.Experimental)]`);
@@ -1385,7 +1460,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             const hasParams = !!effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0;
             const resultSchema = getMethodResultSchema(method);
             const paramsClass = paramsTypeName(method);
-            const taskType = !isVoidSchema(resultSchema) ? `Task<${resultTypeName(method)}>` : "Task";
+            const taskType = resultTaskType(method);
             const registrationVar = `register${typeToClassName(method.rpcMethod)}Method`;
 
             if (hasParams) {

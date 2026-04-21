@@ -30,13 +30,13 @@ public sealed class PingResult
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
 
-    /// <summary>Server timestamp in milliseconds.</summary>
-    [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
-
     /// <summary>Server protocol version number.</summary>
     [JsonPropertyName("protocolVersion")]
     public long ProtocolVersion { get; set; }
+
+    /// <summary>Server timestamp in milliseconds.</summary>
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
 }
 
 /// <summary>RPC data type for Ping operations.</summary>
@@ -47,69 +47,77 @@ internal sealed class PingRequest
     public string? Message { get; set; }
 }
 
-/// <summary>Feature flags indicating what the model supports.</summary>
-public sealed class ModelCapabilitiesSupports
+/// <summary>Billing information.</summary>
+public sealed class ModelBilling
 {
-    /// <summary>Whether this model supports vision/image input.</summary>
-    [JsonPropertyName("vision")]
-    public bool? Vision { get; set; }
-
-    /// <summary>Whether this model supports reasoning effort configuration.</summary>
-    [JsonPropertyName("reasoningEffort")]
-    public bool? ReasoningEffort { get; set; }
+    /// <summary>Billing cost multiplier relative to the base rate.</summary>
+    [JsonPropertyName("multiplier")]
+    public double Multiplier { get; set; }
 }
 
 /// <summary>Vision-specific limits.</summary>
 public sealed class ModelCapabilitiesLimitsVision
 {
-    /// <summary>MIME types the model accepts.</summary>
-    [JsonPropertyName("supported_media_types")]
-    public IList<string> SupportedMediaTypes { get => field ??= []; set; }
+    /// <summary>Maximum image size in bytes.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("max_prompt_image_size")]
+    public long MaxPromptImageSize { get; set; }
 
     /// <summary>Maximum number of images per prompt.</summary>
     [Range((double)1, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_images")]
     public long MaxPromptImages { get; set; }
 
-    /// <summary>Maximum image size in bytes.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("max_prompt_image_size")]
-    public long MaxPromptImageSize { get; set; }
+    /// <summary>MIME types the model accepts.</summary>
+    [JsonPropertyName("supported_media_types")]
+    public IList<string> SupportedMediaTypes { get => field ??= []; set; }
 }
 
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
 public sealed class ModelCapabilitiesLimits
 {
-    /// <summary>Maximum number of prompt/input tokens.</summary>
+    /// <summary>Maximum total context window size in tokens.</summary>
     [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("max_prompt_tokens")]
-    public long? MaxPromptTokens { get; set; }
+    [JsonPropertyName("max_context_window_tokens")]
+    public long? MaxContextWindowTokens { get; set; }
 
     /// <summary>Maximum number of output/completion tokens.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_output_tokens")]
     public long? MaxOutputTokens { get; set; }
 
-    /// <summary>Maximum total context window size in tokens.</summary>
+    /// <summary>Maximum number of prompt/input tokens.</summary>
     [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("max_context_window_tokens")]
-    public long? MaxContextWindowTokens { get; set; }
+    [JsonPropertyName("max_prompt_tokens")]
+    public long? MaxPromptTokens { get; set; }
 
     /// <summary>Vision-specific limits.</summary>
     [JsonPropertyName("vision")]
     public ModelCapabilitiesLimitsVision? Vision { get; set; }
 }
 
+/// <summary>Feature flags indicating what the model supports.</summary>
+public sealed class ModelCapabilitiesSupports
+{
+    /// <summary>Whether this model supports reasoning effort configuration.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public bool? ReasoningEffort { get; set; }
+
+    /// <summary>Whether this model supports vision/image input.</summary>
+    [JsonPropertyName("vision")]
+    public bool? Vision { get; set; }
+}
+
 /// <summary>Model capabilities and limits.</summary>
 public sealed class ModelCapabilities
 {
-    /// <summary>Feature flags indicating what the model supports.</summary>
-    [JsonPropertyName("supports")]
-    public ModelCapabilitiesSupports? Supports { get; set; }
-
     /// <summary>Token limits for prompts, outputs, and context window.</summary>
     [JsonPropertyName("limits")]
     public ModelCapabilitiesLimits? Limits { get; set; }
+
+    /// <summary>Feature flags indicating what the model supports.</summary>
+    [JsonPropertyName("supports")]
+    public ModelCapabilitiesSupports? Supports { get; set; }
 }
 
 /// <summary>Policy state (if applicable).</summary>
@@ -124,17 +132,21 @@ public sealed class ModelPolicy
     public string Terms { get; set; } = string.Empty;
 }
 
-/// <summary>Billing information.</summary>
-public sealed class ModelBilling
-{
-    /// <summary>Billing cost multiplier relative to the base rate.</summary>
-    [JsonPropertyName("multiplier")]
-    public double Multiplier { get; set; }
-}
-
 /// <summary>RPC data type for Model operations.</summary>
 public sealed class Model
 {
+    /// <summary>Billing information.</summary>
+    [JsonPropertyName("billing")]
+    public ModelBilling? Billing { get; set; }
+
+    /// <summary>Model capabilities and limits.</summary>
+    [JsonPropertyName("capabilities")]
+    public ModelCapabilities Capabilities { get => field ??= new(); set; }
+
+    /// <summary>Default reasoning effort level (only present if model supports reasoning effort).</summary>
+    [JsonPropertyName("defaultReasoningEffort")]
+    public string? DefaultReasoningEffort { get; set; }
+
     /// <summary>Model identifier (e.g., "claude-sonnet-4.5").</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -143,25 +155,13 @@ public sealed class Model
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Model capabilities and limits.</summary>
-    [JsonPropertyName("capabilities")]
-    public ModelCapabilities Capabilities { get => field ??= new(); set; }
-
     /// <summary>Policy state (if applicable).</summary>
     [JsonPropertyName("policy")]
     public ModelPolicy? Policy { get; set; }
 
-    /// <summary>Billing information.</summary>
-    [JsonPropertyName("billing")]
-    public ModelBilling? Billing { get; set; }
-
     /// <summary>Supported reasoning effort levels (only present if model supports reasoning effort).</summary>
     [JsonPropertyName("supportedReasoningEfforts")]
     public IList<string>? SupportedReasoningEfforts { get; set; }
-
-    /// <summary>Default reasoning effort level (only present if model supports reasoning effort).</summary>
-    [JsonPropertyName("defaultReasoningEffort")]
-    public string? DefaultReasoningEffort { get; set; }
 }
 
 /// <summary>RPC data type for ModelList operations.</summary>
@@ -175,6 +175,14 @@ public sealed class ModelList
 /// <summary>RPC data type for Tool operations.</summary>
 public sealed class Tool
 {
+    /// <summary>Description of what the tool does.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Optional instructions for how to use this tool effectively.</summary>
+    [JsonPropertyName("instructions")]
+    public string? Instructions { get; set; }
+
     /// <summary>Tool identifier (e.g., "bash", "grep", "str_replace_editor").</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -183,17 +191,9 @@ public sealed class Tool
     [JsonPropertyName("namespacedName")]
     public string? NamespacedName { get; set; }
 
-    /// <summary>Description of what the tool does.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
     /// <summary>JSON Schema for the tool's input parameters.</summary>
     [JsonPropertyName("parameters")]
     public IDictionary<string, object>? Parameters { get; set; }
-
-    /// <summary>Optional instructions for how to use this tool effectively.</summary>
-    [JsonPropertyName("instructions")]
-    public string? Instructions { get; set; }
 }
 
 /// <summary>RPC data type for ToolList operations.</summary>
@@ -219,27 +219,35 @@ public sealed class AccountQuotaSnapshot
     [JsonPropertyName("entitlementRequests")]
     public long EntitlementRequests { get; set; }
 
-    /// <summary>Number of requests used so far this period.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("usedRequests")]
-    public long UsedRequests { get; set; }
+    /// <summary>Whether the user has an unlimited usage entitlement.</summary>
+    [JsonPropertyName("isUnlimitedEntitlement")]
+    public bool IsUnlimitedEntitlement { get; set; }
+
+    /// <summary>Number of overage requests made this period.</summary>
+    [Range(0, double.MaxValue)]
+    [JsonPropertyName("overage")]
+    public double Overage { get; set; }
+
+    /// <summary>Whether overage is allowed when quota is exhausted.</summary>
+    [JsonPropertyName("overageAllowedWithExhaustedQuota")]
+    public bool OverageAllowedWithExhaustedQuota { get; set; }
 
     /// <summary>Percentage of entitlement remaining.</summary>
     [JsonPropertyName("remainingPercentage")]
     public double RemainingPercentage { get; set; }
 
-    /// <summary>Number of overage requests made this period.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("overage")]
-    public long Overage { get; set; }
-
-    /// <summary>Whether pay-per-request usage is allowed when quota is exhausted.</summary>
-    [JsonPropertyName("overageAllowedWithExhaustedQuota")]
-    public bool OverageAllowedWithExhaustedQuota { get; set; }
-
-    /// <summary>Date when the quota resets (ISO 8601).</summary>
+    /// <summary>Date when the quota resets (ISO 8601 string).</summary>
     [JsonPropertyName("resetDate")]
-    public DateTimeOffset? ResetDate { get; set; }
+    public string? ResetDate { get; set; }
+
+    /// <summary>Whether usage is still permitted after quota exhaustion.</summary>
+    [JsonPropertyName("usageAllowedWithExhaustedQuota")]
+    public bool UsageAllowedWithExhaustedQuota { get; set; }
+
+    /// <summary>Number of requests used so far this period.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("usedRequests")]
+    public long UsedRequests { get; set; }
 }
 
 /// <summary>RPC data type for AccountGetQuota operations.</summary>
@@ -253,22 +261,22 @@ public sealed class AccountGetQuotaResult
 /// <summary>RPC data type for DiscoveredMcpServer operations.</summary>
 public sealed class DiscoveredMcpServer
 {
+    /// <summary>Whether the server is enabled (not in the disabled list).</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
     /// <summary>Server name (config key).</summary>
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio).</summary>
-    [JsonPropertyName("type")]
-    public DiscoveredMcpServerType? Type { get; set; }
-
     /// <summary>Configuration source.</summary>
     [JsonPropertyName("source")]
     public DiscoveredMcpServerSource Source { get; set; }
 
-    /// <summary>Whether the server is enabled (not in the disabled list).</summary>
-    [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; }
+    /// <summary>Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio).</summary>
+    [JsonPropertyName("type")]
+    public DiscoveredMcpServerType? Type { get; set; }
 }
 
 /// <summary>RPC data type for McpDiscover operations.</summary>
@@ -298,27 +306,27 @@ public sealed class McpConfigList
 /// <summary>RPC data type for McpConfigAdd operations.</summary>
 internal sealed class McpConfigAddRequest
 {
+    /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
+    [JsonPropertyName("config")]
+    public object Config { get; set; } = null!;
+
     /// <summary>Unique name for the MCP server.</summary>
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-
-    /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
-    [JsonPropertyName("config")]
-    public object Config { get; set; } = null!;
 }
 
 /// <summary>RPC data type for McpConfigUpdate operations.</summary>
 internal sealed class McpConfigUpdateRequest
 {
+    /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
+    [JsonPropertyName("config")]
+    public object Config { get; set; } = null!;
+
     /// <summary>Name of the MCP server to update.</summary>
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-
-    /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
-    [JsonPropertyName("config")]
-    public object Config { get; set; } = null!;
 }
 
 /// <summary>RPC data type for McpConfigRemove operations.</summary>
@@ -333,25 +341,17 @@ internal sealed class McpConfigRemoveRequest
 /// <summary>RPC data type for ServerSkill operations.</summary>
 public sealed class ServerSkill
 {
-    /// <summary>Unique identifier for the skill.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
     /// <summary>Description of what the skill does.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
 
-    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
-    [JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
-
-    /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
-    [JsonPropertyName("userInvocable")]
-    public bool UserInvocable { get; set; }
-
     /// <summary>Whether the skill is currently enabled (based on global config).</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
+
+    /// <summary>Unique identifier for the skill.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>Absolute path to the skill file.</summary>
     [JsonPropertyName("path")]
@@ -360,6 +360,14 @@ public sealed class ServerSkill
     /// <summary>The project path this skill belongs to (only for project/inherited skills).</summary>
     [JsonPropertyName("projectPath")]
     public string? ProjectPath { get; set; }
+
+    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
+    [JsonPropertyName("userInvocable")]
+    public bool UserInvocable { get; set; }
 }
 
 /// <summary>RPC data type for ServerSkillList operations.</summary>
@@ -401,6 +409,10 @@ public sealed class SessionFsSetProviderResult
 /// <summary>RPC data type for SessionFsSetProvider operations.</summary>
 internal sealed class SessionFsSetProviderRequest
 {
+    /// <summary>Path conventions used by this filesystem.</summary>
+    [JsonPropertyName("conventions")]
+    public SessionFsSetProviderConventions Conventions { get; set; }
+
     /// <summary>Initial working directory for sessions.</summary>
     [JsonPropertyName("initialCwd")]
     public string InitialCwd { get; set; } = string.Empty;
@@ -408,10 +420,6 @@ internal sealed class SessionFsSetProviderRequest
     /// <summary>Path within each session's SessionFs where the runtime stores files for that session.</summary>
     [JsonPropertyName("sessionStatePath")]
     public string SessionStatePath { get; set; } = string.Empty;
-
-    /// <summary>Path conventions used by this filesystem.</summary>
-    [JsonPropertyName("conventions")]
-    public SessionFsSetProviderConventions Conventions { get; set; }
 }
 
 /// <summary>RPC data type for SessionsFork operations.</summary>
@@ -447,21 +455,21 @@ public sealed class LogResult
 /// <summary>RPC data type for Log operations.</summary>
 internal sealed class LogRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Human-readable message.</summary>
-    [JsonPropertyName("message")]
-    public string Message { get; set; } = string.Empty;
+    /// <summary>When true, the message is transient and not persisted to the session event log on disk.</summary>
+    [JsonPropertyName("ephemeral")]
+    public bool? Ephemeral { get; set; }
 
     /// <summary>Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</summary>
     [JsonPropertyName("level")]
     public SessionLogLevel? Level { get; set; }
 
-    /// <summary>When true, the message is transient and not persisted to the session event log on disk.</summary>
-    [JsonPropertyName("ephemeral")]
-    public bool? Ephemeral { get; set; }
+    /// <summary>Human-readable message.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 
     /// <summary>Optional URL the user can open in their browser for more details.</summary>
     [Url]
@@ -494,77 +502,77 @@ public sealed class ModelSwitchToResult
     public string? ModelId { get; set; }
 }
 
-/// <summary>Feature flags indicating what the model supports.</summary>
-public sealed class ModelCapabilitiesOverrideSupports
-{
-    /// <summary>Gets or sets the <c>vision</c> value.</summary>
-    [JsonPropertyName("vision")]
-    public bool? Vision { get; set; }
-
-    /// <summary>Gets or sets the <c>reasoningEffort</c> value.</summary>
-    [JsonPropertyName("reasoningEffort")]
-    public bool? ReasoningEffort { get; set; }
-}
-
 /// <summary>RPC data type for ModelCapabilitiesOverrideLimitsVision operations.</summary>
 public sealed class ModelCapabilitiesOverrideLimitsVision
 {
-    /// <summary>MIME types the model accepts.</summary>
-    [JsonPropertyName("supported_media_types")]
-    public IList<string>? SupportedMediaTypes { get; set; }
+    /// <summary>Maximum image size in bytes.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("max_prompt_image_size")]
+    public long? MaxPromptImageSize { get; set; }
 
     /// <summary>Maximum number of images per prompt.</summary>
     [Range((double)1, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_images")]
     public long? MaxPromptImages { get; set; }
 
-    /// <summary>Maximum image size in bytes.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("max_prompt_image_size")]
-    public long? MaxPromptImageSize { get; set; }
+    /// <summary>MIME types the model accepts.</summary>
+    [JsonPropertyName("supported_media_types")]
+    public IList<string>? SupportedMediaTypes { get; set; }
 }
 
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
 public sealed class ModelCapabilitiesOverrideLimits
 {
-    /// <summary>Gets or sets the <c>max_prompt_tokens</c> value.</summary>
+    /// <summary>Maximum total context window size in tokens.</summary>
     [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("max_prompt_tokens")]
-    public long? MaxPromptTokens { get; set; }
+    [JsonPropertyName("max_context_window_tokens")]
+    public long? MaxContextWindowTokens { get; set; }
 
     /// <summary>Gets or sets the <c>max_output_tokens</c> value.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_output_tokens")]
     public long? MaxOutputTokens { get; set; }
 
-    /// <summary>Maximum total context window size in tokens.</summary>
+    /// <summary>Gets or sets the <c>max_prompt_tokens</c> value.</summary>
     [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("max_context_window_tokens")]
-    public long? MaxContextWindowTokens { get; set; }
+    [JsonPropertyName("max_prompt_tokens")]
+    public long? MaxPromptTokens { get; set; }
 
     /// <summary>Gets or sets the <c>vision</c> value.</summary>
     [JsonPropertyName("vision")]
     public ModelCapabilitiesOverrideLimitsVision? Vision { get; set; }
 }
 
+/// <summary>Feature flags indicating what the model supports.</summary>
+public sealed class ModelCapabilitiesOverrideSupports
+{
+    /// <summary>Gets or sets the <c>reasoningEffort</c> value.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public bool? ReasoningEffort { get; set; }
+
+    /// <summary>Gets or sets the <c>vision</c> value.</summary>
+    [JsonPropertyName("vision")]
+    public bool? Vision { get; set; }
+}
+
 /// <summary>Override individual model capabilities resolved by the runtime.</summary>
 public sealed class ModelCapabilitiesOverride
 {
-    /// <summary>Feature flags indicating what the model supports.</summary>
-    [JsonPropertyName("supports")]
-    public ModelCapabilitiesOverrideSupports? Supports { get; set; }
-
     /// <summary>Token limits for prompts, outputs, and context window.</summary>
     [JsonPropertyName("limits")]
     public ModelCapabilitiesOverrideLimits? Limits { get; set; }
+
+    /// <summary>Feature flags indicating what the model supports.</summary>
+    [JsonPropertyName("supports")]
+    public ModelCapabilitiesOverrideSupports? Supports { get; set; }
 }
 
 /// <summary>RPC data type for ModelSwitchTo operations.</summary>
 internal sealed class ModelSwitchToRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Override individual model capabilities resolved by the runtime.</summary>
+    [JsonPropertyName("modelCapabilities")]
+    public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 
     /// <summary>Model identifier to switch to.</summary>
     [JsonPropertyName("modelId")]
@@ -574,9 +582,9 @@ internal sealed class ModelSwitchToRequest
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
-    /// <summary>Override individual model capabilities resolved by the runtime.</summary>
-    [JsonPropertyName("modelCapabilities")]
-    public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionModeGet operations.</summary>
@@ -590,13 +598,13 @@ internal sealed class SessionModeGetRequest
 /// <summary>RPC data type for ModeSet operations.</summary>
 internal sealed class ModeSetRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>The agent mode. Valid values: "interactive", "plan", "autopilot".</summary>
     [JsonPropertyName("mode")]
     public SessionMode Mode { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for NameGet operations.</summary>
@@ -618,28 +626,28 @@ internal sealed class SessionNameGetRequest
 /// <summary>RPC data type for NameSet operations.</summary>
 internal sealed class NameSetRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>New session name (1–100 characters, trimmed of leading/trailing whitespace).</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [MaxLength(100)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for PlanRead operations.</summary>
 public sealed class PlanReadResult
 {
-    /// <summary>Whether the plan file exists in the workspace.</summary>
-    [JsonPropertyName("exists")]
-    public bool Exists { get; set; }
-
     /// <summary>The content of the plan file, or null if it does not exist.</summary>
     [JsonPropertyName("content")]
     public string? Content { get; set; }
+
+    /// <summary>Whether the plan file exists in the workspace.</summary>
+    [JsonPropertyName("exists")]
+    public bool Exists { get; set; }
 
     /// <summary>Absolute file path of the plan file, or null if workspace is not enabled.</summary>
     [JsonPropertyName("path")]
@@ -657,13 +665,13 @@ internal sealed class SessionPlanReadRequest
 /// <summary>RPC data type for PlanUpdate operations.</summary>
 internal sealed class PlanUpdateRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>The new content for the plan file.</summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionPlanDelete operations.</summary>
@@ -677,9 +685,17 @@ internal sealed class SessionPlanDeleteRequest
 /// <summary>RPC data type for WorkspacesGetWorkspaceResultWorkspace operations.</summary>
 public sealed class WorkspacesGetWorkspaceResultWorkspace
 {
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
-    [JsonPropertyName("id")]
-    public Guid Id { get; set; }
+    /// <summary>Gets or sets the <c>branch</c> value.</summary>
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
+
+    /// <summary>Gets or sets the <c>chronicle_sync_dismissed</c> value.</summary>
+    [JsonPropertyName("chronicle_sync_dismissed")]
+    public bool? ChronicleSyncDismissed { get; set; }
+
+    /// <summary>Gets or sets the <c>created_at</c> value.</summary>
+    [JsonPropertyName("created_at")]
+    public DateTimeOffset? CreatedAt { get; set; }
 
     /// <summary>Gets or sets the <c>cwd</c> value.</summary>
     [JsonPropertyName("cwd")]
@@ -689,62 +705,54 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("git_root")]
     public string? GitRoot { get; set; }
 
-    /// <summary>Gets or sets the <c>repository</c> value.</summary>
-    [JsonPropertyName("repository")]
-    public string? Repository { get; set; }
-
     /// <summary>Gets or sets the <c>host_type</c> value.</summary>
     [JsonPropertyName("host_type")]
     public WorkspacesGetWorkspaceResultWorkspaceHostType? HostType { get; set; }
 
-    /// <summary>Gets or sets the <c>branch</c> value.</summary>
-    [JsonPropertyName("branch")]
-    public string? Branch { get; set; }
+    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; }
 
-    /// <summary>Gets or sets the <c>summary</c> value.</summary>
-    [JsonPropertyName("summary")]
-    public string? Summary { get; set; }
+    /// <summary>Gets or sets the <c>mc_last_event_id</c> value.</summary>
+    [JsonPropertyName("mc_last_event_id")]
+    public string? McLastEventId { get; set; }
+
+    /// <summary>Gets or sets the <c>mc_session_id</c> value.</summary>
+    [JsonPropertyName("mc_session_id")]
+    public string? McSessionId { get; set; }
+
+    /// <summary>Gets or sets the <c>mc_task_id</c> value.</summary>
+    [JsonPropertyName("mc_task_id")]
+    public string? McTaskId { get; set; }
 
     /// <summary>Gets or sets the <c>name</c> value.</summary>
     [JsonPropertyName("name")]
     public string? Name { get; set; }
+
+    /// <summary>Gets or sets the <c>remote_steerable</c> value.</summary>
+    [JsonPropertyName("remote_steerable")]
+    public bool? RemoteSteerable { get; set; }
+
+    /// <summary>Gets or sets the <c>repository</c> value.</summary>
+    [JsonPropertyName("repository")]
+    public string? Repository { get; set; }
+
+    /// <summary>Gets or sets the <c>session_sync_level</c> value.</summary>
+    [JsonPropertyName("session_sync_level")]
+    public WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel? SessionSyncLevel { get; set; }
+
+    /// <summary>Gets or sets the <c>summary</c> value.</summary>
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
 
     /// <summary>Gets or sets the <c>summary_count</c> value.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("summary_count")]
     public long? SummaryCount { get; set; }
 
-    /// <summary>Gets or sets the <c>created_at</c> value.</summary>
-    [JsonPropertyName("created_at")]
-    public DateTimeOffset? CreatedAt { get; set; }
-
     /// <summary>Gets or sets the <c>updated_at</c> value.</summary>
     [JsonPropertyName("updated_at")]
     public DateTimeOffset? UpdatedAt { get; set; }
-
-    /// <summary>Gets or sets the <c>mc_task_id</c> value.</summary>
-    [JsonPropertyName("mc_task_id")]
-    public string? McTaskId { get; set; }
-
-    /// <summary>Gets or sets the <c>mc_session_id</c> value.</summary>
-    [JsonPropertyName("mc_session_id")]
-    public string? McSessionId { get; set; }
-
-    /// <summary>Gets or sets the <c>mc_last_event_id</c> value.</summary>
-    [JsonPropertyName("mc_last_event_id")]
-    public string? McLastEventId { get; set; }
-
-    /// <summary>Gets or sets the <c>session_sync_level</c> value.</summary>
-    [JsonPropertyName("session_sync_level")]
-    public WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel? SessionSyncLevel { get; set; }
-
-    /// <summary>Gets or sets the <c>pr_create_sync_dismissed</c> value.</summary>
-    [JsonPropertyName("pr_create_sync_dismissed")]
-    public bool? PrCreateSyncDismissed { get; set; }
-
-    /// <summary>Gets or sets the <c>chronicle_sync_dismissed</c> value.</summary>
-    [JsonPropertyName("chronicle_sync_dismissed")]
-    public bool? ChronicleSyncDismissed { get; set; }
 }
 
 /// <summary>RPC data type for WorkspacesGetWorkspace operations.</summary>
@@ -790,34 +798,46 @@ public sealed class WorkspacesReadFileResult
 /// <summary>RPC data type for WorkspacesReadFile operations.</summary>
 internal sealed class WorkspacesReadFileRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Relative path within the workspace files directory.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for WorkspacesCreateFile operations.</summary>
 internal sealed class WorkspacesCreateFileRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
+    /// <summary>File content to write as a UTF-8 string.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
 
     /// <summary>Relative path within the workspace files directory.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
-    /// <summary>File content to write as a UTF-8 string.</summary>
-    [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for InstructionsSources operations.</summary>
 public sealed class InstructionsSources
 {
+    /// <summary>Glob pattern from frontmatter — when set, this instruction applies only to matching files.</summary>
+    [JsonPropertyName("applyTo")]
+    public string? ApplyTo { get; set; }
+
+    /// <summary>Raw content of the instruction file.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Short description (body after frontmatter) for use in instruction tables.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
     /// <summary>Unique identifier for this source (used for toggling).</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -826,29 +846,17 @@ public sealed class InstructionsSources
     [JsonPropertyName("label")]
     public string Label { get; set; } = string.Empty;
 
-    /// <summary>File path relative to repo or absolute for home.</summary>
-    [JsonPropertyName("sourcePath")]
-    public string SourcePath { get; set; } = string.Empty;
-
-    /// <summary>Raw content of the instruction file.</summary>
-    [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
-
-    /// <summary>Category of instruction source — used for merge logic.</summary>
-    [JsonPropertyName("type")]
-    public InstructionsSourcesType Type { get; set; }
-
     /// <summary>Where this source lives — used for UI grouping.</summary>
     [JsonPropertyName("location")]
     public InstructionsSourcesLocation Location { get; set; }
 
-    /// <summary>Glob pattern from frontmatter — when set, this instruction applies only to matching files.</summary>
-    [JsonPropertyName("applyTo")]
-    public string? ApplyTo { get; set; }
+    /// <summary>File path relative to repo or absolute for home.</summary>
+    [JsonPropertyName("sourcePath")]
+    public string SourcePath { get; set; } = string.Empty;
 
-    /// <summary>Short description (body after frontmatter) for use in instruction tables.</summary>
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
+    /// <summary>Category of instruction source — used for merge logic.</summary>
+    [JsonPropertyName("type")]
+    public InstructionsSourcesType Type { get; set; }
 }
 
 /// <summary>RPC data type for InstructionsGetSources operations.</summary>
@@ -880,29 +888,29 @@ public sealed class FleetStartResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class FleetStartRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Optional user prompt to combine with fleet instructions.</summary>
     [JsonPropertyName("prompt")]
     public string? Prompt { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for AgentInfo operations.</summary>
 public sealed class AgentInfo
 {
-    /// <summary>Unique identifier of the custom agent.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    /// <summary>Description of the agent's purpose.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
 
     /// <summary>Human-readable display name.</summary>
     [JsonPropertyName("displayName")]
     public string DisplayName { get; set; } = string.Empty;
 
-    /// <summary>Description of the agent's purpose.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
+    /// <summary>Unique identifier of the custom agent.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for AgentList operations.</summary>
@@ -954,13 +962,13 @@ public sealed class AgentSelectResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class AgentSelectRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Name of the custom agent to select.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionAgentDeselect operations.</summary>
@@ -993,13 +1001,21 @@ internal sealed class SessionAgentReloadRequest
 /// <summary>RPC data type for Skill operations.</summary>
 public sealed class Skill
 {
+    /// <summary>Description of what the skill does.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Whether the skill is currently enabled.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
     /// <summary>Unique identifier for the skill.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Description of what the skill does.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
+    /// <summary>Absolute path to the skill file.</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
 
     /// <summary>Source location type (e.g., project, personal, plugin).</summary>
     [JsonPropertyName("source")]
@@ -1008,14 +1024,6 @@ public sealed class Skill
     /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
     [JsonPropertyName("userInvocable")]
     public bool UserInvocable { get; set; }
-
-    /// <summary>Whether the skill is currently enabled.</summary>
-    [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; }
-
-    /// <summary>Absolute path to the skill file.</summary>
-    [JsonPropertyName("path")]
-    public string? Path { get; set; }
 }
 
 /// <summary>RPC data type for SkillList operations.</summary>
@@ -1040,26 +1048,26 @@ internal sealed class SessionSkillsListRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SkillsEnableRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Name of the skill to enable.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SkillsDisable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SkillsDisableRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Name of the skill to disable.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionSkillsReload operations.</summary>
@@ -1074,22 +1082,22 @@ internal sealed class SessionSkillsReloadRequest
 /// <summary>RPC data type for McpServer operations.</summary>
 public sealed class McpServer
 {
+    /// <summary>Error message if the server failed to connect.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
     /// <summary>Server name (config key).</summary>
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
-    [JsonPropertyName("status")]
-    public McpServerStatus Status { get; set; }
-
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonPropertyName("source")]
     public McpServerSource? Source { get; set; }
 
-    /// <summary>Error message if the server failed to connect.</summary>
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+    [JsonPropertyName("status")]
+    public McpServerStatus Status { get; set; }
 }
 
 /// <summary>RPC data type for McpServerList operations.</summary>
@@ -1114,28 +1122,28 @@ internal sealed class SessionMcpListRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpEnableRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Name of the MCP server to enable.</summary>
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for McpDisable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpDisableRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Name of the MCP server to disable.</summary>
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionMcpReload operations.</summary>
@@ -1150,21 +1158,21 @@ internal sealed class SessionMcpReloadRequest
 /// <summary>RPC data type for Plugin operations.</summary>
 public sealed class Plugin
 {
-    /// <summary>Plugin name.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    /// <summary>Whether the plugin is currently enabled.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
 
     /// <summary>Marketplace the plugin came from.</summary>
     [JsonPropertyName("marketplace")]
     public string Marketplace { get; set; } = string.Empty;
 
+    /// <summary>Plugin name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
     /// <summary>Installed version.</summary>
     [JsonPropertyName("version")]
     public string? Version { get; set; }
-
-    /// <summary>Whether the plugin is currently enabled.</summary>
-    [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; }
 }
 
 /// <summary>RPC data type for PluginList operations.</summary>
@@ -1196,6 +1204,10 @@ public sealed class Extension
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Process ID if the extension is running.</summary>
+    [JsonPropertyName("pid")]
+    public long? Pid { get; set; }
+
     /// <summary>Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/).</summary>
     [JsonPropertyName("source")]
     public ExtensionSource Source { get; set; }
@@ -1203,10 +1215,6 @@ public sealed class Extension
     /// <summary>Current status: running, disabled, failed, or starting.</summary>
     [JsonPropertyName("status")]
     public ExtensionStatus Status { get; set; }
-
-    /// <summary>Process ID if the extension is running.</summary>
-    [JsonPropertyName("pid")]
-    public long? Pid { get; set; }
 }
 
 /// <summary>RPC data type for ExtensionList operations.</summary>
@@ -1231,26 +1239,26 @@ internal sealed class SessionExtensionsListRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ExtensionsEnableRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Source-qualified extension ID to enable.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for ExtensionsDisable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ExtensionsDisableRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Source-qualified extension ID to disable.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionExtensionsReload operations.</summary>
@@ -1273,9 +1281,9 @@ public sealed class HandleToolCallResult
 /// <summary>RPC data type for ToolsHandlePendingToolCall operations.</summary>
 internal sealed class ToolsHandlePendingToolCallRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Error message if the tool call failed.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
 
     /// <summary>Request ID of the pending tool call.</summary>
     [JsonPropertyName("requestId")]
@@ -1285,9 +1293,9 @@ internal sealed class ToolsHandlePendingToolCallRequest
     [JsonPropertyName("result")]
     public object? Result { get; set; }
 
-    /// <summary>Error message if the tool call failed.</summary>
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for CommandsHandlePendingCommand operations.</summary>
@@ -1301,17 +1309,17 @@ public sealed class CommandsHandlePendingCommandResult
 /// <summary>RPC data type for CommandsHandlePendingCommand operations.</summary>
 internal sealed class CommandsHandlePendingCommandRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Error message if the command handler failed.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
 
     /// <summary>Request ID from the command invocation event.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
 
-    /// <summary>Error message if the command handler failed.</summary>
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
@@ -1329,10 +1337,6 @@ public sealed class UIElicitationResponse
 /// <summary>JSON Schema describing the form fields to present to the user.</summary>
 public sealed class UIElicitationSchema
 {
-    /// <summary>Schema type indicator (always 'object').</summary>
-    [JsonPropertyName("type")]
-    public string Type { get; set; } = string.Empty;
-
     /// <summary>Form field definitions, keyed by field name.</summary>
     [JsonPropertyName("properties")]
     public IDictionary<string, object> Properties { get => field ??= new Dictionary<string, object>(); set; }
@@ -1340,15 +1344,15 @@ public sealed class UIElicitationSchema
     /// <summary>List of required field names.</summary>
     [JsonPropertyName("required")]
     public IList<string>? Required { get; set; }
+
+    /// <summary>Schema type indicator (always 'object').</summary>
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for UIElicitation operations.</summary>
 internal sealed class UIElicitationRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Message describing what information is needed from the user.</summary>
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
@@ -1356,6 +1360,10 @@ internal sealed class UIElicitationRequest
     /// <summary>JSON Schema describing the form fields to present to the user.</summary>
     [JsonPropertyName("requestedSchema")]
     public UIElicitationSchema RequestedSchema { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for UIElicitation operations.</summary>
@@ -1369,10 +1377,6 @@ public sealed class UIElicitationResult
 /// <summary>RPC data type for UIHandlePendingElicitation operations.</summary>
 internal sealed class UIHandlePendingElicitationRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>The unique request ID from the elicitation.requested event.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
@@ -1380,6 +1384,10 @@ internal sealed class UIHandlePendingElicitationRequest
     /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
     [JsonPropertyName("result")]
     public UIElicitationResponse Result { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for PermissionRequest operations.</summary>
@@ -1390,20 +1398,113 @@ public sealed class PermissionRequestResult
     public bool Success { get; set; }
 }
 
+/// <summary>Polymorphic base type discriminated by <c>kind</c>.</summary>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionDecisionApproved), "approved")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedByRules), "denied-by-rules")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser), "denied-no-approval-rule-and-could-not-request-from-user")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedInteractivelyByUser), "denied-interactively-by-user")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedByContentExclusionPolicy), "denied-by-content-exclusion-policy")]
+[JsonDerivedType(typeof(PermissionDecisionDeniedByPermissionRequestHook), "denied-by-permission-request-hook")]
+public partial class PermissionDecision
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>approved</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApproved : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "approved";
+}
+
+/// <summary>The <c>denied-by-rules</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedByRules : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-rules";
+
+    /// <summary>Rules that denied the request.</summary>
+    [JsonPropertyName("rules")]
+    public required object[] Rules { get; set; }
+}
+
+/// <summary>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-no-approval-rule-and-could-not-request-from-user";
+}
+
+/// <summary>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-interactively-by-user";
+
+    /// <summary>Optional feedback from the user explaining the denial.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("feedback")]
+    public string? Feedback { get; set; }
+}
+
+/// <summary>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedByContentExclusionPolicy : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-content-exclusion-policy";
+
+    /// <summary>Human-readable explanation of why the path was excluded.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>File path that triggered the exclusion.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+}
+
+/// <summary>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionDeniedByPermissionRequestHook : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-permission-request-hook";
+
+    /// <summary>Whether to interrupt the current agent turn.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interrupt")]
+    public bool? Interrupt { get; set; }
+
+    /// <summary>Optional message from the hook explaining the denial.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
 /// <summary>RPC data type for PermissionDecision operations.</summary>
 internal sealed class PermissionDecisionRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Request ID of the pending permission request.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the <c>result</c> value.</summary>
     [JsonPropertyName("result")]
-    public object Result { get; set; } = null!;
+    public PermissionDecision Result { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for ShellExec operations.</summary>
@@ -1417,10 +1518,6 @@ public sealed class ShellExecResult
 /// <summary>RPC data type for ShellExec operations.</summary>
 internal sealed class ShellExecRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Shell command to execute.</summary>
     [JsonPropertyName("command")]
     public string Command { get; set; } = string.Empty;
@@ -1428,6 +1525,10 @@ internal sealed class ShellExecRequest
     /// <summary>Working directory (defaults to session working directory).</summary>
     [JsonPropertyName("cwd")]
     public string? Cwd { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 
     /// <summary>Timeout in milliseconds (default: 30000).</summary>
     [Range((double)0, (double)long.MaxValue)]
@@ -1447,13 +1548,13 @@ public sealed class ShellKillResult
 /// <summary>RPC data type for ShellKill operations.</summary>
 internal sealed class ShellKillRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Process identifier returned by shell.exec.</summary>
     [JsonPropertyName("processId")]
     public string ProcessId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 
     /// <summary>Signal to send (default: SIGTERM).</summary>
     [JsonPropertyName("signal")]
@@ -1463,10 +1564,10 @@ internal sealed class ShellKillRequest
 /// <summary>Post-compaction context window usage breakdown.</summary>
 public sealed class HistoryCompactContextWindow
 {
-    /// <summary>Maximum token count for the model's context window.</summary>
+    /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
     [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("tokenLimit")]
-    public long TokenLimit { get; set; }
+    [JsonPropertyName("conversationTokens")]
+    public long? ConversationTokens { get; set; }
 
     /// <summary>Current total tokens in the context window (system + conversation + tool definitions).</summary>
     [Range((double)0, (double)long.MaxValue)]
@@ -1483,10 +1584,10 @@ public sealed class HistoryCompactContextWindow
     [JsonPropertyName("systemTokens")]
     public long? SystemTokens { get; set; }
 
-    /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
+    /// <summary>Maximum token count for the model's context window.</summary>
     [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("conversationTokens")]
-    public long? ConversationTokens { get; set; }
+    [JsonPropertyName("tokenLimit")]
+    public long TokenLimit { get; set; }
 
     /// <summary>Token count from tool definitions.</summary>
     [Range((double)0, (double)long.MaxValue)]
@@ -1498,6 +1599,15 @@ public sealed class HistoryCompactContextWindow
 [Experimental(Diagnostics.Experimental)]
 public sealed class HistoryCompactResult
 {
+    /// <summary>Post-compaction context window usage breakdown.</summary>
+    [JsonPropertyName("contextWindow")]
+    public HistoryCompactContextWindow? ContextWindow { get; set; }
+
+    /// <summary>Number of messages removed during compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("messagesRemoved")]
+    public long MessagesRemoved { get; set; }
+
     /// <summary>Whether compaction completed successfully.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
@@ -1506,15 +1616,6 @@ public sealed class HistoryCompactResult
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokensRemoved")]
     public long TokensRemoved { get; set; }
-
-    /// <summary>Number of messages removed during compaction.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("messagesRemoved")]
-    public long MessagesRemoved { get; set; }
-
-    /// <summary>Post-compaction context window usage breakdown.</summary>
-    [JsonPropertyName("contextWindow")]
-    public HistoryCompactContextWindow? ContextWindow { get; set; }
 }
 
 /// <summary>RPC data type for SessionHistoryCompact operations.</summary>
@@ -1540,18 +1641,22 @@ public sealed class HistoryTruncateResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class HistoryTruncateRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Event ID to truncate to. This event and all events after it are removed from the session.</summary>
     [JsonPropertyName("eventId")]
     public string EventId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>Aggregated code change metrics.</summary>
 public sealed class UsageMetricsCodeChanges
 {
+    /// <summary>Number of distinct files modified.</summary>
+    [JsonPropertyName("filesModifiedCount")]
+    public long FilesModifiedCount { get; set; }
+
     /// <summary>Total lines of code added.</summary>
     [JsonPropertyName("linesAdded")]
     public long LinesAdded { get; set; }
@@ -1559,37 +1664,23 @@ public sealed class UsageMetricsCodeChanges
     /// <summary>Total lines of code removed.</summary>
     [JsonPropertyName("linesRemoved")]
     public long LinesRemoved { get; set; }
-
-    /// <summary>Number of distinct files modified.</summary>
-    [JsonPropertyName("filesModifiedCount")]
-    public long FilesModifiedCount { get; set; }
 }
 
 /// <summary>Request count and cost metrics for this model.</summary>
 public sealed class UsageMetricsModelMetricRequests
 {
-    /// <summary>Number of API requests made with this model.</summary>
-    [JsonPropertyName("count")]
-    public long Count { get; set; }
-
     /// <summary>User-initiated premium request cost (with multiplier applied).</summary>
     [JsonPropertyName("cost")]
     public double Cost { get; set; }
+
+    /// <summary>Number of API requests made with this model.</summary>
+    [JsonPropertyName("count")]
+    public long Count { get; set; }
 }
 
 /// <summary>Token usage metrics for this model.</summary>
 public sealed class UsageMetricsModelMetricUsage
 {
-    /// <summary>Total input tokens consumed.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("inputTokens")]
-    public long InputTokens { get; set; }
-
-    /// <summary>Total output tokens produced.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("outputTokens")]
-    public long OutputTokens { get; set; }
-
     /// <summary>Total tokens read from prompt cache.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cacheReadTokens")]
@@ -1599,6 +1690,16 @@ public sealed class UsageMetricsModelMetricUsage
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cacheWriteTokens")]
     public long CacheWriteTokens { get; set; }
+
+    /// <summary>Total input tokens consumed.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("inputTokens")]
+    public long InputTokens { get; set; }
+
+    /// <summary>Total output tokens produced.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("outputTokens")]
+    public long OutputTokens { get; set; }
 
     /// <summary>Total output tokens used for reasoning.</summary>
     [Range((double)0, (double)long.MaxValue)]
@@ -1622,32 +1723,9 @@ public sealed class UsageMetricsModelMetric
 [Experimental(Diagnostics.Experimental)]
 public sealed class UsageGetMetricsResult
 {
-    /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
-    [JsonPropertyName("totalPremiumRequestCost")]
-    public double TotalPremiumRequestCost { get; set; }
-
-    /// <summary>Raw count of user-initiated API requests.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("totalUserRequests")]
-    public long TotalUserRequests { get; set; }
-
-    /// <summary>Total time spent in model API calls (milliseconds).</summary>
-    [Range(0, double.MaxValue)]
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonPropertyName("totalApiDurationMs")]
-    public TimeSpan TotalApiDurationMs { get; set; }
-
-    /// <summary>Session start timestamp (epoch milliseconds).</summary>
-    [JsonPropertyName("sessionStartTime")]
-    public long SessionStartTime { get; set; }
-
     /// <summary>Aggregated code change metrics.</summary>
     [JsonPropertyName("codeChanges")]
     public UsageMetricsCodeChanges CodeChanges { get => field ??= new(); set; }
-
-    /// <summary>Per-model token and request metrics, keyed by model identifier.</summary>
-    [JsonPropertyName("modelMetrics")]
-    public IDictionary<string, UsageMetricsModelMetric> ModelMetrics { get => field ??= new Dictionary<string, UsageMetricsModelMetric>(); set; }
 
     /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("currentModel")]
@@ -1662,6 +1740,29 @@ public sealed class UsageGetMetricsResult
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("lastCallOutputTokens")]
     public long LastCallOutputTokens { get; set; }
+
+    /// <summary>Per-model token and request metrics, keyed by model identifier.</summary>
+    [JsonPropertyName("modelMetrics")]
+    public IDictionary<string, UsageMetricsModelMetric> ModelMetrics { get => field ??= new Dictionary<string, UsageMetricsModelMetric>(); set; }
+
+    /// <summary>Session start timestamp (epoch milliseconds).</summary>
+    [JsonPropertyName("sessionStartTime")]
+    public long SessionStartTime { get; set; }
+
+    /// <summary>Total time spent in model API calls (milliseconds).</summary>
+    [Range(0, double.MaxValue)]
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
+    [JsonPropertyName("totalApiDurationMs")]
+    public TimeSpan TotalApiDurationMs { get; set; }
+
+    /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
+    [JsonPropertyName("totalPremiumRequestCost")]
+    public double TotalPremiumRequestCost { get; set; }
+
+    /// <summary>Raw count of user-initiated API requests.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("totalUserRequests")]
+    public long TotalUserRequests { get; set; }
 }
 
 /// <summary>RPC data type for SessionUsageGetMetrics operations.</summary>
@@ -1673,37 +1774,45 @@ internal sealed class SessionUsageGetMetricsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Describes a filesystem error.</summary>
+public sealed class SessionFsError
+{
+    /// <summary>Error classification.</summary>
+    [JsonPropertyName("code")]
+    public SessionFsErrorCode Code { get; set; }
+
+    /// <summary>Free-form detail about the error, for logging/diagnostics.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
 /// <summary>RPC data type for SessionFsReadFile operations.</summary>
 public sealed class SessionFsReadFileResult
 {
     /// <summary>File content as UTF-8 string.</summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsReadFile operations.</summary>
 public sealed class SessionFsReadFileRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Path using SessionFs conventions.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsWriteFile operations.</summary>
 public sealed class SessionFsWriteFileRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Path using SessionFs conventions.</summary>
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
-
     /// <summary>Content to write.</summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
@@ -1712,19 +1821,19 @@ public sealed class SessionFsWriteFileRequest
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("mode")]
     public long? Mode { get; set; }
-}
-
-/// <summary>RPC data type for SessionFsAppendFile operations.</summary>
-public sealed class SessionFsAppendFileRequest
-{
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
 
     /// <summary>Path using SessionFs conventions.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionFsAppendFile operations.</summary>
+public sealed class SessionFsAppendFileRequest
+{
     /// <summary>Content to append.</summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
@@ -1733,6 +1842,14 @@ public sealed class SessionFsAppendFileRequest
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("mode")]
     public long? Mode { get; set; }
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsExists operations.</summary>
@@ -1746,58 +1863,63 @@ public sealed class SessionFsExistsResult
 /// <summary>RPC data type for SessionFsExists operations.</summary>
 public sealed class SessionFsExistsRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Path using SessionFs conventions.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsStat operations.</summary>
 public sealed class SessionFsStatResult
 {
-    /// <summary>Whether the path is a file.</summary>
-    [JsonPropertyName("isFile")]
-    public bool IsFile { get; set; }
+    /// <summary>ISO 8601 timestamp of creation.</summary>
+    [JsonPropertyName("birthtime")]
+    public DateTimeOffset Birthtime { get; set; }
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
 
     /// <summary>Whether the path is a directory.</summary>
     [JsonPropertyName("isDirectory")]
     public bool IsDirectory { get; set; }
 
-    /// <summary>File size in bytes.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("size")]
-    public long Size { get; set; }
+    /// <summary>Whether the path is a file.</summary>
+    [JsonPropertyName("isFile")]
+    public bool IsFile { get; set; }
 
     /// <summary>ISO 8601 timestamp of last modification.</summary>
     [JsonPropertyName("mtime")]
     public DateTimeOffset Mtime { get; set; }
 
-    /// <summary>ISO 8601 timestamp of creation.</summary>
-    [JsonPropertyName("birthtime")]
-    public DateTimeOffset Birthtime { get; set; }
+    /// <summary>File size in bytes.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("size")]
+    public long Size { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsStat operations.</summary>
 public sealed class SessionFsStatRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Path using SessionFs conventions.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsMkdir operations.</summary>
 public sealed class SessionFsMkdirRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Optional POSIX-style mode for newly created directories.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("mode")]
+    public long? Mode { get; set; }
 
     /// <summary>Path using SessionFs conventions.</summary>
     [JsonPropertyName("path")]
@@ -1807,10 +1929,9 @@ public sealed class SessionFsMkdirRequest
     [JsonPropertyName("recursive")]
     public bool? Recursive { get; set; }
 
-    /// <summary>Optional POSIX-style mode for newly created directories.</summary>
-    [Range((double)0, (double)long.MaxValue)]
-    [JsonPropertyName("mode")]
-    public long? Mode { get; set; }
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsReaddir operations.</summary>
@@ -1819,18 +1940,22 @@ public sealed class SessionFsReaddirResult
     /// <summary>Entry names in the directory.</summary>
     [JsonPropertyName("entries")]
     public IList<string> Entries { get => field ??= []; set; }
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsReaddir operations.</summary>
 public sealed class SessionFsReaddirRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Path using SessionFs conventions.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsReaddirWithTypesEntry operations.</summary>
@@ -1851,26 +1976,30 @@ public sealed class SessionFsReaddirWithTypesResult
     /// <summary>Directory entries with type information.</summary>
     [JsonPropertyName("entries")]
     public IList<SessionFsReaddirWithTypesEntry> Entries { get => field ??= []; set; }
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
 public sealed class SessionFsReaddirWithTypesRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
     /// <summary>Path using SessionFs conventions.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsRm operations.</summary>
 public sealed class SessionFsRmRequest
 {
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Ignore errors if the path does not exist.</summary>
+    [JsonPropertyName("force")]
+    public bool? Force { get; set; }
 
     /// <summary>Path using SessionFs conventions.</summary>
     [JsonPropertyName("path")]
@@ -1880,14 +2009,18 @@ public sealed class SessionFsRmRequest
     [JsonPropertyName("recursive")]
     public bool? Recursive { get; set; }
 
-    /// <summary>Ignore errors if the path does not exist.</summary>
-    [JsonPropertyName("force")]
-    public bool? Force { get; set; }
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsRename operations.</summary>
 public sealed class SessionFsRenameRequest
 {
+    /// <summary>Destination path using SessionFs conventions.</summary>
+    [JsonPropertyName("dest")]
+    public string Dest { get; set; } = string.Empty;
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -1895,30 +2028,7 @@ public sealed class SessionFsRenameRequest
     /// <summary>Source path using SessionFs conventions.</summary>
     [JsonPropertyName("src")]
     public string Src { get; set; } = string.Empty;
-
-    /// <summary>Destination path using SessionFs conventions.</summary>
-    [JsonPropertyName("dest")]
-    public string Dest { get; set; } = string.Empty;
 }
-
-/// <summary>Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<DiscoveredMcpServerType>))]
-public enum DiscoveredMcpServerType
-{
-    /// <summary>The <c>stdio</c> variant.</summary>
-    [JsonStringEnumMemberName("stdio")]
-    Stdio,
-    /// <summary>The <c>http</c> variant.</summary>
-    [JsonStringEnumMemberName("http")]
-    Http,
-    /// <summary>The <c>sse</c> variant.</summary>
-    [JsonStringEnumMemberName("sse")]
-    Sse,
-    /// <summary>The <c>memory</c> variant.</summary>
-    [JsonStringEnumMemberName("memory")]
-    Memory,
-}
-
 
 /// <summary>Configuration source.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<DiscoveredMcpServerSource>))]
@@ -1936,6 +2046,25 @@ public enum DiscoveredMcpServerSource
     /// <summary>The <c>builtin</c> variant.</summary>
     [JsonStringEnumMemberName("builtin")]
     Builtin,
+}
+
+
+/// <summary>Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<DiscoveredMcpServerType>))]
+public enum DiscoveredMcpServerType
+{
+    /// <summary>The <c>stdio</c> variant.</summary>
+    [JsonStringEnumMemberName("stdio")]
+    Stdio,
+    /// <summary>The <c>http</c> variant.</summary>
+    [JsonStringEnumMemberName("http")]
+    Http,
+    /// <summary>The <c>sse</c> variant.</summary>
+    [JsonStringEnumMemberName("sse")]
+    Sse,
+    /// <summary>The <c>memory</c> variant.</summary>
+    [JsonStringEnumMemberName("memory")]
+    Memory,
 }
 
 
@@ -2013,6 +2142,22 @@ public enum WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel
 }
 
 
+/// <summary>Where this source lives — used for UI grouping.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<InstructionsSourcesLocation>))]
+public enum InstructionsSourcesLocation
+{
+    /// <summary>The <c>user</c> variant.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+    /// <summary>The <c>repository</c> variant.</summary>
+    [JsonStringEnumMemberName("repository")]
+    Repository,
+    /// <summary>The <c>working-directory</c> variant.</summary>
+    [JsonStringEnumMemberName("working-directory")]
+    WorkingDirectory,
+}
+
+
 /// <summary>Category of instruction source — used for merge logic.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<InstructionsSourcesType>))]
 public enum InstructionsSourcesType
@@ -2038,19 +2183,22 @@ public enum InstructionsSourcesType
 }
 
 
-/// <summary>Where this source lives — used for UI grouping.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<InstructionsSourcesLocation>))]
-public enum InstructionsSourcesLocation
+/// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<McpServerSource>))]
+public enum McpServerSource
 {
     /// <summary>The <c>user</c> variant.</summary>
     [JsonStringEnumMemberName("user")]
     User,
-    /// <summary>The <c>repository</c> variant.</summary>
-    [JsonStringEnumMemberName("repository")]
-    Repository,
-    /// <summary>The <c>working-directory</c> variant.</summary>
-    [JsonStringEnumMemberName("working-directory")]
-    WorkingDirectory,
+    /// <summary>The <c>workspace</c> variant.</summary>
+    [JsonStringEnumMemberName("workspace")]
+    Workspace,
+    /// <summary>The <c>plugin</c> variant.</summary>
+    [JsonStringEnumMemberName("plugin")]
+    Plugin,
+    /// <summary>The <c>builtin</c> variant.</summary>
+    [JsonStringEnumMemberName("builtin")]
+    Builtin,
 }
 
 
@@ -2076,25 +2224,6 @@ public enum McpServerStatus
     /// <summary>The <c>not_configured</c> variant.</summary>
     [JsonStringEnumMemberName("not_configured")]
     NotConfigured,
-}
-
-
-/// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<McpServerSource>))]
-public enum McpServerSource
-{
-    /// <summary>The <c>user</c> variant.</summary>
-    [JsonStringEnumMemberName("user")]
-    User,
-    /// <summary>The <c>workspace</c> variant.</summary>
-    [JsonStringEnumMemberName("workspace")]
-    Workspace,
-    /// <summary>The <c>plugin</c> variant.</summary>
-    [JsonStringEnumMemberName("plugin")]
-    Plugin,
-    /// <summary>The <c>builtin</c> variant.</summary>
-    [JsonStringEnumMemberName("builtin")]
-    Builtin,
 }
 
 
@@ -2159,6 +2288,19 @@ public enum ShellKillSignal
     /// <summary>The <c>SIGINT</c> variant.</summary>
     [JsonStringEnumMemberName("SIGINT")]
     SIGINT,
+}
+
+
+/// <summary>Error classification.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SessionFsErrorCode>))]
+public enum SessionFsErrorCode
+{
+    /// <summary>The <c>ENOENT</c> variant.</summary>
+    [JsonStringEnumMemberName("ENOENT")]
+    ENOENT,
+    /// <summary>The <c>UNKNOWN</c> variant.</summary>
+    [JsonStringEnumMemberName("UNKNOWN")]
+    UNKNOWN,
 }
 
 
@@ -2979,7 +3121,7 @@ public sealed class PermissionsApi
     }
 
     /// <summary>Calls "session.permissions.handlePendingPermissionRequest".</summary>
-    public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, object result, CancellationToken cancellationToken = default)
+    public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, PermissionDecision result, CancellationToken cancellationToken = default)
     {
         var request = new PermissionDecisionRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
         return await CopilotClient.InvokeRpcAsync<PermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
@@ -3068,23 +3210,23 @@ public interface ISessionFsHandler
     /// <summary>Handles "sessionFs.readFile".</summary>
     Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.writeFile".</summary>
-    Task WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.appendFile".</summary>
-    Task AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.exists".</summary>
     Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.stat".</summary>
     Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.mkdir".</summary>
-    Task MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.readdir".</summary>
     Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.readdirWithTypes".</summary>
     Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.rm".</summary>
-    Task RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.rename".</summary>
-    Task RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
+    Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -3114,21 +3256,21 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsWriteFileMethod = (Func<SessionFsWriteFileRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsWriteFileMethod = (Func<SessionFsWriteFileRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.WriteFileAsync(request, cancellationToken);
+            return await handler.WriteFileAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsWriteFileMethod.Method, registerSessionFsWriteFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.writeFile")
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsAppendFileMethod = (Func<SessionFsAppendFileRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsAppendFileMethod = (Func<SessionFsAppendFileRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.AppendFileAsync(request, cancellationToken);
+            return await handler.AppendFileAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsAppendFileMethod.Method, registerSessionFsAppendFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.appendFile")
         {
@@ -3154,11 +3296,11 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsMkdirMethod = (Func<SessionFsMkdirRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsMkdirMethod = (Func<SessionFsMkdirRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.MkdirAsync(request, cancellationToken);
+            return await handler.MkdirAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsMkdirMethod.Method, registerSessionFsMkdirMethod.Target!, new JsonRpcMethodAttribute("sessionFs.mkdir")
         {
@@ -3184,21 +3326,21 @@ public static class ClientSessionApiRegistration
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsRmMethod = (Func<SessionFsRmRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsRmMethod = (Func<SessionFsRmRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.RmAsync(request, cancellationToken);
+            return await handler.RmAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsRmMethod.Method, registerSessionFsRmMethod.Target!, new JsonRpcMethodAttribute("sessionFs.rm")
         {
             UseSingleObjectParameterDeserialization = true
         });
-        var registerSessionFsRenameMethod = (Func<SessionFsRenameRequest, CancellationToken, Task>)(async (request, cancellationToken) =>
+        var registerSessionFsRenameMethod = (Func<SessionFsRenameRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            await handler.RenameAsync(request, cancellationToken);
+            return await handler.RenameAsync(request, cancellationToken);
         });
         rpc.AddLocalRpcMethod(registerSessionFsRenameMethod.Method, registerSessionFsRenameMethod.Target!, new JsonRpcMethodAttribute("sessionFs.rename")
         {
@@ -3265,6 +3407,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ModelSwitchToResult))]
 [JsonSerializable(typeof(NameGetResult))]
 [JsonSerializable(typeof(NameSetRequest))]
+[JsonSerializable(typeof(PermissionDecision))]
 [JsonSerializable(typeof(PermissionDecisionRequest))]
 [JsonSerializable(typeof(PermissionRequestResult))]
 [JsonSerializable(typeof(PingRequest))]
@@ -3282,6 +3425,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionExtensionsListRequest))]
 [JsonSerializable(typeof(SessionExtensionsReloadRequest))]
 [JsonSerializable(typeof(SessionFsAppendFileRequest))]
+[JsonSerializable(typeof(SessionFsError))]
 [JsonSerializable(typeof(SessionFsExistsRequest))]
 [JsonSerializable(typeof(SessionFsExistsResult))]
 [JsonSerializable(typeof(SessionFsMkdirRequest))]

@@ -17,7 +17,7 @@ import (
 func TestSessionFs(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	providerRoot := t.TempDir()
-	createSessionFsHandler := func(session *copilot.Session) rpc.SessionFsHandler {
+	createSessionFsHandler := func(session *copilot.Session) copilot.SessionFsProvider {
 		return &testSessionFsHandler{
 			root:      providerRoot,
 			sessionID: session.SessionID,
@@ -245,6 +245,90 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Timed out waiting for checkpoint rewrite: %v", err)
 		}
 	})
+	t.Run("should write workspace metadata via sessionFs", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsHandler: createSessionFsHandler,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 7 * 8?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+		content := ""
+		if msg != nil {
+			if d, ok := msg.Data.(*copilot.AssistantMessageData); ok {
+				content = d.Content
+			}
+		}
+		if !strings.Contains(content, "56") {
+			t.Fatalf("Expected response to contain 56, got %q", content)
+		}
+
+		// WorkspaceManager should have created workspace.yaml via sessionFs
+		workspaceYamlPath := p(session.SessionID, "/session-state/workspace.yaml")
+		if err := waitForFile(workspaceYamlPath, 5*time.Second); err != nil {
+			t.Fatalf("Timed out waiting for workspace.yaml: %v", err)
+		}
+		yaml, err := os.ReadFile(workspaceYamlPath)
+		if err != nil {
+			t.Fatalf("Failed to read workspace.yaml: %v", err)
+		}
+		if !strings.Contains(string(yaml), "id:") {
+			t.Fatalf("Expected workspace.yaml to contain 'id:', got %q", string(yaml))
+		}
+
+		// Checkpoint index should also exist
+		indexPath := p(session.SessionID, "/session-state/checkpoints/index.md")
+		if err := waitForFile(indexPath, 5*time.Second); err != nil {
+			t.Fatalf("Timed out waiting for checkpoints/index.md: %v", err)
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect session: %v", err)
+		}
+	})
+
+	t.Run("should persist plan.md via sessionFs", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsHandler: createSessionFsHandler,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		// Write a plan via the session RPC
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 2 + 3?"}); err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+		if _, err := session.RPC.Plan.Update(t.Context(), &rpc.PlanUpdateRequest{Content: "# Test Plan\n\nThis is a test."}); err != nil {
+			t.Fatalf("Failed to update plan: %v", err)
+		}
+
+		planPath := p(session.SessionID, "/session-state/plan.md")
+		if err := waitForFile(planPath, 5*time.Second); err != nil {
+			t.Fatalf("Timed out waiting for plan.md: %v", err)
+		}
+		planContent, err := os.ReadFile(planPath)
+		if err != nil {
+			t.Fatalf("Failed to read plan.md: %v", err)
+		}
+		if !strings.Contains(string(planContent), "# Test Plan") {
+			t.Fatalf("Expected plan.md to contain '# Test Plan', got %q", string(planContent))
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect session: %v", err)
+		}
+	})
 }
 
 var sessionFsConfig = &copilot.SessionFsConfig{
@@ -258,65 +342,62 @@ type testSessionFsHandler struct {
 	sessionID string
 }
 
-func (h *testSessionFsHandler) ReadFile(request *rpc.SessionFSReadFileRequest) (*rpc.SessionFSReadFileResult, error) {
-	content, err := os.ReadFile(providerPath(h.root, h.sessionID, request.Path))
+func (h *testSessionFsHandler) ReadFile(path string) (string, error) {
+	content, err := os.ReadFile(providerPath(h.root, h.sessionID, path))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return &rpc.SessionFSReadFileResult{Content: string(content)}, nil
+	return string(content), nil
 }
 
-func (h *testSessionFsHandler) WriteFile(request *rpc.SessionFSWriteFileRequest) (*rpc.SessionFSWriteFileResult, error) {
-	path := providerPath(h.root, h.sessionID, request.Path)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
+func (h *testSessionFsHandler) WriteFile(path string, content string, mode *int) error {
+	fullPath := providerPath(h.root, h.sessionID, path)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		return err
 	}
-	mode := os.FileMode(0o666)
-	if request.Mode != nil {
-		mode = os.FileMode(uint32(*request.Mode))
+	perm := os.FileMode(0o666)
+	if mode != nil {
+		perm = os.FileMode(*mode)
 	}
-	return &rpc.SessionFSWriteFileResult{}, os.WriteFile(path, []byte(request.Content), mode)
+	return os.WriteFile(fullPath, []byte(content), perm)
 }
 
-func (h *testSessionFsHandler) AppendFile(request *rpc.SessionFSAppendFileRequest) (*rpc.SessionFSAppendFileResult, error) {
-	path := providerPath(h.root, h.sessionID, request.Path)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
+func (h *testSessionFsHandler) AppendFile(path string, content string, mode *int) error {
+	fullPath := providerPath(h.root, h.sessionID, path)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		return err
 	}
-	mode := os.FileMode(0o666)
-	if request.Mode != nil {
-		mode = os.FileMode(uint32(*request.Mode))
+	perm := os.FileMode(0o666)
+	if mode != nil {
+		perm = os.FileMode(*mode)
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, mode)
+	f, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, perm)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer f.Close()
-	_, err = f.WriteString(request.Content)
-	if err != nil {
-		return nil, err
-	}
-	return &rpc.SessionFSAppendFileResult{}, nil
+	_, err = f.WriteString(content)
+	return err
 }
 
-func (h *testSessionFsHandler) Exists(request *rpc.SessionFSExistsRequest) (*rpc.SessionFSExistsResult, error) {
-	_, err := os.Stat(providerPath(h.root, h.sessionID, request.Path))
+func (h *testSessionFsHandler) Exists(path string) (bool, error) {
+	_, err := os.Stat(providerPath(h.root, h.sessionID, path))
 	if err == nil {
-		return &rpc.SessionFSExistsResult{Exists: true}, nil
+		return true, nil
 	}
 	if os.IsNotExist(err) {
-		return &rpc.SessionFSExistsResult{Exists: false}, nil
+		return false, nil
 	}
-	return nil, err
+	return false, err
 }
 
-func (h *testSessionFsHandler) Stat(request *rpc.SessionFSStatRequest) (*rpc.SessionFSStatResult, error) {
-	info, err := os.Stat(providerPath(h.root, h.sessionID, request.Path))
+func (h *testSessionFsHandler) Stat(path string) (*copilot.SessionFsFileInfo, error) {
+	info, err := os.Stat(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
 	}
 	ts := info.ModTime().UTC()
-	return &rpc.SessionFSStatResult{
+	return &copilot.SessionFsFileInfo{
 		IsFile:      !info.IsDir(),
 		IsDirectory: info.IsDir(),
 		Size:        info.Size(),
@@ -325,20 +406,20 @@ func (h *testSessionFsHandler) Stat(request *rpc.SessionFSStatRequest) (*rpc.Ses
 	}, nil
 }
 
-func (h *testSessionFsHandler) Mkdir(request *rpc.SessionFSMkdirRequest) (*rpc.SessionFSMkdirResult, error) {
-	path := providerPath(h.root, h.sessionID, request.Path)
-	mode := os.FileMode(0o777)
-	if request.Mode != nil {
-		mode = os.FileMode(uint32(*request.Mode))
+func (h *testSessionFsHandler) Mkdir(path string, recursive bool, mode *int) error {
+	fullPath := providerPath(h.root, h.sessionID, path)
+	perm := os.FileMode(0o777)
+	if mode != nil {
+		perm = os.FileMode(*mode)
 	}
-	if request.Recursive != nil && *request.Recursive {
-		return &rpc.SessionFSMkdirResult{}, os.MkdirAll(path, mode)
+	if recursive {
+		return os.MkdirAll(fullPath, perm)
 	}
-	return &rpc.SessionFSMkdirResult{}, os.Mkdir(path, mode)
+	return os.Mkdir(fullPath, perm)
 }
 
-func (h *testSessionFsHandler) Readdir(request *rpc.SessionFSReaddirRequest) (*rpc.SessionFSReaddirResult, error) {
-	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, request.Path))
+func (h *testSessionFsHandler) Readdir(path string) ([]string, error) {
+	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
 	}
@@ -346,11 +427,11 @@ func (h *testSessionFsHandler) Readdir(request *rpc.SessionFSReaddirRequest) (*r
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	return &rpc.SessionFSReaddirResult{Entries: names}, nil
+	return names, nil
 }
 
-func (h *testSessionFsHandler) ReaddirWithTypes(request *rpc.SessionFSReaddirWithTypesRequest) (*rpc.SessionFSReaddirWithTypesResult, error) {
-	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, request.Path))
+func (h *testSessionFsHandler) ReaddirWithTypes(path string) ([]rpc.SessionFSReaddirWithTypesEntry, error) {
+	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
 	}
@@ -365,34 +446,29 @@ func (h *testSessionFsHandler) ReaddirWithTypes(request *rpc.SessionFSReaddirWit
 			Type: entryType,
 		})
 	}
-	return &rpc.SessionFSReaddirWithTypesResult{Entries: result}, nil
+	return result, nil
 }
 
-func (h *testSessionFsHandler) Rm(request *rpc.SessionFSRmRequest) (*rpc.SessionFSRmResult, error) {
-	path := providerPath(h.root, h.sessionID, request.Path)
-	if request.Recursive != nil && *request.Recursive {
-		err := os.RemoveAll(path)
-		if err != nil && request.Force != nil && *request.Force && os.IsNotExist(err) {
-			return &rpc.SessionFSRmResult{}, nil
-		}
-		return &rpc.SessionFSRmResult{}, err
+func (h *testSessionFsHandler) Rm(path string, recursive bool, force bool) error {
+	fullPath := providerPath(h.root, h.sessionID, path)
+	var err error
+	if recursive {
+		err = os.RemoveAll(fullPath)
+	} else {
+		err = os.Remove(fullPath)
 	}
-	err := os.Remove(path)
-	if err != nil && request.Force != nil && *request.Force && os.IsNotExist(err) {
-		return &rpc.SessionFSRmResult{}, nil
+	if err != nil && force && os.IsNotExist(err) {
+		return nil
 	}
-	return &rpc.SessionFSRmResult{}, err
+	return err
 }
 
-func (h *testSessionFsHandler) Rename(request *rpc.SessionFSRenameRequest) (*rpc.SessionFSRenameResult, error) {
-	dest := providerPath(h.root, h.sessionID, request.Dest)
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return nil, err
+func (h *testSessionFsHandler) Rename(src string, dest string) error {
+	destPath := providerPath(h.root, h.sessionID, dest)
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return err
 	}
-	return &rpc.SessionFSRenameResult{}, os.Rename(
-		providerPath(h.root, h.sessionID, request.Src),
-		dest,
-	)
+	return os.Rename(providerPath(h.root, h.sessionID, src), destPath)
 }
 
 func providerPath(root string, sessionID string, path string) string {

@@ -26,9 +26,13 @@ from .session import (
     ProviderConfig,
     SessionCapabilities,
     SessionFsConfig,
-    SessionFsHandler,
     SessionUiApi,
     SessionUiCapabilities,
+)
+from .session_fs_provider import (
+    SessionFsFileInfo,
+    SessionFsProvider,
+    create_session_fs_adapter,
 )
 from .tools import convert_mcp_call_tool_result, define_tool
 
@@ -53,7 +57,9 @@ __all__ = [
     "ProviderConfig",
     "SessionCapabilities",
     "SessionFsConfig",
-    "SessionFsHandler",
+    "SessionFsFileInfo",
+    "SessionFsProvider",
+    "create_session_fs_adapter",
     "SessionUiApi",
     "SessionUiCapabilities",
     "SubprocessConfig",

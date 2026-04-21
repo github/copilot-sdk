@@ -27,6 +27,7 @@ import {
 import { createServerRpc, registerClientSessionApiHandlers } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
+import { createSessionFsAdapter } from "./sessionFsProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     ConnectionState,
@@ -711,7 +712,9 @@ export class CopilotClient {
         this.sessions.set(sessionId, session);
         if (this.sessionFsConfig) {
             if (config.createSessionFsHandler) {
-                session.clientSessionApis.sessionFs = config.createSessionFsHandler(session);
+                session.clientSessionApis.sessionFs = createSessionFsAdapter(
+                    config.createSessionFsHandler(session)
+                );
             } else {
                 throw new Error(
                     "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
@@ -850,7 +853,9 @@ export class CopilotClient {
         this.sessions.set(sessionId, session);
         if (this.sessionFsConfig) {
             if (config.createSessionFsHandler) {
-                session.clientSessionApis.sessionFs = config.createSessionFsHandler(session);
+                session.clientSessionApis.sessionFs = createSessionFsAdapter(
+                    config.createSessionFsHandler(session)
+                );
             } else {
                 throw new Error(
                     "createSessionFsHandler is required in session config when sessionFs is enabled in client options."

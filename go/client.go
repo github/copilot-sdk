@@ -676,7 +676,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			c.sessionsMux.Unlock()
 			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
 		}
-		session.clientSessionApis.SessionFs = config.CreateSessionFsHandler(session)
+		session.clientSessionApis.SessionFs = newSessionFsAdapter(config.CreateSessionFsHandler(session))
 	}
 
 	result, err := c.client.Request("session.create", req)
@@ -835,7 +835,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			c.sessionsMux.Unlock()
 			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
 		}
-		session.clientSessionApis.SessionFs = config.CreateSessionFsHandler(session)
+		session.clientSessionApis.SessionFs = newSessionFsAdapter(config.CreateSessionFsHandler(session))
 	}
 
 	result, err := c.client.Request("session.resume", req)

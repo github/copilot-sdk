@@ -12,9 +12,9 @@ import { compile } from "json-schema-to-typescript";
 import {
     getApiSchemaPath,
     fixNullableRequiredRefsInApiSchema,
+    getNullableInner,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    normalizeSchemaTitles,
     postProcessSchema,
     writeGeneratedFile,
     collectDefinitionCollections,
@@ -26,7 +26,6 @@ import {
     isNodeFullyExperimental,
     isNodeFullyDeprecated,
     isVoidSchema,
-    stripNonAnnotationTitles,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
@@ -143,15 +142,14 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     const draftDefinitionAliases = new Map<string, string>();
 
     for (const [key, value] of Object.entries(root.$defs ?? {})) {
-        let alias = key;
-        if (alias in definitions) {
-            alias = `$defs_${key}`;
-            while (alias in definitions) {
-                alias = `$defs_${alias}`;
-            }
+        if (key in definitions) {
+            // The definitions entry is authoritative (it went through the full pipeline).
+            // Drop the $defs duplicate and rewrite any $ref pointing at it to use definitions.
+            draftDefinitionAliases.set(key, key);
+        } else {
+            draftDefinitionAliases.set(key, key);
+            definitions[key] = value;
         }
-        draftDefinitionAliases.set(key, alias);
-        definitions[alias] = value;
     }
 
     root.definitions = definitions;
@@ -169,74 +167,25 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
             Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
         ) as Record<string, unknown>;
 
-        if (typeof rewritten.$ref === "string" && rewritten.$ref.startsWith("#/$defs/")) {
-            const definitionName = rewritten.$ref.slice("#/$defs/".length);
-            rewritten.$ref = `#/definitions/${draftDefinitionAliases.get(definitionName) ?? definitionName}`;
+        if (typeof rewritten.$ref === "string") {
+            if (rewritten.$ref.startsWith("#/$defs/")) {
+                const definitionName = rewritten.$ref.slice("#/$defs/".length);
+                rewritten.$ref = `#/definitions/${draftDefinitionAliases.get(definitionName) ?? definitionName}`;
+            }
+            // json-schema-to-typescript treats sibling keywords alongside $ref as a
+            // new inline type instead of reusing the referenced definition.  Strip
+            // siblings so that $ref-only objects compile to a single shared type.
+            for (const key of Object.keys(rewritten)) {
+                if (key !== "$ref") {
+                    delete rewritten[key];
+                }
+            }
         }
 
         return rewritten;
     };
 
     return rewrite(root) as JSONSchema7;
-}
-
-function stableStringify(value: unknown): string {
-    if (Array.isArray(value)) {
-        return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-    }
-    if (value && typeof value === "object") {
-        const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
-        return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${stableStringify(child)}`).join(",")}}`;
-    }
-    return JSON.stringify(value);
-}
-
-function replaceDuplicateTitledSchemasWithRefs(
-    value: unknown,
-    definitions: Record<string, unknown>,
-    isRoot = false
-): unknown {
-    if (Array.isArray(value)) {
-        return value.map((item) => replaceDuplicateTitledSchemasWithRefs(item, definitions));
-    }
-    if (!value || typeof value !== "object") {
-        return value;
-    }
-
-    const rewritten = Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([key, child]) => [
-            key,
-            replaceDuplicateTitledSchemasWithRefs(child, definitions),
-        ])
-    ) as Record<string, unknown>;
-
-    if (!isRoot && typeof rewritten.title === "string") {
-        const sharedSchema = definitions[rewritten.title];
-        if (
-            sharedSchema &&
-            typeof sharedSchema === "object" &&
-            stableStringify(normalizeSchemaTitles(rewritten as JSONSchema7)) ===
-                stableStringify(normalizeSchemaTitles(sharedSchema as JSONSchema7))
-        ) {
-            return { $ref: `#/definitions/${rewritten.title}` };
-        }
-    }
-
-    return rewritten;
-}
-
-function reuseSharedTitledSchemas(schema: JSONSchema7): JSONSchema7 {
-    const definitions = { ...((schema.definitions ?? {}) as Record<string, unknown>) };
-
-    return {
-        ...schema,
-        definitions: Object.fromEntries(
-            Object.entries(definitions).map(([name, definition]) => [
-                name,
-                replaceDuplicateTitledSchemasWithRefs(definition, definitions, true),
-            ])
-        ),
-    };
 }
 
 // ── Session Events ──────────────────────────────────────────────────────────
@@ -246,7 +195,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
-    const processed = postProcessSchema(stripNonAnnotationTitles(schema));
+    const processed = postProcessSchema(schema);
     const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
     const sessionEvent =
         resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
@@ -309,6 +258,25 @@ function resultTypeName(method: RpcMethod): string {
     );
 }
 
+function tsNullableResultTypeName(method: RpcMethod): string | undefined {
+    const resultSchema = getMethodResultSchema(method);
+    if (!resultSchema) return undefined;
+    const inner = getNullableInner(resultSchema);
+    if (!inner) return undefined;
+    // Resolve $ref to a type name
+    if (inner.$ref) {
+        const refName = inner.$ref.split("/").pop();
+        if (refName) return `${toPascalCase(refName)} | undefined`;
+    }
+    const innerName = getRpcSchemaTypeName(inner, method.rpcMethod.split(".").map(toPascalCase).join("") + "Result");
+    return `${innerName} | undefined`;
+}
+
+function tsResultType(method: RpcMethod): string {
+    if (isVoidSchema(getMethodResultSchema(method))) return "void";
+    return tsNullableResultTypeName(method) ?? resultTypeName(method);
+}
+
 function paramsTypeName(method: RpcMethod): string {
     const fallback = rpcRequestFallbackName(method);
     if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
@@ -354,7 +322,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     for (const method of [...allMethods, ...clientSessionMethods]) {
         const resultSchema = getMethodResultSchema(method);
-        if (!isVoidSchema(resultSchema)) {
+        if (!isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
             combinedSchema.definitions![resultTypeName(method)] = withRootTitle(
                 schemaSourceForNamedDefinition(method.result, resultSchema),
                 resultTypeName(method)
@@ -404,7 +372,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         }
     }
 
-    const schemaForCompile = reuseSharedTitledSchemas(stripNonAnnotationTitles(combinedSchema));
+    const schemaForCompile = combinedSchema;
 
     const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile), "_RpcSchemaRoot", {
         bannerComment: "",
@@ -477,7 +445,7 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
             const { rpcMethod, params } = value;
-            const resultType = !isVoidSchema(getMethodResultSchema(value)) ? resultTypeName(value) : "void";
+            const resultType = tsResultType(value);
             const paramsType = paramsTypeName(value);
             const effectiveParams = getMethodParamsSchema(value);
 
@@ -582,7 +550,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
             const name = handlerMethodName(method.rpcMethod);
             const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
             const pType = hasParams ? paramsTypeName(method) : "";
-            const rType = !isVoidSchema(getMethodResultSchema(method)) ? resultTypeName(method) : "void";
+            const rType = tsResultType(method);
 
             if (method.deprecated && !groupDeprecated) {
                 lines.push(`    /** @deprecated */`);

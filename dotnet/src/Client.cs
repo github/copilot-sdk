@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StreamJsonRpc;
+using StreamJsonRpc.Protocol;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Diagnostics;
@@ -1106,7 +1107,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             cancellationToken);
     }
 
-    private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, ISessionFsHandler>? createSessionFsHandler)
+    private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, SessionFsProvider>? createSessionFsHandler)
     {
         if (_options.SessionFs is null)
         {
@@ -1840,6 +1841,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         AllowOutOfOrderMetadataProperties = true,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonSerializable(typeof(CommonErrorData))]
     [JsonSerializable(typeof(CreateSessionRequest))]
     [JsonSerializable(typeof(CreateSessionResponse))]
     [JsonSerializable(typeof(CustomAgentConfig))]

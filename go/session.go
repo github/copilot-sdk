@@ -704,10 +704,10 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
 		RequestedSchema: rpc.UIElicitationSchema{
-			Type: rpc.RequestedSchemaTypeObject,
+			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"confirmed": {
-					Type:    rpc.UIElicitationSchemaPropertyNumberTypeBoolean,
+					Type:    rpc.UIElicitationSchemaPropertyTypeBoolean,
 					Default: defaultTrue,
 				},
 			},
@@ -734,10 +734,10 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
 		RequestedSchema: rpc.UIElicitationSchema{
-			Type: rpc.RequestedSchemaTypeObject,
+			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"selection": {
-					Type: rpc.UIElicitationSchemaPropertyNumberTypeString,
+					Type: rpc.UIElicitationSchemaPropertyTypeString,
 					Enum: options,
 				},
 			},
@@ -761,7 +761,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 	if err := ui.session.assertElicitation(); err != nil {
 		return "", false, err
 	}
-	prop := rpc.UIElicitationSchemaProperty{Type: rpc.UIElicitationSchemaPropertyNumberTypeString}
+	prop := rpc.UIElicitationSchemaProperty{Type: rpc.UIElicitationSchemaPropertyTypeString}
 	if opts != nil {
 		if opts.Title != "" {
 			prop.Title = &opts.Title
@@ -788,7 +788,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
 		RequestedSchema: rpc.UIElicitationSchema{
-			Type: rpc.RequestedSchemaTypeObject,
+			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"value": prop,
 			},
@@ -1029,7 +1029,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 				RequestID: requestID,
 				Result: rpc.PermissionDecision{
-					Kind: rpc.KindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
+					Kind: rpc.PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
 				},
 			})
 		}
@@ -1044,7 +1044,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
 			Result: rpc.PermissionDecision{
-				Kind: rpc.KindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
+				Kind: rpc.PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
 			},
 		})
 		return
@@ -1056,7 +1056,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 		RequestID: requestID,
 		Result: rpc.PermissionDecision{
-			Kind:     rpc.Kind(result.Kind),
+			Kind:     rpc.PermissionDecisionKind(result.Kind),
 			Rules:    result.Rules,
 			Feedback: nil,
 		},
@@ -1213,7 +1213,7 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
 		params.ReasoningEffort = opts.ReasoningEffort
-		params.ModelCapabilities = convertModelCapabilitiesToClass(opts.ModelCapabilities)
+		params.ModelCapabilities = opts.ModelCapabilities
 	}
 	_, err := s.RPC.Model.SwitchTo(ctx, params)
 	if err != nil {
@@ -1221,34 +1221,6 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	}
 
 	return nil
-}
-
-// convertModelCapabilitiesToClass converts from ModelCapabilitiesOverride
-// (used in the public API) to ModelCapabilitiesClass (used internally by
-// the ModelSwitchToRequest RPC). The two types are structurally identical
-// but have different Go types due to code generation.
-func convertModelCapabilitiesToClass(src *rpc.ModelCapabilitiesOverride) *rpc.ModelCapabilitiesClass {
-	if src == nil {
-		return nil
-	}
-	dst := &rpc.ModelCapabilitiesClass{
-		Supports: src.Supports,
-	}
-	if src.Limits != nil {
-		dst.Limits = &rpc.ModelCapabilitiesLimitsClass{
-			MaxContextWindowTokens: src.Limits.MaxContextWindowTokens,
-			MaxOutputTokens:        src.Limits.MaxOutputTokens,
-			MaxPromptTokens:        src.Limits.MaxPromptTokens,
-		}
-		if src.Limits.Vision != nil {
-			dst.Limits.Vision = &rpc.FluffyModelCapabilitiesOverrideLimitsVision{
-				MaxPromptImageSize:  src.Limits.Vision.MaxPromptImageSize,
-				MaxPromptImages:     src.Limits.Vision.MaxPromptImages,
-				SupportedMediaTypes: src.Limits.Vision.SupportedMediaTypes,
-			}
-		}
-	}
-	return dst
 }
 
 type LogOptions struct {

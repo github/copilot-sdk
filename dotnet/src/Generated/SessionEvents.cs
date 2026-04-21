@@ -1091,87 +1091,87 @@ public partial class SessionExtensionsLoadedEvent : SessionEvent
 /// <summary>Session initialization metadata including context and configuration.</summary>
 public partial class SessionStartData
 {
-    /// <summary>Unique identifier for the session.</summary>
-    [JsonPropertyName("sessionId")]
-    public required string SessionId { get; set; }
-
-    /// <summary>Schema version number for the session event format.</summary>
-    [JsonPropertyName("version")]
-    public required double Version { get; set; }
-
-    /// <summary>Identifier of the software producing the events (e.g., "copilot-agent").</summary>
-    [JsonPropertyName("producer")]
-    public required string Producer { get; set; }
-
-    /// <summary>Version string of the Copilot application.</summary>
-    [JsonPropertyName("copilotVersion")]
-    public required string CopilotVersion { get; set; }
-
-    /// <summary>ISO 8601 timestamp when the session was created.</summary>
-    [JsonPropertyName("startTime")]
-    public required DateTimeOffset StartTime { get; set; }
-
-    /// <summary>Model selected at session creation time, if any.</summary>
+    /// <summary>Whether the session was already in use by another client at start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("selectedModel")]
-    public string? SelectedModel { get; set; }
-
-    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("reasoningEffort")]
-    public string? ReasoningEffort { get; set; }
+    [JsonPropertyName("alreadyInUse")]
+    public bool? AlreadyInUse { get; set; }
 
     /// <summary>Working directory and git context at session start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
     public WorkingDirectoryContext? Context { get; set; }
 
-    /// <summary>Whether the session was already in use by another client at start time.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("alreadyInUse")]
-    public bool? AlreadyInUse { get; set; }
+    /// <summary>Version string of the Copilot application.</summary>
+    [JsonPropertyName("copilotVersion")]
+    public required string CopilotVersion { get; set; }
 
-    /// <summary>Whether this session supports remote steering via Mission Control.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("remoteSteerable")]
-    public bool? RemoteSteerable { get; set; }
-}
-
-/// <summary>Session resume metadata including current context and event count.</summary>
-public partial class SessionResumeData
-{
-    /// <summary>ISO 8601 timestamp when the session was resumed.</summary>
-    [JsonPropertyName("resumeTime")]
-    public required DateTimeOffset ResumeTime { get; set; }
-
-    /// <summary>Total number of persisted events in the session at the time of resume.</summary>
-    [JsonPropertyName("eventCount")]
-    public required double EventCount { get; set; }
-
-    /// <summary>Model currently selected at resume time.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("selectedModel")]
-    public string? SelectedModel { get; set; }
+    /// <summary>Identifier of the software producing the events (e.g., "copilot-agent").</summary>
+    [JsonPropertyName("producer")]
+    public required string Producer { get; set; }
 
     /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
-    /// <summary>Updated working directory and git context at resume time.</summary>
+    /// <summary>Whether this session supports remote steering via Mission Control.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("context")]
-    public WorkingDirectoryContext? Context { get; set; }
+    [JsonPropertyName("remoteSteerable")]
+    public bool? RemoteSteerable { get; set; }
 
+    /// <summary>Model selected at session creation time, if any.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("selectedModel")]
+    public string? SelectedModel { get; set; }
+
+    /// <summary>Unique identifier for the session.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the session was created.</summary>
+    [JsonPropertyName("startTime")]
+    public required DateTimeOffset StartTime { get; set; }
+
+    /// <summary>Schema version number for the session event format.</summary>
+    [JsonPropertyName("version")]
+    public required double Version { get; set; }
+}
+
+/// <summary>Session resume metadata including current context and event count.</summary>
+public partial class SessionResumeData
+{
     /// <summary>Whether the session was already in use by another client at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
 
+    /// <summary>Updated working directory and git context at resume time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("context")]
+    public WorkingDirectoryContext? Context { get; set; }
+
+    /// <summary>Total number of persisted events in the session at the time of resume.</summary>
+    [JsonPropertyName("eventCount")]
+    public required double EventCount { get; set; }
+
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+
     /// <summary>Whether this session supports remote steering via Mission Control.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the session was resumed.</summary>
+    [JsonPropertyName("resumeTime")]
+    public required DateTimeOffset ResumeTime { get; set; }
+
+    /// <summary>Model currently selected at resume time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("selectedModel")]
+    public string? SelectedModel { get; set; }
 }
 
 /// <summary>Notifies Mission Control that the session's remote steering capability has changed.</summary>
@@ -1193,6 +1193,11 @@ public partial class SessionErrorData
     [JsonPropertyName("message")]
     public required string Message { get; set; }
 
+    /// <summary>GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerCallId")]
+    public string? ProviderCallId { get; set; }
+
     /// <summary>Error stack trace, when available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("stack")]
@@ -1202,11 +1207,6 @@ public partial class SessionErrorData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("statusCode")]
     public long? StatusCode { get; set; }
-
-    /// <summary>GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("providerCallId")]
-    public string? ProviderCallId { get; set; }
 
     /// <summary>Optional URL associated with this error that the user can open in a browser.</summary>
     [Url]
@@ -1255,10 +1255,6 @@ public partial class SessionInfoData
 /// <summary>Warning message for timeline display with categorization.</summary>
 public partial class SessionWarningData
 {
-    /// <summary>Category of warning (e.g., "subscription", "policy", "mcp").</summary>
-    [JsonPropertyName("warningType")]
-    public required string WarningType { get; set; }
-
     /// <summary>Human-readable warning message for display in the timeline.</summary>
     [JsonPropertyName("message")]
     public required string Message { get; set; }
@@ -1269,19 +1265,23 @@ public partial class SessionWarningData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
+
+    /// <summary>Category of warning (e.g., "subscription", "policy", "mcp").</summary>
+    [JsonPropertyName("warningType")]
+    public required string WarningType { get; set; }
 }
 
 /// <summary>Model change details including previous and new model identifiers.</summary>
 public partial class SessionModelChangeData
 {
+    /// <summary>Newly selected model identifier.</summary>
+    [JsonPropertyName("newModel")]
+    public required string NewModel { get; set; }
+
     /// <summary>Model that was previously selected, if any.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("previousModel")]
     public string? PreviousModel { get; set; }
-
-    /// <summary>Newly selected model identifier.</summary>
-    [JsonPropertyName("newModel")]
-    public required string NewModel { get; set; }
 
     /// <summary>Reasoning effort level before the model change, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1297,13 +1297,13 @@ public partial class SessionModelChangeData
 /// <summary>Agent mode change details including previous and new modes.</summary>
 public partial class SessionModeChangedData
 {
-    /// <summary>Agent mode before the change (e.g., "interactive", "plan", "autopilot").</summary>
-    [JsonPropertyName("previousMode")]
-    public required string PreviousMode { get; set; }
-
     /// <summary>Agent mode after the change (e.g., "interactive", "plan", "autopilot").</summary>
     [JsonPropertyName("newMode")]
     public required string NewMode { get; set; }
+
+    /// <summary>Agent mode before the change (e.g., "interactive", "plan", "autopilot").</summary>
+    [JsonPropertyName("previousMode")]
+    public required string PreviousMode { get; set; }
 }
 
 /// <summary>Plan file operation details indicating what changed.</summary>
@@ -1317,79 +1317,55 @@ public partial class SessionPlanChangedData
 /// <summary>Workspace file change details including path and operation type.</summary>
 public partial class SessionWorkspaceFileChangedData
 {
-    /// <summary>Relative path within the session workspace files directory.</summary>
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-
     /// <summary>Whether the file was newly created or updated.</summary>
     [JsonPropertyName("operation")]
     public required WorkspaceFileChangedOperation Operation { get; set; }
+
+    /// <summary>Relative path within the session workspace files directory.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
 }
 
 /// <summary>Session handoff metadata including source, context, and repository information.</summary>
 public partial class SessionHandoffData
 {
-    /// <summary>ISO 8601 timestamp when the handoff occurred.</summary>
-    [JsonPropertyName("handoffTime")]
-    public required DateTimeOffset HandoffTime { get; set; }
-
-    /// <summary>Origin type of the session being handed off.</summary>
-    [JsonPropertyName("sourceType")]
-    public required HandoffSourceType SourceType { get; set; }
-
-    /// <summary>Repository context for the handed-off session.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("repository")]
-    public HandoffRepository? Repository { get; set; }
-
     /// <summary>Additional context information for the handoff.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
     public string? Context { get; set; }
 
-    /// <summary>Summary of the work done in the source session.</summary>
+    /// <summary>ISO 8601 timestamp when the handoff occurred.</summary>
+    [JsonPropertyName("handoffTime")]
+    public required DateTimeOffset HandoffTime { get; set; }
+
+    /// <summary>GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("summary")]
-    public string? Summary { get; set; }
+    [JsonPropertyName("host")]
+    public string? Host { get; set; }
 
     /// <summary>Session ID of the remote session being handed off.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("remoteSessionId")]
     public string? RemoteSessionId { get; set; }
 
-    /// <summary>GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com).</summary>
+    /// <summary>Repository context for the handed-off session.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("host")]
-    public string? Host { get; set; }
+    [JsonPropertyName("repository")]
+    public HandoffRepository? Repository { get; set; }
+
+    /// <summary>Origin type of the session being handed off.</summary>
+    [JsonPropertyName("sourceType")]
+    public required HandoffSourceType SourceType { get; set; }
+
+    /// <summary>Summary of the work done in the source session.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
 }
 
 /// <summary>Conversation truncation statistics including token counts and removed content metrics.</summary>
 public partial class SessionTruncationData
 {
-    /// <summary>Maximum token count for the model's context window.</summary>
-    [JsonPropertyName("tokenLimit")]
-    public required double TokenLimit { get; set; }
-
-    /// <summary>Total tokens in conversation messages before truncation.</summary>
-    [JsonPropertyName("preTruncationTokensInMessages")]
-    public required double PreTruncationTokensInMessages { get; set; }
-
-    /// <summary>Number of conversation messages before truncation.</summary>
-    [JsonPropertyName("preTruncationMessagesLength")]
-    public required double PreTruncationMessagesLength { get; set; }
-
-    /// <summary>Total tokens in conversation messages after truncation.</summary>
-    [JsonPropertyName("postTruncationTokensInMessages")]
-    public required double PostTruncationTokensInMessages { get; set; }
-
-    /// <summary>Number of conversation messages after truncation.</summary>
-    [JsonPropertyName("postTruncationMessagesLength")]
-    public required double PostTruncationMessagesLength { get; set; }
-
-    /// <summary>Number of tokens removed by truncation.</summary>
-    [JsonPropertyName("tokensRemovedDuringTruncation")]
-    public required double TokensRemovedDuringTruncation { get; set; }
-
     /// <summary>Number of messages removed by truncation.</summary>
     [JsonPropertyName("messagesRemovedDuringTruncation")]
     public required double MessagesRemovedDuringTruncation { get; set; }
@@ -1397,51 +1373,55 @@ public partial class SessionTruncationData
     /// <summary>Identifier of the component that performed truncation (e.g., "BasicTruncator").</summary>
     [JsonPropertyName("performedBy")]
     public required string PerformedBy { get; set; }
+
+    /// <summary>Number of conversation messages after truncation.</summary>
+    [JsonPropertyName("postTruncationMessagesLength")]
+    public required double PostTruncationMessagesLength { get; set; }
+
+    /// <summary>Total tokens in conversation messages after truncation.</summary>
+    [JsonPropertyName("postTruncationTokensInMessages")]
+    public required double PostTruncationTokensInMessages { get; set; }
+
+    /// <summary>Number of conversation messages before truncation.</summary>
+    [JsonPropertyName("preTruncationMessagesLength")]
+    public required double PreTruncationMessagesLength { get; set; }
+
+    /// <summary>Total tokens in conversation messages before truncation.</summary>
+    [JsonPropertyName("preTruncationTokensInMessages")]
+    public required double PreTruncationTokensInMessages { get; set; }
+
+    /// <summary>Maximum token count for the model's context window.</summary>
+    [JsonPropertyName("tokenLimit")]
+    public required double TokenLimit { get; set; }
+
+    /// <summary>Number of tokens removed by truncation.</summary>
+    [JsonPropertyName("tokensRemovedDuringTruncation")]
+    public required double TokensRemovedDuringTruncation { get; set; }
 }
 
 /// <summary>Session rewind details including target event and count of removed events.</summary>
 public partial class SessionSnapshotRewindData
 {
-    /// <summary>Event ID that was rewound to; this event and all after it were removed.</summary>
-    [JsonPropertyName("upToEventId")]
-    public required string UpToEventId { get; set; }
-
     /// <summary>Number of events that were removed by the rewind.</summary>
     [JsonPropertyName("eventsRemoved")]
     public required double EventsRemoved { get; set; }
+
+    /// <summary>Event ID that was rewound to; this event and all after it were removed.</summary>
+    [JsonPropertyName("upToEventId")]
+    public required string UpToEventId { get; set; }
 }
 
 /// <summary>Session termination metrics including usage statistics, code changes, and shutdown reason.</summary>
 public partial class SessionShutdownData
 {
-    /// <summary>Whether the session ended normally ("routine") or due to a crash/fatal error ("error").</summary>
-    [JsonPropertyName("shutdownType")]
-    public required ShutdownType ShutdownType { get; set; }
-
-    /// <summary>Error description when shutdownType is "error".</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("errorReason")]
-    public string? ErrorReason { get; set; }
-
-    /// <summary>Total number of premium API requests used during the session.</summary>
-    [JsonPropertyName("totalPremiumRequests")]
-    public required double TotalPremiumRequests { get; set; }
-
-    /// <summary>Cumulative time spent in API calls during the session, in milliseconds.</summary>
-    [JsonPropertyName("totalApiDurationMs")]
-    public required double TotalApiDurationMs { get; set; }
-
-    /// <summary>Unix timestamp (milliseconds) when the session started.</summary>
-    [JsonPropertyName("sessionStartTime")]
-    public required double SessionStartTime { get; set; }
-
     /// <summary>Aggregate code change metrics for the session.</summary>
     [JsonPropertyName("codeChanges")]
     public required ShutdownCodeChanges CodeChanges { get; set; }
 
-    /// <summary>Per-model usage breakdown, keyed by model identifier.</summary>
-    [JsonPropertyName("modelMetrics")]
-    public required IDictionary<string, object> ModelMetrics { get; set; }
+    /// <summary>Non-system message token count at shutdown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("conversationTokens")]
+    public double? ConversationTokens { get; set; }
 
     /// <summary>Model that was selected at the time of shutdown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1453,25 +1433,55 @@ public partial class SessionShutdownData
     [JsonPropertyName("currentTokens")]
     public double? CurrentTokens { get; set; }
 
+    /// <summary>Error description when shutdownType is "error".</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorReason")]
+    public string? ErrorReason { get; set; }
+
+    /// <summary>Per-model usage breakdown, keyed by model identifier.</summary>
+    [JsonPropertyName("modelMetrics")]
+    public required IDictionary<string, ShutdownModelMetric> ModelMetrics { get; set; }
+
+    /// <summary>Unix timestamp (milliseconds) when the session started.</summary>
+    [JsonPropertyName("sessionStartTime")]
+    public required double SessionStartTime { get; set; }
+
+    /// <summary>Whether the session ended normally ("routine") or due to a crash/fatal error ("error").</summary>
+    [JsonPropertyName("shutdownType")]
+    public required ShutdownType ShutdownType { get; set; }
+
     /// <summary>System message token count at shutdown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("systemTokens")]
     public double? SystemTokens { get; set; }
 
-    /// <summary>Non-system message token count at shutdown.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("conversationTokens")]
-    public double? ConversationTokens { get; set; }
-
     /// <summary>Tool definitions token count at shutdown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolDefinitionsTokens")]
     public double? ToolDefinitionsTokens { get; set; }
+
+    /// <summary>Cumulative time spent in API calls during the session, in milliseconds.</summary>
+    [JsonPropertyName("totalApiDurationMs")]
+    public required double TotalApiDurationMs { get; set; }
+
+    /// <summary>Total number of premium API requests used during the session.</summary>
+    [JsonPropertyName("totalPremiumRequests")]
+    public required double TotalPremiumRequests { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
 public partial class SessionContextChangedData
 {
+    /// <summary>Base commit of current git branch at session start time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("baseCommit")]
+    public string? BaseCommit { get; set; }
+
+    /// <summary>Current git branch name.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
+
     /// <summary>Current working directory path.</summary>
     [JsonPropertyName("cwd")]
     public required string Cwd { get; set; }
@@ -1481,42 +1491,43 @@ public partial class SessionContextChangedData
     [JsonPropertyName("gitRoot")]
     public string? GitRoot { get; set; }
 
-    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
+    /// <summary>Head commit of current git branch at session start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("repository")]
-    public string? Repository { get; set; }
+    [JsonPropertyName("headCommit")]
+    public string? HeadCommit { get; set; }
 
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
     public WorkingDirectoryContextHostType? HostType { get; set; }
 
-    /// <summary>Current git branch name.</summary>
+    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("branch")]
-    public string? Branch { get; set; }
+    [JsonPropertyName("repository")]
+    public string? Repository { get; set; }
 
-    /// <summary>Head commit of current git branch at session start time.</summary>
+    /// <summary>Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("headCommit")]
-    public string? HeadCommit { get; set; }
-
-    /// <summary>Base commit of current git branch at session start time.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("baseCommit")]
-    public string? BaseCommit { get; set; }
+    [JsonPropertyName("repositoryHost")]
+    public string? RepositoryHost { get; set; }
 }
 
 /// <summary>Current context window usage statistics including token and message counts.</summary>
 public partial class SessionUsageInfoData
 {
-    /// <summary>Maximum token count for the model's context window.</summary>
-    [JsonPropertyName("tokenLimit")]
-    public required double TokenLimit { get; set; }
+    /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("conversationTokens")]
+    public double? ConversationTokens { get; set; }
 
     /// <summary>Current number of tokens in the context window.</summary>
     [JsonPropertyName("currentTokens")]
     public required double CurrentTokens { get; set; }
+
+    /// <summary>Whether this is the first usage_info event emitted in this session.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("isInitial")]
+    public bool? IsInitial { get; set; }
 
     /// <summary>Current number of messages in the conversation.</summary>
     [JsonPropertyName("messagesLength")]
@@ -1527,34 +1538,28 @@ public partial class SessionUsageInfoData
     [JsonPropertyName("systemTokens")]
     public double? SystemTokens { get; set; }
 
-    /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("conversationTokens")]
-    public double? ConversationTokens { get; set; }
+    /// <summary>Maximum token count for the model's context window.</summary>
+    [JsonPropertyName("tokenLimit")]
+    public required double TokenLimit { get; set; }
 
     /// <summary>Token count from tool definitions.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolDefinitionsTokens")]
     public double? ToolDefinitionsTokens { get; set; }
-
-    /// <summary>Whether this is the first usage_info event emitted in this session.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("isInitial")]
-    public bool? IsInitial { get; set; }
 }
 
 /// <summary>Context window breakdown at the start of LLM-powered conversation compaction.</summary>
 public partial class SessionCompactionStartData
 {
-    /// <summary>Token count from system message(s) at compaction start.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("systemTokens")]
-    public double? SystemTokens { get; set; }
-
     /// <summary>Token count from non-system messages (user, assistant, tool) at compaction start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("conversationTokens")]
     public double? ConversationTokens { get; set; }
+
+    /// <summary>Token count from system message(s) at compaction start.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("systemTokens")]
+    public double? SystemTokens { get; set; }
 
     /// <summary>Token count from tool definitions at compaction start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1565,45 +1570,6 @@ public partial class SessionCompactionStartData
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
 public partial class SessionCompactionCompleteData
 {
-    /// <summary>Whether compaction completed successfully.</summary>
-    [JsonPropertyName("success")]
-    public required bool Success { get; set; }
-
-    /// <summary>Error message if compaction failed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
-
-    /// <summary>Total tokens in conversation before compaction.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("preCompactionTokens")]
-    public double? PreCompactionTokens { get; set; }
-
-    /// <summary>Total tokens in conversation after compaction.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("postCompactionTokens")]
-    public double? PostCompactionTokens { get; set; }
-
-    /// <summary>Number of messages before compaction.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("preCompactionMessagesLength")]
-    public double? PreCompactionMessagesLength { get; set; }
-
-    /// <summary>Number of messages removed during compaction.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("messagesRemoved")]
-    public double? MessagesRemoved { get; set; }
-
-    /// <summary>Number of tokens removed during compaction.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("tokensRemoved")]
-    public double? TokensRemoved { get; set; }
-
-    /// <summary>LLM-generated summary of the compacted conversation history.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("summaryContent")]
-    public string? SummaryContent { get; set; }
-
     /// <summary>Checkpoint snapshot number created for recovery.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("checkpointNumber")]
@@ -1619,20 +1585,59 @@ public partial class SessionCompactionCompleteData
     [JsonPropertyName("compactionTokensUsed")]
     public CompactionCompleteCompactionTokensUsed? CompactionTokensUsed { get; set; }
 
+    /// <summary>Token count from non-system messages (user, assistant, tool) after compaction.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("conversationTokens")]
+    public double? ConversationTokens { get; set; }
+
+    /// <summary>Error message if compaction failed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>Number of messages removed during compaction.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("messagesRemoved")]
+    public double? MessagesRemoved { get; set; }
+
+    /// <summary>Total tokens in conversation after compaction.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("postCompactionTokens")]
+    public double? PostCompactionTokens { get; set; }
+
+    /// <summary>Number of messages before compaction.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("preCompactionMessagesLength")]
+    public double? PreCompactionMessagesLength { get; set; }
+
+    /// <summary>Total tokens in conversation before compaction.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("preCompactionTokens")]
+    public double? PreCompactionTokens { get; set; }
+
     /// <summary>GitHub request tracing ID (x-github-request-id header) for the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
+
+    /// <summary>Whether compaction completed successfully.</summary>
+    [JsonPropertyName("success")]
+    public required bool Success { get; set; }
+
+    /// <summary>LLM-generated summary of the compacted conversation history.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("summaryContent")]
+    public string? SummaryContent { get; set; }
 
     /// <summary>Token count from system message(s) after compaction.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("systemTokens")]
     public double? SystemTokens { get; set; }
 
-    /// <summary>Token count from non-system messages (user, assistant, tool) after compaction.</summary>
+    /// <summary>Number of tokens removed during compaction.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("conversationTokens")]
-    public double? ConversationTokens { get; set; }
+    [JsonPropertyName("tokensRemoved")]
+    public double? TokensRemoved { get; set; }
 
     /// <summary>Token count from tool definitions after compaction.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1643,38 +1648,38 @@ public partial class SessionCompactionCompleteData
 /// <summary>Task completion notification with summary from the agent.</summary>
 public partial class SessionTaskCompleteData
 {
-    /// <summary>Summary of the completed task, provided by the agent.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("summary")]
-    public string? Summary { get; set; }
-
     /// <summary>Whether the tool call succeeded. False when validation failed (e.g., invalid arguments).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("success")]
     public bool? Success { get; set; }
+
+    /// <summary>Summary of the completed task, provided by the agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
 }
 
 /// <summary>Event payload for <see cref="UserMessageEvent"/>.</summary>
 public partial class UserMessageData
 {
-    /// <summary>The user's message text as displayed in the timeline.</summary>
-    [JsonPropertyName("content")]
-    public required string Content { get; set; }
-
-    /// <summary>Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching.</summary>
+    /// <summary>The agent mode that was active when this message was sent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("transformedContent")]
-    public string? TransformedContent { get; set; }
+    [JsonPropertyName("agentMode")]
+    public UserMessageAgentMode? AgentMode { get; set; }
 
     /// <summary>Files, selections, or GitHub references attached to the message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("attachments")]
     public UserMessageAttachment[]? Attachments { get; set; }
 
-    /// <summary>Normalized document MIME types that were sent natively instead of through tagged_files XML.</summary>
+    /// <summary>The user's message text as displayed in the timeline.</summary>
+    [JsonPropertyName("content")]
+    public required string Content { get; set; }
+
+    /// <summary>CAPI interaction ID for correlating this user message with its turn.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("supportedNativeDocumentMimeTypes")]
-    public string[]? SupportedNativeDocumentMimeTypes { get; set; }
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
 
     /// <summary>Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1686,15 +1691,15 @@ public partial class UserMessageData
     [JsonPropertyName("source")]
     public string? Source { get; set; }
 
-    /// <summary>The agent mode that was active when this message was sent.</summary>
+    /// <summary>Normalized document MIME types that were sent natively instead of through tagged_files XML.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("agentMode")]
-    public UserMessageAgentMode? AgentMode { get; set; }
+    [JsonPropertyName("supportedNativeDocumentMimeTypes")]
+    public string[]? SupportedNativeDocumentMimeTypes { get; set; }
 
-    /// <summary>CAPI interaction ID for correlating this user message with its turn.</summary>
+    /// <summary>Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("interactionId")]
-    public string? InteractionId { get; set; }
+    [JsonPropertyName("transformedContent")]
+    public string? TransformedContent { get; set; }
 }
 
 /// <summary>Empty payload; the event signals that the pending message queue has changed.</summary>
@@ -1705,14 +1710,14 @@ public partial class PendingMessagesModifiedData
 /// <summary>Turn initialization metadata including identifier and interaction tracking.</summary>
 public partial class AssistantTurnStartData
 {
-    /// <summary>Identifier for this turn within the agentic loop, typically a stringified turn number.</summary>
-    [JsonPropertyName("turnId")]
-    public required string TurnId { get; set; }
-
     /// <summary>CAPI interaction ID for correlating this turn with upstream telemetry.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("interactionId")]
     public string? InteractionId { get; set; }
+
+    /// <summary>Identifier for this turn within the agentic loop, typically a stringified turn number.</summary>
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; set; }
 }
 
 /// <summary>Agent intent description for current activity or plan.</summary>
@@ -1726,25 +1731,25 @@ public partial class AssistantIntentData
 /// <summary>Assistant reasoning content for timeline display with complete thinking text.</summary>
 public partial class AssistantReasoningData
 {
-    /// <summary>Unique identifier for this reasoning block.</summary>
-    [JsonPropertyName("reasoningId")]
-    public required string ReasoningId { get; set; }
-
     /// <summary>The complete extended thinking text from the model.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
+
+    /// <summary>Unique identifier for this reasoning block.</summary>
+    [JsonPropertyName("reasoningId")]
+    public required string ReasoningId { get; set; }
 }
 
 /// <summary>Streaming reasoning delta for incremental extended thinking updates.</summary>
 public partial class AssistantReasoningDeltaData
 {
-    /// <summary>Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning event.</summary>
-    [JsonPropertyName("reasoningId")]
-    public required string ReasoningId { get; set; }
-
     /// <summary>Incremental text chunk to append to the reasoning content.</summary>
     [JsonPropertyName("deltaContent")]
     public required string DeltaContent { get; set; }
+
+    /// <summary>Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning event.</summary>
+    [JsonPropertyName("reasoningId")]
+    public required string ReasoningId { get; set; }
 }
 
 /// <summary>Streaming response progress with cumulative byte count.</summary>
@@ -1758,18 +1763,39 @@ public partial class AssistantStreamingDeltaData
 /// <summary>Assistant response containing text content, optional tool requests, and interaction metadata.</summary>
 public partial class AssistantMessageData
 {
-    /// <summary>Unique identifier for this assistant message.</summary>
-    [JsonPropertyName("messageId")]
-    public required string MessageId { get; set; }
-
     /// <summary>The assistant's text response content.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
 
-    /// <summary>Tool invocations requested by the assistant in this message.</summary>
+    /// <summary>Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolRequests")]
-    public AssistantMessageToolRequest[]? ToolRequests { get; set; }
+    [JsonPropertyName("encryptedContent")]
+    public string? EncryptedContent { get; set; }
+
+    /// <summary>CAPI interaction ID for correlating this message with upstream telemetry.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>Unique identifier for this assistant message.</summary>
+    [JsonPropertyName("messageId")]
+    public required string MessageId { get; set; }
+
+    /// <summary>Actual output token count from the API response (completion_tokens), used for accurate token accounting.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputTokens")]
+    public double? OutputTokens { get; set; }
+
+    /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("parentToolCallId")]
+    public string? ParentToolCallId { get; set; }
+
+    /// <summary>Generation phase for phased-output models (e.g., thinking vs. response phases).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("phase")]
+    public string? Phase { get; set; }
 
     /// <summary>Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1781,48 +1807,27 @@ public partial class AssistantMessageData
     [JsonPropertyName("reasoningText")]
     public string? ReasoningText { get; set; }
 
-    /// <summary>Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("encryptedContent")]
-    public string? EncryptedContent { get; set; }
-
-    /// <summary>Generation phase for phased-output models (e.g., thinking vs. response phases).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("phase")]
-    public string? Phase { get; set; }
-
-    /// <summary>Actual output token count from the API response (completion_tokens), used for accurate token accounting.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("outputTokens")]
-    public double? OutputTokens { get; set; }
-
-    /// <summary>CAPI interaction ID for correlating this message with upstream telemetry.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("interactionId")]
-    public string? InteractionId { get; set; }
-
     /// <summary>GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
+    /// <summary>Tool invocations requested by the assistant in this message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("parentToolCallId")]
-    public string? ParentToolCallId { get; set; }
+    [JsonPropertyName("toolRequests")]
+    public AssistantMessageToolRequest[]? ToolRequests { get; set; }
 }
 
 /// <summary>Streaming assistant message delta for incremental response updates.</summary>
 public partial class AssistantMessageDeltaData
 {
-    /// <summary>Message ID this delta belongs to, matching the corresponding assistant.message event.</summary>
-    [JsonPropertyName("messageId")]
-    public required string MessageId { get; set; }
-
     /// <summary>Incremental text chunk to append to the message content.</summary>
     [JsonPropertyName("deltaContent")]
     public required string DeltaContent { get; set; }
+
+    /// <summary>Message ID this delta belongs to, matching the corresponding assistant.message event.</summary>
+    [JsonPropertyName("messageId")]
+    public required string MessageId { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [Obsolete("This member is deprecated and will be removed in a future version.")]
@@ -1842,19 +1847,10 @@ public partial class AssistantTurnEndData
 /// <summary>LLM API call usage metrics including tokens, costs, quotas, and billing information.</summary>
 public partial class AssistantUsageData
 {
-    /// <summary>Model identifier used for this API call.</summary>
-    [JsonPropertyName("model")]
-    public required string Model { get; set; }
-
-    /// <summary>Number of input tokens consumed.</summary>
+    /// <summary>Completion ID from the model provider (e.g., chatcmpl-abc123).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("inputTokens")]
-    public double? InputTokens { get; set; }
-
-    /// <summary>Number of output tokens produced.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("outputTokens")]
-    public double? OutputTokens { get; set; }
+    [JsonPropertyName("apiCallId")]
+    public string? ApiCallId { get; set; }
 
     /// <summary>Number of tokens read from prompt cache.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1866,10 +1862,10 @@ public partial class AssistantUsageData
     [JsonPropertyName("cacheWriteTokens")]
     public double? CacheWriteTokens { get; set; }
 
-    /// <summary>Number of output tokens used for reasoning (e.g., chain-of-thought).</summary>
+    /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("reasoningTokens")]
-    public double? ReasoningTokens { get; set; }
+    [JsonPropertyName("copilotUsage")]
+    public AssistantUsageCopilotUsage? CopilotUsage { get; set; }
 
     /// <summary>Model multiplier cost for billing purposes.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1881,30 +1877,29 @@ public partial class AssistantUsageData
     [JsonPropertyName("duration")]
     public double? Duration { get; set; }
 
-    /// <summary>Time to first token in milliseconds. Only available for streaming requests.</summary>
+    /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("ttftMs")]
-    public double? TtftMs { get; set; }
+    [JsonPropertyName("initiator")]
+    public string? Initiator { get; set; }
+
+    /// <summary>Number of input tokens consumed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("inputTokens")]
+    public double? InputTokens { get; set; }
 
     /// <summary>Average inter-token latency in milliseconds. Only available for streaming requests.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("interTokenLatencyMs")]
     public double? InterTokenLatencyMs { get; set; }
 
-    /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("initiator")]
-    public string? Initiator { get; set; }
+    /// <summary>Model identifier used for this API call.</summary>
+    [JsonPropertyName("model")]
+    public required string Model { get; set; }
 
-    /// <summary>Completion ID from the model provider (e.g., chatcmpl-abc123).</summary>
+    /// <summary>Number of output tokens produced.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("apiCallId")]
-    public string? ApiCallId { get; set; }
-
-    /// <summary>GitHub request tracing ID (x-github-request-id header) for server-side log correlation.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("providerCallId")]
-    public string? ProviderCallId { get; set; }
+    [JsonPropertyName("outputTokens")]
+    public double? OutputTokens { get; set; }
 
     /// <summary>Parent tool call ID when this usage originates from a sub-agent.</summary>
     [Obsolete("This member is deprecated and will be removed in a future version.")]
@@ -1912,20 +1907,30 @@ public partial class AssistantUsageData
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
 
+    /// <summary>GitHub request tracing ID (x-github-request-id header) for server-side log correlation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerCallId")]
+    public string? ProviderCallId { get; set; }
+
     /// <summary>Per-quota resource usage snapshots, keyed by quota identifier.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("quotaSnapshots")]
-    public IDictionary<string, object>? QuotaSnapshots { get; set; }
-
-    /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("copilotUsage")]
-    public AssistantUsageCopilotUsage? CopilotUsage { get; set; }
+    public IDictionary<string, AssistantUsageQuotaSnapshot>? QuotaSnapshots { get; set; }
 
     /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>Number of output tokens used for reasoning (e.g., chain-of-thought).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningTokens")]
+    public double? ReasoningTokens { get; set; }
+
+    /// <summary>Time to first token in milliseconds. Only available for streaming requests.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ttftMs")]
+    public double? TtftMs { get; set; }
 }
 
 /// <summary>Turn abort information including the reason for termination.</summary>
@@ -1939,6 +1944,11 @@ public partial class AbortData
 /// <summary>User-initiated tool invocation request with tool name and arguments.</summary>
 public partial class ToolUserRequestedData
 {
+    /// <summary>Arguments for the tool invocation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("arguments")]
+    public object? Arguments { get; set; }
+
     /// <summary>Unique identifier for this tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
@@ -1946,24 +1956,11 @@ public partial class ToolUserRequestedData
     /// <summary>Name of the tool the user wants to invoke.</summary>
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
-
-    /// <summary>Arguments for the tool invocation.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
 }
 
 /// <summary>Tool execution startup details including MCP server information when applicable.</summary>
 public partial class ToolExecutionStartData
 {
-    /// <summary>Unique identifier for this tool call.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
-
-    /// <summary>Name of the tool being executed.</summary>
-    [JsonPropertyName("toolName")]
-    public required string ToolName { get; set; }
-
     /// <summary>Arguments passed to the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
@@ -1984,47 +1981,47 @@ public partial class ToolExecutionStartData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
+
+    /// <summary>Unique identifier for this tool call.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+
+    /// <summary>Name of the tool being executed.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
 }
 
 /// <summary>Streaming tool execution output for incremental result display.</summary>
 public partial class ToolExecutionPartialResultData
 {
-    /// <summary>Tool call ID this partial result belongs to.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
-
     /// <summary>Incremental output chunk from the running tool.</summary>
     [JsonPropertyName("partialOutput")]
     public required string PartialOutput { get; set; }
+
+    /// <summary>Tool call ID this partial result belongs to.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
 }
 
 /// <summary>Tool execution progress notification with status message.</summary>
 public partial class ToolExecutionProgressData
 {
-    /// <summary>Tool call ID this progress notification belongs to.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
-
     /// <summary>Human-readable progress status message (e.g., from an MCP server).</summary>
     [JsonPropertyName("progressMessage")]
     public required string ProgressMessage { get; set; }
+
+    /// <summary>Tool call ID this progress notification belongs to.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
 }
 
 /// <summary>Tool execution completion results including success status, detailed output, and error information.</summary>
 public partial class ToolExecutionCompleteData
 {
-    /// <summary>Unique identifier for the completed tool call.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
-
-    /// <summary>Whether the tool execution completed successfully.</summary>
-    [JsonPropertyName("success")]
-    public required bool Success { get; set; }
-
-    /// <summary>Model identifier that generated this tool call.</summary>
+    /// <summary>Error details when the tool execution failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
+    [JsonPropertyName("error")]
+    public ToolExecutionCompleteError? Error { get; set; }
 
     /// <summary>CAPI interaction ID for correlating this tool execution with upstream telemetry.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2036,31 +2033,53 @@ public partial class ToolExecutionCompleteData
     [JsonPropertyName("isUserRequested")]
     public bool? IsUserRequested { get; set; }
 
-    /// <summary>Tool execution result on success.</summary>
+    /// <summary>Model identifier that generated this tool call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("result")]
-    public ToolExecutionCompleteResult? Result { get; set; }
-
-    /// <summary>Error details when the tool execution failed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("error")]
-    public ToolExecutionCompleteError? Error { get; set; }
-
-    /// <summary>Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolTelemetry")]
-    public IDictionary<string, object>? ToolTelemetry { get; set; }
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
+
+    /// <summary>Tool execution result on success.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("result")]
+    public ToolExecutionCompleteResult? Result { get; set; }
+
+    /// <summary>Whether the tool execution completed successfully.</summary>
+    [JsonPropertyName("success")]
+    public required bool Success { get; set; }
+
+    /// <summary>Unique identifier for the completed tool call.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+
+    /// <summary>Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolTelemetry")]
+    public IDictionary<string, object>? ToolTelemetry { get; set; }
 }
 
 /// <summary>Skill invocation details including content, allowed tools, and plugin metadata.</summary>
 public partial class SkillInvokedData
 {
+    /// <summary>Tool names that should be auto-approved when this skill is active.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("allowedTools")]
+    public string[]? AllowedTools { get; set; }
+
+    /// <summary>Full content of the skill file, injected into the conversation for the model.</summary>
+    [JsonPropertyName("content")]
+    public required string Content { get; set; }
+
+    /// <summary>Description of the skill from its SKILL.md frontmatter.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
     /// <summary>Name of the invoked skill.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
@@ -2068,15 +2087,6 @@ public partial class SkillInvokedData
     /// <summary>File path to the SKILL.md definition.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
-
-    /// <summary>Full content of the skill file, injected into the conversation for the model.</summary>
-    [JsonPropertyName("content")]
-    public required string Content { get; set; }
-
-    /// <summary>Tool names that should be auto-approved when this skill is active.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("allowedTools")]
-    public string[]? AllowedTools { get; set; }
 
     /// <summary>Name of the plugin this skill originated from, when applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2087,83 +2097,79 @@ public partial class SkillInvokedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("pluginVersion")]
     public string? PluginVersion { get; set; }
-
-    /// <summary>Description of the skill from its SKILL.md frontmatter.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
 }
 
 /// <summary>Sub-agent startup details including parent tool call and agent information.</summary>
 public partial class SubagentStartedData
 {
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
-
-    /// <summary>Internal name of the sub-agent.</summary>
-    [JsonPropertyName("agentName")]
-    public required string AgentName { get; set; }
+    /// <summary>Description of what the sub-agent does.</summary>
+    [JsonPropertyName("agentDescription")]
+    public required string AgentDescription { get; set; }
 
     /// <summary>Human-readable display name of the sub-agent.</summary>
     [JsonPropertyName("agentDisplayName")]
     public required string AgentDisplayName { get; set; }
 
-    /// <summary>Description of what the sub-agent does.</summary>
-    [JsonPropertyName("agentDescription")]
-    public required string AgentDescription { get; set; }
+    /// <summary>Internal name of the sub-agent.</summary>
+    [JsonPropertyName("agentName")]
+    public required string AgentName { get; set; }
+
+    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
 }
 
 /// <summary>Sub-agent completion details for successful execution.</summary>
 public partial class SubagentCompletedData
 {
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
+    /// <summary>Human-readable display name of the sub-agent.</summary>
+    [JsonPropertyName("agentDisplayName")]
+    public required string AgentDisplayName { get; set; }
 
     /// <summary>Internal name of the sub-agent.</summary>
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
 
-    /// <summary>Human-readable display name of the sub-agent.</summary>
-    [JsonPropertyName("agentDisplayName")]
-    public required string AgentDisplayName { get; set; }
+    /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("durationMs")]
+    public double? DurationMs { get; set; }
 
     /// <summary>Model used by the sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
-    /// <summary>Total number of tool calls made by the sub-agent.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("totalToolCalls")]
-    public double? TotalToolCalls { get; set; }
+    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
 
     /// <summary>Total tokens (input + output) consumed by the sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalTokens")]
     public double? TotalTokens { get; set; }
 
-    /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    /// <summary>Total number of tool calls made by the sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("durationMs")]
-    public double? DurationMs { get; set; }
+    [JsonPropertyName("totalToolCalls")]
+    public double? TotalToolCalls { get; set; }
 }
 
 /// <summary>Sub-agent failure details including error message and agent information.</summary>
 public partial class SubagentFailedData
 {
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
+    /// <summary>Human-readable display name of the sub-agent.</summary>
+    [JsonPropertyName("agentDisplayName")]
+    public required string AgentDisplayName { get; set; }
 
     /// <summary>Internal name of the sub-agent.</summary>
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
 
-    /// <summary>Human-readable display name of the sub-agent.</summary>
-    [JsonPropertyName("agentDisplayName")]
-    public required string AgentDisplayName { get; set; }
+    /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("durationMs")]
+    public double? DurationMs { get; set; }
 
     /// <summary>Error message describing why the sub-agent failed.</summary>
     [JsonPropertyName("error")]
@@ -2174,32 +2180,31 @@ public partial class SubagentFailedData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
-    /// <summary>Total number of tool calls made before the sub-agent failed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("totalToolCalls")]
-    public double? TotalToolCalls { get; set; }
+    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
 
     /// <summary>Total tokens (input + output) consumed before the sub-agent failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalTokens")]
     public double? TotalTokens { get; set; }
 
-    /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    /// <summary>Total number of tool calls made before the sub-agent failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("durationMs")]
-    public double? DurationMs { get; set; }
+    [JsonPropertyName("totalToolCalls")]
+    public double? TotalToolCalls { get; set; }
 }
 
 /// <summary>Custom agent selection details including name and available tools.</summary>
 public partial class SubagentSelectedData
 {
-    /// <summary>Internal name of the selected custom agent.</summary>
-    [JsonPropertyName("agentName")]
-    public required string AgentName { get; set; }
-
     /// <summary>Human-readable display name of the selected custom agent.</summary>
     [JsonPropertyName("agentDisplayName")]
     public required string AgentDisplayName { get; set; }
+
+    /// <summary>Internal name of the selected custom agent.</summary>
+    [JsonPropertyName("agentName")]
+    public required string AgentName { get; set; }
 
     /// <summary>List of tool names available to this agent, or null for all tools.</summary>
     [JsonPropertyName("tools")]
@@ -2231,6 +2236,11 @@ public partial class HookStartData
 /// <summary>Hook invocation completion details including output, success status, and error information.</summary>
 public partial class HookEndData
 {
+    /// <summary>Error details when the hook failed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public HookEndError? Error { get; set; }
+
     /// <summary>Identifier matching the corresponding hook.start event.</summary>
     [JsonPropertyName("hookInvocationId")]
     public required string HookInvocationId { get; set; }
@@ -2247,11 +2257,6 @@ public partial class HookEndData
     /// <summary>Whether the hook completed successfully.</summary>
     [JsonPropertyName("success")]
     public required bool Success { get; set; }
-
-    /// <summary>Error details when the hook failed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("error")]
-    public HookEndError? Error { get; set; }
 }
 
 /// <summary>System/developer instruction content with role and optional template metadata.</summary>
@@ -2261,19 +2266,19 @@ public partial class SystemMessageData
     [JsonPropertyName("content")]
     public required string Content { get; set; }
 
-    /// <summary>Message role: "system" for system prompts, "developer" for developer-injected instructions.</summary>
-    [JsonPropertyName("role")]
-    public required SystemMessageRole Role { get; set; }
+    /// <summary>Metadata about the prompt template and its construction.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("metadata")]
+    public SystemMessageMetadata? Metadata { get; set; }
 
     /// <summary>Optional name identifier for the message source.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
-    /// <summary>Metadata about the prompt template and its construction.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("metadata")]
-    public SystemMessageMetadata? Metadata { get; set; }
+    /// <summary>Message role: "system" for system prompts, "developer" for developer-injected instructions.</summary>
+    [JsonPropertyName("role")]
+    public required SystemMessageRole Role { get; set; }
 }
 
 /// <summary>System-generated notification for runtime events like background task completion.</summary>
@@ -2291,13 +2296,13 @@ public partial class SystemNotificationData
 /// <summary>Permission request notification requiring client approval with request details.</summary>
 public partial class PermissionRequestedData
 {
-    /// <summary>Unique identifier for this permission request; used to respond via session.respondToPermission().</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
     /// <summary>Details of the permission being requested.</summary>
     [JsonPropertyName("permissionRequest")]
     public required PermissionRequest PermissionRequest { get; set; }
+
+    /// <summary>Unique identifier for this permission request; used to respond via session.respondToPermission().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
 
     /// <summary>When true, this permission was already resolved by a permissionRequest hook and requires no client action.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2320,23 +2325,23 @@ public partial class PermissionCompletedData
 /// <summary>User input request notification with question and optional predefined choices.</summary>
 public partial class UserInputRequestedData
 {
-    /// <summary>Unique identifier for this input request; used to respond via session.respondToUserInput().</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
-    /// <summary>The question or prompt to present to the user.</summary>
-    [JsonPropertyName("question")]
-    public required string Question { get; set; }
+    /// <summary>Whether the user can provide a free-form text response in addition to predefined choices.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("allowFreeform")]
+    public bool? AllowFreeform { get; set; }
 
     /// <summary>Predefined choices for the user to select from, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("choices")]
     public string[]? Choices { get; set; }
 
-    /// <summary>Whether the user can provide a free-form text response in addition to predefined choices.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("allowFreeform")]
-    public bool? AllowFreeform { get; set; }
+    /// <summary>The question or prompt to present to the user.</summary>
+    [JsonPropertyName("question")]
+    public required string Question { get; set; }
+
+    /// <summary>Unique identifier for this input request; used to respond via session.respondToUserInput().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
 
     /// <summary>The LLM-assigned tool call ID that triggered this request; used by remote UIs to correlate responses.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2347,14 +2352,14 @@ public partial class UserInputRequestedData
 /// <summary>User input request completion with the user's response.</summary>
 public partial class UserInputCompletedData
 {
-    /// <summary>Request ID of the resolved user input request; clients should dismiss any UI for this request.</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
     /// <summary>The user's answer to the input request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("answer")]
     public string? Answer { get; set; }
+
+    /// <summary>Request ID of the resolved user input request; clients should dismiss any UI for this request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
 
     /// <summary>Whether the answer was typed as free-form text rather than selected from choices.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2365,15 +2370,6 @@ public partial class UserInputCompletedData
 /// <summary>Elicitation request; may be form-based (structured input) or URL-based (browser redirect).</summary>
 public partial class ElicitationRequestedData
 {
-    /// <summary>Unique identifier for this elicitation request; used to respond via session.respondToElicitation().</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
-    /// <summary>Tool call ID from the LLM completion; used to correlate with CompletionChunk.toolCall.id for remote UIs.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-
     /// <summary>The source that initiated the request (MCP server name, or absent for agent-initiated).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("elicitationSource")]
@@ -2393,6 +2389,15 @@ public partial class ElicitationRequestedData
     [JsonPropertyName("requestedSchema")]
     public ElicitationRequestedSchema? RequestedSchema { get; set; }
 
+    /// <summary>Unique identifier for this elicitation request; used to respond via session.respondToElicitation().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Tool call ID from the LLM completion; used to correlate with CompletionChunk.toolCall.id for remote UIs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
     /// <summary>URL to open in the user's browser (url mode only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
@@ -2402,10 +2407,6 @@ public partial class ElicitationRequestedData
 /// <summary>Elicitation request completion with the user's response.</summary>
 public partial class ElicitationCompletedData
 {
-    /// <summary>Request ID of the resolved elicitation request; clients should dismiss any UI for this request.</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
     /// <summary>The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("action")]
@@ -2415,11 +2416,19 @@ public partial class ElicitationCompletedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("content")]
     public IDictionary<string, object>? Content { get; set; }
+
+    /// <summary>Request ID of the resolved elicitation request; clients should dismiss any UI for this request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
 }
 
 /// <summary>Sampling request from an MCP server; contains the server name and a requestId for correlation.</summary>
 public partial class SamplingRequestedData
 {
+    /// <summary>The JSON-RPC request ID from the MCP protocol.</summary>
+    [JsonPropertyName("mcpRequestId")]
+    public required object McpRequestId { get; set; }
+
     /// <summary>Unique identifier for this sampling request; used to respond via session.respondToSampling().</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -2427,10 +2436,6 @@ public partial class SamplingRequestedData
     /// <summary>Name of the MCP server that initiated the sampling request.</summary>
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
-
-    /// <summary>The JSON-RPC request ID from the MCP protocol.</summary>
-    [JsonPropertyName("mcpRequestId")]
-    public required object McpRequestId { get; set; }
 }
 
 /// <summary>Sampling request completion notification signaling UI dismissal.</summary>
@@ -2473,6 +2478,11 @@ public partial class McpOauthCompletedData
 /// <summary>External tool invocation request for client-side tool execution.</summary>
 public partial class ExternalToolRequestedData
 {
+    /// <summary>Arguments to pass to the external tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("arguments")]
+    public object? Arguments { get; set; }
+
     /// <summary>Unique identifier for this request; used to respond via session.respondToExternalTool().</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -2488,11 +2498,6 @@ public partial class ExternalToolRequestedData
     /// <summary>Name of the external tool to invoke.</summary>
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
-
-    /// <summary>Arguments to pass to the external tool.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
 
     /// <summary>W3C Trace Context traceparent header for the execute_tool span.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2516,21 +2521,21 @@ public partial class ExternalToolCompletedData
 /// <summary>Queued slash command dispatch request for client execution.</summary>
 public partial class CommandQueuedData
 {
-    /// <summary>Unique identifier for this request; used to respond via session.respondToQueuedCommand().</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
     /// <summary>The slash command text to be executed (e.g., /help, /clear).</summary>
     [JsonPropertyName("command")]
     public required string Command { get; set; }
+
+    /// <summary>Unique identifier for this request; used to respond via session.respondToQueuedCommand().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
 }
 
 /// <summary>Registered command dispatch request routed to the owning client.</summary>
 public partial class CommandExecuteData
 {
-    /// <summary>Unique identifier; used to respond via session.commands.handlePendingCommand().</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
+    /// <summary>Raw argument string after the command name.</summary>
+    [JsonPropertyName("args")]
+    public required string Args { get; set; }
 
     /// <summary>The full command text (e.g., /deploy production).</summary>
     [JsonPropertyName("command")]
@@ -2540,9 +2545,9 @@ public partial class CommandExecuteData
     [JsonPropertyName("commandName")]
     public required string CommandName { get; set; }
 
-    /// <summary>Raw argument string after the command name.</summary>
-    [JsonPropertyName("args")]
-    public required string Args { get; set; }
+    /// <summary>Unique identifier; used to respond via session.commands.handlePendingCommand().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
 }
 
 /// <summary>Queued command completion notification signaling UI dismissal.</summary>
@@ -2573,6 +2578,18 @@ public partial class CapabilitiesChangedData
 /// <summary>Plan approval request with plan content and available user actions.</summary>
 public partial class ExitPlanModeRequestedData
 {
+    /// <summary>Available actions the user can take (e.g., approve, edit, reject).</summary>
+    [JsonPropertyName("actions")]
+    public required string[] Actions { get; set; }
+
+    /// <summary>Full content of the plan file.</summary>
+    [JsonPropertyName("planContent")]
+    public required string PlanContent { get; set; }
+
+    /// <summary>The recommended action for the user to take.</summary>
+    [JsonPropertyName("recommendedAction")]
+    public required string RecommendedAction { get; set; }
+
     /// <summary>Unique identifier for this request; used to respond via session.respondToExitPlanMode().</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -2580,36 +2597,15 @@ public partial class ExitPlanModeRequestedData
     /// <summary>Summary of the plan that was created.</summary>
     [JsonPropertyName("summary")]
     public required string Summary { get; set; }
-
-    /// <summary>Full content of the plan file.</summary>
-    [JsonPropertyName("planContent")]
-    public required string PlanContent { get; set; }
-
-    /// <summary>Available actions the user can take (e.g., approve, edit, reject).</summary>
-    [JsonPropertyName("actions")]
-    public required string[] Actions { get; set; }
-
-    /// <summary>The recommended action for the user to take.</summary>
-    [JsonPropertyName("recommendedAction")]
-    public required string RecommendedAction { get; set; }
 }
 
 /// <summary>Plan mode exit completion with the user's approval decision and optional feedback.</summary>
 public partial class ExitPlanModeCompletedData
 {
-    /// <summary>Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request.</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
     /// <summary>Whether the plan was approved by the user.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("approved")]
     public bool? Approved { get; set; }
-
-    /// <summary>Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only').</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("selectedAction")]
-    public string? SelectedAction { get; set; }
 
     /// <summary>Whether edits should be auto-approved without confirmation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2620,6 +2616,15 @@ public partial class ExitPlanModeCompletedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("feedback")]
     public string? Feedback { get; set; }
+
+    /// <summary>Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only').</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("selectedAction")]
+    public string? SelectedAction { get; set; }
 }
 
 /// <summary>Event payload for <see cref="SessionToolsUpdatedEvent"/>.</summary>
@@ -2650,13 +2655,13 @@ public partial class SessionCustomAgentsUpdatedData
     [JsonPropertyName("agents")]
     public required CustomAgentsUpdatedAgent[] Agents { get; set; }
 
-    /// <summary>Non-fatal warnings from agent loading.</summary>
-    [JsonPropertyName("warnings")]
-    public required string[] Warnings { get; set; }
-
     /// <summary>Fatal errors from agent loading.</summary>
     [JsonPropertyName("errors")]
     public required string[] Errors { get; set; }
+
+    /// <summary>Non-fatal warnings from agent loading.</summary>
+    [JsonPropertyName("warnings")]
+    public required string[] Warnings { get; set; }
 }
 
 /// <summary>Event payload for <see cref="SessionMcpServersLoadedEvent"/>.</summary>
@@ -2691,6 +2696,16 @@ public partial class SessionExtensionsLoadedData
 /// <remarks>Nested data type for <c>WorkingDirectoryContext</c>.</remarks>
 public partial class WorkingDirectoryContext
 {
+    /// <summary>Base commit of current git branch at session start time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("baseCommit")]
+    public string? BaseCommit { get; set; }
+
+    /// <summary>Current git branch name.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
+
     /// <summary>Current working directory path.</summary>
     [JsonPropertyName("cwd")]
     public required string Cwd { get; set; }
@@ -2700,54 +2715,53 @@ public partial class WorkingDirectoryContext
     [JsonPropertyName("gitRoot")]
     public string? GitRoot { get; set; }
 
-    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
+    /// <summary>Head commit of current git branch at session start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("repository")]
-    public string? Repository { get; set; }
+    [JsonPropertyName("headCommit")]
+    public string? HeadCommit { get; set; }
 
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
     public WorkingDirectoryContextHostType? HostType { get; set; }
 
-    /// <summary>Current git branch name.</summary>
+    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("branch")]
-    public string? Branch { get; set; }
+    [JsonPropertyName("repository")]
+    public string? Repository { get; set; }
 
-    /// <summary>Head commit of current git branch at session start time.</summary>
+    /// <summary>Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("headCommit")]
-    public string? HeadCommit { get; set; }
-
-    /// <summary>Base commit of current git branch at session start time.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("baseCommit")]
-    public string? BaseCommit { get; set; }
+    [JsonPropertyName("repositoryHost")]
+    public string? RepositoryHost { get; set; }
 }
 
 /// <summary>Repository context for the handed-off session.</summary>
 /// <remarks>Nested data type for <c>HandoffRepository</c>.</remarks>
 public partial class HandoffRepository
 {
-    /// <summary>Repository owner (user or organization).</summary>
-    [JsonPropertyName("owner")]
-    public required string Owner { get; set; }
+    /// <summary>Git branch name, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
 
     /// <summary>Repository name.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
-    /// <summary>Git branch name, if applicable.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("branch")]
-    public string? Branch { get; set; }
+    /// <summary>Repository owner (user or organization).</summary>
+    [JsonPropertyName("owner")]
+    public required string Owner { get; set; }
 }
 
 /// <summary>Aggregate code change metrics for the session.</summary>
 /// <remarks>Nested data type for <c>ShutdownCodeChanges</c>.</remarks>
 public partial class ShutdownCodeChanges
 {
+    /// <summary>List of file paths that were modified during the session.</summary>
+    [JsonPropertyName("filesModified")]
+    public required string[] FilesModified { get; set; }
+
     /// <summary>Total number of lines added during the session.</summary>
     [JsonPropertyName("linesAdded")]
     public required double LinesAdded { get; set; }
@@ -2755,16 +2769,67 @@ public partial class ShutdownCodeChanges
     /// <summary>Total number of lines removed during the session.</summary>
     [JsonPropertyName("linesRemoved")]
     public required double LinesRemoved { get; set; }
+}
 
-    /// <summary>List of file paths that were modified during the session.</summary>
-    [JsonPropertyName("filesModified")]
-    public required string[] FilesModified { get; set; }
+/// <summary>Request count and cost metrics.</summary>
+/// <remarks>Nested data type for <c>ShutdownModelMetricRequests</c>.</remarks>
+public partial class ShutdownModelMetricRequests
+{
+    /// <summary>Cumulative cost multiplier for requests to this model.</summary>
+    [JsonPropertyName("cost")]
+    public required double Cost { get; set; }
+
+    /// <summary>Total number of API requests made to this model.</summary>
+    [JsonPropertyName("count")]
+    public required double Count { get; set; }
+}
+
+/// <summary>Token usage breakdown.</summary>
+/// <remarks>Nested data type for <c>ShutdownModelMetricUsage</c>.</remarks>
+public partial class ShutdownModelMetricUsage
+{
+    /// <summary>Total tokens read from prompt cache across all requests.</summary>
+    [JsonPropertyName("cacheReadTokens")]
+    public required double CacheReadTokens { get; set; }
+
+    /// <summary>Total tokens written to prompt cache across all requests.</summary>
+    [JsonPropertyName("cacheWriteTokens")]
+    public required double CacheWriteTokens { get; set; }
+
+    /// <summary>Total input tokens consumed across all requests to this model.</summary>
+    [JsonPropertyName("inputTokens")]
+    public required double InputTokens { get; set; }
+
+    /// <summary>Total output tokens produced across all requests to this model.</summary>
+    [JsonPropertyName("outputTokens")]
+    public required double OutputTokens { get; set; }
+
+    /// <summary>Total reasoning tokens produced across all requests to this model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningTokens")]
+    public double? ReasoningTokens { get; set; }
+}
+
+/// <summary>Nested data type for <c>ShutdownModelMetric</c>.</summary>
+public partial class ShutdownModelMetric
+{
+    /// <summary>Request count and cost metrics.</summary>
+    [JsonPropertyName("requests")]
+    public required ShutdownModelMetricRequests Requests { get; set; }
+
+    /// <summary>Token usage breakdown.</summary>
+    [JsonPropertyName("usage")]
+    public required ShutdownModelMetricUsage Usage { get; set; }
 }
 
 /// <summary>Token usage breakdown for the compaction LLM call.</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsed</c>.</remarks>
 public partial class CompactionCompleteCompactionTokensUsed
 {
+    /// <summary>Cached input tokens reused in the compaction LLM call.</summary>
+    [JsonPropertyName("cachedInput")]
+    public required double CachedInput { get; set; }
+
     /// <summary>Input tokens consumed by the compaction LLM call.</summary>
     [JsonPropertyName("input")]
     public required double Input { get; set; }
@@ -2772,23 +2837,19 @@ public partial class CompactionCompleteCompactionTokensUsed
     /// <summary>Output tokens produced by the compaction LLM call.</summary>
     [JsonPropertyName("output")]
     public required double Output { get; set; }
-
-    /// <summary>Cached input tokens reused in the compaction LLM call.</summary>
-    [JsonPropertyName("cachedInput")]
-    public required double CachedInput { get; set; }
 }
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
 /// <remarks>Nested data type for <c>UserMessageAttachmentFileLineRange</c>.</remarks>
 public partial class UserMessageAttachmentFileLineRange
 {
-    /// <summary>Start line number (1-based).</summary>
-    [JsonPropertyName("start")]
-    public required double Start { get; set; }
-
     /// <summary>End line number (1-based, inclusive).</summary>
     [JsonPropertyName("end")]
     public required double End { get; set; }
+
+    /// <summary>Start line number (1-based).</summary>
+    [JsonPropertyName("start")]
+    public required double Start { get; set; }
 }
 
 /// <summary>File attachment.</summary>
@@ -2799,10 +2860,6 @@ public partial class UserMessageAttachmentFile : UserMessageAttachment
     [JsonIgnore]
     public override string Type => "file";
 
-    /// <summary>Absolute file path.</summary>
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-
     /// <summary>User-facing display name for the attachment.</summary>
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
@@ -2811,6 +2868,10 @@ public partial class UserMessageAttachmentFile : UserMessageAttachment
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("lineRange")]
     public UserMessageAttachmentFileLineRange? LineRange { get; set; }
+
+    /// <summary>Absolute file path.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
 }
 
 /// <summary>Directory attachment.</summary>
@@ -2821,52 +2882,52 @@ public partial class UserMessageAttachmentDirectory : UserMessageAttachment
     [JsonIgnore]
     public override string Type => "directory";
 
-    /// <summary>Absolute directory path.</summary>
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-
     /// <summary>User-facing display name for the attachment.</summary>
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
-}
 
-/// <summary>Start position of the selection.</summary>
-/// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsStart</c>.</remarks>
-public partial class UserMessageAttachmentSelectionDetailsStart
-{
-    /// <summary>Start line number (0-based).</summary>
-    [JsonPropertyName("line")]
-    public required double Line { get; set; }
-
-    /// <summary>Start character offset within the line (0-based).</summary>
-    [JsonPropertyName("character")]
-    public required double Character { get; set; }
+    /// <summary>Absolute directory path.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
 }
 
 /// <summary>End position of the selection.</summary>
 /// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsEnd</c>.</remarks>
 public partial class UserMessageAttachmentSelectionDetailsEnd
 {
-    /// <summary>End line number (0-based).</summary>
-    [JsonPropertyName("line")]
-    public required double Line { get; set; }
-
     /// <summary>End character offset within the line (0-based).</summary>
     [JsonPropertyName("character")]
     public required double Character { get; set; }
+
+    /// <summary>End line number (0-based).</summary>
+    [JsonPropertyName("line")]
+    public required double Line { get; set; }
+}
+
+/// <summary>Start position of the selection.</summary>
+/// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsStart</c>.</remarks>
+public partial class UserMessageAttachmentSelectionDetailsStart
+{
+    /// <summary>Start character offset within the line (0-based).</summary>
+    [JsonPropertyName("character")]
+    public required double Character { get; set; }
+
+    /// <summary>Start line number (0-based).</summary>
+    [JsonPropertyName("line")]
+    public required double Line { get; set; }
 }
 
 /// <summary>Position range of the selection within the file.</summary>
 /// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetails</c>.</remarks>
 public partial class UserMessageAttachmentSelectionDetails
 {
-    /// <summary>Start position of the selection.</summary>
-    [JsonPropertyName("start")]
-    public required UserMessageAttachmentSelectionDetailsStart Start { get; set; }
-
     /// <summary>End position of the selection.</summary>
     [JsonPropertyName("end")]
     public required UserMessageAttachmentSelectionDetailsEnd End { get; set; }
+
+    /// <summary>Start position of the selection.</summary>
+    [JsonPropertyName("start")]
+    public required UserMessageAttachmentSelectionDetailsStart Start { get; set; }
 }
 
 /// <summary>Code selection attachment from an editor.</summary>
@@ -2877,21 +2938,21 @@ public partial class UserMessageAttachmentSelection : UserMessageAttachment
     [JsonIgnore]
     public override string Type => "selection";
 
-    /// <summary>Absolute path to the file containing the selection.</summary>
-    [JsonPropertyName("filePath")]
-    public required string FilePath { get; set; }
-
     /// <summary>User-facing display name for the selection.</summary>
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
 
-    /// <summary>The selected text content.</summary>
-    [JsonPropertyName("text")]
-    public required string Text { get; set; }
+    /// <summary>Absolute path to the file containing the selection.</summary>
+    [JsonPropertyName("filePath")]
+    public required string FilePath { get; set; }
 
     /// <summary>Position range of the selection within the file.</summary>
     [JsonPropertyName("selection")]
     public required UserMessageAttachmentSelectionDetails Selection { get; set; }
+
+    /// <summary>The selected text content.</summary>
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
 }
 
 /// <summary>GitHub issue, pull request, or discussion reference.</summary>
@@ -2906,10 +2967,6 @@ public partial class UserMessageAttachmentGithubReference : UserMessageAttachmen
     [JsonPropertyName("number")]
     public required double Number { get; set; }
 
-    /// <summary>Title of the referenced item.</summary>
-    [JsonPropertyName("title")]
-    public required string Title { get; set; }
-
     /// <summary>Type of GitHub reference.</summary>
     [JsonPropertyName("referenceType")]
     public required UserMessageAttachmentGithubReferenceType ReferenceType { get; set; }
@@ -2917,6 +2974,10 @@ public partial class UserMessageAttachmentGithubReference : UserMessageAttachmen
     /// <summary>Current state of the referenced item (e.g., open, closed, merged).</summary>
     [JsonPropertyName("state")]
     public required string State { get; set; }
+
+    /// <summary>Title of the referenced item.</summary>
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
 
     /// <summary>URL to the referenced item on GitHub.</summary>
     [JsonPropertyName("url")]
@@ -2936,14 +2997,14 @@ public partial class UserMessageAttachmentBlob : UserMessageAttachment
     [JsonPropertyName("data")]
     public required string Data { get; set; }
 
-    /// <summary>MIME type of the inline data.</summary>
-    [JsonPropertyName("mimeType")]
-    public required string MimeType { get; set; }
-
     /// <summary>User-facing display name for the attachment.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("displayName")]
     public string? DisplayName { get; set; }
+
+    /// <summary>MIME type of the inline data.</summary>
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
 }
 
 /// <summary>A user message attachment — a file, directory, code selection, blob, or GitHub reference.</summary>
@@ -2968,38 +3029,38 @@ public partial class UserMessageAttachment
 /// <remarks>Nested data type for <c>AssistantMessageToolRequest</c>.</remarks>
 public partial class AssistantMessageToolRequest
 {
-    /// <summary>Unique identifier for this tool call.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
-
-    /// <summary>Name of the tool being invoked.</summary>
-    [JsonPropertyName("name")]
-    public required string Name { get; set; }
-
     /// <summary>Arguments to pass to the tool, format depends on the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
     public object? Arguments { get; set; }
 
-    /// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
+    /// <summary>Resolved intention summary describing what this specific call does.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("type")]
-    public AssistantMessageToolRequestType? Type { get; set; }
-
-    /// <summary>Human-readable display title for the tool.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolTitle")]
-    public string? ToolTitle { get; set; }
+    [JsonPropertyName("intentionSummary")]
+    public string? IntentionSummary { get; set; }
 
     /// <summary>Name of the MCP server hosting this tool, when the tool is an MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("mcpServerName")]
     public string? McpServerName { get; set; }
 
-    /// <summary>Resolved intention summary describing what this specific call does.</summary>
+    /// <summary>Name of the tool being invoked.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Unique identifier for this tool call.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+
+    /// <summary>Human-readable display title for the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("intentionSummary")]
-    public string? IntentionSummary { get; set; }
+    [JsonPropertyName("toolTitle")]
+    public string? ToolTitle { get; set; }
+
+    /// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("type")]
+    public AssistantMessageToolRequestType? Type { get; set; }
 }
 
 /// <summary>Token usage detail for a single billing category.</summary>
@@ -3036,6 +3097,57 @@ public partial class AssistantUsageCopilotUsage
     public required double TotalNanoAiu { get; set; }
 }
 
+/// <summary>Nested data type for <c>AssistantUsageQuotaSnapshot</c>.</summary>
+public partial class AssistantUsageQuotaSnapshot
+{
+    /// <summary>Total requests allowed by the entitlement.</summary>
+    [JsonPropertyName("entitlementRequests")]
+    public required double EntitlementRequests { get; set; }
+
+    /// <summary>Whether the user has an unlimited usage entitlement.</summary>
+    [JsonPropertyName("isUnlimitedEntitlement")]
+    public required bool IsUnlimitedEntitlement { get; set; }
+
+    /// <summary>Number of requests over the entitlement limit.</summary>
+    [JsonPropertyName("overage")]
+    public required double Overage { get; set; }
+
+    /// <summary>Whether overage is allowed when quota is exhausted.</summary>
+    [JsonPropertyName("overageAllowedWithExhaustedQuota")]
+    public required bool OverageAllowedWithExhaustedQuota { get; set; }
+
+    /// <summary>Percentage of quota remaining (0.0 to 1.0).</summary>
+    [JsonPropertyName("remainingPercentage")]
+    public required double RemainingPercentage { get; set; }
+
+    /// <summary>Date when the quota resets.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resetDate")]
+    public DateTimeOffset? ResetDate { get; set; }
+
+    /// <summary>Whether usage is still permitted after quota exhaustion.</summary>
+    [JsonPropertyName("usageAllowedWithExhaustedQuota")]
+    public required bool UsageAllowedWithExhaustedQuota { get; set; }
+
+    /// <summary>Number of requests already consumed.</summary>
+    [JsonPropertyName("usedRequests")]
+    public required double UsedRequests { get; set; }
+}
+
+/// <summary>Error details when the tool execution failed.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteError</c>.</remarks>
+public partial class ToolExecutionCompleteError
+{
+    /// <summary>Machine-readable error code.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
+
+    /// <summary>Human-readable error message.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
 /// <summary>Plain text content block.</summary>
 /// <remarks>The <c>text</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
 public partial class ToolExecutionCompleteContentText : ToolExecutionCompleteContent
@@ -3057,19 +3169,19 @@ public partial class ToolExecutionCompleteContentTerminal : ToolExecutionComplet
     [JsonIgnore]
     public override string Type => "terminal";
 
-    /// <summary>Terminal/shell output text.</summary>
-    [JsonPropertyName("text")]
-    public required string Text { get; set; }
+    /// <summary>Working directory where the command was executed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
 
     /// <summary>Process exit code, if the command has completed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("exitCode")]
     public double? ExitCode { get; set; }
 
-    /// <summary>Working directory where the command was executed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("cwd")]
-    public string? Cwd { get; set; }
+    /// <summary>Terminal/shell output text.</summary>
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
 }
 
 /// <summary>Image content block with base64-encoded data.</summary>
@@ -3112,10 +3224,6 @@ public partial class ToolExecutionCompleteContentAudio : ToolExecutionCompleteCo
 /// <remarks>Nested data type for <c>ToolExecutionCompleteContentResourceLinkIcon</c>.</remarks>
 public partial class ToolExecutionCompleteContentResourceLinkIcon
 {
-    /// <summary>URL or path to the icon image.</summary>
-    [JsonPropertyName("src")]
-    public required string Src { get; set; }
-
     /// <summary>MIME type of the icon image.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("mimeType")]
@@ -3125,6 +3233,10 @@ public partial class ToolExecutionCompleteContentResourceLinkIcon
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("sizes")]
     public string[]? Sizes { get; set; }
+
+    /// <summary>URL or path to the icon image.</summary>
+    [JsonPropertyName("src")]
+    public required string Src { get; set; }
 
     /// <summary>Theme variant this icon is intended for.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3140,14 +3252,29 @@ public partial class ToolExecutionCompleteContentResourceLink : ToolExecutionCom
     [JsonIgnore]
     public override string Type => "resource_link";
 
+    /// <summary>Human-readable description of the resource.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
     /// <summary>Icons associated with this resource.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("icons")]
     public ToolExecutionCompleteContentResourceLinkIcon[]? Icons { get; set; }
 
+    /// <summary>MIME type of the resource content.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
     /// <summary>Resource name identifier.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
+
+    /// <summary>Size of the resource in bytes.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("size")]
+    public double? Size { get; set; }
 
     /// <summary>Human-readable display title for the resource.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3157,21 +3284,6 @@ public partial class ToolExecutionCompleteContentResourceLink : ToolExecutionCom
     /// <summary>URI identifying the resource.</summary>
     [JsonPropertyName("uri")]
     public required string Uri { get; set; }
-
-    /// <summary>Human-readable description of the resource.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
-
-    /// <summary>MIME type of the resource content.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("mimeType")]
-    public string? MimeType { get; set; }
-
-    /// <summary>Size of the resource in bytes.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("size")]
-    public double? Size { get; set; }
 }
 
 /// <summary>Embedded resource content block with inline text or binary data.</summary>
@@ -3214,29 +3326,15 @@ public partial class ToolExecutionCompleteResult
     [JsonPropertyName("content")]
     public required string Content { get; set; }
 
-    /// <summary>Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("detailedContent")]
-    public string? DetailedContent { get; set; }
-
     /// <summary>Structured content blocks (text, images, audio, resources) returned by the tool in their native format.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("contents")]
     public ToolExecutionCompleteContent[]? Contents { get; set; }
-}
 
-/// <summary>Error details when the tool execution failed.</summary>
-/// <remarks>Nested data type for <c>ToolExecutionCompleteError</c>.</remarks>
-public partial class ToolExecutionCompleteError
-{
-    /// <summary>Human-readable error message.</summary>
-    [JsonPropertyName("message")]
-    public required string Message { get; set; }
-
-    /// <summary>Machine-readable error code.</summary>
+    /// <summary>Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("code")]
-    public string? Code { get; set; }
+    [JsonPropertyName("detailedContent")]
+    public string? DetailedContent { get; set; }
 }
 
 /// <summary>Error details when the hook failed.</summary>
@@ -3283,10 +3381,6 @@ public partial class SystemNotificationAgentCompleted : SystemNotification
     [JsonPropertyName("agentType")]
     public required string AgentType { get; set; }
 
-    /// <summary>Whether the agent completed successfully or failed.</summary>
-    [JsonPropertyName("status")]
-    public required SystemNotificationAgentCompletedStatus Status { get; set; }
-
     /// <summary>Human-readable description of the agent task.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("description")]
@@ -3296,6 +3390,10 @@ public partial class SystemNotificationAgentCompleted : SystemNotification
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("prompt")]
     public string? Prompt { get; set; }
+
+    /// <summary>Whether the agent completed successfully or failed.</summary>
+    [JsonPropertyName("status")]
+    public required SystemNotificationAgentCompletedStatus Status { get; set; }
 }
 
 /// <summary>The <c>agent_idle</c> variant of <see cref="SystemNotification"/>.</summary>
@@ -3319,6 +3417,30 @@ public partial class SystemNotificationAgentIdle : SystemNotification
     public string? Description { get; set; }
 }
 
+/// <summary>The <c>new_inbox_message</c> variant of <see cref="SystemNotification"/>.</summary>
+public partial class SystemNotificationNewInboxMessage : SystemNotification
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "new_inbox_message";
+
+    /// <summary>Unique identifier of the inbox entry.</summary>
+    [JsonPropertyName("entryId")]
+    public required string EntryId { get; set; }
+
+    /// <summary>Human-readable name of the sender.</summary>
+    [JsonPropertyName("senderName")]
+    public required string SenderName { get; set; }
+
+    /// <summary>Category of the sender (e.g., ambient-agent, plugin, hook).</summary>
+    [JsonPropertyName("senderType")]
+    public required string SenderType { get; set; }
+
+    /// <summary>Short summary shown before the agent decides whether to read the inbox.</summary>
+    [JsonPropertyName("summary")]
+    public required string Summary { get; set; }
+}
+
 /// <summary>The <c>shell_completed</c> variant of <see cref="SystemNotification"/>.</summary>
 public partial class SystemNotificationShellCompleted : SystemNotification
 {
@@ -3326,19 +3448,19 @@ public partial class SystemNotificationShellCompleted : SystemNotification
     [JsonIgnore]
     public override string Type => "shell_completed";
 
-    /// <summary>Unique identifier of the shell session.</summary>
-    [JsonPropertyName("shellId")]
-    public required string ShellId { get; set; }
+    /// <summary>Human-readable description of the command.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
 
     /// <summary>Exit code of the shell command, if available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("exitCode")]
     public double? ExitCode { get; set; }
 
-    /// <summary>Human-readable description of the command.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
+    /// <summary>Unique identifier of the shell session.</summary>
+    [JsonPropertyName("shellId")]
+    public required string ShellId { get; set; }
 }
 
 /// <summary>The <c>shell_detached_completed</c> variant of <see cref="SystemNotification"/>.</summary>
@@ -3348,14 +3470,14 @@ public partial class SystemNotificationShellDetachedCompleted : SystemNotificati
     [JsonIgnore]
     public override string Type => "shell_detached_completed";
 
-    /// <summary>Unique identifier of the detached shell session.</summary>
-    [JsonPropertyName("shellId")]
-    public required string ShellId { get; set; }
-
     /// <summary>Human-readable description of the command.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("description")]
     public string? Description { get; set; }
+
+    /// <summary>Unique identifier of the detached shell session.</summary>
+    [JsonPropertyName("shellId")]
+    public required string ShellId { get; set; }
 }
 
 /// <summary>Structured metadata identifying what triggered this notification.</summary>
@@ -3365,6 +3487,7 @@ public partial class SystemNotificationShellDetachedCompleted : SystemNotificati
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(SystemNotificationAgentCompleted), "agent_completed")]
 [JsonDerivedType(typeof(SystemNotificationAgentIdle), "agent_idle")]
+[JsonDerivedType(typeof(SystemNotificationNewInboxMessage), "new_inbox_message")]
 [JsonDerivedType(typeof(SystemNotificationShellCompleted), "shell_completed")]
 [JsonDerivedType(typeof(SystemNotificationShellDetachedCompleted), "shell_detached_completed")]
 public partial class SystemNotification
@@ -3403,22 +3526,25 @@ public partial class PermissionRequestShell : PermissionRequest
     [JsonIgnore]
     public override string Kind => "shell";
 
-    /// <summary>Tool call ID that triggered this permission request.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
+    /// <summary>Whether the UI can offer session-wide approval for this command pattern.</summary>
+    [JsonPropertyName("canOfferSessionApproval")]
+    public required bool CanOfferSessionApproval { get; set; }
+
+    /// <summary>Parsed command identifiers found in the command text.</summary>
+    [JsonPropertyName("commands")]
+    public required PermissionRequestShellCommand[] Commands { get; set; }
 
     /// <summary>The complete shell command text to be executed.</summary>
     [JsonPropertyName("fullCommandText")]
     public required string FullCommandText { get; set; }
 
+    /// <summary>Whether the command includes a file write redirection (e.g., &gt; or &gt;&gt;).</summary>
+    [JsonPropertyName("hasWriteFileRedirection")]
+    public required bool HasWriteFileRedirection { get; set; }
+
     /// <summary>Human-readable description of what the command intends to do.</summary>
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
-
-    /// <summary>Parsed command identifiers found in the command text.</summary>
-    [JsonPropertyName("commands")]
-    public required PermissionRequestShellCommand[] Commands { get; set; }
 
     /// <summary>File paths that may be read or written by the command.</summary>
     [JsonPropertyName("possiblePaths")]
@@ -3428,13 +3554,10 @@ public partial class PermissionRequestShell : PermissionRequest
     [JsonPropertyName("possibleUrls")]
     public required PermissionRequestShellPossibleUrl[] PossibleUrls { get; set; }
 
-    /// <summary>Whether the command includes a file write redirection (e.g., &gt; or &gt;&gt;).</summary>
-    [JsonPropertyName("hasWriteFileRedirection")]
-    public required bool HasWriteFileRedirection { get; set; }
-
-    /// <summary>Whether the UI can offer session-wide approval for this command pattern.</summary>
-    [JsonPropertyName("canOfferSessionApproval")]
-    public required bool CanOfferSessionApproval { get; set; }
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
 
     /// <summary>Optional warning message about risks of running this command.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3450,31 +3573,31 @@ public partial class PermissionRequestWrite : PermissionRequest
     [JsonIgnore]
     public override string Kind => "write";
 
-    /// <summary>Tool call ID that triggered this permission request.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
+    /// <summary>Whether the UI can offer session-wide approval for file write operations.</summary>
+    [JsonPropertyName("canOfferSessionApproval")]
+    public required bool CanOfferSessionApproval { get; set; }
 
-    /// <summary>Human-readable description of the intended file change.</summary>
-    [JsonPropertyName("intention")]
-    public required string Intention { get; set; }
+    /// <summary>Unified diff showing the proposed changes.</summary>
+    [JsonPropertyName("diff")]
+    public required string Diff { get; set; }
 
     /// <summary>Path of the file being written to.</summary>
     [JsonPropertyName("fileName")]
     public required string FileName { get; set; }
 
-    /// <summary>Unified diff showing the proposed changes.</summary>
-    [JsonPropertyName("diff")]
-    public required string Diff { get; set; }
+    /// <summary>Human-readable description of the intended file change.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
 
     /// <summary>Complete new file contents for newly created files.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("newFileContents")]
     public string? NewFileContents { get; set; }
 
-    /// <summary>Whether the UI can offer session-wide approval for file write operations.</summary>
-    [JsonPropertyName("canOfferSessionApproval")]
-    public required bool CanOfferSessionApproval { get; set; }
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
 }
 
 /// <summary>File or directory read permission request.</summary>
@@ -3485,11 +3608,6 @@ public partial class PermissionRequestRead : PermissionRequest
     [JsonIgnore]
     public override string Kind => "read";
 
-    /// <summary>Tool call ID that triggered this permission request.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-
     /// <summary>Human-readable description of why the file is being read.</summary>
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
@@ -3497,6 +3615,11 @@ public partial class PermissionRequestRead : PermissionRequest
     /// <summary>Path of the file or directory being read.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
 }
 
 /// <summary>MCP tool invocation permission request.</summary>
@@ -3507,23 +3630,6 @@ public partial class PermissionRequestMcp : PermissionRequest
     [JsonIgnore]
     public override string Kind => "mcp";
 
-    /// <summary>Tool call ID that triggered this permission request.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-
-    /// <summary>Name of the MCP server providing the tool.</summary>
-    [JsonPropertyName("serverName")]
-    public required string ServerName { get; set; }
-
-    /// <summary>Internal name of the MCP tool.</summary>
-    [JsonPropertyName("toolName")]
-    public required string ToolName { get; set; }
-
-    /// <summary>Human-readable title of the MCP tool.</summary>
-    [JsonPropertyName("toolTitle")]
-    public required string ToolTitle { get; set; }
-
     /// <summary>Arguments to pass to the MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
@@ -3532,6 +3638,23 @@ public partial class PermissionRequestMcp : PermissionRequest
     /// <summary>Whether this MCP tool is read-only (no side effects).</summary>
     [JsonPropertyName("readOnly")]
     public required bool ReadOnly { get; set; }
+
+    /// <summary>Name of the MCP server providing the tool.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Internal name of the MCP tool.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+
+    /// <summary>Human-readable title of the MCP tool.</summary>
+    [JsonPropertyName("toolTitle")]
+    public required string ToolTitle { get; set; }
 }
 
 /// <summary>URL access permission request.</summary>
@@ -3542,14 +3665,14 @@ public partial class PermissionRequestUrl : PermissionRequest
     [JsonIgnore]
     public override string Kind => "url";
 
+    /// <summary>Human-readable description of why the URL is being accessed.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
     public string? ToolCallId { get; set; }
-
-    /// <summary>Human-readable description of why the URL is being accessed.</summary>
-    [JsonPropertyName("intention")]
-    public required string Intention { get; set; }
 
     /// <summary>URL to be fetched.</summary>
     [JsonPropertyName("url")]
@@ -3564,24 +3687,10 @@ public partial class PermissionRequestMemory : PermissionRequest
     [JsonIgnore]
     public override string Kind => "memory";
 
-    /// <summary>Tool call ID that triggered this permission request.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-
     /// <summary>Whether this is a store or vote memory operation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("action")]
     public PermissionRequestMemoryAction? Action { get; set; }
-
-    /// <summary>Topic or subject of the memory (store only).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("subject")]
-    public string? Subject { get; set; }
-
-    /// <summary>The fact being stored or voted on.</summary>
-    [JsonPropertyName("fact")]
-    public required string Fact { get; set; }
 
     /// <summary>Source references for the stored fact (store only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3593,10 +3702,24 @@ public partial class PermissionRequestMemory : PermissionRequest
     [JsonPropertyName("direction")]
     public PermissionRequestMemoryDirection? Direction { get; set; }
 
+    /// <summary>The fact being stored or voted on.</summary>
+    [JsonPropertyName("fact")]
+    public required string Fact { get; set; }
+
     /// <summary>Reason for the vote (vote only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
+
+    /// <summary>Topic or subject of the memory (store only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("subject")]
+    public string? Subject { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
 }
 
 /// <summary>Custom tool invocation permission request.</summary>
@@ -3607,23 +3730,23 @@ public partial class PermissionRequestCustomTool : PermissionRequest
     [JsonIgnore]
     public override string Kind => "custom-tool";
 
+    /// <summary>Arguments to pass to the custom tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("args")]
+    public object? Args { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
     public string? ToolCallId { get; set; }
 
-    /// <summary>Name of the custom tool.</summary>
-    [JsonPropertyName("toolName")]
-    public required string ToolName { get; set; }
-
     /// <summary>Description of what the custom tool does.</summary>
     [JsonPropertyName("toolDescription")]
     public required string ToolDescription { get; set; }
 
-    /// <summary>Arguments to pass to the custom tool.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    /// <summary>Name of the custom tool.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
 }
 
 /// <summary>Hook confirmation permission request.</summary>
@@ -3634,6 +3757,16 @@ public partial class PermissionRequestHook : PermissionRequest
     [JsonIgnore]
     public override string Kind => "hook";
 
+    /// <summary>Optional message from the hook explaining why confirmation is needed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hookMessage")]
+    public string? HookMessage { get; set; }
+
+    /// <summary>Arguments of the tool call being gated.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolArgs")]
+    public object? ToolArgs { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -3642,16 +3775,6 @@ public partial class PermissionRequestHook : PermissionRequest
     /// <summary>Name of the tool the hook is gating.</summary>
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
-
-    /// <summary>Arguments of the tool call being gated.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
-
-    /// <summary>Optional message from the hook explaining why confirmation is needed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("hookMessage")]
-    public string? HookMessage { get; set; }
 }
 
 /// <summary>Details of the permission being requested.</summary>
@@ -3688,10 +3811,6 @@ public partial class PermissionCompletedResult
 /// <remarks>Nested data type for <c>ElicitationRequestedSchema</c>.</remarks>
 public partial class ElicitationRequestedSchema
 {
-    /// <summary>Schema type indicator (always 'object').</summary>
-    [JsonPropertyName("type")]
-    public required string Type { get; set; }
-
     /// <summary>Form field definitions, keyed by field name.</summary>
     [JsonPropertyName("properties")]
     public required IDictionary<string, object> Properties { get; set; }
@@ -3700,6 +3819,10 @@ public partial class ElicitationRequestedSchema
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("required")]
     public string[]? Required { get; set; }
+
+    /// <summary>Schema type indicator (always 'object').</summary>
+    [JsonPropertyName("type")]
+    public required string Type { get; set; }
 }
 
 /// <summary>Static OAuth client configuration, if the server specifies one.</summary>
@@ -3719,14 +3842,14 @@ public partial class McpOauthRequiredStaticClientConfig
 /// <summary>Nested data type for <c>CommandsChangedCommand</c>.</summary>
 public partial class CommandsChangedCommand
 {
-    /// <summary>Gets or sets the <c>name</c> value.</summary>
-    [JsonPropertyName("name")]
-    public required string Name { get; set; }
-
     /// <summary>Gets or sets the <c>description</c> value.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("description")]
     public string? Description { get; set; }
+
+    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
 }
 
 /// <summary>UI capability changes.</summary>
@@ -3742,13 +3865,22 @@ public partial class CapabilitiesChangedUI
 /// <summary>Nested data type for <c>SkillsLoadedSkill</c>.</summary>
 public partial class SkillsLoadedSkill
 {
+    /// <summary>Description of what the skill does.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Whether the skill is currently enabled.</summary>
+    [JsonPropertyName("enabled")]
+    public required bool Enabled { get; set; }
+
     /// <summary>Unique identifier for the skill.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
-    /// <summary>Description of what the skill does.</summary>
-    [JsonPropertyName("description")]
-    public required string Description { get; set; }
+    /// <summary>Absolute path to the skill file, if available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
 
     /// <summary>Source location type of the skill (e.g., project, personal, plugin).</summary>
     [JsonPropertyName("source")]
@@ -3757,35 +3889,31 @@ public partial class SkillsLoadedSkill
     /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
     [JsonPropertyName("userInvocable")]
     public required bool UserInvocable { get; set; }
-
-    /// <summary>Whether the skill is currently enabled.</summary>
-    [JsonPropertyName("enabled")]
-    public required bool Enabled { get; set; }
-
-    /// <summary>Absolute path to the skill file, if available.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("path")]
-    public string? Path { get; set; }
 }
 
 /// <summary>Nested data type for <c>CustomAgentsUpdatedAgent</c>.</summary>
 public partial class CustomAgentsUpdatedAgent
 {
-    /// <summary>Unique identifier for the agent.</summary>
-    [JsonPropertyName("id")]
-    public required string Id { get; set; }
-
-    /// <summary>Internal name of the agent.</summary>
-    [JsonPropertyName("name")]
-    public required string Name { get; set; }
+    /// <summary>Description of what the agent does.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
 
     /// <summary>Human-readable display name.</summary>
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
 
-    /// <summary>Description of what the agent does.</summary>
-    [JsonPropertyName("description")]
-    public required string Description { get; set; }
+    /// <summary>Unique identifier for the agent.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    /// <summary>Model override for this agent, if set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Internal name of the agent.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
 
     /// <summary>Source location: user, project, inherited, remote, or plugin.</summary>
     [JsonPropertyName("source")]
@@ -3798,33 +3926,28 @@ public partial class CustomAgentsUpdatedAgent
     /// <summary>Whether the agent can be selected by the user.</summary>
     [JsonPropertyName("userInvocable")]
     public required bool UserInvocable { get; set; }
-
-    /// <summary>Model override for this agent, if set.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
 }
 
 /// <summary>Nested data type for <c>McpServersLoadedServer</c>.</summary>
 public partial class McpServersLoadedServer
 {
+    /// <summary>Error message if the server failed to connect.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
     /// <summary>Server name (config key).</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
-
-    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
-    [JsonPropertyName("status")]
-    public required McpServersLoadedServerStatus Status { get; set; }
 
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
     public string? Source { get; set; }
 
-    /// <summary>Error message if the server failed to connect.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+    [JsonPropertyName("status")]
+    public required McpServersLoadedServerStatus Status { get; set; }
 }
 
 /// <summary>Nested data type for <c>ExtensionsLoadedExtension</c>.</summary>
@@ -3910,21 +4033,6 @@ public enum ShutdownType
     Error,
 }
 
-/// <summary>Type of GitHub reference.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<UserMessageAttachmentGithubReferenceType>))]
-public enum UserMessageAttachmentGithubReferenceType
-{
-    /// <summary>The <c>issue</c> variant.</summary>
-    [JsonStringEnumMemberName("issue")]
-    Issue,
-    /// <summary>The <c>pr</c> variant.</summary>
-    [JsonStringEnumMemberName("pr")]
-    Pr,
-    /// <summary>The <c>discussion</c> variant.</summary>
-    [JsonStringEnumMemberName("discussion")]
-    Discussion,
-}
-
 /// <summary>The agent mode that was active when this message was sent.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<UserMessageAgentMode>))]
 public enum UserMessageAgentMode
@@ -3941,6 +4049,21 @@ public enum UserMessageAgentMode
     /// <summary>The <c>shell</c> variant.</summary>
     [JsonStringEnumMemberName("shell")]
     Shell,
+}
+
+/// <summary>Type of GitHub reference.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<UserMessageAttachmentGithubReferenceType>))]
+public enum UserMessageAttachmentGithubReferenceType
+{
+    /// <summary>The <c>issue</c> variant.</summary>
+    [JsonStringEnumMemberName("issue")]
+    Issue,
+    /// <summary>The <c>pr</c> variant.</summary>
+    [JsonStringEnumMemberName("pr")]
+    Pr,
+    /// <summary>The <c>discussion</c> variant.</summary>
+    [JsonStringEnumMemberName("discussion")]
+    Discussion,
 }
 
 /// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
@@ -4172,6 +4295,7 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(AssistantUsageCopilotUsageTokenDetail))]
 [JsonSerializable(typeof(AssistantUsageData))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
+[JsonSerializable(typeof(AssistantUsageQuotaSnapshot))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedUI))]
@@ -4292,6 +4416,9 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(SessionWorkspaceFileChangedData))]
 [JsonSerializable(typeof(SessionWorkspaceFileChangedEvent))]
 [JsonSerializable(typeof(ShutdownCodeChanges))]
+[JsonSerializable(typeof(ShutdownModelMetric))]
+[JsonSerializable(typeof(ShutdownModelMetricRequests))]
+[JsonSerializable(typeof(ShutdownModelMetricUsage))]
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
 [JsonSerializable(typeof(SkillsLoadedSkill))]
@@ -4313,6 +4440,7 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(SystemNotificationAgentIdle))]
 [JsonSerializable(typeof(SystemNotificationData))]
 [JsonSerializable(typeof(SystemNotificationEvent))]
+[JsonSerializable(typeof(SystemNotificationNewInboxMessage))]
 [JsonSerializable(typeof(SystemNotificationShellCompleted))]
 [JsonSerializable(typeof(SystemNotificationShellDetachedCompleted))]
 [JsonSerializable(typeof(ToolExecutionCompleteContent))]

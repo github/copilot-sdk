@@ -5,6 +5,7 @@
 using System.Data;
 using System.Reflection;
 using GitHub.Copilot.SDK.Test.Harness;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -24,6 +25,26 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         _fixture = fixture;
         _snapshotCategory = snapshotCategory;
         _testName = GetTestName(output);
+        Logger = new XunitLogger(output);
+
+        // Wire logger into the shared context so all clients created via Ctx.CreateClient get it.
+        Ctx.Logger = Logger;
+    }
+
+    /// <summary>Logger that forwards warnings and above to xunit test output.</summary>
+    protected ILogger Logger { get; }
+
+    /// <summary>Bridges <see cref="ILogger"/> to xunit's <see cref="ITestOutputHelper"/>.</summary>
+    private sealed class XunitLogger(ITestOutputHelper output) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (!IsEnabled(logLevel)) return;
+            try { output.WriteLine($"[{logLevel}] {formatter(state, exception)}"); }
+            catch (InvalidOperationException) { /* test already finished */ }
+        }
     }
 
     private static string GetTestName(ITestOutputHelper output)

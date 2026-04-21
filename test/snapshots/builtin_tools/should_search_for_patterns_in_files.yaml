@@ -43,10 +43,10 @@ conversations:
       - role: tool
         tool_call_id: toolcall_1
         content: |-
-          ${workdir}/data.txt:1:apple
-          ${workdir}/data.txt:3:apricot
+          ./data.txt:1:apple
+          ./data.txt:3:apricot
       - role: assistant
         content: |-
-          Two lines matched:
+          The search found **2 lines** starting with 'ap':
           - Line 1: `apple`
           - Line 3: `apricot`

@@ -6,13 +6,15 @@ import { SessionCompactionCompleteEvent } from "@github/copilot/sdk";
 import { MemoryProvider, VirtualProvider } from "@platformatic/vfs";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../../src/client.js";
-import { SessionFsHandler } from "../../src/generated/rpc.js";
+import type { SessionFsReaddirWithTypesEntry } from "../../src/generated/rpc.js";
 import {
     approveAll,
     CopilotSession,
     defineTool,
     SessionEvent,
     type SessionFsConfig,
+    type SessionFsProvider,
+    type SessionFsFileInfo,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -123,6 +125,46 @@ describe("Session Fs", async () => {
         expect(fileContent).toBe(suppliedFileContent);
     });
 
+    it("should write workspace metadata via sessionFs", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            createSessionFsHandler,
+        });
+
+        const msg = await session.sendAndWait({ prompt: "What is 7 * 8?" });
+        expect(msg?.data.content).toContain("56");
+
+        // WorkspaceManager should have created workspace.yaml via sessionFs
+        const workspaceYamlPath = p(session.sessionId, "/session-state/workspace.yaml");
+        await expect.poll(() => provider.exists(workspaceYamlPath)).toBe(true);
+        const yaml = await provider.readFile(workspaceYamlPath, "utf8");
+        expect(yaml).toContain("id:");
+
+        // Checkpoint index should also exist
+        const indexPath = p(session.sessionId, "/session-state/checkpoints/index.md");
+        await expect.poll(() => provider.exists(indexPath)).toBe(true);
+
+        await session.disconnect();
+    });
+
+    it("should persist plan.md via sessionFs", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            createSessionFsHandler,
+        });
+
+        // Write a plan via the session RPC
+        await session.sendAndWait({ prompt: "What is 2 + 3?" });
+        await session.rpc.plan.update({ content: "# Test Plan\n\nThis is a test." });
+
+        const planPath = p(session.sessionId, "/session-state/plan.md");
+        await expect.poll(() => provider.exists(planPath)).toBe(true);
+        const content = await provider.readFile(planPath, "utf8");
+        expect(content).toContain("# Test Plan");
+
+        await session.disconnect();
+    });
+
     it("should succeed with compaction while using sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
@@ -177,26 +219,24 @@ const sessionFsConfig: SessionFsConfig = {
 function createTestSessionFsHandler(
     session: CopilotSession,
     provider: VirtualProvider
-): SessionFsHandler {
-    const sp = (sessionId: string, path: string) =>
-        `/${sessionId}${path.startsWith("/") ? path : "/" + path}`;
+): SessionFsProvider {
+    const sp = (path: string) => `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
 
     return {
-        readFile: async ({ path }) => {
-            const content = await provider.readFile(sp(session.sessionId, path), "utf8");
-            return { content: content as string };
+        async readFile(path: string): Promise<string> {
+            return (await provider.readFile(sp(path), "utf8")) as string;
         },
-        writeFile: async ({ path, content }) => {
-            await provider.writeFile(sp(session.sessionId, path), content);
+        async writeFile(path: string, content: string): Promise<void> {
+            await provider.writeFile(sp(path), content);
         },
-        appendFile: async ({ path, content }) => {
-            await provider.appendFile(sp(session.sessionId, path), content);
+        async appendFile(path: string, content: string): Promise<void> {
+            await provider.appendFile(sp(path), content);
         },
-        exists: async ({ path }) => {
-            return { exists: await provider.exists(sp(session.sessionId, path)) };
+        async exists(path: string): Promise<boolean> {
+            return provider.exists(sp(path));
         },
-        stat: async ({ path }) => {
-            const st = await provider.stat(sp(session.sessionId, path));
+        async stat(path: string): Promise<SessionFsFileInfo> {
+            const st = await provider.stat(sp(path));
             return {
                 isFile: st.isFile(),
                 isDirectory: st.isDirectory(),
@@ -205,34 +245,29 @@ function createTestSessionFsHandler(
                 birthtime: new Date(st.birthtimeMs).toISOString(),
             };
         },
-        mkdir: async ({ path, recursive, mode }) => {
-            await provider.mkdir(sp(session.sessionId, path), {
-                recursive: recursive ?? false,
-                mode,
-            });
+        async mkdir(path: string, recursive: boolean, mode?: number): Promise<void> {
+            await provider.mkdir(sp(path), { recursive, mode });
         },
-        readdir: async ({ path }) => {
-            const entries = await provider.readdir(sp(session.sessionId, path));
-            return { entries: entries as string[] };
+        async readdir(path: string): Promise<string[]> {
+            return (await provider.readdir(sp(path))) as string[];
         },
-        readdirWithTypes: async ({ path }) => {
-            const names = (await provider.readdir(sp(session.sessionId, path))) as string[];
-            const entries = await Promise.all(
+        async readdirWithTypes(path: string): Promise<SessionFsReaddirWithTypesEntry[]> {
+            const names = (await provider.readdir(sp(path))) as string[];
+            return Promise.all(
                 names.map(async (name) => {
-                    const st = await provider.stat(sp(session.sessionId, `${path}/${name}`));
+                    const st = await provider.stat(sp(`${path}/${name}`));
                     return {
                         name,
                         type: st.isDirectory() ? ("directory" as const) : ("file" as const),
                     };
                 })
             );
-            return { entries };
         },
-        rm: async ({ path }) => {
-            await provider.unlink(sp(session.sessionId, path));
+        async rm(path: string): Promise<void> {
+            await provider.unlink(sp(path));
         },
-        rename: async ({ src, dest }) => {
-            await provider.rename(sp(session.sessionId, src), sp(session.sessionId, dest));
+        async rename(src: string, dest: string): Promise<void> {
+            await provider.rename(sp(src), sp(dest));
         },
     };
 }
