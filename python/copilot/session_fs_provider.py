@@ -60,11 +60,11 @@ class SessionFsProvider(abc.ABC):
         """Read the full content of a file.  Raise if the file does not exist."""
 
     @abc.abstractmethod
-    async def write_file(self, path: str, content: str) -> None:
+    async def write_file(self, path: str, content: str, mode: int | None = None) -> None:
         """Write *content* to a file, creating parent directories if needed."""
 
     @abc.abstractmethod
-    async def append_file(self, path: str, content: str) -> None:
+    async def append_file(self, path: str, content: str, mode: int | None = None) -> None:
         """Append *content* to a file, creating parent directories if needed."""
 
     @abc.abstractmethod
@@ -121,14 +121,14 @@ class _SessionFsAdapter:
 
     async def write_file(self, params: object) -> SessionFSError | None:
         try:
-            await self._p.write_file(params.path, params.content)  # type: ignore[attr-defined]
+            await self._p.write_file(params.path, params.content, getattr(params, "mode", None))  # type: ignore[attr-defined]
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)
 
     async def append_file(self, params: object) -> SessionFSError | None:
         try:
-            await self._p.append_file(params.path, params.content)  # type: ignore[attr-defined]
+            await self._p.append_file(params.path, params.content, getattr(params, "mode", None))  # type: ignore[attr-defined]
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)

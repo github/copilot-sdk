@@ -438,14 +438,14 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             return await File.ReadAllTextAsync(ResolvePath(path), cancellationToken);
         }
 
-        protected override async Task WriteFileAsync(string path, string content, CancellationToken cancellationToken)
+        protected override async Task WriteFileAsync(string path, string content, int? mode, CancellationToken cancellationToken)
         {
             var fullPath = ResolvePath(path);
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
             await File.WriteAllTextAsync(fullPath, content, cancellationToken);
         }
 
-        protected override async Task AppendFileAsync(string path, string content, CancellationToken cancellationToken)
+        protected override async Task AppendFileAsync(string path, string content, int? mode, CancellationToken cancellationToken)
         {
             var fullPath = ResolvePath(path);
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);

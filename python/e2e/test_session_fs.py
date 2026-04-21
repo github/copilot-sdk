@@ -276,12 +276,12 @@ class _TestSessionFsProvider(SessionFsProvider):
     async def read_file(self, path: str) -> str:
         return self._path(path).read_text(encoding="utf-8")
 
-    async def write_file(self, path: str, content: str) -> None:
+    async def write_file(self, path: str, content: str, mode: int | None = None) -> None:
         p = self._path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
 
-    async def append_file(self, path: str, content: str) -> None:
+    async def append_file(self, path: str, content: str, mode: int | None = None) -> None:
         p = self._path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("a", encoding="utf-8") as handle:

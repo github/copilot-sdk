@@ -23,14 +23,16 @@ public abstract class SessionFsProvider : ISessionFsHandler
     /// <summary>Writes content to a file, creating it (and parent directories) if needed.</summary>
     /// <param name="path">SessionFs-relative path.</param>
     /// <param name="content">Content to write.</param>
+    /// <param name="mode">Optional POSIX-style permission mode. Null means use OS default.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task WriteFileAsync(string path, string content, CancellationToken cancellationToken);
+    protected abstract Task WriteFileAsync(string path, string content, int? mode, CancellationToken cancellationToken);
 
     /// <summary>Appends content to a file, creating it (and parent directories) if needed.</summary>
     /// <param name="path">SessionFs-relative path.</param>
     /// <param name="content">Content to append.</param>
+    /// <param name="mode">Optional POSIX-style permission mode. Null means use OS default.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task AppendFileAsync(string path, string content, CancellationToken cancellationToken);
+    protected abstract Task AppendFileAsync(string path, string content, int? mode, CancellationToken cancellationToken);
 
     /// <summary>Checks whether a path exists.</summary>
     /// <param name="path">SessionFs-relative path.</param>
@@ -92,7 +94,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
     {
         try
         {
-            await WriteFileAsync(request.Path, request.Content, cancellationToken).ConfigureAwait(false);
+            await WriteFileAsync(request.Path, request.Content, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
             return null;
         }
         catch (Exception ex)
@@ -105,7 +107,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
     {
         try
         {
-            await AppendFileAsync(request.Path, request.Content, cancellationToken).ConfigureAwait(false);
+            await AppendFileAsync(request.Path, request.Content, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
             return null;
         }
         catch (Exception ex)

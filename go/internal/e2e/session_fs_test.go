@@ -350,20 +350,28 @@ func (h *testSessionFsHandler) ReadFile(path string) (string, error) {
 	return string(content), nil
 }
 
-func (h *testSessionFsHandler) WriteFile(path string, content string) error {
+func (h *testSessionFsHandler) WriteFile(path string, content string, mode *int) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(fullPath, []byte(content), 0o666)
+	perm := os.FileMode(0o666)
+	if mode != nil {
+		perm = os.FileMode(*mode)
+	}
+	return os.WriteFile(fullPath, []byte(content), perm)
 }
 
-func (h *testSessionFsHandler) AppendFile(path string, content string) error {
+func (h *testSessionFsHandler) AppendFile(path string, content string, mode *int) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
+	perm := os.FileMode(0o666)
+	if mode != nil {
+		perm = os.FileMode(*mode)
+	}
+	f, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, perm)
 	if err != nil {
 		return err
 	}

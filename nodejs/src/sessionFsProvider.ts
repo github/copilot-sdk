@@ -30,10 +30,10 @@ export interface SessionFsProvider {
     readFile(path: string): Promise<string>;
 
     /** Writes content to a file, creating parent directories if needed. */
-    writeFile(path: string, content: string): Promise<void>;
+    writeFile(path: string, content: string, mode?: number): Promise<void>;
 
     /** Appends content to a file, creating parent directories if needed. */
-    appendFile(path: string, content: string): Promise<void>;
+    appendFile(path: string, content: string, mode?: number): Promise<void>;
 
     /** Checks whether a path exists. */
     exists(path: string): Promise<boolean>;
@@ -72,17 +72,17 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
                 return { content: "", error: toSessionFsError(err) };
             }
         },
-        writeFile: async ({ path, content }) => {
+        writeFile: async ({ path, content, mode }) => {
             try {
-                await provider.writeFile(path, content);
+                await provider.writeFile(path, content, mode);
                 return undefined;
             } catch (err) {
                 return toSessionFsError(err);
             }
         },
-        appendFile: async ({ path, content }) => {
+        appendFile: async ({ path, content, mode }) => {
             try {
-                await provider.appendFile(path, content);
+                await provider.appendFile(path, content, mode);
                 return undefined;
             } catch (err) {
                 return toSessionFsError(err);

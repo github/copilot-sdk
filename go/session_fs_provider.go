@@ -20,9 +20,11 @@ type SessionFsProvider interface {
 	// if the file does not exist.
 	ReadFile(path string) (string, error)
 	// WriteFile writes content to a file, creating it and parent directories if needed.
-	WriteFile(path string, content string) error
+	// mode is an optional POSIX-style permission mode. Pass nil to use the OS default.
+	WriteFile(path string, content string, mode *int) error
 	// AppendFile appends content to a file, creating it and parent directories if needed.
-	AppendFile(path string, content string) error
+	// mode is an optional POSIX-style permission mode. Pass nil to use the OS default.
+	AppendFile(path string, content string, mode *int) error
 	// Exists checks whether the given path exists.
 	Exists(path string) (bool, error)
 	// Stat returns metadata about a file or directory.
@@ -72,14 +74,24 @@ func (a *sessionFsAdapter) ReadFile(request *rpc.SessionFSReadFileRequest) (*rpc
 }
 
 func (a *sessionFsAdapter) WriteFile(request *rpc.SessionFSWriteFileRequest) (*rpc.SessionFSError, error) {
-	if err := a.provider.WriteFile(request.Path, request.Content); err != nil {
+	var mode *int
+	if request.Mode != nil {
+		m := int(*request.Mode)
+		mode = &m
+	}
+	if err := a.provider.WriteFile(request.Path, request.Content, mode); err != nil {
 		return toSessionFsError(err), nil
 	}
 	return nil, nil
 }
 
 func (a *sessionFsAdapter) AppendFile(request *rpc.SessionFSAppendFileRequest) (*rpc.SessionFSError, error) {
-	if err := a.provider.AppendFile(request.Path, request.Content); err != nil {
+	var mode *int
+	if request.Mode != nil {
+		m := int(*request.Mode)
+		mode = &m
+	}
+	if err := a.provider.AppendFile(request.Path, request.Content, mode); err != nil {
 		return toSessionFsError(err), nil
 	}
 	return nil, nil
