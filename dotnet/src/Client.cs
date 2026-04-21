@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StreamJsonRpc;
+using StreamJsonRpc.Protocol;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Diagnostics;
@@ -497,9 +498,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 hasHooks ? true : null,
                 config.WorkingDirectory,
                 config.Streaming is true ? true : null,
+                config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
                 "direct",
                 config.CustomAgents,
+                config.DefaultAgent,
                 config.Agent,
                 config.ConfigDir,
                 config.EnableConfigDiscovery,
@@ -622,9 +625,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableConfigDiscovery,
                 config.DisableResume is true ? true : null,
                 config.Streaming is true ? true : null,
+                config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
                 "direct",
                 config.CustomAgents,
+                config.DefaultAgent,
                 config.Agent,
                 config.SkillDirectories,
                 config.DisabledSkills,
@@ -1102,7 +1107,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             cancellationToken);
     }
 
-    private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, ISessionFsHandler>? createSessionFsHandler)
+    private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, SessionFsProvider>? createSessionFsHandler)
     {
         if (_options.SessionFs is null)
         {
@@ -1636,9 +1641,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? Hooks,
         string? WorkingDirectory,
         bool? Streaming,
+        bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
         string? EnvValueMode,
         IList<CustomAgentConfig>? CustomAgents,
+        DefaultAgentConfig? DefaultAgent,
         string? Agent,
         string? ConfigDir,
         bool? EnableConfigDiscovery,
@@ -1691,9 +1698,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? EnableConfigDiscovery,
         bool? DisableResume,
         bool? Streaming,
+        bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
         string? EnvValueMode,
         IList<CustomAgentConfig>? CustomAgents,
+        DefaultAgentConfig? DefaultAgent,
         string? Agent,
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
@@ -1832,6 +1841,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         AllowOutOfOrderMetadataProperties = true,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonSerializable(typeof(CommonErrorData))]
     [JsonSerializable(typeof(CreateSessionRequest))]
     [JsonSerializable(typeof(CreateSessionResponse))]
     [JsonSerializable(typeof(CustomAgentConfig))]

@@ -7,11 +7,13 @@
  */
 
 // Import and re-export generated session event types
-import type { SessionFsHandler } from "./generated/rpc.js";
+import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 export type SessionEvent = GeneratedSessionEvent;
-export type { SessionFsHandler } from "./generated/rpc.js";
+export type { SessionFsProvider } from "./sessionFsProvider.js";
+export { createSessionFsAdapter } from "./sessionFsProvider.js";
+export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 
 /**
  * Options for creating a CopilotClient
@@ -748,9 +750,8 @@ export type SystemMessageConfig =
  * Permission request types from the server
  */
 export interface PermissionRequest {
-    kind: "shell" | "write" | "mcp" | "read" | "url" | "custom-tool";
+    kind: "shell" | "write" | "mcp" | "read" | "url" | "custom-tool" | "memory" | "hook";
     toolCallId?: string;
-    [key: string]: unknown;
 }
 
 import type { PermissionDecisionRequest } from "./generated/rpc.js";
@@ -1124,6 +1125,21 @@ export interface CustomAgentConfig {
 }
 
 /**
+ * Configuration for the default agent (the built-in agent that handles
+ * turns when no custom agent is selected).
+ * Use this to control tool visibility for the default agent independently of custom sub-agents.
+ */
+export interface DefaultAgentConfig {
+    /**
+     * List of tool names to exclude from the default agent.
+     * These tools remain available to custom sub-agents that reference them in their `tools` array.
+     * Use this to register tools that should only be accessed via delegation to sub-agents,
+     * keeping the default agent's context clean.
+     */
+    excludedTools?: string[];
+}
+
+/**
  * Configuration for infinite sessions with automatic context compaction and workspace persistence.
  * When enabled, sessions automatically manage context window limits through background compaction
  * and persist state to a workspace directory.
@@ -1280,6 +1296,17 @@ export interface SessionConfig {
     streaming?: boolean;
 
     /**
+     * Include sub-agent streaming events in the event stream. When true, streaming
+     * delta events from sub-agents (e.g., `assistant.message_delta`,
+     * `assistant.reasoning_delta`, `assistant.streaming_delta` with `agentId` set)
+     * are forwarded to this connection. When false, only non-streaming sub-agent
+     * events and `subagent.*` lifecycle events are forwarded; streaming deltas from
+     * sub-agents are suppressed.
+     * @default true
+     */
+    includeSubAgentStreamingEvents?: boolean;
+
+    /**
      * MCP server configurations for the session.
      * Keys are server names, values are server configurations.
      */
@@ -1289,6 +1316,14 @@ export interface SessionConfig {
      * Custom agent configurations for the session.
      */
     customAgents?: CustomAgentConfig[];
+
+    /**
+     * Configuration for the default agent (the built-in agent that handles
+     * turns when no custom agent is selected).
+     * Use `excludedTools` to hide specific tools from the default agent while keeping
+     * them available to custom sub-agents.
+     */
+    defaultAgent?: DefaultAgentConfig;
 
     /**
      * Name of the custom agent to activate when the session starts.
@@ -1329,7 +1364,7 @@ export interface SessionConfig {
      * Supplies a handler for session filesystem operations. This takes effect
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
-    createSessionFsHandler?: (session: CopilotSession) => SessionFsHandler;
+    createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider;
 }
 
 /**
@@ -1347,6 +1382,7 @@ export type ResumeSessionConfig = Pick<
     | "provider"
     | "modelCapabilities"
     | "streaming"
+    | "includeSubAgentStreamingEvents"
     | "reasoningEffort"
     | "onPermissionRequest"
     | "onUserInputRequest"
@@ -1357,6 +1393,7 @@ export type ResumeSessionConfig = Pick<
     | "enableConfigDiscovery"
     | "mcpServers"
     | "customAgents"
+    | "defaultAgent"
     | "agent"
     | "skillDirectories"
     | "disabledSkills"

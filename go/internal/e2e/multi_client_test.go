@@ -200,9 +200,7 @@ func TestMultiClient(t *testing.T) {
 		mu1.Lock()
 		c1PermRequested := filterEventsByType(client1Events, copilot.SessionEventTypePermissionRequested)
 		mu1.Unlock()
-		mu2.Lock()
-		c2PermRequested := filterEventsByType(client2Events, copilot.SessionEventTypePermissionRequested)
-		mu2.Unlock()
+		c2PermRequested := waitForEventsByType(t, &mu2, &client2Events, copilot.SessionEventTypePermissionRequested, 5*time.Second)
 
 		if len(c1PermRequested) == 0 {
 			t.Errorf("Expected client 1 to see permission.requested events")
@@ -215,9 +213,7 @@ func TestMultiClient(t *testing.T) {
 		mu1.Lock()
 		c1PermCompleted := filterEventsByType(client1Events, copilot.SessionEventTypePermissionCompleted)
 		mu1.Unlock()
-		mu2.Lock()
-		c2PermCompleted := filterEventsByType(client2Events, copilot.SessionEventTypePermissionCompleted)
-		mu2.Unlock()
+		c2PermCompleted := waitForEventsByType(t, &mu2, &client2Events, copilot.SessionEventTypePermissionCompleted, 5*time.Second)
 
 		if len(c1PermCompleted) == 0 {
 			t.Errorf("Expected client 1 to see permission.completed events")
@@ -297,9 +293,7 @@ func TestMultiClient(t *testing.T) {
 		mu1.Lock()
 		c1PermRequested := filterEventsByType(client1Events, copilot.SessionEventTypePermissionRequested)
 		mu1.Unlock()
-		mu2.Lock()
-		c2PermRequested := filterEventsByType(client2Events, copilot.SessionEventTypePermissionRequested)
-		mu2.Unlock()
+		c2PermRequested := waitForEventsByType(t, &mu2, &client2Events, copilot.SessionEventTypePermissionRequested, 5*time.Second)
 
 		if len(c1PermRequested) == 0 {
 			t.Errorf("Expected client 1 to see permission.requested events")
@@ -312,9 +306,7 @@ func TestMultiClient(t *testing.T) {
 		mu1.Lock()
 		c1PermCompleted := filterEventsByType(client1Events, copilot.SessionEventTypePermissionCompleted)
 		mu1.Unlock()
-		mu2.Lock()
-		c2PermCompleted := filterEventsByType(client2Events, copilot.SessionEventTypePermissionCompleted)
-		mu2.Unlock()
+		c2PermCompleted := waitForEventsByType(t, &mu2, &client2Events, copilot.SessionEventTypePermissionCompleted, 5*time.Second)
 
 		if len(c1PermCompleted) == 0 {
 			t.Errorf("Expected client 1 to see permission.completed events")
@@ -518,4 +510,21 @@ func filterEventsByType(events []copilot.SessionEvent, eventType copilot.Session
 		}
 	}
 	return filtered
+}
+
+// waitForEventsByType polls the event slice until at least one event of the given type appears
+// or the timeout is reached. This avoids flaky assertions on async event delivery.
+func waitForEventsByType(t *testing.T, mu *sync.Mutex, events *[]copilot.SessionEvent, eventType copilot.SessionEventType, timeout time.Duration) []copilot.SessionEvent {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		filtered := filterEventsByType(*events, eventType)
+		mu.Unlock()
+		if len(filtered) > 0 {
+			return filtered
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return nil
 }

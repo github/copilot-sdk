@@ -27,6 +27,7 @@ import {
 import { createServerRpc, registerClientSessionApiHandlers } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
+import { createSessionFsAdapter } from "./sessionFsProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     ConnectionState,
@@ -712,7 +713,9 @@ export class CopilotClient {
         this.sessions.set(sessionId, session);
         if (this.sessionFsConfig) {
             if (config.createSessionFsHandler) {
-                session.clientSessionApis.sessionFs = config.createSessionFsHandler(session);
+                session.clientSessionApis.sessionFs = createSessionFsAdapter(
+                    config.createSessionFsHandler(session)
+                );
             } else {
                 throw new Error(
                     "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
@@ -749,9 +752,11 @@ export class CopilotClient {
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
+                includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: config.mcpServers,
                 envValueMode: "direct",
                 customAgents: config.customAgents,
+                defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 configDir: config.configDir,
                 enableConfigDiscovery: config.enableConfigDiscovery,
@@ -849,7 +854,9 @@ export class CopilotClient {
         this.sessions.set(sessionId, session);
         if (this.sessionFsConfig) {
             if (config.createSessionFsHandler) {
-                session.clientSessionApis.sessionFs = config.createSessionFsHandler(session);
+                session.clientSessionApis.sessionFs = createSessionFsAdapter(
+                    config.createSessionFsHandler(session)
+                );
             } else {
                 throw new Error(
                     "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
@@ -889,9 +896,11 @@ export class CopilotClient {
                 configDir: config.configDir,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 streaming: config.streaming,
+                includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: config.mcpServers,
                 envValueMode: "direct",
                 customAgents: config.customAgents,
+                defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
                 disabledSkills: config.disabledSkills,
@@ -1020,6 +1029,26 @@ export class CopilotClient {
                 const result = await this.connection.sendRequest("models.list", {});
                 const response = result as { models: ModelInfo[] };
                 models = response.models;
+
+                // Normalize model capabilities — some models (e.g. embedding models)
+                // may omit 'supports' or 'limits' in their capabilities.
+                for (const model of models) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const m = model as any;
+                    if (!m.capabilities) {
+                        m.capabilities = {
+                            supports: {},
+                            limits: { max_context_window_tokens: 0 },
+                        };
+                    } else {
+                        if (!m.capabilities.supports) m.capabilities.supports = {};
+                        if (!m.capabilities.limits) {
+                            m.capabilities.limits = { max_context_window_tokens: 0 };
+                        } else if (m.capabilities.limits.max_context_window_tokens === undefined) {
+                            m.capabilities.limits.max_context_window_tokens = 0;
+                        }
+                    }
+                }
             }
 
             // Update cache before releasing lock (copy to prevent external mutation)

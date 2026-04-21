@@ -10,14 +10,19 @@ Every extension starts with the same boilerplate:
 import { joinSession } from "@github/copilot-sdk/extension";
 
 const session = await joinSession({
-    hooks: { /* ... */ },
-    tools: [ /* ... */ ],
+    hooks: {
+        /* ... */
+    },
+    tools: [
+        /* ... */
+    ],
 });
 ```
 
 `joinSession` returns a `CopilotSession` object you can use to send messages and subscribe to events.
 
 > **Platform notes (Windows vs macOS/Linux):**
+>
 > - Use `process.platform === "win32"` to detect Windows at runtime.
 > - Clipboard: `pbcopy` on macOS, `clip` on Windows.
 > - Use `exec()` instead of `execFile()` for `.cmd` scripts like `code`, `npx`, `npm` on Windows.
@@ -71,7 +76,7 @@ tools: [
             return `Processed: ${args.input}`;
         },
     },
-]
+];
 ```
 
 ### Tool that invokes an external shell command
@@ -136,7 +141,7 @@ handler: async (args, invocation) => {
     // invocation.toolCallId — unique ID for this tool call
     // invocation.toolName   — name of the tool being called
     return "done";
-}
+};
 ```
 
 ---
@@ -147,14 +152,14 @@ Hooks intercept and modify behavior at key lifecycle points. Register them in th
 
 ### Available Hooks
 
-| Hook | Fires When | Can Modify |
-|------|-----------|------------|
-| `onUserPromptSubmitted` | User sends a message | The prompt text, add context |
-| `onPreToolUse` | Before a tool executes | Tool args, permission decision, add context |
-| `onPostToolUse` | After a tool executes | Tool result, add context |
-| `onSessionStart` | Session starts or resumes | Add context, modify config |
-| `onSessionEnd` | Session ends | Cleanup actions, summary |
-| `onErrorOccurred` | An error occurs | Error handling strategy (retry/skip/abort) |
+| Hook                    | Fires When                | Can Modify                                  |
+| ----------------------- | ------------------------- | ------------------------------------------- |
+| `onUserPromptSubmitted` | User sends a message      | The prompt text, add context                |
+| `onPreToolUse`          | Before a tool executes    | Tool args, permission decision, add context |
+| `onPostToolUse`         | After a tool executes     | Tool result, add context                    |
+| `onSessionStart`        | Session starts or resumes | Add context, modify config                  |
+| `onSessionEnd`          | Session ends              | Cleanup actions, summary                    |
+| `onErrorOccurred`       | An error occurs           | Error handling strategy (retry/skip/abort)  |
 
 All hook inputs include `timestamp` (unix ms) and `cwd` (working directory).
 
@@ -400,18 +405,18 @@ session.on("assistant.message", (event) => {
 
 ### Top 10 Most Useful Event Types
 
-| Event Type | Description | Key Data Fields |
-|-----------|-------------|-----------------|
-| `assistant.message` | Agent's final response | `content`, `messageId`, `toolRequests` |
-| `assistant.streaming_delta` | Token-by-token streaming (ephemeral) | `totalResponseSizeBytes` |
-| `tool.execution_start` | A tool is about to run | `toolCallId`, `toolName`, `arguments` |
-| `tool.execution_complete` | A tool finished running | `toolCallId`, `toolName`, `success`, `result`, `error` |
-| `user.message` | User sent a message | `content`, `attachments`, `source` |
-| `session.idle` | Session finished processing a turn | `backgroundTasks` |
-| `session.error` | An error occurred | `errorType`, `message`, `stack` |
-| `permission.requested` | Agent needs permission (shell, file write, etc.) | `requestId`, `permissionRequest.kind` |
-| `session.shutdown` | Session is ending | `shutdownType`, `totalPremiumRequests`, `codeChanges` |
-| `assistant.turn_start` | Agent begins a new thinking/response cycle | `turnId` |
+| Event Type                  | Description                                      | Key Data Fields                                        |
+| --------------------------- | ------------------------------------------------ | ------------------------------------------------------ |
+| `assistant.message`         | Agent's final response                           | `content`, `messageId`, `toolRequests`                 |
+| `assistant.streaming_delta` | Token-by-token streaming (ephemeral)             | `totalResponseSizeBytes`                               |
+| `tool.execution_start`      | A tool is about to run                           | `toolCallId`, `toolName`, `arguments`                  |
+| `tool.execution_complete`   | A tool finished running                          | `toolCallId`, `toolName`, `success`, `result`, `error` |
+| `user.message`              | User sent a message                              | `content`, `attachments`, `source`                     |
+| `session.idle`              | Session finished processing a turn               | `backgroundTasks`                                      |
+| `session.error`             | An error occurred                                | `errorType`, `message`, `stack`                        |
+| `permission.requested`      | Agent needs permission (shell, file write, etc.) | `requestId`, `permissionRequest.kind`                  |
+| `session.shutdown`          | Session is ending                                | `shutdownType`, `totalPremiumRequests`, `codeChanges`  |
+| `assistant.turn_start`      | Agent begins a new thinking/response cycle       | `turnId`                                               |
 
 ### Example: Detecting when the plan file is created or edited
 
@@ -435,8 +440,10 @@ if (workspace) {
 
     // Track agent edits to suppress false triggers
     session.on("tool.execution_start", (event) => {
-        if ((event.data.toolName === "edit" || event.data.toolName === "create")
-            && String(event.data.arguments?.path || "").endsWith("plan.md")) {
+        if (
+            (event.data.toolName === "edit" || event.data.toolName === "create") &&
+            String(event.data.arguments?.path || "").endsWith("plan.md")
+        ) {
             agentEdits.add(event.data.toolCallId);
             recentAgentPaths.add(planPath);
         }
@@ -539,9 +546,7 @@ const response = await session.sendAndWait({ prompt: "What is 2 + 2?" });
 ```js
 await session.send({
     prompt: "Review this file",
-    attachments: [
-        { type: "file", path: "./src/index.ts" },
-    ],
+    attachments: [{ type: "file", path: "./src/index.ts" }],
 });
 ```
 
@@ -617,7 +622,7 @@ const session = await joinSession({
         onPreToolUse: async (input) => {
             if (input.toolName === "bash") {
                 const cmd = String(input.toolArgs?.command || "");
-                if (/rm\\s+-rf\\s+\\//i.test(cmd) || /Remove-Item\\s+.*-Recurse/i.test(cmd)) {
+                if (/rm\\s+-rf\\s+\\/ / i.test(cmd) || /Remove-Item\\s+.*-Recurse/i.test(cmd)) {
                     return { permissionDecision: "deny" };
                 }
             }
@@ -665,4 +670,3 @@ session.on("tool.execution_complete", (event) => {
     // event.data.success, event.data.toolName, event.data.result
 });
 ```
-

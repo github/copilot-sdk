@@ -454,6 +454,15 @@ type CustomAgentConfig struct {
 	Skills []string `json:"skills,omitempty"`
 }
 
+// DefaultAgentConfig configures the default agent (the built-in agent that handles turns when no custom agent is selected).
+// Use ExcludedTools to hide specific tools from the default agent while keeping
+// them available to custom sub-agents.
+type DefaultAgentConfig struct {
+	// ExcludedTools is a list of tool names to exclude from the default agent.
+	// These tools remain available to custom sub-agents that reference them in their Tools list.
+	ExcludedTools []string `json:"excludedTools,omitempty"`
+}
+
 // InfiniteSessionConfig configures infinite sessions with automatic context compaction
 // and workspace persistence. When enabled, sessions automatically manage context window
 // limits through background compaction and persist state to a workspace directory.
@@ -527,6 +536,13 @@ type SessionConfig struct {
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
 	Streaming bool
+	// IncludeSubAgentStreamingEvents includes sub-agent streaming events in the
+	// event stream. When true, streaming delta events from sub-agents (e.g.,
+	// assistant.message_delta, assistant.reasoning_delta, assistant.streaming_delta
+	// with agentId set) are forwarded to this connection. When false, only
+	// non-streaming sub-agent events and subagent.* lifecycle events are forwarded;
+	// streaming deltas from sub-agents are suppressed. When nil, defaults to true.
+	IncludeSubAgentStreamingEvents *bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
@@ -536,6 +552,9 @@ type SessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
+	// Use ExcludedTools to hide tools from the default agent while keeping them available to sub-agents.
+	DefaultAgent *DefaultAgentConfig
 	// Agent is the name of the custom agent to activate when the session starts.
 	// Must match the Name of one of the agents in CustomAgents.
 	Agent string
@@ -554,7 +573,7 @@ type SessionConfig struct {
 	OnEvent SessionEventHandler
 	// CreateSessionFsHandler supplies a handler for session filesystem operations.
 	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsHandler func(session *Session) rpc.SessionFsHandler
+	CreateSessionFsHandler func(session *Session) SessionFsProvider
 	// Commands registers slash-commands for this session. Each command appears as
 	// /name in the CLI TUI for the user to invoke. The Handler is called when the
 	// command is executed.
@@ -740,10 +759,19 @@ type ResumeSessionConfig struct {
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
 	Streaming bool
+	// IncludeSubAgentStreamingEvents includes sub-agent streaming events in the
+	// event stream. When true, streaming delta events from sub-agents (e.g.,
+	// assistant.message_delta, assistant.reasoning_delta, assistant.streaming_delta
+	// with agentId set) are forwarded to this connection. When false, only
+	// non-streaming sub-agent events and subagent.* lifecycle events are forwarded;
+	// streaming deltas from sub-agents are suppressed. When nil, defaults to true.
+	IncludeSubAgentStreamingEvents *bool
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
+	DefaultAgent *DefaultAgentConfig
 	// Agent is the name of the custom agent to activate when the session starts.
 	// Must match the Name of one of the agents in CustomAgents.
 	Agent string
@@ -761,7 +789,7 @@ type ResumeSessionConfig struct {
 	OnEvent SessionEventHandler
 	// CreateSessionFsHandler supplies a handler for session filesystem operations.
 	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsHandler func(session *Session) rpc.SessionFsHandler
+	CreateSessionFsHandler func(session *Session) SessionFsProvider
 	// Commands registers slash-commands for this session. See SessionConfig.Commands.
 	Commands []CommandDefinition
 	// OnElicitationRequest is a handler for elicitation requests from the server.
@@ -937,34 +965,36 @@ type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
-	Model                 string                         `json:"model,omitempty"`
-	SessionID             string                         `json:"sessionId,omitempty"`
-	ClientName            string                         `json:"clientName,omitempty"`
-	ReasoningEffort       string                         `json:"reasoningEffort,omitempty"`
-	Tools                 []Tool                         `json:"tools,omitempty"`
-	SystemMessage         *SystemMessageConfig           `json:"systemMessage,omitempty"`
-	AvailableTools        []string                       `json:"availableTools"`
-	ExcludedTools         []string                       `json:"excludedTools,omitempty"`
-	Provider              *ProviderConfig                `json:"provider,omitempty"`
-	ModelCapabilities     *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
-	RequestPermission     *bool                          `json:"requestPermission,omitempty"`
-	RequestUserInput      *bool                          `json:"requestUserInput,omitempty"`
-	Hooks                 *bool                          `json:"hooks,omitempty"`
-	WorkingDirectory      string                         `json:"workingDirectory,omitempty"`
-	Streaming             *bool                          `json:"streaming,omitempty"`
-	MCPServers            map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
-	EnvValueMode          string                         `json:"envValueMode,omitempty"`
-	CustomAgents          []CustomAgentConfig            `json:"customAgents,omitempty"`
-	Agent                 string                         `json:"agent,omitempty"`
-	ConfigDir             string                         `json:"configDir,omitempty"`
-	EnableConfigDiscovery *bool                          `json:"enableConfigDiscovery,omitempty"`
-	SkillDirectories      []string                       `json:"skillDirectories,omitempty"`
-	DisabledSkills        []string                       `json:"disabledSkills,omitempty"`
-	InfiniteSessions      *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
-	Commands              []wireCommand                  `json:"commands,omitempty"`
-	RequestElicitation    *bool                          `json:"requestElicitation,omitempty"`
-	Traceparent           string                         `json:"traceparent,omitempty"`
-	Tracestate            string                         `json:"tracestate,omitempty"`
+	Model                          string                         `json:"model,omitempty"`
+	SessionID                      string                         `json:"sessionId,omitempty"`
+	ClientName                     string                         `json:"clientName,omitempty"`
+	ReasoningEffort                string                         `json:"reasoningEffort,omitempty"`
+	Tools                          []Tool                         `json:"tools,omitempty"`
+	SystemMessage                  *SystemMessageConfig           `json:"systemMessage,omitempty"`
+	AvailableTools                 []string                       `json:"availableTools"`
+	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
+	Provider                       *ProviderConfig                `json:"provider,omitempty"`
+	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
+	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
+	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
+	Hooks                          *bool                          `json:"hooks,omitempty"`
+	WorkingDirectory               string                         `json:"workingDirectory,omitempty"`
+	Streaming                      *bool                          `json:"streaming,omitempty"`
+	IncludeSubAgentStreamingEvents *bool                          `json:"includeSubAgentStreamingEvents,omitempty"`
+	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
+	EnvValueMode                   string                         `json:"envValueMode,omitempty"`
+	CustomAgents                   []CustomAgentConfig            `json:"customAgents,omitempty"`
+	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
+	Agent                          string                         `json:"agent,omitempty"`
+	ConfigDir                      string                         `json:"configDir,omitempty"`
+	EnableConfigDiscovery          *bool                          `json:"enableConfigDiscovery,omitempty"`
+	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
+	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`
+	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
+	Commands                       []wireCommand                  `json:"commands,omitempty"`
+	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
+	Traceparent                    string                         `json:"traceparent,omitempty"`
+	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
 
 // wireCommand is the wire representation of a command (name + description only, no handler).
@@ -982,35 +1012,37 @@ type createSessionResponse struct {
 
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
-	SessionID             string                         `json:"sessionId"`
-	ClientName            string                         `json:"clientName,omitempty"`
-	Model                 string                         `json:"model,omitempty"`
-	ReasoningEffort       string                         `json:"reasoningEffort,omitempty"`
-	Tools                 []Tool                         `json:"tools,omitempty"`
-	SystemMessage         *SystemMessageConfig           `json:"systemMessage,omitempty"`
-	AvailableTools        []string                       `json:"availableTools"`
-	ExcludedTools         []string                       `json:"excludedTools,omitempty"`
-	Provider              *ProviderConfig                `json:"provider,omitempty"`
-	ModelCapabilities     *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
-	RequestPermission     *bool                          `json:"requestPermission,omitempty"`
-	RequestUserInput      *bool                          `json:"requestUserInput,omitempty"`
-	Hooks                 *bool                          `json:"hooks,omitempty"`
-	WorkingDirectory      string                         `json:"workingDirectory,omitempty"`
-	ConfigDir             string                         `json:"configDir,omitempty"`
-	EnableConfigDiscovery *bool                          `json:"enableConfigDiscovery,omitempty"`
-	DisableResume         *bool                          `json:"disableResume,omitempty"`
-	Streaming             *bool                          `json:"streaming,omitempty"`
-	MCPServers            map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
-	EnvValueMode          string                         `json:"envValueMode,omitempty"`
-	CustomAgents          []CustomAgentConfig            `json:"customAgents,omitempty"`
-	Agent                 string                         `json:"agent,omitempty"`
-	SkillDirectories      []string                       `json:"skillDirectories,omitempty"`
-	DisabledSkills        []string                       `json:"disabledSkills,omitempty"`
-	InfiniteSessions      *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
-	Commands              []wireCommand                  `json:"commands,omitempty"`
-	RequestElicitation    *bool                          `json:"requestElicitation,omitempty"`
-	Traceparent           string                         `json:"traceparent,omitempty"`
-	Tracestate            string                         `json:"tracestate,omitempty"`
+	SessionID                      string                         `json:"sessionId"`
+	ClientName                     string                         `json:"clientName,omitempty"`
+	Model                          string                         `json:"model,omitempty"`
+	ReasoningEffort                string                         `json:"reasoningEffort,omitempty"`
+	Tools                          []Tool                         `json:"tools,omitempty"`
+	SystemMessage                  *SystemMessageConfig           `json:"systemMessage,omitempty"`
+	AvailableTools                 []string                       `json:"availableTools"`
+	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
+	Provider                       *ProviderConfig                `json:"provider,omitempty"`
+	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
+	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
+	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
+	Hooks                          *bool                          `json:"hooks,omitempty"`
+	WorkingDirectory               string                         `json:"workingDirectory,omitempty"`
+	ConfigDir                      string                         `json:"configDir,omitempty"`
+	EnableConfigDiscovery          *bool                          `json:"enableConfigDiscovery,omitempty"`
+	DisableResume                  *bool                          `json:"disableResume,omitempty"`
+	Streaming                      *bool                          `json:"streaming,omitempty"`
+	IncludeSubAgentStreamingEvents *bool                          `json:"includeSubAgentStreamingEvents,omitempty"`
+	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
+	EnvValueMode                   string                         `json:"envValueMode,omitempty"`
+	CustomAgents                   []CustomAgentConfig            `json:"customAgents,omitempty"`
+	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
+	Agent                          string                         `json:"agent,omitempty"`
+	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
+	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`
+	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
+	Commands                       []wireCommand                  `json:"commands,omitempty"`
+	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
+	Traceparent                    string                         `json:"traceparent,omitempty"`
+	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume

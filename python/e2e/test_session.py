@@ -146,6 +146,34 @@ class TestSessions:
         assert "grep" in tool_names
         assert "view" not in tool_names
 
+    async def test_should_create_a_session_with_defaultAgent_excludedTools(
+        self, ctx: E2ETestContext
+    ):
+        secret_tool = Tool(
+            name="secret_tool",
+            description="A secret tool hidden from the default agent",
+            handler=lambda args: "SECRET",
+            parameters={
+                "type": "object",
+                "properties": {"input": {"type": "string"}},
+            },
+        )
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            tools=[secret_tool],
+            default_agent={"excluded_tools": ["secret_tool"]},
+        )
+
+        await session.send("What is 1+1?")
+        await get_final_assistant_message(session)
+
+        # The real assertion: verify the runtime excluded the tool from the CAPI request
+        traffic = await ctx.get_exchanges()
+        tools = traffic[0]["request"]["tools"]
+        tool_names = [t["function"]["name"] for t in tools]
+        assert "secret_tool" not in tool_names
+
     # TODO: This test shows there's a race condition inside client.ts. If createSession
     # is called concurrently and autoStart is on, it may start multiple child processes.
     # This needs to be fixed. Right now it manifests as being unable to delete the temp

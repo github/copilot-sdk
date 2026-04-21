@@ -12,14 +12,17 @@ import type { JSONSchema7 } from "json-schema";
 import { fileURLToPath } from "url";
 import {
     cloneSchemaForCodegen,
+    fixNullableRequiredRefsInApiSchema,
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    hoistTitledSchemas,
     isObjectSchema,
     isVoidSchema,
+    getNullableInner,
     isRpcMethod,
     isNodeFullyExperimental,
+    isNodeFullyDeprecated,
+    isSchemaDeprecated,
     postProcessSchema,
     writeGeneratedFile,
     collectDefinitionCollections,
@@ -138,7 +141,18 @@ function modernizePython(code: string): string {
     return code;
 }
 
-function collapsePlaceholderPythonDataclasses(code: string): string {
+/**
+ * Collapse lambdas that only forward their single argument into another callable.
+ * This keeps the generated Python readable and avoids CodeQL "unnecessary lambda" findings.
+ */
+function unwrapRedundantPythonLambdas(code: string): string {
+    return code.replace(
+        /lambda\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*((?:[A-Za-z_][A-Za-z0-9_]*)(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\(\1\)/g,
+        "$2"
+    );
+}
+
+function collapsePlaceholderPythonDataclasses(code: string, knownDefinitionNames?: Set<string>): string {
     const classBlockRe = /(@dataclass\r?\nclass\s+(\w+):[\s\S]*?)(?=^@dataclass|^class\s+\w+|^def\s+\w+|\Z)/gm;
     const matches = [...code.matchAll(classBlockRe)].map((match) => ({
         fullBlock: match[1],
@@ -156,12 +170,14 @@ function collapsePlaceholderPythonDataclasses(code: string): string {
     for (const group of groups.values()) {
         if (group.length < 2) continue;
 
-        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name));
+        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name), knownDefinitionNames);
         if (!canonical) continue;
 
         for (const duplicate of group) {
             if (duplicate.name === canonical) continue;
-            if (!isPlaceholderTypeName(duplicate.name)) continue;
+            // Only collapse types that quicktype invented (Class suffix or not
+            // in the schema's named definitions). Preserve intentionally-named types.
+            if (!isPlaceholderTypeName(duplicate.name) && knownDefinitionNames?.has(duplicate.name.toLowerCase())) continue;
 
             code = code.replace(duplicate.fullBlock, "");
             code = code.replace(new RegExp(`\\b${duplicate.name}\\b`, "g"), canonical);
@@ -169,6 +185,157 @@ function collapsePlaceholderPythonDataclasses(code: string): string {
     }
 
     return code.replace(/\n{3,}/g, "\n\n");
+}
+
+/**
+ * Reorder Python class/enum definitions so forward references are resolved.
+ * Quicktype may emit classes in an order where a class references another
+ * that hasn't been defined yet, causing NameError at import time.
+ * This performs a topological sort of type definitions while preserving
+ * the relative position of non-class blocks (functions, standalone code).
+ */
+function reorderPythonForwardRefs(code: string): string {
+    // Split code into top-level blocks. Each block starts at an unindented
+    // line that begins a class, decorated class, enum, or function definition.
+    const lines = code.split("\n");
+
+    interface Block {
+        name: string;
+        code: string;
+        isType: boolean; // true for class/enum definitions
+    }
+
+    const blocks: Block[] = [];
+    let currentLines: string[] = [];
+    let currentName: string | null = null;
+    let isType = false;
+
+    function flushBlock() {
+        if (currentLines.length === 0) return;
+        const blockCode = currentLines.join("\n");
+        blocks.push({
+            name: currentName ?? `__anon_${blocks.length}`,
+            code: blockCode,
+            isType,
+        });
+        currentLines = [];
+        currentName = null;
+        isType = false;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isTopLevel = line.length > 0 && line[0] !== " " && line[0] !== "\t";
+
+        if (isTopLevel) {
+            const classMatch = line.match(/^class\s+(\w+)/);
+            const defMatch = line.match(/^def\s+(\w+)/);
+            const decoratorMatch = line === "@dataclass";
+            const commentMatch = line.startsWith("# ");
+
+            if (classMatch) {
+                // If previous block was just a decorator waiting for a class, merge
+                if (currentLines.length > 0 && currentName === null && isType) {
+                    // This is the class line following @dataclass
+                    currentName = classMatch[1];
+                    currentLines.push(line);
+                    continue;
+                }
+                flushBlock();
+                currentLines = [line];
+                currentName = classMatch[1];
+                isType = true;
+            } else if (decoratorMatch) {
+                flushBlock();
+                currentLines = [line];
+                isType = true;
+            } else if (defMatch) {
+                flushBlock();
+                currentLines = [line];
+                currentName = defMatch[1];
+                isType = false;
+            } else if (commentMatch && currentLines.length === 0) {
+                // Standalone comment — attach to next block
+                currentLines = [line];
+            } else {
+                currentLines.push(line);
+            }
+        } else {
+            currentLines.push(line);
+        }
+    }
+    flushBlock();
+
+    if (blocks.length === 0) return code;
+
+    // Collect all type names (classes and enums)
+    const typeNames = new Set(blocks.filter((b) => b.isType).map((b) => b.name));
+    if (typeNames.size === 0) return code;
+
+    // Build dependency graph: for each type block, find references to other type names
+    const deps = new Map<string, Set<string>>();
+    for (const block of blocks) {
+        if (!block.isType) continue;
+        const blockDeps = new Set<string>();
+        for (const tn of typeNames) {
+            if (tn === block.name) continue;
+            if (new RegExp(`\\b${tn}\\b`).test(block.code)) {
+                blockDeps.add(tn);
+            }
+        }
+        deps.set(block.name, blockDeps);
+    }
+
+    // Kahn's algorithm for topological sort
+    const inDegree = new Map<string, number>();
+    for (const tn of typeNames) inDegree.set(tn, deps.get(tn)?.size ?? 0);
+
+    const dependents = new Map<string, string[]>();
+    for (const tn of typeNames) dependents.set(tn, []);
+    for (const [name, d] of deps) {
+        for (const dep of d) {
+            dependents.get(dep)!.push(name);
+        }
+    }
+
+    const queue: string[] = [];
+    for (const [tn, deg] of inDegree) {
+        if (deg === 0) queue.push(tn);
+    }
+
+    const sorted: string[] = [];
+    while (queue.length > 0) {
+        const node = queue.shift()!;
+        sorted.push(node);
+        for (const dep of dependents.get(node) ?? []) {
+            const newDeg = inDegree.get(dep)! - 1;
+            inDegree.set(dep, newDeg);
+            if (newDeg === 0) queue.push(dep);
+        }
+    }
+
+    // If there are cycles, keep remaining nodes in original order
+    for (const block of blocks) {
+        if (block.isType && !sorted.includes(block.name)) {
+            sorted.push(block.name);
+        }
+    }
+
+    // Rebuild: place type blocks in sorted order at the positions
+    // where type blocks originally appeared
+    const typeBlockMap = new Map(blocks.filter((b) => b.isType).map((b) => [b.name, b]));
+    let sortIdx = 0;
+    const result: string[] = [];
+    for (const block of blocks) {
+        if (block.isType) {
+            result.push(typeBlockMap.get(sorted[sortIdx])!.code);
+            sortIdx++;
+        } else {
+            result.push(block.code);
+        }
+    }
+
+    return result.join("\n");
 }
 
 function normalizePythonDataclassBlock(block: string, name: string): string {
@@ -181,15 +348,22 @@ function normalizePythonDataclassBlock(block: string, name: string): string {
         .join("\n");
 }
 
-function chooseCanonicalPlaceholderDuplicate(names: string[]): string | undefined {
+function chooseCanonicalPlaceholderDuplicate(names: string[], knownDefinitionNames?: Set<string>): string | undefined {
+    // Prefer the name that matches a schema definition — it's intentionally named.
+    if (knownDefinitionNames) {
+        const definedName = names.find((name) => knownDefinitionNames.has(name.toLowerCase()));
+        if (definedName) return definedName;
+    }
+    // Fallback for Class-suffix placeholders: pick the non-placeholder name.
     const specificNames = names.filter((name) => !isPlaceholderTypeName(name));
     if (specificNames.length === 0) return undefined;
-    return specificNames.sort((left, right) => right.length - left.length || left.localeCompare(right))[0];
+    return specificNames[0];
 }
 
 function isPlaceholderTypeName(name: string): boolean {
-    return name.endsWith("Class");
+    return name.endsWith("Class") || name.endsWith("Enum");
 }
+
 
 function toSnakeCase(s: string): string {
     return s
@@ -254,8 +428,14 @@ function getMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
     );
 }
 
-function pythonResultTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(getMethodResultSchema(method), toPascalCase(method.rpcMethod) + "Result");
+function pythonResultTypeName(method: RpcMethod, schemaOverride?: JSONSchema7): string {
+    const schema = schemaOverride ?? getMethodResultSchema(method);
+    // If schema is a $ref, derive the type name from the ref path
+    if (schema?.$ref) {
+        const refName = schema.$ref.split("/").pop();
+        if (refName) return toPascalCase(refName);
+    }
+    return getRpcSchemaTypeName(schema, toPascalCase(method.rpcMethod) + "Result");
 }
 
 function pythonParamsTypeName(method: RpcMethod): string {
@@ -361,7 +541,7 @@ function postProcessPythonSessionEventCode(code: string): string {
     )) {
         code = code.replace(new RegExp(`\\b${from}\\b`, "g"), to);
     }
-    return code;
+    return unwrapRedundantPythonLambdas(code);
 }
 
 function pyPrimitiveResolvedType(annotation: string, fromFn: string, toFn = fromFn): PyResolvedType {
@@ -507,7 +687,8 @@ function getOrCreatePyEnum(
     enumName: string,
     values: string[],
     ctx: PyCodegenCtx,
-    description?: string
+    description?: string,
+    deprecated?: boolean
 ): string {
     const existing = ctx.enumsByName.get(enumName);
     if (existing) {
@@ -515,6 +696,9 @@ function getOrCreatePyEnum(
     }
 
     const lines: string[] = [];
+    if (deprecated) {
+        lines.push(`# Deprecated: this enum is deprecated and will be removed in a future version.`);
+    }
     if (description) {
         lines.push(`class ${enumName}(Enum):`);
         lines.push(`    ${pyDocstringLiteral(description)}`);
@@ -536,14 +720,15 @@ function resolvePyPropertyType(
     isRequired: boolean,
     ctx: PyCodegenCtx
 ): PyResolvedType {
-    const nestedName = parentTypeName + toPascalCase(jsonPropName);
+    const fallbackName = parentTypeName + toPascalCase(jsonPropName);
+    const nestedName = typeof propSchema.title === "string" ? propSchema.title : fallbackName;
 
     if (propSchema.$ref && typeof propSchema.$ref === "string") {
         const typeName = toPascalCase(refTypeName(propSchema.$ref, ctx.definitions));
         const resolved = resolveSchema(propSchema, ctx.definitions);
         if (resolved && resolved !== propSchema) {
             if (resolved.enum && Array.isArray(resolved.enum) && resolved.enum.every((value) => typeof value === "string")) {
-                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description);
+                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
                 const enumResolved: PyResolvedType = {
                     annotation: enumType,
                     fromExpr: (expr) => `parse_enum(${enumType}, ${expr})`,
@@ -621,7 +806,8 @@ function resolvePyPropertyType(
             nestedName,
             propSchema.enum as string[],
             ctx,
-            propSchema.description
+            propSchema.description,
+            isSchemaDeprecated(propSchema)
         );
         const resolved: PyResolvedType = {
             annotation: enumType,
@@ -825,8 +1011,8 @@ function emitPyClass(
         ([, value]) => typeof value === "object"
     ) as Array<[string, JSONSchema7]>;
     const orderedFieldEntries = [
-        ...fieldEntries.filter(([name]) => required.has(name)),
-        ...fieldEntries.filter(([name]) => !required.has(name)),
+        ...fieldEntries.filter(([name]) => required.has(name)).sort(([a], [b]) => a.localeCompare(b)),
+        ...fieldEntries.filter(([name]) => !required.has(name)).sort(([a], [b]) => a.localeCompare(b)),
     ];
 
     const fieldInfos = orderedFieldEntries.map(([propName, propSchema]) => {
@@ -837,11 +1023,16 @@ function emitPyClass(
             fieldName: toSnakeCase(propName),
             isRequired,
             resolved,
-            defaultLiteral: isRequired ? undefined : toPythonLiteral(propSchema.default),
+            defaultLiteral: isRequired ? undefined : toPythonLiteral(
+                propSchema.default ?? resolveSchema(propSchema, ctx.definitions)?.default
+            ),
         };
     });
 
     const lines: string[] = [];
+    if (isSchemaDeprecated(schema)) {
+        lines.push(`# Deprecated: this type is deprecated and will be removed in a future version.`);
+    }
     lines.push(`@dataclass`);
     lines.push(`class ${typeName}:`);
     if (description || schema.description) {
@@ -862,6 +1053,9 @@ function emitPyClass(
 
     for (const field of fieldInfos) {
         const suffix = field.isRequired ? "" : " = None";
+        if (isSchemaDeprecated(orderedFieldEntries.find(([n]) => n === field.jsonName)?.[1] as JSONSchema7)) {
+            lines.push(`    # Deprecated: this field is deprecated.`);
+        }
         lines.push(`    ${field.fieldName}: ${field.resolved.annotation}${suffix}`);
     }
 
@@ -964,8 +1158,8 @@ function emitPyFlatDiscriminatedUnion(
     ];
 
     const orderedFieldEntries = [
-        ...fieldEntries.filter(([, , requiredInAll]) => requiredInAll),
-        ...fieldEntries.filter(([, , requiredInAll]) => !requiredInAll),
+        ...fieldEntries.filter(([, , requiredInAll]) => requiredInAll).sort(([a], [b]) => a.localeCompare(b)),
+        ...fieldEntries.filter(([, , requiredInAll]) => !requiredInAll).sort(([a], [b]) => a.localeCompare(b)),
     ];
 
     const fieldInfos = orderedFieldEntries.map(([propName, propSchema, requiredInAll]) => {
@@ -985,7 +1179,9 @@ function emitPyFlatDiscriminatedUnion(
             fieldName: toSnakeCase(propName),
             isRequired: requiredInAll,
             resolved,
-            defaultLiteral: requiredInAll ? undefined : toPythonLiteral(propSchema.default),
+            defaultLiteral: requiredInAll ? undefined : toPythonLiteral(
+                propSchema.default ?? resolveSchema(propSchema, ctx.definitions)?.default
+            ),
         };
     });
 
@@ -997,6 +1193,10 @@ function emitPyFlatDiscriminatedUnion(
     }
     for (const field of fieldInfos) {
         const suffix = field.isRequired ? "" : " = None";
+        const fieldSchema = orderedFieldEntries.find(([n]) => n === field.jsonName)?.[1];
+        if (fieldSchema && isSchemaDeprecated(fieldSchema)) {
+            lines.push(`    # Deprecated: this field is deprecated.`);
+        }
         lines.push(`    ${field.fieldName}: ${field.resolved.annotation}${suffix}`);
     }
     lines.push(``);
@@ -1266,12 +1466,12 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     );
     out.push(``);
     out.push(``);
-    for (const classDef of ctx.classes) {
+    for (const classDef of ctx.classes.sort()) {
         out.push(classDef);
         out.push(``);
         out.push(``);
     }
-    for (const enumDef of ctx.enums) {
+    for (const enumDef of ctx.enums.sort()) {
         out.push(enumDef);
         out.push(``);
         out.push(``);
@@ -1367,7 +1567,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } = await import("quicktype-core");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
@@ -1387,10 +1587,14 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     for (const method of allMethods) {
         const resultSchema = getMethodResultSchema(method);
         if (!isVoidSchema(resultSchema)) {
-            combinedSchema.definitions![pythonResultTypeName(method)] = withRootTitle(
-                schemaSourceForNamedDefinition(method.result, resultSchema),
-                pythonResultTypeName(method)
-            );
+            const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+            if (!nullableInner) {
+                combinedSchema.definitions![pythonResultTypeName(method)] = withRootTitle(
+                    schemaSourceForNamedDefinition(method.result, resultSchema),
+                    pythonResultTypeName(method)
+                );
+            }
+            // For nullable results, the inner type (e.g., SessionFsError) is already in definitions
         }
         const resolvedParams = getMethodParamsSchema(method);
         if (method.params && hasSchemaPayload(resolvedParams)) {
@@ -1417,22 +1621,25 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         }
     }
 
-    const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
-    const allDefinitions = { ...rootDefinitions, ...sharedDefinitions };
+    const allDefinitions = combinedSchema.definitions! as Record<string, JSONSchema7>;
     const allDefinitionCollections: DefinitionCollections = {
         definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
     };
 
-    // Generate types via quicktype
+    // Generate types via quicktype — use a single combined schema source to avoid
+    // quicktype inventing Purple/Fluffy disambiguation prefixes for shared types
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    for (const [name, def] of Object.entries(rootDefinitions)) {
-        const schemaWithDefs = withSharedDefinitions(
-            typeof def === "object" ? (def as JSONSchema7) : {},
-            allDefinitionCollections
-        );
-        await schemaInput.addSource({ name, schema: JSON.stringify(schemaWithDefs) });
-    }
+    const singleSchema: Record<string, unknown> = {
+        $schema: "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        definitions: allDefinitions,
+        properties: Object.fromEntries(
+            Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
+        ),
+        required: Object.keys(allDefinitions),
+    };
+    await schemaInput.addSource({ name: "RPC", schema: JSON.stringify(singleSchema) });
 
     const inputData = new InputData();
     inputData.addInput(schemaInput);
@@ -1452,7 +1659,30 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = typesCode.replace(/^(\s*)pass\n\n(\s*@staticmethod)/gm, "$2");
     // Modernize to Python 3.11+ syntax
     typesCode = modernizePython(typesCode);
-    typesCode = collapsePlaceholderPythonDataclasses(typesCode);
+    const knownDefNames = new Set(Object.keys(allDefinitions).map((n) => n.toLowerCase()));
+    typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
+
+    // Fix quicktype's Enum-suffix renaming: quicktype sometimes renames "Xyz" to
+    // "XyzEnum" to avoid internal collisions. Strip the suffix to match our schema
+    // definition names, but fail the build if that introduces a duplicate definition.
+    for (const defName of Object.keys(allDefinitions)) {
+        const enumSuffixed = defName + "Enum";
+        if (!new RegExp(`\\bclass ${enumSuffixed}\\b`).test(typesCode)) continue;
+        const renamed = typesCode.replace(new RegExp(`\\b${enumSuffixed}\\b`, "g"), defName);
+        const classCount = (renamed.match(new RegExp(`^class ${defName}\\b`, "gm")) ?? []).length;
+        if (classCount > 1) {
+            throw new Error(
+                `Python codegen: stripping quicktype's "Enum" suffix from "${enumSuffixed}" ` +
+                `would produce a duplicate definition for "${defName}". ` +
+                `Fix the schema definition name or add .withTypeName() to disambiguate.`
+            );
+        }
+        typesCode = renamed;
+    }
+
+    // Reorder class/enum definitions to resolve forward references.
+    // Quicktype may emit classes before their dependencies are defined.
+    typesCode = reorderPythonForwardRefs(typesCode);
 
     // Strip quicktype's import block and preamble — we provide our own unified header.
     // The preamble ends just before the first helper function (e.g. "def from_str")
@@ -1468,7 +1698,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         if (method.stability !== "experimental") continue;
         experimentalTypeNames.add(pythonResultTypeName(method));
         const paramsTypeName = pythonParamsTypeName(method);
-        if (rootDefinitions[paramsTypeName]) {
+        if (allDefinitions[paramsTypeName]) {
             experimentalTypeNames.add(paramsTypeName);
         }
     }
@@ -1476,6 +1706,27 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         typesCode = typesCode.replace(
             new RegExp(`^(@dataclass\\n)?class ${typeName}[:(]`, "m"),
             (match) => `# Experimental: this type is part of an experimental API and may change or be removed.\n${match}`
+        );
+    }
+
+    // Annotate deprecated data types
+    const deprecatedTypeNames = new Set<string>();
+    for (const method of allMethods) {
+        if (!method.deprecated) continue;
+        if (!method.result?.$ref) {
+            deprecatedTypeNames.add(pythonResultTypeName(method));
+        }
+        if (!method.params?.$ref) {
+            const paramsTypeName = pythonParamsTypeName(method);
+            if (allDefinitions[paramsTypeName]) {
+                deprecatedTypeNames.add(paramsTypeName);
+            }
+        }
+    }
+    for (const typeName of deprecatedTypeNames) {
+        typesCode = typesCode.replace(
+            new RegExp(`^(@dataclass\\n)?class ${typeName}[:(]`, "m"),
+            (match) => `# Deprecated: this type is part of a deprecated API and will be removed in a future version.\n${match}`
         );
     }
 
@@ -1566,6 +1817,7 @@ def _patch_model_capabilities(data: dict) -> dict:
         /(_patch_model_capabilities\(await self\._client\.request\("models\.list",\s*\{[^)]*\)[^)]*\))/,
         "$1)",
     );
+    finalCode = unwrapRedundantPythonLambdas(finalCode);
 
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
@@ -1577,7 +1829,8 @@ function emitPyApiGroup(
     node: Record<string, unknown>,
     isSession: boolean,
     resolveType: (name: string) => string,
-    groupExperimental: boolean
+    groupExperimental: boolean,
+    groupDeprecated: boolean = false
 ): void {
     const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
 
@@ -1585,10 +1838,14 @@ function emitPyApiGroup(
     for (const [subGroupName, subGroupNode] of subGroups) {
         const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
         const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
-        emitPyApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, resolveType, subGroupExperimental);
+        const subGroupDeprecated = isNodeFullyDeprecated(subGroupNode as Record<string, unknown>);
+        emitPyApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, resolveType, subGroupExperimental, subGroupDeprecated);
     }
 
     // Emit this class
+    if (groupDeprecated) {
+        lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
+    }
     if (groupExperimental) {
         lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
     }
@@ -1613,7 +1870,7 @@ function emitPyApiGroup(
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, key, value, isSession, resolveType, groupExperimental);
+        emitMethod(lines, key, value, isSession, resolveType, groupExperimental, groupDeprecated);
     }
     lines.push(``);
 }
@@ -1629,7 +1886,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + "Api";
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
-        emitPyApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, resolveType, groupExperimental);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
+        emitPyApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, resolveType, groupExperimental, groupDeprecated);
     }
 
     // Emit wrapper class
@@ -1661,12 +1919,24 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
 }
 
-function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false): void {
+function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false, groupDeprecated = false): void {
     const methodName = toSnakeCase(name);
     const resultSchema = getMethodResultSchema(method);
-    const hasResult = !isVoidSchema(resultSchema);
-    const resultType = hasResult ? resolveType(pythonResultTypeName(method)) : "None";
-    const resultIsObject = isObjectSchema(resultSchema);
+    const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+    const effectiveResultSchema = nullableInner ?? resultSchema;
+    const hasResult = !isVoidSchema(resultSchema) && !nullableInner;
+    const hasNullableResult = !!nullableInner;
+    const resultIsObject = isObjectSchema(effectiveResultSchema);
+
+    let resultType: string;
+    if (hasNullableResult) {
+        const innerTypeName = resolveType(pythonResultTypeName(method, nullableInner));
+        resultType = `${innerTypeName} | None`;
+    } else if (hasResult) {
+        resultType = resolveType(pythonResultTypeName(method));
+    } else {
+        resultType = "None";
+    }
 
     const effectiveParams = getMethodParamsSchema(method);
     const paramProps = effectiveParams?.properties || {};
@@ -1681,44 +1951,53 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
 
     lines.push(sig);
 
+    if (method.deprecated && !groupDeprecated) {
+        lines.push(`        """.. deprecated:: This API is deprecated and will be removed in a future version."""`);
+    }
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
     }
 
-    // For object results use .from_dict(); for enums/primitives use direct construction
-    const deserialize = (expr: string) => resultIsObject ? `${resultType}.from_dict(${expr})` : `${resultType}(${expr})`;
+    // Deserialize helper
+    const innerTypeName = hasNullableResult ? resolveType(pythonResultTypeName(method, nullableInner)) : resultType;
+    const deserialize = (expr: string) => {
+        if (hasNullableResult) {
+            return resultIsObject
+                ? `${innerTypeName}.from_dict(${expr}) if ${expr} is not None else None`
+                : `${innerTypeName}(${expr}) if ${expr} is not None else None`;
+        }
+        return resultIsObject ? `${innerTypeName}.from_dict(${expr})` : `${innerTypeName}(${expr})`;
+    };
 
     // Build request body with proper serialization/deserialization
+    const emitRequestCall = (paramsExpr: string) => {
+        const callExpr = `await self._client.request("${method.rpcMethod}", ${paramsExpr}, **_timeout_kwargs(timeout))`;
+        if (hasResult || hasNullableResult) {
+            if (hasNullableResult) {
+                lines.push(`        _result = ${callExpr}`);
+                lines.push(`        return ${deserialize("_result")}`);
+            } else {
+                lines.push(`        return ${deserialize(callExpr)}`);
+            }
+        } else {
+            lines.push(`        ${callExpr}`);
+        }
+    };
+
     if (isSession) {
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
             lines.push(`        params_dict["sessionId"] = self._session_id`);
-            if (hasResult) {
-                lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`)}`);
-            } else {
-                lines.push(`        await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`);
-            }
+            emitRequestCall("params_dict");
         } else {
-            if (hasResult) {
-                lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))`)}`);
-            } else {
-                lines.push(`        await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))`);
-            }
+            emitRequestCall(`{"sessionId": self._session_id}`);
         }
     } else {
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
-            if (hasResult) {
-                lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`)}`);
-            } else {
-                lines.push(`        await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`);
-            }
+            emitRequestCall("params_dict");
         } else {
-            if (hasResult) {
-                lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout))`)}`);
-            } else {
-                lines.push(`        await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout))`);
-            }
+            emitRequestCall("{}");
         }
     }
     lines.push(``);
@@ -1734,13 +2013,17 @@ function emitClientSessionApiRegistration(
     for (const [groupName, groupNode] of groups) {
         const handlerName = `${toPascalCase(groupName)}Handler`;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
+        if (groupDeprecated) {
+            lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
+        }
         if (groupExperimental) {
             lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
         }
         lines.push(`class ${handlerName}(Protocol):`);
         for (const [methodName, value] of Object.entries(groupNode as Record<string, unknown>)) {
             if (!isRpcMethod(value)) continue;
-            emitClientSessionHandlerMethod(lines, methodName, value, resolveType, groupExperimental);
+            emitClientSessionHandlerMethod(lines, methodName, value, resolveType, groupExperimental, groupDeprecated);
         }
         lines.push(``);
     }
@@ -1785,12 +2068,24 @@ function emitClientSessionHandlerMethod(
     name: string,
     method: RpcMethod,
     resolveType: (name: string) => string,
-    groupExperimental = false
+    groupExperimental = false,
+    groupDeprecated = false
 ): void {
     const paramsType = resolveType(pythonParamsTypeName(method));
     const resultSchema = getMethodResultSchema(method);
-    const resultType = !isVoidSchema(resultSchema) ? resolveType(pythonResultTypeName(method)) : "None";
+    const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+    let resultType: string;
+    if (nullableInner) {
+        resultType = `${resolveType(pythonResultTypeName(method, nullableInner))} | None`;
+    } else if (!isVoidSchema(resultSchema)) {
+        resultType = resolveType(pythonResultTypeName(method));
+    } else {
+        resultType = "None";
+    }
     lines.push(`    async def ${toSnakeCase(name)}(self, params: ${paramsType}) -> ${resultType}:`);
+    if (method.deprecated && !groupDeprecated) {
+        lines.push(`        """.. deprecated:: This API is deprecated and will be removed in a future version."""`);
+    }
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
     }
@@ -1807,7 +2102,8 @@ function emitClientSessionRegistrationMethod(
     const handlerVariableName = `handle_${toSnakeCase(groupName)}_${toSnakeCase(methodName)}`;
     const paramsType = resolveType(pythonParamsTypeName(method));
     const resultSchema = getMethodResultSchema(method);
-    const resultType = !isVoidSchema(resultSchema) ? resolveType(pythonResultTypeName(method)) : null;
+    const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+    const hasResult = !isVoidSchema(resultSchema) && !nullableInner;
     const handlerField = toSnakeCase(groupName);
     const handlerMethod = toSnakeCase(methodName);
 
@@ -1817,12 +2113,20 @@ function emitClientSessionRegistrationMethod(
     lines.push(
         `        if handler is None: raise RuntimeError(f"No ${handlerField} handler registered for session: {request.session_id}")`
     );
-    if (resultType) {
+    if (hasResult) {
         lines.push(`        result = await handler.${handlerMethod}(request)`);
         if (isObjectSchema(resultSchema)) {
             lines.push(`        return result.to_dict()`);
         } else {
             lines.push(`        return result.value if hasattr(result, 'value') else result`);
+        }
+    } else if (nullableInner) {
+        lines.push(`        result = await handler.${handlerMethod}(request)`);
+        const resolvedInner = resolveSchema(nullableInner, rpcDefinitions) ?? nullableInner;
+        if (isObjectSchema(resolvedInner) || nullableInner.$ref) {
+            lines.push(`        return result.to_dict() if result is not None else None`);
+        } else {
+            lines.push(`        return result`);
         }
     } else {
         lines.push(`        await handler.${handlerMethod}(request)`);

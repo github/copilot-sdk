@@ -4,6 +4,7 @@
 
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace GitHub.Copilot.SDK.Test.Harness;
 
@@ -12,6 +13,9 @@ public sealed class E2ETestContext : IAsyncDisposable
     public string HomeDir { get; }
     public string WorkDir { get; }
     public string ProxyUrl { get; }
+
+    /// <summary>Optional logger injected by tests; applied to all clients created via <see cref="CreateClient"/>.</summary>
+    public ILogger? Logger { get; set; }
 
     private readonly CapiProxy _proxy;
     private readonly string _repoRoot;
@@ -99,6 +103,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         options.Cwd ??= WorkDir;
         options.Environment ??= GetEnvironment();
         options.UseStdio = useStdio;
+        options.Logger ??= Logger;
 
         if (string.IsNullOrEmpty(options.CliUrl))
         {

@@ -14,14 +14,12 @@ import pytest_asyncio
 from copilot import CopilotClient, SessionFsConfig, define_tool
 from copilot.client import ExternalServerConfig, SubprocessConfig
 from copilot.generated.rpc import (
-    SessionFSExistsResult,
-    SessionFSReaddirResult,
-    SessionFSReaddirWithTypesResult,
-    SessionFSReadFileResult,
-    SessionFSStatResult,
+    SessionFSReaddirWithTypesEntry,
+    SessionFSReaddirWithTypesEntryType,
 )
 from copilot.generated.session_events import SessionCompactionCompleteData, SessionEvent
 from copilot.session import PermissionHandler
+from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider
 
 from .testharness import E2ETestContext
 
@@ -214,90 +212,131 @@ class TestSessionFs:
 
         await wait_for_content(events_path, "checkpointNumber")
 
+    async def test_should_write_workspace_metadata_via_sessionfs(
+        self, ctx: E2ETestContext, session_fs_client: CopilotClient
+    ):
+        provider_root = Path(ctx.work_dir) / "provider"
+        session = await session_fs_client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            create_session_fs_handler=create_test_session_fs_handler(provider_root),
+        )
 
-class _SessionFsHandler:
+        msg = await session.send_and_wait("What is 7 * 8?")
+        assert msg is not None
+        assert msg.data.content is not None
+        assert "56" in msg.data.content
+
+        # WorkspaceManager should have created workspace.yaml via sessionFs
+        workspace_yaml_path = provider_path(
+            provider_root, session.session_id, "/session-state/workspace.yaml"
+        )
+        await wait_for_path(workspace_yaml_path)
+        yaml_content = workspace_yaml_path.read_text(encoding="utf-8")
+        assert "id:" in yaml_content
+
+        # Checkpoint index should also exist
+        index_path = provider_path(
+            provider_root, session.session_id, "/session-state/checkpoints/index.md"
+        )
+        await wait_for_path(index_path)
+
+        await session.disconnect()
+
+    async def test_should_persist_plan_md_via_sessionfs(
+        self, ctx: E2ETestContext, session_fs_client: CopilotClient
+    ):
+        from copilot.generated.rpc import PlanUpdateRequest
+
+        provider_root = Path(ctx.work_dir) / "provider"
+        session = await session_fs_client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            create_session_fs_handler=create_test_session_fs_handler(provider_root),
+        )
+
+        # Write a plan via the session RPC
+        await session.send_and_wait("What is 2 + 3?")
+        await session.rpc.plan.update(PlanUpdateRequest(content="# Test Plan\n\nThis is a test."))
+
+        plan_path = provider_path(provider_root, session.session_id, "/session-state/plan.md")
+        await wait_for_path(plan_path)
+        content = plan_path.read_text(encoding="utf-8")
+        assert "# Test Plan" in content
+
+        await session.disconnect()
+
+
+class _TestSessionFsProvider(SessionFsProvider):
     def __init__(self, provider_root: Path, session_id: str):
         self._provider_root = provider_root
         self._session_id = session_id
 
-    async def read_file(self, params) -> SessionFSReadFileResult:
-        content = provider_path(self._provider_root, self._session_id, params.path).read_text(
-            encoding="utf-8"
-        )
-        return SessionFSReadFileResult.from_dict({"content": content})
+    def _path(self, path: str) -> Path:
+        return provider_path(self._provider_root, self._session_id, path)
 
-    async def write_file(self, params) -> None:
-        path = provider_path(self._provider_root, self._session_id, params.path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(params.content, encoding="utf-8")
+    async def read_file(self, path: str) -> str:
+        return self._path(path).read_text(encoding="utf-8")
 
-    async def append_file(self, params) -> None:
-        path = provider_path(self._provider_root, self._session_id, params.path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(params.content)
+    async def write_file(self, path: str, content: str, mode: int | None = None) -> None:
+        p = self._path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
 
-    async def exists(self, params) -> SessionFSExistsResult:
-        path = provider_path(self._provider_root, self._session_id, params.path)
-        return SessionFSExistsResult.from_dict({"exists": path.exists()})
+    async def append_file(self, path: str, content: str, mode: int | None = None) -> None:
+        p = self._path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as handle:
+            handle.write(content)
 
-    async def stat(self, params) -> SessionFSStatResult:
-        path = provider_path(self._provider_root, self._session_id, params.path)
-        info = path.stat()
-        timestamp = dt.datetime.fromtimestamp(info.st_mtime, tz=dt.UTC).isoformat()
-        if timestamp.endswith("+00:00"):
-            timestamp = f"{timestamp[:-6]}Z"
-        return SessionFSStatResult.from_dict(
-            {
-                "isFile": not path.is_dir(),
-                "isDirectory": path.is_dir(),
-                "size": info.st_size,
-                "mtime": timestamp,
-                "birthtime": timestamp,
-            }
+    async def exists(self, path: str) -> bool:
+        return self._path(path).exists()
+
+    async def stat(self, path: str) -> SessionFsFileInfo:
+        p = self._path(path)
+        info = p.stat()
+        timestamp = dt.datetime.fromtimestamp(info.st_mtime, tz=dt.UTC)
+        return SessionFsFileInfo(
+            is_file=not p.is_dir(),
+            is_directory=p.is_dir(),
+            size=info.st_size,
+            mtime=timestamp,
+            birthtime=timestamp,
         )
 
-    async def mkdir(self, params) -> None:
-        path = provider_path(self._provider_root, self._session_id, params.path)
-        if params.recursive:
-            path.mkdir(parents=True, exist_ok=True)
+    async def mkdir(self, path: str, recursive: bool, mode: int | None = None) -> None:
+        p = self._path(path)
+        if recursive:
+            p.mkdir(parents=True, exist_ok=True)
         else:
-            path.mkdir()
+            p.mkdir()
 
-    async def readdir(self, params) -> SessionFSReaddirResult:
-        entries = sorted(
-            entry.name
-            for entry in provider_path(self._provider_root, self._session_id, params.path).iterdir()
-        )
-        return SessionFSReaddirResult.from_dict({"entries": entries})
+    async def readdir(self, path: str) -> list[str]:
+        return sorted(entry.name for entry in self._path(path).iterdir())
 
-    async def readdir_with_types(self, params) -> SessionFSReaddirWithTypesResult:
+    async def readdir_with_types(self, path: str) -> list[SessionFSReaddirWithTypesEntry]:
         entries = []
-        for entry in sorted(
-            provider_path(self._provider_root, self._session_id, params.path).iterdir(),
-            key=lambda item: item.name,
-        ):
+        for entry in sorted(self._path(path).iterdir(), key=lambda item: item.name):
             entries.append(
-                {
-                    "name": entry.name,
-                    "type": "directory" if entry.is_dir() else "file",
-                }
+                SessionFSReaddirWithTypesEntry(
+                    name=entry.name,
+                    type=SessionFSReaddirWithTypesEntryType.DIRECTORY
+                    if entry.is_dir()
+                    else SessionFSReaddirWithTypesEntryType.FILE,
+                )
             )
-        return SessionFSReaddirWithTypesResult.from_dict({"entries": entries})
+        return entries
 
-    async def rm(self, params) -> None:
-        provider_path(self._provider_root, self._session_id, params.path).unlink()
+    async def rm(self, path: str, recursive: bool, force: bool) -> None:
+        self._path(path).unlink()
 
-    async def rename(self, params) -> None:
-        src = provider_path(self._provider_root, self._session_id, params.src)
-        dest = provider_path(self._provider_root, self._session_id, params.dest)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        src.rename(dest)
+    async def rename(self, src: str, dest: str) -> None:
+        d = self._path(dest)
+        d.parent.mkdir(parents=True, exist_ok=True)
+        self._path(src).rename(d)
 
 
 def create_test_session_fs_handler(provider_root: Path):
     def create_handler(session):
-        return _SessionFsHandler(provider_root, session.session_id)
+        return _TestSessionFsProvider(provider_root, session.session_id)
 
     return create_handler
 

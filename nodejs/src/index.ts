@@ -14,6 +14,7 @@ export {
     defineTool,
     approveAll,
     convertMcpCallToolResult,
+    createSessionFsAdapter,
     SYSTEM_PROMPT_SECTIONS,
 } from "./types.js";
 export type {
@@ -38,6 +39,7 @@ export type {
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
+    DefaultAgentConfig,
     MessageOptions,
     ModelBilling,
     ModelCapabilities,
@@ -66,7 +68,8 @@ export type {
     SessionMetadata,
     SessionUiApi,
     SessionFsConfig,
-    SessionFsHandler,
+    SessionFsProvider,
+    SessionFsFileInfo,
     SystemMessageAppendConfig,
     SystemMessageConfig,
     SystemMessageCustomizeConfig,

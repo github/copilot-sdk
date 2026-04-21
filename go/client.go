@@ -592,6 +592,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.MCPServers = config.MCPServers
 	req.EnvValueMode = "direct"
 	req.CustomAgents = config.CustomAgents
+	req.DefaultAgent = config.DefaultAgent
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
 	req.DisabledSkills = config.DisabledSkills
@@ -610,6 +611,11 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	if config.Streaming {
 		req.Streaming = Bool(true)
+	}
+	if config.IncludeSubAgentStreamingEvents != nil {
+		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
+	} else {
+		req.IncludeSubAgentStreamingEvents = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
@@ -670,7 +676,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			c.sessionsMux.Unlock()
 			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
 		}
-		session.clientSessionApis.SessionFs = config.CreateSessionFsHandler(session)
+		session.clientSessionApis.SessionFs = newSessionFsAdapter(config.CreateSessionFsHandler(session))
 	}
 
 	result, err := c.client.Request("session.create", req)
@@ -744,6 +750,11 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.Streaming {
 		req.Streaming = Bool(true)
 	}
+	if config.IncludeSubAgentStreamingEvents != nil {
+		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
+	} else {
+		req.IncludeSubAgentStreamingEvents = Bool(true)
+	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
 	}
@@ -766,6 +777,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.MCPServers = config.MCPServers
 	req.EnvValueMode = "direct"
 	req.CustomAgents = config.CustomAgents
+	req.DefaultAgent = config.DefaultAgent
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
 	req.DisabledSkills = config.DisabledSkills
@@ -823,7 +835,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			c.sessionsMux.Unlock()
 			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
 		}
-		session.clientSessionApis.SessionFs = config.CreateSessionFsHandler(session)
+		session.clientSessionApis.SessionFs = newSessionFsAdapter(config.CreateSessionFsHandler(session))
 	}
 
 	result, err := c.client.Request("session.resume", req)

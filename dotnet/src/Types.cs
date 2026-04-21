@@ -1657,6 +1657,21 @@ public class CustomAgentConfig
 }
 
 /// <summary>
+/// Configuration for the default agent (the built-in agent that handles turns when no custom agent is selected).
+/// Use <see cref="ExcludedTools"/> to hide specific tools from the default agent
+/// while keeping them available to custom sub-agents.
+/// </summary>
+public class DefaultAgentConfig
+{
+    /// <summary>
+    /// List of tool names to exclude from the default agent.
+    /// These tools remain available to custom sub-agents that reference them
+    /// in their <see cref="CustomAgentConfig.Tools"/> list.
+    /// </summary>
+    public IList<string>? ExcludedTools { get; set; }
+}
+
+/// <summary>
 /// Configuration for infinite sessions with automatic context compaction and workspace persistence.
 /// When enabled, sessions automatically manage context window limits through background compaction
 /// and persist state to a workspace directory.
@@ -1709,6 +1724,7 @@ public class SessionConfig
         Commands = other.Commands is not null ? [.. other.Commands] : null;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
+        DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
@@ -1732,6 +1748,7 @@ public class SessionConfig
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         Streaming = other.Streaming;
+        IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
         Tools = other.Tools is not null ? [.. other.Tools] : null;
         WorkingDirectory = other.WorkingDirectory;
@@ -1849,6 +1866,17 @@ public class SessionConfig
     public bool Streaming { get; set; }
 
     /// <summary>
+    /// Include sub-agent streaming events in the event stream. When true, streaming
+    /// delta events from sub-agents (e.g., <c>assistant.message_delta</c>,
+    /// <c>assistant.reasoning_delta</c>, <c>assistant.streaming_delta</c> with
+    /// <c>agentId</c> set) are forwarded to this connection. When false, only
+    /// non-streaming sub-agent events and <c>subagent.*</c> lifecycle events are
+    /// forwarded; streaming deltas from sub-agents are suppressed.
+    /// Default: true.
+    /// </summary>
+    public bool IncludeSubAgentStreamingEvents { get; set; } = true;
+
+    /// <summary>
     /// MCP server configurations for the session.
     /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
@@ -1858,6 +1886,13 @@ public class SessionConfig
     /// Custom agent configurations for the session.
     /// </summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
+
+    /// <summary>
+    /// Configuration for the default agent (the built-in agent that handles turns when no custom agent is selected).
+    /// Use <see cref="DefaultAgentConfig.ExcludedTools"/> to hide specific tools from the default agent
+    /// while keeping them available to custom sub-agents.
+    /// </summary>
+    public DefaultAgentConfig? DefaultAgent { get; set; }
 
     /// <summary>
     /// Name of the custom agent to activate when the session starts.
@@ -1897,7 +1932,7 @@ public class SessionConfig
     /// Supplies a handler for session filesystem operations.
     /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
     /// </summary>
-    public Func<CopilotSession, ISessionFsHandler>? CreateSessionFsHandler { get; set; }
+    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsHandler { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
@@ -1938,6 +1973,7 @@ public class ResumeSessionConfig
         Commands = other.Commands is not null ? [.. other.Commands] : null;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
+        DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         DisableResume = other.DisableResume;
@@ -1961,6 +1997,7 @@ public class ResumeSessionConfig
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         Streaming = other.Streaming;
+        IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
         Tools = other.Tools is not null ? [.. other.Tools] : null;
         WorkingDirectory = other.WorkingDirectory;
@@ -2083,6 +2120,17 @@ public class ResumeSessionConfig
     public bool Streaming { get; set; }
 
     /// <summary>
+    /// Include sub-agent streaming events in the event stream. When true, streaming
+    /// delta events from sub-agents (e.g., <c>assistant.message_delta</c>,
+    /// <c>assistant.reasoning_delta</c>, <c>assistant.streaming_delta</c> with
+    /// <c>agentId</c> set) are forwarded to this connection. When false, only
+    /// non-streaming sub-agent events and <c>subagent.*</c> lifecycle events are
+    /// forwarded; streaming deltas from sub-agents are suppressed.
+    /// Default: true.
+    /// </summary>
+    public bool IncludeSubAgentStreamingEvents { get; set; } = true;
+
+    /// <summary>
     /// MCP server configurations for the session.
     /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
@@ -2092,6 +2140,13 @@ public class ResumeSessionConfig
     /// Custom agent configurations for the session.
     /// </summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
+
+    /// <summary>
+    /// Configuration for the default agent (the built-in agent that handles turns when no custom agent is selected).
+    /// Use <see cref="DefaultAgentConfig.ExcludedTools"/> to hide specific tools from the default agent
+    /// while keeping them available to custom sub-agents.
+    /// </summary>
+    public DefaultAgentConfig? DefaultAgent { get; set; }
 
     /// <summary>
     /// Name of the custom agent to activate when the session starts.
@@ -2124,7 +2179,7 @@ public class ResumeSessionConfig
     /// Supplies a handler for session filesystem operations.
     /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
     /// </summary>
-    public Func<CopilotSession, ISessionFsHandler>? CreateSessionFsHandler { get; set; }
+    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsHandler { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.

@@ -74,7 +74,7 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
 
     if (processed.properties) {
         const newProps: Record<string, JSONSchema7Definition> = {};
-        for (const [key, value] of Object.entries(processed.properties)) {
+        for (const [key, value] of Object.entries(processed.properties).sort(([a], [b]) => a.localeCompare(b))) {
             newProps[key] = typeof value === "object" ? postProcessSchema(value as JSONSchema7) : value;
         }
         processed.properties = newProps;
@@ -128,6 +128,78 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
     return processed;
 }
 
+/**
+ * Normalize schema defects where a required property with a `$ref` to an object type
+ * has a description explicitly mentioning "null" as a valid value.
+ *
+ * In JSON Schema, `required` only means the key must be present — it doesn't prevent
+ * the value from being null. Some schemas mark properties as required but describe them
+ * as nullable (e.g., "Currently selected agent, or null if using the default").
+ *
+ * This function converts such properties from:
+ *   `{ "$ref": "#/definitions/Foo", "description": "...null..." }`
+ * to:
+ *   `{ "anyOf": [{ "$ref": "#/definitions/Foo" }, { "type": "null" }], "description": "...null..." }`
+ *
+ * This makes all downstream codegen (Go, C#, Python/quicktype, TypeScript) correctly
+ * emit nullable/optional types without per-language heuristics.
+ */
+export function normalizeNullableRequiredRefs(schema: JSONSchema7): JSONSchema7 {
+    if (typeof schema !== "object" || schema === null) return schema;
+
+    const processed = { ...schema };
+
+    if (processed.properties && processed.required) {
+        const requiredSet = new Set(processed.required);
+        const newProps: Record<string, JSONSchema7Definition> = {};
+        const newRequired = [...processed.required];
+
+        for (const [key, value] of Object.entries(processed.properties)) {
+            if (typeof value !== "object" || value === null) {
+                newProps[key] = value;
+                continue;
+            }
+            const prop = value as JSONSchema7;
+            if (
+                requiredSet.has(key) &&
+                prop.$ref &&
+                typeof prop.description === "string" &&
+                /\bnull\b/i.test(prop.description)
+            ) {
+                // Convert to anyOf: [$ref, null] and remove from required
+                const { $ref, ...rest } = prop;
+                newProps[key] = {
+                    ...rest,
+                    anyOf: [{ $ref }, { type: "null" as const }],
+                };
+                const idx = newRequired.indexOf(key);
+                if (idx !== -1) newRequired.splice(idx, 1);
+            } else {
+                newProps[key] = normalizeNullableRequiredRefs(prop);
+            }
+        }
+
+        processed.properties = newProps;
+        processed.required = newRequired;
+    }
+
+    // Recurse into nested schemas
+    if (processed.items) {
+        if (typeof processed.items === "object" && !Array.isArray(processed.items)) {
+            processed.items = normalizeNullableRequiredRefs(processed.items as JSONSchema7);
+        }
+    }
+    for (const combiner of ["anyOf", "allOf", "oneOf"] as const) {
+        if (processed[combiner]) {
+            processed[combiner] = processed[combiner]!.map((item) =>
+                typeof item === "object" ? normalizeNullableRequiredRefs(item as JSONSchema7) : item
+            ) as JSONSchema7Definition[];
+        }
+    }
+
+    return processed;
+}
+
 // ── File output ─────────────────────────────────────────────────────────────
 
 export async function writeGeneratedFile(relativePath: string, content: string): Promise<string> {
@@ -144,6 +216,7 @@ export interface RpcMethod {
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
     stability?: string;
+    deprecated?: boolean;
 }
 
 export function getRpcSchemaTypeName(schema: JSONSchema7 | null | undefined, fallback: string): string {
@@ -172,139 +245,42 @@ export function isVoidSchema(schema: JSONSchema7 | null | undefined): boolean {
     return schema.type === "null";
 }
 
+/**
+ * If the schema is a nullable anyOf (anyOf: [nullLike, T] or [T, nullLike]),
+ * returns the non-null inner schema. Recognizes both `{ type: "null" }` and
+ * `{ not: {} }` (zod-to-json-schema 2019-09 format for undefined).
+ * Returns undefined if the schema is not a nullable wrapper.
+ */
+export function getNullableInner(schema: JSONSchema7): JSONSchema7 | undefined {
+    if (!schema.anyOf || !Array.isArray(schema.anyOf) || schema.anyOf.length !== 2) return undefined;
+    const [a, b] = schema.anyOf;
+    if (isNullLike(a) && !isNullLike(b)) return b as JSONSchema7;
+    if (isNullLike(b) && !isNullLike(a)) return a as JSONSchema7;
+    return undefined;
+}
+
+function isNullLike(s: unknown): boolean {
+    if (!s || typeof s !== "object") return false;
+    const obj = s as Record<string, unknown>;
+    if (obj.type === "null") return true;
+    if ("not" in obj && typeof obj.not === "object" && obj.not !== null && Object.keys(obj.not).length === 0) return true;
+    return false;
+}
+
 export function cloneSchemaForCodegen<T>(value: T): T {
     if (Array.isArray(value)) {
         return value.map((item) => cloneSchemaForCodegen(item)) as T;
     }
 
     if (value && typeof value === "object") {
+        const source = value as Record<string, unknown>;
         const result: Record<string, unknown> = {};
-        for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-            if (key === "titleSource") {
-                continue;
-            }
+
+        for (const [key, child] of Object.entries(source)) {
             result[key] = cloneSchemaForCodegen(child);
         }
 
         return result as T;
-    }
-
-    return value;
-}
-
-export function stripNonAnnotationTitles<T>(value: T): T {
-    if (Array.isArray(value)) {
-        return value.map((item) => stripNonAnnotationTitles(item)) as T;
-    }
-
-    if (value && typeof value === "object") {
-        const result: Record<string, unknown> = {};
-        const source = value as Record<string, unknown>;
-        const keepTitle = typeof source.title === "string" && source.titleSource === "annotation";
-        for (const [key, child] of Object.entries(source)) {
-            if (key === "titleSource") {
-                continue;
-            }
-            if (key === "title" && !keepTitle) {
-                continue;
-            }
-            result[key] = stripNonAnnotationTitles(child);
-        }
-
-        return result as T;
-    }
-
-    return value;
-}
-
-export function hoistTitledSchemas(
-    rootDefinitions: Record<string, JSONSchema7>
-): { rootDefinitions: Record<string, JSONSchema7>; sharedDefinitions: Record<string, JSONSchema7> } {
-    const sharedDefinitions: Record<string, JSONSchema7> = {};
-    const processedRoots: Record<string, JSONSchema7> = {};
-
-    for (const [rootName, definition] of Object.entries(rootDefinitions)) {
-        processedRoots[rootName] = visitSchema(definition, rootName, sharedDefinitions);
-    }
-
-    return { rootDefinitions: processedRoots, sharedDefinitions };
-}
-
-function visitSchema(
-    schema: JSONSchema7,
-    rootName: string,
-    sharedDefinitions: Record<string, JSONSchema7>
-): JSONSchema7 {
-    const result: JSONSchema7 = { ...schema };
-
-    if (result.properties) {
-        result.properties = Object.fromEntries(
-            Object.entries(result.properties).map(([key, value]) => [
-                key,
-                typeof value === "object" && value !== null && !Array.isArray(value)
-                    ? visitSchema(value as JSONSchema7, rootName, sharedDefinitions)
-                    : value,
-            ])
-        );
-    }
-
-    if (result.items) {
-        if (Array.isArray(result.items)) {
-            result.items = result.items.map((item) =>
-                typeof item === "object" && item !== null && !Array.isArray(item)
-                    ? visitSchema(item as JSONSchema7, rootName, sharedDefinitions)
-                    : item
-            ) as JSONSchema7Definition[];
-        } else if (typeof result.items === "object" && result.items !== null) {
-            result.items = visitSchema(result.items as JSONSchema7, rootName, sharedDefinitions);
-        }
-    }
-
-    if (typeof result.additionalProperties === "object" && result.additionalProperties !== null) {
-        result.additionalProperties = visitSchema(result.additionalProperties as JSONSchema7, rootName, sharedDefinitions);
-    }
-
-    for (const combiner of ["anyOf", "allOf", "oneOf"] as const) {
-        if (result[combiner]) {
-            result[combiner] = result[combiner]!.map((item) =>
-                typeof item === "object" && item !== null && !Array.isArray(item)
-                    ? visitSchema(item as JSONSchema7, rootName, sharedDefinitions)
-                    : item
-            ) as JSONSchema7Definition[];
-        }
-    }
-
-    if (typeof result.title === "string" && result.title !== rootName) {
-        const existing = sharedDefinitions[result.title];
-        if (existing) {
-            if (stableStringify(existing) !== stableStringify(result)) {
-                throw new Error(`Conflicting titled schemas for "${result.title}" while preparing quicktype inputs.`);
-            }
-        } else {
-            sharedDefinitions[result.title] = result;
-        }
-        return { $ref: `#/definitions/${result.title}`, description: result.description } as JSONSchema7;
-    }
-
-    return result;
-}
-
-function stableStringify(value: unknown): string {
-    return JSON.stringify(sortJsonValue(value));
-}
-
-function sortJsonValue(value: unknown): unknown {
-    if (Array.isArray(value)) {
-        return value.map(sortJsonValue);
-    }
-
-    if (value && typeof value === "object") {
-        return Object.fromEntries(
-            Object.entries(value as Record<string, unknown>)
-                .filter(([key]) => key !== "description" && key !== "titleSource")
-                .sort(([left], [right]) => left.localeCompare(right))
-                .map(([key, child]) => [key, sortJsonValue(child)])
-        );
     }
 
     return value;
@@ -322,132 +298,49 @@ export function isRpcMethod(node: unknown): node is RpcMethod {
     return typeof node === "object" && node !== null && "rpcMethod" in node;
 }
 
-function normalizeSchemaDefinitionTitles(definition: JSONSchema7Definition): JSONSchema7Definition {
-    return typeof definition === "object" && definition !== null
-        ? normalizeSchemaTitles(definition as JSONSchema7)
-        : definition;
-}
-
-export function normalizeSchemaTitles(schema: JSONSchema7): JSONSchema7 {
-    if (typeof schema !== "object" || schema === null) return schema;
-
-    const normalized = { ...schema } as JSONSchema7WithDefs & Record<string, unknown>;
-    delete normalized.title;
-    delete normalized.titleSource;
-
-    if (normalized.properties) {
-        const newProps: Record<string, JSONSchema7Definition> = {};
-        for (const [key, value] of Object.entries(normalized.properties)) {
-            newProps[key] = normalizeSchemaDefinitionTitles(value);
+/**
+ * Apply `normalizeNullableRequiredRefs` to every JSON Schema reachable from the API schema
+ * (method params, results, and shared definitions). Call after `cloneSchemaForCodegen` to
+ * fix schema defects before any per-language codegen runs.
+ */
+export function fixNullableRequiredRefsInApiSchema(schema: ApiSchema): ApiSchema {
+    function walkApiNode(node: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+        if (!node) return undefined;
+        const result: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(node)) {
+            if (isRpcMethod(value)) {
+                const method = value as RpcMethod;
+                result[key] = {
+                    ...method,
+                    params: method.params ? normalizeNullableRequiredRefs(method.params) : method.params,
+                    result: method.result ? normalizeNullableRequiredRefs(method.result) : method.result,
+                };
+            } else if (typeof value === "object" && value !== null) {
+                result[key] = walkApiNode(value as Record<string, unknown>);
+            } else {
+                result[key] = value;
+            }
         }
-        normalized.properties = newProps;
+        return result;
     }
 
-    if (normalized.items) {
-        if (typeof normalized.items === "object" && !Array.isArray(normalized.items)) {
-            normalized.items = normalizeSchemaTitles(normalized.items as JSONSchema7);
-        } else if (Array.isArray(normalized.items)) {
-            normalized.items = normalized.items.map((item) => normalizeSchemaDefinitionTitles(item)) as JSONSchema7Definition[];
-        }
+    function normalizeDefs(defs: Record<string, JSONSchema7Definition> | undefined): Record<string, JSONSchema7Definition> | undefined {
+        if (!defs) return undefined;
+        return Object.fromEntries(
+            Object.entries(defs).map(([key, value]) => [
+                key,
+                typeof value === "object" && value !== null ? normalizeNullableRequiredRefs(value as JSONSchema7) : value,
+            ])
+        );
     }
 
-    for (const combiner of ["anyOf", "allOf", "oneOf"] as const) {
-        if (normalized[combiner]) {
-            normalized[combiner] = normalized[combiner]!.map((item) => normalizeSchemaDefinitionTitles(item)) as JSONSchema7Definition[];
-        }
-    }
-
-    if (normalized.additionalProperties && typeof normalized.additionalProperties === "object") {
-        normalized.additionalProperties = normalizeSchemaTitles(normalized.additionalProperties as JSONSchema7);
-    }
-
-    if (normalized.propertyNames && typeof normalized.propertyNames === "object" && !Array.isArray(normalized.propertyNames)) {
-        normalized.propertyNames = normalizeSchemaTitles(normalized.propertyNames as JSONSchema7);
-    }
-
-    if (normalized.contains && typeof normalized.contains === "object" && !Array.isArray(normalized.contains)) {
-        normalized.contains = normalizeSchemaTitles(normalized.contains as JSONSchema7);
-    }
-
-    if (normalized.not && typeof normalized.not === "object" && !Array.isArray(normalized.not)) {
-        normalized.not = normalizeSchemaTitles(normalized.not as JSONSchema7);
-    }
-
-    if (normalized.if && typeof normalized.if === "object" && !Array.isArray(normalized.if)) {
-        normalized.if = normalizeSchemaTitles(normalized.if as JSONSchema7);
-    }
-    if (normalized.then && typeof normalized.then === "object" && !Array.isArray(normalized.then)) {
-        normalized.then = normalizeSchemaTitles(normalized.then as JSONSchema7);
-    }
-    if (normalized.else && typeof normalized.else === "object" && !Array.isArray(normalized.else)) {
-        normalized.else = normalizeSchemaTitles(normalized.else as JSONSchema7);
-    }
-
-    if (normalized.patternProperties) {
-        const newPatternProps: Record<string, JSONSchema7Definition> = {};
-        for (const [key, value] of Object.entries(normalized.patternProperties)) {
-            newPatternProps[key] = normalizeSchemaDefinitionTitles(value);
-        }
-        normalized.patternProperties = newPatternProps;
-    }
-
-    const { definitions, $defs } = collectDefinitionCollections(normalized as Record<string, unknown>);
-    if (Object.keys(definitions).length > 0) {
-        const newDefs: Record<string, JSONSchema7Definition> = {};
-        for (const [key, value] of Object.entries(definitions)) {
-            newDefs[key] = normalizeSchemaDefinitionTitles(value);
-        }
-        normalized.definitions = newDefs;
-    }
-    if (Object.keys($defs).length > 0) {
-        const newDraftDefs: Record<string, JSONSchema7Definition> = {};
-        for (const [key, value] of Object.entries($defs)) {
-            newDraftDefs[key] = normalizeSchemaDefinitionTitles(value);
-        }
-        normalized.$defs = newDraftDefs;
-    }
-
-    return normalized;
-}
-
-function normalizeApiNode(node: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-    if (!node) return undefined;
-
-    const normalizedNode: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(node)) {
-        if (isRpcMethod(value)) {
-            const method = value as RpcMethod;
-            normalizedNode[key] = {
-                ...method,
-                params: method.params ? normalizeSchemaTitles(method.params) : method.params,
-                result: method.result ? normalizeSchemaTitles(method.result) : method.result,
-            };
-        } else if (typeof value === "object" && value !== null) {
-            normalizedNode[key] = normalizeApiNode(value as Record<string, unknown>);
-        } else {
-            normalizedNode[key] = value;
-        }
-    }
-
-    return normalizedNode;
-}
-
-export function normalizeApiSchema(schema: ApiSchema): ApiSchema {
     return {
         ...schema,
-        definitions: schema.definitions
-            ? Object.fromEntries(
-                  Object.entries(schema.definitions).map(([key, value]) => [key, normalizeSchemaDefinitionTitles(value)])
-              )
-            : schema.definitions,
-        $defs: schema.$defs
-            ? Object.fromEntries(
-                  Object.entries(schema.$defs).map(([key, value]) => [key, normalizeSchemaDefinitionTitles(value)])
-              )
-            : schema.$defs,
-        server: normalizeApiNode(schema.server),
-        session: normalizeApiNode(schema.session),
-        clientSession: normalizeApiNode(schema.clientSession),
+        definitions: normalizeDefs(schema.definitions),
+        $defs: normalizeDefs(schema.$defs),
+        server: walkApiNode(schema.server),
+        session: walkApiNode(schema.session),
+        clientSession: walkApiNode(schema.clientSession),
     };
 }
 
@@ -464,6 +357,26 @@ export function isNodeFullyExperimental(node: Record<string, unknown>): boolean 
         }
     })(node);
     return methods.length > 0 && methods.every(m => m.stability === "experimental");
+}
+
+/** Returns true when every leaf RPC method inside `node` is marked deprecated. */
+export function isNodeFullyDeprecated(node: Record<string, unknown>): boolean {
+    const methods: RpcMethod[] = [];
+    (function collect(n: Record<string, unknown>) {
+        for (const value of Object.values(n)) {
+            if (isRpcMethod(value)) {
+                methods.push(value);
+            } else if (typeof value === "object" && value !== null) {
+                collect(value as Record<string, unknown>);
+            }
+        }
+    })(node);
+    return methods.length > 0 && methods.every(m => m.deprecated === true);
+}
+
+/** Returns true when a JSON Schema node is marked as deprecated. */
+export function isSchemaDeprecated(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).deprecated === true;
 }
 
 // ── $ref resolution ─────────────────────────────────────────────────────────

@@ -13,13 +13,16 @@ import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "
 import { promisify } from "util";
 import {
     cloneSchemaForCodegen,
+    fixNullableRequiredRefsInApiSchema,
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    hoistTitledSchemas,
     hasSchemaPayload,
     isNodeFullyExperimental,
+    isNodeFullyDeprecated,
+    isSchemaDeprecated,
     isVoidSchema,
+    getNullableInner,
     isRpcMethod,
     postProcessSchema,
     writeGeneratedFile,
@@ -107,7 +110,7 @@ function postProcessEnumConstants(code: string): string {
     return code;
 }
 
-function collapsePlaceholderGoStructs(code: string): string {
+function collapsePlaceholderGoStructs(code: string, knownDefinitionNames?: Set<string>): string {
     const structBlockRe = /((?:\/\/.*\r?\n)*)type\s+(\w+)\s+struct\s*\{[\s\S]*?^\}/gm;
     const matches = [...code.matchAll(structBlockRe)].map((match) => ({
         fullBlock: match[0],
@@ -125,12 +128,14 @@ function collapsePlaceholderGoStructs(code: string): string {
     for (const group of groups.values()) {
         if (group.length < 2) continue;
 
-        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name));
+        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name), knownDefinitionNames);
         if (!canonical) continue;
 
         for (const duplicate of group) {
             if (duplicate.name === canonical) continue;
-            if (!isPlaceholderTypeName(duplicate.name)) continue;
+            // Only collapse types that quicktype invented (Class suffix or not
+            // in the schema's named definitions). Preserve intentionally-named types.
+            if (!isPlaceholderTypeName(duplicate.name) && knownDefinitionNames?.has(duplicate.name.toLowerCase())) continue;
 
             code = code.replace(duplicate.fullBlock, "");
             code = code.replace(new RegExp(`\\b${duplicate.name}\\b`, "g"), canonical);
@@ -142,7 +147,7 @@ function collapsePlaceholderGoStructs(code: string): string {
 
 function normalizeGoStructBlock(block: string, name: string): string {
     return block
-        .replace(/^\/\/.*\r?\n/gm, "")
+        .replace(/^\s*\/\/.*\r?\n/gm, "")
         .replace(new RegExp(`^type\\s+${name}\\s+struct\\s*\\{`, "m"), "type struct {")
         .split(/\r?\n/)
         .map((line) => line.trim())
@@ -150,10 +155,16 @@ function normalizeGoStructBlock(block: string, name: string): string {
         .join("\n");
 }
 
-function chooseCanonicalPlaceholderDuplicate(names: string[]): string | undefined {
+function chooseCanonicalPlaceholderDuplicate(names: string[], knownDefinitionNames?: Set<string>): string | undefined {
+    // Prefer the name that matches a schema definition — it's intentionally named.
+    if (knownDefinitionNames) {
+        const definedName = names.find((name) => knownDefinitionNames.has(name.toLowerCase()));
+        if (definedName) return definedName;
+    }
+    // Fallback for Class-suffix placeholders: pick the non-placeholder name.
     const specificNames = names.filter((name) => !isPlaceholderTypeName(name));
     if (specificNames.length === 0) return undefined;
-    return specificNames.sort((left, right) => right.length - left.length || left.localeCompare(right))[0];
+    return specificNames[0];
 }
 
 function isPlaceholderTypeName(name: string): boolean {
@@ -263,6 +274,14 @@ function goResultTypeName(method: RpcMethod): string {
     return getRpcSchemaTypeName(getMethodResultSchema(method), toPascalCase(method.rpcMethod) + "Result");
 }
 
+function goNullableResultTypeName(method: RpcMethod, innerSchema: JSONSchema7): string {
+    if (innerSchema.$ref) {
+        const refName = innerSchema.$ref.split("/").pop();
+        if (refName) return toPascalCase(refName);
+    }
+    return getRpcSchemaTypeName(innerSchema, toPascalCase(method.rpcMethod) + "Result");
+}
+
 function goParamsTypeName(method: RpcMethod): string {
     const fallback = goRequestFallbackName(method);
     if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
@@ -355,7 +374,8 @@ function getOrCreateGoEnum(
     enumName: string,
     values: string[],
     ctx: GoCodegenCtx,
-    description?: string
+    description?: string,
+    deprecated?: boolean
 ): string {
     const existing = ctx.enumsByName.get(enumName);
     if (existing) return existing;
@@ -365,6 +385,9 @@ function getOrCreateGoEnum(
         for (const line of description.split(/\r?\n/)) {
             lines.push(`// ${line}`);
         }
+    }
+    if (deprecated) {
+        lines.push(`// Deprecated: ${enumName} is deprecated and will be removed in a future version.`);
     }
     lines.push(`type ${enumName} string`);
     lines.push(``);
@@ -406,7 +429,7 @@ function resolveGoPropertyType(
         const resolved = resolveRef(propSchema.$ref, ctx.definitions);
         if (resolved) {
             if (resolved.enum) {
-                const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description);
+                const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
                 return isRequired ? enumType : `*${enumType}`;
             }
             if (isNamedGoObjectSchema(resolved)) {
@@ -421,6 +444,17 @@ function resolveGoPropertyType(
 
     // Handle anyOf
     if (propSchema.anyOf) {
+        const nullableInnerSchema = getNullableInner(propSchema);
+        if (nullableInnerSchema) {
+            // anyOf [T, null/{not:{}}] → nullable T
+            const innerType = resolveGoPropertyType(nullableInnerSchema, parentTypeName, jsonPropName, true, ctx);
+            if (isRequired) return innerType;
+            // Pointer-wrap if not already a pointer, slice, or map
+            if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
+                return innerType;
+            }
+            return `*${innerType}`;
+        }
         const nonNull = (propSchema.anyOf as JSONSchema7[]).filter((s) => s.type !== "null");
         const hasNull = (propSchema.anyOf as JSONSchema7[]).some((s) => s.type === "null");
 
@@ -428,7 +462,6 @@ function resolveGoPropertyType(
             // anyOf [T, null] → nullable T
             const innerType = resolveGoPropertyType(nonNull[0], parentTypeName, jsonPropName, true, ctx);
             if (isRequired && !hasNull) return innerType;
-            // Pointer-wrap if not already a pointer, slice, or map
             if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
                 return innerType;
             }
@@ -436,8 +469,15 @@ function resolveGoPropertyType(
         }
 
         if (nonNull.length > 1) {
+            // Resolve $refs in variants before discriminator analysis
+            const resolvedVariants = nonNull.map((v) => {
+                if (v.$ref && typeof v.$ref === "string") {
+                    return resolveRef(v.$ref, ctx.definitions) ?? v;
+                }
+                return v;
+            });
             // Check for discriminated union
-            const disc = findGoDiscriminator(nonNull);
+            const disc = findGoDiscriminator(resolvedVariants);
             if (disc) {
                 const unionName = (propSchema.title as string) || nestedName;
                 emitGoFlatDiscriminatedUnion(unionName, disc.property, disc.mapping, ctx, propSchema.description);
@@ -450,7 +490,7 @@ function resolveGoPropertyType(
 
     // Handle enum
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
-        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description);
+        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description, isSchemaDeprecated(propSchema));
         return isRequired ? enumType : `*${enumType}`;
     }
 
@@ -559,9 +599,12 @@ function emitGoStruct(
             lines.push(`// ${line}`);
         }
     }
+    if (isSchemaDeprecated(schema)) {
+        lines.push(`// Deprecated: ${typeName} is deprecated and will be removed in a future version.`);
+    }
     lines.push(`type ${typeName} struct {`);
 
-    for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
+    for (const [propName, propSchema] of Object.entries(schema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
@@ -571,6 +614,9 @@ function emitGoStruct(
 
         if (prop.description) {
             lines.push(`\t// ${prop.description}`);
+        }
+        if (isSchemaDeprecated(prop)) {
+            lines.push(`\t// Deprecated: ${goName} is deprecated.`);
         }
         lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
     }
@@ -654,13 +700,16 @@ function emitGoFlatDiscriminatedUnion(
     lines.push(`\t${discGoName} ${discEnumName} \`json:"${discriminatorProp}"\``);
 
     // Emit remaining fields
-    for (const [propName, info] of allProps) {
+    for (const [propName, info] of [...allProps.entries()].sort(([a], [b]) => a.localeCompare(b))) {
         if (propName === discriminatorProp) continue;
         const goName = toGoFieldName(propName);
         const goType = resolveGoPropertyType(info.schema, typeName, propName, info.requiredInAll, ctx);
         const omit = info.requiredInAll ? "" : ",omitempty";
         if (info.schema.description) {
             lines.push(`\t// ${info.schema.description}`);
+        }
+        if (isSchemaDeprecated(info.schema)) {
+            lines.push(`\t// Deprecated: ${goName} is deprecated.`);
         }
         lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
     }
@@ -697,7 +746,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
         }
         lines.push(`type ${variant.dataClassName} struct {`);
 
-        for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties || {})) {
+        for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
             const isReq = required.has(propName);
@@ -707,6 +756,9 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
 
             if (prop.description) {
                 lines.push(`\t// ${prop.description}`);
+            }
+            if (isSchemaDeprecated(prop)) {
+                lines.push(`\t// Deprecated: ${goName} is deprecated.`);
             }
             lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
         }
@@ -880,19 +932,19 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     out.push(``);
 
     // Per-event data structs
-    for (const ds of dataStructs) {
+    for (const ds of dataStructs.sort()) {
         out.push(ds);
         out.push(``);
     }
 
     // Nested structs
-    for (const s of ctx.structs) {
+    for (const s of ctx.structs.sort()) {
         out.push(s);
         out.push(``);
     }
 
     // Enums
-    for (const e of ctx.enums) {
+    for (const e of ctx.enums.sort()) {
         out.push(e);
         out.push(``);
     }
@@ -900,7 +952,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     // Type aliases for types referenced by non-generated SDK code under their short names.
     const TYPE_ALIASES: Record<string, string> = {
         PermissionRequestCommand: "PermissionRequestShellCommand",
-        PossibleURL: "PermissionRequestShellPossibleUrl",
+        PossibleURL: "PermissionRequestShellPossibleURL",
         Attachment: "UserMessageAttachment",
         AttachmentType: "UserMessageAttachmentType",
     };
@@ -950,7 +1002,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("Go: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
@@ -970,7 +1022,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     for (const method of allMethods) {
         const resultSchema = getMethodResultSchema(method);
-        if (isVoidSchema(resultSchema)) {
+        const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+        if (nullableInner) {
+            // Nullable results (e.g., *SessionFSError) don't need a wrapper type;
+            // the inner type is already in definitions via shared hoisting.
+        } else if (isVoidSchema(resultSchema)) {
             // Emit an empty struct for void results (forward-compatible with adding fields later)
             combinedSchema.definitions![goResultTypeName(method)] = {
                 title: goResultTypeName(method),
@@ -1010,22 +1066,25 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         }
     }
 
-    const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
-    const allDefinitions = { ...rootDefinitions, ...sharedDefinitions };
+    const allDefinitions = combinedSchema.definitions! as Record<string, JSONSchema7>;
     const allDefinitionCollections: DefinitionCollections = {
         definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
     };
 
-    // Generate types via quicktype
+    // Generate types via quicktype — use a single combined schema source so quicktype
+    // sees each definition exactly once, preventing whimsical prefix disambiguation.
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    for (const [name, def] of Object.entries(rootDefinitions)) {
-        const schemaWithDefs = withSharedDefinitions(
-            typeof def === "object" ? (def as JSONSchema7) : {},
-            allDefinitionCollections
-        );
-        await schemaInput.addSource({ name, schema: JSON.stringify(schemaWithDefs) });
-    }
+    const singleSchema: JSONSchema7 = {
+        $schema: "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        definitions: allDefinitions as Record<string, JSONSchema7>,
+        properties: Object.fromEntries(
+            Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
+        ),
+        required: Object.keys(allDefinitions),
+    };
+    await schemaInput.addSource({ name: "RpcTypes", schema: JSON.stringify(singleSchema) });
 
     const inputData = new InputData();
     inputData.addInput(schemaInput);
@@ -1041,7 +1100,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const quicktypeImports = extractQuicktypeImports(qtCode);
     qtCode = quicktypeImports.code;
     qtCode = postProcessEnumConstants(qtCode);
-    qtCode = collapsePlaceholderGoStructs(qtCode);
+    const knownDefNames = new Set(Object.keys(allDefinitions).map((n) => n.toLowerCase()));
+    qtCode = collapsePlaceholderGoStructs(qtCode, knownDefNames);
     // Strip trailing whitespace from quicktype output (gofmt requirement)
     qtCode = qtCode.replace(/[ \t]+$/gm, "");
 
@@ -1063,7 +1123,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         if (method.stability !== "experimental") continue;
         experimentalTypeNames.add(goResultTypeName(method));
         const paramsTypeName = goParamsTypeName(method);
-        if (rootDefinitions[paramsTypeName]) {
+        if (allDefinitions[paramsTypeName]) {
             experimentalTypeNames.add(paramsTypeName);
         }
     }
@@ -1071,6 +1131,27 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         qtCode = qtCode.replace(
             new RegExp(`^(type ${typeName} struct)`, "m"),
             `// Experimental: ${typeName} is part of an experimental API and may change or be removed.\n$1`
+        );
+    }
+
+    // Annotate deprecated data types
+    const deprecatedTypeNames = new Set<string>();
+    for (const method of allMethods) {
+        if (!method.deprecated) continue;
+        if (!method.result?.$ref) {
+            deprecatedTypeNames.add(goResultTypeName(method));
+        }
+        if (!method.params?.$ref) {
+            const paramsTypeName = goParamsTypeName(method);
+            if (allDefinitions[paramsTypeName]) {
+                deprecatedTypeNames.add(paramsTypeName);
+            }
+        }
+    }
+    for (const typeName of deprecatedTypeNames) {
+        qtCode = qtCode.replace(
+            new RegExp(`^(type ${typeName} struct)`, "m"),
+            `// Deprecated: ${typeName} is deprecated and will be removed in a future version.\n$1`
         );
     }
     // Remove trailing blank lines from quicktype output before appending
@@ -1134,10 +1215,14 @@ function emitApiGroup(
     serviceName: string,
     resolveType: (name: string) => string,
     fieldNames: Map<string, Map<string, string>>,
-    groupExperimental: boolean
+    groupExperimental: boolean,
+    groupDeprecated: boolean = false
 ): void {
     const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
 
+    if (groupDeprecated) {
+        lines.push(`// Deprecated: ${apiName} contains deprecated APIs that will be removed in a future version.`);
+    }
     if (groupExperimental) {
         lines.push(`// Experimental: ${apiName} contains experimental APIs that may change or be removed.`);
     }
@@ -1146,13 +1231,14 @@ function emitApiGroup(
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, apiName, key, value, isSession, resolveType, fieldNames, groupExperimental);
+        emitMethod(lines, apiName, key, value, isSession, resolveType, fieldNames, groupExperimental, false, groupDeprecated);
     }
 
     for (const [subGroupName, subGroupNode] of subGroups) {
         const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
         const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
-        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, subGroupExperimental);
+        const subGroupDeprecated = isNodeFullyDeprecated(subGroupNode as Record<string, unknown>);
+        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, subGroupExperimental, subGroupDeprecated);
 
         if (subGroupExperimental) {
             lines.push(`// Experimental: ${toPascalCase(subGroupName)} returns experimental APIs that may change or be removed.`);
@@ -1184,7 +1270,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
-        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, groupExperimental);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
+        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, groupExperimental, groupDeprecated);
     }
 
     // Compute field name lengths for gofmt-compatible column alignment
@@ -1229,9 +1316,13 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
 }
 
-function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false): void {
+function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false, groupDeprecated = false): void {
     const methodName = toPascalCase(name);
-    const resultType = resolveType(goResultTypeName(method));
+    const resultSchema = getMethodResultSchema(method);
+    const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+    const resultType = nullableInner
+        ? resolveType(goNullableResultTypeName(method, nullableInner))
+        : resolveType(goResultTypeName(method));
 
     const effectiveParams = getMethodParamsSchema(method);
     const paramProps = effectiveParams?.properties || {};
@@ -1244,6 +1335,9 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     const clientRef = isWrapper ? "a.common.client" : "a.client";
     const sessionIDRef = isWrapper ? "a.common.sessionID" : "a.sessionID";
 
+    if (method.deprecated && !groupDeprecated) {
+        lines.push(`// Deprecated: ${methodName} is deprecated and will be removed in a future version.`);
+    }
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`// Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`);
     }
@@ -1323,16 +1417,27 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
     for (const { groupName, groupNode, methods } of groups) {
         const interfaceName = clientHandlerInterfaceName(groupName);
         const groupExperimental = isNodeFullyExperimental(groupNode);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode);
+        if (groupDeprecated) {
+            lines.push(`// Deprecated: ${interfaceName} contains deprecated APIs that will be removed in a future version.`);
+        }
         if (groupExperimental) {
             lines.push(`// Experimental: ${interfaceName} contains experimental APIs that may change or be removed.`);
         }
         lines.push(`type ${interfaceName} interface {`);
         for (const method of methods) {
+            if (method.deprecated && !groupDeprecated) {
+                lines.push(`\t// Deprecated: ${clientHandlerMethodName(method.rpcMethod)} is deprecated and will be removed in a future version.`);
+            }
             if (method.stability === "experimental" && !groupExperimental) {
                 lines.push(`\t// Experimental: ${clientHandlerMethodName(method.rpcMethod)} is an experimental API and may change or be removed in future versions.`);
             }
             const paramsType = resolveType(goParamsTypeName(method));
-            const resultType = resolveType(goResultTypeName(method));
+            const resultSchema = getMethodResultSchema(method);
+            const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
+            const resultType = nullableInner
+                ? resolveType(goNullableResultTypeName(method, nullableInner))
+                : resolveType(goResultTypeName(method));
             lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (*${resultType}, error)`);
         }
         lines.push(`}`);

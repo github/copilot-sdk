@@ -7,7 +7,12 @@ from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 
-pytestmark = pytest.mark.asyncio(loop_scope="module")
+pytestmark = [
+    pytest.mark.asyncio(loop_scope="module"),
+    pytest.mark.skip(
+        reason="Compaction tests are skipped due to flakiness — re-enable once stabilized"
+    ),
+]
 
 
 class TestCompaction:

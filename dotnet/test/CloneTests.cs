@@ -86,9 +86,11 @@ public class CloneTests
             ExcludedTools = ["tool3"],
             WorkingDirectory = "/workspace",
             Streaming = true,
+            IncludeSubAgentStreamingEvents = false,
             McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "agent1" }],
             Agent = "agent1",
+            DefaultAgent = new DefaultAgentConfig { ExcludedTools = ["hidden-tool"] },
             SkillDirectories = ["/skills"],
             DisabledSkills = ["skill1"],
         };
@@ -104,9 +106,11 @@ public class CloneTests
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
         Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
         Assert.Equal(original.Streaming, clone.Streaming);
+        Assert.Equal(original.IncludeSubAgentStreamingEvents, clone.IncludeSubAgentStreamingEvents);
         Assert.Equal(original.McpServers.Count, clone.McpServers!.Count);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
         Assert.Equal(original.Agent, clone.Agent);
+        Assert.Equal(original.DefaultAgent!.ExcludedTools, clone.DefaultAgent!.ExcludedTools);
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
     }
@@ -243,6 +247,8 @@ public class CloneTests
         Assert.Null(clone.SkillDirectories);
         Assert.Null(clone.DisabledSkills);
         Assert.Null(clone.Tools);
+        Assert.Null(clone.DefaultAgent);
+        Assert.True(clone.IncludeSubAgentStreamingEvents);
     }
 
     [Fact]
@@ -271,5 +277,28 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Equal("test-agent", clone.Agent);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesIncludeSubAgentStreamingEvents()
+    {
+        var original = new ResumeSessionConfig
+        {
+            IncludeSubAgentStreamingEvents = false,
+        };
+
+        var clone = original.Clone();
+
+        Assert.False(clone.IncludeSubAgentStreamingEvents);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_PreservesIncludeSubAgentStreamingEventsDefault()
+    {
+        var original = new ResumeSessionConfig();
+
+        var clone = original.Clone();
+
+        Assert.True(clone.IncludeSubAgentStreamingEvents);
     }
 }

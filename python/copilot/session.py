@@ -24,13 +24,11 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
-    Kind,
     LogRequest,
     ModelSwitchToRequest,
     PermissionDecision,
+    PermissionDecisionKind,
     PermissionDecisionRequest,
-    RequestedSchemaType,
-    SessionFsHandler,
     SessionLogLevel,
     SessionRpc,
     ToolCallResult,
@@ -40,7 +38,8 @@ from .generated.rpc import (
     UIElicitationResponseAction,
     UIElicitationSchema,
     UIElicitationSchemaProperty,
-    UIElicitationSchemaPropertyNumberType,
+    UIElicitationSchemaPropertyType,
+    UIElicitationSchemaType,
     UIHandlePendingElicitationRequest,
 )
 from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
@@ -61,6 +60,7 @@ from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 if TYPE_CHECKING:
     from .client import ModelCapabilitiesOverride
+    from .session_fs_provider import SessionFsProvider
 
 # Re-export SessionEvent under an alias used internally
 SessionEventTypeAlias = SessionEvent
@@ -410,7 +410,7 @@ ElicitationHandler = Callable[
 ]
 """Handler invoked when the server dispatches an elicitation request to this client."""
 
-CreateSessionFsHandler = Callable[["CopilotSession"], SessionFsHandler]
+CreateSessionFsHandler = Callable[["CopilotSession"], "SessionFsProvider"]
 
 
 # ============================================================================
@@ -471,10 +471,10 @@ class SessionUiApi:
             UIElicitationRequest(
                 message=message,
                 requested_schema=UIElicitationSchema(
-                    type=RequestedSchemaType.OBJECT,
+                    type=UIElicitationSchemaType.OBJECT,
                     properties={
                         "confirmed": UIElicitationSchemaProperty(
-                            type=UIElicitationSchemaPropertyNumberType.BOOLEAN,
+                            type=UIElicitationSchemaPropertyType.BOOLEAN,
                             default=True,
                         ),
                     },
@@ -506,10 +506,10 @@ class SessionUiApi:
             UIElicitationRequest(
                 message=message,
                 requested_schema=UIElicitationSchema(
-                    type=RequestedSchemaType.OBJECT,
+                    type=UIElicitationSchemaType.OBJECT,
                     properties={
                         "selection": UIElicitationSchemaProperty(
-                            type=UIElicitationSchemaPropertyNumberType.STRING,
+                            type=UIElicitationSchemaPropertyType.STRING,
                             enum=options,
                         ),
                     },
@@ -781,6 +781,18 @@ class CustomAgentConfig(TypedDict, total=False):
     skills: NotRequired[list[str]]
 
 
+class DefaultAgentConfig(TypedDict, total=False):
+    """Configuration for the default agent.
+
+    The default agent is the built-in agent that handles turns
+    when no custom agent is selected.
+    """
+
+    # List of tool names to exclude from the default agent.
+    # These tools remain available to custom sub-agents that reference them.
+    excluded_tools: list[str]
+
+
 class InfiniteSessionConfig(TypedDict, total=False):
     """
     Configuration for infinite sessions with automatic context compaction
@@ -859,10 +871,21 @@ class SessionConfig(TypedDict, total=False):
     # When True, assistant.message_delta and assistant.reasoning_delta events
     # with delta_content are sent as the response is generated
     streaming: bool
+    # Include sub-agent streaming events in the event stream. When True, streaming
+    # delta events from sub-agents (e.g., assistant.message_delta,
+    # assistant.reasoning_delta, assistant.streaming_delta with agentId set) are
+    # forwarded to this connection. When False, only non-streaming sub-agent events
+    # and subagent.* lifecycle events are forwarded; streaming deltas from sub-agents
+    # are suppressed. Defaults to True.
+    include_sub_agent_streaming_events: bool
     # MCP server configurations for the session
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Configuration for the default agent.
+    # Use excluded_tools to hide tools from the default agent
+    # while keeping them available to sub-agents.
+    default_agent: DefaultAgentConfig
     # Name of the custom agent to activate when the session starts.
     # Must match the name of one of the agents in custom_agents.
     agent: str
@@ -920,10 +943,19 @@ class ResumeSessionConfig(TypedDict, total=False):
     config_dir: str
     # Enable streaming of assistant message chunks
     streaming: bool
+    # Include sub-agent streaming events in the event stream. When True, streaming
+    # delta events from sub-agents (e.g., assistant.message_delta,
+    # assistant.reasoning_delta, assistant.streaming_delta with agentId set) are
+    # forwarded to this connection. When False, only non-streaming sub-agent events
+    # and subagent.* lifecycle events are forwarded; streaming deltas from sub-agents
+    # are suppressed. Defaults to True.
+    include_sub_agent_streaming_events: bool
     # MCP server configurations for the session
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Configuration for the default agent.
+    default_agent: DefaultAgentConfig
     # Name of the custom agent to activate when the session starts.
     # Must match the name of one of the agents in custom_agents.
     agent: str
@@ -1422,7 +1454,7 @@ class CopilotSession:
                 return
 
             perm_result = PermissionDecision(
-                kind=Kind(result.kind),
+                kind=PermissionDecisionKind(result.kind),
                 rules=result.rules,
                 feedback=result.feedback,
                 message=result.message,
@@ -1441,7 +1473,7 @@ class CopilotSession:
                     PermissionDecisionRequest(
                         request_id=request_id,
                         result=PermissionDecision(
-                            kind=Kind.DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER,
+                            kind=PermissionDecisionKind.DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER,
                         ),
                     )
                 )

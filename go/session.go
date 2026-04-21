@@ -704,10 +704,10 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
 		RequestedSchema: rpc.UIElicitationSchema{
-			Type: rpc.RequestedSchemaTypeObject,
+			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"confirmed": {
-					Type:    rpc.UIElicitationSchemaPropertyNumberTypeBoolean,
+					Type:    rpc.UIElicitationSchemaPropertyTypeBoolean,
 					Default: defaultTrue,
 				},
 			},
@@ -734,10 +734,10 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
 		RequestedSchema: rpc.UIElicitationSchema{
-			Type: rpc.RequestedSchemaTypeObject,
+			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"selection": {
-					Type: rpc.UIElicitationSchemaPropertyNumberTypeString,
+					Type: rpc.UIElicitationSchemaPropertyTypeString,
 					Enum: options,
 				},
 			},
@@ -761,7 +761,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 	if err := ui.session.assertElicitation(); err != nil {
 		return "", false, err
 	}
-	prop := rpc.UIElicitationSchemaProperty{Type: rpc.UIElicitationSchemaPropertyNumberTypeString}
+	prop := rpc.UIElicitationSchemaProperty{Type: rpc.UIElicitationSchemaPropertyTypeString}
 	if opts != nil {
 		if opts.Title != "" {
 			prop.Title = &opts.Title
@@ -788,7 +788,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
 		RequestedSchema: rpc.UIElicitationSchema{
-			Type: rpc.RequestedSchemaTypeObject,
+			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"value": prop,
 			},
@@ -1029,7 +1029,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 				RequestID: requestID,
 				Result: rpc.PermissionDecision{
-					Kind: rpc.KindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
+					Kind: rpc.PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
 				},
 			})
 		}
@@ -1044,7 +1044,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
 			Result: rpc.PermissionDecision{
-				Kind: rpc.KindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
+				Kind: rpc.PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
 			},
 		})
 		return
@@ -1056,7 +1056,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 		RequestID: requestID,
 		Result: rpc.PermissionDecision{
-			Kind:     rpc.Kind(result.Kind),
+			Kind:     rpc.PermissionDecisionKind(result.Kind),
 			Rules:    result.Rules,
 			Feedback: nil,
 		},
@@ -1223,7 +1223,6 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	return nil
 }
 
-// LogOptions configures optional parameters for [Session.Log].
 type LogOptions struct {
 	// Level sets the log severity. Valid values are [rpc.SessionLogLevelInfo] (default),
 	// [rpc.SessionLogLevelWarning], and [rpc.SessionLogLevelError].
