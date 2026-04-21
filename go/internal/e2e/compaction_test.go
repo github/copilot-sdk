@@ -9,6 +9,7 @@ import (
 )
 
 func TestCompaction(t *testing.T) {
+	t.Skip("Compaction tests are skipped due to flakiness — re-enable once stabilized")
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

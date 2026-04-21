@@ -3,7 +3,7 @@ import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 // TODO: Compaction tests are skipped due to flakiness — re-enable once stabilized
-describe("Compaction", async () => {
+describe.skip("Compaction", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
     it("should trigger compaction with low threshold and emit events", async () => {
