@@ -163,6 +163,35 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task Should_Create_A_Session_With_DefaultAgent_ExcludedTools()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools =
+            [
+                AIFunctionFactory.Create(
+                    (string input) => "SECRET",
+                    "secret_tool",
+                    "A secret tool hidden from the default agent"),
+            ],
+            DefaultAgent = new DefaultAgentConfig
+            {
+                ExcludedTools = ["secret_tool"],
+            },
+        });
+
+        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        // The real assertion: verify the runtime excluded the tool from the CAPI request
+        var traffic = await Ctx.GetExchangesAsync();
+        Assert.NotEmpty(traffic);
+
+        var toolNames = GetToolNames(traffic[0]);
+        Assert.DoesNotContain("secret_tool", toolNames);
+    }
+
+    [Fact]
     public async Task Should_Create_Session_With_Custom_Tool()
     {
         var session = await CreateSessionAsync(new SessionConfig

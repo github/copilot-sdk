@@ -454,6 +454,15 @@ type CustomAgentConfig struct {
 	Skills []string `json:"skills,omitempty"`
 }
 
+// DefaultAgentConfig configures the default agent (the built-in agent that handles turns when no custom agent is selected).
+// Use ExcludedTools to hide specific tools from the default agent while keeping
+// them available to custom sub-agents.
+type DefaultAgentConfig struct {
+	// ExcludedTools is a list of tool names to exclude from the default agent.
+	// These tools remain available to custom sub-agents that reference them in their Tools list.
+	ExcludedTools []string `json:"excludedTools,omitempty"`
+}
+
 // InfiniteSessionConfig configures infinite sessions with automatic context compaction
 // and workspace persistence. When enabled, sessions automatically manage context window
 // limits through background compaction and persist state to a workspace directory.
@@ -543,6 +552,9 @@ type SessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
+	// Use ExcludedTools to hide tools from the default agent while keeping them available to sub-agents.
+	DefaultAgent *DefaultAgentConfig
 	// Agent is the name of the custom agent to activate when the session starts.
 	// Must match the Name of one of the agents in CustomAgents.
 	Agent string
@@ -758,6 +770,8 @@ type ResumeSessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
+	DefaultAgent *DefaultAgentConfig
 	// Agent is the name of the custom agent to activate when the session starts.
 	// Must match the Name of one of the agents in CustomAgents.
 	Agent string
@@ -970,6 +984,7 @@ type createSessionRequest struct {
 	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
 	EnvValueMode                   string                         `json:"envValueMode,omitempty"`
 	CustomAgents                   []CustomAgentConfig            `json:"customAgents,omitempty"`
+	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
 	Agent                          string                         `json:"agent,omitempty"`
 	ConfigDir                      string                         `json:"configDir,omitempty"`
 	EnableConfigDiscovery          *bool                          `json:"enableConfigDiscovery,omitempty"`
@@ -1019,6 +1034,7 @@ type resumeSessionRequest struct {
 	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
 	EnvValueMode                   string                         `json:"envValueMode,omitempty"`
 	CustomAgents                   []CustomAgentConfig            `json:"customAgents,omitempty"`
+	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
 	Agent                          string                         `json:"agent,omitempty"`
 	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
 	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`

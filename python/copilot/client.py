@@ -47,6 +47,7 @@ from .session import (
     CopilotSession,
     CreateSessionFsHandler,
     CustomAgentConfig,
+    DefaultAgentConfig,
     ElicitationHandler,
     InfiniteSessionConfig,
     MCPServerConfig,
@@ -1199,6 +1200,7 @@ class CopilotClient:
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
+        default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
         config_dir: str | None = None,
         enable_config_discovery: bool | None = None,
@@ -1241,6 +1243,8 @@ class CopilotClient:
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
             custom_agents: Custom agent configurations.
+            default_agent: Configuration for the default agent,
+                including tool visibility controls.
             agent: Agent to use for the session.
             config_dir: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
@@ -1373,6 +1377,10 @@ class CopilotClient:
                 self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
             ]
 
+        # Add default agent configuration if provided
+        if default_agent:
+            payload["defaultAgent"] = self._convert_default_agent_to_wire_format(default_agent)
+
         # Add agent selection if provided
         if agent:
             payload["agent"] = agent
@@ -1477,6 +1485,7 @@ class CopilotClient:
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
+        default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
         config_dir: str | None = None,
         enable_config_discovery: bool | None = None,
@@ -1519,6 +1528,8 @@ class CopilotClient:
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
             custom_agents: Custom agent configurations.
+            default_agent: Configuration for the default agent,
+                including tool visibility controls.
             agent: Agent to use for the session.
             config_dir: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
@@ -1644,6 +1655,10 @@ class CopilotClient:
             payload["customAgents"] = [
                 self._convert_custom_agent_to_wire_format(a) for a in custom_agents
             ]
+
+        # Add default agent configuration if provided
+        if default_agent:
+            payload["defaultAgent"] = self._convert_default_agent_to_wire_format(default_agent)
 
         if agent:
             payload["agent"] = agent
@@ -2187,6 +2202,23 @@ class CopilotClient:
         if "skills" in agent:
             wire_agent["skills"] = agent["skills"]
         return wire_agent
+
+    def _convert_default_agent_to_wire_format(
+        self, config: DefaultAgentConfig | dict[str, Any]
+    ) -> dict[str, Any]:
+        """
+        Convert default agent config from snake_case to camelCase wire format.
+
+        Args:
+            config: The default agent configuration in snake_case format.
+
+        Returns:
+            The default agent configuration in camelCase wire format.
+        """
+        wire: dict[str, Any] = {}
+        if "excluded_tools" in config:
+            wire["excludedTools"] = config["excluded_tools"]
+        return wire
 
     async def _start_cli_server(self) -> None:
         """

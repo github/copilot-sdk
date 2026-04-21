@@ -313,6 +313,57 @@ func TestSession(t *testing.T) {
 		}
 	})
 
+	t.Run("should create a session with defaultAgent excludedTools", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				{
+					Name:        "secret_tool",
+					Description: "A secret tool hidden from the default agent",
+					Parameters: map[string]any{
+						"type":       "object",
+						"properties": map[string]any{"input": map[string]any{"type": "string"}},
+					},
+					Handler: func(invocation copilot.ToolInvocation) (copilot.ToolResult, error) {
+						return copilot.ToolResult{TextResultForLLM: "SECRET", ResultType: "success"}, nil
+					},
+				},
+			},
+			DefaultAgent: &copilot.DefaultAgentConfig{
+				ExcludedTools: []string{"secret_tool"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		// The real assertion: verify the runtime excluded the tool from the CAPI request
+		traffic, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("Failed to get exchanges: %v", err)
+		}
+		if len(traffic) == 0 {
+			t.Fatal("Expected at least one exchange")
+		}
+
+		toolNames := getToolNames(traffic[0])
+		if contains(toolNames, "secret_tool") {
+			t.Errorf("Expected 'secret_tool' to be excluded from default agent, got %v", toolNames)
+		}
+	})
+
 	t.Run("should create session with custom tool", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

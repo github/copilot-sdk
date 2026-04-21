@@ -20,14 +20,29 @@ func main() {
 	}
 	defer client.Stop()
 
+	type AnalyzeParams struct {
+		Query string `json:"query" jsonschema:"the analysis query"`
+	}
+
+	analyzeCodebase := copilot.DefineTool("analyze-codebase",
+		"Performs deep analysis of the codebase",
+		func(params AnalyzeParams, inv copilot.ToolInvocation) (string, error) {
+			return fmt.Sprintf("Analysis result for: %s", params.Query), nil
+		},
+	)
+
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model: "claude-haiku-4.5",
+		Tools: []copilot.Tool{analyzeCodebase},
+		DefaultAgent: &copilot.DefaultAgentConfig{
+			ExcludedTools: []string{"analyze-codebase"},
+		},
 		CustomAgents: []copilot.CustomAgentConfig{
 			{
 				Name:        "researcher",
 				DisplayName: "Research Agent",
 				Description: "A research agent that can only read and search files, not modify them",
-				Tools:       []string{"grep", "glob", "view"},
+				Tools:       []string{"grep", "glob", "view", "analyze-codebase"},
 				Prompt:      "You are a research assistant. You can search and read files but cannot modify anything. When asked about your capabilities, list the tools you have access to.",
 			},
 		},
