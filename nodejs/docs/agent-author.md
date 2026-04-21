@@ -18,6 +18,7 @@ For user-scoped extensions (persist across all repos), add `location: "user"`.
 ### Step 2: Edit the extension file
 
 Modify the generated `extension.mjs` using `edit` or `create` tools. The file must:
+
 - Be named `extension.mjs` (only `.mjs` is supported)
 - Use ES module syntax (`import`/`export`)
 - Call `joinSession({ ... })`
@@ -48,6 +49,7 @@ Check that the extension loaded successfully and isn't marked as "failed".
 ```
 
 Discovery rules:
+
 - The CLI scans `.github/extensions/` relative to the git root
 - It also scans the user's copilot config extensions directory
 - Only immediate subdirectories are checked (not recursive)
@@ -62,8 +64,8 @@ Discovery rules:
 import { joinSession } from "@github/copilot-sdk/extension";
 
 await joinSession({
-    tools: [],                     // Optional — custom tools
-    hooks: {},                     // Optional — lifecycle hooks
+    tools: [], // Optional — custom tools
+    hooks: {}, // Optional — lifecycle hooks
 });
 ```
 
@@ -74,9 +76,10 @@ await joinSession({
 ```js
 tools: [
     {
-        name: "tool_name",           // Required. Must be globally unique across all extensions.
+        name: "tool_name", // Required. Must be globally unique across all extensions.
         description: "What it does", // Required. Shown to the agent in tool descriptions.
-        parameters: {                // Optional. JSON Schema for the arguments.
+        parameters: {
+            // Optional. JSON Schema for the arguments.
             type: "object",
             properties: {
                 arg1: { type: "string", description: "..." },
@@ -96,10 +99,11 @@ tools: [
             return `Result: ${args.arg1}`;
         },
     },
-]
+];
 ```
 
 **Constraints:**
+
 - Tool names must be unique across ALL loaded extensions. Collisions cause the second extension to fail to load.
 - Handler must return a string or `{ textResultForLlm: string, resultType?: string }`.
 - Handler receives `(args, invocation)` — the second argument has `sessionId`, `toolCallId`, `toolName`.
@@ -195,6 +199,7 @@ After `joinSession()`, the returned `session` provides:
 ### session.send(options)
 
 Send a message programmatically:
+
 ```js
 await session.send({ prompt: "Analyze the test results." });
 await session.send({
@@ -206,6 +211,7 @@ await session.send({
 ### session.sendAndWait(options, timeout?)
 
 Send and block until the agent finishes (resolves on `session.idle`):
+
 ```js
 const response = await session.sendAndWait({ prompt: "What is 2+2?" });
 // response?.data.content contains the agent's reply
@@ -214,6 +220,7 @@ const response = await session.sendAndWait({ prompt: "What is 2+2?" });
 ### session.log(message, options?)
 
 Log to the CLI timeline:
+
 ```js
 await session.log("Extension ready");
 await session.log("Rate limit approaching", { level: "warning" });
@@ -224,6 +231,7 @@ await session.log("Processing...", { ephemeral: true }); // transient, not persi
 ### session.on(eventType, handler)
 
 Subscribe to session events. Returns an unsubscribe function.
+
 ```js
 const unsub = session.on("tool.execution_complete", (event) => {
     // event.data.toolName, event.data.success, event.data.result
@@ -232,16 +240,16 @@ const unsub = session.on("tool.execution_complete", (event) => {
 
 ### Key Event Types
 
-| Event | Key Data Fields |
-|-------|----------------|
-| `assistant.message` | `content`, `messageId` |
-| `tool.execution_start` | `toolCallId`, `toolName`, `arguments` |
+| Event                     | Key Data Fields                                        |
+| ------------------------- | ------------------------------------------------------ |
+| `assistant.message`       | `content`, `messageId`                                 |
+| `tool.execution_start`    | `toolCallId`, `toolName`, `arguments`                  |
 | `tool.execution_complete` | `toolCallId`, `toolName`, `success`, `result`, `error` |
-| `user.message` | `content`, `attachments`, `source` |
-| `session.idle` | `backgroundTasks` |
-| `session.error` | `errorType`, `message`, `stack` |
-| `permission.requested` | `requestId`, `permissionRequest.kind` |
-| `session.shutdown` | `shutdownType`, `totalPremiumRequests` |
+| `user.message`            | `content`, `attachments`, `source`                     |
+| `session.idle`            | `backgroundTasks`                                      |
+| `session.error`           | `errorType`, `message`, `stack`                        |
+| `permission.requested`    | `requestId`, `permissionRequest.kind`                  |
+| `session.shutdown`        | `shutdownType`, `totalPremiumRequests`                 |
 
 ### session.workspacePath
 

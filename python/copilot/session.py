@@ -24,12 +24,11 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
-    PermissionDecisionKind,
     LogRequest,
     ModelSwitchToRequest,
     PermissionDecision,
+    PermissionDecisionKind,
     PermissionDecisionRequest,
-    UIElicitationSchemaType,
     SessionLogLevel,
     SessionRpc,
     ToolCallResult,
@@ -39,7 +38,8 @@ from .generated.rpc import (
     UIElicitationResponseAction,
     UIElicitationSchema,
     UIElicitationSchemaProperty,
-    UIElicitationSchemaPropertyNumberType,
+    UIElicitationSchemaPropertyType,
+    UIElicitationSchemaType,
     UIHandlePendingElicitationRequest,
 )
 from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
@@ -56,8 +56,8 @@ from .generated.session_events import (
     SessionIdleData,
     session_event_from_dict,
 )
-from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 from .session_fs_provider import SessionFsProvider
+from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 if TYPE_CHECKING:
     from .client import ModelCapabilitiesOverride
@@ -474,7 +474,7 @@ class SessionUiApi:
                     type=UIElicitationSchemaType.OBJECT,
                     properties={
                         "confirmed": UIElicitationSchemaProperty(
-                            type=UIElicitationSchemaPropertyNumberType.BOOLEAN,
+                            type=UIElicitationSchemaPropertyType.BOOLEAN,
                             default=True,
                         ),
                     },
@@ -509,7 +509,7 @@ class SessionUiApi:
                     type=UIElicitationSchemaType.OBJECT,
                     properties={
                         "selection": UIElicitationSchemaProperty(
-                            type=UIElicitationSchemaPropertyNumberType.STRING,
+                            type=UIElicitationSchemaPropertyType.STRING,
                             enum=options,
                         ),
                     },

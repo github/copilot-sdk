@@ -220,8 +220,7 @@ function createTestSessionFsHandler(
     session: CopilotSession,
     provider: VirtualProvider
 ): SessionFsProvider {
-    const sp = (path: string) =>
-        `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
+    const sp = (path: string) => `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
 
     return {
         async readFile(path: string): Promise<string> {

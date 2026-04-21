@@ -353,7 +353,9 @@ class JsonRpcClient:
             if inspect.isawaitable(outcome):
                 outcome = await outcome
             if outcome is not None and not isinstance(outcome, dict):
-                raise ValueError(f"Request handler must return a dict, got {type(outcome).__name__}")
+                raise ValueError(
+                    f"Request handler must return a dict, got {type(outcome).__name__}"
+                )
             await self._send_response(message["id"], outcome)
         except JsonRpcError as exc:
             await self._send_error_response(message["id"], exc.code, exc.message, exc.data)

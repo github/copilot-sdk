@@ -257,9 +257,7 @@ class TestSessionFs:
         await session.send_and_wait("What is 2 + 3?")
         await session.rpc.plan.update(PlanUpdateRequest(content="# Test Plan\n\nThis is a test."))
 
-        plan_path = provider_path(
-            provider_root, session.session_id, "/session-state/plan.md"
-        )
+        plan_path = provider_path(provider_root, session.session_id, "/session-state/plan.md")
         await wait_for_path(plan_path)
         content = plan_path.read_text(encoding="utf-8")
         assert "# Test Plan" in content
@@ -314,9 +312,7 @@ class _TestSessionFsProvider(SessionFsProvider):
     async def readdir(self, path: str) -> list[str]:
         return sorted(entry.name for entry in self._path(path).iterdir())
 
-    async def readdir_with_types(
-        self, path: str
-    ) -> list[SessionFSReaddirWithTypesEntry]:
+    async def readdir_with_types(self, path: str) -> list[SessionFSReaddirWithTypesEntry]:
         entries = []
         for entry in sorted(self._path(path).iterdir(), key=lambda item: item.name):
             entries.append(

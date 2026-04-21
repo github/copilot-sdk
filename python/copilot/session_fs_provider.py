@@ -18,20 +18,20 @@ from __future__ import annotations
 
 import abc
 import errno
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Sequence
 
 from .generated.rpc import (
     SessionFSError,
     SessionFSErrorCode,
     SessionFSExistsResult,
+    SessionFsHandler,
     SessionFSReaddirResult,
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesResult,
     SessionFSReadFileResult,
     SessionFSStatResult,
-    SessionFsHandler,
 )
 
 
@@ -84,9 +84,7 @@ class SessionFsProvider(abc.ABC):
         """List entry names in a directory.  Raise if it does not exist."""
 
     @abc.abstractmethod
-    async def readdir_with_types(
-        self, path: str
-    ) -> Sequence[SessionFSReaddirWithTypesEntry]:
+    async def readdir_with_types(self, path: str) -> Sequence[SessionFSReaddirWithTypesEntry]:
         """List entries with type info.  Raise if the directory does not exist."""
 
     @abc.abstractmethod
@@ -119,9 +117,7 @@ class _SessionFsAdapter:
             return SessionFSReadFileResult.from_dict({"content": content})
         except Exception as exc:
             err = _to_session_fs_error(exc)
-            return SessionFSReadFileResult.from_dict(
-                {"content": "", "error": err.to_dict()}
-            )
+            return SessionFSReadFileResult.from_dict({"content": "", "error": err.to_dict()})
 
     async def write_file(self, params: object) -> SessionFSError | None:
         try:
@@ -183,13 +179,9 @@ class _SessionFsAdapter:
             return SessionFSReaddirResult.from_dict({"entries": entries})
         except Exception as exc:
             err = _to_session_fs_error(exc)
-            return SessionFSReaddirResult.from_dict(
-                {"entries": [], "error": err.to_dict()}
-            )
+            return SessionFSReaddirResult.from_dict({"entries": [], "error": err.to_dict()})
 
-    async def readdir_with_types(
-        self, params: object
-    ) -> SessionFSReaddirWithTypesResult:
+    async def readdir_with_types(self, params: object) -> SessionFSReaddirWithTypesResult:
         try:
             entries = await self._p.readdir_with_types(params.path)  # type: ignore[attr-defined]
             return SessionFSReaddirWithTypesResult(entries=list(entries))
