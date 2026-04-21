@@ -1023,7 +1023,9 @@ function emitPyClass(
             fieldName: toSnakeCase(propName),
             isRequired,
             resolved,
-            defaultLiteral: isRequired ? undefined : toPythonLiteral(propSchema.default),
+            defaultLiteral: isRequired ? undefined : toPythonLiteral(
+                propSchema.default ?? resolveSchema(propSchema, ctx.definitions)?.default
+            ),
         };
     });
 
@@ -1177,7 +1179,9 @@ function emitPyFlatDiscriminatedUnion(
             fieldName: toSnakeCase(propName),
             isRequired: requiredInAll,
             resolved,
-            defaultLiteral: requiredInAll ? undefined : toPythonLiteral(propSchema.default),
+            defaultLiteral: requiredInAll ? undefined : toPythonLiteral(
+                propSchema.default ?? resolveSchema(propSchema, ctx.definitions)?.default
+            ),
         };
     });
 
