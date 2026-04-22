@@ -1212,6 +1212,7 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
+        persistent_memory: bool | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1347,6 +1348,9 @@ class CopilotClient:
         # Add working directory if provided
         if working_directory:
             payload["workingDirectory"] = working_directory
+
+        if persistent_memory is not None:
+            payload["persistentMemory"] = persistent_memory
 
         # Add streaming option if provided
         if streaming is not None:

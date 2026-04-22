@@ -861,6 +861,9 @@ class SessionConfig(TypedDict, total=False):
     on_permission_request: _PermissionHandlerFn
     # Handler for user input requests from the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
+    # Whether to enable persistent memory for the session.
+    # Persistent memory allows the agent to remember state across sessions.
+    persistent_memory: bool
     # Hook handlers for intercepting session lifecycle events
     hooks: SessionHooks
     # Working directory for the session. Tool operations will be relative to this directory.
