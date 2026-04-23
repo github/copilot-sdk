@@ -26,6 +26,7 @@ public class CloneTests
             Environment = new Dictionary<string, string> { ["KEY"] = "value" },
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
+            SessionIdleTimeoutSeconds = 600,
         };
 
         var clone = original.Clone();
@@ -42,6 +43,7 @@ public class CloneTests
         Assert.Equal(original.Environment, clone.Environment);
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
+        Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
     }
 
     [Fact]

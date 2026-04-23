@@ -1258,4 +1258,23 @@ describe("CopilotClient", () => {
             rpcSpy.mockRestore();
         });
     });
+
+    describe("sessionIdleTimeoutSeconds", () => {
+        it("should default to 0 when not specified", () => {
+            const client = new CopilotClient({
+                logLevel: "error",
+            });
+
+            expect((client as any).options.sessionIdleTimeoutSeconds).toBe(0);
+        });
+
+        it("should store a custom value", () => {
+            const client = new CopilotClient({
+                sessionIdleTimeoutSeconds: 600,
+                logLevel: "error",
+            });
+
+            expect((client as any).options.sessionIdleTimeoutSeconds).toBe(600);
+        });
+    });
 });

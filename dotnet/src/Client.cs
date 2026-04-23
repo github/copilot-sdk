@@ -1190,6 +1190,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             args.Add("--no-auto-login");
         }
 
+        if (options.SessionIdleTimeoutSeconds is > 0)
+        {
+            args.AddRange(["--session-idle-timeout", options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
+        }
+
         var (fileName, processArgs) = ResolveCliCommand(cliPath, args);
 
         var startInfo = new ProcessStartInfo

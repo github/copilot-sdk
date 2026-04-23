@@ -184,6 +184,16 @@ export interface CopilotClientOptions {
      * instead of the server's default local filesystem storage.
      */
     sessionFs?: SessionFsConfig;
+
+    /**
+     * Server-wide idle timeout for sessions in seconds.
+     * Sessions without activity for this duration are automatically cleaned up.
+     * Set to 0 or omit to disable (sessions live indefinitely).
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link cliUrl}.
+     * @default undefined (disabled)
+     */
+    sessionIdleTimeoutSeconds?: number;
 }
 
 /**

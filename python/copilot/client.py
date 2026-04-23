@@ -150,6 +150,14 @@ class SubprocessConfig:
     session_fs: SessionFsConfig | None = None
     """Connection-level session filesystem provider configuration."""
 
+    session_idle_timeout_seconds: int | None = None
+    """Server-wide session idle timeout in seconds.
+
+    Sessions without activity for this duration are automatically cleaned up.
+    Set to ``None`` or ``0`` to disable (sessions live indefinitely).
+    This option is only used when the SDK spawns the CLI process.
+    """
+
 
 @dataclass
 class ExternalServerConfig:
@@ -2260,6 +2268,9 @@ class CopilotClient:
             args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
         if not cfg.use_logged_in_user:
             args.append("--no-auto-login")
+
+        if cfg.session_idle_timeout_seconds is not None and cfg.session_idle_timeout_seconds > 0:
+            args.extend(["--session-idle-timeout", str(cfg.session_idle_timeout_seconds)])
 
         # If cli_path is a .js file, run it with node
         # Note that we can't rely on the shebang as Windows doesn't support it

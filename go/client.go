@@ -215,6 +215,10 @@ func NewClient(options *ClientOptions) *Client {
 			sessionFs := *options.SessionFs
 			opts.SessionFs = &sessionFs
 		}
+		if options.Telemetry != nil {
+			opts.Telemetry = options.Telemetry
+		}
+		opts.SessionIdleTimeoutSeconds = options.SessionIdleTimeoutSeconds
 	}
 
 	// Default Env to current environment if not set
@@ -1376,6 +1380,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	}
 	if !useLoggedInUser {
 		args = append(args, "--no-auto-login")
+	}
+
+	if c.options.SessionIdleTimeoutSeconds > 0 {
+		args = append(args, "--session-idle-timeout", strconv.Itoa(c.options.SessionIdleTimeoutSeconds))
 	}
 
 	// If CLIPath is a .js file, run it with node

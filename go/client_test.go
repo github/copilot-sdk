@@ -391,6 +391,26 @@ func TestClient_EnvOptions(t *testing.T) {
 	})
 }
 
+func TestClient_SessionIdleTimeoutSeconds(t *testing.T) {
+	t.Run("should store SessionIdleTimeoutSeconds option", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			SessionIdleTimeoutSeconds: 600,
+		})
+
+		if client.options.SessionIdleTimeoutSeconds != 600 {
+			t.Errorf("Expected SessionIdleTimeoutSeconds to be 600, got %d", client.options.SessionIdleTimeoutSeconds)
+		}
+	})
+
+	t.Run("should default SessionIdleTimeoutSeconds to zero", func(t *testing.T) {
+		client := NewClient(&ClientOptions{})
+
+		if client.options.SessionIdleTimeoutSeconds != 0 {
+			t.Errorf("Expected SessionIdleTimeoutSeconds to be 0, got %d", client.options.SessionIdleTimeoutSeconds)
+		}
+	})
+}
+
 func findCLIPathForTest() string {
 	abs, _ := filepath.Abs("../nodejs/node_modules/@github/copilot/index.js")
 	if fileExistsForTest(abs) {

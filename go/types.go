@@ -71,6 +71,12 @@ type ClientOptions struct {
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated fields
 	// are mapped to the corresponding environment variables.
 	Telemetry *TelemetryConfig
+	// SessionIdleTimeoutSeconds configures the server-wide session idle timeout in seconds.
+	// Sessions without activity for this duration are automatically cleaned up.
+	// Set to 0 or leave unset to disable (sessions live indefinitely).
+	// This option is only used when the SDK spawns the CLI process; it is ignored
+	// when connecting to an external server via CLIUrl.
+	SessionIdleTimeoutSeconds int
 }
 
 // TelemetryConfig configures OpenTelemetry integration for the Copilot CLI process.

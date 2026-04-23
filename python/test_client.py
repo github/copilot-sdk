@@ -204,6 +204,24 @@ class TestAuthOptions:
         assert client._config.use_logged_in_user is False
 
 
+class TestSessionIdleTimeoutSeconds:
+    def test_accepts_session_idle_timeout_seconds(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                session_idle_timeout_seconds=600,
+                log_level="error",
+            )
+        )
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.session_idle_timeout_seconds == 600
+
+    def test_default_session_idle_timeout_seconds_is_none(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, log_level="error"))
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.session_idle_timeout_seconds is None
+
+
 class TestOverridesBuiltInTool:
     @pytest.mark.asyncio
     async def test_overrides_built_in_tool_sent_in_tool_definition(self):

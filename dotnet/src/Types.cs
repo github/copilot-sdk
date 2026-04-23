@@ -69,6 +69,7 @@ public class CopilotClientOptions
         UseStdio = other.UseStdio;
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
+        SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
     }
 
     /// <summary>
@@ -164,6 +165,15 @@ public class CopilotClientOptions
     /// When set to a non-<see langword="null"/> instance, the CLI server is started with OpenTelemetry instrumentation enabled.
     /// </summary>
     public TelemetryConfig? Telemetry { get; set; }
+
+    /// <summary>
+    /// Server-wide idle timeout for sessions in seconds.
+    /// Sessions without activity for this duration are automatically cleaned up.
+    /// Set to <c>0</c> or leave as <see langword="null"/> to disable (sessions live indefinitely).
+    /// This option is only used when the SDK spawns the CLI process; it is ignored
+    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// </summary>
+    public int? SessionIdleTimeoutSeconds { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
