@@ -82,15 +82,13 @@ async def main():
     )
 
     # Start a long-running task
-    msg_id = await session.send({
-        "prompt": "Refactor the authentication module to use sessions",
-    })
+    msg_id = await session.send("Refactor the authentication module to use sessions")
 
     # While the agent is working, steer it
-    await session.send({
-        "prompt": "Actually, use JWT tokens instead of sessions",
-        "mode": "immediate",
-    })
+    await session.send(
+        "Actually, use JWT tokens instead of sessions",
+        mode = "immediate"
+        )
 
     await client.stop()
 ```
@@ -273,18 +271,18 @@ async def main():
     )
 
     # Send an initial task
-    await session.send({"prompt": "Set up the project structure"})
+    await session.send("Set up the project structure")
 
     # Queue follow-up tasks while the agent is busy
-    await session.send({
-        "prompt": "Add unit tests for the auth module",
-        "mode": "enqueue",
-    })
+    await session.send(
+        "Add unit tests for the auth module",
+        mode = "enqueue"
+    )
 
-    await session.send({
-        "prompt": "Update the README with setup instructions",
-        "mode": "enqueue",
-    })
+    await session.send(
+        "Update the README with setup instructions",
+        mode = "enqueue"
+    )
 
     # Messages are processed in FIFO order after each turn completes
     await client.stop()
@@ -506,19 +504,19 @@ session = await client.create_session(
 )
 
 # Start a task
-await session.send({"prompt": "Refactor the database layer"})
+await session.send("Refactor the database layer")
 
 # Steer the current work
-await session.send({
-    "prompt": "Make sure to keep backwards compatibility with the v1 API",
-    "mode": "immediate",
-})
+await session.send(
+    "Make sure to keep backwards compatibility with the v1 API",
+    mode = "immediate"
+)
 
 # Queue a follow-up for after this turn
-await session.send({
-    "prompt": "Now add migration scripts for the schema changes",
-    "mode": "enqueue",
-})
+await session.send(
+    "Now add migration scripts for the schema changes",
+    mode = "enqueue"
+)
 ```
 
 </details>
