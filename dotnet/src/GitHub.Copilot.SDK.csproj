@@ -20,10 +20,6 @@
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
     </PropertyGroup>
 
-    <ItemGroup>
-        <InternalsVisibleTo Include="GitHub.Copilot.SDK.Test" />
-    </ItemGroup>
-
   <PropertyGroup>
     <NoWarn>$(NoWarn);GHCP001</NoWarn>
   </PropertyGroup>
