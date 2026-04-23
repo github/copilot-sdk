@@ -1961,7 +1961,7 @@ export class CopilotClient {
             }
             return {
                 result: {
-                    kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                    kind: "user-not-available",
                 },
             };
         }

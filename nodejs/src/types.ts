@@ -764,7 +764,7 @@ export type PermissionHandler = (
     invocation: { sessionId: string }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
-export const approveAll: PermissionHandler = () => ({ kind: "approved" });
+export const approveAll: PermissionHandler = () => ({ kind: "approve-once" });
 
 export const defaultJoinSessionPermissionHandler: PermissionHandler =
     (): PermissionRequestResult => ({

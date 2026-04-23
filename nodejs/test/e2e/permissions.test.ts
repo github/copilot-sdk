@@ -21,7 +21,7 @@ describe("Permission callbacks", async () => {
                 expect(invocation.sessionId).toBe(session.sessionId);
 
                 // Approve the permission
-                const result: PermissionRequestResult = { kind: "approved" };
+                const result: PermissionRequestResult = { kind: "approve-once" };
                 return result;
             },
         });
@@ -45,7 +45,7 @@ describe("Permission callbacks", async () => {
     it("should deny permission when handler returns denied", async () => {
         const session = await client.createSession({
             onPermissionRequest: () => {
-                return { kind: "denied-interactively-by-user" };
+                return { kind: "reject" };
             },
         });
 
@@ -69,7 +69,7 @@ describe("Permission callbacks", async () => {
 
         const session = await client.createSession({
             onPermissionRequest: () => ({
-                kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                kind: "user-not-available",
             }),
         });
         session.on((event) => {
@@ -96,7 +96,7 @@ describe("Permission callbacks", async () => {
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: () => ({
-                kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                kind: "user-not-available",
             }),
         });
         let permissionDenied = false;
@@ -138,7 +138,7 @@ describe("Permission callbacks", async () => {
                 // Simulate async permission check (e.g., user prompt)
                 await new Promise((resolve) => setTimeout(resolve, 10));
 
-                return { kind: "approved" };
+                return { kind: "approve-once" };
             },
         });
 
@@ -163,7 +163,7 @@ describe("Permission callbacks", async () => {
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: (request) => {
                 permissionRequests.push(request);
-                return { kind: "approved" };
+                return { kind: "approve-once" };
             },
         });
 
@@ -204,7 +204,7 @@ describe("Permission callbacks", async () => {
                     expect(typeof request.toolCallId).toBe("string");
                     expect(request.toolCallId.length).toBeGreaterThan(0);
                 }
-                return { kind: "approved" };
+                return { kind: "approve-once" };
             },
         });
 

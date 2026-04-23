@@ -67,6 +67,8 @@ export type SessionEvent =
   | CommandQueuedEvent
   | CommandExecuteEvent
   | CommandCompletedEvent
+  | AutoModeSwitchRequestedEvent
+  | AutoModeSwitchCompletedEvent
   | CommandsChangedEvent
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
@@ -179,6 +181,8 @@ export type PermissionRequestMemoryDirection = "upvote" | "downvote";
  */
 export type PermissionCompletedKind =
   | "approved"
+  | "approved-for-session"
+  | "approved-for-location"
   | "denied-by-rules"
   | "denied-no-approval-rule-and-could-not-request-from-user"
   | "denied-interactively-by-user"
@@ -1251,21 +1255,68 @@ export interface CompactionCompleteData {
   toolDefinitionsTokens?: number;
 }
 /**
- * Token usage breakdown for the compaction LLM call
+ * Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
  */
 export interface CompactionCompleteCompactionTokensUsed {
   /**
    * Cached input tokens reused in the compaction LLM call
    */
-  cachedInput: number;
+  cacheReadTokens?: number;
+  /**
+   * Tokens written to prompt cache in the compaction LLM call
+   */
+  cacheWriteTokens?: number;
+  copilotUsage?: CompactionCompleteCompactionTokensUsedCopilotUsage;
+  /**
+   * Duration of the compaction LLM call in milliseconds
+   */
+  duration?: number;
   /**
    * Input tokens consumed by the compaction LLM call
    */
-  input: number;
+  inputTokens?: number;
+  /**
+   * Model identifier used for the compaction LLM call
+   */
+  model?: string;
   /**
    * Output tokens produced by the compaction LLM call
    */
-  output: number;
+  outputTokens?: number;
+}
+/**
+ * Per-request cost and usage data from the CAPI copilot_usage response field
+ */
+export interface CompactionCompleteCompactionTokensUsedCopilotUsage {
+  /**
+   * Itemized token usage breakdown
+   */
+  tokenDetails: CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[];
+  /**
+   * Total cost in nano-AIU (AI Units) for this request
+   */
+  totalNanoAiu: number;
+}
+/**
+ * Token usage detail for a single billing category
+ */
+export interface CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
+  /**
+   * Number of tokens in this billing batch
+   */
+  batchSize: number;
+  /**
+   * Cost per batch of tokens
+   */
+  costPerBatch: number;
+  /**
+   * Total token count for this entry
+   */
+  tokenCount: number;
+  /**
+   * Token category (e.g., "input", "output")
+   */
+  tokenType: string;
 }
 export interface TaskCompleteEvent {
   /**
@@ -3915,6 +3966,74 @@ export interface CommandCompletedData {
    * Request ID of the resolved command request; clients should dismiss any UI for this request
    */
   requestId: string;
+}
+export interface AutoModeSwitchRequestedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoModeSwitchRequestedData;
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "auto_mode_switch.requested";
+}
+/**
+ * Auto mode switch request notification requiring user approval
+ */
+export interface AutoModeSwitchRequestedData {
+  /**
+   * The rate limit error code that triggered this request
+   */
+  errorCode?: string;
+  /**
+   * Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
+   */
+  requestId: string;
+}
+export interface AutoModeSwitchCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoModeSwitchCompletedData;
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "auto_mode_switch.completed";
+}
+/**
+ * Auto mode switch completion notification
+ */
+export interface AutoModeSwitchCompletedData {
+  /**
+   * Request ID of the resolved request; clients should dismiss any UI for this request
+   */
+  requestId: string;
+  /**
+   * The user's choice: 'yes', 'yes_always', or 'no'
+   */
+  response: string;
 }
 export interface CommandsChangedEvent {
   /**
