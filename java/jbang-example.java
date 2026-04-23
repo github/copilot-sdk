@@ -1,5 +1,5 @@
 !
-//DEPS com.github:copilot-sdk-java:0.3.0-java-preview.1-java-preview.0
+//DEPS com.github:copilot-sdk-java:0.3.0-java-preview.1
 import com.github.copilot.sdk.CopilotClient;
 import com.github.copilot.sdk.generated.AssistantMessageEvent;
 import com.github.copilot.sdk.generated.SessionUsageInfoEvent;
