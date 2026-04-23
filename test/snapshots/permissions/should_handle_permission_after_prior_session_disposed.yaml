@@ -1,0 +1,37 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 1+1?
+      - role: assistant
+        content: 1+1 = 2
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo hello' for me
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Running echo command"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"description":"Run echo hello","command":"echo hello"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          hello
+          <exited with exit code 0>
+      - role: assistant
+        content: "The command ran successfully and output: **hello**"
