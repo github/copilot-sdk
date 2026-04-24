@@ -290,7 +290,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
-            OnPermissionRequest = async (request, invocation) => new() { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser },
+            OnPermissionRequest = async (request, invocation) => new() { Kind = PermissionRequestResultKind.Rejected },
         });
 
         await session.SendAsync(new MessageOptions
