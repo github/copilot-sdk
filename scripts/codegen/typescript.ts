@@ -235,6 +235,12 @@ function schemaSourceForNamedDefinition(
     if (schema?.$ref && resolvedSchema) {
         return resolvedSchema;
     }
+    // When the schema is an anyOf/oneOf wrapper (e.g., Zod optional params producing
+    // `anyOf: [{ not: {} }, { $ref }]`), use the resolved object schema to avoid
+    // generating self-referential type aliases.
+    if ((schema?.anyOf || schema?.oneOf) && resolvedSchema?.properties) {
+        return resolvedSchema;
+    }
     return schema ?? resolvedSchema ?? { type: "object" };
 }
 
@@ -248,6 +254,19 @@ function getMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
         resolveSchema(method.params, rpcDefinitions) ??
         method.params ??
         undefined
+    );
+}
+
+/** True when the raw params schema uses `anyOf: [{ not: {} }, …]` — Zod's pattern for `.optional()`. */
+function isParamsOptional(method: RpcMethod): boolean {
+    const schema = method.params;
+    if (!schema?.anyOf) return false;
+    return schema.anyOf.some(
+        (item) =>
+            typeof item === "object" &&
+            (item as JSONSchema7).not !== undefined &&
+            typeof (item as JSONSchema7).not === "object" &&
+            Object.keys((item as JSONSchema7).not as object).length === 0
     );
 }
 
@@ -460,14 +479,18 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
 
             if (isSession) {
                 if (hasNonSessionParams) {
-                    sigParams.push(`params: Omit<${paramsType}, "sessionId">`);
+                    const optMark = isParamsOptional(value) ? "?" : "";
+                    // sessionId is already stripped from the generated type definition,
+                    // so no need for Omit<..., "sessionId">
+                    sigParams.push(`params${optMark}: ${paramsType}`);
                     bodyArg = "{ sessionId, ...params }";
                 } else {
                     bodyArg = "{ sessionId }";
                 }
             } else {
                 if (hasParams) {
-                    sigParams.push(`params: ${paramsType}`);
+                    const optMark = isParamsOptional(value) ? "?" : "";
+                    sigParams.push(`params${optMark}: ${paramsType}`);
                     bodyArg = "params";
                 } else {
                     bodyArg = "{}";

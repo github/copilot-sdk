@@ -458,20 +458,29 @@ public delegate Task<object?> ToolHandler(ToolInvocation invocation);
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct PermissionRequestResultKind : IEquatable<PermissionRequestResultKind>
 {
-    /// <summary>Gets the kind indicating the permission was approved.</summary>
-    public static PermissionRequestResultKind Approved { get; } = new("approved");
-
-    /// <summary>Gets the kind indicating the permission was denied by rules.</summary>
-    public static PermissionRequestResultKind DeniedByRules { get; } = new("denied-by-rules");
-
-    /// <summary>Gets the kind indicating the permission was denied because no approval rule was found and the user could not be prompted.</summary>
-    public static PermissionRequestResultKind DeniedCouldNotRequestFromUser { get; } = new("denied-no-approval-rule-and-could-not-request-from-user");
+    /// <summary>Gets the kind indicating the permission was approved for this one instance.</summary>
+    public static PermissionRequestResultKind Approved { get; } = new("approve-once");
 
     /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
-    public static PermissionRequestResultKind DeniedInteractivelyByUser { get; } = new("denied-interactively-by-user");
+    public static PermissionRequestResultKind Rejected { get; } = new("reject");
 
-    /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
+    /// <summary>Gets the kind indicating the permission was denied because user confirmation was unavailable.</summary>
+    public static PermissionRequestResultKind UserNotAvailable { get; } = new("user-not-available");
+
+    /// <summary>Gets the kind indicating no permission decision was made.</summary>
     public static PermissionRequestResultKind NoResult { get; } = new("no-result");
+
+    /// <summary>Deprecated. Use <see cref="Rejected"/> instead.</summary>
+    [Obsolete("Use Rejected instead.")]
+    public static PermissionRequestResultKind DeniedInteractivelyByUser => Rejected;
+
+    /// <summary>Deprecated. Use <see cref="UserNotAvailable"/> instead.</summary>
+    [Obsolete("Use UserNotAvailable instead.")]
+    public static PermissionRequestResultKind DeniedCouldNotRequestFromUser => UserNotAvailable;
+
+    /// <summary>Deprecated. Use <see cref="UserNotAvailable"/> instead.</summary>
+    [Obsolete("Use UserNotAvailable instead.")]
+    public static PermissionRequestResultKind DeniedByRules => UserNotAvailable;
 
     /// <summary>Gets the underlying string value of this <see cref="PermissionRequestResultKind"/>.</summary>
     public string Value => _value ?? string.Empty;
@@ -1755,6 +1764,7 @@ public class SessionConfig
         Provider = other.Provider;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
+        GitHubToken = other.GitHubToken;
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         Streaming = other.Streaming;
@@ -1945,6 +1955,13 @@ public class SessionConfig
     public Func<CopilotSession, SessionFsProvider>? CreateSessionFsHandler { get; set; }
 
     /// <summary>
+    /// GitHub token for per-session authentication.
+    /// When provided, the runtime resolves this token into a full GitHub identity
+    /// and stores it on the session for content exclusion, model routing, and quota checks.
+    /// </summary>
+    public string? GitHubToken { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
     /// </summary>
     /// <remarks>
@@ -2005,6 +2022,7 @@ public class ResumeSessionConfig
         Provider = other.Provider;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
+        GitHubToken = other.GitHubToken;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
@@ -2190,6 +2208,13 @@ public class ResumeSessionConfig
     /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
     /// </summary>
     public Func<CopilotSession, SessionFsProvider>? CreateSessionFsHandler { get; set; }
+
+    /// <summary>
+    /// GitHub token for per-session authentication.
+    /// When provided, the runtime resolves this token into a full GitHub identity
+    /// and stores it on the session for content exclusion, model routing, and quota checks.
+    /// </summary>
+    public string? GitHubToken { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.

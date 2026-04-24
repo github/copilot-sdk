@@ -132,6 +132,16 @@ public sealed partial class CapiProxy : IAsyncDisposable
                ?? [];
     }
 
+    public async Task SetCopilotUserByTokenAsync(string token, CopilotUserConfig response)
+    {
+        var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
+
+        using var client = new HttpClient();
+        var payload = new CopilotUserByTokenRequest(token, response);
+        var resp = await client.PostAsJsonAsync($"{url}/copilot-user-config", payload, CapiProxyJsonContext.Default.CopilotUserByTokenRequest);
+        resp.EnsureSuccessStatusCode();
+    }
+
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
@@ -152,8 +162,19 @@ public sealed partial class CapiProxy : IAsyncDisposable
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
     [JsonSerializable(typeof(ConfigureRequest))]
     [JsonSerializable(typeof(List<ParsedHttpExchange>))]
+    [JsonSerializable(typeof(CopilotUserByTokenRequest))]
     private partial class CapiProxyJsonContext : JsonSerializerContext;
 }
+
+public record CopilotUserByTokenRequest(string Token, CopilotUserConfig Response);
+
+public record CopilotUserConfig(
+    string Login,
+    string CopilotPlan,
+    CopilotUserEndpoints Endpoints,
+    string AnalyticsTrackingId);
+
+public record CopilotUserEndpoints(string Api, string Telemetry);
 
 public record ParsedHttpExchange(ChatCompletionRequest Request, ChatCompletionResponse? Response);
 

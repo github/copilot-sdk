@@ -11,11 +11,14 @@ func TestPermissionRequestResultKind_Constants(t *testing.T) {
 		kind     PermissionRequestResultKind
 		expected string
 	}{
-		{"Approved", PermissionRequestResultKindApproved, "approved"},
-		{"DeniedByRules", PermissionRequestResultKindDeniedByRules, "denied-by-rules"},
-		{"DeniedCouldNotRequestFromUser", PermissionRequestResultKindDeniedCouldNotRequestFromUser, "denied-no-approval-rule-and-could-not-request-from-user"},
-		{"DeniedInteractivelyByUser", PermissionRequestResultKindDeniedInteractivelyByUser, "denied-interactively-by-user"},
-		{"NoResult", PermissionRequestResultKind("no-result"), "no-result"},
+		{"Approved", PermissionRequestResultKindApproved, "approve-once"},
+		{"Rejected", PermissionRequestResultKindRejected, "reject"},
+		{"UserNotAvailable", PermissionRequestResultKindUserNotAvailable, "user-not-available"},
+		{"NoResult", PermissionRequestResultKindNoResult, "no-result"},
+		// Deprecated aliases
+		{"DeprecatedDeniedInteractivelyByUser", PermissionRequestResultKindDeniedInteractivelyByUser, "reject"},
+		{"DeprecatedDeniedCouldNotRequestFromUser", PermissionRequestResultKindDeniedCouldNotRequestFromUser, "user-not-available"},
+		{"DeprecatedDeniedByRules", PermissionRequestResultKindDeniedByRules, "user-not-available"},
 	}
 
 	for _, tt := range tests {
@@ -68,14 +71,14 @@ func TestPermissionRequestResult_JSONRoundTrip(t *testing.T) {
 }
 
 func TestPermissionRequestResult_JSONDeserialize(t *testing.T) {
-	jsonStr := `{"kind":"denied-by-rules"}`
+	jsonStr := `{"kind":"reject"}`
 	var result PermissionRequestResult
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
 
-	if result.Kind != PermissionRequestResultKindDeniedByRules {
-		t.Errorf("expected %q, got %q", PermissionRequestResultKindDeniedByRules, result.Kind)
+	if result.Kind != PermissionRequestResultKindRejected {
+		t.Errorf("expected %q, got %q", PermissionRequestResultKindRejected, result.Kind)
 	}
 }
 
@@ -86,7 +89,7 @@ func TestPermissionRequestResult_JSONSerialize(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	expected := `{"kind":"approved"}`
+	expected := `{"kind":"approve-once"}`
 	if string(data) != expected {
 		t.Errorf("expected %s, got %s", expected, string(data))
 	}

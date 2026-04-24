@@ -408,6 +408,12 @@ function schemaSourceForNamedDefinition(
     if (schema?.$ref && resolvedSchema) {
         return resolvedSchema;
     }
+    // When the schema is an anyOf/oneOf wrapper (e.g., Zod optional params producing
+    // `anyOf: [{ not: {} }, { $ref }]`), use the resolved object schema to avoid
+    // generating self-referential type aliases that crash quicktype.
+    if ((schema?.anyOf || schema?.oneOf) && resolvedSchema?.properties) {
+        return resolvedSchema;
+    }
     return schema ?? resolvedSchema ?? { type: "object" };
 }
 
@@ -436,6 +442,19 @@ function pythonResultTypeName(method: RpcMethod, schemaOverride?: JSONSchema7): 
         if (refName) return toPascalCase(refName);
     }
     return getRpcSchemaTypeName(schema, toPascalCase(method.rpcMethod) + "Result");
+}
+
+/** Detect the Zod optional params pattern: `anyOf: [{ not: {} }, { $ref }]` */
+function isParamsOptional(method: RpcMethod): boolean {
+    const schema = method.params;
+    if (!schema?.anyOf) return false;
+    return schema.anyOf.some(
+        (item) =>
+            typeof item === "object" &&
+            (item as JSONSchema7).not !== undefined &&
+            typeof (item as JSONSchema7).not === "object" &&
+            Object.keys((item as JSONSchema7).not as object).length === 0
+    );
 }
 
 function pythonParamsTypeName(method: RpcMethod): string {
@@ -1813,8 +1832,9 @@ def _patch_model_capabilities(data: dict) -> dict:
         `ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list"`,
     );
     // Close the extra paren opened by _patch_model_capabilities(
+    // Match everything from _patch_model_capabilities( up to the end of the return statement
     finalCode = finalCode.replace(
-        /(_patch_model_capabilities\(await self\._client\.request\("models\.list",\s*\{[^)]*\)[^)]*\))/,
+        /(_patch_model_capabilities\(await self\._client\.request\("models\.list"[^)]*\)[^)]*\))/,
         "$1)",
     );
     finalCode = unwrapRedundantPythonLambdas(finalCode);
@@ -1943,10 +1963,13 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
     const hasParams = isSession ? nonSessionParams.length > 0 : hasSchemaPayload(effectiveParams);
     const paramsType = resolveType(pythonParamsTypeName(method));
+    const paramsOptional = isParamsOptional(method);
 
     // Build signature with typed params + optional timeout
     const sig = hasParams
-        ? `    async def ${methodName}(self, params: ${paramsType}, *, timeout: float | None = None) -> ${resultType}:`
+        ? paramsOptional
+            ? `    async def ${methodName}(self, params: ${paramsType} | None = None, *, timeout: float | None = None) -> ${resultType}:`
+            : `    async def ${methodName}(self, params: ${paramsType}, *, timeout: float | None = None) -> ${resultType}:`
         : `    async def ${methodName}(self, *, timeout: float | None = None) -> ${resultType}:`;
 
     lines.push(sig);
@@ -1986,7 +2009,11 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
 
     if (isSession) {
         if (hasParams) {
-            lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
+            if (paramsOptional) {
+                lines.push(`        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}`);
+            } else {
+                lines.push(`        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}`);
+            }
             lines.push(`        params_dict["sessionId"] = self._session_id`);
             emitRequestCall("params_dict");
         } else {
@@ -1994,7 +2021,11 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
         }
     } else {
         if (hasParams) {
-            lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
+            if (paramsOptional) {
+                lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}`);
+            } else {
+                lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
+            }
             emitRequestCall("params_dict");
         } else {
             emitRequestCall("{}");

@@ -412,7 +412,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             return new PermissionRequestResult
             {
-                Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
+                Kind = PermissionRequestResultKind.UserNotAvailable
             };
         }
 
@@ -615,7 +615,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, new PermissionDecision
                 {
-                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser.Value
+                    Kind = PermissionRequestResultKind.UserNotAvailable.Value
                 });
             }
             catch (IOException)

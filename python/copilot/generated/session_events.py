@@ -167,6 +167,8 @@ class SessionEventType(Enum):
     COMMAND_QUEUED = "command.queued"
     COMMAND_EXECUTE = "command.execute"
     COMMAND_COMPLETED = "command.completed"
+    AUTO_MODE_SWITCH_REQUESTED = "auto_mode_switch.requested"
+    AUTO_MODE_SWITCH_COMPLETED = "auto_mode_switch.completed"
     COMMANDS_CHANGED = "commands.changed"
     CAPABILITIES_CHANGED = "capabilities.changed"
     EXIT_PLAN_MODE_REQUESTED = "exit_plan_mode.requested"
@@ -745,6 +747,53 @@ class AssistantUsageQuotaSnapshot:
 
 
 @dataclass
+class AutoModeSwitchCompletedData:
+    "Auto mode switch completion notification"
+    request_id: str
+    response: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AutoModeSwitchCompletedData":
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        response = from_str(obj.get("response"))
+        return AutoModeSwitchCompletedData(
+            request_id=request_id,
+            response=response,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["response"] = from_str(self.response)
+        return result
+
+
+@dataclass
+class AutoModeSwitchRequestedData:
+    "Auto mode switch request notification requiring user approval"
+    request_id: str
+    error_code: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AutoModeSwitchRequestedData":
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        error_code = from_union([from_none, from_str], obj.get("errorCode"))
+        return AutoModeSwitchRequestedData(
+            request_id=request_id,
+            error_code=error_code,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        if self.error_code is not None:
+            result["errorCode"] = from_union([from_none, from_str], self.error_code)
+        return result
+
+
+@dataclass
 class CapabilitiesChangedData:
     "Session capability change notification"
     ui: CapabilitiesChangedUI | None = None
@@ -901,28 +950,105 @@ class CommandsChangedData:
 
 @dataclass
 class CompactionCompleteCompactionTokensUsed:
-    "Token usage breakdown for the compaction LLM call"
-    cached_input: float
-    input: float
-    output: float
+    "Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)"
+    cache_read_tokens: float | None = None
+    cache_write_tokens: float | None = None
+    copilot_usage: CompactionCompleteCompactionTokensUsedCopilotUsage | None = None
+    duration: float | None = None
+    input_tokens: float | None = None
+    model: str | None = None
+    output_tokens: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsed":
         assert isinstance(obj, dict)
-        cached_input = from_float(obj.get("cachedInput"))
-        input = from_float(obj.get("input"))
-        output = from_float(obj.get("output"))
+        cache_read_tokens = from_union([from_none, from_float], obj.get("cacheReadTokens"))
+        cache_write_tokens = from_union([from_none, from_float], obj.get("cacheWriteTokens"))
+        copilot_usage = from_union([from_none, CompactionCompleteCompactionTokensUsedCopilotUsage.from_dict], obj.get("copilotUsage"))
+        duration = from_union([from_none, from_float], obj.get("duration"))
+        input_tokens = from_union([from_none, from_float], obj.get("inputTokens"))
+        model = from_union([from_none, from_str], obj.get("model"))
+        output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
         return CompactionCompleteCompactionTokensUsed(
-            cached_input=cached_input,
-            input=input,
-            output=output,
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
+            copilot_usage=copilot_usage,
+            duration=duration,
+            input_tokens=input_tokens,
+            model=model,
+            output_tokens=output_tokens,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["cachedInput"] = to_float(self.cached_input)
-        result["input"] = to_float(self.input)
-        result["output"] = to_float(self.output)
+        if self.cache_read_tokens is not None:
+            result["cacheReadTokens"] = from_union([from_none, to_float], self.cache_read_tokens)
+        if self.cache_write_tokens is not None:
+            result["cacheWriteTokens"] = from_union([from_none, to_float], self.cache_write_tokens)
+        if self.copilot_usage is not None:
+            result["copilotUsage"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsage, x)], self.copilot_usage)
+        if self.duration is not None:
+            result["duration"] = from_union([from_none, to_float], self.duration)
+        if self.input_tokens is not None:
+            result["inputTokens"] = from_union([from_none, to_float], self.input_tokens)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
+        if self.output_tokens is not None:
+            result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
+        return result
+
+
+@dataclass
+class CompactionCompleteCompactionTokensUsedCopilotUsage:
+    "Per-request cost and usage data from the CAPI copilot_usage response field"
+    token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail]
+    total_nano_aiu: float
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsage":
+        assert isinstance(obj, dict)
+        token_details = from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
+        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        return CompactionCompleteCompactionTokensUsedCopilotUsage(
+            token_details=token_details,
+            total_nano_aiu=total_nano_aiu,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tokenDetails"] = from_list(lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail, x), self.token_details)
+        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        return result
+
+
+@dataclass
+class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
+    "Token usage detail for a single billing category"
+    batch_size: float
+    cost_per_batch: float
+    token_count: float
+    token_type: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail":
+        assert isinstance(obj, dict)
+        batch_size = from_float(obj.get("batchSize"))
+        cost_per_batch = from_float(obj.get("costPerBatch"))
+        token_count = from_float(obj.get("tokenCount"))
+        token_type = from_str(obj.get("tokenType"))
+        return CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail(
+            batch_size=batch_size,
+            cost_per_batch=cost_per_batch,
+            token_count=token_count,
+            token_type=token_type,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["batchSize"] = to_float(self.batch_size)
+        result["costPerBatch"] = to_float(self.cost_per_batch)
+        result["tokenCount"] = to_float(self.token_count)
+        result["tokenType"] = from_str(self.token_type)
         return result
 
 
@@ -1488,21 +1614,26 @@ class PermissionCompletedData:
     "Permission request completion notification signaling UI dismissal"
     request_id: str
     result: PermissionCompletedResult
+    tool_call_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionCompletedData":
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = PermissionCompletedResult.from_dict(obj.get("result"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionCompletedData(
             request_id=request_id,
             result=result,
+            tool_call_id=tool_call_id,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["requestId"] = from_str(self.request_id)
         result["result"] = to_class(PermissionCompletedResult, self.result)
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
 
 
@@ -1522,6 +1653,155 @@ class PermissionCompletedResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = to_enum(PermissionCompletedKind, self.kind)
+        return result
+
+
+@dataclass
+class PermissionPromptRequest:
+    "Derived user-facing permission prompt details for UI consumers"
+    kind: PermissionPromptRequestKind
+    access_kind: PermissionPromptRequestPathAccessKind | None = None
+    action: PermissionPromptRequestMemoryAction | None = None
+    args: Any | None = None
+    can_offer_session_approval: bool | None = None
+    citations: str | None = None
+    command_identifiers: list[str] | None = None
+    diff: str | None = None
+    direction: PermissionPromptRequestMemoryDirection | None = None
+    fact: str | None = None
+    file_name: str | None = None
+    full_command_text: str | None = None
+    hook_message: str | None = None
+    intention: str | None = None
+    new_file_contents: str | None = None
+    path: str | None = None
+    paths: list[str] | None = None
+    reason: str | None = None
+    server_name: str | None = None
+    subject: str | None = None
+    tool_args: Any = None
+    tool_call_id: str | None = None
+    tool_description: str | None = None
+    tool_name: str | None = None
+    tool_title: str | None = None
+    url: str | None = None
+    warning: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionPromptRequest":
+        assert isinstance(obj, dict)
+        kind = parse_enum(PermissionPromptRequestKind, obj.get("kind"))
+        access_kind = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestPathAccessKind, x)], obj.get("accessKind"))
+        action = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestMemoryAction, x)], obj.get("action", "store"))
+        args = from_union([from_none, lambda x: x], obj.get("args"))
+        can_offer_session_approval = from_union([from_none, from_bool], obj.get("canOfferSessionApproval"))
+        citations = from_union([from_none, from_str], obj.get("citations"))
+        command_identifiers = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("commandIdentifiers"))
+        diff = from_union([from_none, from_str], obj.get("diff"))
+        direction = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestMemoryDirection, x)], obj.get("direction"))
+        fact = from_union([from_none, from_str], obj.get("fact"))
+        file_name = from_union([from_none, from_str], obj.get("fileName"))
+        full_command_text = from_union([from_none, from_str], obj.get("fullCommandText"))
+        hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
+        intention = from_union([from_none, from_str], obj.get("intention"))
+        new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
+        path = from_union([from_none, from_str], obj.get("path"))
+        paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("paths"))
+        reason = from_union([from_none, from_str], obj.get("reason"))
+        server_name = from_union([from_none, from_str], obj.get("serverName"))
+        subject = from_union([from_none, from_str], obj.get("subject"))
+        tool_args = obj.get("toolArgs")
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        tool_description = from_union([from_none, from_str], obj.get("toolDescription"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
+        url = from_union([from_none, from_str], obj.get("url"))
+        warning = from_union([from_none, from_str], obj.get("warning"))
+        return PermissionPromptRequest(
+            kind=kind,
+            access_kind=access_kind,
+            action=action,
+            args=args,
+            can_offer_session_approval=can_offer_session_approval,
+            citations=citations,
+            command_identifiers=command_identifiers,
+            diff=diff,
+            direction=direction,
+            fact=fact,
+            file_name=file_name,
+            full_command_text=full_command_text,
+            hook_message=hook_message,
+            intention=intention,
+            new_file_contents=new_file_contents,
+            path=path,
+            paths=paths,
+            reason=reason,
+            server_name=server_name,
+            subject=subject,
+            tool_args=tool_args,
+            tool_call_id=tool_call_id,
+            tool_description=tool_description,
+            tool_name=tool_name,
+            tool_title=tool_title,
+            url=url,
+            warning=warning,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionPromptRequestKind, self.kind)
+        if self.access_kind is not None:
+            result["accessKind"] = from_union([from_none, lambda x: to_enum(PermissionPromptRequestPathAccessKind, x)], self.access_kind)
+        if self.action is not None:
+            result["action"] = from_union([from_none, lambda x: to_enum(PermissionPromptRequestMemoryAction, x)], self.action)
+        if self.args is not None:
+            result["args"] = from_union([from_none, lambda x: x], self.args)
+        if self.can_offer_session_approval is not None:
+            result["canOfferSessionApproval"] = from_union([from_none, from_bool], self.can_offer_session_approval)
+        if self.citations is not None:
+            result["citations"] = from_union([from_none, from_str], self.citations)
+        if self.command_identifiers is not None:
+            result["commandIdentifiers"] = from_union([from_none, lambda x: from_list(from_str, x)], self.command_identifiers)
+        if self.diff is not None:
+            result["diff"] = from_union([from_none, from_str], self.diff)
+        if self.direction is not None:
+            result["direction"] = from_union([from_none, lambda x: to_enum(PermissionPromptRequestMemoryDirection, x)], self.direction)
+        if self.fact is not None:
+            result["fact"] = from_union([from_none, from_str], self.fact)
+        if self.file_name is not None:
+            result["fileName"] = from_union([from_none, from_str], self.file_name)
+        if self.full_command_text is not None:
+            result["fullCommandText"] = from_union([from_none, from_str], self.full_command_text)
+        if self.hook_message is not None:
+            result["hookMessage"] = from_union([from_none, from_str], self.hook_message)
+        if self.intention is not None:
+            result["intention"] = from_union([from_none, from_str], self.intention)
+        if self.new_file_contents is not None:
+            result["newFileContents"] = from_union([from_none, from_str], self.new_file_contents)
+        if self.path is not None:
+            result["path"] = from_union([from_none, from_str], self.path)
+        if self.paths is not None:
+            result["paths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.paths)
+        if self.reason is not None:
+            result["reason"] = from_union([from_none, from_str], self.reason)
+        if self.server_name is not None:
+            result["serverName"] = from_union([from_none, from_str], self.server_name)
+        if self.subject is not None:
+            result["subject"] = from_union([from_none, from_str], self.subject)
+        if self.tool_args is not None:
+            result["toolArgs"] = self.tool_args
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.tool_description is not None:
+            result["toolDescription"] = from_union([from_none, from_str], self.tool_description)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.tool_title is not None:
+            result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
+        if self.url is not None:
+            result["url"] = from_union([from_none, from_str], self.url)
+        if self.warning is not None:
+            result["warning"] = from_union([from_none, from_str], self.warning)
         return result
 
 
@@ -1729,6 +2009,7 @@ class PermissionRequestedData:
     "Permission request notification requiring client approval with request details"
     permission_request: PermissionRequest
     request_id: str
+    prompt_request: PermissionPromptRequest | None = None
     resolved_by_hook: bool | None = None
 
     @staticmethod
@@ -1736,10 +2017,12 @@ class PermissionRequestedData:
         assert isinstance(obj, dict)
         permission_request = PermissionRequest.from_dict(obj.get("permissionRequest"))
         request_id = from_str(obj.get("requestId"))
+        prompt_request = from_union([from_none, PermissionPromptRequest.from_dict], obj.get("promptRequest"))
         resolved_by_hook = from_union([from_none, from_bool], obj.get("resolvedByHook"))
         return PermissionRequestedData(
             permission_request=permission_request,
             request_id=request_id,
+            prompt_request=prompt_request,
             resolved_by_hook=resolved_by_hook,
         )
 
@@ -1747,6 +2030,8 @@ class PermissionRequestedData:
         result: dict = {}
         result["permissionRequest"] = to_class(PermissionRequest, self.permission_request)
         result["requestId"] = from_str(self.request_id)
+        if self.prompt_request is not None:
+            result["promptRequest"] = from_union([from_none, lambda x: to_class(PermissionPromptRequest, x)], self.prompt_request)
         if self.resolved_by_hook is not None:
             result["resolvedByHook"] = from_union([from_none, from_bool], self.resolved_by_hook)
         return result
@@ -3997,11 +4282,45 @@ class McpServersLoadedServerStatus(Enum):
 class PermissionCompletedKind(Enum):
     "The outcome of the permission request"
     APPROVED = "approved"
+    APPROVED_FOR_SESSION = "approved-for-session"
+    APPROVED_FOR_LOCATION = "approved-for-location"
     DENIED_BY_RULES = "denied-by-rules"
     DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
     DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
     DENIED_BY_CONTENT_EXCLUSION_POLICY = "denied-by-content-exclusion-policy"
     DENIED_BY_PERMISSION_REQUEST_HOOK = "denied-by-permission-request-hook"
+
+
+class PermissionPromptRequestKind(Enum):
+    "Derived user-facing permission prompt details for UI consumers discriminator"
+    COMMANDS = "commands"
+    WRITE = "write"
+    READ = "read"
+    MCP = "mcp"
+    URL = "url"
+    MEMORY = "memory"
+    CUSTOM_TOOL = "custom-tool"
+    PATH = "path"
+    HOOK = "hook"
+
+
+class PermissionPromptRequestMemoryAction(Enum):
+    "Whether this is a store or vote memory operation"
+    STORE = "store"
+    VOTE = "vote"
+
+
+class PermissionPromptRequestMemoryDirection(Enum):
+    "Vote direction (vote only)"
+    UPVOTE = "upvote"
+    DOWNVOTE = "downvote"
+
+
+class PermissionPromptRequestPathAccessKind(Enum):
+    "Underlying permission kind that needs path approval"
+    READ = "read"
+    SHELL = "shell"
+    WRITE = "write"
 
 
 class PermissionRequestKind(Enum):
@@ -4114,7 +4433,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
 
 
 @dataclass
@@ -4201,6 +4520,8 @@ class SessionEvent:
             case SessionEventType.COMMAND_QUEUED: data = CommandQueuedData.from_dict(data_obj)
             case SessionEventType.COMMAND_EXECUTE: data = CommandExecuteData.from_dict(data_obj)
             case SessionEventType.COMMAND_COMPLETED: data = CommandCompletedData.from_dict(data_obj)
+            case SessionEventType.AUTO_MODE_SWITCH_REQUESTED: data = AutoModeSwitchRequestedData.from_dict(data_obj)
+            case SessionEventType.AUTO_MODE_SWITCH_COMPLETED: data = AutoModeSwitchCompletedData.from_dict(data_obj)
             case SessionEventType.COMMANDS_CHANGED: data = CommandsChangedData.from_dict(data_obj)
             case SessionEventType.CAPABILITIES_CHANGED: data = CapabilitiesChangedData.from_dict(data_obj)
             case SessionEventType.EXIT_PLAN_MODE_REQUESTED: data = ExitPlanModeRequestedData.from_dict(data_obj)

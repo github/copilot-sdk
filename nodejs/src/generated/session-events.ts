@@ -67,6 +67,8 @@ export type SessionEvent =
   | CommandQueuedEvent
   | CommandExecuteEvent
   | CommandCompletedEvent
+  | AutoModeSwitchRequestedEvent
+  | AutoModeSwitchCompletedEvent
   | CommandsChangedEvent
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
@@ -175,10 +177,37 @@ export type PermissionRequestMemoryAction = "store" | "vote";
  */
 export type PermissionRequestMemoryDirection = "upvote" | "downvote";
 /**
+ * Derived user-facing permission prompt details for UI consumers
+ */
+export type PermissionPromptRequest =
+  | PermissionPromptRequestCommands
+  | PermissionPromptRequestWrite
+  | PermissionPromptRequestRead
+  | PermissionPromptRequestMcp
+  | PermissionPromptRequestUrl
+  | PermissionPromptRequestMemory
+  | PermissionPromptRequestCustomTool
+  | PermissionPromptRequestPath
+  | PermissionPromptRequestHook;
+/**
+ * Whether this is a store or vote memory operation
+ */
+export type PermissionPromptRequestMemoryAction = "store" | "vote";
+/**
+ * Vote direction (vote only)
+ */
+export type PermissionPromptRequestMemoryDirection = "upvote" | "downvote";
+/**
+ * Underlying permission kind that needs path approval
+ */
+export type PermissionPromptRequestPathAccessKind = "read" | "shell" | "write";
+/**
  * The outcome of the permission request
  */
 export type PermissionCompletedKind =
   | "approved"
+  | "approved-for-session"
+  | "approved-for-location"
   | "denied-by-rules"
   | "denied-no-approval-rule-and-could-not-request-from-user"
   | "denied-interactively-by-user"
@@ -1251,21 +1280,68 @@ export interface CompactionCompleteData {
   toolDefinitionsTokens?: number;
 }
 /**
- * Token usage breakdown for the compaction LLM call
+ * Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
  */
 export interface CompactionCompleteCompactionTokensUsed {
   /**
    * Cached input tokens reused in the compaction LLM call
    */
-  cachedInput: number;
+  cacheReadTokens?: number;
+  /**
+   * Tokens written to prompt cache in the compaction LLM call
+   */
+  cacheWriteTokens?: number;
+  copilotUsage?: CompactionCompleteCompactionTokensUsedCopilotUsage;
+  /**
+   * Duration of the compaction LLM call in milliseconds
+   */
+  duration?: number;
   /**
    * Input tokens consumed by the compaction LLM call
    */
-  input: number;
+  inputTokens?: number;
+  /**
+   * Model identifier used for the compaction LLM call
+   */
+  model?: string;
   /**
    * Output tokens produced by the compaction LLM call
    */
-  output: number;
+  outputTokens?: number;
+}
+/**
+ * Per-request cost and usage data from the CAPI copilot_usage response field
+ */
+export interface CompactionCompleteCompactionTokensUsedCopilotUsage {
+  /**
+   * Itemized token usage breakdown
+   */
+  tokenDetails: CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[];
+  /**
+   * Total cost in nano-AIU (AI Units) for this request
+   */
+  totalNanoAiu: number;
+}
+/**
+ * Token usage detail for a single billing category
+ */
+export interface CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
+  /**
+   * Number of tokens in this billing batch
+   */
+  batchSize: number;
+  /**
+   * Cost per batch of tokens
+   */
+  costPerBatch: number;
+  /**
+   * Total token count for this entry
+   */
+  tokenCount: number;
+  /**
+   * Token category (e.g., "input", "output")
+   */
+  tokenType: string;
 }
 export interface TaskCompleteEvent {
   /**
@@ -3082,6 +3158,7 @@ export interface PermissionRequestedEvent {
  */
 export interface PermissionRequestedData {
   permissionRequest: PermissionRequest;
+  promptRequest?: PermissionPromptRequest;
   /**
    * Unique identifier for this permission request; used to respond via session.respondToPermission()
    */
@@ -3347,6 +3424,243 @@ export interface PermissionRequestHook {
    */
   toolName: string;
 }
+/**
+ * Shell command permission prompt
+ */
+export interface PermissionPromptRequestCommands {
+  /**
+   * Whether the UI can offer session-wide approval for this command pattern
+   */
+  canOfferSessionApproval: boolean;
+  /**
+   * Command identifiers covered by this approval prompt
+   */
+  commandIdentifiers: string[];
+  /**
+   * The complete shell command text to be executed
+   */
+  fullCommandText: string;
+  /**
+   * Human-readable description of what the command intends to do
+   */
+  intention: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "commands";
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+  /**
+   * Optional warning message about risks of running this command
+   */
+  warning?: string;
+}
+/**
+ * File write permission prompt
+ */
+export interface PermissionPromptRequestWrite {
+  /**
+   * Whether the UI can offer session-wide approval for file write operations
+   */
+  canOfferSessionApproval: boolean;
+  /**
+   * Unified diff showing the proposed changes
+   */
+  diff: string;
+  /**
+   * Path of the file being written to
+   */
+  fileName: string;
+  /**
+   * Human-readable description of the intended file change
+   */
+  intention: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "write";
+  /**
+   * Complete new file contents for newly created files
+   */
+  newFileContents?: string;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * File read permission prompt
+ */
+export interface PermissionPromptRequestRead {
+  /**
+   * Human-readable description of why the file is being read
+   */
+  intention: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "read";
+  /**
+   * Path of the file or directory being read
+   */
+  path: string;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * MCP tool invocation permission prompt
+ */
+export interface PermissionPromptRequestMcp {
+  args?: unknown;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "mcp";
+  /**
+   * Name of the MCP server providing the tool
+   */
+  serverName: string;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+  /**
+   * Internal name of the MCP tool
+   */
+  toolName: string;
+  /**
+   * Human-readable title of the MCP tool
+   */
+  toolTitle: string;
+}
+/**
+ * URL access permission prompt
+ */
+export interface PermissionPromptRequestUrl {
+  /**
+   * Human-readable description of why the URL is being accessed
+   */
+  intention: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "url";
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+  /**
+   * URL to be fetched
+   */
+  url: string;
+}
+/**
+ * Memory operation permission prompt
+ */
+export interface PermissionPromptRequestMemory {
+  action?: PermissionPromptRequestMemoryAction;
+  /**
+   * Source references for the stored fact (store only)
+   */
+  citations?: string;
+  direction?: PermissionPromptRequestMemoryDirection;
+  /**
+   * The fact being stored or voted on
+   */
+  fact: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "memory";
+  /**
+   * Reason for the vote (vote only)
+   */
+  reason?: string;
+  /**
+   * Topic or subject of the memory (store only)
+   */
+  subject?: string;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * Custom tool invocation permission prompt
+ */
+export interface PermissionPromptRequestCustomTool {
+  /**
+   * Arguments to pass to the custom tool
+   */
+  args?: {
+    [k: string]: unknown;
+  };
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "custom-tool";
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+  /**
+   * Description of what the custom tool does
+   */
+  toolDescription: string;
+  /**
+   * Name of the custom tool
+   */
+  toolName: string;
+}
+/**
+ * Path access permission prompt
+ */
+export interface PermissionPromptRequestPath {
+  accessKind: PermissionPromptRequestPathAccessKind;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "path";
+  /**
+   * File paths that require explicit approval
+   */
+  paths: string[];
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * Hook confirmation permission prompt
+ */
+export interface PermissionPromptRequestHook {
+  /**
+   * Optional message from the hook explaining why confirmation is needed
+   */
+  hookMessage?: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "hook";
+  /**
+   * Arguments of the tool call being gated
+   */
+  toolArgs?: {
+    [k: string]: unknown;
+  };
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+  /**
+   * Name of the tool the hook is gating
+   */
+  toolName: string;
+}
 export interface PermissionCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3377,6 +3691,10 @@ export interface PermissionCompletedData {
    */
   requestId: string;
   result: PermissionCompletedResult;
+  /**
+   * Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts
+   */
+  toolCallId?: string;
 }
 /**
  * The result of the permission request
@@ -3915,6 +4233,74 @@ export interface CommandCompletedData {
    * Request ID of the resolved command request; clients should dismiss any UI for this request
    */
   requestId: string;
+}
+export interface AutoModeSwitchRequestedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoModeSwitchRequestedData;
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "auto_mode_switch.requested";
+}
+/**
+ * Auto mode switch request notification requiring user approval
+ */
+export interface AutoModeSwitchRequestedData {
+  /**
+   * The rate limit error code that triggered this request
+   */
+  errorCode?: string;
+  /**
+   * Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
+   */
+  requestId: string;
+}
+export interface AutoModeSwitchCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoModeSwitchCompletedData;
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "auto_mode_switch.completed";
+}
+/**
+ * Auto mode switch completion notification
+ */
+export interface AutoModeSwitchCompletedData {
+  /**
+   * Request ID of the resolved request; clients should dismiss any UI for this request
+   */
+  requestId: string;
+  /**
+   * The user's choice: 'yes', 'yes_always', or 'no'
+   */
+  response: string;
 }
 export interface CommandsChangedEvent {
   /**

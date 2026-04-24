@@ -9,6 +9,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from copilot import CopilotClient
 from copilot.client import SubprocessConfig
@@ -144,6 +145,12 @@ class E2ETestContext:
         if not self._client:
             raise RuntimeError("Context not set up. Call setup() first.")
         return self._client
+
+    async def set_copilot_user_by_token(self, token: str, response: dict[str, Any]) -> None:
+        """Register a per-token response for the /copilot_internal/user endpoint."""
+        if not self._proxy:
+            raise RuntimeError("Proxy not started")
+        await self._proxy.set_copilot_user_by_token(token, response)
 
     async def get_exchanges(self):
         """Retrieve the captured HTTP exchanges from the proxy."""

@@ -129,7 +129,7 @@ public sealed class ModelPolicy
 
     /// <summary>Usage terms or conditions for this model.</summary>
     [JsonPropertyName("terms")]
-    public string Terms { get; set; } = string.Empty;
+    public string? Terms { get; set; }
 }
 
 /// <summary>RPC data type for Model operations.</summary>
@@ -170,6 +170,14 @@ public sealed class ModelList
     /// <summary>List of available models with full metadata.</summary>
     [JsonPropertyName("models")]
     public IList<Model> Models { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for ModelsList operations.</summary>
+internal sealed class ModelsListRequest
+{
+    /// <summary>GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.</summary>
+    [JsonPropertyName("gitHubToken")]
+    public string? GitHubToken { get; set; }
 }
 
 /// <summary>RPC data type for Tool operations.</summary>
@@ -258,6 +266,14 @@ public sealed class AccountGetQuotaResult
     public IDictionary<string, AccountQuotaSnapshot> QuotaSnapshots { get => field ??= new Dictionary<string, AccountQuotaSnapshot>(); set; }
 }
 
+/// <summary>RPC data type for AccountGetQuota operations.</summary>
+internal sealed class AccountGetQuotaRequest
+{
+    /// <summary>GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.</summary>
+    [JsonPropertyName("gitHubToken")]
+    public string? GitHubToken { get; set; }
+}
+
 /// <summary>RPC data type for DiscoveredMcpServer operations.</summary>
 public sealed class DiscoveredMcpServer
 {
@@ -266,7 +282,9 @@ public sealed class DiscoveredMcpServer
     public bool Enabled { get; set; }
 
     /// <summary>Server name (config key).</summary>
-    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
@@ -311,7 +329,9 @@ internal sealed class McpConfigAddRequest
     public object Config { get; set; } = null!;
 
     /// <summary>Unique name for the MCP server.</summary>
-    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 }
@@ -324,7 +344,9 @@ internal sealed class McpConfigUpdateRequest
     public object Config { get; set; } = null!;
 
     /// <summary>Name of the MCP server to update.</summary>
-    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 }
@@ -333,9 +355,27 @@ internal sealed class McpConfigUpdateRequest
 internal sealed class McpConfigRemoveRequest
 {
     /// <summary>Name of the MCP server to remove.</summary>
-    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for McpConfigEnable operations.</summary>
+internal sealed class McpConfigEnableRequest
+{
+    /// <summary>Names of MCP servers to enable. Each server is removed from the persisted disabled list so new sessions spawn it. Unknown or already-enabled names are ignored.</summary>
+    [JsonPropertyName("names")]
+    public IList<string> Names { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for McpConfigDisable operations.</summary>
+internal sealed class McpConfigDisableRequest
+{
+    /// <summary>Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.</summary>
+    [JsonPropertyName("names")]
+    public IList<string> Names { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for ServerSkill operations.</summary>
@@ -476,6 +516,42 @@ internal sealed class LogRequest
     [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
+}
+
+/// <summary>RPC data type for SessionAuthStatus operations.</summary>
+public sealed class SessionAuthStatus
+{
+    /// <summary>Authentication type.</summary>
+    [JsonPropertyName("authType")]
+    public AuthInfoType? AuthType { get; set; }
+
+    /// <summary>Copilot plan tier (e.g., individual_pro, business).</summary>
+    [JsonPropertyName("copilotPlan")]
+    public string? CopilotPlan { get; set; }
+
+    /// <summary>Authentication host URL.</summary>
+    [JsonPropertyName("host")]
+    public string? Host { get; set; }
+
+    /// <summary>Whether the session has resolved authentication.</summary>
+    [JsonPropertyName("isAuthenticated")]
+    public bool IsAuthenticated { get; set; }
+
+    /// <summary>Authenticated login/username, if available.</summary>
+    [JsonPropertyName("login")]
+    public string? Login { get; set; }
+
+    /// <summary>Human-readable authentication status description.</summary>
+    [JsonPropertyName("statusMessage")]
+    public string? StatusMessage { get; set; }
+}
+
+/// <summary>RPC data type for SessionAuthGetStatus operations.</summary>
+internal sealed class SessionAuthGetStatusRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for CurrentModel operations.</summary>
@@ -1087,7 +1163,9 @@ public sealed class McpServer
     public string? Error { get; set; }
 
     /// <summary>Server name (config key).</summary>
-    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
@@ -1123,7 +1201,9 @@ internal sealed class SessionMcpListRequest
 internal sealed class McpEnableRequest
 {
     /// <summary>Name of the MCP server to enable.</summary>
-    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
 
@@ -1137,7 +1217,9 @@ internal sealed class McpEnableRequest
 internal sealed class McpDisableRequest
 {
     /// <summary>Name of the MCP server to disable.</summary>
-    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
 
@@ -1150,6 +1232,43 @@ internal sealed class McpDisableRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionMcpReloadRequest
 {
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for McpOauthLogin operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpOauthLoginResult
+{
+    /// <summary>URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed.</summary>
+    [JsonPropertyName("authorizationUrl")]
+    public string? AuthorizationUrl { get; set; }
+}
+
+/// <summary>RPC data type for McpOauthLogin operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpOauthLoginRequest
+{
+    /// <summary>Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.</summary>
+    [JsonPropertyName("callbackSuccessMessage")]
+    public string? CallbackSuccessMessage { get; set; }
+
+    /// <summary>Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</summary>
+    [JsonPropertyName("clientName")]
+    public string? ClientName { get; set; }
+
+    /// <summary>When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</summary>
+    [JsonPropertyName("forceReauth")]
+    public bool? ForceReauth { get; set; }
+
+    /// <summary>Name of the remote MCP server to authenticate.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -1402,12 +1521,11 @@ public sealed class PermissionRequestResult
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(PermissionDecisionApproved), "approved")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedByRules), "denied-by-rules")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser), "denied-no-approval-rule-and-could-not-request-from-user")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedInteractivelyByUser), "denied-interactively-by-user")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedByContentExclusionPolicy), "denied-by-content-exclusion-policy")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedByPermissionRequestHook), "denied-by-permission-request-hook")]
+[JsonDerivedType(typeof(PermissionDecisionApproveOnce), "approve-once")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSession), "approve-for-session")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocation), "approve-for-location")]
+[JsonDerivedType(typeof(PermissionDecisionReject), "reject")]
+[JsonDerivedType(typeof(PermissionDecisionUserNotAvailable), "user-not-available")]
 public partial class PermissionDecision
 {
     /// <summary>The type discriminator.</summary>
@@ -1416,40 +1534,240 @@ public partial class PermissionDecision
 }
 
 
-/// <summary>The <c>approved</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionApproved : PermissionDecision
+/// <summary>The <c>approve-once</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApproveOnce : PermissionDecision
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "approved";
+    public override string Kind => "approve-once";
 }
 
-/// <summary>The <c>denied-by-rules</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedByRules : PermissionDecision
+/// <summary>The approval to add as a session-scoped rule.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalCommands), "commands")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalRead), "read")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalWrite), "write")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMcp), "mcp")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMcpSampling), "mcp-sampling")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMemory), "memory")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalCustomTool), "custom-tool")]
+public partial class PermissionDecisionApproveForSessionApproval
 {
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "denied-by-rules";
-
-    /// <summary>Rules that denied the request.</summary>
-    [JsonPropertyName("rules")]
-    public required object[] Rules { get; set; }
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
 }
 
-/// <summary>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionDecision
+
+/// <summary>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalCommands : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "denied-no-approval-rule-and-could-not-request-from-user";
+    public override string Kind => "commands";
+
+    /// <summary>Gets or sets the <c>commandIdentifiers</c> value.</summary>
+    [JsonPropertyName("commandIdentifiers")]
+    public required IList<string> CommandIdentifiers { get; set; }
 }
 
-/// <summary>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDecision
+/// <summary>The <c>read</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalRead : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "denied-interactively-by-user";
+    public override string Kind => "read";
+}
+
+/// <summary>The <c>write</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalWrite : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "write";
+}
+
+/// <summary>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalMcp : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp";
+
+    /// <summary>Gets or sets the <c>serverName</c> value.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>Gets or sets the <c>toolName</c> value.</summary>
+    [JsonPropertyName("toolName")]
+    public string? ToolName { get; set; }
+}
+
+/// <summary>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalMcpSampling : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp-sampling";
+
+    /// <summary>Gets or sets the <c>serverName</c> value.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalMemory : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "memory";
+}
+
+/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalCustomTool : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "custom-tool";
+
+    /// <summary>Gets or sets the <c>toolName</c> value.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>The <c>approve-for-session</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApproveForSession : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "approve-for-session";
+
+    /// <summary>The approval to add as a session-scoped rule.</summary>
+    [JsonPropertyName("approval")]
+    public required PermissionDecisionApproveForSessionApproval Approval { get; set; }
+}
+
+/// <summary>The approval to persist for this location.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalCommands), "commands")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalRead), "read")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalWrite), "write")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMcp), "mcp")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMcpSampling), "mcp-sampling")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMemory), "memory")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalCustomTool), "custom-tool")]
+public partial class PermissionDecisionApproveForLocationApproval
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalCommands : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "commands";
+
+    /// <summary>Gets or sets the <c>commandIdentifiers</c> value.</summary>
+    [JsonPropertyName("commandIdentifiers")]
+    public required IList<string> CommandIdentifiers { get; set; }
+}
+
+/// <summary>The <c>read</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalRead : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "read";
+}
+
+/// <summary>The <c>write</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalWrite : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "write";
+}
+
+/// <summary>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalMcp : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp";
+
+    /// <summary>Gets or sets the <c>serverName</c> value.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>Gets or sets the <c>toolName</c> value.</summary>
+    [JsonPropertyName("toolName")]
+    public string? ToolName { get; set; }
+}
+
+/// <summary>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalMcpSampling : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp-sampling";
+
+    /// <summary>Gets or sets the <c>serverName</c> value.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalMemory : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "memory";
+}
+
+/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalCustomTool : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "custom-tool";
+
+    /// <summary>Gets or sets the <c>toolName</c> value.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>The <c>approve-for-location</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApproveForLocation : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "approve-for-location";
+
+    /// <summary>The approval to persist for this location.</summary>
+    [JsonPropertyName("approval")]
+    public required PermissionDecisionApproveForLocationApproval Approval { get; set; }
+
+    /// <summary>The location key (git root or cwd) to persist the approval to.</summary>
+    [JsonPropertyName("locationKey")]
+    public required string LocationKey { get; set; }
+}
+
+/// <summary>The <c>reject</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionReject : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "reject";
 
     /// <summary>Optional feedback from the user explaining the denial.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1457,38 +1775,12 @@ public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDec
     public string? Feedback { get; set; }
 }
 
-/// <summary>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedByContentExclusionPolicy : PermissionDecision
+/// <summary>The <c>user-not-available</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionUserNotAvailable : PermissionDecision
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "denied-by-content-exclusion-policy";
-
-    /// <summary>Human-readable explanation of why the path was excluded.</summary>
-    [JsonPropertyName("message")]
-    public required string Message { get; set; }
-
-    /// <summary>File path that triggered the exclusion.</summary>
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-}
-
-/// <summary>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedByPermissionRequestHook : PermissionDecision
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "denied-by-permission-request-hook";
-
-    /// <summary>Whether to interrupt the current agent turn.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("interrupt")]
-    public bool? Interrupt { get; set; }
-
-    /// <summary>Optional message from the hook explaining the denial.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("message")]
-    public string? Message { get; set; }
+    public override string Kind => "user-not-available";
 }
 
 /// <summary>RPC data type for PermissionDecision operations.</summary>
@@ -1502,6 +1794,42 @@ internal sealed class PermissionDecisionRequest
     [JsonPropertyName("result")]
     public PermissionDecision Result { get => field ??= new(); set; }
 
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for PermissionsSetApproveAll operations.</summary>
+public sealed class PermissionsSetApproveAllResult
+{
+    /// <summary>Whether the operation succeeded.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>RPC data type for PermissionsSetApproveAll operations.</summary>
+internal sealed class PermissionsSetApproveAllRequest
+{
+    /// <summary>Whether to auto-approve all tool permission requests.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for PermissionsResetSessionApprovals operations.</summary>
+public sealed class PermissionsResetSessionApprovalsResult
+{
+    /// <summary>Whether the operation succeeded.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>RPC data type for PermissionsResetSessionApprovals operations.</summary>
+internal sealed class PermissionsResetSessionApprovalsRequest
+{
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -2097,6 +2425,34 @@ public enum SessionLogLevel
 }
 
 
+/// <summary>Authentication type.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<AuthInfoType>))]
+public enum AuthInfoType
+{
+    /// <summary>The <c>hmac</c> variant.</summary>
+    [JsonStringEnumMemberName("hmac")]
+    Hmac,
+    /// <summary>The <c>env</c> variant.</summary>
+    [JsonStringEnumMemberName("env")]
+    Env,
+    /// <summary>The <c>user</c> variant.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+    /// <summary>The <c>gh-cli</c> variant.</summary>
+    [JsonStringEnumMemberName("gh-cli")]
+    GhCli,
+    /// <summary>The <c>api-key</c> variant.</summary>
+    [JsonStringEnumMemberName("api-key")]
+    ApiKey,
+    /// <summary>The <c>token</c> variant.</summary>
+    [JsonStringEnumMemberName("token")]
+    Token,
+    /// <summary>The <c>copilot-api-token</c> variant.</summary>
+    [JsonStringEnumMemberName("copilot-api-token")]
+    CopilotApiToken,
+}
+
+
 /// <summary>The agent mode. Valid values: "interactive", "plan", "autopilot".</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionMode>))]
 public enum SessionMode
@@ -2374,9 +2730,10 @@ public sealed class ServerModelsApi
     }
 
     /// <summary>Calls "models.list".</summary>
-    public async Task<ModelList> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<ModelList> ListAsync(string? gitHubToken = null, CancellationToken cancellationToken = default)
     {
-        return await CopilotClient.InvokeRpcAsync<ModelList>(_rpc, "models.list", [], cancellationToken);
+        var request = new ModelsListRequest { GitHubToken = gitHubToken };
+        return await CopilotClient.InvokeRpcAsync<ModelList>(_rpc, "models.list", [request], cancellationToken);
     }
 }
 
@@ -2409,9 +2766,10 @@ public sealed class ServerAccountApi
     }
 
     /// <summary>Calls "account.getQuota".</summary>
-    public async Task<AccountGetQuotaResult> GetQuotaAsync(CancellationToken cancellationToken = default)
+    public async Task<AccountGetQuotaResult> GetQuotaAsync(string? gitHubToken = null, CancellationToken cancellationToken = default)
     {
-        return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [], cancellationToken);
+        var request = new AccountGetQuotaRequest { GitHubToken = gitHubToken };
+        return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [request], cancellationToken);
     }
 }
 
@@ -2472,6 +2830,20 @@ public sealed class ServerMcpConfigApi
     {
         var request = new McpConfigRemoveRequest { Name = name };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.remove", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "mcp.config.enable".</summary>
+    public async Task EnableAsync(IList<string> names, CancellationToken cancellationToken = default)
+    {
+        var request = new McpConfigEnableRequest { Names = names };
+        await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.enable", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "mcp.config.disable".</summary>
+    public async Task DisableAsync(IList<string> names, CancellationToken cancellationToken = default)
+    {
+        var request = new McpConfigDisableRequest { Names = names };
+        await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.disable", [request], cancellationToken);
     }
 }
 
@@ -2562,6 +2934,7 @@ public sealed class SessionRpc
     {
         _rpc = rpc;
         _sessionId = sessionId;
+        Auth = new AuthApi(rpc, sessionId);
         Model = new ModelApi(rpc, sessionId);
         Mode = new ModeApi(rpc, sessionId);
         Name = new NameApi(rpc, sessionId);
@@ -2582,6 +2955,9 @@ public sealed class SessionRpc
         History = new HistoryApi(rpc, sessionId);
         Usage = new UsageApi(rpc, sessionId);
     }
+
+    /// <summary>Auth APIs.</summary>
+    public AuthApi Auth { get; }
 
     /// <summary>Model APIs.</summary>
     public ModelApi Model { get; }
@@ -2645,6 +3021,26 @@ public sealed class SessionRpc
     {
         var request = new LogRequest { SessionId = _sessionId, Message = message, Level = level, Ephemeral = ephemeral, Url = url };
         return await CopilotClient.InvokeRpcAsync<LogResult>(_rpc, "session.log", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Auth APIs.</summary>
+public sealed class AuthApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal AuthApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.auth.getStatus".</summary>
+    public async Task<SessionAuthStatus> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionAuthGetStatusRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionAuthStatus>(_rpc, "session.auth.getStatus", [request], cancellationToken);
     }
 }
 
@@ -2947,6 +3343,7 @@ public sealed class McpApi
     {
         _rpc = rpc;
         _sessionId = sessionId;
+        Oauth = new McpOauthApi(rpc, sessionId);
     }
 
     /// <summary>Calls "session.mcp.list".</summary>
@@ -2975,6 +3372,30 @@ public sealed class McpApi
     {
         var request = new SessionMcpReloadRequest { SessionId = _sessionId };
         await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.reload", [request], cancellationToken);
+    }
+
+    /// <summary>Oauth APIs.</summary>
+    public McpOauthApi Oauth { get; }
+}
+
+/// <summary>Provides session-scoped McpOauth APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpOauthApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal McpOauthApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.mcp.oauth.login".</summary>
+    public async Task<McpOauthLoginResult> LoginAsync(string serverName, bool? forceReauth = null, string? clientName = null, string? callbackSuccessMessage = null, CancellationToken cancellationToken = default)
+    {
+        var request = new McpOauthLoginRequest { SessionId = _sessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage };
+        return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_rpc, "session.mcp.oauth.login", [request], cancellationToken);
     }
 }
 
@@ -3125,6 +3546,20 @@ public sealed class PermissionsApi
     {
         var request = new PermissionDecisionRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
         return await CopilotClient.InvokeRpcAsync<PermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.permissions.setApproveAll".</summary>
+    public async Task<PermissionsSetApproveAllResult> SetApproveAllAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        var request = new PermissionsSetApproveAllRequest { SessionId = _sessionId, Enabled = enabled };
+        return await CopilotClient.InvokeRpcAsync<PermissionsSetApproveAllResult>(_rpc, "session.permissions.setApproveAll", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.permissions.resetSessionApprovals".</summary>
+    public async Task<PermissionsResetSessionApprovalsResult> ResetSessionApprovalsAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new PermissionsResetSessionApprovalsRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<PermissionsResetSessionApprovalsResult>(_rpc, "session.permissions.resetSessionApprovals", [request], cancellationToken);
     }
 }
 
@@ -3353,6 +3788,7 @@ public static class ClientSessionApiRegistration
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(AccountGetQuotaRequest))]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]
 [JsonSerializable(typeof(AgentGetCurrentResult))]
@@ -3381,6 +3817,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(McpConfigAddRequest))]
+[JsonSerializable(typeof(McpConfigDisableRequest))]
+[JsonSerializable(typeof(McpConfigEnableRequest))]
 [JsonSerializable(typeof(McpConfigList))]
 [JsonSerializable(typeof(McpConfigRemoveRequest))]
 [JsonSerializable(typeof(McpConfigUpdateRequest))]
@@ -3388,6 +3826,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(McpDiscoverRequest))]
 [JsonSerializable(typeof(McpDiscoverResult))]
 [JsonSerializable(typeof(McpEnableRequest))]
+[JsonSerializable(typeof(McpOauthLoginRequest))]
+[JsonSerializable(typeof(McpOauthLoginResult))]
 [JsonSerializable(typeof(McpServer))]
 [JsonSerializable(typeof(McpServerList))]
 [JsonSerializable(typeof(ModeSetRequest))]
@@ -3405,11 +3845,18 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ModelPolicy))]
 [JsonSerializable(typeof(ModelSwitchToRequest))]
 [JsonSerializable(typeof(ModelSwitchToResult))]
+[JsonSerializable(typeof(ModelsListRequest))]
 [JsonSerializable(typeof(NameGetResult))]
 [JsonSerializable(typeof(NameSetRequest))]
 [JsonSerializable(typeof(PermissionDecision))]
+[JsonSerializable(typeof(PermissionDecisionApproveForLocationApproval))]
+[JsonSerializable(typeof(PermissionDecisionApproveForSessionApproval))]
 [JsonSerializable(typeof(PermissionDecisionRequest))]
 [JsonSerializable(typeof(PermissionRequestResult))]
+[JsonSerializable(typeof(PermissionsResetSessionApprovalsRequest))]
+[JsonSerializable(typeof(PermissionsResetSessionApprovalsResult))]
+[JsonSerializable(typeof(PermissionsSetApproveAllRequest))]
+[JsonSerializable(typeof(PermissionsSetApproveAllResult))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResult))]
 [JsonSerializable(typeof(PlanReadResult))]
@@ -3422,6 +3869,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionAgentGetCurrentRequest))]
 [JsonSerializable(typeof(SessionAgentListRequest))]
 [JsonSerializable(typeof(SessionAgentReloadRequest))]
+[JsonSerializable(typeof(SessionAuthGetStatusRequest))]
+[JsonSerializable(typeof(SessionAuthStatus))]
 [JsonSerializable(typeof(SessionExtensionsListRequest))]
 [JsonSerializable(typeof(SessionExtensionsReloadRequest))]
 [JsonSerializable(typeof(SessionFsAppendFileRequest))]

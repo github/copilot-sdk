@@ -64,7 +64,7 @@ func TestRpc(t *testing.T) {
 			t.Skip("Not authenticated - skipping models.list test")
 		}
 
-		result, err := client.RPC.Models.List(t.Context())
+		result, err := client.RPC.Models.List(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to call RPC.Models.List: %v", err)
 		}
@@ -101,7 +101,7 @@ func TestRpc(t *testing.T) {
 			t.Skip("Not authenticated - skipping account.getQuota test")
 		}
 
-		result, err := client.RPC.Account.GetQuota(t.Context())
+		result, err := client.RPC.Account.GetQuota(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to call RPC.Account.GetQuota: %v", err)
 		}

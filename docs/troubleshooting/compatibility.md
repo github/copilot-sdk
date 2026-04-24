@@ -55,7 +55,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Create workspace file | `session.rpc.workspace.createFile()` | Create file in workspace |
 | **Authentication** | | |
 | Get auth status | `getAuthStatus()` | Check login state |
-| Use token | `githubToken` option | Programmatic auth |
+| Use token | `gitHubToken` option | Programmatic auth |
 | **Connectivity** | | |
 | Ping | `client.ping()` | Health check with server timestamp |
 | Get server status | `client.getStatus()` | Protocol version and server info |

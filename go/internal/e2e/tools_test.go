@@ -429,7 +429,7 @@ func TestTools(t *testing.T) {
 					}),
 			},
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
 			},
 		})
 		if err != nil {

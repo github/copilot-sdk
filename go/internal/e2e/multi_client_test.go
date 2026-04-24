@@ -237,7 +237,7 @@ func TestMultiClient(t *testing.T) {
 		// Client 1 creates a session and denies all permission requests
 		session1, err := client1.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
 			},
 		})
 		if err != nil {

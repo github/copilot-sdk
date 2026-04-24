@@ -2,6 +2,7 @@ package testharness
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -250,4 +251,33 @@ func (p *CapiProxy) URL() string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.proxyURL
+}
+
+// SetCopilotUserByToken registers a per-token user configuration on the proxy.
+func (p *CapiProxy) SetCopilotUserByToken(token string, response map[string]interface{}) error {
+	p.mu.Lock()
+	url := p.proxyURL
+	p.mu.Unlock()
+
+	if url == "" {
+		return fmt.Errorf("proxy not started")
+	}
+
+	body := map[string]interface{}{
+		"token":    token,
+		"response": response,
+	}
+	data, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	resp, err := http.Post(url+"/copilot-user-config", "application/json", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("setCopilotUserByToken: unexpected status %d", resp.StatusCode)
+	}
+	return nil
 }

@@ -234,7 +234,7 @@ class TestMultiClientBroadcast:
         # Client 1 creates a session and manually approves permission requests
         session1 = await mctx.client1.create_session(
             on_permission_request=lambda request, invocation: (
-                permission_requests.append(request) or PermissionRequestResult(kind="approved")
+                permission_requests.append(request) or PermissionRequestResult(kind="approve-once")
             ),
         )
 
@@ -280,7 +280,7 @@ class TestMultiClientBroadcast:
         # Client 1 creates a session and denies all permission requests
         session1 = await mctx.client1.create_session(
             on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="denied-interactively-by-user"
+                kind="reject"
             ),
         )
 

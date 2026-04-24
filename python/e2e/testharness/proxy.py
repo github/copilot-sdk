@@ -106,6 +106,18 @@ class CapiProxy:
             resp = await client.get(f"{self._proxy_url}/exchanges")
             return resp.json()
 
+    async def set_copilot_user_by_token(self, token: str, response: dict[str, Any]) -> None:
+        """Register a per-token response for /copilot_internal/user."""
+        if not self._proxy_url:
+            raise RuntimeError("Proxy not started")
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self._proxy_url}/copilot-user-config",
+                json={"token": token, "response": response},
+            )
+            assert resp.status_code == 200
+
     @property
     def url(self) -> str | None:
         """Return the proxy URL, or None if not started."""

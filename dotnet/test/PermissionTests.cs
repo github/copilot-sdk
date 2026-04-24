@@ -50,7 +50,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
             {
                 return Task.FromResult(new PermissionRequestResult
                 {
-                    Kind = PermissionRequestResultKind.DeniedInteractivelyByUser
+                    Kind = PermissionRequestResultKind.Rejected
                 });
             }
         });
@@ -76,7 +76,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser })
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
         });
         var permissionDenied = false;
 
@@ -201,7 +201,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser })
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
         });
         var permissionDenied = false;
 

@@ -405,6 +405,17 @@ function findDiscriminator(variants: JSONSchema7[]): { property: string; mapping
     return null;
 }
 
+/** Callback that resolves the C# type for a property schema within a polymorphic class. */
+type PropertyTypeResolver = (
+    propSchema: JSONSchema7,
+    parentClassName: string,
+    propName: string,
+    isRequired: boolean,
+    knownTypes: Map<string, string>,
+    nestedClasses: Map<string, string>,
+    enumOutput: string[]
+) => string;
+
 /**
  * Generate a polymorphic base class and derived classes for a discriminated union.
  */
@@ -415,8 +426,10 @@ function generatePolymorphicClasses(
     knownTypes: Map<string, string>,
     nestedClasses: Map<string, string>,
     enumOutput: string[],
-    description?: string
+    description?: string,
+    propertyResolver?: PropertyTypeResolver
 ): string {
+    const resolver = propertyResolver ?? resolveSessionPropertyType;
     const lines: string[] = [];
     const discriminatorInfo = findDiscriminator(variants)!;
     const renamedBase = applyTypeRename(baseClassName);
@@ -441,7 +454,7 @@ function generatePolymorphicClasses(
 
     for (const [constValue, variant] of discriminatorInfo.mapping) {
         const derivedClassName = applyTypeRename(`${baseClassName}${toPascalCase(constValue)}`);
-        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, variant, knownTypes, nestedClasses, enumOutput);
+        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, variant, knownTypes, nestedClasses, enumOutput, resolver);
         nestedClasses.set(derivedClassName, derivedCode);
     }
 
@@ -459,7 +472,8 @@ function generateDerivedClass(
     schema: JSONSchema7,
     knownTypes: Map<string, string>,
     nestedClasses: Map<string, string>,
-    enumOutput: string[]
+    enumOutput: string[],
+    propertyResolver: PropertyTypeResolver
 ): string {
     const lines: string[] = [];
     const required = new Set(schema.required || []);
@@ -480,7 +494,7 @@ function generateDerivedClass(
 
             const isReq = required.has(propName);
             const csharpName = toPascalCase(propName);
-            const csharpType = resolveSessionPropertyType(propSchema as JSONSchema7, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+            const csharpType = propertyResolver(propSchema as JSONSchema7, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
             lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
             lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
@@ -901,7 +915,15 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
                 if (!emittedRpcClassSchemas.has(baseClassName)) {
                     emittedRpcClassSchemas.set(baseClassName, "polymorphic");
                     const nestedMap = new Map<string, string>();
-                    const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, rpcKnownTypes, nestedMap, rpcEnumOutput, schema.description);
+                    const rpcPropertyResolver: PropertyTypeResolver = (propSchema, parentClass, pName, isReq, _kt, nestedCls, enumOut) => {
+                        const nestedRpcClasses: string[] = [];
+                        const result = resolveRpcType(propSchema, isReq, parentClass, pName, nestedRpcClasses);
+                        for (const cls of nestedRpcClasses) {
+                            nestedCls.set(cls.match(/class (\w+)/)?.[1] ?? cls.slice(0, 40), cls);
+                        }
+                        return result;
+                    };
+                    const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, rpcKnownTypes, nestedMap, rpcEnumOutput, schema.description, rpcPropertyResolver);
                     classes.push(polymorphicCode);
                     for (const nested of nestedMap.values()) classes.push(nested);
                 }

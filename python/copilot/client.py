@@ -1220,6 +1220,7 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
+        github_token: str | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1351,6 +1352,10 @@ class CopilotClient:
         # Enable hooks callback if any hook handler provided
         if hooks and any(hooks.values()):
             payload["hooks"] = True
+
+        # Add GitHub token for per-session authentication
+        if github_token is not None:
+            payload["gitHubToken"] = github_token
 
         # Add working directory if provided
         if working_directory:
@@ -1507,6 +1512,7 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
+        github_token: str | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -1649,6 +1655,10 @@ class CopilotClient:
 
         if hooks and any(hooks.values()):
             payload["hooks"] = True
+
+        # Add GitHub token for per-session authentication
+        if github_token is not None:
+            payload["gitHubToken"] = github_token
 
         if working_directory:
             payload["workingDirectory"] = working_directory
@@ -2715,27 +2725,18 @@ class CopilotClient:
             result = await session._handle_permission_request(perm_request)
             if result.kind == "no-result":
                 raise ValueError(NO_RESULT_PERMISSION_V2_ERROR)
-            result_payload: dict = {"kind": result.kind}
-            if result.rules is not None:
-                result_payload["rules"] = result.rules
-            if result.feedback is not None:
-                result_payload["feedback"] = result.feedback
-            if result.message is not None:
-                result_payload["message"] = result.message
-            if result.path is not None:
-                result_payload["path"] = result.path
-            return {"result": result_payload}
+            return {"result": {"kind": result.kind}}
         except ValueError as exc:
             if str(exc) == NO_RESULT_PERMISSION_V2_ERROR:
                 raise
             return {
                 "result": {
-                    "kind": "denied-no-approval-rule-and-could-not-request-from-user",
+                    "kind": "user-not-available",
                 }
             }
         except Exception:  # pylint: disable=broad-except
             return {
                 "result": {
-                    "kind": "denied-no-approval-rule-and-could-not-request-from-user",
+                    "kind": "user-not-available",
                 }
             }

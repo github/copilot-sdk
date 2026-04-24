@@ -1029,7 +1029,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 				RequestID: requestID,
 				Result: rpc.PermissionDecision{
-					Kind: rpc.PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
+					Kind: rpc.PermissionDecisionKindUserNotAvailable,
 				},
 			})
 		}
@@ -1044,7 +1044,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
 			Result: rpc.PermissionDecision{
-				Kind: rpc.PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
+				Kind: rpc.PermissionDecisionKindUserNotAvailable,
 			},
 		})
 		return
@@ -1056,9 +1056,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 		RequestID: requestID,
 		Result: rpc.PermissionDecision{
-			Kind:     rpc.PermissionDecisionKind(result.Kind),
-			Rules:    result.Rules,
-			Feedback: nil,
+			Kind: rpc.PermissionDecisionKind(result.Kind),
 		},
 	})
 }

@@ -6,6 +6,13 @@
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
 /**
+ * Authentication type
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthInfoType".
+ */
+export type AuthInfoType = "hmac" | "env" | "user" | "gh-cli" | "api-key" | "token" | "copilot-api-token";
+/**
  * Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -103,12 +110,39 @@ export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
 export type SessionMode = "interactive" | "plan" | "autopilot";
 
 export type PermissionDecision =
-  | PermissionDecisionApproved
-  | PermissionDecisionDeniedByRules
-  | PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser
-  | PermissionDecisionDeniedInteractivelyByUser
-  | PermissionDecisionDeniedByContentExclusionPolicy
-  | PermissionDecisionDeniedByPermissionRequestHook;
+  | PermissionDecisionApproveOnce
+  | PermissionDecisionApproveForSession
+  | PermissionDecisionApproveForLocation
+  | PermissionDecisionReject
+  | PermissionDecisionUserNotAvailable;
+/**
+ * The approval to add as a session-scoped rule
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionApproveForSessionApproval".
+ */
+export type PermissionDecisionApproveForSessionApproval =
+  | PermissionDecisionApproveForSessionApprovalCommands
+  | PermissionDecisionApproveForSessionApprovalRead
+  | PermissionDecisionApproveForSessionApprovalWrite
+  | PermissionDecisionApproveForSessionApprovalMcp
+  | PermissionDecisionApproveForSessionApprovalMcpSampling
+  | PermissionDecisionApproveForSessionApprovalMemory
+  | PermissionDecisionApproveForSessionApprovalCustomTool;
+/**
+ * The approval to persist for this location
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionApproveForLocationApproval".
+ */
+export type PermissionDecisionApproveForLocationApproval =
+  | PermissionDecisionApproveForLocationApprovalCommands
+  | PermissionDecisionApproveForLocationApprovalRead
+  | PermissionDecisionApproveForLocationApprovalWrite
+  | PermissionDecisionApproveForLocationApprovalMcp
+  | PermissionDecisionApproveForLocationApprovalMcpSampling
+  | PermissionDecisionApproveForLocationApprovalMemory
+  | PermissionDecisionApproveForLocationApprovalCustomTool;
 /**
  * Error classification
  *
@@ -166,6 +200,13 @@ export type UIElicitationSchemaPropertyNumberType = "number" | "integer";
  * via the `definition` "UIElicitationResponseAction".
  */
 export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
+
+export interface AccountGetQuotaRequest {
+  /**
+   * GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.
+   */
+  gitHubToken?: string;
+}
 
 export interface AccountGetQuotaResult {
   /**
@@ -537,6 +578,20 @@ export interface McpServerConfigHttp {
   oauthPublicClient?: boolean;
 }
 
+export interface McpConfigDisableRequest {
+  /**
+   * Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.
+   */
+  names: string[];
+}
+
+export interface McpConfigEnableRequest {
+  /**
+   * Names of MCP servers to enable. Each server is removed from the persisted disabled list so new sessions spawn it. Unknown or already-enabled names are ignored.
+   */
+  names: string[];
+}
+
 export interface McpConfigList {
   /**
    * All MCP servers from user config, keyed by name
@@ -589,6 +644,34 @@ export interface McpEnableRequest {
    * Name of the MCP server to enable
    */
   serverName: string;
+}
+
+/** @experimental */
+export interface McpOauthLoginRequest {
+  /**
+   * Name of the remote MCP server to authenticate
+   */
+  serverName: string;
+  /**
+   * When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.
+   */
+  forceReauth?: boolean;
+  /**
+   * Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.
+   */
+  clientName?: string;
+  /**
+   * Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.
+   */
+  callbackSuccessMessage?: string;
+}
+
+/** @experimental */
+export interface McpOauthLoginResult {
+  /**
+   * URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed.
+   */
+  authorizationUrl?: string;
 }
 
 export interface McpServer {
@@ -714,7 +797,7 @@ export interface ModelPolicy {
   /**
    * Usage terms or conditions for this model
    */
-  terms: string;
+  terms?: string;
 }
 /**
  * Billing information
@@ -786,6 +869,13 @@ export interface ModelList {
   models: Model[];
 }
 
+export interface ModelsListRequest {
+  /**
+   * GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.
+   */
+  gitHubToken?: string;
+}
+
 export interface ModelSwitchToRequest {
   /**
    * Model identifier to switch to
@@ -823,70 +913,115 @@ export interface NameSetRequest {
   name: string;
 }
 
-export interface PermissionDecisionApproved {
+export interface PermissionDecisionApproveOnce {
   /**
-   * The permission request was approved
+   * The permission request was approved for this one instance
    */
-  kind: "approved";
+  kind: "approve-once";
 }
 
-export interface PermissionDecisionDeniedByRules {
+export interface PermissionDecisionApproveForSession {
   /**
-   * Denied because approval rules explicitly blocked it
+   * Approved and remembered for the rest of the session
    */
-  kind: "denied-by-rules";
-  /**
-   * Rules that denied the request
-   */
-  rules: unknown[];
+  kind: "approve-for-session";
+  approval: PermissionDecisionApproveForSessionApproval;
 }
 
-export interface PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
-  /**
-   * Denied because no approval rule matched and user confirmation was unavailable
-   */
-  kind: "denied-no-approval-rule-and-could-not-request-from-user";
+export interface PermissionDecisionApproveForSessionApprovalCommands {
+  kind: "commands";
+  commandIdentifiers: string[];
 }
 
-export interface PermissionDecisionDeniedInteractivelyByUser {
+export interface PermissionDecisionApproveForSessionApprovalRead {
+  kind: "read";
+}
+
+export interface PermissionDecisionApproveForSessionApprovalWrite {
+  kind: "write";
+}
+
+export interface PermissionDecisionApproveForSessionApprovalMcp {
+  kind: "mcp";
+  serverName: string;
+  toolName: string | null;
+}
+
+export interface PermissionDecisionApproveForSessionApprovalMcpSampling {
+  kind: "mcp-sampling";
+  serverName: string;
+}
+
+export interface PermissionDecisionApproveForSessionApprovalMemory {
+  kind: "memory";
+}
+
+export interface PermissionDecisionApproveForSessionApprovalCustomTool {
+  kind: "custom-tool";
+  toolName: string;
+}
+
+export interface PermissionDecisionApproveForLocation {
+  /**
+   * Approved and persisted for this project location
+   */
+  kind: "approve-for-location";
+  approval: PermissionDecisionApproveForLocationApproval;
+  /**
+   * The location key (git root or cwd) to persist the approval to
+   */
+  locationKey: string;
+}
+
+export interface PermissionDecisionApproveForLocationApprovalCommands {
+  kind: "commands";
+  commandIdentifiers: string[];
+}
+
+export interface PermissionDecisionApproveForLocationApprovalRead {
+  kind: "read";
+}
+
+export interface PermissionDecisionApproveForLocationApprovalWrite {
+  kind: "write";
+}
+
+export interface PermissionDecisionApproveForLocationApprovalMcp {
+  kind: "mcp";
+  serverName: string;
+  toolName: string | null;
+}
+
+export interface PermissionDecisionApproveForLocationApprovalMcpSampling {
+  kind: "mcp-sampling";
+  serverName: string;
+}
+
+export interface PermissionDecisionApproveForLocationApprovalMemory {
+  kind: "memory";
+}
+
+export interface PermissionDecisionApproveForLocationApprovalCustomTool {
+  kind: "custom-tool";
+  toolName: string;
+}
+
+export interface PermissionDecisionReject {
   /**
    * Denied by the user during an interactive prompt
    */
-  kind: "denied-interactively-by-user";
+  kind: "reject";
   /**
    * Optional feedback from the user explaining the denial
    */
   feedback?: string;
 }
 
-export interface PermissionDecisionDeniedByContentExclusionPolicy {
+export interface PermissionDecisionUserNotAvailable {
   /**
-   * Denied by the organization's content exclusion policy
+   * Denied because user confirmation was unavailable
    */
-  kind: "denied-by-content-exclusion-policy";
-  /**
-   * File path that triggered the exclusion
-   */
-  path: string;
-  /**
-   * Human-readable explanation of why the path was excluded
-   */
-  message: string;
-}
-
-export interface PermissionDecisionDeniedByPermissionRequestHook {
-  /**
-   * Denied by a permission request hook registered by an extension or plugin
-   */
-  kind: "denied-by-permission-request-hook";
-  /**
-   * Optional message from the hook explaining the denial
-   */
-  message?: string;
-  /**
-   * Whether to interrupt the current agent turn
-   */
-  interrupt?: boolean;
+  kind: "user-not-available";
 }
 
 export interface PermissionDecisionRequest {
@@ -900,6 +1035,29 @@ export interface PermissionDecisionRequest {
 export interface PermissionRequestResult {
   /**
    * Whether the permission request was handled successfully
+   */
+  success: boolean;
+}
+
+export interface PermissionsResetSessionApprovalsRequest {}
+
+export interface PermissionsResetSessionApprovalsResult {
+  /**
+   * Whether the operation succeeded
+   */
+  success: boolean;
+}
+
+export interface PermissionsSetApproveAllRequest {
+  /**
+   * Whether to auto-approve all tool permission requests
+   */
+  enabled: boolean;
+}
+
+export interface PermissionsSetApproveAllResult {
+  /**
+   * Whether the operation succeeded
    */
   success: boolean;
 }
@@ -1011,6 +1169,30 @@ export interface ServerSkillList {
    * All discovered skills across all sources
    */
   skills: ServerSkill[];
+}
+
+export interface SessionAuthStatus {
+  /**
+   * Whether the session has resolved authentication
+   */
+  isAuthenticated: boolean;
+  authType?: AuthInfoType;
+  /**
+   * Authentication host URL
+   */
+  host?: string;
+  /**
+   * Authenticated login/username, if available
+   */
+  login?: string;
+  /**
+   * Human-readable authentication status description
+   */
+  statusMessage?: string;
+  /**
+   * Copilot plan tier (e.g., individual_pro, business)
+   */
+  copilotPlan?: string;
 }
 
 export interface SessionFsAppendFileRequest {
@@ -1769,16 +1951,16 @@ export function createServerRpc(connection: MessageConnection) {
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
         models: {
-            list: async (): Promise<ModelList> =>
-                connection.sendRequest("models.list", {}),
+            list: async (params?: ModelsListRequest): Promise<ModelList> =>
+                connection.sendRequest("models.list", params),
         },
         tools: {
             list: async (params: ToolsListRequest): Promise<ToolList> =>
                 connection.sendRequest("tools.list", params),
         },
         account: {
-            getQuota: async (): Promise<AccountGetQuotaResult> =>
-                connection.sendRequest("account.getQuota", {}),
+            getQuota: async (params?: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
+                connection.sendRequest("account.getQuota", params),
         },
         mcp: {
             config: {
@@ -1790,6 +1972,10 @@ export function createServerRpc(connection: MessageConnection) {
                     connection.sendRequest("mcp.config.update", params),
                 remove: async (params: McpConfigRemoveRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.remove", params),
+                enable: async (params: McpConfigEnableRequest): Promise<void> =>
+                    connection.sendRequest("mcp.config.enable", params),
+                disable: async (params: McpConfigDisableRequest): Promise<void> =>
+                    connection.sendRequest("mcp.config.disable", params),
             },
             discover: async (params: McpDiscoverRequest): Promise<McpDiscoverResult> =>
                 connection.sendRequest("mcp.discover", params),
@@ -1817,28 +2003,32 @@ export function createServerRpc(connection: MessageConnection) {
 /** Create typed session-scoped RPC methods. */
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
+        auth: {
+            getStatus: async (): Promise<SessionAuthStatus> =>
+                connection.sendRequest("session.auth.getStatus", { sessionId }),
+        },
         model: {
             getCurrent: async (): Promise<CurrentModel> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
-            switchTo: async (params: Omit<ModelSwitchToRequest, "sessionId">): Promise<ModelSwitchToResult> =>
+            switchTo: async (params: ModelSwitchToRequest): Promise<ModelSwitchToResult> =>
                 connection.sendRequest("session.model.switchTo", { sessionId, ...params }),
         },
         mode: {
             get: async (): Promise<SessionMode> =>
                 connection.sendRequest("session.mode.get", { sessionId }),
-            set: async (params: Omit<ModeSetRequest, "sessionId">): Promise<void> =>
+            set: async (params: ModeSetRequest): Promise<void> =>
                 connection.sendRequest("session.mode.set", { sessionId, ...params }),
         },
         name: {
             get: async (): Promise<NameGetResult> =>
                 connection.sendRequest("session.name.get", { sessionId }),
-            set: async (params: Omit<NameSetRequest, "sessionId">): Promise<void> =>
+            set: async (params: NameSetRequest): Promise<void> =>
                 connection.sendRequest("session.name.set", { sessionId, ...params }),
         },
         plan: {
             read: async (): Promise<PlanReadResult> =>
                 connection.sendRequest("session.plan.read", { sessionId }),
-            update: async (params: Omit<PlanUpdateRequest, "sessionId">): Promise<void> =>
+            update: async (params: PlanUpdateRequest): Promise<void> =>
                 connection.sendRequest("session.plan.update", { sessionId, ...params }),
             delete: async (): Promise<void> =>
                 connection.sendRequest("session.plan.delete", { sessionId }),
@@ -1848,9 +2038,9 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.workspaces.getWorkspace", { sessionId }),
             listFiles: async (): Promise<WorkspacesListFilesResult> =>
                 connection.sendRequest("session.workspaces.listFiles", { sessionId }),
-            readFile: async (params: Omit<WorkspacesReadFileRequest, "sessionId">): Promise<WorkspacesReadFileResult> =>
+            readFile: async (params: WorkspacesReadFileRequest): Promise<WorkspacesReadFileResult> =>
                 connection.sendRequest("session.workspaces.readFile", { sessionId, ...params }),
-            createFile: async (params: Omit<WorkspacesCreateFileRequest, "sessionId">): Promise<void> =>
+            createFile: async (params: WorkspacesCreateFileRequest): Promise<void> =>
                 connection.sendRequest("session.workspaces.createFile", { sessionId, ...params }),
         },
         instructions: {
@@ -1859,7 +2049,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         },
         /** @experimental */
         fleet: {
-            start: async (params: Omit<FleetStartRequest, "sessionId">): Promise<FleetStartResult> =>
+            start: async (params: FleetStartRequest): Promise<FleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
         },
         /** @experimental */
@@ -1868,7 +2058,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.agent.list", { sessionId }),
             getCurrent: async (): Promise<AgentGetCurrentResult> =>
                 connection.sendRequest("session.agent.getCurrent", { sessionId }),
-            select: async (params: Omit<AgentSelectRequest, "sessionId">): Promise<AgentSelectResult> =>
+            select: async (params: AgentSelectRequest): Promise<AgentSelectResult> =>
                 connection.sendRequest("session.agent.select", { sessionId, ...params }),
             deselect: async (): Promise<void> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
@@ -1879,9 +2069,9 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         skills: {
             list: async (): Promise<SkillList> =>
                 connection.sendRequest("session.skills.list", { sessionId }),
-            enable: async (params: Omit<SkillsEnableRequest, "sessionId">): Promise<void> =>
+            enable: async (params: SkillsEnableRequest): Promise<void> =>
                 connection.sendRequest("session.skills.enable", { sessionId, ...params }),
-            disable: async (params: Omit<SkillsDisableRequest, "sessionId">): Promise<void> =>
+            disable: async (params: SkillsDisableRequest): Promise<void> =>
                 connection.sendRequest("session.skills.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.skills.reload", { sessionId }),
@@ -1890,12 +2080,17 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         mcp: {
             list: async (): Promise<McpServerList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
-            enable: async (params: Omit<McpEnableRequest, "sessionId">): Promise<void> =>
+            enable: async (params: McpEnableRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.enable", { sessionId, ...params }),
-            disable: async (params: Omit<McpDisableRequest, "sessionId">): Promise<void> =>
+            disable: async (params: McpDisableRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.mcp.reload", { sessionId }),
+            /** @experimental */
+            oauth: {
+                login: async (params: McpOauthLoginRequest): Promise<McpOauthLoginResult> =>
+                    connection.sendRequest("session.mcp.oauth.login", { sessionId, ...params }),
+            },
         },
         /** @experimental */
         plugins: {
@@ -1906,44 +2101,48 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         extensions: {
             list: async (): Promise<ExtensionList> =>
                 connection.sendRequest("session.extensions.list", { sessionId }),
-            enable: async (params: Omit<ExtensionsEnableRequest, "sessionId">): Promise<void> =>
+            enable: async (params: ExtensionsEnableRequest): Promise<void> =>
                 connection.sendRequest("session.extensions.enable", { sessionId, ...params }),
-            disable: async (params: Omit<ExtensionsDisableRequest, "sessionId">): Promise<void> =>
+            disable: async (params: ExtensionsDisableRequest): Promise<void> =>
                 connection.sendRequest("session.extensions.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.extensions.reload", { sessionId }),
         },
         tools: {
-            handlePendingToolCall: async (params: Omit<ToolsHandlePendingToolCallRequest, "sessionId">): Promise<HandleToolCallResult> =>
+            handlePendingToolCall: async (params: ToolsHandlePendingToolCallRequest): Promise<HandleToolCallResult> =>
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
         },
         commands: {
-            handlePendingCommand: async (params: Omit<CommandsHandlePendingCommandRequest, "sessionId">): Promise<CommandsHandlePendingCommandResult> =>
+            handlePendingCommand: async (params: CommandsHandlePendingCommandRequest): Promise<CommandsHandlePendingCommandResult> =>
                 connection.sendRequest("session.commands.handlePendingCommand", { sessionId, ...params }),
         },
         ui: {
-            elicitation: async (params: Omit<UIElicitationRequest, "sessionId">): Promise<UIElicitationResponse> =>
+            elicitation: async (params: UIElicitationRequest): Promise<UIElicitationResponse> =>
                 connection.sendRequest("session.ui.elicitation", { sessionId, ...params }),
-            handlePendingElicitation: async (params: Omit<UIHandlePendingElicitationRequest, "sessionId">): Promise<UIElicitationResult> =>
+            handlePendingElicitation: async (params: UIHandlePendingElicitationRequest): Promise<UIElicitationResult> =>
                 connection.sendRequest("session.ui.handlePendingElicitation", { sessionId, ...params }),
         },
         permissions: {
-            handlePendingPermissionRequest: async (params: Omit<PermissionDecisionRequest, "sessionId">): Promise<PermissionRequestResult> =>
+            handlePendingPermissionRequest: async (params: PermissionDecisionRequest): Promise<PermissionRequestResult> =>
                 connection.sendRequest("session.permissions.handlePendingPermissionRequest", { sessionId, ...params }),
+            setApproveAll: async (params: PermissionsSetApproveAllRequest): Promise<PermissionsSetApproveAllResult> =>
+                connection.sendRequest("session.permissions.setApproveAll", { sessionId, ...params }),
+            resetSessionApprovals: async (): Promise<PermissionsResetSessionApprovalsResult> =>
+                connection.sendRequest("session.permissions.resetSessionApprovals", { sessionId }),
         },
-        log: async (params: Omit<LogRequest, "sessionId">): Promise<LogResult> =>
+        log: async (params: LogRequest): Promise<LogResult> =>
             connection.sendRequest("session.log", { sessionId, ...params }),
         shell: {
-            exec: async (params: Omit<ShellExecRequest, "sessionId">): Promise<ShellExecResult> =>
+            exec: async (params: ShellExecRequest): Promise<ShellExecResult> =>
                 connection.sendRequest("session.shell.exec", { sessionId, ...params }),
-            kill: async (params: Omit<ShellKillRequest, "sessionId">): Promise<ShellKillResult> =>
+            kill: async (params: ShellKillRequest): Promise<ShellKillResult> =>
                 connection.sendRequest("session.shell.kill", { sessionId, ...params }),
         },
         /** @experimental */
         history: {
             compact: async (): Promise<HistoryCompactResult> =>
                 connection.sendRequest("session.history.compact", { sessionId }),
-            truncate: async (params: Omit<HistoryTruncateRequest, "sessionId">): Promise<HistoryTruncateResult> =>
+            truncate: async (params: HistoryTruncateRequest): Promise<HistoryTruncateResult> =>
                 connection.sendRequest("session.history.truncate", { sessionId, ...params }),
         },
         /** @experimental */

@@ -250,6 +250,12 @@ function schemaSourceForNamedDefinition(
     if (schema?.$ref && resolvedSchema) {
         return resolvedSchema;
     }
+    // When the schema is an anyOf/oneOf wrapper (e.g., Zod optional params producing
+    // `anyOf: [{ not: {} }, { $ref }]`), use the resolved object schema to avoid
+    // generating self-referential type aliases that crash quicktype.
+    if ((schema?.anyOf || schema?.oneOf) && resolvedSchema?.properties) {
+        return resolvedSchema;
+    }
     return schema ?? resolvedSchema ?? { type: "object" };
 }
 

@@ -517,7 +517,7 @@ export class CopilotSession {
                 await this.rpc.permissions.handlePendingPermissionRequest({
                     requestId,
                     result: {
-                        kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                        kind: "user-not-available",
                     },
                 });
             } catch (rpcError) {
@@ -831,7 +831,7 @@ export class CopilotSession {
      */
     async _handlePermissionRequestV2(request: unknown): Promise<PermissionRequestResult> {
         if (!this.permissionHandler) {
-            return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
+            return { kind: "user-not-available" };
         }
 
         try {
@@ -846,7 +846,7 @@ export class CopilotSession {
             if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
                 throw error;
             }
-            return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
+            return { kind: "user-not-available" };
         }
     }
 
