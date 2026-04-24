@@ -233,10 +233,6 @@ class PermissionRequestResult:
     """Result of a permission request."""
 
     kind: PermissionRequestResultKind = "user-not-available"
-    rules: list[Any] | None = None
-    feedback: str | None = None
-    message: str | None = None
-    path: str | None = None
 
 
 _PermissionHandlerFn = Callable[
@@ -1453,10 +1449,6 @@ class CopilotSession:
 
             perm_result = PermissionDecision(
                 kind=PermissionDecisionKind(result.kind),
-                rules=result.rules,
-                feedback=result.feedback,
-                message=result.message,
-                path=result.path,
             )
 
             await self.rpc.permissions.handle_pending_permission_request(

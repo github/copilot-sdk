@@ -2725,16 +2725,7 @@ class CopilotClient:
             result = await session._handle_permission_request(perm_request)
             if result.kind == "no-result":
                 raise ValueError(NO_RESULT_PERMISSION_V2_ERROR)
-            result_payload: dict = {"kind": result.kind}
-            if result.rules is not None:
-                result_payload["rules"] = result.rules
-            if result.feedback is not None:
-                result_payload["feedback"] = result.feedback
-            if result.message is not None:
-                result_payload["message"] = result.message
-            if result.path is not None:
-                result_payload["path"] = result.path
-            return {"result": result_payload}
+            return {"result": {"kind": result.kind}}
         except ValueError as exc:
             if str(exc) == NO_RESULT_PERMISSION_V2_ERROR:
                 raise
