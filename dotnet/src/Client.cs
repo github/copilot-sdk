@@ -1602,7 +1602,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 return new PermissionRequestResponseV2(new PermissionRequestResult
                 {
-                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
+                    Kind = PermissionRequestResultKind.UserNotAvailable
                 });
             }
         }

@@ -2740,12 +2740,12 @@ class CopilotClient:
                 raise
             return {
                 "result": {
-                    "kind": "denied-no-approval-rule-and-could-not-request-from-user",
+                    "kind": "user-not-available",
                 }
             }
         except Exception:  # pylint: disable=broad-except
             return {
                 "result": {
-                    "kind": "denied-no-approval-rule-and-could-not-request-from-user",
+                    "kind": "user-not-available",
                 }
             }

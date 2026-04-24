@@ -29,7 +29,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             assert invocation["session_id"] == session.session_id
-            return PermissionRequestResult(kind="approved")
+            return PermissionRequestResult(kind="approve-once")
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -52,7 +52,7 @@ class TestPermissions:
         def on_permission_request(
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
-            return PermissionRequestResult(kind="denied-interactively-by-user")
+            return PermissionRequestResult(kind="reject")
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -167,7 +167,7 @@ class TestPermissions:
             permission_requests.append(request)
             # Simulate async permission check (e.g., user prompt)
             await asyncio.sleep(0.01)
-            return PermissionRequestResult(kind="approved")
+            return PermissionRequestResult(kind="approve-once")
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -193,7 +193,7 @@ class TestPermissions:
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             permission_requests.append(request)
-            return PermissionRequestResult(kind="approved")
+            return PermissionRequestResult(kind="approve-once")
 
         session2 = await ctx.client.resume_session(
             session_id, on_permission_request=on_permission_request
@@ -237,7 +237,7 @@ class TestPermissions:
                 received_tool_call_id = True
                 assert isinstance(request.tool_call_id, str)
                 assert len(request.tool_call_id) > 0
-            return PermissionRequestResult(kind="approved")
+            return PermissionRequestResult(kind="approve-once")
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 

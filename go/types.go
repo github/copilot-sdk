@@ -207,21 +207,27 @@ type SystemMessageConfig struct {
 type PermissionRequestResultKind string
 
 const (
-	// PermissionRequestResultKindApproved indicates the permission was approved.
-	PermissionRequestResultKindApproved PermissionRequestResultKind = "approved"
+	// PermissionRequestResultKindApproved indicates the permission was approved for this one instance.
+	PermissionRequestResultKindApproved PermissionRequestResultKind = "approve-once"
 
-	// PermissionRequestResultKindDeniedByRules indicates the permission was denied by rules.
-	PermissionRequestResultKindDeniedByRules PermissionRequestResultKind = "denied-by-rules"
+	// PermissionRequestResultKindRejected indicates the permission was denied interactively by the user.
+	PermissionRequestResultKindRejected PermissionRequestResultKind = "reject"
 
-	// PermissionRequestResultKindDeniedCouldNotRequestFromUser indicates the permission was denied because
-	// no approval rule was found and the user could not be prompted.
-	PermissionRequestResultKindDeniedCouldNotRequestFromUser PermissionRequestResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
-
-	// PermissionRequestResultKindDeniedInteractivelyByUser indicates the permission was denied interactively by the user.
-	PermissionRequestResultKindDeniedInteractivelyByUser PermissionRequestResultKind = "denied-interactively-by-user"
+	// PermissionRequestResultKindUserNotAvailable indicates the permission was denied because
+	// user confirmation was unavailable.
+	PermissionRequestResultKindUserNotAvailable PermissionRequestResultKind = "user-not-available"
 
 	// PermissionRequestResultKindNoResult indicates no permission decision was made.
 	PermissionRequestResultKindNoResult PermissionRequestResultKind = "no-result"
+
+	// Deprecated: Use PermissionRequestResultKindRejected instead.
+	PermissionRequestResultKindDeniedInteractivelyByUser = PermissionRequestResultKindRejected
+
+	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
+	PermissionRequestResultKindDeniedCouldNotRequestFromUser = PermissionRequestResultKindUserNotAvailable
+
+	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
+	PermissionRequestResultKindDeniedByRules = PermissionRequestResultKindUserNotAvailable
 )
 
 // PermissionRequestResult represents the result of a permission request

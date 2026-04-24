@@ -11,11 +11,14 @@ func TestPermissionRequestResultKind_Constants(t *testing.T) {
 		kind     PermissionRequestResultKind
 		expected string
 	}{
-		{"Approved", PermissionRequestResultKindApproved, "approved"},
-		{"DeniedByRules", PermissionRequestResultKindDeniedByRules, "denied-by-rules"},
-		{"DeniedCouldNotRequestFromUser", PermissionRequestResultKindDeniedCouldNotRequestFromUser, "denied-no-approval-rule-and-could-not-request-from-user"},
-		{"DeniedInteractivelyByUser", PermissionRequestResultKindDeniedInteractivelyByUser, "denied-interactively-by-user"},
-		{"NoResult", PermissionRequestResultKind("no-result"), "no-result"},
+		{"Approved", PermissionRequestResultKindApproved, "approve-once"},
+		{"Rejected", PermissionRequestResultKindRejected, "reject"},
+		{"UserNotAvailable", PermissionRequestResultKindUserNotAvailable, "user-not-available"},
+		{"NoResult", PermissionRequestResultKindNoResult, "no-result"},
+		// Deprecated aliases
+		{"DeprecatedDeniedInteractivelyByUser", PermissionRequestResultKindDeniedInteractivelyByUser, "reject"},
+		{"DeprecatedDeniedCouldNotRequestFromUser", PermissionRequestResultKindDeniedCouldNotRequestFromUser, "user-not-available"},
+		{"DeprecatedDeniedByRules", PermissionRequestResultKindDeniedByRules, "user-not-available"},
 	}
 
 	for _, tt := range tests {
