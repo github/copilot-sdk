@@ -207,7 +207,7 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         {
             OnPermissionRequest = (_, _) => Task.FromResult(new PermissionRequestResult
             {
-                Kind = PermissionRequestResultKind.DeniedInteractivelyByUser,
+                Kind = PermissionRequestResultKind.Rejected,
             }),
         });
 

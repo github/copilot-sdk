@@ -88,7 +88,7 @@ describe("Multi-client broadcast", async () => {
         const session1 = await client1.createSession({
             onPermissionRequest: (request) => {
                 client1PermissionRequests.push(request);
-                return { kind: "approved" as const };
+                return { kind: "approve-once" as const };
             },
         });
 
@@ -142,7 +142,7 @@ describe("Multi-client broadcast", async () => {
     it("one client rejects permission and both see the result", async () => {
         // Client 1 creates a session and denies all permission requests
         const session1 = await client1.createSession({
-            onPermissionRequest: () => ({ kind: "denied-interactively-by-user" as const }),
+            onPermissionRequest: () => ({ kind: "reject" as const }),
         });
 
         // Client 2 resumes — its handler never resolves so only client 1's denial takes effect

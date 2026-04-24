@@ -191,7 +191,7 @@ class TestTools:
 
         def on_permission_request(request, invocation):
             permission_requests.append(request)
-            return PermissionRequestResult(kind="approved")
+            return PermissionRequestResult(kind="approve-once")
 
         session = await ctx.client.create_session(
             on_permission_request=on_permission_request, tools=[encrypt_string]
@@ -219,7 +219,7 @@ class TestTools:
             return params.input.upper()
 
         def on_permission_request(request, invocation):
-            return PermissionRequestResult(kind="denied-interactively-by-user")
+            return PermissionRequestResult(kind="reject")
 
         session = await ctx.client.create_session(
             on_permission_request=on_permission_request, tools=[encrypt_string]

@@ -221,11 +221,9 @@ SystemMessageConfig = (
 # ============================================================================
 
 PermissionRequestResultKind = Literal[
-    "approved",
-    "denied-by-rules",
-    "denied-by-content-exclusion-policy",
-    "denied-no-approval-rule-and-could-not-request-from-user",
-    "denied-interactively-by-user",
+    "approve-once",
+    "reject",
+    "user-not-available",
     "no-result",
 ]
 
@@ -234,11 +232,7 @@ PermissionRequestResultKind = Literal[
 class PermissionRequestResult:
     """Result of a permission request."""
 
-    kind: PermissionRequestResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
-    rules: list[Any] | None = None
-    feedback: str | None = None
-    message: str | None = None
-    path: str | None = None
+    kind: PermissionRequestResultKind = "user-not-available"
 
 
 _PermissionHandlerFn = Callable[
@@ -252,7 +246,7 @@ class PermissionHandler:
     def approve_all(
         request: PermissionRequest, invocation: dict[str, str]
     ) -> PermissionRequestResult:
-        return PermissionRequestResult(kind="approved")
+        return PermissionRequestResult(kind="approve-once")
 
 
 # ============================================================================
@@ -1458,10 +1452,6 @@ class CopilotSession:
 
             perm_result = PermissionDecision(
                 kind=PermissionDecisionKind(result.kind),
-                rules=result.rules,
-                feedback=result.feedback,
-                message=result.message,
-                path=result.path,
             )
 
             await self.rpc.permissions.handle_pending_permission_request(
@@ -1476,7 +1466,7 @@ class CopilotSession:
                     PermissionDecisionRequest(
                         request_id=request_id,
                         result=PermissionDecision(
-                            kind=PermissionDecisionKind.DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER,
+                            kind=PermissionDecisionKind.USER_NOT_AVAILABLE,
                         ),
                     )
                 )

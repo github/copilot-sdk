@@ -126,13 +126,13 @@ export interface CopilotClientOptions {
      * When provided, the token is passed to the CLI server via environment variable.
      * This takes priority over other authentication methods.
      */
-    githubToken?: string;
+    gitHubToken?: string;
 
     /**
      * Whether to use the logged-in user for authentication.
      * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-     * When false, only explicit tokens (githubToken or environment variables) are used.
-     * @default true (but defaults to false when githubToken is provided)
+     * When false, only explicit tokens (gitHubToken or environment variables) are used.
+     * @default true (but defaults to false when gitHubToken is provided)
      */
     useLoggedInUser?: boolean;
 
@@ -184,6 +184,16 @@ export interface CopilotClientOptions {
      * instead of the server's default local filesystem storage.
      */
     sessionFs?: SessionFsConfig;
+
+    /**
+     * Server-wide idle timeout for sessions in seconds.
+     * Sessions without activity for this duration are automatically cleaned up.
+     * Set to 0 or omit to disable (sessions live indefinitely).
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link cliUrl}.
+     * @default undefined (disabled)
+     */
+    sessionIdleTimeoutSeconds?: number;
 }
 
 /**
@@ -754,7 +764,7 @@ export type PermissionHandler = (
     invocation: { sessionId: string }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
-export const approveAll: PermissionHandler = () => ({ kind: "approved" });
+export const approveAll: PermissionHandler = () => ({ kind: "approve-once" });
 
 export const defaultJoinSessionPermissionHandler: PermissionHandler =
     (): PermissionRequestResult => ({
@@ -1341,6 +1351,18 @@ export interface SessionConfig {
     infiniteSessions?: InfiniteSessionConfig;
 
     /**
+     * GitHub token for per-session authentication.
+     * When provided, the runtime resolves this token into a full GitHub identity
+     * (login, Copilot plan, endpoints) and stores it on the session. This enables
+     * multitenancy — different sessions can have different GitHub identities.
+     *
+     * This is independent of the client-level `gitHubToken` in {@link CopilotClientOptions},
+     * which authenticates the CLI process itself. The session-level token determines
+     * the identity used for content exclusion, model routing, and quota checks.
+     */
+    gitHubToken?: string;
+
+    /**
      * Optional event handler that is registered on the session before the
      * session.create RPC is issued. This guarantees that early events emitted
      * by the CLI during session creation (e.g. session.start) are delivered to
@@ -1389,6 +1411,7 @@ export type ResumeSessionConfig = Pick<
     | "skillDirectories"
     | "disabledSkills"
     | "infiniteSessions"
+    | "gitHubToken"
     | "onEvent"
     | "createSessionFsHandler"
 > & {

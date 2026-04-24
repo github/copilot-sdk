@@ -204,6 +204,24 @@ class TestAuthOptions:
         assert client._config.use_logged_in_user is False
 
 
+class TestSessionIdleTimeoutSeconds:
+    def test_accepts_session_idle_timeout_seconds(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                session_idle_timeout_seconds=600,
+                log_level="error",
+            )
+        )
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.session_idle_timeout_seconds == 600
+
+    def test_default_session_idle_timeout_seconds_is_none(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, log_level="error"))
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.session_idle_timeout_seconds is None
+
+
 class TestOverridesBuiltInTool:
     @pytest.mark.asyncio
     async def test_overrides_built_in_tool_sent_in_tool_definition(self):
@@ -411,6 +429,30 @@ class TestSessionConfigForwarding:
                 on_permission_request=PermissionHandler.approve_all, client_name="my-app"
             )
             assert captured["session.create"]["clientName"] == "my-app"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_forwards_persistent_memory_and_github_token(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return {"sessionId": params["sessionId"]}
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                persistent_memory=True,
+                github_token="gho_session_token",
+            )
+
+            assert captured["session.create"]["persistentMemory"] is True
+            assert captured["session.create"]["gitHubToken"] == "gho_session_token"
         finally:
             await client.force_stop()
 

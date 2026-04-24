@@ -51,7 +51,7 @@ export async function createSdkTestContext({
         logLevel: logLevel || "error",
         cliPath: process.env.COPILOT_CLI_PATH,
         // Use fake token in CI to allow cached responses without real auth
-        githubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+        gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
         useStdio: useStdio,
         ...copilotClientOptions,
     });

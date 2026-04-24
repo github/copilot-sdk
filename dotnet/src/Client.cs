@@ -513,7 +513,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestElicitation: config.OnElicitationRequest != null,
                 Traceparent: traceparent,
                 Tracestate: tracestate,
-                ModelCapabilities: config.ModelCapabilities);
+                ModelCapabilities: config.ModelCapabilities,
+                GitHubToken: config.GitHubToken);
 
             var response = await InvokeRpcAsync<CreateSessionResponse>(
                 connection.Rpc, "session.create", [request], cancellationToken);
@@ -638,7 +639,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestElicitation: config.OnElicitationRequest != null,
                 Traceparent: traceparent,
                 Tracestate: tracestate,
-                ModelCapabilities: config.ModelCapabilities);
+                ModelCapabilities: config.ModelCapabilities,
+                GitHubToken: config.GitHubToken);
 
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
                 connection.Rpc, "session.resume", [request], cancellationToken);
@@ -1190,6 +1192,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             args.Add("--no-auto-login");
         }
 
+        if (options.SessionIdleTimeoutSeconds is > 0)
+        {
+            args.AddRange(["--session-idle-timeout", options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
+        }
+
         var (fileName, processArgs) = ResolveCliCommand(cliPath, args);
 
         var startInfo = new ProcessStartInfo
@@ -1595,7 +1602,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 return new PermissionRequestResponseV2(new PermissionRequestResult
                 {
-                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
+                    Kind = PermissionRequestResultKind.UserNotAvailable
                 });
             }
         }
@@ -1656,7 +1663,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestElicitation = null,
         string? Traceparent = null,
         string? Tracestate = null,
-        ModelCapabilitiesOverride? ModelCapabilities = null);
+        ModelCapabilitiesOverride? ModelCapabilities = null,
+        string? GitHubToken = null);
 
     internal record ToolDefinition(
         string Name,
@@ -1711,7 +1719,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestElicitation = null,
         string? Traceparent = null,
         string? Tracestate = null,
-        ModelCapabilitiesOverride? ModelCapabilities = null);
+        ModelCapabilitiesOverride? ModelCapabilities = null,
+        string? GitHubToken = null);
 
     internal record ResumeSessionResponse(
         string SessionId,

@@ -33,6 +33,8 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
+[JsonDerivedType(typeof(AutoModeSwitchCompletedEvent), "auto_mode_switch.completed")]
+[JsonDerivedType(typeof(AutoModeSwitchRequestedEvent), "auto_mode_switch.requested")]
 [JsonDerivedType(typeof(CapabilitiesChangedEvent), "capabilities.changed")]
 [JsonDerivedType(typeof(CommandCompletedEvent), "command.completed")]
 [JsonDerivedType(typeof(CommandExecuteEvent), "command.execute")]
@@ -952,6 +954,32 @@ public partial class CommandCompletedEvent : SessionEvent
     public required CommandCompletedData Data { get; set; }
 }
 
+/// <summary>Auto mode switch request notification requiring user approval.</summary>
+/// <remarks>Represents the <c>auto_mode_switch.requested</c> event.</remarks>
+public partial class AutoModeSwitchRequestedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "auto_mode_switch.requested";
+
+    /// <summary>The <c>auto_mode_switch.requested</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AutoModeSwitchRequestedData Data { get; set; }
+}
+
+/// <summary>Auto mode switch completion notification.</summary>
+/// <remarks>Represents the <c>auto_mode_switch.completed</c> event.</remarks>
+public partial class AutoModeSwitchCompletedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "auto_mode_switch.completed";
+
+    /// <summary>The <c>auto_mode_switch.completed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AutoModeSwitchCompletedData Data { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 /// <remarks>Represents the <c>commands.changed</c> event.</remarks>
 public partial class CommandsChangedEvent : SessionEvent
@@ -1580,7 +1608,7 @@ public partial class SessionCompactionCompleteData
     [JsonPropertyName("checkpointPath")]
     public string? CheckpointPath { get; set; }
 
-    /// <summary>Token usage breakdown for the compaction LLM call.</summary>
+    /// <summary>Token usage breakdown for the compaction LLM call (aligned with assistant.usage format).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("compactionTokensUsed")]
     public CompactionCompleteCompactionTokensUsed? CompactionTokensUsed { get; set; }
@@ -2300,6 +2328,11 @@ public partial class PermissionRequestedData
     [JsonPropertyName("permissionRequest")]
     public required PermissionRequest PermissionRequest { get; set; }
 
+    /// <summary>Derived user-facing permission prompt details for UI consumers.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("promptRequest")]
+    public PermissionPromptRequest? PromptRequest { get; set; }
+
     /// <summary>Unique identifier for this permission request; used to respond via session.respondToPermission().</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -2320,6 +2353,11 @@ public partial class PermissionCompletedData
     /// <summary>The result of the permission request.</summary>
     [JsonPropertyName("result")]
     public required PermissionCompletedResult Result { get; set; }
+
+    /// <summary>Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
@@ -2556,6 +2594,31 @@ public partial class CommandCompletedData
     /// <summary>Request ID of the resolved command request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+}
+
+/// <summary>Auto mode switch request notification requiring user approval.</summary>
+public partial class AutoModeSwitchRequestedData
+{
+    /// <summary>The rate limit error code that triggered this request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
+    /// <summary>Unique identifier for this request; used to respond via session.respondToAutoModeSwitch().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+}
+
+/// <summary>Auto mode switch completion notification.</summary>
+public partial class AutoModeSwitchCompletedData
+{
+    /// <summary>Request ID of the resolved request; clients should dismiss any UI for this request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>The user's choice: 'yes', 'yes_always', or 'no'.</summary>
+    [JsonPropertyName("response")]
+    public required string Response { get; set; }
 }
 
 /// <summary>SDK command registration change notification.</summary>
@@ -2822,21 +2885,78 @@ public partial class ShutdownModelMetric
     public required ShutdownModelMetricUsage Usage { get; set; }
 }
 
-/// <summary>Token usage breakdown for the compaction LLM call.</summary>
+/// <summary>Token usage detail for a single billing category.</summary>
+/// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail</c>.</remarks>
+public partial class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail
+{
+    /// <summary>Number of tokens in this billing batch.</summary>
+    [JsonPropertyName("batchSize")]
+    public required double BatchSize { get; set; }
+
+    /// <summary>Cost per batch of tokens.</summary>
+    [JsonPropertyName("costPerBatch")]
+    public required double CostPerBatch { get; set; }
+
+    /// <summary>Total token count for this entry.</summary>
+    [JsonPropertyName("tokenCount")]
+    public required double TokenCount { get; set; }
+
+    /// <summary>Token category (e.g., "input", "output").</summary>
+    [JsonPropertyName("tokenType")]
+    public required string TokenType { get; set; }
+}
+
+/// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
+/// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsedCopilotUsage</c>.</remarks>
+public partial class CompactionCompleteCompactionTokensUsedCopilotUsage
+{
+    /// <summary>Itemized token usage breakdown.</summary>
+    [JsonPropertyName("tokenDetails")]
+    public required CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[] TokenDetails { get; set; }
+
+    /// <summary>Total cost in nano-AIU (AI Units) for this request.</summary>
+    [JsonPropertyName("totalNanoAiu")]
+    public required double TotalNanoAiu { get; set; }
+}
+
+/// <summary>Token usage breakdown for the compaction LLM call (aligned with assistant.usage format).</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsed</c>.</remarks>
 public partial class CompactionCompleteCompactionTokensUsed
 {
     /// <summary>Cached input tokens reused in the compaction LLM call.</summary>
-    [JsonPropertyName("cachedInput")]
-    public required double CachedInput { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cacheReadTokens")]
+    public double? CacheReadTokens { get; set; }
+
+    /// <summary>Tokens written to prompt cache in the compaction LLM call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cacheWriteTokens")]
+    public double? CacheWriteTokens { get; set; }
+
+    /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUsage")]
+    public CompactionCompleteCompactionTokensUsedCopilotUsage? CopilotUsage { get; set; }
+
+    /// <summary>Duration of the compaction LLM call in milliseconds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("duration")]
+    public double? Duration { get; set; }
 
     /// <summary>Input tokens consumed by the compaction LLM call.</summary>
-    [JsonPropertyName("input")]
-    public required double Input { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("inputTokens")]
+    public double? InputTokens { get; set; }
+
+    /// <summary>Model identifier used for the compaction LLM call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
 
     /// <summary>Output tokens produced by the compaction LLM call.</summary>
-    [JsonPropertyName("output")]
-    public required double Output { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputTokens")]
+    public double? OutputTokens { get; set; }
 }
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
@@ -3798,6 +3918,293 @@ public partial class PermissionRequest
 }
 
 
+/// <summary>Shell command permission prompt.</summary>
+/// <remarks>The <c>commands</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestCommands : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "commands";
+
+    /// <summary>Whether the UI can offer session-wide approval for this command pattern.</summary>
+    [JsonPropertyName("canOfferSessionApproval")]
+    public required bool CanOfferSessionApproval { get; set; }
+
+    /// <summary>Command identifiers covered by this approval prompt.</summary>
+    [JsonPropertyName("commandIdentifiers")]
+    public required string[] CommandIdentifiers { get; set; }
+
+    /// <summary>The complete shell command text to be executed.</summary>
+    [JsonPropertyName("fullCommandText")]
+    public required string FullCommandText { get; set; }
+
+    /// <summary>Human-readable description of what the command intends to do.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Optional warning message about risks of running this command.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("warning")]
+    public string? Warning { get; set; }
+}
+
+/// <summary>File write permission prompt.</summary>
+/// <remarks>The <c>write</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestWrite : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "write";
+
+    /// <summary>Whether the UI can offer session-wide approval for file write operations.</summary>
+    [JsonPropertyName("canOfferSessionApproval")]
+    public required bool CanOfferSessionApproval { get; set; }
+
+    /// <summary>Unified diff showing the proposed changes.</summary>
+    [JsonPropertyName("diff")]
+    public required string Diff { get; set; }
+
+    /// <summary>Path of the file being written to.</summary>
+    [JsonPropertyName("fileName")]
+    public required string FileName { get; set; }
+
+    /// <summary>Human-readable description of the intended file change.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    /// <summary>Complete new file contents for newly created files.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("newFileContents")]
+    public string? NewFileContents { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>File read permission prompt.</summary>
+/// <remarks>The <c>read</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestRead : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "read";
+
+    /// <summary>Human-readable description of why the file is being read.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    /// <summary>Path of the file or directory being read.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>MCP tool invocation permission prompt.</summary>
+/// <remarks>The <c>mcp</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestMcp : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp";
+
+    /// <summary>Arguments to pass to the MCP tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("args")]
+    public object? Args { get; set; }
+
+    /// <summary>Name of the MCP server providing the tool.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Internal name of the MCP tool.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+
+    /// <summary>Human-readable title of the MCP tool.</summary>
+    [JsonPropertyName("toolTitle")]
+    public required string ToolTitle { get; set; }
+}
+
+/// <summary>URL access permission prompt.</summary>
+/// <remarks>The <c>url</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestUrl : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "url";
+
+    /// <summary>Human-readable description of why the URL is being accessed.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>URL to be fetched.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Memory operation permission prompt.</summary>
+/// <remarks>The <c>memory</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestMemory : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "memory";
+
+    /// <summary>Whether this is a store or vote memory operation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("action")]
+    public PermissionPromptRequestMemoryAction? Action { get; set; }
+
+    /// <summary>Source references for the stored fact (store only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("citations")]
+    public string? Citations { get; set; }
+
+    /// <summary>Vote direction (vote only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("direction")]
+    public PermissionPromptRequestMemoryDirection? Direction { get; set; }
+
+    /// <summary>The fact being stored or voted on.</summary>
+    [JsonPropertyName("fact")]
+    public required string Fact { get; set; }
+
+    /// <summary>Reason for the vote (vote only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>Topic or subject of the memory (store only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("subject")]
+    public string? Subject { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>Custom tool invocation permission prompt.</summary>
+/// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestCustomTool : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "custom-tool";
+
+    /// <summary>Arguments to pass to the custom tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("args")]
+    public object? Args { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Description of what the custom tool does.</summary>
+    [JsonPropertyName("toolDescription")]
+    public required string ToolDescription { get; set; }
+
+    /// <summary>Name of the custom tool.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>Path access permission prompt.</summary>
+/// <remarks>The <c>path</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestPath : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "path";
+
+    /// <summary>Underlying permission kind that needs path approval.</summary>
+    [JsonPropertyName("accessKind")]
+    public required PermissionPromptRequestPathAccessKind AccessKind { get; set; }
+
+    /// <summary>File paths that require explicit approval.</summary>
+    [JsonPropertyName("paths")]
+    public required string[] Paths { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>Hook confirmation permission prompt.</summary>
+/// <remarks>The <c>hook</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestHook : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "hook";
+
+    /// <summary>Optional message from the hook explaining why confirmation is needed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hookMessage")]
+    public string? HookMessage { get; set; }
+
+    /// <summary>Arguments of the tool call being gated.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolArgs")]
+    public object? ToolArgs { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Name of the tool the hook is gating.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>Derived user-facing permission prompt details for UI consumers.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionPromptRequestCommands), "commands")]
+[JsonDerivedType(typeof(PermissionPromptRequestWrite), "write")]
+[JsonDerivedType(typeof(PermissionPromptRequestRead), "read")]
+[JsonDerivedType(typeof(PermissionPromptRequestMcp), "mcp")]
+[JsonDerivedType(typeof(PermissionPromptRequestUrl), "url")]
+[JsonDerivedType(typeof(PermissionPromptRequestMemory), "memory")]
+[JsonDerivedType(typeof(PermissionPromptRequestCustomTool), "custom-tool")]
+[JsonDerivedType(typeof(PermissionPromptRequestPath), "path")]
+[JsonDerivedType(typeof(PermissionPromptRequestHook), "hook")]
+public partial class PermissionPromptRequest
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
 /// <summary>The result of the permission request.</summary>
 /// <remarks>Nested data type for <c>PermissionCompletedResult</c>.</remarks>
 public partial class PermissionCompletedResult
@@ -4138,6 +4545,45 @@ public enum PermissionRequestMemoryDirection
     Downvote,
 }
 
+/// <summary>Whether this is a store or vote memory operation.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionPromptRequestMemoryAction>))]
+public enum PermissionPromptRequestMemoryAction
+{
+    /// <summary>The <c>store</c> variant.</summary>
+    [JsonStringEnumMemberName("store")]
+    Store,
+    /// <summary>The <c>vote</c> variant.</summary>
+    [JsonStringEnumMemberName("vote")]
+    Vote,
+}
+
+/// <summary>Vote direction (vote only).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionPromptRequestMemoryDirection>))]
+public enum PermissionPromptRequestMemoryDirection
+{
+    /// <summary>The <c>upvote</c> variant.</summary>
+    [JsonStringEnumMemberName("upvote")]
+    Upvote,
+    /// <summary>The <c>downvote</c> variant.</summary>
+    [JsonStringEnumMemberName("downvote")]
+    Downvote,
+}
+
+/// <summary>Underlying permission kind that needs path approval.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionPromptRequestPathAccessKind>))]
+public enum PermissionPromptRequestPathAccessKind
+{
+    /// <summary>The <c>read</c> variant.</summary>
+    [JsonStringEnumMemberName("read")]
+    Read,
+    /// <summary>The <c>shell</c> variant.</summary>
+    [JsonStringEnumMemberName("shell")]
+    Shell,
+    /// <summary>The <c>write</c> variant.</summary>
+    [JsonStringEnumMemberName("write")]
+    Write,
+}
+
 /// <summary>The outcome of the permission request.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<PermissionCompletedKind>))]
 public enum PermissionCompletedKind
@@ -4145,6 +4591,12 @@ public enum PermissionCompletedKind
     /// <summary>The <c>approved</c> variant.</summary>
     [JsonStringEnumMemberName("approved")]
     Approved,
+    /// <summary>The <c>approved-for-session</c> variant.</summary>
+    [JsonStringEnumMemberName("approved-for-session")]
+    ApprovedForSession,
+    /// <summary>The <c>approved-for-location</c> variant.</summary>
+    [JsonStringEnumMemberName("approved-for-location")]
+    ApprovedForLocation,
     /// <summary>The <c>denied-by-rules</c> variant.</summary>
     [JsonStringEnumMemberName("denied-by-rules")]
     DeniedByRules,
@@ -4296,6 +4748,10 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(AssistantUsageData))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
 [JsonSerializable(typeof(AssistantUsageQuotaSnapshot))]
+[JsonSerializable(typeof(AutoModeSwitchCompletedData))]
+[JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
+[JsonSerializable(typeof(AutoModeSwitchRequestedData))]
+[JsonSerializable(typeof(AutoModeSwitchRequestedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedUI))]
@@ -4309,6 +4765,8 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(CommandsChangedData))]
 [JsonSerializable(typeof(CommandsChangedEvent))]
 [JsonSerializable(typeof(CompactionCompleteCompactionTokensUsed))]
+[JsonSerializable(typeof(CompactionCompleteCompactionTokensUsedCopilotUsage))]
+[JsonSerializable(typeof(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail))]
 [JsonSerializable(typeof(CustomAgentsUpdatedAgent))]
 [JsonSerializable(typeof(ElicitationCompletedData))]
 [JsonSerializable(typeof(ElicitationCompletedEvent))]
@@ -4341,6 +4799,16 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
 [JsonSerializable(typeof(PermissionCompletedResult))]
+[JsonSerializable(typeof(PermissionPromptRequest))]
+[JsonSerializable(typeof(PermissionPromptRequestCommands))]
+[JsonSerializable(typeof(PermissionPromptRequestCustomTool))]
+[JsonSerializable(typeof(PermissionPromptRequestHook))]
+[JsonSerializable(typeof(PermissionPromptRequestMcp))]
+[JsonSerializable(typeof(PermissionPromptRequestMemory))]
+[JsonSerializable(typeof(PermissionPromptRequestPath))]
+[JsonSerializable(typeof(PermissionPromptRequestRead))]
+[JsonSerializable(typeof(PermissionPromptRequestUrl))]
+[JsonSerializable(typeof(PermissionPromptRequestWrite))]
 [JsonSerializable(typeof(PermissionRequest))]
 [JsonSerializable(typeof(PermissionRequestCustomTool))]
 [JsonSerializable(typeof(PermissionRequestHook))]

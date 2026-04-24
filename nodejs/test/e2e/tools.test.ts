@@ -144,7 +144,7 @@ describe("Custom tools", async () => {
             ],
             onPermissionRequest: (request) => {
                 permissionRequests.push(request);
-                return { kind: "approved" };
+                return { kind: "approve-once" };
             },
         });
 
@@ -223,7 +223,7 @@ describe("Custom tools", async () => {
                 }),
             ],
             onPermissionRequest: () => {
-                return { kind: "denied-interactively-by-user" };
+                return { kind: "reject" };
             },
         });
 

@@ -57,6 +57,14 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   ];
 
   /**
+   * Per-token responses for `/copilot_internal/user` endpoint.
+   * Key is the Bearer token (without "Bearer " prefix), value is the response body.
+   * When a request arrives with `Authorization: Bearer <token>`, the matching response is returned.
+   * If no match is found, a 401 Unauthorized response is returned.
+   */
+  private copilotUserByToken = new Map<string, CopilotUserResponse>();
+
+  /**
    * If true, cached responses are played back slowly (~ 2KiB/sec). Otherwise streaming responses are sent as fast as possible.
    */
   slowStreaming = false;
@@ -139,6 +147,14 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     this.state.toolResultNormalizers.push({ toolName, normalizer });
   }
 
+  /**
+   * Register a per-token response for the `/copilot_internal/user` endpoint.
+   * When a request with `Authorization: Bearer <token>` arrives, the matching response is returned.
+   */
+  setCopilotUserByToken(token: string, response: CopilotUserResponse): void {
+    this.copilotUserByToken.set(token, response);
+  }
+
   override performRequest(options: PerformRequestOptions): void {
     void iife(async () => {
       const commonResponseHeaders = {
@@ -146,6 +162,18 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       };
 
       try {
+        // Handle /copilot-user-config endpoint for configuring per-token user responses
+        if (
+          options.requestOptions.path === "/copilot-user-config" &&
+          options.requestOptions.method === "POST"
+        ) {
+          const config = JSON.parse(options.body!) as { token: string; response: CopilotUserResponse };
+          this.copilotUserByToken.set(config.token, config.response);
+          options.onResponseStart(200, {});
+          options.onResponseEnd();
+          return;
+        }
+
         // Handle /config endpoint for updating proxy configuration
         if (
           options.requestOptions.path === "/config" &&
@@ -214,6 +242,27 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.onResponseStart(200, headers);
           options.onData(Buffer.from(body));
           options.onResponseEnd();
+          return;
+        }
+
+        // Handle /copilot_internal/user endpoint for per-session auth
+        if (options.requestOptions.path === "/copilot_internal/user") {
+          const authHeader = options.requestOptions.headers?.["authorization"] as string | undefined;
+          const token = authHeader?.replace("Bearer ", "");
+          const userResponse = token ? this.copilotUserByToken.get(token) : undefined;
+          if (userResponse) {
+            const headers = {
+              "content-type": "application/json",
+              ...commonResponseHeaders,
+            };
+            options.onResponseStart(200, headers);
+            options.onData(Buffer.from(JSON.stringify(userResponse)));
+            options.onResponseEnd();
+          } else {
+            options.onResponseStart(401, commonResponseHeaders);
+            options.onData(Buffer.from(JSON.stringify({ message: "Bad credentials" })));
+            options.onResponseEnd();
+          }
           return;
         }
 
@@ -1111,6 +1160,20 @@ function excludeFailedResponses(exchange: CapturedExchange): boolean {
 export type ToolResultNormalizer = {
   toolName: string;
   normalizer: (result: string) => string;
+};
+
+/**
+ * Response shape for the `/copilot_internal/user` endpoint.
+ * Used by per-session auth tests to mock GitHub identity resolution.
+ */
+export type CopilotUserResponse = {
+  login: string;
+  copilot_plan?: string;
+  endpoints?: {
+    api?: string;
+    telemetry?: string;
+  };
+  analytics_tracking_id?: string;
 };
 
 export type ParsedHttpExchange = {

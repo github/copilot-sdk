@@ -217,6 +217,25 @@ public class ClientTests
     }
 
     [Fact]
+    public void Should_Default_SessionIdleTimeoutSeconds_To_Null()
+    {
+        var options = new CopilotClientOptions();
+
+        Assert.Null(options.SessionIdleTimeoutSeconds);
+    }
+
+    [Fact]
+    public void Should_Accept_SessionIdleTimeoutSeconds_Option()
+    {
+        var options = new CopilotClientOptions
+        {
+            SessionIdleTimeoutSeconds = 600
+        };
+
+        Assert.Equal(600, options.SessionIdleTimeoutSeconds);
+    }
+
+    [Fact]
     public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client()
     {
         await using var client = new CopilotClient(new CopilotClientOptions());
