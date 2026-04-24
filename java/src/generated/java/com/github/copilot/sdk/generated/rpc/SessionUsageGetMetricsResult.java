@@ -31,9 +31,9 @@ public record SessionUsageGetMetricsResult(
     /** Session start timestamp (epoch milliseconds) */
     @JsonProperty("sessionStartTime") Long sessionStartTime,
     /** Aggregated code change metrics */
-    @JsonProperty("codeChanges") SessionUsageGetMetricsResultCodeChanges codeChanges,
+    @JsonProperty("codeChanges") UsageMetricsCodeChanges codeChanges,
     /** Per-model token and request metrics, keyed by model identifier */
-    @JsonProperty("modelMetrics") Map<String, SessionUsageGetMetricsResultModelMetricsValue> modelMetrics,
+    @JsonProperty("modelMetrics") Map<String, UsageMetricsModelMetric> modelMetrics,
     /** Currently active model identifier */
     @JsonProperty("currentModel") String currentModel,
     /** Input tokens from the most recent main-agent API call */
@@ -41,55 +41,4 @@ public record SessionUsageGetMetricsResult(
     /** Output tokens from the most recent main-agent API call */
     @JsonProperty("lastCallOutputTokens") Long lastCallOutputTokens
 ) {
-
-    /** Aggregated code change metrics */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionUsageGetMetricsResultCodeChanges(
-        /** Total lines of code added */
-        @JsonProperty("linesAdded") Long linesAdded,
-        /** Total lines of code removed */
-        @JsonProperty("linesRemoved") Long linesRemoved,
-        /** Number of distinct files modified */
-        @JsonProperty("filesModifiedCount") Long filesModifiedCount
-    ) {
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionUsageGetMetricsResultModelMetricsValue(
-        /** Request count and cost metrics for this model */
-        @JsonProperty("requests") SessionUsageGetMetricsResultModelMetricsValueRequests requests,
-        /** Token usage metrics for this model */
-        @JsonProperty("usage") SessionUsageGetMetricsResultModelMetricsValueUsage usage
-    ) {
-
-        /** Request count and cost metrics for this model */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record SessionUsageGetMetricsResultModelMetricsValueRequests(
-            /** Number of API requests made with this model */
-            @JsonProperty("count") Long count,
-            /** User-initiated premium request cost (with multiplier applied) */
-            @JsonProperty("cost") Double cost
-        ) {
-        }
-
-        /** Token usage metrics for this model */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record SessionUsageGetMetricsResultModelMetricsValueUsage(
-            /** Total input tokens consumed */
-            @JsonProperty("inputTokens") Long inputTokens,
-            /** Total output tokens produced */
-            @JsonProperty("outputTokens") Long outputTokens,
-            /** Total tokens read from prompt cache */
-            @JsonProperty("cacheReadTokens") Long cacheReadTokens,
-            /** Total tokens written to prompt cache */
-            @JsonProperty("cacheWriteTokens") Long cacheWriteTokens,
-            /** Total output tokens used for reasoning */
-            @JsonProperty("reasoningTokens") Long reasoningTokens
-        ) {
-        }
-    }
 }

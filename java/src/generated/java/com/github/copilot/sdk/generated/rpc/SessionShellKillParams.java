@@ -26,28 +26,6 @@ public record SessionShellKillParams(
     /** Process identifier returned by shell.exec */
     @JsonProperty("processId") String processId,
     /** Signal to send (default: SIGTERM) */
-    @JsonProperty("signal") SessionShellKillParamsSignal signal
+    @JsonProperty("signal") ShellKillSignal signal
 ) {
-
-    /** Signal to send (default: SIGTERM) */
-    public enum SessionShellKillParamsSignal {
-        /** The {@code SIGTERM} variant. */
-        SIGTERM("SIGTERM"),
-        /** The {@code SIGKILL} variant. */
-        SIGKILL("SIGKILL"),
-        /** The {@code SIGINT} variant. */
-        SIGINT("SIGINT");
-
-        private final String value;
-        SessionShellKillParamsSignal(String value) { this.value = value; }
-        @com.fasterxml.jackson.annotation.JsonValue
-        public String getValue() { return value; }
-        @com.fasterxml.jackson.annotation.JsonCreator
-        public static SessionShellKillParamsSignal fromValue(String value) {
-            for (SessionShellKillParamsSignal v : values()) {
-                if (v.value.equals(value)) return v;
-            }
-            throw new IllegalArgumentException("Unknown SessionShellKillParamsSignal value: " + value);
-        }
-    }
 }

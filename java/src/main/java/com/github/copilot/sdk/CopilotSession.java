@@ -32,15 +32,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.sdk.generated.AssistantMessageEvent;
 import com.github.copilot.sdk.generated.rpc.SessionCommandsHandlePendingCommandParams;
 import com.github.copilot.sdk.generated.rpc.SessionLogParams;
+import com.github.copilot.sdk.generated.rpc.SessionLogLevel;
+import com.github.copilot.sdk.generated.rpc.ModelCapabilitiesOverride;
+import com.github.copilot.sdk.generated.rpc.ModelCapabilitiesOverrideLimits;
+import com.github.copilot.sdk.generated.rpc.ModelCapabilitiesOverrideSupports;
 import com.github.copilot.sdk.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.sdk.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
 import com.github.copilot.sdk.generated.rpc.SessionRpc;
 import com.github.copilot.sdk.generated.rpc.SessionToolsHandlePendingToolCallParams;
 import com.github.copilot.sdk.generated.rpc.SessionUiElicitationParams;
-import com.github.copilot.sdk.generated.rpc.SessionUiElicitationResult;
 import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationParams;
-import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationParams.SessionUiHandlePendingElicitationParamsResult;
-import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationParams.SessionUiHandlePendingElicitationParamsResult.SessionUiHandlePendingElicitationParamsResultAction;
+import com.github.copilot.sdk.generated.rpc.UIElicitationResponse;
+import com.github.copilot.sdk.generated.rpc.UIElicitationResponseAction;
+import com.github.copilot.sdk.generated.rpc.UIElicitationSchema;
 import com.github.copilot.sdk.generated.CapabilitiesChangedEvent;
 import com.github.copilot.sdk.generated.CommandExecuteEvent;
 import com.github.copilot.sdk.generated.ElicitationRequestedEvent;
@@ -880,8 +884,7 @@ public final class CopilotSession implements AutoCloseable {
      * future completes exceptionally.
      */
     private SessionUiHandlePendingElicitationParams buildElicitationCancelParams(String requestId) {
-        var cancelResult = new SessionUiHandlePendingElicitationParamsResult(
-                SessionUiHandlePendingElicitationParamsResultAction.CANCEL, null);
+        var cancelResult = new UIElicitationResponse(UIElicitationResponseAction.CANCEL, null);
         return new SessionUiHandlePendingElicitationParams(sessionId, requestId, cancelResult);
     }
 
@@ -1037,9 +1040,8 @@ public final class CopilotSession implements AutoCloseable {
                         String actionStr = result.getAction() != null
                                 ? result.getAction().getValue()
                                 : ElicitationResultAction.CANCEL.getValue();
-                        var parsedAction = SessionUiHandlePendingElicitationParamsResultAction.fromValue(actionStr);
-                        var elicitationResult = new SessionUiHandlePendingElicitationParamsResult(parsedAction,
-                                result.getContent());
+                        var parsedAction = UIElicitationResponseAction.fromValue(actionStr);
+                        var elicitationResult = new UIElicitationResponse(parsedAction, result.getContent());
                         getRpc().ui.handlePendingElicitation(
                                 new SessionUiHandlePendingElicitationParams(sessionId, requestId, elicitationResult));
                     } catch (Exception e) {
@@ -1095,9 +1097,8 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<ElicitationResult> elicitation(ElicitationParams params) {
             assertElicitation();
             return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, params.getMessage(),
-                    new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema(
-                            params.getRequestedSchema().getType(), params.getRequestedSchema().getProperties(),
-                            params.getRequestedSchema().getRequired())))
+                    new UIElicitationSchema(params.getRequestedSchema().getType(),
+                            params.getRequestedSchema().getProperties(), params.getRequestedSchema().getRequired())))
                     .thenApply(resp -> {
                         var result = new ElicitationResult();
                         if (resp.action() != null) {
@@ -1120,14 +1121,10 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<Boolean> confirm(String message) {
             assertElicitation();
             var field = Map.of("type", "boolean", "default", (Object) true);
-            return getRpc().ui
-                    .elicitation(
-                            new SessionUiElicitationParams(sessionId, message,
-                                    new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema("object",
-                                            Map.of("confirmed", (Object) field), List.of("confirmed"))))
+            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, message,
+                    new UIElicitationSchema("object", Map.of("confirmed", (Object) field), List.of("confirmed"))))
                     .thenApply(resp -> {
-                        if (resp.action() == SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT
-                                && resp.content() != null) {
+                        if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("confirmed");
                             if (val instanceof Boolean b) {
                                 return b;
@@ -1147,14 +1144,10 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<String> select(String message, String[] options) {
             assertElicitation();
             var field = Map.of("type", (Object) "string", "enum", (Object) options);
-            return getRpc().ui
-                    .elicitation(
-                            new SessionUiElicitationParams(sessionId, message,
-                                    new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema("object",
-                                            Map.of("selection", (Object) field), List.of("selection"))))
+            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, message,
+                    new UIElicitationSchema("object", Map.of("selection", (Object) field), List.of("selection"))))
                     .thenApply(resp -> {
-                        if (resp.action() == SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT
-                                && resp.content() != null) {
+                        if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("selection");
                             return val != null ? val.toString() : null;
                         }
@@ -1181,12 +1174,11 @@ public final class CopilotSession implements AutoCloseable {
                 if (options.getDefaultValue() != null)
                     field.put("default", options.getDefaultValue());
             }
-            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, message,
-                    new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema("object",
-                            Map.of("value", (Object) field), List.of("value"))))
+            return getRpc().ui
+                    .elicitation(new SessionUiElicitationParams(sessionId, message,
+                            new UIElicitationSchema("object", Map.of("value", (Object) field), List.of("value"))))
                     .thenApply(resp -> {
-                        if (resp.action() == SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT
-                                && resp.content() != null) {
+                        if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("value");
                             return val != null ? val.toString() : null;
                         }
@@ -1582,21 +1574,19 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<Void> setModel(String model, String reasoningEffort,
             com.github.copilot.sdk.json.ModelCapabilitiesOverride modelCapabilities) {
         ensureNotTerminated();
-        SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities generatedCapabilities = null;
+        ModelCapabilitiesOverride generatedCapabilities = null;
         if (modelCapabilities != null) {
-            SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesSupports supports = null;
+            ModelCapabilitiesOverrideSupports supports = null;
             if (modelCapabilities.getSupports() != null) {
                 var s = modelCapabilities.getSupports();
-                supports = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesSupports(
-                        s.getVision(), s.getReasoningEffort());
+                supports = new ModelCapabilitiesOverrideSupports(s.getVision(), s.getReasoningEffort());
             }
-            SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesLimits limits = null;
+            ModelCapabilitiesOverrideLimits limits = null;
             if (modelCapabilities.getLimits() != null) {
                 limits = new ObjectMapper().convertValue(modelCapabilities.getLimits(),
-                        SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesLimits.class);
+                        ModelCapabilitiesOverrideLimits.class);
             }
-            generatedCapabilities = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities(supports,
-                    limits);
+            generatedCapabilities = new ModelCapabilitiesOverride(supports, limits);
         }
         return getRpc().model
                 .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, generatedCapabilities))
@@ -1658,12 +1648,12 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> log(String message, String level, Boolean ephemeral, String url) {
         ensureNotTerminated();
-        SessionLogParams.SessionLogParamsLevel rpcLevel = null;
+        SessionLogLevel rpcLevel = null;
         if (level != null) {
             try {
-                rpcLevel = SessionLogParams.SessionLogParamsLevel.fromValue(level);
+                rpcLevel = SessionLogLevel.fromValue(level);
             } catch (IllegalArgumentException e) {
-                rpcLevel = SessionLogParams.SessionLogParamsLevel.INFO;
+                rpcLevel = SessionLogLevel.INFO;
             }
         }
         return getRpc().log(new SessionLogParams(sessionId, message, rpcLevel, ephemeral, url)).thenApply(r -> null);

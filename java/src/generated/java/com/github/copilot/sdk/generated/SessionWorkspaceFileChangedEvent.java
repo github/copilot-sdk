@@ -38,27 +38,7 @@ public final class SessionWorkspaceFileChangedEvent extends SessionEvent {
         /** Relative path within the session workspace files directory */
         @JsonProperty("path") String path,
         /** Whether the file was newly created or updated */
-        @JsonProperty("operation") SessionWorkspaceFileChangedEventDataOperation operation
+        @JsonProperty("operation") WorkspaceFileChangedOperation operation
     ) {
-
-        /** Whether the file was newly created or updated */
-        public enum SessionWorkspaceFileChangedEventDataOperation {
-            /** The {@code create} variant. */
-            CREATE("create"),
-            /** The {@code update} variant. */
-            UPDATE("update");
-
-            private final String value;
-            SessionWorkspaceFileChangedEventDataOperation(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionWorkspaceFileChangedEventDataOperation fromValue(String value) {
-                for (SessionWorkspaceFileChangedEventDataOperation v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionWorkspaceFileChangedEventDataOperation value: " + value);
-            }
-        }
     }
 }

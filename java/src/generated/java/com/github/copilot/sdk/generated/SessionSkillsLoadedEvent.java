@@ -37,25 +37,7 @@ public final class SessionSkillsLoadedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionSkillsLoadedEventData(
         /** Array of resolved skill metadata */
-        @JsonProperty("skills") List<SessionSkillsLoadedEventDataSkillsItem> skills
+        @JsonProperty("skills") List<SkillsLoadedSkill> skills
     ) {
-
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record SessionSkillsLoadedEventDataSkillsItem(
-            /** Unique identifier for the skill */
-            @JsonProperty("name") String name,
-            /** Description of what the skill does */
-            @JsonProperty("description") String description,
-            /** Source location type of the skill (e.g., project, personal, plugin) */
-            @JsonProperty("source") String source,
-            /** Whether the skill can be invoked by the user as a slash command */
-            @JsonProperty("userInvocable") Boolean userInvocable,
-            /** Whether the skill is currently enabled */
-            @JsonProperty("enabled") Boolean enabled,
-            /** Absolute path to the skill file, if available */
-            @JsonProperty("path") String path
-        ) {
-        }
     }
 }

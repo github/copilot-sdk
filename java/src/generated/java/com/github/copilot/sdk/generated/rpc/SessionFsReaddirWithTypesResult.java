@@ -23,36 +23,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFsReaddirWithTypesResult(
     /** Directory entries with type information */
-    @JsonProperty("entries") List<SessionFsReaddirWithTypesResultEntriesItem> entries
+    @JsonProperty("entries") List<SessionFsReaddirWithTypesEntry> entries,
+    /** Describes a filesystem error. */
+    @JsonProperty("error") SessionFsError error
 ) {
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionFsReaddirWithTypesResultEntriesItem(
-        /** Entry name */
-        @JsonProperty("name") String name,
-        /** Entry type */
-        @JsonProperty("type") SessionFsReaddirWithTypesResultEntriesItemType type
-    ) {
-
-        /** Entry type */
-        public enum SessionFsReaddirWithTypesResultEntriesItemType {
-            /** The {@code file} variant. */
-            FILE("file"),
-            /** The {@code directory} variant. */
-            DIRECTORY("directory");
-
-            private final String value;
-            SessionFsReaddirWithTypesResultEntriesItemType(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionFsReaddirWithTypesResultEntriesItemType fromValue(String value) {
-                for (SessionFsReaddirWithTypesResultEntriesItemType v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionFsReaddirWithTypesResultEntriesItemType value: " + value);
-            }
-        }
-    }
 }

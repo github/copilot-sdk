@@ -184,10 +184,10 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ws");
 
-        session.workspace.listFiles();
+        session.workspaces.listFiles();
 
         assertEquals(1, stub.calls.size());
-        assertEquals("session.workspace.listFiles", stub.calls.get(0).method());
+        assertEquals("session.workspaces.listFiles", stub.calls.get(0).method());
         var params = (Map<?, ?>) stub.calls.get(0).params();
         assertEquals("sess-ws", params.get("sessionId"));
     }
@@ -197,11 +197,11 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ws-rf");
 
-        var rfParams = new SessionWorkspaceReadFileParams(null, "/src/Main.java");
-        session.workspace.readFile(rfParams);
+        var rfParams = new SessionWorkspacesReadFileParams(null, "/src/Main.java");
+        session.workspaces.readFile(rfParams);
 
         assertEquals(1, stub.calls.size());
-        assertEquals("session.workspace.readFile", stub.calls.get(0).method());
+        assertEquals("session.workspaces.readFile", stub.calls.get(0).method());
         var params = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
         assertEquals("sess-ws-rf", params.get("sessionId").asText());
         assertEquals("/src/Main.java", params.get("path").asText());
@@ -212,11 +212,11 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ws-cf");
 
-        var cfParams = new SessionWorkspaceCreateFileParams(null, "/new/file.txt", "content");
-        session.workspace.createFile(cfParams);
+        var cfParams = new SessionWorkspacesCreateFileParams(null, "/new/file.txt", "content");
+        session.workspaces.createFile(cfParams);
 
         assertEquals(1, stub.calls.size());
-        assertEquals("session.workspace.createFile", stub.calls.get(0).method());
+        assertEquals("session.workspaces.createFile", stub.calls.get(0).method());
         var params = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
         assertEquals("sess-ws-cf", params.get("sessionId").asText());
     }
@@ -674,24 +674,20 @@ class GeneratedRpcApiCoverageTest {
 
     @Test
     void sessionLogParams_level_enum_values() {
-        assertEquals("info", SessionLogParams.SessionLogParamsLevel.INFO.getValue());
-        assertEquals("warning", SessionLogParams.SessionLogParamsLevel.WARNING.getValue());
-        assertEquals("error", SessionLogParams.SessionLogParamsLevel.ERROR.getValue());
+        assertEquals("info", SessionLogLevel.INFO.getValue());
+        assertEquals("warning", SessionLogLevel.WARNING.getValue());
+        assertEquals("error", SessionLogLevel.ERROR.getValue());
     }
 
     @Test
     void sessionLogParams_level_enum_fromValue() {
-        assertEquals(SessionLogParams.SessionLogParamsLevel.INFO,
-                SessionLogParams.SessionLogParamsLevel.fromValue("info"));
-        assertEquals(SessionLogParams.SessionLogParamsLevel.WARNING,
-                SessionLogParams.SessionLogParamsLevel.fromValue("warning"));
-        assertEquals(SessionLogParams.SessionLogParamsLevel.ERROR,
-                SessionLogParams.SessionLogParamsLevel.fromValue("error"));
+        assertEquals(SessionLogLevel.INFO, SessionLogLevel.fromValue("info"));
+        assertEquals(SessionLogLevel.WARNING, SessionLogLevel.fromValue("warning"));
+        assertEquals(SessionLogLevel.ERROR, SessionLogLevel.fromValue("error"));
     }
 
     @Test
     void sessionLogParams_level_enum_fromValue_unknown_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionLogParams.SessionLogParamsLevel.fromValue("unknown-level"));
+        assertThrows(IllegalArgumentException.class, () -> SessionLogLevel.fromValue("unknown-level"));
     }
 }

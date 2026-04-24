@@ -32,10 +32,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void pingResult_record() {
-        var result = new PingResult("pong", 1234.0, 2.0);
+        var result = new PingResult("pong", 1234L, 2L);
         assertEquals("pong", result.message());
-        assertEquals(1234.0, result.timestamp());
-        assertEquals(2.0, result.protocolVersion());
+        assertEquals(1234L, result.timestamp());
+        assertEquals(2L, result.protocolVersion());
     }
 
     @Test
@@ -209,12 +209,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsSetProviderParams_conventions_enum() {
-        assertEquals("windows", SessionFsSetProviderParams.SessionFsSetProviderParamsConventions.WINDOWS.getValue());
-        assertEquals("posix", SessionFsSetProviderParams.SessionFsSetProviderParamsConventions.POSIX.getValue());
-        assertEquals(SessionFsSetProviderParams.SessionFsSetProviderParamsConventions.POSIX,
-                SessionFsSetProviderParams.SessionFsSetProviderParamsConventions.fromValue("posix"));
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionFsSetProviderParams.SessionFsSetProviderParamsConventions.fromValue("unknown"));
+        assertEquals("windows", SessionFsSetProviderConventions.WINDOWS.getValue());
+        assertEquals("posix", SessionFsSetProviderConventions.POSIX.getValue());
+        assertEquals(SessionFsSetProviderConventions.POSIX, SessionFsSetProviderConventions.fromValue("posix"));
+        assertThrows(IllegalArgumentException.class, () -> SessionFsSetProviderConventions.fromValue("unknown"));
     }
 
     @Test
@@ -248,20 +246,19 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionLogParams_record() {
-        var params = new SessionLogParams("sess-24", "test message", SessionLogParams.SessionLogParamsLevel.INFO, false,
-                null);
+        var params = new SessionLogParams("sess-24", "test message", SessionLogLevel.INFO, false, null);
         assertEquals("sess-24", params.sessionId());
         assertEquals("test message", params.message());
-        assertEquals(SessionLogParams.SessionLogParamsLevel.INFO, params.level());
+        assertEquals(SessionLogLevel.INFO, params.level());
         assertFalse(params.ephemeral());
         assertNull(params.url());
     }
 
     @Test
     void sessionLogParams_level_enum_all_values() {
-        for (var level : SessionLogParams.SessionLogParamsLevel.values()) {
+        for (var level : SessionLogLevel.values()) {
             assertNotNull(level.getValue());
-            assertEquals(level, SessionLogParams.SessionLogParamsLevel.fromValue(level.getValue()));
+            assertEquals(level, SessionLogLevel.fromValue(level.getValue()));
         }
     }
 
@@ -299,21 +296,20 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModeSetParams_record() {
-        var params = new SessionModeSetParams("sess-30", SessionModeSetParams.SessionModeSetParamsMode.PLAN);
+        var params = new SessionModeSetParams("sess-30", SessionMode.PLAN);
         assertEquals("sess-30", params.sessionId());
-        assertEquals(SessionModeSetParams.SessionModeSetParamsMode.PLAN, params.mode());
+        assertEquals(SessionMode.PLAN, params.mode());
     }
 
     @Test
     void sessionModeSetParams_mode_enum() {
-        assertEquals("interactive", SessionModeSetParams.SessionModeSetParamsMode.INTERACTIVE.getValue());
-        assertEquals("plan", SessionModeSetParams.SessionModeSetParamsMode.PLAN.getValue());
-        assertEquals("autopilot", SessionModeSetParams.SessionModeSetParamsMode.AUTOPILOT.getValue());
-        for (var mode : SessionModeSetParams.SessionModeSetParamsMode.values()) {
-            assertEquals(mode, SessionModeSetParams.SessionModeSetParamsMode.fromValue(mode.getValue()));
+        assertEquals("interactive", SessionMode.INTERACTIVE.getValue());
+        assertEquals("plan", SessionMode.PLAN.getValue());
+        assertEquals("autopilot", SessionMode.AUTOPILOT.getValue());
+        for (var mode : SessionMode.values()) {
+            assertEquals(mode, SessionMode.fromValue(mode.getValue()));
         }
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionModeSetParams.SessionModeSetParamsMode.fromValue("unknown-mode"));
+        assertThrows(IllegalArgumentException.class, () -> SessionMode.fromValue("unknown-mode"));
     }
 
     @Test
@@ -366,32 +362,30 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionShellExecParams_record() {
-        var params = new SessionShellExecParams("sess-38", "ls -la", "/workspace", 5000.0);
+        var params = new SessionShellExecParams("sess-38", "ls -la", "/workspace", 5000L);
         assertEquals("sess-38", params.sessionId());
         assertEquals("ls -la", params.command());
         assertEquals("/workspace", params.cwd());
-        assertEquals(5000.0, params.timeout());
+        assertEquals(5000L, params.timeout());
     }
 
     @Test
     void sessionShellKillParams_record() {
-        var params = new SessionShellKillParams("sess-39", "proc-abc",
-                SessionShellKillParams.SessionShellKillParamsSignal.SIGTERM);
+        var params = new SessionShellKillParams("sess-39", "proc-abc", ShellKillSignal.SIGTERM);
         assertEquals("sess-39", params.sessionId());
         assertEquals("proc-abc", params.processId());
-        assertEquals(SessionShellKillParams.SessionShellKillParamsSignal.SIGTERM, params.signal());
+        assertEquals(ShellKillSignal.SIGTERM, params.signal());
     }
 
     @Test
     void sessionShellKillParams_signal_enum() {
-        assertEquals("SIGTERM", SessionShellKillParams.SessionShellKillParamsSignal.SIGTERM.getValue());
-        assertEquals("SIGKILL", SessionShellKillParams.SessionShellKillParamsSignal.SIGKILL.getValue());
-        assertEquals("SIGINT", SessionShellKillParams.SessionShellKillParamsSignal.SIGINT.getValue());
-        for (var sig : SessionShellKillParams.SessionShellKillParamsSignal.values()) {
-            assertEquals(sig, SessionShellKillParams.SessionShellKillParamsSignal.fromValue(sig.getValue()));
+        assertEquals("SIGTERM", ShellKillSignal.SIGTERM.getValue());
+        assertEquals("SIGKILL", ShellKillSignal.SIGKILL.getValue());
+        assertEquals("SIGINT", ShellKillSignal.SIGINT.getValue());
+        for (var sig : ShellKillSignal.values()) {
+            assertEquals(sig, ShellKillSignal.fromValue(sig.getValue()));
         }
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionShellKillParams.SessionShellKillParamsSignal.fromValue("SIGHUP"));
+        assertThrows(IllegalArgumentException.class, () -> ShellKillSignal.fromValue("SIGHUP"));
     }
 
     @Test
@@ -476,10 +470,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void pingResult_fields() {
-        var result = new PingResult("pong", 9999.0, 1.0);
+        var result = new PingResult("pong", 9999L, 1L);
         assertEquals("pong", result.message());
-        assertEquals(9999.0, result.timestamp());
-        assertEquals(1.0, result.protocolVersion());
+        assertEquals(9999L, result.timestamp());
+        assertEquals(1L, result.protocolVersion());
     }
 
     @Test
@@ -489,7 +483,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentListResult_with_items() {
-        var item = new SessionAgentListResult.SessionAgentListResultAgentsItem("name1", "Name One", "Desc 1");
+        var item = new AgentInfo("name1", "Name One", "Desc 1");
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -499,8 +493,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentGetCurrentResult_nested() {
-        var agent = new SessionAgentGetCurrentResult.SessionAgentGetCurrentResultAgent("agent-1", "Agent One",
-                "Does things");
+        var agent = new AgentInfo("agent-1", "Agent One", "Does things");
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
@@ -515,7 +508,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentReloadResult_with_items() {
-        var item = new SessionAgentReloadResult.SessionAgentReloadResultAgentsItem("a", "A", "Desc");
+        var item = new AgentInfo("a", "A", "Desc");
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -523,8 +516,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentSelectResult_nested() {
-        var agent = new SessionAgentSelectResult.SessionAgentSelectResultAgent("selected", "Selected",
-                "The selected agent");
+        var agent = new AgentInfo("selected", "Selected", "The selected agent");
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
     }
@@ -548,45 +540,28 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionExtensionsListResult_nested() {
-        var ext = new SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem("ext-1", "My Extension",
-                SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemSource.PROJECT,
-                SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemStatus.RUNNING,
-                1234L);
+        var ext = new Extension("ext-1", "My Extension", ExtensionSource.PROJECT, ExtensionStatus.RUNNING, 1234L);
         var result = new SessionExtensionsListResult(List.of(ext));
         assertEquals(1, result.extensions().size());
         assertEquals("ext-1", result.extensions().get(0).id());
         assertEquals("My Extension", result.extensions().get(0).name());
-        assertEquals(
-                SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemSource.PROJECT,
-                result.extensions().get(0).source());
-        assertEquals(
-                SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemStatus.RUNNING,
-                result.extensions().get(0).status());
+        assertEquals(ExtensionSource.PROJECT, result.extensions().get(0).source());
+        assertEquals(ExtensionStatus.RUNNING, result.extensions().get(0).status());
         assertEquals(1234L, result.extensions().get(0).pid());
     }
 
     @Test
     void sessionExtensionsListResult_enums() {
-        for (var src : SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemSource
-                .values()) {
+        for (var src : ExtensionSource.values()) {
             assertNotNull(src.getValue());
-            assertEquals(src,
-                    SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemSource
-                            .fromValue(src.getValue()));
+            assertEquals(src, ExtensionSource.fromValue(src.getValue()));
         }
-        for (var status : SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemStatus
-                .values()) {
+        for (var status : ExtensionStatus.values()) {
             assertNotNull(status.getValue());
-            assertEquals(status,
-                    SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemStatus
-                            .fromValue(status.getValue()));
+            assertEquals(status, ExtensionStatus.fromValue(status.getValue()));
         }
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemSource
-                        .fromValue("unknown"));
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionExtensionsListResult.SessionExtensionsListResultExtensionsItem.SessionExtensionsListResultExtensionsItemStatus
-                        .fromValue("unknown"));
+        assertThrows(IllegalArgumentException.class, () -> ExtensionSource.fromValue("unknown"));
+        assertThrows(IllegalArgumentException.class, () -> ExtensionStatus.fromValue("unknown"));
     }
 
     @Test
@@ -610,42 +585,34 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsReadFileResult_record() {
-        var result = new SessionFsReadFileResult("file content here");
+        var result = new SessionFsReadFileResult("file content here", null);
         assertEquals("file content here", result.content());
     }
 
     @Test
     void sessionFsReaddirResult_record() {
-        var result = new SessionFsReaddirResult(List.of("file1.txt", "file2.txt"));
+        var result = new SessionFsReaddirResult(List.of("file1.txt", "file2.txt"), null);
         assertEquals(2, result.entries().size());
         assertEquals("file1.txt", result.entries().get(0));
     }
 
     @Test
     void sessionFsReaddirWithTypesResult_nested() {
-        var entry = new SessionFsReaddirWithTypesResult.SessionFsReaddirWithTypesResultEntriesItem("myfile.txt",
-                SessionFsReaddirWithTypesResult.SessionFsReaddirWithTypesResultEntriesItem.SessionFsReaddirWithTypesResultEntriesItemType.FILE);
-        var result = new SessionFsReaddirWithTypesResult(List.of(entry));
+        var entry = new SessionFsReaddirWithTypesEntry("myfile.txt", SessionFsReaddirWithTypesEntryType.FILE);
+        var result = new SessionFsReaddirWithTypesResult(List.of(entry), null);
         assertEquals(1, result.entries().size());
         assertEquals("myfile.txt", result.entries().get(0).name());
-        assertEquals(
-                SessionFsReaddirWithTypesResult.SessionFsReaddirWithTypesResultEntriesItem.SessionFsReaddirWithTypesResultEntriesItemType.FILE,
-                result.entries().get(0).type());
+        assertEquals(SessionFsReaddirWithTypesEntryType.FILE, result.entries().get(0).type());
         assertEquals("file", result.entries().get(0).type().getValue());
     }
 
     @Test
     void sessionFsReaddirWithTypesResult_type_enum() {
-        for (var t : SessionFsReaddirWithTypesResult.SessionFsReaddirWithTypesResultEntriesItem.SessionFsReaddirWithTypesResultEntriesItemType
-                .values()) {
+        for (var t : SessionFsReaddirWithTypesEntryType.values()) {
             assertNotNull(t.getValue());
-            assertEquals(t,
-                    SessionFsReaddirWithTypesResult.SessionFsReaddirWithTypesResultEntriesItem.SessionFsReaddirWithTypesResultEntriesItemType
-                            .fromValue(t.getValue()));
+            assertEquals(t, SessionFsReaddirWithTypesEntryType.fromValue(t.getValue()));
         }
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionFsReaddirWithTypesResult.SessionFsReaddirWithTypesResultEntriesItem.SessionFsReaddirWithTypesResultEntriesItemType
-                        .fromValue("symlink"));
+        assertThrows(IllegalArgumentException.class, () -> SessionFsReaddirWithTypesEntryType.fromValue("symlink"));
     }
 
     @Test
@@ -657,31 +624,30 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsStatResult_record() {
-        var result = new SessionFsStatResult(true, false, 1024.0, "2026-01-01T00:00:00Z", "2025-12-01T00:00:00Z");
+        var result = new SessionFsStatResult(true, false, 1024L, null, null, null);
         assertTrue(result.isFile());
         assertFalse(result.isDirectory());
-        assertEquals(1024.0, result.size());
-        assertEquals("2026-01-01T00:00:00Z", result.mtime());
-        assertEquals("2025-12-01T00:00:00Z", result.birthtime());
+        assertEquals(1024L, result.size());
+        assertNull(result.mtime());
+        assertNull(result.birthtime());
     }
 
     @Test
     void sessionHistoryCompactResult_nested() {
-        var ctx = new SessionHistoryCompactResult.SessionHistoryCompactResultContextWindow(100000.0, 5000.0, 20.0,
-                1000.0, 3000.0, 500.0);
-        var result = new SessionHistoryCompactResult(true, 2000.0, 5.0, ctx);
+        var ctx = new HistoryCompactContextWindow(100000L, 5000L, 20L, 1000L, 3000L, 500L);
+        var result = new SessionHistoryCompactResult(true, 2000L, 5L, ctx);
         assertTrue(result.success());
-        assertEquals(2000.0, result.tokensRemoved());
-        assertEquals(5.0, result.messagesRemoved());
+        assertEquals(2000L, result.tokensRemoved());
+        assertEquals(5L, result.messagesRemoved());
         assertNotNull(result.contextWindow());
-        assertEquals(100000.0, result.contextWindow().tokenLimit());
-        assertEquals(5000.0, result.contextWindow().currentTokens());
+        assertEquals(100000L, result.contextWindow().tokenLimit());
+        assertEquals(5000L, result.contextWindow().currentTokens());
     }
 
     @Test
     void sessionHistoryTruncateResult_record() {
-        var result = new SessionHistoryTruncateResult(3.0);
-        assertEquals(3.0, result.eventsRemoved());
+        var result = new SessionHistoryTruncateResult(3L);
+        assertEquals(3L, result.eventsRemoved());
     }
 
     @Test
@@ -703,30 +669,21 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionMcpListResult_nested() {
-        var server = new SessionMcpListResult.SessionMcpListResultServersItem("my-mcp",
-                SessionMcpListResult.SessionMcpListResultServersItem.SessionMcpListResultServersItemStatus.CONNECTED,
-                "user", null);
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null);
         var result = new SessionMcpListResult(List.of(server));
         assertEquals(1, result.servers().size());
         assertEquals("my-mcp", result.servers().get(0).name());
-        assertEquals(
-                SessionMcpListResult.SessionMcpListResultServersItem.SessionMcpListResultServersItemStatus.CONNECTED,
-                result.servers().get(0).status());
-        assertEquals("user", result.servers().get(0).source());
+        assertEquals(McpServerStatus.CONNECTED, result.servers().get(0).status());
+        assertEquals(McpServerSource.USER, result.servers().get(0).source());
     }
 
     @Test
     void sessionMcpListResult_status_enum_all_values() {
-        for (var status : SessionMcpListResult.SessionMcpListResultServersItem.SessionMcpListResultServersItemStatus
-                .values()) {
+        for (var status : McpServerStatus.values()) {
             assertNotNull(status.getValue());
-            assertEquals(status,
-                    SessionMcpListResult.SessionMcpListResultServersItem.SessionMcpListResultServersItemStatus
-                            .fromValue(status.getValue()));
+            assertEquals(status, McpServerStatus.fromValue(status.getValue()));
         }
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionMcpListResult.SessionMcpListResultServersItem.SessionMcpListResultServersItemStatus
-                        .fromValue("unknown-status"));
+        assertThrows(IllegalArgumentException.class, () -> McpServerStatus.fromValue("unknown-status"));
     }
 
     @Test
@@ -792,8 +749,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPluginsListResult_nested() {
-        var plugin = new SessionPluginsListResult.SessionPluginsListResultPluginsItem("my-plugin", "marketplace-x",
-                "1.2.3", true);
+        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true);
         var result = new SessionPluginsListResult(List.of(plugin));
         assertEquals(1, result.plugins().size());
         assertEquals("my-plugin", result.plugins().get(0).name());
@@ -827,8 +783,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsListResult_nested() {
-        var item = new SessionSkillsListResult.SessionSkillsListResultSkillsItem("deploy", "Deploy the app", "project",
-                true, true, "/skills/deploy.md");
+        var item = new Skill("deploy", "Deploy the app", "project", true, true, "/skills/deploy.md");
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
@@ -850,22 +805,20 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUiElicitationResult_accept() {
-        var result = new SessionUiElicitationResult(SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT,
-                Map.of("name", "Alice"));
-        assertEquals(SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT, result.action());
+        var result = new SessionUiElicitationResult(UIElicitationResponseAction.ACCEPT, Map.of("name", "Alice"));
+        assertEquals(UIElicitationResponseAction.ACCEPT, result.action());
         assertEquals("Alice", result.content().get("name"));
     }
 
     @Test
     void sessionUiElicitationResult_action_enum() {
-        assertEquals("accept", SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT.getValue());
-        assertEquals("decline", SessionUiElicitationResult.SessionUiElicitationResultAction.DECLINE.getValue());
-        assertEquals("cancel", SessionUiElicitationResult.SessionUiElicitationResultAction.CANCEL.getValue());
-        for (var a : SessionUiElicitationResult.SessionUiElicitationResultAction.values()) {
-            assertEquals(a, SessionUiElicitationResult.SessionUiElicitationResultAction.fromValue(a.getValue()));
+        assertEquals("accept", UIElicitationResponseAction.ACCEPT.getValue());
+        assertEquals("decline", UIElicitationResponseAction.DECLINE.getValue());
+        assertEquals("cancel", UIElicitationResponseAction.CANCEL.getValue());
+        for (var a : UIElicitationResponseAction.values()) {
+            assertEquals(a, UIElicitationResponseAction.fromValue(a.getValue()));
         }
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionUiElicitationResult.SessionUiElicitationResultAction.fromValue("unknown"));
+        assertThrows(IllegalArgumentException.class, () -> UIElicitationResponseAction.fromValue("unknown"));
     }
 
     @Test
@@ -876,7 +829,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUsageGetMetricsResult_nested() {
-        var changes = new SessionUsageGetMetricsResult.SessionUsageGetMetricsResultCodeChanges(100L, 50L, 5L);
+        var changes = new UsageMetricsCodeChanges(100L, 50L, 5L);
         var result = new SessionUsageGetMetricsResult(0.5, 10L, 2000.0, 1700000000000L, changes, null, "gpt-5", 1000L,
                 500L);
         assertEquals(0.5, result.totalPremiumRequestCost());
@@ -916,13 +869,12 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void accountGetQuotaResult_nested() {
-        var snapshot = new AccountGetQuotaResult.AccountGetQuotaResultQuotaSnapshotsValue(100.0, 40.0, 60.0, 5.0, true,
-                "2026-05-01");
+        var snapshot = new AccountQuotaSnapshot(null, 100L, 40L, null, 60.0, 5.0, true, "2026-05-01");
         var result = new AccountGetQuotaResult(Map.of("chat", snapshot));
         assertEquals(1, result.quotaSnapshots().size());
         var s = result.quotaSnapshots().get("chat");
-        assertEquals(100.0, s.entitlementRequests());
-        assertEquals(40.0, s.usedRequests());
+        assertEquals(100L, s.entitlementRequests());
+        assertEquals(40L, s.usedRequests());
         assertEquals(60.0, s.remainingPercentage());
         assertEquals(5.0, s.overage());
         assertTrue(s.overageAllowedWithExhaustedQuota());
@@ -938,41 +890,33 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void mcpDiscoverResult_nested() {
-        var server = new McpDiscoverResult.McpDiscoverResultServersItem("discovered-server", "local",
-                McpDiscoverResult.McpDiscoverResultServersItem.McpDiscoverResultServersItemSource.USER, true);
+        var server = new DiscoveredMcpServer("discovered-server", DiscoveredMcpServerType.STDIO,
+                DiscoveredMcpServerSource.USER, true);
         var result = new McpDiscoverResult(List.of(server));
         assertEquals(1, result.servers().size());
         assertEquals("discovered-server", result.servers().get(0).name());
-        assertEquals("local", result.servers().get(0).type());
-        assertEquals(McpDiscoverResult.McpDiscoverResultServersItem.McpDiscoverResultServersItemSource.USER,
-                result.servers().get(0).source());
+        assertEquals(DiscoveredMcpServerType.STDIO, result.servers().get(0).type());
+        assertEquals(DiscoveredMcpServerSource.USER, result.servers().get(0).source());
         assertTrue(result.servers().get(0).enabled());
     }
 
     @Test
     void mcpDiscoverResult_source_enum_all_values() {
-        for (var src : McpDiscoverResult.McpDiscoverResultServersItem.McpDiscoverResultServersItemSource.values()) {
+        for (var src : DiscoveredMcpServerSource.values()) {
             assertNotNull(src.getValue());
-            assertEquals(src, McpDiscoverResult.McpDiscoverResultServersItem.McpDiscoverResultServersItemSource
-                    .fromValue(src.getValue()));
+            assertEquals(src, DiscoveredMcpServerSource.fromValue(src.getValue()));
         }
-        assertThrows(IllegalArgumentException.class,
-                () -> McpDiscoverResult.McpDiscoverResultServersItem.McpDiscoverResultServersItemSource
-                        .fromValue("unknown-source"));
+        assertThrows(IllegalArgumentException.class, () -> DiscoveredMcpServerSource.fromValue("unknown-source"));
     }
 
     @Test
     void modelsListResult_nested() {
-        var supports = new ModelsListResult.ModelsListResultModelsItem.ModelsListResultModelsItemCapabilities.ModelsListResultModelsItemCapabilitiesSupports(
-                true, false);
-        var limits = new ModelsListResult.ModelsListResultModelsItem.ModelsListResultModelsItemCapabilities.ModelsListResultModelsItemCapabilitiesLimits(
-                100000.0, 8192.0, 128000.0, null);
-        var capabilities = new ModelsListResult.ModelsListResultModelsItem.ModelsListResultModelsItemCapabilities(
-                supports, limits);
-        var policy = new ModelsListResult.ModelsListResultModelsItem.ModelsListResultModelsItemPolicy("active", null);
-        var billing = new ModelsListResult.ModelsListResultModelsItem.ModelsListResultModelsItemBilling(1.0);
-        var modelItem = new ModelsListResult.ModelsListResultModelsItem("gpt-5", "GPT-5", capabilities, policy, billing,
-                null, null);
+        var supports = new ModelCapabilitiesSupports(true, false);
+        var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
+        var capabilities = new ModelCapabilities(supports, limits);
+        var policy = new ModelPolicy("active", null);
+        var billing = new ModelBilling(1.0);
+        var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null);
         var result = new ModelsListResult(List.of(modelItem));
 
         assertEquals(1, result.models().size());
@@ -980,15 +924,14 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals("GPT-5", result.models().get(0).name());
         assertTrue(result.models().get(0).capabilities().supports().vision());
         assertFalse(result.models().get(0).capabilities().supports().reasoningEffort());
-        assertEquals(100000.0, result.models().get(0).capabilities().limits().maxPromptTokens());
+        assertEquals(100000L, result.models().get(0).capabilities().limits().maxPromptTokens());
         assertEquals("active", result.models().get(0).policy().state());
-        assertEquals(1.0, result.models().get(0).billing().multiplier());
+        assertEquals(Double.valueOf(1.0), result.models().get(0).billing().multiplier());
     }
 
     @Test
     void toolsListResult_nested() {
-        var tool = new ToolsListResult.ToolsListResultToolsItem("bash", "bash", "Run shell commands",
-                Map.of("type", "object"), "Use for shell commands");
+        var tool = new Tool("bash", "bash", "Run shell commands", Map.of("type", "object"), "Use for shell commands");
         var result = new ToolsListResult(List.of(tool));
         assertEquals(1, result.tools().size());
         assertEquals("bash", result.tools().get(0).name());
@@ -1001,20 +944,17 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_nested_records() {
-        var limitsVision = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesLimits.SessionModelSwitchToParamsModelCapabilitiesLimitsVision(
-                List.of("image/png", "image/jpeg"), 10.0, 5000000.0);
-        var limits = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesLimits(
-                100000.0, 8192.0, 128000.0, limitsVision);
-        var supports = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities.SessionModelSwitchToParamsModelCapabilitiesSupports(
-                true, true);
-        var capabilities = new SessionModelSwitchToParams.SessionModelSwitchToParamsModelCapabilities(supports, limits);
+        var limitsVision = new ModelCapabilitiesOverrideLimitsVision(List.of("image/png", "image/jpeg"), 10L, 5000000L);
+        var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
+        var supports = new ModelCapabilitiesOverrideSupports(true, true);
+        var capabilities = new ModelCapabilitiesOverride(supports, limits);
         var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, capabilities);
 
         assertEquals("gpt-5", params.modelId());
         assertNotNull(params.modelCapabilities());
         assertTrue(params.modelCapabilities().supports().vision());
         assertTrue(params.modelCapabilities().supports().reasoningEffort());
-        assertEquals(100000.0, params.modelCapabilities().limits().maxPromptTokens());
+        assertEquals(100000L, params.modelCapabilities().limits().maxPromptTokens());
         assertEquals(2, params.modelCapabilities().limits().vision().supportedMediaTypes().size());
     }
 
@@ -1022,8 +962,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUiElicitationParams_nested_schema() {
-        var schema = new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema("object",
-                Map.of("name", Map.of("type", "string")), List.of("name"));
+        var schema = new UIElicitationSchema("object", Map.of("name", Map.of("type", "string")), List.of("name"));
         var params = new SessionUiElicitationParams("sess-elicit", "Please fill form", schema);
         assertEquals("sess-elicit", params.sessionId());
         assertEquals("object", params.requestedSchema().type());
@@ -1034,15 +973,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUiHandlePendingElicitationParamsResult_action_enum() {
-        for (var action : SessionUiHandlePendingElicitationParams.SessionUiHandlePendingElicitationParamsResult.SessionUiHandlePendingElicitationParamsResultAction
-                .values()) {
+        for (var action : UIElicitationResponseAction.values()) {
             assertNotNull(action.getValue());
-            assertEquals(action,
-                    SessionUiHandlePendingElicitationParams.SessionUiHandlePendingElicitationParamsResult.SessionUiHandlePendingElicitationParamsResultAction
-                            .fromValue(action.getValue()));
+            assertEquals(action, UIElicitationResponseAction.fromValue(action.getValue()));
         }
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionUiHandlePendingElicitationParams.SessionUiHandlePendingElicitationParamsResult.SessionUiHandlePendingElicitationParamsResultAction
-                        .fromValue("unknown"));
+        assertThrows(IllegalArgumentException.class, () -> UIElicitationResponseAction.fromValue("unknown"));
     }
 }

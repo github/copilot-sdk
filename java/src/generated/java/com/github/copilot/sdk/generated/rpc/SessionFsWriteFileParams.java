@@ -28,6 +28,6 @@ public record SessionFsWriteFileParams(
     /** Content to write */
     @JsonProperty("content") String content,
     /** Optional POSIX-style mode for newly created files */
-    @JsonProperty("mode") Double mode
+    @JsonProperty("mode") Long mode
 ) {
 }

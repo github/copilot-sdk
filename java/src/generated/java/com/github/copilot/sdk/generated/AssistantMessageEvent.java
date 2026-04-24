@@ -41,7 +41,7 @@ public final class AssistantMessageEvent extends SessionEvent {
         /** The assistant's text response content */
         @JsonProperty("content") String content,
         /** Tool invocations requested by the assistant in this message */
-        @JsonProperty("toolRequests") List<AssistantMessageEventDataToolRequestsItem> toolRequests,
+        @JsonProperty("toolRequests") List<AssistantMessageToolRequest> toolRequests,
         /** Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume. */
         @JsonProperty("reasoningOpaque") String reasoningOpaque,
         /** Readable reasoning text from the model's extended thinking */
@@ -59,46 +59,5 @@ public final class AssistantMessageEvent extends SessionEvent {
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
-
-        /** A tool invocation request from the assistant */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record AssistantMessageEventDataToolRequestsItem(
-            /** Unique identifier for this tool call */
-            @JsonProperty("toolCallId") String toolCallId,
-            /** Name of the tool being invoked */
-            @JsonProperty("name") String name,
-            /** Arguments to pass to the tool, format depends on the tool */
-            @JsonProperty("arguments") Object arguments,
-            /** Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent. */
-            @JsonProperty("type") AssistantMessageEventDataToolRequestsItemType type,
-            /** Human-readable display title for the tool */
-            @JsonProperty("toolTitle") String toolTitle,
-            /** Name of the MCP server hosting this tool, when the tool is an MCP tool */
-            @JsonProperty("mcpServerName") String mcpServerName,
-            /** Resolved intention summary describing what this specific call does */
-            @JsonProperty("intentionSummary") String intentionSummary
-        ) {
-
-            /** Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent. */
-            public enum AssistantMessageEventDataToolRequestsItemType {
-                /** The {@code function} variant. */
-                FUNCTION("function"),
-                /** The {@code custom} variant. */
-                CUSTOM("custom");
-
-                private final String value;
-                AssistantMessageEventDataToolRequestsItemType(String value) { this.value = value; }
-                @com.fasterxml.jackson.annotation.JsonValue
-                public String getValue() { return value; }
-                @com.fasterxml.jackson.annotation.JsonCreator
-                public static AssistantMessageEventDataToolRequestsItemType fromValue(String value) {
-                    for (AssistantMessageEventDataToolRequestsItemType v : values()) {
-                        if (v.value.equals(value)) return v;
-                    }
-                    throw new IllegalArgumentException("Unknown AssistantMessageEventDataToolRequestsItemType value: " + value);
-                }
-            }
-        }
     }
 }

@@ -26,32 +26,10 @@ public record SessionLogParams(
     /** Human-readable message */
     @JsonProperty("message") String message,
     /** Log severity level. Determines how the message is displayed in the timeline. Defaults to "info". */
-    @JsonProperty("level") SessionLogParamsLevel level,
+    @JsonProperty("level") SessionLogLevel level,
     /** When true, the message is transient and not persisted to the session event log on disk */
     @JsonProperty("ephemeral") Boolean ephemeral,
     /** Optional URL the user can open in their browser for more details */
     @JsonProperty("url") String url
 ) {
-
-    /** Log severity level. Determines how the message is displayed in the timeline. Defaults to "info". */
-    public enum SessionLogParamsLevel {
-        /** The {@code info} variant. */
-        INFO("info"),
-        /** The {@code warning} variant. */
-        WARNING("warning"),
-        /** The {@code error} variant. */
-        ERROR("error");
-
-        private final String value;
-        SessionLogParamsLevel(String value) { this.value = value; }
-        @com.fasterxml.jackson.annotation.JsonValue
-        public String getValue() { return value; }
-        @com.fasterxml.jackson.annotation.JsonCreator
-        public static SessionLogParamsLevel fromValue(String value) {
-            for (SessionLogParamsLevel v : values()) {
-                if (v.value.equals(value)) return v;
-            }
-            throw new IllegalArgumentException("Unknown SessionLogParamsLevel value: " + value);
-        }
-    }
 }

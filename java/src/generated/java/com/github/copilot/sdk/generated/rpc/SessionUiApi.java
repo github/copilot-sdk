@@ -30,7 +30,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Invokes {@code session.ui.elicitation}.
+     * The elicitation response (accept with form values, decline, or cancel)
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

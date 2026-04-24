@@ -42,36 +42,16 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("transformedContent") String transformedContent,
         /** Files, selections, or GitHub references attached to the message */
         @JsonProperty("attachments") List<Object> attachments,
+        /** Normalized document MIME types that were sent natively instead of through tagged_files XML */
+        @JsonProperty("supportedNativeDocumentMimeTypes") List<String> supportedNativeDocumentMimeTypes,
+        /** Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit */
+        @JsonProperty("nativeDocumentPathFallbackPaths") List<String> nativeDocumentPathFallbackPaths,
         /** Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user) */
         @JsonProperty("source") String source,
         /** The agent mode that was active when this message was sent */
-        @JsonProperty("agentMode") UserMessageEventDataAgentMode agentMode,
+        @JsonProperty("agentMode") UserMessageAgentMode agentMode,
         /** CAPI interaction ID for correlating this user message with its turn */
         @JsonProperty("interactionId") String interactionId
     ) {
-
-        /** The agent mode that was active when this message was sent */
-        public enum UserMessageEventDataAgentMode {
-            /** The {@code interactive} variant. */
-            INTERACTIVE("interactive"),
-            /** The {@code plan} variant. */
-            PLAN("plan"),
-            /** The {@code autopilot} variant. */
-            AUTOPILOT("autopilot"),
-            /** The {@code shell} variant. */
-            SHELL("shell");
-
-            private final String value;
-            UserMessageEventDataAgentMode(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static UserMessageEventDataAgentMode fromValue(String value) {
-                for (UserMessageEventDataAgentMode v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown UserMessageEventDataAgentMode value: " + value);
-            }
-        }
     }
 }

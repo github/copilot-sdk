@@ -28,6 +28,6 @@ public record SessionFsMkdirParams(
     /** Create parent directories as needed */
     @JsonProperty("recursive") Boolean recursive,
     /** Optional POSIX-style mode for newly created directories */
-    @JsonProperty("mode") Double mode
+    @JsonProperty("mode") Long mode
 ) {
 }

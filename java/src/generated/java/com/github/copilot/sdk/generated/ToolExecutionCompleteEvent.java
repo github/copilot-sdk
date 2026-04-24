@@ -10,7 +10,6 @@ package com.github.copilot.sdk.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -48,37 +47,13 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         /** Whether this tool call was explicitly requested by the user rather than the assistant */
         @JsonProperty("isUserRequested") Boolean isUserRequested,
         /** Tool execution result on success */
-        @JsonProperty("result") ToolExecutionCompleteEventDataResult result,
+        @JsonProperty("result") ToolExecutionCompleteResult result,
         /** Error details when the tool execution failed */
-        @JsonProperty("error") ToolExecutionCompleteEventDataError error,
+        @JsonProperty("error") ToolExecutionCompleteError error,
         /** Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts) */
         @JsonProperty("toolTelemetry") Map<String, Object> toolTelemetry,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
-
-        /** Tool execution result on success */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record ToolExecutionCompleteEventDataResult(
-            /** Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency */
-            @JsonProperty("content") String content,
-            /** Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent. */
-            @JsonProperty("detailedContent") String detailedContent,
-            /** Structured content blocks (text, images, audio, resources) returned by the tool in their native format */
-            @JsonProperty("contents") List<Object> contents
-        ) {
-        }
-
-        /** Error details when the tool execution failed */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record ToolExecutionCompleteEventDataError(
-            /** Human-readable error message */
-            @JsonProperty("message") String message,
-            /** Machine-readable error code */
-            @JsonProperty("code") String code
-        ) {
-        }
     }
 }

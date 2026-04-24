@@ -37,15 +37,7 @@ public final class CommandsChangedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record CommandsChangedEventData(
         /** Current list of registered SDK commands */
-        @JsonProperty("commands") List<CommandsChangedEventDataCommandsItem> commands
+        @JsonProperty("commands") List<CommandsChangedCommand> commands
     ) {
-
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record CommandsChangedEventDataCommandsItem(
-            @JsonProperty("name") String name,
-            @JsonProperty("description") String description
-        ) {
-        }
     }
 }

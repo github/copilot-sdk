@@ -36,29 +36,7 @@ public final class SessionPlanChangedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionPlanChangedEventData(
         /** The type of operation performed on the plan file */
-        @JsonProperty("operation") SessionPlanChangedEventDataOperation operation
+        @JsonProperty("operation") PlanChangedOperation operation
     ) {
-
-        /** The type of operation performed on the plan file */
-        public enum SessionPlanChangedEventDataOperation {
-            /** The {@code create} variant. */
-            CREATE("create"),
-            /** The {@code update} variant. */
-            UPDATE("update"),
-            /** The {@code delete} variant. */
-            DELETE("delete");
-
-            private final String value;
-            SessionPlanChangedEventDataOperation(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionPlanChangedEventDataOperation fromValue(String value) {
-                for (SessionPlanChangedEventDataOperation v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionPlanChangedEventDataOperation value: " + value);
-            }
-        }
     }
 }

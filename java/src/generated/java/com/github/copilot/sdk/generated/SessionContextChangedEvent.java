@@ -42,7 +42,9 @@ public final class SessionContextChangedEvent extends SessionEvent {
         /** Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps) */
         @JsonProperty("repository") String repository,
         /** Hosting platform type of the repository (github or ado) */
-        @JsonProperty("hostType") SessionContextChangedEventDataHostType hostType,
+        @JsonProperty("hostType") WorkingDirectoryContextHostType hostType,
+        /** Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com") */
+        @JsonProperty("repositoryHost") String repositoryHost,
         /** Current git branch name */
         @JsonProperty("branch") String branch,
         /** Head commit of current git branch at session start time */
@@ -50,25 +52,5 @@ public final class SessionContextChangedEvent extends SessionEvent {
         /** Base commit of current git branch at session start time */
         @JsonProperty("baseCommit") String baseCommit
     ) {
-
-        /** Hosting platform type of the repository (github or ado) */
-        public enum SessionContextChangedEventDataHostType {
-            /** The {@code github} variant. */
-            GITHUB("github"),
-            /** The {@code ado} variant. */
-            ADO("ado");
-
-            private final String value;
-            SessionContextChangedEventDataHostType(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionContextChangedEventDataHostType fromValue(String value) {
-                for (SessionContextChangedEventDataHostType v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionContextChangedEventDataHostType value: " + value);
-            }
-        }
     }
 }

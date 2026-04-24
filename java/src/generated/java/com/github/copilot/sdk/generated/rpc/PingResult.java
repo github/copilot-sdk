@@ -24,8 +24,8 @@ public record PingResult(
     /** Echoed message (or default greeting) */
     @JsonProperty("message") String message,
     /** Server timestamp in milliseconds */
-    @JsonProperty("timestamp") Double timestamp,
+    @JsonProperty("timestamp") Long timestamp,
     /** Server protocol version number */
-    @JsonProperty("protocolVersion") Double protocolVersion
+    @JsonProperty("protocolVersion") Long protocolVersion
 ) {
 }

@@ -23,24 +23,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AccountGetQuotaResult(
     /** Quota snapshots keyed by type (e.g., chat, completions, premium_interactions) */
-    @JsonProperty("quotaSnapshots") Map<String, AccountGetQuotaResultQuotaSnapshotsValue> quotaSnapshots
+    @JsonProperty("quotaSnapshots") Map<String, AccountQuotaSnapshot> quotaSnapshots
 ) {
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record AccountGetQuotaResultQuotaSnapshotsValue(
-        /** Number of requests included in the entitlement */
-        @JsonProperty("entitlementRequests") Double entitlementRequests,
-        /** Number of requests used so far this period */
-        @JsonProperty("usedRequests") Double usedRequests,
-        /** Percentage of entitlement remaining */
-        @JsonProperty("remainingPercentage") Double remainingPercentage,
-        /** Number of overage requests made this period */
-        @JsonProperty("overage") Double overage,
-        /** Whether pay-per-request usage is allowed when quota is exhausted */
-        @JsonProperty("overageAllowedWithExhaustedQuota") Boolean overageAllowedWithExhaustedQuota,
-        /** Date when the quota resets (ISO 8601) */
-        @JsonProperty("resetDate") String resetDate
-    ) {
-    }
 }

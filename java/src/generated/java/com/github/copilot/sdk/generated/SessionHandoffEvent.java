@@ -39,9 +39,9 @@ public final class SessionHandoffEvent extends SessionEvent {
         /** ISO 8601 timestamp when the handoff occurred */
         @JsonProperty("handoffTime") OffsetDateTime handoffTime,
         /** Origin type of the session being handed off */
-        @JsonProperty("sourceType") SessionHandoffEventDataSourceType sourceType,
+        @JsonProperty("sourceType") HandoffSourceType sourceType,
         /** Repository context for the handed-off session */
-        @JsonProperty("repository") SessionHandoffEventDataRepository repository,
+        @JsonProperty("repository") HandoffRepository repository,
         /** Additional context information for the handoff */
         @JsonProperty("context") String context,
         /** Summary of the work done in the source session */
@@ -51,38 +51,5 @@ public final class SessionHandoffEvent extends SessionEvent {
         /** GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com) */
         @JsonProperty("host") String host
     ) {
-
-        /** Origin type of the session being handed off */
-        public enum SessionHandoffEventDataSourceType {
-            /** The {@code remote} variant. */
-            REMOTE("remote"),
-            /** The {@code local} variant. */
-            LOCAL("local");
-
-            private final String value;
-            SessionHandoffEventDataSourceType(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionHandoffEventDataSourceType fromValue(String value) {
-                for (SessionHandoffEventDataSourceType v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionHandoffEventDataSourceType value: " + value);
-            }
-        }
-
-        /** Repository context for the handed-off session */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record SessionHandoffEventDataRepository(
-            /** Repository owner (user or organization) */
-            @JsonProperty("owner") String owner,
-            /** Repository name */
-            @JsonProperty("name") String name,
-            /** Git branch name, if applicable */
-            @JsonProperty("branch") String branch
-        ) {
-        }
     }
 }

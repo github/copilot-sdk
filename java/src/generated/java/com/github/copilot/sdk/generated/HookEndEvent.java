@@ -44,18 +44,7 @@ public final class HookEndEvent extends SessionEvent {
         /** Whether the hook completed successfully */
         @JsonProperty("success") Boolean success,
         /** Error details when the hook failed */
-        @JsonProperty("error") HookEndEventDataError error
+        @JsonProperty("error") HookEndError error
     ) {
-
-        /** Error details when the hook failed */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record HookEndEventDataError(
-            /** Human-readable error message */
-            @JsonProperty("message") String message,
-            /** Error stack trace, when available */
-            @JsonProperty("stack") String stack
-        ) {
-        }
     }
 }

@@ -28,14 +28,20 @@ public final class SessionRpc {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code auth} namespace. */
+    public final SessionAuthApi auth;
     /** API methods for the {@code model} namespace. */
     public final SessionModelApi model;
     /** API methods for the {@code mode} namespace. */
     public final SessionModeApi mode;
+    /** API methods for the {@code name} namespace. */
+    public final SessionNameApi name;
     /** API methods for the {@code plan} namespace. */
     public final SessionPlanApi plan;
-    /** API methods for the {@code workspace} namespace. */
-    public final SessionWorkspaceApi workspace;
+    /** API methods for the {@code workspaces} namespace. */
+    public final SessionWorkspacesApi workspaces;
+    /** API methods for the {@code instructions} namespace. */
+    public final SessionInstructionsApi instructions;
     /** API methods for the {@code fleet} namespace. */
     public final SessionFleetApi fleet;
     /** API methods for the {@code agent} namespace. */
@@ -72,10 +78,13 @@ public final class SessionRpc {
     public SessionRpc(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.auth = new SessionAuthApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
+        this.name = new SessionNameApi(caller, sessionId);
         this.plan = new SessionPlanApi(caller, sessionId);
-        this.workspace = new SessionWorkspaceApi(caller, sessionId);
+        this.workspaces = new SessionWorkspacesApi(caller, sessionId);
+        this.instructions = new SessionInstructionsApi(caller, sessionId);
         this.fleet = new SessionFleetApi(caller, sessionId);
         this.agent = new SessionAgentApi(caller, sessionId);
         this.skills = new SessionSkillsApi(caller, sessionId);

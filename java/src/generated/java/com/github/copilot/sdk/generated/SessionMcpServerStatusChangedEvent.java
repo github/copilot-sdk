@@ -38,35 +38,7 @@ public final class SessionMcpServerStatusChangedEvent extends SessionEvent {
         /** Name of the MCP server whose status changed */
         @JsonProperty("serverName") String serverName,
         /** New connection status: connected, failed, needs-auth, pending, disabled, or not_configured */
-        @JsonProperty("status") SessionMcpServerStatusChangedEventDataStatus status
+        @JsonProperty("status") McpServerStatusChangedStatus status
     ) {
-
-        /** New connection status: connected, failed, needs-auth, pending, disabled, or not_configured */
-        public enum SessionMcpServerStatusChangedEventDataStatus {
-            /** The {@code connected} variant. */
-            CONNECTED("connected"),
-            /** The {@code failed} variant. */
-            FAILED("failed"),
-            /** The {@code needs-auth} variant. */
-            NEEDS_AUTH("needs-auth"),
-            /** The {@code pending} variant. */
-            PENDING("pending"),
-            /** The {@code disabled} variant. */
-            DISABLED("disabled"),
-            /** The {@code not_configured} variant. */
-            NOT_CONFIGURED("not_configured");
-
-            private final String value;
-            SessionMcpServerStatusChangedEventDataStatus(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionMcpServerStatusChangedEventDataStatus fromValue(String value) {
-                for (SessionMcpServerStatusChangedEventDataStatus v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionMcpServerStatusChangedEventDataStatus value: " + value);
-            }
-        }
     }
 }

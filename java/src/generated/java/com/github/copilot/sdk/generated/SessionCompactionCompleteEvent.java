@@ -55,8 +55,8 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("checkpointNumber") Double checkpointNumber,
         /** File path where the checkpoint was stored */
         @JsonProperty("checkpointPath") String checkpointPath,
-        /** Token usage breakdown for the compaction LLM call */
-        @JsonProperty("compactionTokensUsed") SessionCompactionCompleteEventDataCompactionTokensUsed compactionTokensUsed,
+        /** Token usage breakdown for the compaction LLM call (aligned with assistant.usage format) */
+        @JsonProperty("compactionTokensUsed") CompactionCompleteCompactionTokensUsed compactionTokensUsed,
         /** GitHub request tracing ID (x-github-request-id header) for the compaction LLM call */
         @JsonProperty("requestId") String requestId,
         /** Token count from system message(s) after compaction */
@@ -66,18 +66,5 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         /** Token count from tool definitions after compaction */
         @JsonProperty("toolDefinitionsTokens") Double toolDefinitionsTokens
     ) {
-
-        /** Token usage breakdown for the compaction LLM call */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record SessionCompactionCompleteEventDataCompactionTokensUsed(
-            /** Input tokens consumed by the compaction LLM call */
-            @JsonProperty("input") Double input,
-            /** Output tokens produced by the compaction LLM call */
-            @JsonProperty("output") Double output,
-            /** Cached input tokens reused in the compaction LLM call */
-            @JsonProperty("cachedInput") Double cachedInput
-        ) {
-        }
     }
 }

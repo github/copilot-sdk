@@ -37,33 +37,11 @@ public final class SessionCustomAgentsUpdatedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionCustomAgentsUpdatedEventData(
         /** Array of loaded custom agent metadata */
-        @JsonProperty("agents") List<SessionCustomAgentsUpdatedEventDataAgentsItem> agents,
+        @JsonProperty("agents") List<CustomAgentsUpdatedAgent> agents,
         /** Non-fatal warnings from agent loading */
         @JsonProperty("warnings") List<String> warnings,
         /** Fatal errors from agent loading */
         @JsonProperty("errors") List<String> errors
     ) {
-
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record SessionCustomAgentsUpdatedEventDataAgentsItem(
-            /** Unique identifier for the agent */
-            @JsonProperty("id") String id,
-            /** Internal name of the agent */
-            @JsonProperty("name") String name,
-            /** Human-readable display name */
-            @JsonProperty("displayName") String displayName,
-            /** Description of what the agent does */
-            @JsonProperty("description") String description,
-            /** Source location: user, project, inherited, remote, or plugin */
-            @JsonProperty("source") String source,
-            /** List of tool names available to this agent */
-            @JsonProperty("tools") List<String> tools,
-            /** Whether the agent can be selected by the user */
-            @JsonProperty("userInvocable") Boolean userInvocable,
-            /** Model override for this agent, if set */
-            @JsonProperty("model") String model
-        ) {
-        }
     }
 }

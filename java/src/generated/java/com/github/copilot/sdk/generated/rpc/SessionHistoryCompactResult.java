@@ -24,29 +24,10 @@ public record SessionHistoryCompactResult(
     /** Whether compaction completed successfully */
     @JsonProperty("success") Boolean success,
     /** Number of tokens freed by compaction */
-    @JsonProperty("tokensRemoved") Double tokensRemoved,
+    @JsonProperty("tokensRemoved") Long tokensRemoved,
     /** Number of messages removed during compaction */
-    @JsonProperty("messagesRemoved") Double messagesRemoved,
+    @JsonProperty("messagesRemoved") Long messagesRemoved,
     /** Post-compaction context window usage breakdown */
-    @JsonProperty("contextWindow") SessionHistoryCompactResultContextWindow contextWindow
+    @JsonProperty("contextWindow") HistoryCompactContextWindow contextWindow
 ) {
-
-    /** Post-compaction context window usage breakdown */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionHistoryCompactResultContextWindow(
-        /** Maximum token count for the model's context window */
-        @JsonProperty("tokenLimit") Double tokenLimit,
-        /** Current total tokens in the context window (system + conversation + tool definitions) */
-        @JsonProperty("currentTokens") Double currentTokens,
-        /** Current number of messages in the conversation */
-        @JsonProperty("messagesLength") Double messagesLength,
-        /** Token count from system message(s) */
-        @JsonProperty("systemTokens") Double systemTokens,
-        /** Token count from non-system messages (user, assistant, tool) */
-        @JsonProperty("conversationTokens") Double conversationTokens,
-        /** Token count from tool definitions */
-        @JsonProperty("toolDefinitionsTokens") Double toolDefinitionsTokens
-    ) {
-    }
 }
