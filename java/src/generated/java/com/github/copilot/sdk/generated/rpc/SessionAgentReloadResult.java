@@ -23,18 +23,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionAgentReloadResult(
     /** Reloaded custom agents */
-    @JsonProperty("agents") List<SessionAgentReloadResultAgentsItem> agents
+    @JsonProperty("agents") List<AgentInfo> agents
 ) {
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionAgentReloadResultAgentsItem(
-        /** Unique identifier of the custom agent */
-        @JsonProperty("name") String name,
-        /** Human-readable display name */
-        @JsonProperty("displayName") String displayName,
-        /** Description of the agent's purpose */
-        @JsonProperty("description") String description
-    ) {
-    }
 }

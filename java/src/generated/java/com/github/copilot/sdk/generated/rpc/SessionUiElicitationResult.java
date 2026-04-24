@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.ui.elicitation} RPC method.
+ * The elicitation response (accept with form values, decline, or cancel)
  *
  * @since 1.0.0
  */
@@ -23,30 +23,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionUiElicitationResult(
     /** The user's response: accept (submitted), decline (rejected), or cancel (dismissed) */
-    @JsonProperty("action") SessionUiElicitationResultAction action,
+    @JsonProperty("action") UIElicitationResponseAction action,
     /** The form values submitted by the user (present when action is 'accept') */
     @JsonProperty("content") Map<String, Object> content
 ) {
-
-    /** The user's response: accept (submitted), decline (rejected), or cancel (dismissed) */
-    public enum SessionUiElicitationResultAction {
-        /** The {@code accept} variant. */
-        ACCEPT("accept"),
-        /** The {@code decline} variant. */
-        DECLINE("decline"),
-        /** The {@code cancel} variant. */
-        CANCEL("cancel");
-
-        private final String value;
-        SessionUiElicitationResultAction(String value) { this.value = value; }
-        @com.fasterxml.jackson.annotation.JsonValue
-        public String getValue() { return value; }
-        @com.fasterxml.jackson.annotation.JsonCreator
-        public static SessionUiElicitationResultAction fromValue(String value) {
-            for (SessionUiElicitationResultAction v : values()) {
-                if (v.value.equals(value)) return v;
-            }
-            throw new IllegalArgumentException("Unknown SessionUiElicitationResultAction value: " + value);
-        }
-    }
 }

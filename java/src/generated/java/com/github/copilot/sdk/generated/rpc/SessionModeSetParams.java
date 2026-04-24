@@ -23,29 +23,7 @@ import javax.annotation.processing.Generated;
 public record SessionModeSetParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** The mode to switch to. Valid values: "interactive", "plan", "autopilot". */
-    @JsonProperty("mode") SessionModeSetParamsMode mode
+    /** The agent mode. Valid values: "interactive", "plan", "autopilot". */
+    @JsonProperty("mode") SessionMode mode
 ) {
-
-    /** The mode to switch to. Valid values: "interactive", "plan", "autopilot". */
-    public enum SessionModeSetParamsMode {
-        /** The {@code interactive} variant. */
-        INTERACTIVE("interactive"),
-        /** The {@code plan} variant. */
-        PLAN("plan"),
-        /** The {@code autopilot} variant. */
-        AUTOPILOT("autopilot");
-
-        private final String value;
-        SessionModeSetParamsMode(String value) { this.value = value; }
-        @com.fasterxml.jackson.annotation.JsonValue
-        public String getValue() { return value; }
-        @com.fasterxml.jackson.annotation.JsonCreator
-        public static SessionModeSetParamsMode fromValue(String value) {
-            for (SessionModeSetParamsMode v : values()) {
-                if (v.value.equals(value)) return v;
-            }
-            throw new IllegalArgumentException("Unknown SessionModeSetParamsMode value: " + value);
-        }
-    }
 }

@@ -23,44 +23,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record McpDiscoverResult(
     /** MCP servers discovered from all sources */
-    @JsonProperty("servers") List<McpDiscoverResultServersItem> servers
+    @JsonProperty("servers") List<DiscoveredMcpServer> servers
 ) {
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record McpDiscoverResultServersItem(
-        /** Server name (config key) */
-        @JsonProperty("name") String name,
-        /** Server type: local, stdio, http, or sse */
-        @JsonProperty("type") String type,
-        /** Configuration source */
-        @JsonProperty("source") McpDiscoverResultServersItemSource source,
-        /** Whether the server is enabled (not in the disabled list) */
-        @JsonProperty("enabled") Boolean enabled
-    ) {
-
-        /** Configuration source */
-        public enum McpDiscoverResultServersItemSource {
-            /** The {@code user} variant. */
-            USER("user"),
-            /** The {@code workspace} variant. */
-            WORKSPACE("workspace"),
-            /** The {@code plugin} variant. */
-            PLUGIN("plugin"),
-            /** The {@code builtin} variant. */
-            BUILTIN("builtin");
-
-            private final String value;
-            McpDiscoverResultServersItemSource(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static McpDiscoverResultServersItemSource fromValue(String value) {
-                for (McpDiscoverResultServersItemSource v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown McpDiscoverResultServersItemSource value: " + value);
-            }
-        }
-    }
 }

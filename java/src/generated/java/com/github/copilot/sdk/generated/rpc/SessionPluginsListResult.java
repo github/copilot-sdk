@@ -23,20 +23,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionPluginsListResult(
     /** Installed plugins */
-    @JsonProperty("plugins") List<SessionPluginsListResultPluginsItem> plugins
+    @JsonProperty("plugins") List<Plugin> plugins
 ) {
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionPluginsListResultPluginsItem(
-        /** Plugin name */
-        @JsonProperty("name") String name,
-        /** Marketplace the plugin came from */
-        @JsonProperty("marketplace") String marketplace,
-        /** Installed version */
-        @JsonProperty("version") String version,
-        /** Whether the plugin is currently enabled */
-        @JsonProperty("enabled") Boolean enabled
-    ) {
-    }
 }

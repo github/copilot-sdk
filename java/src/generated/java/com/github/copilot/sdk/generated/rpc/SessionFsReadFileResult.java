@@ -22,6 +22,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFsReadFileResult(
     /** File content as UTF-8 string */
-    @JsonProperty("content") String content
+    @JsonProperty("content") String content,
+    /** Describes a filesystem error. */
+    @JsonProperty("error") SessionFsError error
 ) {
 }

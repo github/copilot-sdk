@@ -23,10 +23,14 @@ public final class SessionMcpApi {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code mcp.oauth} sub-namespace. */
+    public final SessionMcpOauthApi oauth;
+
     /** @param caller the RPC transport function */
     SessionMcpApi(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.oauth = new SessionMcpOauthApi(caller, sessionId);
     }
 
     /**

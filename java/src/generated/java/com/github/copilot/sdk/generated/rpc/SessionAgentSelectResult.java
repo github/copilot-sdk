@@ -22,19 +22,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionAgentSelectResult(
     /** The newly selected custom agent */
-    @JsonProperty("agent") SessionAgentSelectResultAgent agent
+    @JsonProperty("agent") AgentInfo agent
 ) {
-
-    /** The newly selected custom agent */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionAgentSelectResultAgent(
-        /** Unique identifier of the custom agent */
-        @JsonProperty("name") String name,
-        /** Human-readable display name */
-        @JsonProperty("displayName") String displayName,
-        /** Description of the agent's purpose */
-        @JsonProperty("description") String description
-    ) {
-    }
 }

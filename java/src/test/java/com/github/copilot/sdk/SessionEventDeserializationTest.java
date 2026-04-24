@@ -791,8 +791,7 @@ public class SessionEventDeserializationTest {
         assertEquals("session.shutdown", event.getType());
 
         var shutdownEvent = (SessionShutdownEvent) event;
-        assertEquals(SessionShutdownEvent.SessionShutdownEventData.SessionShutdownEventDataShutdownType.ROUTINE,
-                shutdownEvent.getData().shutdownType());
+        assertEquals(ShutdownType.ROUTINE, shutdownEvent.getData().shutdownType());
         assertEquals(5.0, shutdownEvent.getData().totalPremiumRequests());
         assertEquals("gpt-4", shutdownEvent.getData().currentModel());
         assertNotNull(shutdownEvent.getData().codeChanges());
@@ -1148,8 +1147,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         var data = event.getData();
         assertNotNull(data.handoffTime());
-        assertEquals(SessionHandoffEvent.SessionHandoffEventData.SessionHandoffEventDataSourceType.REMOTE,
-                data.sourceType());
+        assertEquals(HandoffSourceType.REMOTE, data.sourceType());
         assertEquals("additional context", data.context());
         assertEquals("handoff summary", data.summary());
         assertEquals("remote-sess-1", data.remoteSessionId());
@@ -1228,9 +1226,9 @@ public class SessionEventDeserializationTest {
                         "checkpointNumber": 3.0,
                         "checkpointPath": "/checkpoints/3",
                         "compactionTokensUsed": {
-                            "input": 1000,
-                            "output": 500,
-                            "cachedInput": 200
+                            "inputTokens": 1000,
+                            "outputTokens": 500,
+                            "cacheReadTokens": 200
                         },
                         "requestId": "req-compact-1"
                     }
@@ -1254,9 +1252,9 @@ public class SessionEventDeserializationTest {
 
         var tokens = data.compactionTokensUsed();
         assertNotNull(tokens);
-        assertEquals(1000.0, tokens.input());
-        assertEquals(500.0, tokens.output());
-        assertEquals(200.0, tokens.cachedInput());
+        assertEquals(1000.0, tokens.inputTokens());
+        assertEquals(500.0, tokens.outputTokens());
+        assertEquals(200.0, tokens.cacheReadTokens());
     }
 
     @Test
@@ -1288,8 +1286,7 @@ public class SessionEventDeserializationTest {
         var event = (SessionShutdownEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals(SessionShutdownEvent.SessionShutdownEventData.SessionShutdownEventDataShutdownType.ERROR,
-                data.shutdownType());
+        assertEquals(ShutdownType.ERROR, data.shutdownType());
         assertEquals("OOM", data.errorReason());
         assertEquals(10.0, data.totalPremiumRequests());
         assertEquals(5000.5, data.totalApiDurationMs());
@@ -2149,8 +2146,7 @@ public class SessionEventDeserializationTest {
 
         var event = (SessionShutdownEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals(SessionShutdownEvent.SessionShutdownEventData.SessionShutdownEventDataShutdownType.ROUTINE,
-                event.getData().shutdownType());
+        assertEquals(ShutdownType.ROUTINE, event.getData().shutdownType());
         assertEquals(100.0, event.getData().codeChanges().linesAdded());
         assertEquals(1, event.getData().codeChanges().filesModified().size());
     }
@@ -2279,9 +2275,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         assertEquals("permission.completed", event.getType());
         assertEquals("perm-req-456", event.getData().requestId());
-        assertEquals(
-                PermissionCompletedEvent.PermissionCompletedEventData.PermissionCompletedEventDataResult.PermissionCompletedEventDataResultKind.APPROVED,
-                event.getData().result().kind());
+        assertEquals(PermissionCompletedKind.APPROVED, event.getData().result().kind());
     }
 
     @Test
@@ -2404,8 +2398,7 @@ public class SessionEventDeserializationTest {
         assertTrue(castedEvent.getData().ui().elicitation());
 
         // Verify setData round-trip
-        var newData = new CapabilitiesChangedEvent.CapabilitiesChangedEventData(
-                new CapabilitiesChangedEvent.CapabilitiesChangedEventData.CapabilitiesChangedEventDataUi(false));
+        var newData = new CapabilitiesChangedEvent.CapabilitiesChangedEventData(new CapabilitiesChangedUI(false));
         castedEvent.setData(newData);
         assertFalse(castedEvent.getData().ui().elicitation());
     }
@@ -2475,8 +2468,7 @@ public class SessionEventDeserializationTest {
         assertEquals("tc-123", castedEvent.getData().toolCallId());
         assertEquals("mcp_tool", castedEvent.getData().elicitationSource());
         assertEquals("Please provide your name", castedEvent.getData().message());
-        assertEquals(ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode.FORM,
-                castedEvent.getData().mode());
+        assertEquals(ElicitationRequestedMode.FORM, castedEvent.getData().mode());
         assertNotNull(castedEvent.getData().requestedSchema());
         assertEquals("object", castedEvent.getData().requestedSchema().type());
         assertNotNull(castedEvent.getData().requestedSchema().properties());
@@ -2484,13 +2476,10 @@ public class SessionEventDeserializationTest {
         assertTrue(castedEvent.getData().requestedSchema().required().contains("name"));
 
         // Verify setData round-trip
-        castedEvent.setData(
-                new ElicitationRequestedEvent.ElicitationRequestedEventData("elix-002", null, null, "Enter URL",
-                        ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode.URL,
-                        null, "https://example.com"));
+        castedEvent.setData(new ElicitationRequestedEvent.ElicitationRequestedEventData("elix-002", null, null,
+                "Enter URL", ElicitationRequestedMode.URL, null, "https://example.com"));
         assertEquals("elix-002", castedEvent.getData().requestId());
-        assertEquals(ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode.URL,
-                castedEvent.getData().mode());
+        assertEquals(ElicitationRequestedMode.URL, castedEvent.getData().mode());
     }
 
     @Test

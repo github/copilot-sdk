@@ -11,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
-import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -24,22 +23,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ToolsListResult(
     /** List of available built-in tools with metadata */
-    @JsonProperty("tools") List<ToolsListResultToolsItem> tools
+    @JsonProperty("tools") List<Tool> tools
 ) {
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ToolsListResultToolsItem(
-        /** Tool identifier (e.g., "bash", "grep", "str_replace_editor") */
-        @JsonProperty("name") String name,
-        /** Optional namespaced name for declarative filtering (e.g., "playwright/navigate" for MCP tools) */
-        @JsonProperty("namespacedName") String namespacedName,
-        /** Description of what the tool does */
-        @JsonProperty("description") String description,
-        /** JSON Schema for the tool's input parameters */
-        @JsonProperty("parameters") Map<String, Object> parameters,
-        /** Optional instructions for how to use this tool effectively */
-        @JsonProperty("instructions") String instructions
-    ) {
-    }
 }

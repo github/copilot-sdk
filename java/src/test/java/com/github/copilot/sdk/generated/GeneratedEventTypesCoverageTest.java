@@ -153,8 +153,7 @@ public class GeneratedEventTypesCoverageTest {
         var typed = (ElicitationRequestedEvent) event;
         assertEquals("elicit-1", typed.getData().requestId());
         assertEquals("Please enter your name", typed.getData().message());
-        assertEquals(ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode.FORM,
-                typed.getData().mode());
+        assertEquals(ElicitationRequestedMode.FORM, typed.getData().mode());
     }
 
     @Test
@@ -165,8 +164,7 @@ public class GeneratedEventTypesCoverageTest {
                         """);
         assertInstanceOf(ElicitationRequestedEvent.class, event);
         var typed = (ElicitationRequestedEvent) event;
-        assertEquals(ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode.URL,
-                typed.getData().mode());
+        assertEquals(ElicitationRequestedMode.URL, typed.getData().mode());
         assertEquals("https://example.com", typed.getData().url());
     }
 
@@ -182,8 +180,7 @@ public class GeneratedEventTypesCoverageTest {
         assertEquals("elicitation.completed", event.getType());
         var typed = (ElicitationCompletedEvent) event;
         assertEquals("elicit-1", typed.getData().requestId());
-        assertEquals(ElicitationCompletedEvent.ElicitationCompletedEventData.ElicitationCompletedEventDataAction.ACCEPT,
-                typed.getData().action());
+        assertEquals(ElicitationCompletedAction.ACCEPT, typed.getData().action());
         assertEquals("Alice", typed.getData().content().get("name"));
     }
 
@@ -194,9 +191,7 @@ public class GeneratedEventTypesCoverageTest {
                 """);
         assertInstanceOf(ElicitationCompletedEvent.class, event);
         var typed = (ElicitationCompletedEvent) event;
-        assertEquals(
-                ElicitationCompletedEvent.ElicitationCompletedEventData.ElicitationCompletedEventDataAction.DECLINE,
-                typed.getData().action());
+        assertEquals(ElicitationCompletedAction.DECLINE, typed.getData().action());
     }
 
     @Test
@@ -206,8 +201,7 @@ public class GeneratedEventTypesCoverageTest {
                 """);
         assertInstanceOf(ElicitationCompletedEvent.class, event);
         var typed = (ElicitationCompletedEvent) event;
-        assertEquals(ElicitationCompletedEvent.ElicitationCompletedEventData.ElicitationCompletedEventDataAction.CANCEL,
-                typed.getData().action());
+        assertEquals(ElicitationCompletedAction.CANCEL, typed.getData().action());
     }
 
     // ── ExitPlanModeRequestedEvent ─────────────────────────────────────────
@@ -402,9 +396,7 @@ public class GeneratedEventTypesCoverageTest {
         var typed = (SessionContextChangedEvent) event;
         assertEquals("/workspace", typed.getData().cwd());
         assertEquals("myorg/myrepo", typed.getData().repository());
-        assertEquals(
-                SessionContextChangedEvent.SessionContextChangedEventData.SessionContextChangedEventDataHostType.GITHUB,
-                typed.getData().hostType());
+        assertEquals(WorkingDirectoryContextHostType.GITHUB, typed.getData().hostType());
         assertEquals("main", typed.getData().branch());
     }
 
@@ -415,9 +407,7 @@ public class GeneratedEventTypesCoverageTest {
                 """);
         assertInstanceOf(SessionContextChangedEvent.class, event);
         var typed = (SessionContextChangedEvent) event;
-        assertEquals(
-                SessionContextChangedEvent.SessionContextChangedEventData.SessionContextChangedEventDataHostType.ADO,
-                typed.getData().hostType());
+        assertEquals(WorkingDirectoryContextHostType.ADO, typed.getData().hostType());
     }
 
     // ── SessionCustomAgentsUpdatedEvent ────────────────────────────────────
@@ -474,9 +464,7 @@ public class GeneratedEventTypesCoverageTest {
         assertNotNull(typed.getData().servers());
         assertEquals(1, typed.getData().servers().size());
         assertEquals("mcp1", typed.getData().servers().get(0).name());
-        assertEquals(
-                SessionMcpServersLoadedEvent.SessionMcpServersLoadedEventData.SessionMcpServersLoadedEventDataServersItem.SessionMcpServersLoadedEventDataServersItemStatus.CONNECTED,
-                typed.getData().servers().get(0).status());
+        assertEquals(McpServersLoadedServerStatus.CONNECTED, typed.getData().servers().get(0).status());
     }
 
     @Test
@@ -685,56 +673,32 @@ public class GeneratedEventTypesCoverageTest {
 
     @Test
     void testElicitationRequestedEventDataModeEnumValues() {
-        assertEquals("form",
-                ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode.FORM
-                        .getValue());
-        assertEquals("url",
-                ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode.URL
-                        .getValue());
+        assertEquals("form", ElicitationRequestedMode.FORM.getValue());
+        assertEquals("url", ElicitationRequestedMode.URL.getValue());
     }
 
     @Test
     void testElicitationRequestedEventDataModeEnumFromValue() {
-        assertEquals(ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode.FORM,
-                ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode
-                        .fromValue("form"));
-        assertThrows(IllegalArgumentException.class,
-                () -> ElicitationRequestedEvent.ElicitationRequestedEventData.ElicitationRequestedEventDataMode
-                        .fromValue("unknown"));
+        assertEquals(ElicitationRequestedMode.FORM, ElicitationRequestedMode.fromValue("form"));
+        assertThrows(IllegalArgumentException.class, () -> ElicitationRequestedMode.fromValue("unknown"));
     }
 
     @Test
     void testElicitationCompletedEventActionEnumValues() {
-        assertEquals("accept",
-                ElicitationCompletedEvent.ElicitationCompletedEventData.ElicitationCompletedEventDataAction.ACCEPT
-                        .getValue());
-        assertEquals("decline",
-                ElicitationCompletedEvent.ElicitationCompletedEventData.ElicitationCompletedEventDataAction.DECLINE
-                        .getValue());
-        assertEquals("cancel",
-                ElicitationCompletedEvent.ElicitationCompletedEventData.ElicitationCompletedEventDataAction.CANCEL
-                        .getValue());
+        assertEquals("accept", ElicitationCompletedAction.ACCEPT.getValue());
+        assertEquals("decline", ElicitationCompletedAction.DECLINE.getValue());
+        assertEquals("cancel", ElicitationCompletedAction.CANCEL.getValue());
     }
 
     @Test
     void testSessionContextChangedHostTypeEnumFromValue() {
-        assertEquals(
-                SessionContextChangedEvent.SessionContextChangedEventData.SessionContextChangedEventDataHostType.GITHUB,
-                SessionContextChangedEvent.SessionContextChangedEventData.SessionContextChangedEventDataHostType
-                        .fromValue("github"));
-        assertEquals(
-                SessionContextChangedEvent.SessionContextChangedEventData.SessionContextChangedEventDataHostType.ADO,
-                SessionContextChangedEvent.SessionContextChangedEventData.SessionContextChangedEventDataHostType
-                        .fromValue("ado"));
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionContextChangedEvent.SessionContextChangedEventData.SessionContextChangedEventDataHostType
-                        .fromValue("unknown"));
+        assertEquals(WorkingDirectoryContextHostType.GITHUB, WorkingDirectoryContextHostType.fromValue("github"));
+        assertEquals(WorkingDirectoryContextHostType.ADO, WorkingDirectoryContextHostType.fromValue("ado"));
+        assertThrows(IllegalArgumentException.class, () -> WorkingDirectoryContextHostType.fromValue("unknown"));
     }
 
     @Test
     void testSessionMcpServersLoadedStatusEnumFromValue() {
-        assertThrows(IllegalArgumentException.class,
-                () -> SessionMcpServersLoadedEvent.SessionMcpServersLoadedEventData.SessionMcpServersLoadedEventDataServersItem.SessionMcpServersLoadedEventDataServersItemStatus
-                        .fromValue("unknown"));
+        assertThrows(IllegalArgumentException.class, () -> McpServersLoadedServerStatus.fromValue("unknown"));
     }
 }

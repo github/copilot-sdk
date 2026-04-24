@@ -39,6 +39,8 @@ public final class PermissionRequestedEvent extends SessionEvent {
         @JsonProperty("requestId") String requestId,
         /** Details of the permission being requested */
         @JsonProperty("permissionRequest") Object permissionRequest,
+        /** Derived user-facing permission prompt details for UI consumers */
+        @JsonProperty("promptRequest") Object promptRequest,
         /** When true, this permission was already resolved by a permissionRequest hook and requires no client action */
         @JsonProperty("resolvedByHook") Boolean resolvedByHook
     ) {

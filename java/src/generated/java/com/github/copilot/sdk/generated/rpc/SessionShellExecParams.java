@@ -28,6 +28,6 @@ public record SessionShellExecParams(
     /** Working directory (defaults to session working directory) */
     @JsonProperty("cwd") String cwd,
     /** Timeout in milliseconds (default: 30000) */
-    @JsonProperty("timeout") Double timeout
+    @JsonProperty("timeout") Long timeout
 ) {
 }

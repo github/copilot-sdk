@@ -22,6 +22,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionHistoryTruncateResult(
     /** Number of events that were removed */
-    @JsonProperty("eventsRemoved") Double eventsRemoved
+    @JsonProperty("eventsRemoved") Long eventsRemoved
 ) {
 }

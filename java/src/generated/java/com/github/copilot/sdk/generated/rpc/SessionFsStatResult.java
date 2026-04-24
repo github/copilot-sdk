@@ -10,6 +10,7 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
@@ -26,10 +27,12 @@ public record SessionFsStatResult(
     /** Whether the path is a directory */
     @JsonProperty("isDirectory") Boolean isDirectory,
     /** File size in bytes */
-    @JsonProperty("size") Double size,
+    @JsonProperty("size") Long size,
     /** ISO 8601 timestamp of last modification */
-    @JsonProperty("mtime") String mtime,
+    @JsonProperty("mtime") OffsetDateTime mtime,
     /** ISO 8601 timestamp of creation */
-    @JsonProperty("birthtime") String birthtime
+    @JsonProperty("birthtime") OffsetDateTime birthtime,
+    /** Describes a filesystem error. */
+    @JsonProperty("error") SessionFsError error
 ) {
 }

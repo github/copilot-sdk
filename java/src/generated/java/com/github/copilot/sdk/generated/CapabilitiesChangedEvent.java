@@ -36,16 +36,7 @@ public final class CapabilitiesChangedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record CapabilitiesChangedEventData(
         /** UI capability changes */
-        @JsonProperty("ui") CapabilitiesChangedEventDataUi ui
+        @JsonProperty("ui") CapabilitiesChangedUI ui
     ) {
-
-        /** UI capability changes */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record CapabilitiesChangedEventDataUi(
-            /** Whether elicitation is now supported */
-            @JsonProperty("elicitation") Boolean elicitation
-        ) {
-        }
     }
 }

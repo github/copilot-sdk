@@ -10,7 +10,6 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -27,39 +26,6 @@ public record SessionUiHandlePendingElicitationParams(
     /** The unique request ID from the elicitation.requested event */
     @JsonProperty("requestId") String requestId,
     /** The elicitation response (accept with form values, decline, or cancel) */
-    @JsonProperty("result") SessionUiHandlePendingElicitationParamsResult result
+    @JsonProperty("result") UIElicitationResponse result
 ) {
-
-    /** The elicitation response (accept with form values, decline, or cancel) */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SessionUiHandlePendingElicitationParamsResult(
-        /** The user's response: accept (submitted), decline (rejected), or cancel (dismissed) */
-        @JsonProperty("action") SessionUiHandlePendingElicitationParamsResultAction action,
-        /** The form values submitted by the user (present when action is 'accept') */
-        @JsonProperty("content") Map<String, Object> content
-    ) {
-
-        /** The user's response: accept (submitted), decline (rejected), or cancel (dismissed) */
-        public enum SessionUiHandlePendingElicitationParamsResultAction {
-            /** The {@code accept} variant. */
-            ACCEPT("accept"),
-            /** The {@code decline} variant. */
-            DECLINE("decline"),
-            /** The {@code cancel} variant. */
-            CANCEL("cancel");
-
-            private final String value;
-            SessionUiHandlePendingElicitationParamsResultAction(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionUiHandlePendingElicitationParamsResultAction fromValue(String value) {
-                for (SessionUiHandlePendingElicitationParamsResultAction v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionUiHandlePendingElicitationParamsResultAction value: " + value);
-            }
-        }
-    }
 }

@@ -145,7 +145,7 @@ class RpcWrappersTest {
         assertNotNull(session.model);
         assertNotNull(session.mode);
         assertNotNull(session.plan);
-        assertNotNull(session.workspace);
+        assertNotNull(session.workspaces);
         assertNotNull(session.fleet);
         assertNotNull(session.agent);
         assertNotNull(session.skills);

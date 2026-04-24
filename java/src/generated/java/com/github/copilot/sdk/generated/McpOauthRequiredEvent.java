@@ -42,18 +42,7 @@ public final class McpOauthRequiredEvent extends SessionEvent {
         /** URL of the MCP server that requires OAuth */
         @JsonProperty("serverUrl") String serverUrl,
         /** Static OAuth client configuration, if the server specifies one */
-        @JsonProperty("staticClientConfig") McpOauthRequiredEventDataStaticClientConfig staticClientConfig
+        @JsonProperty("staticClientConfig") McpOauthRequiredStaticClientConfig staticClientConfig
     ) {
-
-        /** Static OAuth client configuration, if the server specifies one */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record McpOauthRequiredEventDataStaticClientConfig(
-            /** OAuth client ID for the server */
-            @JsonProperty("clientId") String clientId,
-            /** Whether this is a public OAuth client */
-            @JsonProperty("publicClient") Boolean publicClient
-        ) {
-        }
     }
 }

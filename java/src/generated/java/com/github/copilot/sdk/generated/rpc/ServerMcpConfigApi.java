@@ -57,4 +57,20 @@ public final class ServerMcpConfigApi {
         return caller.invoke("mcp.config.remove", params, Void.class);
     }
 
+    /**
+     * Invokes {@code mcp.config.enable}.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> enable(McpConfigEnableParams params) {
+        return caller.invoke("mcp.config.enable", params, Void.class);
+    }
+
+    /**
+     * Invokes {@code mcp.config.disable}.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> disable(McpConfigDisableParams params) {
+        return caller.invoke("mcp.config.disable", params, Void.class);
+    }
+
 }

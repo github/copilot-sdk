@@ -23,6 +23,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFsReaddirResult(
     /** Entry names in the directory */
-    @JsonProperty("entries") List<String> entries
+    @JsonProperty("entries") List<String> entries,
+    /** Describes a filesystem error. */
+    @JsonProperty("error") SessionFsError error
 ) {
 }

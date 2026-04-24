@@ -42,4 +42,25 @@ public final class SessionPermissionsApi {
         return caller.invoke("session.permissions.handlePendingPermissionRequest", _p, SessionPermissionsHandlePendingPermissionRequestResult.class);
     }
 
+    /**
+     * Invokes {@code session.permissions.setApproveAll}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionPermissionsSetApproveAllResult> setApproveAll(SessionPermissionsSetApproveAllParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.permissions.setApproveAll", _p, SessionPermissionsSetApproveAllResult.class);
+    }
+
+    /**
+     * Invokes {@code session.permissions.resetSessionApprovals}.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionPermissionsResetSessionApprovalsResult> resetSessionApprovals() {
+        return caller.invoke("session.permissions.resetSessionApprovals", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsResetSessionApprovalsResult.class);
+    }
+
 }

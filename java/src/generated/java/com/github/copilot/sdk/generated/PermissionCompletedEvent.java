@@ -37,45 +37,10 @@ public final class PermissionCompletedEvent extends SessionEvent {
     public record PermissionCompletedEventData(
         /** Request ID of the resolved permission request; clients should dismiss any UI for this request */
         @JsonProperty("requestId") String requestId,
+        /** Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts */
+        @JsonProperty("toolCallId") String toolCallId,
         /** The result of the permission request */
-        @JsonProperty("result") PermissionCompletedEventDataResult result
+        @JsonProperty("result") PermissionCompletedResult result
     ) {
-
-        /** The result of the permission request */
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public record PermissionCompletedEventDataResult(
-            /** The outcome of the permission request */
-            @JsonProperty("kind") PermissionCompletedEventDataResultKind kind
-        ) {
-
-            /** The outcome of the permission request */
-            public enum PermissionCompletedEventDataResultKind {
-                /** The {@code approved} variant. */
-                APPROVED("approved"),
-                /** The {@code denied-by-rules} variant. */
-                DENIED_BY_RULES("denied-by-rules"),
-                /** The {@code denied-no-approval-rule-and-could-not-request-from-user} variant. */
-                DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER("denied-no-approval-rule-and-could-not-request-from-user"),
-                /** The {@code denied-interactively-by-user} variant. */
-                DENIED_INTERACTIVELY_BY_USER("denied-interactively-by-user"),
-                /** The {@code denied-by-content-exclusion-policy} variant. */
-                DENIED_BY_CONTENT_EXCLUSION_POLICY("denied-by-content-exclusion-policy"),
-                /** The {@code denied-by-permission-request-hook} variant. */
-                DENIED_BY_PERMISSION_REQUEST_HOOK("denied-by-permission-request-hook");
-
-                private final String value;
-                PermissionCompletedEventDataResultKind(String value) { this.value = value; }
-                @com.fasterxml.jackson.annotation.JsonValue
-                public String getValue() { return value; }
-                @com.fasterxml.jackson.annotation.JsonCreator
-                public static PermissionCompletedEventDataResultKind fromValue(String value) {
-                    for (PermissionCompletedEventDataResultKind v : values()) {
-                        if (v.value.equals(value)) return v;
-                    }
-                    throw new IllegalArgumentException("Unknown PermissionCompletedEventDataResultKind value: " + value);
-                }
-            }
-        }
     }
 }

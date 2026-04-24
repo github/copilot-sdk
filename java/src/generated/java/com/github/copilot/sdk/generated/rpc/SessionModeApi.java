@@ -30,11 +30,11 @@ public final class SessionModeApi {
     }
 
     /**
-     * Invokes {@code session.mode.get}.
+     * The agent mode. Valid values: "interactive", "plan", "autopilot".
      * @since 1.0.0
      */
-    public CompletableFuture<SessionModeGetResult> get() {
-        return caller.invoke("session.mode.get", java.util.Map.of("sessionId", this.sessionId), SessionModeGetResult.class);
+    public CompletableFuture<Void> get() {
+        return caller.invoke("session.mode.get", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
     /**
@@ -44,10 +44,10 @@ public final class SessionModeApi {
      * by the session-scoped wrapper; any value provided is ignored.
      * @since 1.0.0
      */
-    public CompletableFuture<SessionModeSetResult> set(SessionModeSetParams params) {
+    public CompletableFuture<Void> set(SessionModeSetParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mode.set", _p, SessionModeSetResult.class);
+        return caller.invoke("session.mode.set", _p, Void.class);
     }
 
 }

@@ -26,26 +26,6 @@ public record SessionFsSetProviderParams(
     /** Path within each session's SessionFs where the runtime stores files for that session */
     @JsonProperty("sessionStatePath") String sessionStatePath,
     /** Path conventions used by this filesystem */
-    @JsonProperty("conventions") SessionFsSetProviderParamsConventions conventions
+    @JsonProperty("conventions") SessionFsSetProviderConventions conventions
 ) {
-
-    /** Path conventions used by this filesystem */
-    public enum SessionFsSetProviderParamsConventions {
-        /** The {@code windows} variant. */
-        WINDOWS("windows"),
-        /** The {@code posix} variant. */
-        POSIX("posix");
-
-        private final String value;
-        SessionFsSetProviderParamsConventions(String value) { this.value = value; }
-        @com.fasterxml.jackson.annotation.JsonValue
-        public String getValue() { return value; }
-        @com.fasterxml.jackson.annotation.JsonCreator
-        public static SessionFsSetProviderParamsConventions fromValue(String value) {
-            for (SessionFsSetProviderParamsConventions v : values()) {
-                if (v.value.equals(value)) return v;
-            }
-            throw new IllegalArgumentException("Unknown SessionFsSetProviderParamsConventions value: " + value);
-        }
-    }
 }
