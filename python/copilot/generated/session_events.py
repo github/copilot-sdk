@@ -167,6 +167,8 @@ class SessionEventType(Enum):
     COMMAND_QUEUED = "command.queued"
     COMMAND_EXECUTE = "command.execute"
     COMMAND_COMPLETED = "command.completed"
+    AUTO_MODE_SWITCH_REQUESTED = "auto_mode_switch.requested"
+    AUTO_MODE_SWITCH_COMPLETED = "auto_mode_switch.completed"
     COMMANDS_CHANGED = "commands.changed"
     CAPABILITIES_CHANGED = "capabilities.changed"
     EXIT_PLAN_MODE_REQUESTED = "exit_plan_mode.requested"
@@ -745,6 +747,53 @@ class AssistantUsageQuotaSnapshot:
 
 
 @dataclass
+class AutoModeSwitchCompletedData:
+    "Auto mode switch completion notification"
+    request_id: str
+    response: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AutoModeSwitchCompletedData":
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        response = from_str(obj.get("response"))
+        return AutoModeSwitchCompletedData(
+            request_id=request_id,
+            response=response,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["response"] = from_str(self.response)
+        return result
+
+
+@dataclass
+class AutoModeSwitchRequestedData:
+    "Auto mode switch request notification requiring user approval"
+    request_id: str
+    error_code: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AutoModeSwitchRequestedData":
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        error_code = from_union([from_none, from_str], obj.get("errorCode"))
+        return AutoModeSwitchRequestedData(
+            request_id=request_id,
+            error_code=error_code,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        if self.error_code is not None:
+            result["errorCode"] = from_union([from_none, from_str], self.error_code)
+        return result
+
+
+@dataclass
 class CapabilitiesChangedData:
     "Session capability change notification"
     ui: CapabilitiesChangedUI | None = None
@@ -901,28 +950,105 @@ class CommandsChangedData:
 
 @dataclass
 class CompactionCompleteCompactionTokensUsed:
-    "Token usage breakdown for the compaction LLM call"
-    cached_input: float
-    input: float
-    output: float
+    "Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)"
+    cache_read_tokens: float | None = None
+    cache_write_tokens: float | None = None
+    copilot_usage: CompactionCompleteCompactionTokensUsedCopilotUsage | None = None
+    duration: float | None = None
+    input_tokens: float | None = None
+    model: str | None = None
+    output_tokens: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsed":
         assert isinstance(obj, dict)
-        cached_input = from_float(obj.get("cachedInput"))
-        input = from_float(obj.get("input"))
-        output = from_float(obj.get("output"))
+        cache_read_tokens = from_union([from_none, from_float], obj.get("cacheReadTokens"))
+        cache_write_tokens = from_union([from_none, from_float], obj.get("cacheWriteTokens"))
+        copilot_usage = from_union([from_none, CompactionCompleteCompactionTokensUsedCopilotUsage.from_dict], obj.get("copilotUsage"))
+        duration = from_union([from_none, from_float], obj.get("duration"))
+        input_tokens = from_union([from_none, from_float], obj.get("inputTokens"))
+        model = from_union([from_none, from_str], obj.get("model"))
+        output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
         return CompactionCompleteCompactionTokensUsed(
-            cached_input=cached_input,
-            input=input,
-            output=output,
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
+            copilot_usage=copilot_usage,
+            duration=duration,
+            input_tokens=input_tokens,
+            model=model,
+            output_tokens=output_tokens,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["cachedInput"] = to_float(self.cached_input)
-        result["input"] = to_float(self.input)
-        result["output"] = to_float(self.output)
+        if self.cache_read_tokens is not None:
+            result["cacheReadTokens"] = from_union([from_none, to_float], self.cache_read_tokens)
+        if self.cache_write_tokens is not None:
+            result["cacheWriteTokens"] = from_union([from_none, to_float], self.cache_write_tokens)
+        if self.copilot_usage is not None:
+            result["copilotUsage"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsage, x)], self.copilot_usage)
+        if self.duration is not None:
+            result["duration"] = from_union([from_none, to_float], self.duration)
+        if self.input_tokens is not None:
+            result["inputTokens"] = from_union([from_none, to_float], self.input_tokens)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
+        if self.output_tokens is not None:
+            result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
+        return result
+
+
+@dataclass
+class CompactionCompleteCompactionTokensUsedCopilotUsage:
+    "Per-request cost and usage data from the CAPI copilot_usage response field"
+    token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail]
+    total_nano_aiu: float
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsage":
+        assert isinstance(obj, dict)
+        token_details = from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
+        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        return CompactionCompleteCompactionTokensUsedCopilotUsage(
+            token_details=token_details,
+            total_nano_aiu=total_nano_aiu,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tokenDetails"] = from_list(lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail, x), self.token_details)
+        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        return result
+
+
+@dataclass
+class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
+    "Token usage detail for a single billing category"
+    batch_size: float
+    cost_per_batch: float
+    token_count: float
+    token_type: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail":
+        assert isinstance(obj, dict)
+        batch_size = from_float(obj.get("batchSize"))
+        cost_per_batch = from_float(obj.get("costPerBatch"))
+        token_count = from_float(obj.get("tokenCount"))
+        token_type = from_str(obj.get("tokenType"))
+        return CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail(
+            batch_size=batch_size,
+            cost_per_batch=cost_per_batch,
+            token_count=token_count,
+            token_type=token_type,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["batchSize"] = to_float(self.batch_size)
+        result["costPerBatch"] = to_float(self.cost_per_batch)
+        result["tokenCount"] = to_float(self.token_count)
+        result["tokenType"] = from_str(self.token_type)
         return result
 
 
@@ -3997,6 +4123,8 @@ class McpServersLoadedServerStatus(Enum):
 class PermissionCompletedKind(Enum):
     "The outcome of the permission request"
     APPROVED = "approved"
+    APPROVED_FOR_SESSION = "approved-for-session"
+    APPROVED_FOR_LOCATION = "approved-for-location"
     DENIED_BY_RULES = "denied-by-rules"
     DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
     DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
@@ -4114,7 +4242,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
 
 
 @dataclass
@@ -4201,6 +4329,8 @@ class SessionEvent:
             case SessionEventType.COMMAND_QUEUED: data = CommandQueuedData.from_dict(data_obj)
             case SessionEventType.COMMAND_EXECUTE: data = CommandExecuteData.from_dict(data_obj)
             case SessionEventType.COMMAND_COMPLETED: data = CommandCompletedData.from_dict(data_obj)
+            case SessionEventType.AUTO_MODE_SWITCH_REQUESTED: data = AutoModeSwitchRequestedData.from_dict(data_obj)
+            case SessionEventType.AUTO_MODE_SWITCH_COMPLETED: data = AutoModeSwitchCompletedData.from_dict(data_obj)
             case SessionEventType.COMMANDS_CHANGED: data = CommandsChangedData.from_dict(data_obj)
             case SessionEventType.CAPABILITIES_CHANGED: data = CapabilitiesChangedData.from_dict(data_obj)
             case SessionEventType.EXIT_PLAN_MODE_REQUESTED: data = ExitPlanModeRequestedData.from_dict(data_obj)

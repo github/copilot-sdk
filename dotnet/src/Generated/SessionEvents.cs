@@ -33,6 +33,8 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
+[JsonDerivedType(typeof(AutoModeSwitchCompletedEvent), "auto_mode_switch.completed")]
+[JsonDerivedType(typeof(AutoModeSwitchRequestedEvent), "auto_mode_switch.requested")]
 [JsonDerivedType(typeof(CapabilitiesChangedEvent), "capabilities.changed")]
 [JsonDerivedType(typeof(CommandCompletedEvent), "command.completed")]
 [JsonDerivedType(typeof(CommandExecuteEvent), "command.execute")]
@@ -952,6 +954,32 @@ public partial class CommandCompletedEvent : SessionEvent
     public required CommandCompletedData Data { get; set; }
 }
 
+/// <summary>Auto mode switch request notification requiring user approval.</summary>
+/// <remarks>Represents the <c>auto_mode_switch.requested</c> event.</remarks>
+public partial class AutoModeSwitchRequestedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "auto_mode_switch.requested";
+
+    /// <summary>The <c>auto_mode_switch.requested</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AutoModeSwitchRequestedData Data { get; set; }
+}
+
+/// <summary>Auto mode switch completion notification.</summary>
+/// <remarks>Represents the <c>auto_mode_switch.completed</c> event.</remarks>
+public partial class AutoModeSwitchCompletedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "auto_mode_switch.completed";
+
+    /// <summary>The <c>auto_mode_switch.completed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AutoModeSwitchCompletedData Data { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 /// <remarks>Represents the <c>commands.changed</c> event.</remarks>
 public partial class CommandsChangedEvent : SessionEvent
@@ -1580,7 +1608,7 @@ public partial class SessionCompactionCompleteData
     [JsonPropertyName("checkpointPath")]
     public string? CheckpointPath { get; set; }
 
-    /// <summary>Token usage breakdown for the compaction LLM call.</summary>
+    /// <summary>Token usage breakdown for the compaction LLM call (aligned with assistant.usage format).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("compactionTokensUsed")]
     public CompactionCompleteCompactionTokensUsed? CompactionTokensUsed { get; set; }
@@ -2558,6 +2586,31 @@ public partial class CommandCompletedData
     public required string RequestId { get; set; }
 }
 
+/// <summary>Auto mode switch request notification requiring user approval.</summary>
+public partial class AutoModeSwitchRequestedData
+{
+    /// <summary>The rate limit error code that triggered this request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
+    /// <summary>Unique identifier for this request; used to respond via session.respondToAutoModeSwitch().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+}
+
+/// <summary>Auto mode switch completion notification.</summary>
+public partial class AutoModeSwitchCompletedData
+{
+    /// <summary>Request ID of the resolved request; clients should dismiss any UI for this request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>The user's choice: 'yes', 'yes_always', or 'no'.</summary>
+    [JsonPropertyName("response")]
+    public required string Response { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 public partial class CommandsChangedData
 {
@@ -2822,21 +2875,78 @@ public partial class ShutdownModelMetric
     public required ShutdownModelMetricUsage Usage { get; set; }
 }
 
-/// <summary>Token usage breakdown for the compaction LLM call.</summary>
+/// <summary>Token usage detail for a single billing category.</summary>
+/// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail</c>.</remarks>
+public partial class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail
+{
+    /// <summary>Number of tokens in this billing batch.</summary>
+    [JsonPropertyName("batchSize")]
+    public required double BatchSize { get; set; }
+
+    /// <summary>Cost per batch of tokens.</summary>
+    [JsonPropertyName("costPerBatch")]
+    public required double CostPerBatch { get; set; }
+
+    /// <summary>Total token count for this entry.</summary>
+    [JsonPropertyName("tokenCount")]
+    public required double TokenCount { get; set; }
+
+    /// <summary>Token category (e.g., "input", "output").</summary>
+    [JsonPropertyName("tokenType")]
+    public required string TokenType { get; set; }
+}
+
+/// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
+/// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsedCopilotUsage</c>.</remarks>
+public partial class CompactionCompleteCompactionTokensUsedCopilotUsage
+{
+    /// <summary>Itemized token usage breakdown.</summary>
+    [JsonPropertyName("tokenDetails")]
+    public required CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[] TokenDetails { get; set; }
+
+    /// <summary>Total cost in nano-AIU (AI Units) for this request.</summary>
+    [JsonPropertyName("totalNanoAiu")]
+    public required double TotalNanoAiu { get; set; }
+}
+
+/// <summary>Token usage breakdown for the compaction LLM call (aligned with assistant.usage format).</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsed</c>.</remarks>
 public partial class CompactionCompleteCompactionTokensUsed
 {
     /// <summary>Cached input tokens reused in the compaction LLM call.</summary>
-    [JsonPropertyName("cachedInput")]
-    public required double CachedInput { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cacheReadTokens")]
+    public double? CacheReadTokens { get; set; }
+
+    /// <summary>Tokens written to prompt cache in the compaction LLM call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cacheWriteTokens")]
+    public double? CacheWriteTokens { get; set; }
+
+    /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUsage")]
+    public CompactionCompleteCompactionTokensUsedCopilotUsage? CopilotUsage { get; set; }
+
+    /// <summary>Duration of the compaction LLM call in milliseconds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("duration")]
+    public double? Duration { get; set; }
 
     /// <summary>Input tokens consumed by the compaction LLM call.</summary>
-    [JsonPropertyName("input")]
-    public required double Input { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("inputTokens")]
+    public double? InputTokens { get; set; }
+
+    /// <summary>Model identifier used for the compaction LLM call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
 
     /// <summary>Output tokens produced by the compaction LLM call.</summary>
-    [JsonPropertyName("output")]
-    public required double Output { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputTokens")]
+    public double? OutputTokens { get; set; }
 }
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
@@ -4145,6 +4255,12 @@ public enum PermissionCompletedKind
     /// <summary>The <c>approved</c> variant.</summary>
     [JsonStringEnumMemberName("approved")]
     Approved,
+    /// <summary>The <c>approved-for-session</c> variant.</summary>
+    [JsonStringEnumMemberName("approved-for-session")]
+    ApprovedForSession,
+    /// <summary>The <c>approved-for-location</c> variant.</summary>
+    [JsonStringEnumMemberName("approved-for-location")]
+    ApprovedForLocation,
     /// <summary>The <c>denied-by-rules</c> variant.</summary>
     [JsonStringEnumMemberName("denied-by-rules")]
     DeniedByRules,
@@ -4296,6 +4412,10 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(AssistantUsageData))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
 [JsonSerializable(typeof(AssistantUsageQuotaSnapshot))]
+[JsonSerializable(typeof(AutoModeSwitchCompletedData))]
+[JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
+[JsonSerializable(typeof(AutoModeSwitchRequestedData))]
+[JsonSerializable(typeof(AutoModeSwitchRequestedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedUI))]
@@ -4309,6 +4429,8 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(CommandsChangedData))]
 [JsonSerializable(typeof(CommandsChangedEvent))]
 [JsonSerializable(typeof(CompactionCompleteCompactionTokensUsed))]
+[JsonSerializable(typeof(CompactionCompleteCompactionTokensUsedCopilotUsage))]
+[JsonSerializable(typeof(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail))]
 [JsonSerializable(typeof(CustomAgentsUpdatedAgent))]
 [JsonSerializable(typeof(ElicitationCompletedData))]
 [JsonSerializable(typeof(ElicitationCompletedEvent))]

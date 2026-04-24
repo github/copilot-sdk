@@ -244,7 +244,7 @@ describe("Sessions", async () => {
         // Resume using a new client
         const newClient = new CopilotClient({
             env,
-            githubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+            gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
         });
 
         onTestFinished(() => newClient.forceStop());

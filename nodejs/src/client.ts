@@ -215,7 +215,7 @@ export class CopilotClient {
             CopilotClientOptions,
             | "cliPath"
             | "cliUrl"
-            | "githubToken"
+            | "gitHubToken"
             | "useLoggedInUser"
             | "onListModels"
             | "telemetry"
@@ -225,7 +225,7 @@ export class CopilotClient {
     > & {
         cliPath?: string;
         cliUrl?: string;
-        githubToken?: string;
+        gitHubToken?: string;
         useLoggedInUser?: boolean;
         telemetry?: TelemetryConfig;
     };
@@ -294,9 +294,9 @@ export class CopilotClient {
         }
 
         // Validate auth options with external server
-        if (options.cliUrl && (options.githubToken || options.useLoggedInUser !== undefined)) {
+        if (options.cliUrl && (options.gitHubToken || options.useLoggedInUser !== undefined)) {
             throw new Error(
-                "githubToken and useLoggedInUser cannot be used with cliUrl (external server manages its own auth)"
+                "gitHubToken and useLoggedInUser cannot be used with cliUrl (external server manages its own auth)"
             );
         }
 
@@ -336,9 +336,9 @@ export class CopilotClient {
             autoRestart: false,
 
             env: effectiveEnv,
-            githubToken: options.githubToken,
-            // Default useLoggedInUser to false when githubToken is provided, otherwise true
-            useLoggedInUser: options.useLoggedInUser ?? (options.githubToken ? false : true),
+            gitHubToken: options.gitHubToken,
+            // Default useLoggedInUser to false when gitHubToken is provided, otherwise true
+            useLoggedInUser: options.useLoggedInUser ?? (options.gitHubToken ? false : true),
             telemetry: options.telemetry,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
         };
@@ -763,6 +763,7 @@ export class CopilotClient {
                 skillDirectories: config.skillDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
+                gitHubToken: config.gitHubToken,
             });
 
             const { workspacePath, capabilities } = response as {
@@ -906,6 +907,7 @@ export class CopilotClient {
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
                 disableResume: config.disableResume,
+                gitHubToken: config.gitHubToken,
             });
 
             const { workspacePath, capabilities } = response as {
@@ -1408,7 +1410,7 @@ export class CopilotClient {
             }
 
             // Add auth-related flags
-            if (this.options.githubToken) {
+            if (this.options.gitHubToken) {
                 args.push("--auth-token-env", "COPILOT_SDK_AUTH_TOKEN");
             }
             if (!this.options.useLoggedInUser) {
@@ -1430,8 +1432,8 @@ export class CopilotClient {
             delete envWithoutNodeDebug.NODE_DEBUG;
 
             // Set auth token in environment if provided
-            if (this.options.githubToken) {
-                envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.githubToken;
+            if (this.options.gitHubToken) {
+                envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
             }
 
             if (!this.options.cliPath) {

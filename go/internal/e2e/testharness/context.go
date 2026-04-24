@@ -144,6 +144,11 @@ func (c *TestContext) GetExchanges() ([]ParsedHttpExchange, error) {
 	return c.proxy.GetExchanges()
 }
 
+// SetCopilotUserByToken registers a per-token user configuration on the proxy.
+func (c *TestContext) SetCopilotUserByToken(token string, response map[string]interface{}) error {
+	return c.proxy.SetCopilotUserByToken(token, response)
+}
+
 // Env returns environment variables configured for isolated testing.
 func (c *TestContext) Env() []string {
 	env := os.Environ()

@@ -449,6 +449,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAutoModeSwitchRequested:
+		var d AutoModeSwitchRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAutoModeSwitchCompleted:
+		var d AutoModeSwitchCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeCommandsChanged:
 		var d CommandsChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -607,6 +619,8 @@ const (
 	SessionEventTypeCommandQueued                 SessionEventType = "command.queued"
 	SessionEventTypeCommandExecute                SessionEventType = "command.execute"
 	SessionEventTypeCommandCompleted              SessionEventType = "command.completed"
+	SessionEventTypeAutoModeSwitchRequested       SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeAutoModeSwitchCompleted       SessionEventType = "auto_mode_switch.completed"
 	SessionEventTypeCommandsChanged               SessionEventType = "commands.changed"
 	SessionEventTypeCapabilitiesChanged           SessionEventType = "capabilities.changed"
 	SessionEventTypeExitPlanModeRequested         SessionEventType = "exit_plan_mode.requested"
@@ -677,6 +691,26 @@ type AssistantMessageData struct {
 
 func (*AssistantMessageData) sessionEventData() {}
 
+// Auto mode switch completion notification
+type AutoModeSwitchCompletedData struct {
+	// Request ID of the resolved request; clients should dismiss any UI for this request
+	RequestID string `json:"requestId"`
+	// The user's choice: 'yes', 'yes_always', or 'no'
+	Response string `json:"response"`
+}
+
+func (*AutoModeSwitchCompletedData) sessionEventData() {}
+
+// Auto mode switch request notification requiring user approval
+type AutoModeSwitchRequestedData struct {
+	// The rate limit error code that triggered this request
+	ErrorCode *string `json:"errorCode,omitempty"`
+	// Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
+	RequestID string `json:"requestId"`
+}
+
+func (*AutoModeSwitchRequestedData) sessionEventData() {}
+
 // Context window breakdown at the start of LLM-powered conversation compaction
 type SessionCompactionStartData struct {
 	// Token count from non-system messages (user, assistant, tool) at compaction start
@@ -695,7 +729,7 @@ type SessionCompactionCompleteData struct {
 	CheckpointNumber *float64 `json:"checkpointNumber,omitempty"`
 	// File path where the checkpoint was stored
 	CheckpointPath *string `json:"checkpointPath,omitempty"`
-	// Token usage breakdown for the compaction LLM call
+	// Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
 	CompactionTokensUsed *CompactionCompleteCompactionTokensUsed `json:"compactionTokensUsed,omitempty"`
 	// Token count from non-system messages (user, assistant, tool) after compaction
 	ConversationTokens *float64 `json:"conversationTokens,omitempty"`
@@ -1864,6 +1898,14 @@ type AssistantUsageCopilotUsage struct {
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
 
+// Per-request cost and usage data from the CAPI copilot_usage response field
+type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
+	// Itemized token usage breakdown
+	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
+	// Total cost in nano-AIU (AI Units) for this request
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
+}
+
 // Position range of the selection within the file
 type UserMessageAttachmentSelectionDetails struct {
 	// End position of the selection
@@ -1954,18 +1996,38 @@ type ShutdownModelMetricUsage struct {
 	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
 }
 
-// Token usage breakdown for the compaction LLM call
+// Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
 type CompactionCompleteCompactionTokensUsed struct {
 	// Cached input tokens reused in the compaction LLM call
-	CachedInput float64 `json:"cachedInput"`
+	CacheReadTokens *float64 `json:"cacheReadTokens,omitempty"`
+	// Tokens written to prompt cache in the compaction LLM call
+	CacheWriteTokens *float64 `json:"cacheWriteTokens,omitempty"`
+	// Per-request cost and usage data from the CAPI copilot_usage response field
+	CopilotUsage *CompactionCompleteCompactionTokensUsedCopilotUsage `json:"copilotUsage,omitempty"`
+	// Duration of the compaction LLM call in milliseconds
+	Duration *float64 `json:"duration,omitempty"`
 	// Input tokens consumed by the compaction LLM call
-	Input float64 `json:"input"`
+	InputTokens *float64 `json:"inputTokens,omitempty"`
+	// Model identifier used for the compaction LLM call
+	Model *string `json:"model,omitempty"`
 	// Output tokens produced by the compaction LLM call
-	Output float64 `json:"output"`
+	OutputTokens *float64 `json:"outputTokens,omitempty"`
 }
 
 // Token usage detail for a single billing category
 type AssistantUsageCopilotUsageTokenDetail struct {
+	// Number of tokens in this billing batch
+	BatchSize float64 `json:"batchSize"`
+	// Cost per batch of tokens
+	CostPerBatch float64 `json:"costPerBatch"`
+	// Total token count for this entry
+	TokenCount float64 `json:"tokenCount"`
+	// Token category (e.g., "input", "output")
+	TokenType string `json:"tokenType"`
+}
+
+// Token usage detail for a single billing category
+type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
 	// Number of tokens in this billing batch
 	BatchSize float64 `json:"batchSize"`
 	// Cost per batch of tokens
@@ -2214,6 +2276,8 @@ type PermissionCompletedKind string
 
 const (
 	PermissionCompletedKindApproved                                       PermissionCompletedKind = "approved"
+	PermissionCompletedKindApprovedForSession                             PermissionCompletedKind = "approved-for-session"
+	PermissionCompletedKindApprovedForLocation                            PermissionCompletedKind = "approved-for-location"
 	PermissionCompletedKindDeniedByRules                                  PermissionCompletedKind = "denied-by-rules"
 	PermissionCompletedKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionCompletedKind = "denied-no-approval-rule-and-could-not-request-from-user"
 	PermissionCompletedKindDeniedInteractivelyByUser                      PermissionCompletedKind = "denied-interactively-by-user"

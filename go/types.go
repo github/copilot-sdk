@@ -588,6 +588,10 @@ type SessionConfig struct {
 	// When provided, the server may call back to this client for form-based UI dialogs
 	// (e.g. from MCP tools). Also enables the elicitation capability on the session.
 	OnElicitationRequest ElicitationHandler
+	// GitHubToken is an optional per-session GitHub token used for authentication.
+	// When provided, the session authenticates as the token's owner instead of
+	// using the global client-level auth.
+	GitHubToken string `json:"-"`
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -787,6 +791,10 @@ type ResumeSessionConfig struct {
 	DisabledSkills []string
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
 	InfiniteSessions *InfiniteSessionConfig
+	// GitHubToken is an optional per-session GitHub token used for authentication.
+	// When provided, the session authenticates as the token's owner instead of
+	// using the global client-level auth.
+	GitHubToken string `json:"-"`
 	// DisableResume, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
 	DisableResume bool
@@ -999,6 +1007,7 @@ type createSessionRequest struct {
 	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
 	Commands                       []wireCommand                  `json:"commands,omitempty"`
 	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
+	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
@@ -1047,6 +1056,7 @@ type resumeSessionRequest struct {
 	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
 	Commands                       []wireCommand                  `json:"commands,omitempty"`
 	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
+	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }

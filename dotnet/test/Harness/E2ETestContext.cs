@@ -83,6 +83,11 @@ public sealed class E2ETestContext : IAsyncDisposable
         return _proxy.GetExchangesAsync();
     }
 
+    public Task SetCopilotUserByTokenAsync(string token, CopilotUserConfig response)
+    {
+        return _proxy.SetCopilotUserByTokenAsync(token, response);
+    }
+
     public IReadOnlyDictionary<string, string> GetEnvironment()
     {
         var env = Environment.GetEnvironmentVariables()

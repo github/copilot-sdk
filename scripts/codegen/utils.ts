@@ -482,11 +482,14 @@ export function resolveObjectSchema(
     }
 
     const singleBranch = (resolved.anyOf ?? resolved.oneOf)
-        ?.filter((item): item is JSONSchema7 =>
-            typeof item === "object" &&
-            (item as JSONSchema7).type !== "null" &&
-            !((item as JSONSchema7).not !== undefined && typeof (item as JSONSchema7).not === "object" && Object.keys((item as JSONSchema7).not as object).length === 0)
-        );
+        ?.filter((item): item is JSONSchema7 => {
+            if (!item || typeof item !== "object") return false;
+            const s = item as JSONSchema7;
+            // Filter out null types and `{ not: {} }` (Zod's representation of "nothing" in optional anyOf)
+            if (s.type === "null") return false;
+            if (s.not && typeof s.not === "object" && Object.keys(s.not).length === 0) return false;
+            return true;
+        });
     if (singleBranch && singleBranch.length === 1) {
         return resolveObjectSchema(singleBranch[0], definitions);
     }

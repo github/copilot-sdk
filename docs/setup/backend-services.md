@@ -290,7 +290,7 @@ Pass individual user tokens when creating sessions. See [GitHub OAuth](./github-
 app.post("/chat", authMiddleware, async (req, res) => {
     const client = new CopilotClient({
         cliUrl: "localhost:4321",
-        githubToken: req.user.githubToken,
+        gitHubToken: req.user.githubToken,
         useLoggedInUser: false,
     });
 

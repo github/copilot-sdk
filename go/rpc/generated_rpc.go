@@ -13,6 +13,7 @@ import (
 )
 
 type RPCTypes struct {
+	AccountGetQuotaRequest                                           AccountGetQuotaRequest                                           `json:"AccountGetQuotaRequest"`
 	AccountGetQuotaResult                                            AccountGetQuotaResult                                            `json:"AccountGetQuotaResult"`
 	AccountQuotaSnapshot                                             AccountQuotaSnapshot                                             `json:"AccountQuotaSnapshot"`
 	AgentDeselectResult                                              AgentDeselectResult                                              `json:"AgentDeselectResult"`
@@ -22,6 +23,7 @@ type RPCTypes struct {
 	AgentReloadResult                                                AgentReloadResult                                                `json:"AgentReloadResult"`
 	AgentSelectRequest                                               AgentSelectRequest                                               `json:"AgentSelectRequest"`
 	AgentSelectResult                                                AgentSelectResult                                                `json:"AgentSelectResult"`
+	AuthInfoType                                                     AuthInfoType                                                     `json:"AuthInfoType"`
 	CommandsHandlePendingCommandRequest                              CommandsHandlePendingCommandRequest                              `json:"CommandsHandlePendingCommandRequest"`
 	CommandsHandlePendingCommandResult                               CommandsHandlePendingCommandResult                               `json:"CommandsHandlePendingCommandResult"`
 	CurrentModel                                                     CurrentModel                                                     `json:"CurrentModel"`
@@ -55,6 +57,10 @@ type RPCTypes struct {
 	LogResult                                                        LogResult                                                        `json:"LogResult"`
 	MCPConfigAddRequest                                              MCPConfigAddRequest                                              `json:"McpConfigAddRequest"`
 	MCPConfigAddResult                                               MCPConfigAddResult                                               `json:"McpConfigAddResult"`
+	MCPConfigDisableRequest                                          MCPConfigDisableRequest                                          `json:"McpConfigDisableRequest"`
+	MCPConfigDisableResult                                           MCPConfigDisableResult                                           `json:"McpConfigDisableResult"`
+	MCPConfigEnableRequest                                           MCPConfigEnableRequest                                           `json:"McpConfigEnableRequest"`
+	MCPConfigEnableResult                                            MCPConfigEnableResult                                            `json:"McpConfigEnableResult"`
 	MCPConfigList                                                    MCPConfigList                                                    `json:"McpConfigList"`
 	MCPConfigRemoveRequest                                           MCPConfigRemoveRequest                                           `json:"McpConfigRemoveRequest"`
 	MCPConfigRemoveResult                                            MCPConfigRemoveResult                                            `json:"McpConfigRemoveResult"`
@@ -66,6 +72,8 @@ type RPCTypes struct {
 	MCPDiscoverResult                                                MCPDiscoverResult                                                `json:"McpDiscoverResult"`
 	MCPEnableRequest                                                 MCPEnableRequest                                                 `json:"McpEnableRequest"`
 	MCPEnableResult                                                  MCPEnableResult                                                  `json:"McpEnableResult"`
+	MCPOauthLoginRequest                                             MCPOauthLoginRequest                                             `json:"McpOauthLoginRequest"`
+	MCPOauthLoginResult                                              MCPOauthLoginResult                                              `json:"McpOauthLoginResult"`
 	MCPReloadResult                                                  MCPReloadResult                                                  `json:"McpReloadResult"`
 	MCPServer                                                        MCPServer                                                        `json:"McpServer"`
 	MCPServerConfig                                                  MCPServerConfig                                                  `json:"McpServerConfig"`
@@ -88,6 +96,7 @@ type RPCTypes struct {
 	ModelCapabilitiesSupports                                        ModelCapabilitiesSupports                                        `json:"ModelCapabilitiesSupports"`
 	ModelList                                                        ModelList                                                        `json:"ModelList"`
 	ModelPolicy                                                      ModelPolicy                                                      `json:"ModelPolicy"`
+	ModelsListRequest                                                ModelsListRequest                                                `json:"ModelsListRequest"`
 	ModelSwitchToRequest                                             ModelSwitchToRequest                                             `json:"ModelSwitchToRequest"`
 	ModelSwitchToResult                                              ModelSwitchToResult                                              `json:"ModelSwitchToResult"`
 	ModeSetRequest                                                   ModeSetRequest                                                   `json:"ModeSetRequest"`
@@ -97,6 +106,22 @@ type RPCTypes struct {
 	NameSetResult                                                    NameSetResult                                                    `json:"NameSetResult"`
 	PermissionDecision                                               PermissionDecision                                               `json:"PermissionDecision"`
 	PermissionDecisionApproved                                       PermissionDecisionApproved                                       `json:"PermissionDecisionApproved"`
+	PermissionDecisionApprovedForLocation                            PermissionDecisionApprovedForLocation                            `json:"PermissionDecisionApprovedForLocation"`
+	PermissionDecisionApprovedForLocationApproval                    PermissionDecisionApprovedForLocationApproval                    `json:"PermissionDecisionApprovedForLocationApproval"`
+	PermissionDecisionApprovedForLocationApprovalCommands            PermissionDecisionApprovedForLocationApprovalCommands            `json:"PermissionDecisionApprovedForLocationApprovalCommands"`
+	PermissionDecisionApprovedForLocationApprovalCustomTool          PermissionDecisionApprovedForLocationApprovalCustomTool          `json:"PermissionDecisionApprovedForLocationApprovalCustomTool"`
+	PermissionDecisionApprovedForLocationApprovalMCP                 PermissionDecisionApprovedForLocationApprovalMCP                 `json:"PermissionDecisionApprovedForLocationApprovalMcp"`
+	PermissionDecisionApprovedForLocationApprovalMCPSampling         PermissionDecisionApprovedForLocationApprovalMCPSampling         `json:"PermissionDecisionApprovedForLocationApprovalMcpSampling"`
+	PermissionDecisionApprovedForLocationApprovalMemory              PermissionDecisionApprovedForLocationApprovalMemory              `json:"PermissionDecisionApprovedForLocationApprovalMemory"`
+	PermissionDecisionApprovedForLocationApprovalWrite               PermissionDecisionApprovedForLocationApprovalWrite               `json:"PermissionDecisionApprovedForLocationApprovalWrite"`
+	PermissionDecisionApprovedForSession                             PermissionDecisionApprovedForSession                             `json:"PermissionDecisionApprovedForSession"`
+	PermissionDecisionApprovedForSessionApproval                     PermissionDecisionApprovedForSessionApproval                     `json:"PermissionDecisionApprovedForSessionApproval"`
+	PermissionDecisionApprovedForSessionApprovalCommands             PermissionDecisionApprovedForSessionApprovalCommands             `json:"PermissionDecisionApprovedForSessionApprovalCommands"`
+	PermissionDecisionApprovedForSessionApprovalCustomTool           PermissionDecisionApprovedForSessionApprovalCustomTool           `json:"PermissionDecisionApprovedForSessionApprovalCustomTool"`
+	PermissionDecisionApprovedForSessionApprovalMCP                  PermissionDecisionApprovedForSessionApprovalMCP                  `json:"PermissionDecisionApprovedForSessionApprovalMcp"`
+	PermissionDecisionApprovedForSessionApprovalMCPSampling          PermissionDecisionApprovedForSessionApprovalMCPSampling          `json:"PermissionDecisionApprovedForSessionApprovalMcpSampling"`
+	PermissionDecisionApprovedForSessionApprovalMemory               PermissionDecisionApprovedForSessionApprovalMemory               `json:"PermissionDecisionApprovedForSessionApprovalMemory"`
+	PermissionDecisionApprovedForSessionApprovalWrite                PermissionDecisionApprovedForSessionApprovalWrite                `json:"PermissionDecisionApprovedForSessionApprovalWrite"`
 	PermissionDecisionDeniedByContentExclusionPolicy                 PermissionDecisionDeniedByContentExclusionPolicy                 `json:"PermissionDecisionDeniedByContentExclusionPolicy"`
 	PermissionDecisionDeniedByPermissionRequestHook                  PermissionDecisionDeniedByPermissionRequestHook                  `json:"PermissionDecisionDeniedByPermissionRequestHook"`
 	PermissionDecisionDeniedByRules                                  PermissionDecisionDeniedByRules                                  `json:"PermissionDecisionDeniedByRules"`
@@ -104,6 +129,10 @@ type RPCTypes struct {
 	PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser `json:"PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser"`
 	PermissionDecisionRequest                                        PermissionDecisionRequest                                        `json:"PermissionDecisionRequest"`
 	PermissionRequestResult                                          PermissionRequestResult                                          `json:"PermissionRequestResult"`
+	PermissionsResetSessionApprovalsRequest                          PermissionsResetSessionApprovalsRequest                          `json:"PermissionsResetSessionApprovalsRequest"`
+	PermissionsResetSessionApprovalsResult                           PermissionsResetSessionApprovalsResult                           `json:"PermissionsResetSessionApprovalsResult"`
+	PermissionsSetApproveAllRequest                                  PermissionsSetApproveAllRequest                                  `json:"PermissionsSetApproveAllRequest"`
+	PermissionsSetApproveAllResult                                   PermissionsSetApproveAllResult                                   `json:"PermissionsSetApproveAllResult"`
 	PingRequest                                                      PingRequest                                                      `json:"PingRequest"`
 	PingResult                                                       PingResult                                                       `json:"PingResult"`
 	PlanDeleteResult                                                 PlanDeleteResult                                                 `json:"PlanDeleteResult"`
@@ -114,6 +143,7 @@ type RPCTypes struct {
 	PluginList                                                       PluginList                                                       `json:"PluginList"`
 	ServerSkill                                                      ServerSkill                                                      `json:"ServerSkill"`
 	ServerSkillList                                                  ServerSkillList                                                  `json:"ServerSkillList"`
+	SessionAuthStatus                                                SessionAuthStatus                                                `json:"SessionAuthStatus"`
 	SessionFSAppendFileRequest                                       SessionFSAppendFileRequest                                       `json:"SessionFsAppendFileRequest"`
 	SessionFSError                                                   SessionFSError                                                   `json:"SessionFsError"`
 	SessionFSErrorCode                                               SessionFSErrorCode                                               `json:"SessionFsErrorCode"`
@@ -194,6 +224,12 @@ type RPCTypes struct {
 	WorkspacesListFilesResult                                        WorkspacesListFilesResult                                        `json:"WorkspacesListFilesResult"`
 	WorkspacesReadFileRequest                                        WorkspacesReadFileRequest                                        `json:"WorkspacesReadFileRequest"`
 	WorkspacesReadFileResult                                         WorkspacesReadFileResult                                         `json:"WorkspacesReadFileResult"`
+}
+
+type AccountGetQuotaRequest struct {
+	// GitHub token for per-user quota lookup. When provided, resolves this token to determine
+	// the user's quota instead of using the global auth.
+	GitHubToken *string `json:"gitHubToken,omitempty"`
 }
 
 type AccountGetQuotaResult struct {
@@ -463,6 +499,25 @@ type MCPServerConfig struct {
 type MCPConfigAddResult struct {
 }
 
+type MCPConfigDisableRequest struct {
+	// Names of MCP servers to disable. Each server is added to the persisted disabled list so
+	// new sessions skip it. Already-disabled names are ignored. Active sessions keep their
+	// current connections until they end.
+	Names []string `json:"names"`
+}
+
+type MCPConfigDisableResult struct {
+}
+
+type MCPConfigEnableRequest struct {
+	// Names of MCP servers to enable. Each server is removed from the persisted disabled list
+	// so new sessions spawn it. Unknown or already-enabled names are ignored.
+	Names []string `json:"names"`
+}
+
+type MCPConfigEnableResult struct {
+}
+
 type MCPConfigList struct {
 	// All MCP servers from user config, keyed by name
 	Servers map[string]MCPServerConfig `json:"servers"`
@@ -510,6 +565,34 @@ type MCPEnableRequest struct {
 }
 
 type MCPEnableResult struct {
+}
+
+type MCPOauthLoginRequest struct {
+	// Optional override for the body text shown on the OAuth loopback callback success page.
+	// When omitted, the runtime applies a neutral fallback; callers driving interactive auth
+	// should pass surface-specific copy telling the user where to return.
+	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Optional override for the OAuth client display name shown on the consent screen. Applies
+	// to newly registered dynamic clients only — existing registrations keep the name they were
+	// created with. When omitted, the runtime applies a neutral fallback; callers driving
+	// interactive auth should pass their own surface-specific label so the consent screen
+	// matches the product the user sees.
+	ClientName *string `json:"clientName,omitempty"`
+	// When true, clears any cached OAuth token for the server and runs a full new
+	// authorization. Use when the user explicitly wants to switch accounts or believes their
+	// session is stuck.
+	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Name of the remote MCP server to authenticate
+	ServerName string `json:"serverName"`
+}
+
+type MCPOauthLoginResult struct {
+	// URL the caller should open in a browser to complete OAuth. Omitted when cached tokens
+	// were still valid and no browser interaction was needed — the server is already
+	// reconnected in that case. When present, the runtime starts the callback listener before
+	// returning and continues the flow in the background; completion is signaled via
+	// session.mcp_server_status_changed.
+	AuthorizationURL *string `json:"authorizationUrl,omitempty"`
 }
 
 type MCPReloadResult struct {
@@ -634,7 +717,7 @@ type ModelPolicy struct {
 	// Current policy state for this model
 	State string `json:"state"`
 	// Usage terms or conditions for this model
-	Terms string `json:"terms"`
+	Terms *string `json:"terms,omitempty"`
 }
 
 // Override individual model capabilities resolved by the runtime
@@ -688,6 +771,12 @@ type ModelSwitchToResult struct {
 	ModelID *string `json:"modelId,omitempty"`
 }
 
+type ModelsListRequest struct {
+	// GitHub token for per-user model listing. When provided, resolves this token to determine
+	// the user's Copilot plan and available models instead of using the global auth.
+	GitHubToken *string `json:"gitHubToken,omitempty"`
+}
+
 type NameGetResult struct {
 	// The session name, falling back to the auto-generated summary, or null if neither exists
 	Name *string `json:"name"`
@@ -704,6 +793,10 @@ type NameSetResult struct {
 type PermissionDecision struct {
 	// The permission request was approved
 	//
+	// Approved and remembered for the rest of the session
+	//
+	// Approved and persisted for this project location
+	//
 	// Denied because approval rules explicitly blocked it
 	//
 	// Denied because no approval rule matched and user confirmation was unavailable
@@ -714,6 +807,12 @@ type PermissionDecision struct {
 	//
 	// Denied by a permission request hook registered by an extension or plugin
 	Kind PermissionDecisionKind `json:"kind"`
+	// The approval to add as a session-scoped rule
+	//
+	// The approval to persist for this location
+	Approval *PermissionDecisionApprovedForLocationApproval `json:"approval,omitempty"`
+	// The location key (git root or cwd) to persist the approval to
+	LocationKey *string `json:"locationKey,omitempty"`
 	// Rules that denied the request
 	Rules []any `json:"rules,omitempty"`
 	// Optional feedback from the user explaining the denial
@@ -731,6 +830,96 @@ type PermissionDecision struct {
 type PermissionDecisionApproved struct {
 	// The permission request was approved
 	Kind PermissionDecisionApprovedKind `json:"kind"`
+}
+
+type PermissionDecisionApprovedForLocation struct {
+	// The approval to persist for this location
+	Approval PermissionDecisionApprovedForLocationApproval `json:"approval"`
+	// Approved and persisted for this project location
+	Kind PermissionDecisionApprovedForLocationKind `json:"kind"`
+	// The location key (git root or cwd) to persist the approval to
+	LocationKey string `json:"locationKey"`
+}
+
+// The approval to persist for this location
+type PermissionDecisionApprovedForLocationApproval struct {
+	CommandIdentifiers []string     `json:"commandIdentifiers,omitempty"`
+	Kind               ApprovalKind `json:"kind"`
+	ServerName         *string      `json:"serverName,omitempty"`
+	ToolName           *string      `json:"toolName"`
+}
+
+type PermissionDecisionApprovedForLocationApprovalCommands struct {
+	CommandIdentifiers []string                                                  `json:"commandIdentifiers"`
+	Kind               PermissionDecisionApprovedForLocationApprovalCommandsKind `json:"kind"`
+}
+
+type PermissionDecisionApprovedForLocationApprovalCustomTool struct {
+	Kind     PermissionDecisionApprovedForLocationApprovalCustomToolKind `json:"kind"`
+	ToolName string                                                      `json:"toolName"`
+}
+
+type PermissionDecisionApprovedForLocationApprovalMCP struct {
+	Kind       PermissionDecisionApprovedForLocationApprovalMCPKind `json:"kind"`
+	ServerName string                                               `json:"serverName"`
+	ToolName   *string                                              `json:"toolName"`
+}
+
+type PermissionDecisionApprovedForLocationApprovalMCPSampling struct {
+	Kind       PermissionDecisionApprovedForLocationApprovalMCPSamplingKind `json:"kind"`
+	ServerName string                                                       `json:"serverName"`
+}
+
+type PermissionDecisionApprovedForLocationApprovalMemory struct {
+	Kind PermissionDecisionApprovedForLocationApprovalMemoryKind `json:"kind"`
+}
+
+type PermissionDecisionApprovedForLocationApprovalWrite struct {
+	Kind PermissionDecisionApprovedForLocationApprovalWriteKind `json:"kind"`
+}
+
+type PermissionDecisionApprovedForSession struct {
+	// The approval to add as a session-scoped rule
+	Approval PermissionDecisionApprovedForSessionApproval `json:"approval"`
+	// Approved and remembered for the rest of the session
+	Kind PermissionDecisionApprovedForSessionKind `json:"kind"`
+}
+
+// The approval to add as a session-scoped rule
+type PermissionDecisionApprovedForSessionApproval struct {
+	CommandIdentifiers []string     `json:"commandIdentifiers,omitempty"`
+	Kind               ApprovalKind `json:"kind"`
+	ServerName         *string      `json:"serverName,omitempty"`
+	ToolName           *string      `json:"toolName"`
+}
+
+type PermissionDecisionApprovedForSessionApprovalCommands struct {
+	CommandIdentifiers []string                                                  `json:"commandIdentifiers"`
+	Kind               PermissionDecisionApprovedForLocationApprovalCommandsKind `json:"kind"`
+}
+
+type PermissionDecisionApprovedForSessionApprovalCustomTool struct {
+	Kind     PermissionDecisionApprovedForLocationApprovalCustomToolKind `json:"kind"`
+	ToolName string                                                      `json:"toolName"`
+}
+
+type PermissionDecisionApprovedForSessionApprovalMCP struct {
+	Kind       PermissionDecisionApprovedForLocationApprovalMCPKind `json:"kind"`
+	ServerName string                                               `json:"serverName"`
+	ToolName   *string                                              `json:"toolName"`
+}
+
+type PermissionDecisionApprovedForSessionApprovalMCPSampling struct {
+	Kind       PermissionDecisionApprovedForLocationApprovalMCPSamplingKind `json:"kind"`
+	ServerName string                                                       `json:"serverName"`
+}
+
+type PermissionDecisionApprovedForSessionApprovalMemory struct {
+	Kind PermissionDecisionApprovedForLocationApprovalMemoryKind `json:"kind"`
+}
+
+type PermissionDecisionApprovedForSessionApprovalWrite struct {
+	Kind PermissionDecisionApprovedForLocationApprovalWriteKind `json:"kind"`
 }
 
 type PermissionDecisionDeniedByContentExclusionPolicy struct {
@@ -778,6 +967,24 @@ type PermissionDecisionRequest struct {
 
 type PermissionRequestResult struct {
 	// Whether the permission request was handled successfully
+	Success bool `json:"success"`
+}
+
+type PermissionsResetSessionApprovalsRequest struct {
+}
+
+type PermissionsResetSessionApprovalsResult struct {
+	// Whether the operation succeeded
+	Success bool `json:"success"`
+}
+
+type PermissionsSetApproveAllRequest struct {
+	// Whether to auto-approve all tool permission requests
+	Enabled bool `json:"enabled"`
+}
+
+type PermissionsSetApproveAllResult struct {
+	// Whether the operation succeeded
 	Success bool `json:"success"`
 }
 
@@ -852,6 +1059,21 @@ type ServerSkill struct {
 type ServerSkillList struct {
 	// All discovered skills across all sources
 	Skills []ServerSkill `json:"skills"`
+}
+
+type SessionAuthStatus struct {
+	// Authentication type
+	AuthType *AuthInfoType `json:"authType,omitempty"`
+	// Copilot plan tier (e.g., individual_pro, business)
+	CopilotPlan *string `json:"copilotPlan,omitempty"`
+	// Authentication host URL
+	Host *string `json:"host,omitempty"`
+	// Whether the session has resolved authentication
+	IsAuthenticated bool `json:"isAuthenticated"`
+	// Authenticated login/username, if available
+	Login *string `json:"login,omitempty"`
+	// Human-readable authentication status description
+	StatusMessage *string `json:"statusMessage,omitempty"`
 }
 
 type SessionFSAppendFileRequest struct {
@@ -1414,6 +1636,19 @@ type WorkspacesReadFileResult struct {
 	Content string `json:"content"`
 }
 
+// Authentication type
+type AuthInfoType string
+
+const (
+	AuthInfoTypeAPIKey          AuthInfoType = "api-key"
+	AuthInfoTypeUser            AuthInfoType = "user"
+	AuthInfoTypeCopilotAPIToken AuthInfoType = "copilot-api-token"
+	AuthInfoTypeEnv             AuthInfoType = "env"
+	AuthInfoTypeGhCli           AuthInfoType = "gh-cli"
+	AuthInfoTypeHmac            AuthInfoType = "hmac"
+	AuthInfoTypeToken           AuthInfoType = "token"
+)
+
 // Configuration source
 //
 // Configuration source: user, workspace, plugin, or builtin
@@ -1431,9 +1666,9 @@ type DiscoveredMCPServerType string
 
 const (
 	DiscoveredMCPServerTypeHTTP   DiscoveredMCPServerType = "http"
+	DiscoveredMCPServerTypeMemory DiscoveredMCPServerType = "memory"
 	DiscoveredMCPServerTypeSSE    DiscoveredMCPServerType = "sse"
 	DiscoveredMCPServerTypeStdio  DiscoveredMCPServerType = "stdio"
-	DiscoveredMCPServerTypeMemory DiscoveredMCPServerType = "memory"
 )
 
 // Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
@@ -1539,10 +1774,23 @@ const (
 	SessionModePlan        SessionMode = "plan"
 )
 
+type ApprovalKind string
+
+const (
+	ApprovalKindCommands    ApprovalKind = "commands"
+	ApprovalKindCustomTool  ApprovalKind = "custom-tool"
+	ApprovalKindMcp         ApprovalKind = "mcp"
+	ApprovalKindMcpSampling ApprovalKind = "mcp-sampling"
+	ApprovalKindMemory      ApprovalKind = "memory"
+	ApprovalKindWrite       ApprovalKind = "write"
+)
+
 type PermissionDecisionKind string
 
 const (
 	PermissionDecisionKindApproved                                       PermissionDecisionKind = "approved"
+	PermissionDecisionKindApprovedForLocation                            PermissionDecisionKind = "approved-for-location"
+	PermissionDecisionKindApprovedForSession                             PermissionDecisionKind = "approved-for-session"
 	PermissionDecisionKindDeniedByContentExclusionPolicy                 PermissionDecisionKind = "denied-by-content-exclusion-policy"
 	PermissionDecisionKindDeniedByPermissionRequestHook                  PermissionDecisionKind = "denied-by-permission-request-hook"
 	PermissionDecisionKindDeniedByRules                                  PermissionDecisionKind = "denied-by-rules"
@@ -1554,6 +1802,54 @@ type PermissionDecisionApprovedKind string
 
 const (
 	PermissionDecisionApprovedKindApproved PermissionDecisionApprovedKind = "approved"
+)
+
+type PermissionDecisionApprovedForLocationKind string
+
+const (
+	PermissionDecisionApprovedForLocationKindApprovedForLocation PermissionDecisionApprovedForLocationKind = "approved-for-location"
+)
+
+type PermissionDecisionApprovedForLocationApprovalCommandsKind string
+
+const (
+	PermissionDecisionApprovedForLocationApprovalCommandsKindCommands PermissionDecisionApprovedForLocationApprovalCommandsKind = "commands"
+)
+
+type PermissionDecisionApprovedForLocationApprovalCustomToolKind string
+
+const (
+	PermissionDecisionApprovedForLocationApprovalCustomToolKindCustomTool PermissionDecisionApprovedForLocationApprovalCustomToolKind = "custom-tool"
+)
+
+type PermissionDecisionApprovedForLocationApprovalMCPKind string
+
+const (
+	PermissionDecisionApprovedForLocationApprovalMCPKindMcp PermissionDecisionApprovedForLocationApprovalMCPKind = "mcp"
+)
+
+type PermissionDecisionApprovedForLocationApprovalMCPSamplingKind string
+
+const (
+	PermissionDecisionApprovedForLocationApprovalMCPSamplingKindMcpSampling PermissionDecisionApprovedForLocationApprovalMCPSamplingKind = "mcp-sampling"
+)
+
+type PermissionDecisionApprovedForLocationApprovalMemoryKind string
+
+const (
+	PermissionDecisionApprovedForLocationApprovalMemoryKindMemory PermissionDecisionApprovedForLocationApprovalMemoryKind = "memory"
+)
+
+type PermissionDecisionApprovedForLocationApprovalWriteKind string
+
+const (
+	PermissionDecisionApprovedForLocationApprovalWriteKindWrite PermissionDecisionApprovedForLocationApprovalWriteKind = "write"
+)
+
+type PermissionDecisionApprovedForSessionKind string
+
+const (
+	PermissionDecisionApprovedForSessionKindApprovedForSession PermissionDecisionApprovedForSessionKind = "approved-for-session"
 )
 
 type PermissionDecisionDeniedByContentExclusionPolicyKind string
@@ -1717,8 +2013,8 @@ type serverApi struct {
 
 type ServerModelsApi serverApi
 
-func (a *ServerModelsApi) List(ctx context.Context) (*ModelList, error) {
-	raw, err := a.client.Request("models.list", nil)
+func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
+	raw, err := a.client.Request("models.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -1745,8 +2041,8 @@ func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*T
 
 type ServerAccountApi serverApi
 
-func (a *ServerAccountApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, error) {
-	raw, err := a.client.Request("account.getQuota", nil)
+func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
+	raw, err := a.client.Request("account.getQuota", params)
 	if err != nil {
 		return nil, err
 	}
@@ -1815,6 +2111,30 @@ func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *MCPConfigRemove
 		return nil, err
 	}
 	var result MCPConfigRemoveResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *MCPConfigEnableRequest) (*MCPConfigEnableResult, error) {
+	raw, err := a.client.Request("mcp.config.enable", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPConfigEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerMcpConfigApi) Disable(ctx context.Context, params *MCPConfigDisableRequest) (*MCPConfigDisableResult, error) {
+	raw, err := a.client.Request("mcp.config.disable", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPConfigDisableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1927,6 +2247,21 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 type sessionApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
+}
+
+type AuthApi sessionApi
+
+func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.auth.getStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAuthStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 type ModelApi sessionApi
@@ -2362,6 +2697,39 @@ func (a *McpApi) Reload(ctx context.Context) (*MCPReloadResult, error) {
 	return &result, nil
 }
 
+// Experimental: McpOauthApi contains experimental APIs that may change or be removed.
+type McpOauthApi sessionApi
+
+func (a *McpOauthApi) Login(ctx context.Context, params *MCPOauthLoginRequest) (*MCPOauthLoginResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+		if params.ForceReauth != nil {
+			req["forceReauth"] = *params.ForceReauth
+		}
+		if params.ClientName != nil {
+			req["clientName"] = *params.ClientName
+		}
+		if params.CallbackSuccessMessage != nil {
+			req["callbackSuccessMessage"] = *params.CallbackSuccessMessage
+		}
+	}
+	raw, err := a.client.Request("session.mcp.oauth.login", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPOauthLoginResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Oauth returns experimental APIs that may change or be removed.
+func (s *McpApi) Oauth() *McpOauthApi {
+	return (*McpOauthApi)(s)
+}
+
 // Experimental: PluginsApi contains experimental APIs that may change or be removed.
 type PluginsApi sessionApi
 
@@ -2539,6 +2907,35 @@ func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, par
 	return &result, nil
 }
 
+func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsSetApproveAllRequest) (*PermissionsSetApproveAllResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["enabled"] = params.Enabled
+	}
+	raw, err := a.client.Request("session.permissions.setApproveAll", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionsSetApproveAllResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*PermissionsResetSessionApprovalsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.permissions.resetSessionApprovals", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionsResetSessionApprovalsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type ShellApi sessionApi
 
 func (a *ShellApi) Exec(ctx context.Context, params *ShellExecRequest) (*ShellExecResult, error) {
@@ -2634,6 +3031,7 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 type SessionRpc struct {
 	common sessionApi // Reuse a single struct instead of allocating one for each service on the heap.
 
+	Auth         *AuthApi
 	Model        *ModelApi
 	Mode         *ModeApi
 	Name         *NameApi
@@ -2683,6 +3081,7 @@ func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, e
 func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r := &SessionRpc{}
 	r.common = sessionApi{client: client, sessionID: sessionID}
+	r.Auth = (*AuthApi)(&r.common)
 	r.Model = (*ModelApi)(&r.common)
 	r.Mode = (*ModeApi)(&r.common)
 	r.Name = (*NameApi)(&r.common)

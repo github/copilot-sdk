@@ -513,7 +513,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestElicitation: config.OnElicitationRequest != null,
                 Traceparent: traceparent,
                 Tracestate: tracestate,
-                ModelCapabilities: config.ModelCapabilities);
+                ModelCapabilities: config.ModelCapabilities,
+                GitHubToken: config.GitHubToken);
 
             var response = await InvokeRpcAsync<CreateSessionResponse>(
                 connection.Rpc, "session.create", [request], cancellationToken);
@@ -638,7 +639,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestElicitation: config.OnElicitationRequest != null,
                 Traceparent: traceparent,
                 Tracestate: tracestate,
-                ModelCapabilities: config.ModelCapabilities);
+                ModelCapabilities: config.ModelCapabilities,
+                GitHubToken: config.GitHubToken);
 
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
                 connection.Rpc, "session.resume", [request], cancellationToken);
@@ -1661,7 +1663,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestElicitation = null,
         string? Traceparent = null,
         string? Tracestate = null,
-        ModelCapabilitiesOverride? ModelCapabilities = null);
+        ModelCapabilitiesOverride? ModelCapabilities = null,
+        string? GitHubToken = null);
 
     internal record ToolDefinition(
         string Name,
@@ -1716,7 +1719,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestElicitation = null,
         string? Traceparent = null,
         string? Tracestate = null,
-        ModelCapabilitiesOverride? ModelCapabilities = null);
+        ModelCapabilitiesOverride? ModelCapabilities = null,
+        string? GitHubToken = null);
 
     internal record ResumeSessionResponse(
         string SessionId,

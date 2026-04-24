@@ -110,39 +110,40 @@ export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
 export type SessionMode = "interactive" | "plan" | "autopilot";
 
 export type PermissionDecision =
-  | PermissionDecisionApproveOnce
-  | PermissionDecisionApproveForSession
-  | PermissionDecisionApproveForLocation
-  | PermissionDecisionReject
-  | PermissionDecisionUserNotAvailable;
+  | PermissionDecisionApproved
+  | PermissionDecisionApprovedForSession
+  | PermissionDecisionApprovedForLocation
+  | PermissionDecisionDeniedByRules
+  | PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser
+  | PermissionDecisionDeniedInteractivelyByUser
+  | PermissionDecisionDeniedByContentExclusionPolicy
+  | PermissionDecisionDeniedByPermissionRequestHook;
 /**
  * The approval to add as a session-scoped rule
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionDecisionApproveForSessionApproval".
+ * via the `definition` "PermissionDecisionApprovedForSessionApproval".
  */
-export type PermissionDecisionApproveForSessionApproval =
-  | PermissionDecisionApproveForSessionApprovalCommands
-  | PermissionDecisionApproveForSessionApprovalRead
-  | PermissionDecisionApproveForSessionApprovalWrite
-  | PermissionDecisionApproveForSessionApprovalMcp
-  | PermissionDecisionApproveForSessionApprovalMcpSampling
-  | PermissionDecisionApproveForSessionApprovalMemory
-  | PermissionDecisionApproveForSessionApprovalCustomTool;
+export type PermissionDecisionApprovedForSessionApproval =
+  | PermissionDecisionApprovedForSessionApprovalCommands
+  | PermissionDecisionApprovedForSessionApprovalWrite
+  | PermissionDecisionApprovedForSessionApprovalMcp
+  | PermissionDecisionApprovedForSessionApprovalMcpSampling
+  | PermissionDecisionApprovedForSessionApprovalMemory
+  | PermissionDecisionApprovedForSessionApprovalCustomTool;
 /**
  * The approval to persist for this location
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionDecisionApproveForLocationApproval".
+ * via the `definition` "PermissionDecisionApprovedForLocationApproval".
  */
-export type PermissionDecisionApproveForLocationApproval =
-  | PermissionDecisionApproveForLocationApprovalCommands
-  | PermissionDecisionApproveForLocationApprovalRead
-  | PermissionDecisionApproveForLocationApprovalWrite
-  | PermissionDecisionApproveForLocationApprovalMcp
-  | PermissionDecisionApproveForLocationApprovalMcpSampling
-  | PermissionDecisionApproveForLocationApprovalMemory
-  | PermissionDecisionApproveForLocationApprovalCustomTool;
+export type PermissionDecisionApprovedForLocationApproval =
+  | PermissionDecisionApprovedForLocationApprovalCommands
+  | PermissionDecisionApprovedForLocationApprovalWrite
+  | PermissionDecisionApprovedForLocationApprovalMcp
+  | PermissionDecisionApprovedForLocationApprovalMcpSampling
+  | PermissionDecisionApprovedForLocationApprovalMemory
+  | PermissionDecisionApprovedForLocationApprovalCustomTool;
 /**
  * Error classification
  *
@@ -913,115 +914,148 @@ export interface NameSetRequest {
   name: string;
 }
 
-export interface PermissionDecisionApproveOnce {
+export interface PermissionDecisionApproved {
   /**
-   * The permission request was approved for this one instance
+   * The permission request was approved
    */
-  kind: "approve-once";
+  kind: "approved";
 }
 
-export interface PermissionDecisionApproveForSession {
+export interface PermissionDecisionApprovedForSession {
   /**
    * Approved and remembered for the rest of the session
    */
-  kind: "approve-for-session";
-  approval: PermissionDecisionApproveForSessionApproval;
+  kind: "approved-for-session";
+  approval: PermissionDecisionApprovedForSessionApproval;
 }
 
-export interface PermissionDecisionApproveForSessionApprovalCommands {
+export interface PermissionDecisionApprovedForSessionApprovalCommands {
   kind: "commands";
   commandIdentifiers: string[];
 }
 
-export interface PermissionDecisionApproveForSessionApprovalRead {
-  kind: "read";
-}
-
-export interface PermissionDecisionApproveForSessionApprovalWrite {
+export interface PermissionDecisionApprovedForSessionApprovalWrite {
   kind: "write";
 }
 
-export interface PermissionDecisionApproveForSessionApprovalMcp {
+export interface PermissionDecisionApprovedForSessionApprovalMcp {
   kind: "mcp";
   serverName: string;
   toolName: string | null;
 }
 
-export interface PermissionDecisionApproveForSessionApprovalMcpSampling {
+export interface PermissionDecisionApprovedForSessionApprovalMcpSampling {
   kind: "mcp-sampling";
   serverName: string;
 }
 
-export interface PermissionDecisionApproveForSessionApprovalMemory {
+export interface PermissionDecisionApprovedForSessionApprovalMemory {
   kind: "memory";
 }
 
-export interface PermissionDecisionApproveForSessionApprovalCustomTool {
+export interface PermissionDecisionApprovedForSessionApprovalCustomTool {
   kind: "custom-tool";
   toolName: string;
 }
 
-export interface PermissionDecisionApproveForLocation {
+export interface PermissionDecisionApprovedForLocation {
   /**
    * Approved and persisted for this project location
    */
-  kind: "approve-for-location";
-  approval: PermissionDecisionApproveForLocationApproval;
+  kind: "approved-for-location";
+  approval: PermissionDecisionApprovedForLocationApproval;
   /**
    * The location key (git root or cwd) to persist the approval to
    */
   locationKey: string;
 }
 
-export interface PermissionDecisionApproveForLocationApprovalCommands {
+export interface PermissionDecisionApprovedForLocationApprovalCommands {
   kind: "commands";
   commandIdentifiers: string[];
 }
 
-export interface PermissionDecisionApproveForLocationApprovalRead {
-  kind: "read";
-}
-
-export interface PermissionDecisionApproveForLocationApprovalWrite {
+export interface PermissionDecisionApprovedForLocationApprovalWrite {
   kind: "write";
 }
 
-export interface PermissionDecisionApproveForLocationApprovalMcp {
+export interface PermissionDecisionApprovedForLocationApprovalMcp {
   kind: "mcp";
   serverName: string;
   toolName: string | null;
 }
 
-export interface PermissionDecisionApproveForLocationApprovalMcpSampling {
+export interface PermissionDecisionApprovedForLocationApprovalMcpSampling {
   kind: "mcp-sampling";
   serverName: string;
 }
 
-export interface PermissionDecisionApproveForLocationApprovalMemory {
+export interface PermissionDecisionApprovedForLocationApprovalMemory {
   kind: "memory";
 }
 
-export interface PermissionDecisionApproveForLocationApprovalCustomTool {
+export interface PermissionDecisionApprovedForLocationApprovalCustomTool {
   kind: "custom-tool";
   toolName: string;
 }
 
-export interface PermissionDecisionReject {
+export interface PermissionDecisionDeniedByRules {
+  /**
+   * Denied because approval rules explicitly blocked it
+   */
+  kind: "denied-by-rules";
+  /**
+   * Rules that denied the request
+   */
+  rules: unknown[];
+}
+
+export interface PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
+  /**
+   * Denied because no approval rule matched and user confirmation was unavailable
+   */
+  kind: "denied-no-approval-rule-and-could-not-request-from-user";
+}
+
+export interface PermissionDecisionDeniedInteractivelyByUser {
   /**
    * Denied by the user during an interactive prompt
    */
-  kind: "reject";
+  kind: "denied-interactively-by-user";
   /**
    * Optional feedback from the user explaining the denial
    */
   feedback?: string;
 }
 
-export interface PermissionDecisionUserNotAvailable {
+export interface PermissionDecisionDeniedByContentExclusionPolicy {
   /**
-   * Denied because user confirmation was unavailable
+   * Denied by the organization's content exclusion policy
    */
-  kind: "user-not-available";
+  kind: "denied-by-content-exclusion-policy";
+  /**
+   * File path that triggered the exclusion
+   */
+  path: string;
+  /**
+   * Human-readable explanation of why the path was excluded
+   */
+  message: string;
+}
+
+export interface PermissionDecisionDeniedByPermissionRequestHook {
+  /**
+   * Denied by a permission request hook registered by an extension or plugin
+   */
+  kind: "denied-by-permission-request-hook";
+  /**
+   * Optional message from the hook explaining the denial
+   */
+  message?: string;
+  /**
+   * Whether to interrupt the current agent turn
+   */
+  interrupt?: boolean;
 }
 
 export interface PermissionDecisionRequest {

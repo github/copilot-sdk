@@ -26,7 +26,7 @@ sequenceDiagram
     GH-->>App: Access token (gho_xxx)
 
     App->>SDK: Create client with token
-    SDK->>CLI: Start with githubToken
+    SDK->>CLI: Start with gitHubToken
     CLI->>API: Request (as user)
     API-->>CLI: Response
     CLI-->>SDK: Result
@@ -124,7 +124,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 // Create a client for an authenticated user
 function createClientForUser(userToken: string): CopilotClient {
     return new CopilotClient({
-        githubToken: userToken,
+        gitHubToken: userToken,
         useLoggedInUser: false,  // Don't fall back to CLI login
     });
 }
@@ -373,7 +373,7 @@ For GitHub Enterprise Managed Users, the flow is identical — EMU users authent
 // No special SDK configuration needed for EMU
 // Enterprise policies are enforced server-side by GitHub
 const client = new CopilotClient({
-    githubToken: emuUserToken,  // Works the same as regular tokens
+    gitHubToken: emuUserToken,  // Works the same as regular tokens
     useLoggedInUser: false,
 });
 ```
@@ -438,7 +438,7 @@ const clients = new Map<string, CopilotClient>();
 function getClientForUser(userId: string, token: string): CopilotClient {
     if (!clients.has(userId)) {
         clients.set(userId, new CopilotClient({
-            githubToken: token,
+            gitHubToken: token,
             useLoggedInUser: false,
         }));
     }
