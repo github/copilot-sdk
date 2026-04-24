@@ -71,14 +71,14 @@ func TestPermissionRequestResult_JSONRoundTrip(t *testing.T) {
 }
 
 func TestPermissionRequestResult_JSONDeserialize(t *testing.T) {
-	jsonStr := `{"kind":"denied-by-rules"}`
+	jsonStr := `{"kind":"reject"}`
 	var result PermissionRequestResult
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
 
-	if result.Kind != PermissionRequestResultKindDeniedByRules {
-		t.Errorf("expected %q, got %q", PermissionRequestResultKindDeniedByRules, result.Kind)
+	if result.Kind != PermissionRequestResultKindRejected {
+		t.Errorf("expected %q, got %q", PermissionRequestResultKindRejected, result.Kind)
 	}
 }
 
@@ -89,7 +89,7 @@ func TestPermissionRequestResult_JSONSerialize(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	expected := `{"kind":"approved"}`
+	expected := `{"kind":"approve-once"}`
 	if string(data) != expected {
 		t.Errorf("expected %s, got %s", expected, string(data))
 	}
