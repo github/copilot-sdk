@@ -1042,6 +1042,8 @@ type PermissionCompletedData struct {
 	RequestID string `json:"requestId"`
 	// The result of the permission request
 	Result PermissionCompletedResult `json:"result"`
+	// Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts
+	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
 func (*PermissionCompletedData) sessionEventData() {}
@@ -1050,6 +1052,8 @@ func (*PermissionCompletedData) sessionEventData() {}
 type PermissionRequestedData struct {
 	// Details of the permission being requested
 	PermissionRequest PermissionRequest `json:"permissionRequest"`
+	// Derived user-facing permission prompt details for UI consumers
+	PromptRequest *PermissionPromptRequest `json:"promptRequest,omitempty"`
 	// Unique identifier for this permission request; used to respond via session.respondToPermission()
 	RequestID string `json:"requestId"`
 	// When true, this permission was already resolved by a permissionRequest hook and requires no client action
@@ -1766,6 +1770,64 @@ type ShutdownCodeChanges struct {
 	LinesRemoved float64 `json:"linesRemoved"`
 }
 
+// Derived user-facing permission prompt details for UI consumers
+type PermissionPromptRequest struct {
+	// Kind discriminator
+	Kind PermissionPromptRequestKind `json:"kind"`
+	// Underlying permission kind that needs path approval
+	AccessKind *PermissionPromptRequestPathAccessKind `json:"accessKind,omitempty"`
+	// Whether this is a store or vote memory operation
+	Action *PermissionPromptRequestMemoryAction `json:"action,omitempty"`
+	// Arguments to pass to the MCP tool
+	Args *any `json:"args,omitempty"`
+	// Whether the UI can offer session-wide approval for this command pattern
+	CanOfferSessionApproval *bool `json:"canOfferSessionApproval,omitempty"`
+	// Source references for the stored fact (store only)
+	Citations *string `json:"citations,omitempty"`
+	// Command identifiers covered by this approval prompt
+	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
+	// Unified diff showing the proposed changes
+	Diff *string `json:"diff,omitempty"`
+	// Vote direction (vote only)
+	Direction *PermissionPromptRequestMemoryDirection `json:"direction,omitempty"`
+	// The fact being stored or voted on
+	Fact *string `json:"fact,omitempty"`
+	// Path of the file being written to
+	FileName *string `json:"fileName,omitempty"`
+	// The complete shell command text to be executed
+	FullCommandText *string `json:"fullCommandText,omitempty"`
+	// Optional message from the hook explaining why confirmation is needed
+	HookMessage *string `json:"hookMessage,omitempty"`
+	// Human-readable description of what the command intends to do
+	Intention *string `json:"intention,omitempty"`
+	// Complete new file contents for newly created files
+	NewFileContents *string `json:"newFileContents,omitempty"`
+	// Path of the file or directory being read
+	Path *string `json:"path,omitempty"`
+	// File paths that require explicit approval
+	Paths []string `json:"paths,omitempty"`
+	// Reason for the vote (vote only)
+	Reason *string `json:"reason,omitempty"`
+	// Name of the MCP server providing the tool
+	ServerName *string `json:"serverName,omitempty"`
+	// Topic or subject of the memory (store only)
+	Subject *string `json:"subject,omitempty"`
+	// Arguments of the tool call being gated
+	ToolArgs any `json:"toolArgs,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Description of what the custom tool does
+	ToolDescription *string `json:"toolDescription,omitempty"`
+	// Internal name of the MCP tool
+	ToolName *string `json:"toolName,omitempty"`
+	// Human-readable title of the MCP tool
+	ToolTitle *string `json:"toolTitle,omitempty"`
+	// URL to be fetched
+	URL *string `json:"url,omitempty"`
+	// Optional warning message about risks of running this command
+	Warning *string `json:"warning,omitempty"`
+}
+
 // Details of the permission being requested
 type PermissionRequest struct {
 	// Kind discriminator
@@ -2219,6 +2281,21 @@ const (
 	WorkingDirectoryContextHostTypeAdo    WorkingDirectoryContextHostType = "ado"
 )
 
+// Kind discriminator for PermissionPromptRequest.
+type PermissionPromptRequestKind string
+
+const (
+	PermissionPromptRequestKindCommands   PermissionPromptRequestKind = "commands"
+	PermissionPromptRequestKindWrite      PermissionPromptRequestKind = "write"
+	PermissionPromptRequestKindRead       PermissionPromptRequestKind = "read"
+	PermissionPromptRequestKindMcp        PermissionPromptRequestKind = "mcp"
+	PermissionPromptRequestKindURL        PermissionPromptRequestKind = "url"
+	PermissionPromptRequestKindMemory     PermissionPromptRequestKind = "memory"
+	PermissionPromptRequestKindCustomTool PermissionPromptRequestKind = "custom-tool"
+	PermissionPromptRequestKindPath       PermissionPromptRequestKind = "path"
+	PermissionPromptRequestKindHook       PermissionPromptRequestKind = "hook"
+)
+
 // Kind discriminator for PermissionRequest.
 type PermissionRequestKind string
 
@@ -2362,6 +2439,23 @@ const (
 	UserMessageAttachmentGithubReferenceTypeDiscussion UserMessageAttachmentGithubReferenceType = "discussion"
 )
 
+// Underlying permission kind that needs path approval
+type PermissionPromptRequestPathAccessKind string
+
+const (
+	PermissionPromptRequestPathAccessKindRead  PermissionPromptRequestPathAccessKind = "read"
+	PermissionPromptRequestPathAccessKindShell PermissionPromptRequestPathAccessKind = "shell"
+	PermissionPromptRequestPathAccessKindWrite PermissionPromptRequestPathAccessKind = "write"
+)
+
+// Vote direction (vote only)
+type PermissionPromptRequestMemoryDirection string
+
+const (
+	PermissionPromptRequestMemoryDirectionUpvote   PermissionPromptRequestMemoryDirection = "upvote"
+	PermissionPromptRequestMemoryDirectionDownvote PermissionPromptRequestMemoryDirection = "downvote"
+)
+
 // Vote direction (vote only)
 type PermissionRequestMemoryDirection string
 
@@ -2392,6 +2486,14 @@ type ShutdownType string
 const (
 	ShutdownTypeRoutine ShutdownType = "routine"
 	ShutdownTypeError   ShutdownType = "error"
+)
+
+// Whether this is a store or vote memory operation
+type PermissionPromptRequestMemoryAction string
+
+const (
+	PermissionPromptRequestMemoryActionStore PermissionPromptRequestMemoryAction = "store"
+	PermissionPromptRequestMemoryActionVote  PermissionPromptRequestMemoryAction = "vote"
 )
 
 // Whether this is a store or vote memory operation

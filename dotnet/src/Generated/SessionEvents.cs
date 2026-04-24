@@ -2328,6 +2328,11 @@ public partial class PermissionRequestedData
     [JsonPropertyName("permissionRequest")]
     public required PermissionRequest PermissionRequest { get; set; }
 
+    /// <summary>Derived user-facing permission prompt details for UI consumers.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("promptRequest")]
+    public PermissionPromptRequest? PromptRequest { get; set; }
+
     /// <summary>Unique identifier for this permission request; used to respond via session.respondToPermission().</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
@@ -2348,6 +2353,11 @@ public partial class PermissionCompletedData
     /// <summary>The result of the permission request.</summary>
     [JsonPropertyName("result")]
     public required PermissionCompletedResult Result { get; set; }
+
+    /// <summary>Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
@@ -3908,6 +3918,293 @@ public partial class PermissionRequest
 }
 
 
+/// <summary>Shell command permission prompt.</summary>
+/// <remarks>The <c>commands</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestCommands : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "commands";
+
+    /// <summary>Whether the UI can offer session-wide approval for this command pattern.</summary>
+    [JsonPropertyName("canOfferSessionApproval")]
+    public required bool CanOfferSessionApproval { get; set; }
+
+    /// <summary>Command identifiers covered by this approval prompt.</summary>
+    [JsonPropertyName("commandIdentifiers")]
+    public required string[] CommandIdentifiers { get; set; }
+
+    /// <summary>The complete shell command text to be executed.</summary>
+    [JsonPropertyName("fullCommandText")]
+    public required string FullCommandText { get; set; }
+
+    /// <summary>Human-readable description of what the command intends to do.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Optional warning message about risks of running this command.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("warning")]
+    public string? Warning { get; set; }
+}
+
+/// <summary>File write permission prompt.</summary>
+/// <remarks>The <c>write</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestWrite : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "write";
+
+    /// <summary>Whether the UI can offer session-wide approval for file write operations.</summary>
+    [JsonPropertyName("canOfferSessionApproval")]
+    public required bool CanOfferSessionApproval { get; set; }
+
+    /// <summary>Unified diff showing the proposed changes.</summary>
+    [JsonPropertyName("diff")]
+    public required string Diff { get; set; }
+
+    /// <summary>Path of the file being written to.</summary>
+    [JsonPropertyName("fileName")]
+    public required string FileName { get; set; }
+
+    /// <summary>Human-readable description of the intended file change.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    /// <summary>Complete new file contents for newly created files.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("newFileContents")]
+    public string? NewFileContents { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>File read permission prompt.</summary>
+/// <remarks>The <c>read</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestRead : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "read";
+
+    /// <summary>Human-readable description of why the file is being read.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    /// <summary>Path of the file or directory being read.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>MCP tool invocation permission prompt.</summary>
+/// <remarks>The <c>mcp</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestMcp : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp";
+
+    /// <summary>Arguments to pass to the MCP tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("args")]
+    public object? Args { get; set; }
+
+    /// <summary>Name of the MCP server providing the tool.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Internal name of the MCP tool.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+
+    /// <summary>Human-readable title of the MCP tool.</summary>
+    [JsonPropertyName("toolTitle")]
+    public required string ToolTitle { get; set; }
+}
+
+/// <summary>URL access permission prompt.</summary>
+/// <remarks>The <c>url</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestUrl : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "url";
+
+    /// <summary>Human-readable description of why the URL is being accessed.</summary>
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>URL to be fetched.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Memory operation permission prompt.</summary>
+/// <remarks>The <c>memory</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestMemory : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "memory";
+
+    /// <summary>Whether this is a store or vote memory operation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("action")]
+    public PermissionPromptRequestMemoryAction? Action { get; set; }
+
+    /// <summary>Source references for the stored fact (store only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("citations")]
+    public string? Citations { get; set; }
+
+    /// <summary>Vote direction (vote only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("direction")]
+    public PermissionPromptRequestMemoryDirection? Direction { get; set; }
+
+    /// <summary>The fact being stored or voted on.</summary>
+    [JsonPropertyName("fact")]
+    public required string Fact { get; set; }
+
+    /// <summary>Reason for the vote (vote only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>Topic or subject of the memory (store only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("subject")]
+    public string? Subject { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>Custom tool invocation permission prompt.</summary>
+/// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestCustomTool : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "custom-tool";
+
+    /// <summary>Arguments to pass to the custom tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("args")]
+    public object? Args { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Description of what the custom tool does.</summary>
+    [JsonPropertyName("toolDescription")]
+    public required string ToolDescription { get; set; }
+
+    /// <summary>Name of the custom tool.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>Path access permission prompt.</summary>
+/// <remarks>The <c>path</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestPath : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "path";
+
+    /// <summary>Underlying permission kind that needs path approval.</summary>
+    [JsonPropertyName("accessKind")]
+    public required PermissionPromptRequestPathAccessKind AccessKind { get; set; }
+
+    /// <summary>File paths that require explicit approval.</summary>
+    [JsonPropertyName("paths")]
+    public required string[] Paths { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>Hook confirmation permission prompt.</summary>
+/// <remarks>The <c>hook</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestHook : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "hook";
+
+    /// <summary>Optional message from the hook explaining why confirmation is needed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hookMessage")]
+    public string? HookMessage { get; set; }
+
+    /// <summary>Arguments of the tool call being gated.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolArgs")]
+    public object? ToolArgs { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Name of the tool the hook is gating.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>Derived user-facing permission prompt details for UI consumers.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionPromptRequestCommands), "commands")]
+[JsonDerivedType(typeof(PermissionPromptRequestWrite), "write")]
+[JsonDerivedType(typeof(PermissionPromptRequestRead), "read")]
+[JsonDerivedType(typeof(PermissionPromptRequestMcp), "mcp")]
+[JsonDerivedType(typeof(PermissionPromptRequestUrl), "url")]
+[JsonDerivedType(typeof(PermissionPromptRequestMemory), "memory")]
+[JsonDerivedType(typeof(PermissionPromptRequestCustomTool), "custom-tool")]
+[JsonDerivedType(typeof(PermissionPromptRequestPath), "path")]
+[JsonDerivedType(typeof(PermissionPromptRequestHook), "hook")]
+public partial class PermissionPromptRequest
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
 /// <summary>The result of the permission request.</summary>
 /// <remarks>Nested data type for <c>PermissionCompletedResult</c>.</remarks>
 public partial class PermissionCompletedResult
@@ -4248,6 +4545,45 @@ public enum PermissionRequestMemoryDirection
     Downvote,
 }
 
+/// <summary>Whether this is a store or vote memory operation.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionPromptRequestMemoryAction>))]
+public enum PermissionPromptRequestMemoryAction
+{
+    /// <summary>The <c>store</c> variant.</summary>
+    [JsonStringEnumMemberName("store")]
+    Store,
+    /// <summary>The <c>vote</c> variant.</summary>
+    [JsonStringEnumMemberName("vote")]
+    Vote,
+}
+
+/// <summary>Vote direction (vote only).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionPromptRequestMemoryDirection>))]
+public enum PermissionPromptRequestMemoryDirection
+{
+    /// <summary>The <c>upvote</c> variant.</summary>
+    [JsonStringEnumMemberName("upvote")]
+    Upvote,
+    /// <summary>The <c>downvote</c> variant.</summary>
+    [JsonStringEnumMemberName("downvote")]
+    Downvote,
+}
+
+/// <summary>Underlying permission kind that needs path approval.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionPromptRequestPathAccessKind>))]
+public enum PermissionPromptRequestPathAccessKind
+{
+    /// <summary>The <c>read</c> variant.</summary>
+    [JsonStringEnumMemberName("read")]
+    Read,
+    /// <summary>The <c>shell</c> variant.</summary>
+    [JsonStringEnumMemberName("shell")]
+    Shell,
+    /// <summary>The <c>write</c> variant.</summary>
+    [JsonStringEnumMemberName("write")]
+    Write,
+}
+
 /// <summary>The outcome of the permission request.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<PermissionCompletedKind>))]
 public enum PermissionCompletedKind
@@ -4463,6 +4799,16 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
 [JsonSerializable(typeof(PermissionCompletedResult))]
+[JsonSerializable(typeof(PermissionPromptRequest))]
+[JsonSerializable(typeof(PermissionPromptRequestCommands))]
+[JsonSerializable(typeof(PermissionPromptRequestCustomTool))]
+[JsonSerializable(typeof(PermissionPromptRequestHook))]
+[JsonSerializable(typeof(PermissionPromptRequestMcp))]
+[JsonSerializable(typeof(PermissionPromptRequestMemory))]
+[JsonSerializable(typeof(PermissionPromptRequestPath))]
+[JsonSerializable(typeof(PermissionPromptRequestRead))]
+[JsonSerializable(typeof(PermissionPromptRequestUrl))]
+[JsonSerializable(typeof(PermissionPromptRequestWrite))]
 [JsonSerializable(typeof(PermissionRequest))]
 [JsonSerializable(typeof(PermissionRequestCustomTool))]
 [JsonSerializable(typeof(PermissionRequestHook))]

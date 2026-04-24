@@ -1521,14 +1521,11 @@ public sealed class PermissionRequestResult
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(PermissionDecisionApproved), "approved")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForSession), "approved-for-session")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForLocation), "approved-for-location")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedByRules), "denied-by-rules")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser), "denied-no-approval-rule-and-could-not-request-from-user")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedInteractivelyByUser), "denied-interactively-by-user")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedByContentExclusionPolicy), "denied-by-content-exclusion-policy")]
-[JsonDerivedType(typeof(PermissionDecisionDeniedByPermissionRequestHook), "denied-by-permission-request-hook")]
+[JsonDerivedType(typeof(PermissionDecisionApproveOnce), "approve-once")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSession), "approve-for-session")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocation), "approve-for-location")]
+[JsonDerivedType(typeof(PermissionDecisionReject), "reject")]
+[JsonDerivedType(typeof(PermissionDecisionUserNotAvailable), "user-not-available")]
 public partial class PermissionDecision
 {
     /// <summary>The type discriminator.</summary>
@@ -1537,12 +1534,12 @@ public partial class PermissionDecision
 }
 
 
-/// <summary>The <c>approved</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionApproved : PermissionDecision
+/// <summary>The <c>approve-once</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApproveOnce : PermissionDecision
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "approved";
+    public override string Kind => "approve-once";
 }
 
 /// <summary>The approval to add as a session-scoped rule.</summary>
@@ -1550,13 +1547,14 @@ public partial class PermissionDecisionApproved : PermissionDecision
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForSessionApprovalCommands), "commands")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForSessionApprovalWrite), "write")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForSessionApprovalMcp), "mcp")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForSessionApprovalMcpSampling), "mcp-sampling")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForSessionApprovalMemory), "memory")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForSessionApprovalCustomTool), "custom-tool")]
-public partial class PermissionDecisionApprovedForSessionApproval
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalCommands), "commands")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalRead), "read")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalWrite), "write")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMcp), "mcp")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMcpSampling), "mcp-sampling")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMemory), "memory")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalCustomTool), "custom-tool")]
+public partial class PermissionDecisionApproveForSessionApproval
 {
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("kind")]
@@ -1564,8 +1562,8 @@ public partial class PermissionDecisionApprovedForSessionApproval
 }
 
 
-/// <summary>The <c>commands</c> variant of <see cref="PermissionDecisionApprovedForSessionApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForSessionApprovalCommands : PermissionDecisionApprovedForSessionApproval
+/// <summary>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalCommands : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1576,16 +1574,24 @@ public partial class PermissionDecisionApprovedForSessionApprovalCommands : Perm
     public required IList<string> CommandIdentifiers { get; set; }
 }
 
-/// <summary>The <c>write</c> variant of <see cref="PermissionDecisionApprovedForSessionApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForSessionApprovalWrite : PermissionDecisionApprovedForSessionApproval
+/// <summary>The <c>read</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalRead : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "read";
+}
+
+/// <summary>The <c>write</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalWrite : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "write";
 }
 
-/// <summary>The <c>mcp</c> variant of <see cref="PermissionDecisionApprovedForSessionApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForSessionApprovalMcp : PermissionDecisionApprovedForSessionApproval
+/// <summary>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalMcp : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1600,8 +1606,8 @@ public partial class PermissionDecisionApprovedForSessionApprovalMcp : Permissio
     public string? ToolName { get; set; }
 }
 
-/// <summary>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApprovedForSessionApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForSessionApprovalMcpSampling : PermissionDecisionApprovedForSessionApproval
+/// <summary>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalMcpSampling : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1612,16 +1618,16 @@ public partial class PermissionDecisionApprovedForSessionApprovalMcpSampling : P
     public required string ServerName { get; set; }
 }
 
-/// <summary>The <c>memory</c> variant of <see cref="PermissionDecisionApprovedForSessionApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForSessionApprovalMemory : PermissionDecisionApprovedForSessionApproval
+/// <summary>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalMemory : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "memory";
 }
 
-/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApprovedForSessionApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForSessionApprovalCustomTool : PermissionDecisionApprovedForSessionApproval
+/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalCustomTool : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1632,16 +1638,16 @@ public partial class PermissionDecisionApprovedForSessionApprovalCustomTool : Pe
     public required string ToolName { get; set; }
 }
 
-/// <summary>The <c>approved-for-session</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionApprovedForSession : PermissionDecision
+/// <summary>The <c>approve-for-session</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApproveForSession : PermissionDecision
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "approved-for-session";
+    public override string Kind => "approve-for-session";
 
     /// <summary>The approval to add as a session-scoped rule.</summary>
     [JsonPropertyName("approval")]
-    public required PermissionDecisionApprovedForSessionApproval Approval { get; set; }
+    public required PermissionDecisionApproveForSessionApproval Approval { get; set; }
 }
 
 /// <summary>The approval to persist for this location.</summary>
@@ -1649,13 +1655,14 @@ public partial class PermissionDecisionApprovedForSession : PermissionDecision
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForLocationApprovalCommands), "commands")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForLocationApprovalWrite), "write")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForLocationApprovalMcp), "mcp")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForLocationApprovalMcpSampling), "mcp-sampling")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForLocationApprovalMemory), "memory")]
-[JsonDerivedType(typeof(PermissionDecisionApprovedForLocationApprovalCustomTool), "custom-tool")]
-public partial class PermissionDecisionApprovedForLocationApproval
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalCommands), "commands")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalRead), "read")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalWrite), "write")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMcp), "mcp")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMcpSampling), "mcp-sampling")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMemory), "memory")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalCustomTool), "custom-tool")]
+public partial class PermissionDecisionApproveForLocationApproval
 {
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("kind")]
@@ -1663,8 +1670,8 @@ public partial class PermissionDecisionApprovedForLocationApproval
 }
 
 
-/// <summary>The <c>commands</c> variant of <see cref="PermissionDecisionApprovedForLocationApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForLocationApprovalCommands : PermissionDecisionApprovedForLocationApproval
+/// <summary>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalCommands : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1675,16 +1682,24 @@ public partial class PermissionDecisionApprovedForLocationApprovalCommands : Per
     public required IList<string> CommandIdentifiers { get; set; }
 }
 
-/// <summary>The <c>write</c> variant of <see cref="PermissionDecisionApprovedForLocationApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForLocationApprovalWrite : PermissionDecisionApprovedForLocationApproval
+/// <summary>The <c>read</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalRead : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "read";
+}
+
+/// <summary>The <c>write</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalWrite : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "write";
 }
 
-/// <summary>The <c>mcp</c> variant of <see cref="PermissionDecisionApprovedForLocationApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForLocationApprovalMcp : PermissionDecisionApprovedForLocationApproval
+/// <summary>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalMcp : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1699,8 +1714,8 @@ public partial class PermissionDecisionApprovedForLocationApprovalMcp : Permissi
     public string? ToolName { get; set; }
 }
 
-/// <summary>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApprovedForLocationApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForLocationApprovalMcpSampling : PermissionDecisionApprovedForLocationApproval
+/// <summary>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalMcpSampling : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1711,16 +1726,16 @@ public partial class PermissionDecisionApprovedForLocationApprovalMcpSampling : 
     public required string ServerName { get; set; }
 }
 
-/// <summary>The <c>memory</c> variant of <see cref="PermissionDecisionApprovedForLocationApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForLocationApprovalMemory : PermissionDecisionApprovedForLocationApproval
+/// <summary>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalMemory : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "memory";
 }
 
-/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApprovedForLocationApproval"/>.</summary>
-public partial class PermissionDecisionApprovedForLocationApprovalCustomTool : PermissionDecisionApprovedForLocationApproval
+/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalCustomTool : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1731,48 +1746,28 @@ public partial class PermissionDecisionApprovedForLocationApprovalCustomTool : P
     public required string ToolName { get; set; }
 }
 
-/// <summary>The <c>approved-for-location</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionApprovedForLocation : PermissionDecision
+/// <summary>The <c>approve-for-location</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApproveForLocation : PermissionDecision
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "approved-for-location";
+    public override string Kind => "approve-for-location";
 
     /// <summary>The approval to persist for this location.</summary>
     [JsonPropertyName("approval")]
-    public required PermissionDecisionApprovedForLocationApproval Approval { get; set; }
+    public required PermissionDecisionApproveForLocationApproval Approval { get; set; }
 
     /// <summary>The location key (git root or cwd) to persist the approval to.</summary>
     [JsonPropertyName("locationKey")]
     public required string LocationKey { get; set; }
 }
 
-/// <summary>The <c>denied-by-rules</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedByRules : PermissionDecision
+/// <summary>The <c>reject</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionReject : PermissionDecision
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "denied-by-rules";
-
-    /// <summary>Rules that denied the request.</summary>
-    [JsonPropertyName("rules")]
-    public required IList<object> Rules { get; set; }
-}
-
-/// <summary>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionDecision
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "denied-no-approval-rule-and-could-not-request-from-user";
-}
-
-/// <summary>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDecision
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "denied-interactively-by-user";
+    public override string Kind => "reject";
 
     /// <summary>Optional feedback from the user explaining the denial.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1780,38 +1775,12 @@ public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDec
     public string? Feedback { get; set; }
 }
 
-/// <summary>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedByContentExclusionPolicy : PermissionDecision
+/// <summary>The <c>user-not-available</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionUserNotAvailable : PermissionDecision
 {
     /// <inheritdoc />
     [JsonIgnore]
-    public override string Kind => "denied-by-content-exclusion-policy";
-
-    /// <summary>Human-readable explanation of why the path was excluded.</summary>
-    [JsonPropertyName("message")]
-    public required string Message { get; set; }
-
-    /// <summary>File path that triggered the exclusion.</summary>
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-}
-
-/// <summary>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionDecision"/>.</summary>
-public partial class PermissionDecisionDeniedByPermissionRequestHook : PermissionDecision
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "denied-by-permission-request-hook";
-
-    /// <summary>Whether to interrupt the current agent turn.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("interrupt")]
-    public bool? Interrupt { get; set; }
-
-    /// <summary>Optional message from the hook explaining the denial.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("message")]
-    public string? Message { get; set; }
+    public override string Kind => "user-not-available";
 }
 
 /// <summary>RPC data type for PermissionDecision operations.</summary>
@@ -3880,8 +3849,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(NameGetResult))]
 [JsonSerializable(typeof(NameSetRequest))]
 [JsonSerializable(typeof(PermissionDecision))]
-[JsonSerializable(typeof(PermissionDecisionApprovedForLocationApproval))]
-[JsonSerializable(typeof(PermissionDecisionApprovedForSessionApproval))]
+[JsonSerializable(typeof(PermissionDecisionApproveForLocationApproval))]
+[JsonSerializable(typeof(PermissionDecisionApproveForSessionApproval))]
 [JsonSerializable(typeof(PermissionDecisionRequest))]
 [JsonSerializable(typeof(PermissionRequestResult))]
 [JsonSerializable(typeof(PermissionsResetSessionApprovalsRequest))]

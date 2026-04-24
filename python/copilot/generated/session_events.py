@@ -1614,21 +1614,26 @@ class PermissionCompletedData:
     "Permission request completion notification signaling UI dismissal"
     request_id: str
     result: PermissionCompletedResult
+    tool_call_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionCompletedData":
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = PermissionCompletedResult.from_dict(obj.get("result"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionCompletedData(
             request_id=request_id,
             result=result,
+            tool_call_id=tool_call_id,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["requestId"] = from_str(self.request_id)
         result["result"] = to_class(PermissionCompletedResult, self.result)
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
 
 
@@ -1648,6 +1653,155 @@ class PermissionCompletedResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = to_enum(PermissionCompletedKind, self.kind)
+        return result
+
+
+@dataclass
+class PermissionPromptRequest:
+    "Derived user-facing permission prompt details for UI consumers"
+    kind: PermissionPromptRequestKind
+    access_kind: PermissionPromptRequestPathAccessKind | None = None
+    action: PermissionPromptRequestMemoryAction | None = None
+    args: Any | None = None
+    can_offer_session_approval: bool | None = None
+    citations: str | None = None
+    command_identifiers: list[str] | None = None
+    diff: str | None = None
+    direction: PermissionPromptRequestMemoryDirection | None = None
+    fact: str | None = None
+    file_name: str | None = None
+    full_command_text: str | None = None
+    hook_message: str | None = None
+    intention: str | None = None
+    new_file_contents: str | None = None
+    path: str | None = None
+    paths: list[str] | None = None
+    reason: str | None = None
+    server_name: str | None = None
+    subject: str | None = None
+    tool_args: Any = None
+    tool_call_id: str | None = None
+    tool_description: str | None = None
+    tool_name: str | None = None
+    tool_title: str | None = None
+    url: str | None = None
+    warning: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionPromptRequest":
+        assert isinstance(obj, dict)
+        kind = parse_enum(PermissionPromptRequestKind, obj.get("kind"))
+        access_kind = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestPathAccessKind, x)], obj.get("accessKind"))
+        action = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestMemoryAction, x)], obj.get("action", "store"))
+        args = from_union([from_none, lambda x: x], obj.get("args"))
+        can_offer_session_approval = from_union([from_none, from_bool], obj.get("canOfferSessionApproval"))
+        citations = from_union([from_none, from_str], obj.get("citations"))
+        command_identifiers = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("commandIdentifiers"))
+        diff = from_union([from_none, from_str], obj.get("diff"))
+        direction = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestMemoryDirection, x)], obj.get("direction"))
+        fact = from_union([from_none, from_str], obj.get("fact"))
+        file_name = from_union([from_none, from_str], obj.get("fileName"))
+        full_command_text = from_union([from_none, from_str], obj.get("fullCommandText"))
+        hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
+        intention = from_union([from_none, from_str], obj.get("intention"))
+        new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
+        path = from_union([from_none, from_str], obj.get("path"))
+        paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("paths"))
+        reason = from_union([from_none, from_str], obj.get("reason"))
+        server_name = from_union([from_none, from_str], obj.get("serverName"))
+        subject = from_union([from_none, from_str], obj.get("subject"))
+        tool_args = obj.get("toolArgs")
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        tool_description = from_union([from_none, from_str], obj.get("toolDescription"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
+        url = from_union([from_none, from_str], obj.get("url"))
+        warning = from_union([from_none, from_str], obj.get("warning"))
+        return PermissionPromptRequest(
+            kind=kind,
+            access_kind=access_kind,
+            action=action,
+            args=args,
+            can_offer_session_approval=can_offer_session_approval,
+            citations=citations,
+            command_identifiers=command_identifiers,
+            diff=diff,
+            direction=direction,
+            fact=fact,
+            file_name=file_name,
+            full_command_text=full_command_text,
+            hook_message=hook_message,
+            intention=intention,
+            new_file_contents=new_file_contents,
+            path=path,
+            paths=paths,
+            reason=reason,
+            server_name=server_name,
+            subject=subject,
+            tool_args=tool_args,
+            tool_call_id=tool_call_id,
+            tool_description=tool_description,
+            tool_name=tool_name,
+            tool_title=tool_title,
+            url=url,
+            warning=warning,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionPromptRequestKind, self.kind)
+        if self.access_kind is not None:
+            result["accessKind"] = from_union([from_none, lambda x: to_enum(PermissionPromptRequestPathAccessKind, x)], self.access_kind)
+        if self.action is not None:
+            result["action"] = from_union([from_none, lambda x: to_enum(PermissionPromptRequestMemoryAction, x)], self.action)
+        if self.args is not None:
+            result["args"] = from_union([from_none, lambda x: x], self.args)
+        if self.can_offer_session_approval is not None:
+            result["canOfferSessionApproval"] = from_union([from_none, from_bool], self.can_offer_session_approval)
+        if self.citations is not None:
+            result["citations"] = from_union([from_none, from_str], self.citations)
+        if self.command_identifiers is not None:
+            result["commandIdentifiers"] = from_union([from_none, lambda x: from_list(from_str, x)], self.command_identifiers)
+        if self.diff is not None:
+            result["diff"] = from_union([from_none, from_str], self.diff)
+        if self.direction is not None:
+            result["direction"] = from_union([from_none, lambda x: to_enum(PermissionPromptRequestMemoryDirection, x)], self.direction)
+        if self.fact is not None:
+            result["fact"] = from_union([from_none, from_str], self.fact)
+        if self.file_name is not None:
+            result["fileName"] = from_union([from_none, from_str], self.file_name)
+        if self.full_command_text is not None:
+            result["fullCommandText"] = from_union([from_none, from_str], self.full_command_text)
+        if self.hook_message is not None:
+            result["hookMessage"] = from_union([from_none, from_str], self.hook_message)
+        if self.intention is not None:
+            result["intention"] = from_union([from_none, from_str], self.intention)
+        if self.new_file_contents is not None:
+            result["newFileContents"] = from_union([from_none, from_str], self.new_file_contents)
+        if self.path is not None:
+            result["path"] = from_union([from_none, from_str], self.path)
+        if self.paths is not None:
+            result["paths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.paths)
+        if self.reason is not None:
+            result["reason"] = from_union([from_none, from_str], self.reason)
+        if self.server_name is not None:
+            result["serverName"] = from_union([from_none, from_str], self.server_name)
+        if self.subject is not None:
+            result["subject"] = from_union([from_none, from_str], self.subject)
+        if self.tool_args is not None:
+            result["toolArgs"] = self.tool_args
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.tool_description is not None:
+            result["toolDescription"] = from_union([from_none, from_str], self.tool_description)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.tool_title is not None:
+            result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
+        if self.url is not None:
+            result["url"] = from_union([from_none, from_str], self.url)
+        if self.warning is not None:
+            result["warning"] = from_union([from_none, from_str], self.warning)
         return result
 
 
@@ -1855,6 +2009,7 @@ class PermissionRequestedData:
     "Permission request notification requiring client approval with request details"
     permission_request: PermissionRequest
     request_id: str
+    prompt_request: PermissionPromptRequest | None = None
     resolved_by_hook: bool | None = None
 
     @staticmethod
@@ -1862,10 +2017,12 @@ class PermissionRequestedData:
         assert isinstance(obj, dict)
         permission_request = PermissionRequest.from_dict(obj.get("permissionRequest"))
         request_id = from_str(obj.get("requestId"))
+        prompt_request = from_union([from_none, PermissionPromptRequest.from_dict], obj.get("promptRequest"))
         resolved_by_hook = from_union([from_none, from_bool], obj.get("resolvedByHook"))
         return PermissionRequestedData(
             permission_request=permission_request,
             request_id=request_id,
+            prompt_request=prompt_request,
             resolved_by_hook=resolved_by_hook,
         )
 
@@ -1873,6 +2030,8 @@ class PermissionRequestedData:
         result: dict = {}
         result["permissionRequest"] = to_class(PermissionRequest, self.permission_request)
         result["requestId"] = from_str(self.request_id)
+        if self.prompt_request is not None:
+            result["promptRequest"] = from_union([from_none, lambda x: to_class(PermissionPromptRequest, x)], self.prompt_request)
         if self.resolved_by_hook is not None:
             result["resolvedByHook"] = from_union([from_none, from_bool], self.resolved_by_hook)
         return result
@@ -4130,6 +4289,38 @@ class PermissionCompletedKind(Enum):
     DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
     DENIED_BY_CONTENT_EXCLUSION_POLICY = "denied-by-content-exclusion-policy"
     DENIED_BY_PERMISSION_REQUEST_HOOK = "denied-by-permission-request-hook"
+
+
+class PermissionPromptRequestKind(Enum):
+    "Derived user-facing permission prompt details for UI consumers discriminator"
+    COMMANDS = "commands"
+    WRITE = "write"
+    READ = "read"
+    MCP = "mcp"
+    URL = "url"
+    MEMORY = "memory"
+    CUSTOM_TOOL = "custom-tool"
+    PATH = "path"
+    HOOK = "hook"
+
+
+class PermissionPromptRequestMemoryAction(Enum):
+    "Whether this is a store or vote memory operation"
+    STORE = "store"
+    VOTE = "vote"
+
+
+class PermissionPromptRequestMemoryDirection(Enum):
+    "Vote direction (vote only)"
+    UPVOTE = "upvote"
+    DOWNVOTE = "downvote"
+
+
+class PermissionPromptRequestPathAccessKind(Enum):
+    "Underlying permission kind that needs path approval"
+    READ = "read"
+    SHELL = "shell"
+    WRITE = "write"
 
 
 class PermissionRequestKind(Enum):

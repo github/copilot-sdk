@@ -919,59 +919,51 @@ class ApprovalKind(Enum):
     MCP = "mcp"
     MCP_SAMPLING = "mcp-sampling"
     MEMORY = "memory"
+    READ = "read"
     WRITE = "write"
 
 class PermissionDecisionKind(Enum):
-    APPROVED = "approved"
-    APPROVED_FOR_LOCATION = "approved-for-location"
-    APPROVED_FOR_SESSION = "approved-for-session"
-    DENIED_BY_CONTENT_EXCLUSION_POLICY = "denied-by-content-exclusion-policy"
-    DENIED_BY_PERMISSION_REQUEST_HOOK = "denied-by-permission-request-hook"
-    DENIED_BY_RULES = "denied-by-rules"
-    DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
-    DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
+    APPROVE_FOR_LOCATION = "approve-for-location"
+    APPROVE_FOR_SESSION = "approve-for-session"
+    APPROVE_ONCE = "approve-once"
+    REJECT = "reject"
+    USER_NOT_AVAILABLE = "user-not-available"
 
-class PermissionDecisionApprovedKind(Enum):
-    APPROVED = "approved"
+class PermissionDecisionApproveForLocationKind(Enum):
+    APPROVE_FOR_LOCATION = "approve-for-location"
 
-class PermissionDecisionApprovedForLocationKind(Enum):
-    APPROVED_FOR_LOCATION = "approved-for-location"
-
-class PermissionDecisionApprovedForLocationApprovalCommandsKind(Enum):
+class PermissionDecisionApproveForLocationApprovalCommandsKind(Enum):
     COMMANDS = "commands"
 
-class PermissionDecisionApprovedForLocationApprovalCustomToolKind(Enum):
+class PermissionDecisionApproveForLocationApprovalCustomToolKind(Enum):
     CUSTOM_TOOL = "custom-tool"
 
-class PermissionDecisionApprovedForLocationApprovalMCPKind(Enum):
+class PermissionDecisionApproveForLocationApprovalMCPKind(Enum):
     MCP = "mcp"
 
-class PermissionDecisionApprovedForLocationApprovalMCPSamplingKind(Enum):
+class PermissionDecisionApproveForLocationApprovalMCPSamplingKind(Enum):
     MCP_SAMPLING = "mcp-sampling"
 
-class PermissionDecisionApprovedForLocationApprovalMemoryKind(Enum):
+class PermissionDecisionApproveForLocationApprovalMemoryKind(Enum):
     MEMORY = "memory"
 
-class PermissionDecisionApprovedForLocationApprovalWriteKind(Enum):
+class PermissionDecisionApproveForLocationApprovalReadKind(Enum):
+    READ = "read"
+
+class PermissionDecisionApproveForLocationApprovalWriteKind(Enum):
     WRITE = "write"
 
-class PermissionDecisionApprovedForSessionKind(Enum):
-    APPROVED_FOR_SESSION = "approved-for-session"
+class PermissionDecisionApproveForSessionKind(Enum):
+    APPROVE_FOR_SESSION = "approve-for-session"
 
-class PermissionDecisionDeniedByContentExclusionPolicyKind(Enum):
-    DENIED_BY_CONTENT_EXCLUSION_POLICY = "denied-by-content-exclusion-policy"
+class PermissionDecisionApproveOnceKind(Enum):
+    APPROVE_ONCE = "approve-once"
 
-class PermissionDecisionDeniedByPermissionRequestHookKind(Enum):
-    DENIED_BY_PERMISSION_REQUEST_HOOK = "denied-by-permission-request-hook"
+class PermissionDecisionRejectKind(Enum):
+    REJECT = "reject"
 
-class PermissionDecisionDeniedByRulesKind(Enum):
-    DENIED_BY_RULES = "denied-by-rules"
-
-class PermissionDecisionDeniedInteractivelyByUserKind(Enum):
-    DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
-
-class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind(Enum):
-    DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
+class PermissionDecisionUserNotAvailableKind(Enum):
+    USER_NOT_AVAILABLE = "user-not-available"
 
 @dataclass
 class PermissionRequestResult:
@@ -2713,7 +2705,7 @@ class ModelCapabilitiesOverrideLimits:
         return result
 
 @dataclass
-class PermissionDecisionApprovedForIonApproval:
+class PermissionDecisionApproveForIonApproval:
     """The approval to add as a session-scoped rule
 
     The approval to persist for this location
@@ -2724,13 +2716,13 @@ class PermissionDecisionApprovedForIonApproval:
     tool_name: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForIonApproval':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForIonApproval':
         assert isinstance(obj, dict)
         kind = ApprovalKind(obj.get("kind"))
         command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
         server_name = from_union([from_str, from_none], obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApprovedForIonApproval(kind, command_identifiers, server_name, tool_name)
+        return PermissionDecisionApproveForIonApproval(kind, command_identifiers, server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2744,7 +2736,7 @@ class PermissionDecisionApprovedForIonApproval:
         return result
 
 @dataclass
-class PermissionDecisionApprovedForLocationApproval:
+class PermissionDecisionApproveForLocationApproval:
     """The approval to persist for this location"""
 
     kind: ApprovalKind
@@ -2753,13 +2745,13 @@ class PermissionDecisionApprovedForLocationApproval:
     tool_name: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocationApproval':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApproval':
         assert isinstance(obj, dict)
         kind = ApprovalKind(obj.get("kind"))
         command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
         server_name = from_union([from_str, from_none], obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApprovedForLocationApproval(kind, command_identifiers, server_name, tool_name)
+        return PermissionDecisionApproveForLocationApproval(kind, command_identifiers, server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2773,7 +2765,7 @@ class PermissionDecisionApprovedForLocationApproval:
         return result
 
 @dataclass
-class PermissionDecisionApprovedForSessionApproval:
+class PermissionDecisionApproveForSessionApproval:
     """The approval to add as a session-scoped rule"""
 
     kind: ApprovalKind
@@ -2782,13 +2774,13 @@ class PermissionDecisionApprovedForSessionApproval:
     tool_name: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSessionApproval':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApproval':
         assert isinstance(obj, dict)
         kind = ApprovalKind(obj.get("kind"))
         command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
         server_name = from_union([from_str, from_none], obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApprovedForSessionApproval(kind, command_identifiers, server_name, tool_name)
+        return PermissionDecisionApproveForSessionApproval(kind, command_identifiers, server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2802,342 +2794,297 @@ class PermissionDecisionApprovedForSessionApproval:
         return result
 
 @dataclass
-class PermissionDecisionApproved:
-    kind: PermissionDecisionApprovedKind
-    """The permission request was approved"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproved':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedKind(obj.get("kind"))
-        return PermissionDecisionApproved(kind)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedKind, self.kind)
-        return result
-
-@dataclass
-class PermissionDecisionApprovedForLocationApprovalCommands:
+class PermissionDecisionApproveForLocationApprovalCommands:
     command_identifiers: list[str]
-    kind: PermissionDecisionApprovedForLocationApprovalCommandsKind
+    kind: PermissionDecisionApproveForLocationApprovalCommandsKind
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocationApprovalCommands':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalCommands':
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
-        kind = PermissionDecisionApprovedForLocationApprovalCommandsKind(obj.get("kind"))
-        return PermissionDecisionApprovedForLocationApprovalCommands(command_identifiers, kind)
+        kind = PermissionDecisionApproveForLocationApprovalCommandsKind(obj.get("kind"))
+        return PermissionDecisionApproveForLocationApprovalCommands(command_identifiers, kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["commandIdentifiers"] = from_list(from_str, self.command_identifiers)
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalCommandsKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForSessionApprovalCommands:
+class PermissionDecisionApproveForSessionApprovalCommands:
     command_identifiers: list[str]
-    kind: PermissionDecisionApprovedForLocationApprovalCommandsKind
+    kind: PermissionDecisionApproveForLocationApprovalCommandsKind
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSessionApprovalCommands':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalCommands':
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
-        kind = PermissionDecisionApprovedForLocationApprovalCommandsKind(obj.get("kind"))
-        return PermissionDecisionApprovedForSessionApprovalCommands(command_identifiers, kind)
+        kind = PermissionDecisionApproveForLocationApprovalCommandsKind(obj.get("kind"))
+        return PermissionDecisionApproveForSessionApprovalCommands(command_identifiers, kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["commandIdentifiers"] = from_list(from_str, self.command_identifiers)
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalCommandsKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForLocationApprovalCustomTool:
-    kind: PermissionDecisionApprovedForLocationApprovalCustomToolKind
+class PermissionDecisionApproveForLocationApprovalCustomTool:
+    kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
     tool_name: str
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocationApprovalCustomTool':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalCustomTool':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalCustomToolKind(obj.get("kind"))
+        kind = PermissionDecisionApproveForLocationApprovalCustomToolKind(obj.get("kind"))
         tool_name = from_str(obj.get("toolName"))
-        return PermissionDecisionApprovedForLocationApprovalCustomTool(kind, tool_name)
+        return PermissionDecisionApproveForLocationApprovalCustomTool(kind, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalCustomToolKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCustomToolKind, self.kind)
         result["toolName"] = from_str(self.tool_name)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForSessionApprovalCustomTool:
-    kind: PermissionDecisionApprovedForLocationApprovalCustomToolKind
+class PermissionDecisionApproveForSessionApprovalCustomTool:
+    kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
     tool_name: str
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSessionApprovalCustomTool':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalCustomTool':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalCustomToolKind(obj.get("kind"))
+        kind = PermissionDecisionApproveForLocationApprovalCustomToolKind(obj.get("kind"))
         tool_name = from_str(obj.get("toolName"))
-        return PermissionDecisionApprovedForSessionApprovalCustomTool(kind, tool_name)
+        return PermissionDecisionApproveForSessionApprovalCustomTool(kind, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalCustomToolKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCustomToolKind, self.kind)
         result["toolName"] = from_str(self.tool_name)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForLocationApprovalMCP:
-    kind: PermissionDecisionApprovedForLocationApprovalMCPKind
+class PermissionDecisionApproveForLocationApprovalMCP:
+    kind: PermissionDecisionApproveForLocationApprovalMCPKind
     server_name: str
     tool_name: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocationApprovalMCP':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMCP':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalMCPKind(obj.get("kind"))
+        kind = PermissionDecisionApproveForLocationApprovalMCPKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApprovedForLocationApprovalMCP(kind, server_name, tool_name)
+        return PermissionDecisionApproveForLocationApprovalMCP(kind, server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalMCPKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPKind, self.kind)
         result["serverName"] = from_str(self.server_name)
         result["toolName"] = from_union([from_none, from_str], self.tool_name)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForSessionApprovalMCP:
-    kind: PermissionDecisionApprovedForLocationApprovalMCPKind
+class PermissionDecisionApproveForSessionApprovalMCP:
+    kind: PermissionDecisionApproveForLocationApprovalMCPKind
     server_name: str
     tool_name: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSessionApprovalMCP':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMCP':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalMCPKind(obj.get("kind"))
+        kind = PermissionDecisionApproveForLocationApprovalMCPKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApprovedForSessionApprovalMCP(kind, server_name, tool_name)
+        return PermissionDecisionApproveForSessionApprovalMCP(kind, server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalMCPKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPKind, self.kind)
         result["serverName"] = from_str(self.server_name)
         result["toolName"] = from_union([from_none, from_str], self.tool_name)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForLocationApprovalMCPSampling:
-    kind: PermissionDecisionApprovedForLocationApprovalMCPSamplingKind
+class PermissionDecisionApproveForLocationApprovalMCPSampling:
+    kind: PermissionDecisionApproveForLocationApprovalMCPSamplingKind
     server_name: str
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocationApprovalMCPSampling':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMCPSampling':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalMCPSamplingKind(obj.get("kind"))
+        kind = PermissionDecisionApproveForLocationApprovalMCPSamplingKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
-        return PermissionDecisionApprovedForLocationApprovalMCPSampling(kind, server_name)
+        return PermissionDecisionApproveForLocationApprovalMCPSampling(kind, server_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalMCPSamplingKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPSamplingKind, self.kind)
         result["serverName"] = from_str(self.server_name)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForSessionApprovalMCPSampling:
-    kind: PermissionDecisionApprovedForLocationApprovalMCPSamplingKind
+class PermissionDecisionApproveForSessionApprovalMCPSampling:
+    kind: PermissionDecisionApproveForLocationApprovalMCPSamplingKind
     server_name: str
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSessionApprovalMCPSampling':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMCPSampling':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalMCPSamplingKind(obj.get("kind"))
+        kind = PermissionDecisionApproveForLocationApprovalMCPSamplingKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
-        return PermissionDecisionApprovedForSessionApprovalMCPSampling(kind, server_name)
+        return PermissionDecisionApproveForSessionApprovalMCPSampling(kind, server_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalMCPSamplingKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPSamplingKind, self.kind)
         result["serverName"] = from_str(self.server_name)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForLocationApprovalMemory:
-    kind: PermissionDecisionApprovedForLocationApprovalMemoryKind
+class PermissionDecisionApproveForLocationApprovalMemory:
+    kind: PermissionDecisionApproveForLocationApprovalMemoryKind
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocationApprovalMemory':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMemory':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalMemoryKind(obj.get("kind"))
-        return PermissionDecisionApprovedForLocationApprovalMemory(kind)
+        kind = PermissionDecisionApproveForLocationApprovalMemoryKind(obj.get("kind"))
+        return PermissionDecisionApproveForLocationApprovalMemory(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalMemoryKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForSessionApprovalMemory:
-    kind: PermissionDecisionApprovedForLocationApprovalMemoryKind
+class PermissionDecisionApproveForSessionApprovalMemory:
+    kind: PermissionDecisionApproveForLocationApprovalMemoryKind
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSessionApprovalMemory':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMemory':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalMemoryKind(obj.get("kind"))
-        return PermissionDecisionApprovedForSessionApprovalMemory(kind)
+        kind = PermissionDecisionApproveForLocationApprovalMemoryKind(obj.get("kind"))
+        return PermissionDecisionApproveForSessionApprovalMemory(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalMemoryKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForLocationApprovalWrite:
-    kind: PermissionDecisionApprovedForLocationApprovalWriteKind
+class PermissionDecisionApproveForLocationApprovalRead:
+    kind: PermissionDecisionApproveForLocationApprovalReadKind
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocationApprovalWrite':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalRead':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalWriteKind(obj.get("kind"))
-        return PermissionDecisionApprovedForLocationApprovalWrite(kind)
+        kind = PermissionDecisionApproveForLocationApprovalReadKind(obj.get("kind"))
+        return PermissionDecisionApproveForLocationApprovalRead(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalWriteKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForSessionApprovalWrite:
-    kind: PermissionDecisionApprovedForLocationApprovalWriteKind
+class PermissionDecisionApproveForSessionApprovalRead:
+    kind: PermissionDecisionApproveForLocationApprovalReadKind
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSessionApprovalWrite':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalRead':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedForLocationApprovalWriteKind(obj.get("kind"))
-        return PermissionDecisionApprovedForSessionApprovalWrite(kind)
+        kind = PermissionDecisionApproveForLocationApprovalReadKind(obj.get("kind"))
+        return PermissionDecisionApproveForSessionApprovalRead(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationApprovalWriteKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionDeniedByContentExclusionPolicy:
-    kind: PermissionDecisionDeniedByContentExclusionPolicyKind
-    """Denied by the organization's content exclusion policy"""
-
-    message: str
-    """Human-readable explanation of why the path was excluded"""
-
-    path: str
-    """File path that triggered the exclusion"""
+class PermissionDecisionApproveForLocationApprovalWrite:
+    kind: PermissionDecisionApproveForLocationApprovalWriteKind
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedByContentExclusionPolicy':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalWrite':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedByContentExclusionPolicyKind(obj.get("kind"))
-        message = from_str(obj.get("message"))
-        path = from_str(obj.get("path"))
-        return PermissionDecisionDeniedByContentExclusionPolicy(kind, message, path)
+        kind = PermissionDecisionApproveForLocationApprovalWriteKind(obj.get("kind"))
+        return PermissionDecisionApproveForLocationApprovalWrite(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedByContentExclusionPolicyKind, self.kind)
-        result["message"] = from_str(self.message)
-        result["path"] = from_str(self.path)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionDeniedByPermissionRequestHook:
-    kind: PermissionDecisionDeniedByPermissionRequestHookKind
-    """Denied by a permission request hook registered by an extension or plugin"""
-
-    interrupt: bool | None = None
-    """Whether to interrupt the current agent turn"""
-
-    message: str | None = None
-    """Optional message from the hook explaining the denial"""
+class PermissionDecisionApproveForSessionApprovalWrite:
+    kind: PermissionDecisionApproveForLocationApprovalWriteKind
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedByPermissionRequestHook':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalWrite':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedByPermissionRequestHookKind(obj.get("kind"))
-        interrupt = from_union([from_bool, from_none], obj.get("interrupt"))
-        message = from_union([from_str, from_none], obj.get("message"))
-        return PermissionDecisionDeniedByPermissionRequestHook(kind, interrupt, message)
+        kind = PermissionDecisionApproveForLocationApprovalWriteKind(obj.get("kind"))
+        return PermissionDecisionApproveForSessionApprovalWrite(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedByPermissionRequestHookKind, self.kind)
-        if self.interrupt is not None:
-            result["interrupt"] = from_union([from_bool, from_none], self.interrupt)
-        if self.message is not None:
-            result["message"] = from_union([from_str, from_none], self.message)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionDeniedByRules:
-    kind: PermissionDecisionDeniedByRulesKind
-    """Denied because approval rules explicitly blocked it"""
-
-    rules: list[Any]
-    """Rules that denied the request"""
+class PermissionDecisionApproveOnce:
+    kind: PermissionDecisionApproveOnceKind
+    """The permission request was approved for this one instance"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedByRules':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveOnce':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedByRulesKind(obj.get("kind"))
-        rules = from_list(lambda x: x, obj.get("rules"))
-        return PermissionDecisionDeniedByRules(kind, rules)
+        kind = PermissionDecisionApproveOnceKind(obj.get("kind"))
+        return PermissionDecisionApproveOnce(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedByRulesKind, self.kind)
-        result["rules"] = from_list(lambda x: x, self.rules)
+        result["kind"] = to_enum(PermissionDecisionApproveOnceKind, self.kind)
         return result
 
 @dataclass
-class PermissionDecisionDeniedInteractivelyByUser:
-    kind: PermissionDecisionDeniedInteractivelyByUserKind
+class PermissionDecisionReject:
+    kind: PermissionDecisionRejectKind
     """Denied by the user during an interactive prompt"""
 
     feedback: str | None = None
     """Optional feedback from the user explaining the denial"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedInteractivelyByUser':
+    def from_dict(obj: Any) -> 'PermissionDecisionReject':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedInteractivelyByUserKind(obj.get("kind"))
+        kind = PermissionDecisionRejectKind(obj.get("kind"))
         feedback = from_union([from_str, from_none], obj.get("feedback"))
-        return PermissionDecisionDeniedInteractivelyByUser(kind, feedback)
+        return PermissionDecisionReject(kind, feedback)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedInteractivelyByUserKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionRejectKind, self.kind)
         if self.feedback is not None:
             result["feedback"] = from_union([from_str, from_none], self.feedback)
         return result
 
 @dataclass
-class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
-    kind: PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind
-    """Denied because no approval rule matched and user confirmation was unavailable"""
+class PermissionDecisionUserNotAvailable:
+    kind: PermissionDecisionUserNotAvailableKind
+    """Denied because user confirmation was unavailable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser':
+    def from_dict(obj: Any) -> 'PermissionDecisionUserNotAvailable':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind(obj.get("kind"))
-        return PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser(kind)
+        kind = PermissionDecisionUserNotAvailableKind(obj.get("kind"))
+        return PermissionDecisionUserNotAvailable(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind, self.kind)
+        result["kind"] = to_enum(PermissionDecisionUserNotAvailableKind, self.kind)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -3824,23 +3771,17 @@ class ModelCapabilitiesOverride:
 @dataclass
 class PermissionDecision:
     kind: PermissionDecisionKind
-    """The permission request was approved
+    """The permission request was approved for this one instance
 
     Approved and remembered for the rest of the session
 
     Approved and persisted for this project location
 
-    Denied because approval rules explicitly blocked it
-
-    Denied because no approval rule matched and user confirmation was unavailable
-
     Denied by the user during an interactive prompt
 
-    Denied by the organization's content exclusion policy
-
-    Denied by a permission request hook registered by an extension or plugin
+    Denied because user confirmation was unavailable
     """
-    approval: PermissionDecisionApprovedForIonApproval | None = None
+    approval: PermissionDecisionApproveForIonApproval | None = None
     """The approval to add as a session-scoped rule
 
     The approval to persist for this location
@@ -3848,100 +3789,74 @@ class PermissionDecision:
     location_key: str | None = None
     """The location key (git root or cwd) to persist the approval to"""
 
-    rules: list[Any] | None = None
-    """Rules that denied the request"""
-
     feedback: str | None = None
     """Optional feedback from the user explaining the denial"""
-
-    message: str | None = None
-    """Human-readable explanation of why the path was excluded
-
-    Optional message from the hook explaining the denial
-    """
-    path: str | None = None
-    """File path that triggered the exclusion"""
-
-    interrupt: bool | None = None
-    """Whether to interrupt the current agent turn"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecision':
         assert isinstance(obj, dict)
         kind = PermissionDecisionKind(obj.get("kind"))
-        approval = from_union([PermissionDecisionApprovedForIonApproval.from_dict, from_none], obj.get("approval"))
+        approval = from_union([PermissionDecisionApproveForIonApproval.from_dict, from_none], obj.get("approval"))
         location_key = from_union([from_str, from_none], obj.get("locationKey"))
-        rules = from_union([lambda x: from_list(lambda x: x, x), from_none], obj.get("rules"))
         feedback = from_union([from_str, from_none], obj.get("feedback"))
-        message = from_union([from_str, from_none], obj.get("message"))
-        path = from_union([from_str, from_none], obj.get("path"))
-        interrupt = from_union([from_bool, from_none], obj.get("interrupt"))
-        return PermissionDecision(kind, approval, location_key, rules, feedback, message, path, interrupt)
+        return PermissionDecision(kind, approval, location_key, feedback)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = to_enum(PermissionDecisionKind, self.kind)
         if self.approval is not None:
-            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApprovedForIonApproval, x), from_none], self.approval)
+            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForIonApproval, x), from_none], self.approval)
         if self.location_key is not None:
             result["locationKey"] = from_union([from_str, from_none], self.location_key)
-        if self.rules is not None:
-            result["rules"] = from_union([lambda x: from_list(lambda x: x, x), from_none], self.rules)
         if self.feedback is not None:
             result["feedback"] = from_union([from_str, from_none], self.feedback)
-        if self.message is not None:
-            result["message"] = from_union([from_str, from_none], self.message)
-        if self.path is not None:
-            result["path"] = from_union([from_str, from_none], self.path)
-        if self.interrupt is not None:
-            result["interrupt"] = from_union([from_bool, from_none], self.interrupt)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForLocation:
-    approval: PermissionDecisionApprovedForLocationApproval
+class PermissionDecisionApproveForLocation:
+    approval: PermissionDecisionApproveForLocationApproval
     """The approval to persist for this location"""
 
-    kind: PermissionDecisionApprovedForLocationKind
+    kind: PermissionDecisionApproveForLocationKind
     """Approved and persisted for this project location"""
 
     location_key: str
     """The location key (git root or cwd) to persist the approval to"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocation':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocation':
         assert isinstance(obj, dict)
-        approval = PermissionDecisionApprovedForLocationApproval.from_dict(obj.get("approval"))
-        kind = PermissionDecisionApprovedForLocationKind(obj.get("kind"))
+        approval = PermissionDecisionApproveForLocationApproval.from_dict(obj.get("approval"))
+        kind = PermissionDecisionApproveForLocationKind(obj.get("kind"))
         location_key = from_str(obj.get("locationKey"))
-        return PermissionDecisionApprovedForLocation(approval, kind, location_key)
+        return PermissionDecisionApproveForLocation(approval, kind, location_key)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["approval"] = to_class(PermissionDecisionApprovedForLocationApproval, self.approval)
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationKind, self.kind)
+        result["approval"] = to_class(PermissionDecisionApproveForLocationApproval, self.approval)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationKind, self.kind)
         result["locationKey"] = from_str(self.location_key)
         return result
 
 @dataclass
-class PermissionDecisionApprovedForSession:
-    approval: PermissionDecisionApprovedForSessionApproval
+class PermissionDecisionApproveForSession:
+    approval: PermissionDecisionApproveForSessionApproval
     """The approval to add as a session-scoped rule"""
 
-    kind: PermissionDecisionApprovedForSessionKind
+    kind: PermissionDecisionApproveForSessionKind
     """Approved and remembered for the rest of the session"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSession':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSession':
         assert isinstance(obj, dict)
-        approval = PermissionDecisionApprovedForSessionApproval.from_dict(obj.get("approval"))
-        kind = PermissionDecisionApprovedForSessionKind(obj.get("kind"))
-        return PermissionDecisionApprovedForSession(approval, kind)
+        approval = PermissionDecisionApproveForSessionApproval.from_dict(obj.get("approval"))
+        kind = PermissionDecisionApproveForSessionKind(obj.get("kind"))
+        return PermissionDecisionApproveForSession(approval, kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["approval"] = to_class(PermissionDecisionApprovedForSessionApproval, self.approval)
-        result["kind"] = to_enum(PermissionDecisionApprovedForSessionKind, self.kind)
+        result["approval"] = to_class(PermissionDecisionApproveForSessionApproval, self.approval)
+        result["kind"] = to_enum(PermissionDecisionApproveForSessionKind, self.kind)
         return result
 
 @dataclass
@@ -4564,29 +4479,28 @@ class RPC:
     name_get_result: NameGetResult
     name_set_request: NameSetRequest
     permission_decision: PermissionDecision
-    permission_decision_approved: PermissionDecisionApproved
-    permission_decision_approved_for_location: PermissionDecisionApprovedForLocation
-    permission_decision_approved_for_location_approval: PermissionDecisionApprovedForLocationApproval
-    permission_decision_approved_for_location_approval_commands: PermissionDecisionApprovedForLocationApprovalCommands
-    permission_decision_approved_for_location_approval_custom_tool: PermissionDecisionApprovedForLocationApprovalCustomTool
-    permission_decision_approved_for_location_approval_mcp: PermissionDecisionApprovedForLocationApprovalMCP
-    permission_decision_approved_for_location_approval_mcp_sampling: PermissionDecisionApprovedForLocationApprovalMCPSampling
-    permission_decision_approved_for_location_approval_memory: PermissionDecisionApprovedForLocationApprovalMemory
-    permission_decision_approved_for_location_approval_write: PermissionDecisionApprovedForLocationApprovalWrite
-    permission_decision_approved_for_session: PermissionDecisionApprovedForSession
-    permission_decision_approved_for_session_approval: PermissionDecisionApprovedForSessionApproval
-    permission_decision_approved_for_session_approval_commands: PermissionDecisionApprovedForSessionApprovalCommands
-    permission_decision_approved_for_session_approval_custom_tool: PermissionDecisionApprovedForSessionApprovalCustomTool
-    permission_decision_approved_for_session_approval_mcp: PermissionDecisionApprovedForSessionApprovalMCP
-    permission_decision_approved_for_session_approval_mcp_sampling: PermissionDecisionApprovedForSessionApprovalMCPSampling
-    permission_decision_approved_for_session_approval_memory: PermissionDecisionApprovedForSessionApprovalMemory
-    permission_decision_approved_for_session_approval_write: PermissionDecisionApprovedForSessionApprovalWrite
-    permission_decision_denied_by_content_exclusion_policy: PermissionDecisionDeniedByContentExclusionPolicy
-    permission_decision_denied_by_permission_request_hook: PermissionDecisionDeniedByPermissionRequestHook
-    permission_decision_denied_by_rules: PermissionDecisionDeniedByRules
-    permission_decision_denied_interactively_by_user: PermissionDecisionDeniedInteractivelyByUser
-    permission_decision_denied_no_approval_rule_and_could_not_request_from_user: PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser
+    permission_decision_approve_for_location: PermissionDecisionApproveForLocation
+    permission_decision_approve_for_location_approval: PermissionDecisionApproveForLocationApproval
+    permission_decision_approve_for_location_approval_commands: PermissionDecisionApproveForLocationApprovalCommands
+    permission_decision_approve_for_location_approval_custom_tool: PermissionDecisionApproveForLocationApprovalCustomTool
+    permission_decision_approve_for_location_approval_mcp: PermissionDecisionApproveForLocationApprovalMCP
+    permission_decision_approve_for_location_approval_mcp_sampling: PermissionDecisionApproveForLocationApprovalMCPSampling
+    permission_decision_approve_for_location_approval_memory: PermissionDecisionApproveForLocationApprovalMemory
+    permission_decision_approve_for_location_approval_read: PermissionDecisionApproveForLocationApprovalRead
+    permission_decision_approve_for_location_approval_write: PermissionDecisionApproveForLocationApprovalWrite
+    permission_decision_approve_for_session: PermissionDecisionApproveForSession
+    permission_decision_approve_for_session_approval: PermissionDecisionApproveForSessionApproval
+    permission_decision_approve_for_session_approval_commands: PermissionDecisionApproveForSessionApprovalCommands
+    permission_decision_approve_for_session_approval_custom_tool: PermissionDecisionApproveForSessionApprovalCustomTool
+    permission_decision_approve_for_session_approval_mcp: PermissionDecisionApproveForSessionApprovalMCP
+    permission_decision_approve_for_session_approval_mcp_sampling: PermissionDecisionApproveForSessionApprovalMCPSampling
+    permission_decision_approve_for_session_approval_memory: PermissionDecisionApproveForSessionApprovalMemory
+    permission_decision_approve_for_session_approval_read: PermissionDecisionApproveForSessionApprovalRead
+    permission_decision_approve_for_session_approval_write: PermissionDecisionApproveForSessionApprovalWrite
+    permission_decision_approve_once: PermissionDecisionApproveOnce
+    permission_decision_reject: PermissionDecisionReject
     permission_decision_request: PermissionDecisionRequest
+    permission_decision_user_not_available: PermissionDecisionUserNotAvailable
     permission_request_result: PermissionRequestResult
     permissions_reset_session_approvals_request: PermissionsResetSessionApprovalsRequest
     permissions_reset_session_approvals_result: PermissionsResetSessionApprovalsResult
@@ -4758,29 +4672,28 @@ class RPC:
         name_get_result = NameGetResult.from_dict(obj.get("NameGetResult"))
         name_set_request = NameSetRequest.from_dict(obj.get("NameSetRequest"))
         permission_decision = PermissionDecision.from_dict(obj.get("PermissionDecision"))
-        permission_decision_approved = PermissionDecisionApproved.from_dict(obj.get("PermissionDecisionApproved"))
-        permission_decision_approved_for_location = PermissionDecisionApprovedForLocation.from_dict(obj.get("PermissionDecisionApprovedForLocation"))
-        permission_decision_approved_for_location_approval = PermissionDecisionApprovedForLocationApproval.from_dict(obj.get("PermissionDecisionApprovedForLocationApproval"))
-        permission_decision_approved_for_location_approval_commands = PermissionDecisionApprovedForLocationApprovalCommands.from_dict(obj.get("PermissionDecisionApprovedForLocationApprovalCommands"))
-        permission_decision_approved_for_location_approval_custom_tool = PermissionDecisionApprovedForLocationApprovalCustomTool.from_dict(obj.get("PermissionDecisionApprovedForLocationApprovalCustomTool"))
-        permission_decision_approved_for_location_approval_mcp = PermissionDecisionApprovedForLocationApprovalMCP.from_dict(obj.get("PermissionDecisionApprovedForLocationApprovalMcp"))
-        permission_decision_approved_for_location_approval_mcp_sampling = PermissionDecisionApprovedForLocationApprovalMCPSampling.from_dict(obj.get("PermissionDecisionApprovedForLocationApprovalMcpSampling"))
-        permission_decision_approved_for_location_approval_memory = PermissionDecisionApprovedForLocationApprovalMemory.from_dict(obj.get("PermissionDecisionApprovedForLocationApprovalMemory"))
-        permission_decision_approved_for_location_approval_write = PermissionDecisionApprovedForLocationApprovalWrite.from_dict(obj.get("PermissionDecisionApprovedForLocationApprovalWrite"))
-        permission_decision_approved_for_session = PermissionDecisionApprovedForSession.from_dict(obj.get("PermissionDecisionApprovedForSession"))
-        permission_decision_approved_for_session_approval = PermissionDecisionApprovedForSessionApproval.from_dict(obj.get("PermissionDecisionApprovedForSessionApproval"))
-        permission_decision_approved_for_session_approval_commands = PermissionDecisionApprovedForSessionApprovalCommands.from_dict(obj.get("PermissionDecisionApprovedForSessionApprovalCommands"))
-        permission_decision_approved_for_session_approval_custom_tool = PermissionDecisionApprovedForSessionApprovalCustomTool.from_dict(obj.get("PermissionDecisionApprovedForSessionApprovalCustomTool"))
-        permission_decision_approved_for_session_approval_mcp = PermissionDecisionApprovedForSessionApprovalMCP.from_dict(obj.get("PermissionDecisionApprovedForSessionApprovalMcp"))
-        permission_decision_approved_for_session_approval_mcp_sampling = PermissionDecisionApprovedForSessionApprovalMCPSampling.from_dict(obj.get("PermissionDecisionApprovedForSessionApprovalMcpSampling"))
-        permission_decision_approved_for_session_approval_memory = PermissionDecisionApprovedForSessionApprovalMemory.from_dict(obj.get("PermissionDecisionApprovedForSessionApprovalMemory"))
-        permission_decision_approved_for_session_approval_write = PermissionDecisionApprovedForSessionApprovalWrite.from_dict(obj.get("PermissionDecisionApprovedForSessionApprovalWrite"))
-        permission_decision_denied_by_content_exclusion_policy = PermissionDecisionDeniedByContentExclusionPolicy.from_dict(obj.get("PermissionDecisionDeniedByContentExclusionPolicy"))
-        permission_decision_denied_by_permission_request_hook = PermissionDecisionDeniedByPermissionRequestHook.from_dict(obj.get("PermissionDecisionDeniedByPermissionRequestHook"))
-        permission_decision_denied_by_rules = PermissionDecisionDeniedByRules.from_dict(obj.get("PermissionDecisionDeniedByRules"))
-        permission_decision_denied_interactively_by_user = PermissionDecisionDeniedInteractivelyByUser.from_dict(obj.get("PermissionDecisionDeniedInteractivelyByUser"))
-        permission_decision_denied_no_approval_rule_and_could_not_request_from_user = PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser.from_dict(obj.get("PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser"))
+        permission_decision_approve_for_location = PermissionDecisionApproveForLocation.from_dict(obj.get("PermissionDecisionApproveForLocation"))
+        permission_decision_approve_for_location_approval = PermissionDecisionApproveForLocationApproval.from_dict(obj.get("PermissionDecisionApproveForLocationApproval"))
+        permission_decision_approve_for_location_approval_commands = PermissionDecisionApproveForLocationApprovalCommands.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalCommands"))
+        permission_decision_approve_for_location_approval_custom_tool = PermissionDecisionApproveForLocationApprovalCustomTool.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalCustomTool"))
+        permission_decision_approve_for_location_approval_mcp = PermissionDecisionApproveForLocationApprovalMCP.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalMcp"))
+        permission_decision_approve_for_location_approval_mcp_sampling = PermissionDecisionApproveForLocationApprovalMCPSampling.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalMcpSampling"))
+        permission_decision_approve_for_location_approval_memory = PermissionDecisionApproveForLocationApprovalMemory.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalMemory"))
+        permission_decision_approve_for_location_approval_read = PermissionDecisionApproveForLocationApprovalRead.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalRead"))
+        permission_decision_approve_for_location_approval_write = PermissionDecisionApproveForLocationApprovalWrite.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalWrite"))
+        permission_decision_approve_for_session = PermissionDecisionApproveForSession.from_dict(obj.get("PermissionDecisionApproveForSession"))
+        permission_decision_approve_for_session_approval = PermissionDecisionApproveForSessionApproval.from_dict(obj.get("PermissionDecisionApproveForSessionApproval"))
+        permission_decision_approve_for_session_approval_commands = PermissionDecisionApproveForSessionApprovalCommands.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalCommands"))
+        permission_decision_approve_for_session_approval_custom_tool = PermissionDecisionApproveForSessionApprovalCustomTool.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalCustomTool"))
+        permission_decision_approve_for_session_approval_mcp = PermissionDecisionApproveForSessionApprovalMCP.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalMcp"))
+        permission_decision_approve_for_session_approval_mcp_sampling = PermissionDecisionApproveForSessionApprovalMCPSampling.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalMcpSampling"))
+        permission_decision_approve_for_session_approval_memory = PermissionDecisionApproveForSessionApprovalMemory.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalMemory"))
+        permission_decision_approve_for_session_approval_read = PermissionDecisionApproveForSessionApprovalRead.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalRead"))
+        permission_decision_approve_for_session_approval_write = PermissionDecisionApproveForSessionApprovalWrite.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalWrite"))
+        permission_decision_approve_once = PermissionDecisionApproveOnce.from_dict(obj.get("PermissionDecisionApproveOnce"))
+        permission_decision_reject = PermissionDecisionReject.from_dict(obj.get("PermissionDecisionReject"))
         permission_decision_request = PermissionDecisionRequest.from_dict(obj.get("PermissionDecisionRequest"))
+        permission_decision_user_not_available = PermissionDecisionUserNotAvailable.from_dict(obj.get("PermissionDecisionUserNotAvailable"))
         permission_request_result = PermissionRequestResult.from_dict(obj.get("PermissionRequestResult"))
         permissions_reset_session_approvals_request = PermissionsResetSessionApprovalsRequest.from_dict(obj.get("PermissionsResetSessionApprovalsRequest"))
         permissions_reset_session_approvals_result = PermissionsResetSessionApprovalsResult.from_dict(obj.get("PermissionsResetSessionApprovalsResult"))
@@ -4870,7 +4783,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_location_approval, permission_decision_approved_for_location_approval_commands, permission_decision_approved_for_location_approval_custom_tool, permission_decision_approved_for_location_approval_mcp, permission_decision_approved_for_location_approval_mcp_sampling, permission_decision_approved_for_location_approval_memory, permission_decision_approved_for_location_approval_write, permission_decision_approved_for_session, permission_decision_approved_for_session_approval, permission_decision_approved_for_session_approval_commands, permission_decision_approved_for_session_approval_custom_tool, permission_decision_approved_for_session_approval_mcp, permission_decision_approved_for_session_approval_mcp_sampling, permission_decision_approved_for_session_approval_memory, permission_decision_approved_for_session_approval_write, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_request, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, tool, tool_call_result, tool_list, tools_handle_pending_tool_call, tools_handle_pending_tool_call_request, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_usage, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, tool, tool_call_result, tool_list, tools_handle_pending_tool_call, tools_handle_pending_tool_call_request, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_usage, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -4952,29 +4865,28 @@ class RPC:
         result["NameGetResult"] = to_class(NameGetResult, self.name_get_result)
         result["NameSetRequest"] = to_class(NameSetRequest, self.name_set_request)
         result["PermissionDecision"] = to_class(PermissionDecision, self.permission_decision)
-        result["PermissionDecisionApproved"] = to_class(PermissionDecisionApproved, self.permission_decision_approved)
-        result["PermissionDecisionApprovedForLocation"] = to_class(PermissionDecisionApprovedForLocation, self.permission_decision_approved_for_location)
-        result["PermissionDecisionApprovedForLocationApproval"] = to_class(PermissionDecisionApprovedForLocationApproval, self.permission_decision_approved_for_location_approval)
-        result["PermissionDecisionApprovedForLocationApprovalCommands"] = to_class(PermissionDecisionApprovedForLocationApprovalCommands, self.permission_decision_approved_for_location_approval_commands)
-        result["PermissionDecisionApprovedForLocationApprovalCustomTool"] = to_class(PermissionDecisionApprovedForLocationApprovalCustomTool, self.permission_decision_approved_for_location_approval_custom_tool)
-        result["PermissionDecisionApprovedForLocationApprovalMcp"] = to_class(PermissionDecisionApprovedForLocationApprovalMCP, self.permission_decision_approved_for_location_approval_mcp)
-        result["PermissionDecisionApprovedForLocationApprovalMcpSampling"] = to_class(PermissionDecisionApprovedForLocationApprovalMCPSampling, self.permission_decision_approved_for_location_approval_mcp_sampling)
-        result["PermissionDecisionApprovedForLocationApprovalMemory"] = to_class(PermissionDecisionApprovedForLocationApprovalMemory, self.permission_decision_approved_for_location_approval_memory)
-        result["PermissionDecisionApprovedForLocationApprovalWrite"] = to_class(PermissionDecisionApprovedForLocationApprovalWrite, self.permission_decision_approved_for_location_approval_write)
-        result["PermissionDecisionApprovedForSession"] = to_class(PermissionDecisionApprovedForSession, self.permission_decision_approved_for_session)
-        result["PermissionDecisionApprovedForSessionApproval"] = to_class(PermissionDecisionApprovedForSessionApproval, self.permission_decision_approved_for_session_approval)
-        result["PermissionDecisionApprovedForSessionApprovalCommands"] = to_class(PermissionDecisionApprovedForSessionApprovalCommands, self.permission_decision_approved_for_session_approval_commands)
-        result["PermissionDecisionApprovedForSessionApprovalCustomTool"] = to_class(PermissionDecisionApprovedForSessionApprovalCustomTool, self.permission_decision_approved_for_session_approval_custom_tool)
-        result["PermissionDecisionApprovedForSessionApprovalMcp"] = to_class(PermissionDecisionApprovedForSessionApprovalMCP, self.permission_decision_approved_for_session_approval_mcp)
-        result["PermissionDecisionApprovedForSessionApprovalMcpSampling"] = to_class(PermissionDecisionApprovedForSessionApprovalMCPSampling, self.permission_decision_approved_for_session_approval_mcp_sampling)
-        result["PermissionDecisionApprovedForSessionApprovalMemory"] = to_class(PermissionDecisionApprovedForSessionApprovalMemory, self.permission_decision_approved_for_session_approval_memory)
-        result["PermissionDecisionApprovedForSessionApprovalWrite"] = to_class(PermissionDecisionApprovedForSessionApprovalWrite, self.permission_decision_approved_for_session_approval_write)
-        result["PermissionDecisionDeniedByContentExclusionPolicy"] = to_class(PermissionDecisionDeniedByContentExclusionPolicy, self.permission_decision_denied_by_content_exclusion_policy)
-        result["PermissionDecisionDeniedByPermissionRequestHook"] = to_class(PermissionDecisionDeniedByPermissionRequestHook, self.permission_decision_denied_by_permission_request_hook)
-        result["PermissionDecisionDeniedByRules"] = to_class(PermissionDecisionDeniedByRules, self.permission_decision_denied_by_rules)
-        result["PermissionDecisionDeniedInteractivelyByUser"] = to_class(PermissionDecisionDeniedInteractivelyByUser, self.permission_decision_denied_interactively_by_user)
-        result["PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser"] = to_class(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser, self.permission_decision_denied_no_approval_rule_and_could_not_request_from_user)
+        result["PermissionDecisionApproveForLocation"] = to_class(PermissionDecisionApproveForLocation, self.permission_decision_approve_for_location)
+        result["PermissionDecisionApproveForLocationApproval"] = to_class(PermissionDecisionApproveForLocationApproval, self.permission_decision_approve_for_location_approval)
+        result["PermissionDecisionApproveForLocationApprovalCommands"] = to_class(PermissionDecisionApproveForLocationApprovalCommands, self.permission_decision_approve_for_location_approval_commands)
+        result["PermissionDecisionApproveForLocationApprovalCustomTool"] = to_class(PermissionDecisionApproveForLocationApprovalCustomTool, self.permission_decision_approve_for_location_approval_custom_tool)
+        result["PermissionDecisionApproveForLocationApprovalMcp"] = to_class(PermissionDecisionApproveForLocationApprovalMCP, self.permission_decision_approve_for_location_approval_mcp)
+        result["PermissionDecisionApproveForLocationApprovalMcpSampling"] = to_class(PermissionDecisionApproveForLocationApprovalMCPSampling, self.permission_decision_approve_for_location_approval_mcp_sampling)
+        result["PermissionDecisionApproveForLocationApprovalMemory"] = to_class(PermissionDecisionApproveForLocationApprovalMemory, self.permission_decision_approve_for_location_approval_memory)
+        result["PermissionDecisionApproveForLocationApprovalRead"] = to_class(PermissionDecisionApproveForLocationApprovalRead, self.permission_decision_approve_for_location_approval_read)
+        result["PermissionDecisionApproveForLocationApprovalWrite"] = to_class(PermissionDecisionApproveForLocationApprovalWrite, self.permission_decision_approve_for_location_approval_write)
+        result["PermissionDecisionApproveForSession"] = to_class(PermissionDecisionApproveForSession, self.permission_decision_approve_for_session)
+        result["PermissionDecisionApproveForSessionApproval"] = to_class(PermissionDecisionApproveForSessionApproval, self.permission_decision_approve_for_session_approval)
+        result["PermissionDecisionApproveForSessionApprovalCommands"] = to_class(PermissionDecisionApproveForSessionApprovalCommands, self.permission_decision_approve_for_session_approval_commands)
+        result["PermissionDecisionApproveForSessionApprovalCustomTool"] = to_class(PermissionDecisionApproveForSessionApprovalCustomTool, self.permission_decision_approve_for_session_approval_custom_tool)
+        result["PermissionDecisionApproveForSessionApprovalMcp"] = to_class(PermissionDecisionApproveForSessionApprovalMCP, self.permission_decision_approve_for_session_approval_mcp)
+        result["PermissionDecisionApproveForSessionApprovalMcpSampling"] = to_class(PermissionDecisionApproveForSessionApprovalMCPSampling, self.permission_decision_approve_for_session_approval_mcp_sampling)
+        result["PermissionDecisionApproveForSessionApprovalMemory"] = to_class(PermissionDecisionApproveForSessionApprovalMemory, self.permission_decision_approve_for_session_approval_memory)
+        result["PermissionDecisionApproveForSessionApprovalRead"] = to_class(PermissionDecisionApproveForSessionApprovalRead, self.permission_decision_approve_for_session_approval_read)
+        result["PermissionDecisionApproveForSessionApprovalWrite"] = to_class(PermissionDecisionApproveForSessionApprovalWrite, self.permission_decision_approve_for_session_approval_write)
+        result["PermissionDecisionApproveOnce"] = to_class(PermissionDecisionApproveOnce, self.permission_decision_approve_once)
+        result["PermissionDecisionReject"] = to_class(PermissionDecisionReject, self.permission_decision_reject)
         result["PermissionDecisionRequest"] = to_class(PermissionDecisionRequest, self.permission_decision_request)
+        result["PermissionDecisionUserNotAvailable"] = to_class(PermissionDecisionUserNotAvailable, self.permission_decision_user_not_available)
         result["PermissionRequestResult"] = to_class(PermissionRequestResult, self.permission_request_result)
         result["PermissionsResetSessionApprovalsRequest"] = to_class(PermissionsResetSessionApprovalsRequest, self.permissions_reset_session_approvals_request)
         result["PermissionsResetSessionApprovalsResult"] = to_class(PermissionsResetSessionApprovalsResult, self.permissions_reset_session_approvals_result)
