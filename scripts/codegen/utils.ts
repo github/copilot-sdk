@@ -482,7 +482,11 @@ export function resolveObjectSchema(
     }
 
     const singleBranch = (resolved.anyOf ?? resolved.oneOf)
-        ?.filter((item): item is JSONSchema7 => typeof item === "object" && (item as JSONSchema7).type !== "null");
+        ?.filter((item): item is JSONSchema7 =>
+            typeof item === "object" &&
+            (item as JSONSchema7).type !== "null" &&
+            !((item as JSONSchema7).not !== undefined && typeof (item as JSONSchema7).not === "object" && Object.keys((item as JSONSchema7).not as object).length === 0)
+        );
     if (singleBranch && singleBranch.length === 1) {
         return resolveObjectSchema(singleBranch[0], definitions);
     }

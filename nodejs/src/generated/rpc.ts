@@ -5,9 +5,6 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-export type AccountGetQuotaRequest = {
-      [k: string]: unknown;
-    };
 /**
  * Authentication type
  *
@@ -104,10 +101,6 @@ export type McpServerStatus = "connected" | "failed" | "needs-auth" | "pending" 
  * via the `definition` "McpServerSource".
  */
 export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
-
-export type ModelsListRequest = {
-      [k: string]: unknown;
-    };
 /**
  * The agent mode. Valid values: "interactive", "plan", "autopilot".
  *
@@ -207,6 +200,13 @@ export type UIElicitationSchemaPropertyNumberType = "number" | "integer";
  * via the `definition` "UIElicitationResponseAction".
  */
 export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
+
+export interface AccountGetQuotaRequest {
+  /**
+   * GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.
+   */
+  gitHubToken?: string;
+}
 
 export interface AccountGetQuotaResult {
   /**
@@ -867,6 +867,13 @@ export interface ModelList {
    * List of available models with full metadata
    */
   models: Model[];
+}
+
+export interface ModelsListRequest {
+  /**
+   * GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.
+   */
+  gitHubToken?: string;
 }
 
 export interface ModelSwitchToRequest {
@@ -1944,7 +1951,7 @@ export function createServerRpc(connection: MessageConnection) {
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
         models: {
-            list: async (params: ModelsListRequest): Promise<ModelList> =>
+            list: async (params?: ModelsListRequest): Promise<ModelList> =>
                 connection.sendRequest("models.list", params),
         },
         tools: {
@@ -1952,7 +1959,7 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("tools.list", params),
         },
         account: {
-            getQuota: async (params: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
+            getQuota: async (params?: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", params),
         },
         mcp: {
@@ -2003,25 +2010,25 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         model: {
             getCurrent: async (): Promise<CurrentModel> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
-            switchTo: async (params: Omit<ModelSwitchToRequest, "sessionId">): Promise<ModelSwitchToResult> =>
+            switchTo: async (params: ModelSwitchToRequest): Promise<ModelSwitchToResult> =>
                 connection.sendRequest("session.model.switchTo", { sessionId, ...params }),
         },
         mode: {
             get: async (): Promise<SessionMode> =>
                 connection.sendRequest("session.mode.get", { sessionId }),
-            set: async (params: Omit<ModeSetRequest, "sessionId">): Promise<void> =>
+            set: async (params: ModeSetRequest): Promise<void> =>
                 connection.sendRequest("session.mode.set", { sessionId, ...params }),
         },
         name: {
             get: async (): Promise<NameGetResult> =>
                 connection.sendRequest("session.name.get", { sessionId }),
-            set: async (params: Omit<NameSetRequest, "sessionId">): Promise<void> =>
+            set: async (params: NameSetRequest): Promise<void> =>
                 connection.sendRequest("session.name.set", { sessionId, ...params }),
         },
         plan: {
             read: async (): Promise<PlanReadResult> =>
                 connection.sendRequest("session.plan.read", { sessionId }),
-            update: async (params: Omit<PlanUpdateRequest, "sessionId">): Promise<void> =>
+            update: async (params: PlanUpdateRequest): Promise<void> =>
                 connection.sendRequest("session.plan.update", { sessionId, ...params }),
             delete: async (): Promise<void> =>
                 connection.sendRequest("session.plan.delete", { sessionId }),
@@ -2031,9 +2038,9 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.workspaces.getWorkspace", { sessionId }),
             listFiles: async (): Promise<WorkspacesListFilesResult> =>
                 connection.sendRequest("session.workspaces.listFiles", { sessionId }),
-            readFile: async (params: Omit<WorkspacesReadFileRequest, "sessionId">): Promise<WorkspacesReadFileResult> =>
+            readFile: async (params: WorkspacesReadFileRequest): Promise<WorkspacesReadFileResult> =>
                 connection.sendRequest("session.workspaces.readFile", { sessionId, ...params }),
-            createFile: async (params: Omit<WorkspacesCreateFileRequest, "sessionId">): Promise<void> =>
+            createFile: async (params: WorkspacesCreateFileRequest): Promise<void> =>
                 connection.sendRequest("session.workspaces.createFile", { sessionId, ...params }),
         },
         instructions: {
@@ -2042,7 +2049,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         },
         /** @experimental */
         fleet: {
-            start: async (params: Omit<FleetStartRequest, "sessionId">): Promise<FleetStartResult> =>
+            start: async (params: FleetStartRequest): Promise<FleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
         },
         /** @experimental */
@@ -2051,7 +2058,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.agent.list", { sessionId }),
             getCurrent: async (): Promise<AgentGetCurrentResult> =>
                 connection.sendRequest("session.agent.getCurrent", { sessionId }),
-            select: async (params: Omit<AgentSelectRequest, "sessionId">): Promise<AgentSelectResult> =>
+            select: async (params: AgentSelectRequest): Promise<AgentSelectResult> =>
                 connection.sendRequest("session.agent.select", { sessionId, ...params }),
             deselect: async (): Promise<void> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
@@ -2062,9 +2069,9 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         skills: {
             list: async (): Promise<SkillList> =>
                 connection.sendRequest("session.skills.list", { sessionId }),
-            enable: async (params: Omit<SkillsEnableRequest, "sessionId">): Promise<void> =>
+            enable: async (params: SkillsEnableRequest): Promise<void> =>
                 connection.sendRequest("session.skills.enable", { sessionId, ...params }),
-            disable: async (params: Omit<SkillsDisableRequest, "sessionId">): Promise<void> =>
+            disable: async (params: SkillsDisableRequest): Promise<void> =>
                 connection.sendRequest("session.skills.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.skills.reload", { sessionId }),
@@ -2073,15 +2080,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         mcp: {
             list: async (): Promise<McpServerList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
-            enable: async (params: Omit<McpEnableRequest, "sessionId">): Promise<void> =>
+            enable: async (params: McpEnableRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.enable", { sessionId, ...params }),
-            disable: async (params: Omit<McpDisableRequest, "sessionId">): Promise<void> =>
+            disable: async (params: McpDisableRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.mcp.reload", { sessionId }),
             /** @experimental */
             oauth: {
-                login: async (params: Omit<McpOauthLoginRequest, "sessionId">): Promise<McpOauthLoginResult> =>
+                login: async (params: McpOauthLoginRequest): Promise<McpOauthLoginResult> =>
                     connection.sendRequest("session.mcp.oauth.login", { sessionId, ...params }),
             },
         },
@@ -2094,48 +2101,48 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         extensions: {
             list: async (): Promise<ExtensionList> =>
                 connection.sendRequest("session.extensions.list", { sessionId }),
-            enable: async (params: Omit<ExtensionsEnableRequest, "sessionId">): Promise<void> =>
+            enable: async (params: ExtensionsEnableRequest): Promise<void> =>
                 connection.sendRequest("session.extensions.enable", { sessionId, ...params }),
-            disable: async (params: Omit<ExtensionsDisableRequest, "sessionId">): Promise<void> =>
+            disable: async (params: ExtensionsDisableRequest): Promise<void> =>
                 connection.sendRequest("session.extensions.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.extensions.reload", { sessionId }),
         },
         tools: {
-            handlePendingToolCall: async (params: Omit<ToolsHandlePendingToolCallRequest, "sessionId">): Promise<HandleToolCallResult> =>
+            handlePendingToolCall: async (params: ToolsHandlePendingToolCallRequest): Promise<HandleToolCallResult> =>
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
         },
         commands: {
-            handlePendingCommand: async (params: Omit<CommandsHandlePendingCommandRequest, "sessionId">): Promise<CommandsHandlePendingCommandResult> =>
+            handlePendingCommand: async (params: CommandsHandlePendingCommandRequest): Promise<CommandsHandlePendingCommandResult> =>
                 connection.sendRequest("session.commands.handlePendingCommand", { sessionId, ...params }),
         },
         ui: {
-            elicitation: async (params: Omit<UIElicitationRequest, "sessionId">): Promise<UIElicitationResponse> =>
+            elicitation: async (params: UIElicitationRequest): Promise<UIElicitationResponse> =>
                 connection.sendRequest("session.ui.elicitation", { sessionId, ...params }),
-            handlePendingElicitation: async (params: Omit<UIHandlePendingElicitationRequest, "sessionId">): Promise<UIElicitationResult> =>
+            handlePendingElicitation: async (params: UIHandlePendingElicitationRequest): Promise<UIElicitationResult> =>
                 connection.sendRequest("session.ui.handlePendingElicitation", { sessionId, ...params }),
         },
         permissions: {
-            handlePendingPermissionRequest: async (params: Omit<PermissionDecisionRequest, "sessionId">): Promise<PermissionRequestResult> =>
+            handlePendingPermissionRequest: async (params: PermissionDecisionRequest): Promise<PermissionRequestResult> =>
                 connection.sendRequest("session.permissions.handlePendingPermissionRequest", { sessionId, ...params }),
-            setApproveAll: async (params: Omit<PermissionsSetApproveAllRequest, "sessionId">): Promise<PermissionsSetApproveAllResult> =>
+            setApproveAll: async (params: PermissionsSetApproveAllRequest): Promise<PermissionsSetApproveAllResult> =>
                 connection.sendRequest("session.permissions.setApproveAll", { sessionId, ...params }),
             resetSessionApprovals: async (): Promise<PermissionsResetSessionApprovalsResult> =>
                 connection.sendRequest("session.permissions.resetSessionApprovals", { sessionId }),
         },
-        log: async (params: Omit<LogRequest, "sessionId">): Promise<LogResult> =>
+        log: async (params: LogRequest): Promise<LogResult> =>
             connection.sendRequest("session.log", { sessionId, ...params }),
         shell: {
-            exec: async (params: Omit<ShellExecRequest, "sessionId">): Promise<ShellExecResult> =>
+            exec: async (params: ShellExecRequest): Promise<ShellExecResult> =>
                 connection.sendRequest("session.shell.exec", { sessionId, ...params }),
-            kill: async (params: Omit<ShellKillRequest, "sessionId">): Promise<ShellKillResult> =>
+            kill: async (params: ShellKillRequest): Promise<ShellKillResult> =>
                 connection.sendRequest("session.shell.kill", { sessionId, ...params }),
         },
         /** @experimental */
         history: {
             compact: async (): Promise<HistoryCompactResult> =>
                 connection.sendRequest("session.history.compact", { sessionId }),
-            truncate: async (params: Omit<HistoryTruncateRequest, "sessionId">): Promise<HistoryTruncateResult> =>
+            truncate: async (params: HistoryTruncateRequest): Promise<HistoryTruncateResult> =>
                 connection.sendRequest("session.history.truncate", { sessionId, ...params }),
         },
         /** @experimental */
