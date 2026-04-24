@@ -923,14 +923,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		handler := s.getPermissionHandler()
 		if handler == nil {
 			// No handler registered (e.g. session disconnected or single-client
-			// headless mode). Send an explicit denial so the CLI server does not
-			// hang waiting indefinitely for a response.
-			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
-				RequestID: d.RequestID,
-				Result: rpc.PermissionDecision{
-					Kind: rpc.PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
-				},
-			})
+			// headless mode). Another client will handle it.
 			return
 		}
 		s.executePermissionAndRespond(d.RequestID, d.PermissionRequest, handler)
@@ -1153,33 +1146,37 @@ func (s *Session) Disconnect() error {
 		s.onDisposed(s.SessionID)
 	}
 
+	// Ensure cleanup always runs even if session.destroy fails
+	defer func() {
+		s.closeOnce.Do(func() { close(s.eventCh) })
+
+		// Clear handlers
+		s.handlerMutex.Lock()
+		s.handlers = nil
+		s.handlerMutex.Unlock()
+
+		s.toolHandlersM.Lock()
+		s.toolHandlers = nil
+		s.toolHandlersM.Unlock()
+
+		s.permissionMux.Lock()
+		s.permissionHandler = nil
+		s.permissionMux.Unlock()
+
+		s.commandHandlersMu.Lock()
+		s.commandHandlers = nil
+		s.commandHandlersMu.Unlock()
+
+		s.elicitationMu.Lock()
+		s.elicitationHandler = nil
+		s.elicitationMu.Unlock()
+	}()
+
+	// Try to destroy session on server
 	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
-
-	s.closeOnce.Do(func() { close(s.eventCh) })
-
-	// Clear handlers
-	s.handlerMutex.Lock()
-	s.handlers = nil
-	s.handlerMutex.Unlock()
-
-	s.toolHandlersM.Lock()
-	s.toolHandlers = nil
-	s.toolHandlersM.Unlock()
-
-	s.permissionMux.Lock()
-	s.permissionHandler = nil
-	s.permissionMux.Unlock()
-
-	s.commandHandlersMu.Lock()
-	s.commandHandlers = nil
-	s.commandHandlersMu.Unlock()
-
-	s.elicitationMu.Lock()
-	s.elicitationHandler = nil
-	s.elicitationMu.Unlock()
 
 	return nil
 }

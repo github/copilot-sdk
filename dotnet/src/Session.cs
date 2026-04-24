@@ -474,20 +474,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
                         var handler = _permissionHandler;
                         if (handler is null)
-                        {
-                            // No handler registered (e.g. session disposed or single-client
-                            // headless mode). Send an explicit denial so the CLI server does
-                            // not hang waiting indefinitely for a response.
-                            try
-                            {
-                                await Rpc.Permissions.HandlePendingPermissionRequestAsync(data.RequestId, new PermissionDecision
-                                {
-                                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser.Value
-                                });
-                            }
-                            catch (Exception) { /* best-effort denial — swallow connection/RPC errors */ }
-                            return;
-                        }
+                            return; // This client doesn't handle permissions; another client will.
 
                         await ExecutePermissionAndRespondAsync(data.RequestId, data.PermissionRequest, handler);
                         break;

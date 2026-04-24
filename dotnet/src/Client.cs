@@ -478,7 +478,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
         _sessions[sessionId] = session;
-        session.OnDisposed = id => _sessions.TryRemove(id, out _);
 
         try
         {
@@ -603,7 +602,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
         _sessions[sessionId] = session;
-        session.OnDisposed = id => _sessions.TryRemove(id, out _);
 
         try
         {

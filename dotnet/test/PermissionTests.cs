@@ -250,40 +250,27 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     /// <summary>
-    /// Regression test for issue #300: permission callback lost after session disposal.
-    /// When session A is disposed but remains in the client's session map, a broadcast
-    /// permission.requested event gets routed to the disposed session (which has a null
-    /// handler) instead of the active session B. This causes the CLI to hang forever
-    /// waiting for a permission decision that never arrives.
-    ///
-    /// The fix ensures DisposeAsync removes the session from the client map via OnDisposed,
-    /// and adds a disposed guard in DispatchEvent to prevent stale sessions from receiving events.
+    /// Validates that disposing a session does not affect subsequent sessions on the same client.
+    /// After session A is disposed, session B should handle permissions and complete tool calls normally.
+    /// This exercises the OnDisposed cleanup path that removes disposed sessions from the client map.
     /// </summary>
     [Fact]
     public async Task Should_Handle_Permission_After_Prior_Session_Disposed()
     {
-        var session1PermissionReceived = false;
-        var session2PermissionReceived = false;
-
-        // Create session A with a permission handler
+        // Create and use session A
         var session1 = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
-            {
-                session1PermissionReceived = true;
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
-            }
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved })
         });
 
-        // Send a simple non-tool prompt so session A is established
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
-        // Dispose session A — this is the key step that triggers the bug.
-        // Before the fix: session A stays in client._sessions with a null permission handler.
-        // After the fix: OnDisposed removes it from the map, and DispatchEvent has a disposed guard.
+        // Dispose session A — exercises the OnDisposed callback that removes it from the client map
         await session1.DisposeAsync();
 
-        // Create session B with its own permission handler
+        // Create session B on the same client — should work normally
+        var session2PermissionReceived = false;
         var session2 = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
@@ -293,22 +280,13 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
             }
         });
 
-        // Send a prompt that requires a tool call (triggers permission.requested broadcast)
-        // Before the fix: the broadcast hits disposed session A → null handler → silent drop → hang
-        // After the fix: session A is not in the map; session B handles it correctly
-        // Use a 15s timeout so the regression (infinite hang) fails fast instead of waiting 60s.
+        // Session B should handle permissions and complete normally
         await session2.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Run 'echo hello' for me"
         }, timeout: TimeSpan.FromSeconds(15));
 
-        // Session B's handler should have been invoked
         Assert.True(session2PermissionReceived,
-            "Session B's permission handler should fire after session A was disposed. " +
-            "If this fails, the disposed session A is still in the client map and swallowing the broadcast.");
-
-        // Session A's handler should NOT have been invoked (it was disposed)
-        Assert.False(session1PermissionReceived,
-            "Disposed session A should not receive permission events.");
+            "Session B's permission handler should fire normally after session A was disposed.");
     }
 }

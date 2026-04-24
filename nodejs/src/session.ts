@@ -431,20 +431,9 @@ export class CopilotSession {
             }
             if (this.permissionHandler) {
                 void this._executePermissionAndRespond(requestId, permissionRequest);
-            } else {
-                // No handler registered (e.g. session disposed or single-client headless mode).
-                // Send an explicit denial so the CLI server does not hang waiting indefinitely.
-                void this.rpc.permissions
-                    .handlePendingPermissionRequest({
-                        requestId,
-                        result: {
-                            kind: "denied-no-approval-rule-and-could-not-request-from-user",
-                        },
-                    })
-                    .catch(() => {
-                        /* best-effort denial — swallow connection/RPC errors */
-                    });
             }
+            // No handler registered (e.g. session disposed or single-client headless mode).
+            // Another client will handle it (multi-client scenario) or the request will timeout.
         } else if (event.type === "command.execute") {
             const { requestId, commandName, command, args } = event.data as {
                 requestId: string;
@@ -996,16 +985,22 @@ export class CopilotSession {
         // arriving during the round-trip are never dispatched (fail-closed).
         this.onDisposed?.(this.sessionId);
 
-        await this.connection.sendRequest("session.destroy", {
-            sessionId: this.sessionId,
-        });
-        this.eventHandlers.clear();
-        this.typedEventHandlers.clear();
-        this.toolHandlers.clear();
-        this.commandHandlers.clear();
-        this.permissionHandler = undefined;
-        this.elicitationHandler = undefined;
-        this.userInputHandler = undefined;
+        try {
+            await this.connection.sendRequest("session.destroy", {
+                sessionId: this.sessionId,
+            });
+        } catch {
+            // Connection already closed
+        } finally {
+            // Always clean up handlers
+            this.eventHandlers.clear();
+            this.typedEventHandlers.clear();
+            this.toolHandlers.clear();
+            this.commandHandlers.clear();
+            this.permissionHandler = undefined;
+            this.elicitationHandler = undefined;
+            this.userInputHandler = undefined;
+        }
     }
 
     /**
