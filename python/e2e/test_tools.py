@@ -192,6 +192,7 @@ class TestTools:
         def on_permission_request(request, invocation):
             permission_requests.append(request)
             return PermissionRequestResult(kind="approve-once")
+
         session = await ctx.client.create_session(
             on_permission_request=on_permission_request, tools=[encrypt_string]
         )
