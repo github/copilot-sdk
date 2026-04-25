@@ -79,6 +79,9 @@ public final class CreateSessionRequest {
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
+    @JsonProperty("defaultAgent")
+    private DefaultAgentConfig defaultAgent;
+
     @JsonProperty("agent")
     private String agent;
 
@@ -105,6 +108,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("modelCapabilities")
     private ModelCapabilitiesOverride modelCapabilities;
+
+    @JsonProperty("gitHubToken")
+    private String gitHubToken;
 
     /** Gets the model name. @return the model */
     public String getModel() {
@@ -278,6 +284,18 @@ public final class CreateSessionRequest {
         this.customAgents = customAgents;
     }
 
+    /** Gets the default agent config. @return the default agent config */
+    public DefaultAgentConfig getDefaultAgent() {
+        return defaultAgent;
+    }
+
+    /**
+     * Sets the default agent config. @param defaultAgent the default agent config
+     */
+    public void setDefaultAgent(DefaultAgentConfig defaultAgent) {
+        this.defaultAgent = defaultAgent;
+    }
+
     /** Gets the pre-selected agent name. @return the agent name */
     public String getAgent() {
         return agent;
@@ -381,5 +399,18 @@ public final class CreateSessionRequest {
      */
     public void setModelCapabilities(ModelCapabilitiesOverride modelCapabilities) {
         this.modelCapabilities = modelCapabilities;
+    }
+
+    /** Gets the GitHub token for per-session authentication. @return the token */
+    public String getGitHubToken() {
+        return gitHubToken;
+    }
+
+    /**
+     * Sets the GitHub token for per-session authentication. @param gitHubToken the
+     * token
+     */
+    public void setGitHubToken(String gitHubToken) {
+        this.gitHubToken = gitHubToken;
     }
 }

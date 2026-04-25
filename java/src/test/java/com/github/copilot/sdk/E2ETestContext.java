@@ -272,6 +272,61 @@ public class E2ETestContext implements AutoCloseable {
         return new CopilotClient(options);
     }
 
+    /**
+     * Creates a CopilotClient with the given options, applied on top of the default
+     * options for this test context.
+     *
+     * @param options
+     *            options to apply; environment and cliPath will be set from the
+     *            context if not already set
+     * @return a new CopilotClient
+     */
+    public CopilotClient createClient(CopilotClientOptions options) {
+        if (options.getCliPath() == null) {
+            options.setCliPath(cliPath);
+        }
+        if (options.getCwd() == null) {
+            options.setCwd(workDir.toString());
+        }
+        if (options.getEnvironment() == null || options.getEnvironment().isEmpty()) {
+            options.setEnvironment(getEnvironment());
+        }
+
+        // In CI (GitHub Actions), use a fake token to avoid auth issues
+        String ci = System.getenv("GITHUB_ACTIONS");
+        if (ci != null && !ci.isEmpty() && options.getGitHubToken() == null) {
+            options.setGitHubToken("fake-token-for-e2e-tests");
+        }
+
+        return new CopilotClient(options);
+    }
+
+    /**
+     * Configures the proxy to return a specific Copilot user response for a given
+     * token. Used for per-session authentication tests.
+     *
+     * @param token
+     *            the GitHub token
+     * @param login
+     *            the user login
+     * @param copilotPlan
+     *            the Copilot plan
+     * @param apiUrl
+     *            the API URL for the user endpoints
+     * @param telemetryUrl
+     *            the telemetry URL
+     * @param analyticsTrackingId
+     *            the analytics tracking ID
+     * @throws IOException
+     *             if the request fails
+     * @throws InterruptedException
+     *             if the request is interrupted
+     */
+    public void setCopilotUserByToken(String token, String login, String copilotPlan, String apiUrl,
+            String telemetryUrl, String analyticsTrackingId) throws IOException, InterruptedException {
+        proxy.setCopilotUserByToken(token, login, copilotPlan, apiUrl, telemetryUrl, analyticsTrackingId);
+    }
+
     @Override
     public void close() throws Exception {
         proxy.stop();

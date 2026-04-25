@@ -22,43 +22,46 @@ public class PermissionRequestResultKindTest {
 
     @Test
     void wellKnownKinds_haveExpectedValues() {
-        assertEquals("approved", PermissionRequestResultKind.APPROVED.getValue());
-        assertEquals("denied-by-rules", PermissionRequestResultKind.DENIED_BY_RULES.getValue());
-        assertEquals("denied-no-approval-rule-and-could-not-request-from-user",
-                PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER.getValue());
-        assertEquals("denied-interactively-by-user",
-                PermissionRequestResultKind.DENIED_INTERACTIVELY_BY_USER.getValue());
+        assertEquals("approve-once", PermissionRequestResultKind.APPROVED.getValue());
+        assertEquals("reject", PermissionRequestResultKind.REJECTED.getValue());
+        assertEquals("user-not-available", PermissionRequestResultKind.USER_NOT_AVAILABLE.getValue());
         assertEquals("no-result", PermissionRequestResultKind.NO_RESULT.getValue());
+
+        // Deprecated aliases still resolve
+        assertEquals(PermissionRequestResultKind.REJECTED, PermissionRequestResultKind.DENIED_INTERACTIVELY_BY_USER);
+        assertEquals(PermissionRequestResultKind.USER_NOT_AVAILABLE,
+                PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
+        assertEquals(PermissionRequestResultKind.USER_NOT_AVAILABLE, PermissionRequestResultKind.DENIED_BY_RULES);
     }
 
     @Test
     void equals_sameValue_returnsTrue() {
-        var a = new PermissionRequestResultKind("approved");
+        var a = new PermissionRequestResultKind("approve-once");
         assertEquals(PermissionRequestResultKind.APPROVED, a);
         assertEquals(a, PermissionRequestResultKind.APPROVED);
     }
 
     @Test
     void equals_differentValue_returnsFalse() {
-        assertNotEquals(PermissionRequestResultKind.APPROVED, PermissionRequestResultKind.DENIED_BY_RULES);
+        assertNotEquals(PermissionRequestResultKind.APPROVED, PermissionRequestResultKind.REJECTED);
     }
 
     @Test
     void equals_isCaseInsensitive() {
-        var upper = new PermissionRequestResultKind("APPROVED");
+        var upper = new PermissionRequestResultKind("APPROVE-ONCE");
         assertEquals(PermissionRequestResultKind.APPROVED, upper);
     }
 
     @Test
     void hashCode_isCaseInsensitive() {
-        var upper = new PermissionRequestResultKind("APPROVED");
+        var upper = new PermissionRequestResultKind("APPROVE-ONCE");
         assertEquals(PermissionRequestResultKind.APPROVED.hashCode(), upper.hashCode());
     }
 
     @Test
     void toString_returnsValue() {
-        assertEquals("approved", PermissionRequestResultKind.APPROVED.toString());
-        assertEquals("denied-by-rules", PermissionRequestResultKind.DENIED_BY_RULES.toString());
+        assertEquals("approve-once", PermissionRequestResultKind.APPROVED.toString());
+        assertEquals("reject", PermissionRequestResultKind.REJECTED.toString());
     }
 
     @Test
@@ -77,7 +80,7 @@ public class PermissionRequestResultKindTest {
 
     @Test
     void equals_nonKindObject_returnsFalse() {
-        assertNotEquals(PermissionRequestResultKind.APPROVED, "approved");
+        assertNotEquals(PermissionRequestResultKind.APPROVED, "approve-once");
     }
 
     @Test
@@ -85,36 +88,35 @@ public class PermissionRequestResultKindTest {
         ObjectMapper mapper = new ObjectMapper();
         var result = new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED);
         String json = mapper.writeValueAsString(result);
-        assertTrue(json.contains("\"kind\":\"approved\""), "Expected kind to be serialized as string: " + json);
+        assertTrue(json.contains("\"kind\":\"approve-once\""), "Expected kind to be serialized as string: " + json);
     }
 
     @Test
     void jsonDeserialize_readsStringValue() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
-        String json = "{\"kind\":\"denied-by-rules\"}";
+        String json = "{\"kind\":\"reject\"}";
         var result = mapper.readValue(json, PermissionRequestResult.class);
-        assertEquals("denied-by-rules", result.getKind());
+        assertEquals("reject", result.getKind());
     }
 
     @Test
     void permissionRequestResult_setKindWithKindType() {
         var result = new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED);
-        assertEquals("approved", result.getKind());
+        assertEquals("approve-once", result.getKind());
     }
 
     @Test
     void permissionRequestResult_setKindWithString_backwardCompatible() {
-        var result = new PermissionRequestResult().setKind("approved");
-        assertEquals("approved", result.getKind());
+        var result = new PermissionRequestResult().setKind("approve-once");
+        assertEquals("approve-once", result.getKind());
     }
 
     @Test
     void jsonRoundTrip_allWellKnownKinds() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         PermissionRequestResultKind[] kinds = {PermissionRequestResultKind.APPROVED,
-                PermissionRequestResultKind.DENIED_BY_RULES,
-                PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER,
-                PermissionRequestResultKind.DENIED_INTERACTIVELY_BY_USER, PermissionRequestResultKind.NO_RESULT,};
+                PermissionRequestResultKind.REJECTED, PermissionRequestResultKind.USER_NOT_AVAILABLE,
+                PermissionRequestResultKind.NO_RESULT,};
         for (PermissionRequestResultKind kind : kinds) {
             var result = new PermissionRequestResult().setKind(kind);
             String json = mapper.writeValueAsString(result);

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.generated.AssistantMessageEvent;
 import com.github.copilot.sdk.json.CustomAgentConfig;
+import com.github.copilot.sdk.json.DefaultAgentConfig;
 import com.github.copilot.sdk.json.McpServerConfig;
 import com.github.copilot.sdk.json.McpStdioServerConfig;
 import com.github.copilot.sdk.json.MessageOptions;
@@ -332,6 +333,67 @@ public class McpAndAgentsTest {
                     "Response should contain 14: " + response.getData().content());
 
             session.close();
+        }
+    }
+
+    // ============ DefaultAgent Tests ============
+
+    /**
+     * Verifies that sessions can be created with defaultAgent configuration and
+     * excludedTools hides tools from the default agent.
+     *
+     * @see Snapshot: mcp_and_agents/should_hide_excluded_tools_from_default_agent
+     */
+    @Test
+    void testShouldHideExcludedToolsFromDefaultAgent() throws Exception {
+        ctx.configureForTest("mcp_and_agents", "should_hide_excluded_tools_from_default_agent");
+
+        try (CopilotClient client = ctx.createClient()) {
+            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setDefaultAgent(new DefaultAgentConfig().setExcludedTools(List.of("view")));
+
+            CopilotSession session = client.createSession(config).get();
+
+            assertNotNull(session.getSessionId());
+
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
+                    TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that defaultAgent configuration is accepted on session resume.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_defaultagent_configuration_on_session_resume
+     */
+    @Test
+    void testShouldAcceptDefaultAgentConfigurationOnSessionResume() throws Exception {
+        ctx.configureForTest("mcp_and_agents", "should_accept_defaultagent_configuration_on_session_resume");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+
+            assertNotNull(session.getSessionId());
+            String sessionId = session.getSessionId();
+            session.close();
+
+            CopilotSession resumedSession = client.resumeSession(sessionId,
+                    new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setDefaultAgent(new DefaultAgentConfig().setExcludedTools(List.of("view"))))
+                    .get();
+
+            assertNotNull(resumedSession.getSessionId());
+
+            AssistantMessageEvent response = resumedSession.sendAndWait(new MessageOptions().setPrompt("What is 3+3?"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            resumedSession.close();
         }
     }
 }
