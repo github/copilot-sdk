@@ -238,21 +238,26 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             catch
             {
-                _connectionTask = null;
-
                 var cleanupErrors = new List<Exception>();
-                if (connection is not null)
+                try
                 {
-                    await CleanupConnectionAsync(connection, cleanupErrors);
-                }
-                else if (cliProcess is not null)
-                {
-                    await CleanupCliProcessAsync(cliProcess, stderrPump, _logger, cleanupErrors);
-                }
+                    if (connection is not null)
+                    {
+                        await CleanupConnectionAsync(connection, cleanupErrors);
+                    }
+                    else if (cliProcess is not null)
+                    {
+                        await CleanupCliProcessAsync(cliProcess, stderrPump, _logger, cleanupErrors);
+                    }
 
-                foreach (var cleanupError in cleanupErrors)
+                    foreach (var cleanupError in cleanupErrors)
+                    {
+                        _logger.LogDebug(cleanupError, "Failed to clean up Copilot client connection after startup failure");
+                    }
+                }
+                finally
                 {
-                    _logger.LogDebug(cleanupError, "Failed to clean up Copilot client connection after startup failure");
+                    _connectionTask = null;
                 }
 
                 throw;
@@ -1299,7 +1304,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         var cliProcess = new Process { StartInfo = startInfo };
-        cliProcess.Start();
+        try
+        {
+            cliProcess.Start();
+        }
+        catch
+        {
+            cliProcess.Dispose();
+            throw;
+        }
 
         // Capture stderr for error messages and forward to logger.
         // The pump has its own lifetime token and is later cancelled/observed
