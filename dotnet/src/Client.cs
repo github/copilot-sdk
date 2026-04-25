@@ -1328,14 +1328,21 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 cts.CancelAfter(TimeSpan.FromSeconds(30));
 
-                while (!cts.Token.IsCancellationRequested)
+                try
                 {
-                    var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token) ?? throw new IOException("CLI process exited unexpectedly");
-                    if (ListeningOnPortRegex().Match(line) is { Success: true } match)
+                    while (true)
                     {
-                        detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-                        break;
+                        var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token) ?? throw new IOException("CLI process exited unexpectedly");
+                        if (ListeningOnPortRegex().Match(line) is { Success: true } match)
+                        {
+                            detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+                            break;
+                        }
                     }
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && cts.IsCancellationRequested)
+                {
+                    throw new IOException("Timed out waiting for Copilot CLI to report its TCP listening port.");
                 }
             }
 
@@ -1397,63 +1404,87 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, ProcessStderrPump? stderrPump, CancellationToken cancellationToken)
     {
-        Stream inputStream, outputStream;
         TcpClient? tcpClient = null;
         NetworkStream? networkStream = null;
+        JsonRpc? rpc = null;
 
-        if (_options.UseStdio)
+        try
         {
-            if (cliProcess == null) throw new InvalidOperationException("CLI process not started");
-            inputStream = cliProcess.StandardOutput.BaseStream;
-            outputStream = cliProcess.StandardInput.BaseStream;
-        }
-        else
-        {
-            if (tcpHost is null || tcpPort is null)
+            Stream inputStream, outputStream;
+
+            if (_options.UseStdio)
             {
-                throw new InvalidOperationException("Cannot connect because TCP host or port are not available");
+                if (cliProcess == null) throw new InvalidOperationException("CLI process not started");
+                inputStream = cliProcess.StandardOutput.BaseStream;
+                outputStream = cliProcess.StandardInput.BaseStream;
+            }
+            else
+            {
+                if (tcpHost is null || tcpPort is null)
+                {
+                    throw new InvalidOperationException("Cannot connect because TCP host or port are not available");
+                }
+
+                tcpClient = new();
+                await tcpClient.ConnectAsync(tcpHost, tcpPort.Value, cancellationToken);
+                networkStream = tcpClient.GetStream();
+                inputStream = networkStream;
+                outputStream = networkStream;
             }
 
-            tcpClient = new();
-            await tcpClient.ConnectAsync(tcpHost, tcpPort.Value, cancellationToken);
-            networkStream = tcpClient.GetStream();
-            inputStream = networkStream;
-            outputStream = networkStream;
+            rpc = new JsonRpc(new HeaderDelimitedMessageHandler(
+                outputStream,
+                inputStream,
+                CreateSystemTextJsonFormatter()))
+            {
+                TraceSource = new LoggerTraceSource(_logger),
+            };
+
+            var handler = new RpcHandler(this);
+            rpc.AddLocalRpcMethod("session.event", handler.OnSessionEvent);
+            rpc.AddLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
+            // Protocol v3 servers send tool calls / permission requests as broadcast events.
+            // Protocol v2 servers use the older tool.call / permission.request RPC model.
+            // We always register v2 adapters because handlers are set up before version
+            // negotiation; a v3 server will simply never send these requests.
+            rpc.AddLocalRpcMethod("tool.call", handler.OnToolCallV2);
+            rpc.AddLocalRpcMethod("permission.request", handler.OnPermissionRequestV2);
+            rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
+            rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
+            rpc.AddLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
+            ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
+            {
+                var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+                return session.ClientSessionApis;
+            });
+            rpc.StartListening();
+
+            // Transition state to Disconnected if the JSON-RPC connection drops
+            _ = rpc.Completion.ContinueWith(_ => _disconnected = true, TaskScheduler.Default);
+
+            _rpc = new ServerRpc(rpc);
+
+            return new Connection(rpc, cliProcess, tcpClient, networkStream, stderrPump);
         }
-
-        var rpc = new JsonRpc(new HeaderDelimitedMessageHandler(
-            outputStream,
-            inputStream,
-            CreateSystemTextJsonFormatter()))
+        catch
         {
-            TraceSource = new LoggerTraceSource(_logger),
-        };
+            try { rpc?.Dispose(); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose JSON-RPC connection after startup failure"); }
 
-        var handler = new RpcHandler(this);
-        rpc.AddLocalRpcMethod("session.event", handler.OnSessionEvent);
-        rpc.AddLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
-        // Protocol v3 servers send tool calls / permission requests as broadcast events.
-        // Protocol v2 servers use the older tool.call / permission.request RPC model.
-        // We always register v2 adapters because handlers are set up before version
-        // negotiation; a v3 server will simply never send these requests.
-        rpc.AddLocalRpcMethod("tool.call", handler.OnToolCallV2);
-        rpc.AddLocalRpcMethod("permission.request", handler.OnPermissionRequestV2);
-        rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
-        rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
-        rpc.AddLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
-        ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
-        {
-            var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
-            return session.ClientSessionApis;
-        });
-        rpc.StartListening();
+            if (networkStream is not null)
+            {
+                try { await networkStream.DisposeAsync(); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose TCP stream after startup failure"); }
+            }
 
-        // Transition state to Disconnected if the JSON-RPC connection drops
-        _ = rpc.Completion.ContinueWith(_ => _disconnected = true, TaskScheduler.Default);
+            if (tcpClient is not null)
+            {
+                try { tcpClient.Dispose(); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose TCP client after startup failure"); }
+            }
 
-        _rpc = new ServerRpc(rpc);
-
-        return new Connection(rpc, cliProcess, tcpClient, networkStream, stderrPump);
+            throw;
+        }
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Using happy path from https://microsoft.github.io/vs-streamjsonrpc/docs/nativeAOT.html")]
