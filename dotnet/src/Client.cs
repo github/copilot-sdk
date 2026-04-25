@@ -63,6 +63,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Minimum protocol version this SDK can communicate with.
     /// </summary>
     private const int MinProtocolVersion = 2;
+    private static readonly TimeSpan StderrPumpShutdownTimeout = TimeSpan.FromSeconds(5);
 
     private readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
     private readonly CopilotClientOptions _options;
@@ -207,30 +208,55 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             _logger.LogDebug("Starting Copilot client");
             _disconnected = false;
 
-            Task<Connection> result;
+            Connection? connection = null;
+            Process? cliProcess = null;
+            ProcessStderrPump? stderrPump = null;
 
-            if (_optionsHost is not null && _optionsPort is not null)
+            try
             {
-                // External server (TCP)
-                _actualPort = _optionsPort;
-                result = ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
+                if (_optionsHost is not null && _optionsPort is not null)
+                {
+                    // External server (TCP)
+                    _actualPort = _optionsPort;
+                    connection = await ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
+                }
+                else
+                {
+                    // Child process (stdio or TCP)
+                    var portOrNull = (int?)null;
+                    (cliProcess, portOrNull, stderrPump) = await StartCliServerAsync(_options, _logger, ct);
+                    _actualPort = portOrNull;
+                    connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrPump, ct);
+                }
+
+                // Verify protocol version compatibility
+                await VerifyProtocolVersionAsync(connection, ct);
+                await ConfigureSessionFsAsync(ct);
+
+                _logger.LogInformation("Copilot client connected");
+                return connection;
             }
-            else
+            catch
             {
-                // Child process (stdio or TCP)
-                var (cliProcess, portOrNull, stderrPump) = await StartCliServerAsync(_options, _logger, ct);
-                _actualPort = portOrNull;
-                result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrPump, ct);
+                _connectionTask = null;
+
+                var cleanupErrors = new List<Exception>();
+                if (connection is not null)
+                {
+                    await CleanupConnectionAsync(connection, cleanupErrors);
+                }
+                else if (cliProcess is not null)
+                {
+                    await CleanupCliProcessAsync(cliProcess, stderrPump, _logger, cleanupErrors);
+                }
+
+                foreach (var cleanupError in cleanupErrors)
+                {
+                    _logger.LogDebug(cleanupError, "Failed to clean up Copilot client connection after startup failure");
+                }
+
+                throw;
             }
-
-            var connection = await result;
-
-            // Verify protocol version compatibility
-            await VerifyProtocolVersionAsync(connection, ct);
-            await ConfigureSessionFsAsync(ct);
-
-            _logger.LogInformation("Copilot client connected");
-            return connection;
         }
     }
 
@@ -334,9 +360,21 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return;
         }
 
-        var ctx = await _connectionTask;
-        _connectionTask = null;
+        Connection ctx;
+        try
+        {
+            ctx = await _connectionTask;
+        }
+        finally
+        {
+            _connectionTask = null;
+        }
 
+        await CleanupConnectionAsync(ctx, errors);
+    }
+
+    private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors)
+    {
         try { ctx.Rpc.Dispose(); }
         catch (Exception ex) { errors?.Add(ex); }
 
@@ -358,24 +396,34 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (ctx.CliProcess is { } childProcess)
         {
-            ctx.StderrPump?.Cancel();
-
-            try
-            {
-                if (!childProcess.HasExited) childProcess.Kill();
-            }
-            catch (Exception ex) { errors?.Add(ex); }
-
-            if (ctx.StderrPump is not null)
-            {
-                try { await ctx.StderrPump.WaitForCompletionAsync(); }
-                catch (Exception ex) { errors?.Add(ex); }
-                finally { ctx.StderrPump.Dispose(); }
-            }
-
-            try { childProcess.Dispose(); }
-            catch (Exception ex) { errors?.Add(ex); }
+            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, _logger, errors);
         }
+    }
+
+    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, ILogger logger, List<Exception>? errors)
+    {
+        stderrPump?.Cancel();
+
+        try
+        {
+            if (!childProcess.HasExited) childProcess.Kill();
+        }
+        catch (Exception ex) { errors?.Add(ex); }
+
+        if (stderrPump is not null)
+        {
+            try { await stderrPump.WaitForCompletionAsync(StderrPumpShutdownTimeout); }
+            catch (TimeoutException ex)
+            {
+                logger.LogDebug(ex, "Timed out waiting for CLI stderr pump to stop");
+                errors?.Add(ex);
+            }
+            catch (Exception ex) { errors?.Add(ex); }
+            finally { stderrPump.Dispose(); }
+        }
+
+        try { childProcess.Dispose(); }
+        catch (Exception ex) { errors?.Add(ex); }
     }
 
     private static (SystemMessageConfig? wireConfig, Dictionary<string, Func<string, Task<string>>>? callbacks) ExtractTransformCallbacks(SystemMessageConfig? systemMessage)
@@ -1282,28 +1330,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch
         {
-            stderrPump.Cancel();
-
-            try
+            var cleanupErrors = new List<Exception>();
+            await CleanupCliProcessAsync(cliProcess, stderrPump, logger, cleanupErrors);
+            foreach (var cleanupError in cleanupErrors)
             {
-                if (!cliProcess.HasExited)
-                {
-                    cliProcess.Kill();
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Failed to kill CLI process after startup failure");
-            }
-
-            try
-            {
-                await stderrPump.WaitForCompletionAsync();
-            }
-            finally
-            {
-                stderrPump.Dispose();
-                cliProcess.Dispose();
+                logger.LogDebug(cleanupError, "Failed to clean up Copilot CLI process after startup failure");
             }
 
             throw;
@@ -1652,7 +1683,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         private readonly CancellationTokenSource _cancellationTokenSource = new();
         private readonly Task _completion;
-        private bool _disposed;
+        private int _disposeRequested;
 
         private ProcessStderrPump(Process process, ILogger logger)
         {
@@ -1668,26 +1699,42 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         public void Cancel()
         {
-            if (!_disposed)
+            try
             {
                 _cancellationTokenSource.Cancel();
             }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
-        public async Task WaitForCompletionAsync()
+        public async Task WaitForCompletionAsync(TimeSpan timeout)
         {
-            await _completion;
+            await _completion.WaitAsync(timeout);
         }
 
         public void Dispose()
         {
-            if (_disposed)
+            if (Interlocked.Exchange(ref _disposeRequested, 1) != 0)
             {
                 return;
             }
 
-            _disposed = true;
-            _cancellationTokenSource.Dispose();
+            Cancel();
+
+            if (_completion.IsCompleted)
+            {
+                _cancellationTokenSource.Dispose();
+            }
+            else
+            {
+                _ = _completion.ContinueWith(
+                    static (_, state) => ((CancellationTokenSource)state!).Dispose(),
+                    _cancellationTokenSource,
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
         }
 
         private async Task PumpAsync(Process process, ILogger logger, CancellationToken cancellationToken)
