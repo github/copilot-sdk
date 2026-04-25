@@ -218,9 +218,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             else
             {
                 // Child process (stdio or TCP)
-                var (cliProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _logger, ct);
+                var (cliProcess, portOrNull, stderrPump) = await StartCliServerAsync(_options, _logger, ct);
                 _actualPort = portOrNull;
-                result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
+                result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrPump, ct);
             }
 
             var connection = await result;
@@ -358,11 +358,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (ctx.CliProcess is { } childProcess)
         {
+            ctx.StderrPump?.Cancel();
+
             try
             {
                 if (!childProcess.HasExited) childProcess.Kill();
-                childProcess.Dispose();
             }
+            catch (Exception ex) { errors?.Add(ex); }
+
+            if (ctx.StderrPump is not null)
+            {
+                try { await ctx.StderrPump.WaitForCompletionAsync(); }
+                catch (Exception ex) { errors?.Add(ex); }
+                finally { ctx.StderrPump.Dispose(); }
+            }
+
+            try { childProcess.Dispose(); }
             catch (Exception ex) { errors?.Add(ex); }
         }
     }
@@ -1152,7 +1163,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _negotiatedProtocolVersion = serverVersion;
     }
 
-    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
+    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, ProcessStderrPump StderrPump)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
     {
         // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled CLI - no PATH fallback
         var envCliPath = options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue
@@ -1242,47 +1253,61 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var cliProcess = new Process { StartInfo = startInfo };
         cliProcess.Start();
 
-        // Capture stderr for error messages and forward to logger
-        var stderrBuffer = new StringBuilder();
-        _ = Task.Run(async () =>
-        {
-            while (cliProcess != null && !cliProcess.HasExited)
-            {
-                var line = await cliProcess.StandardError.ReadLineAsync(cancellationToken);
-                if (line != null)
-                {
-                    lock (stderrBuffer)
-                    {
-                        stderrBuffer.AppendLine(line);
-                    }
-
-                    if (logger.IsEnabled(LogLevel.Debug))
-                    {
-                        logger.LogDebug("[CLI] {Line}", line);
-                    }
-                }
-            }
-        }, cancellationToken);
+        // Capture stderr for error messages and forward to logger.
+        // The pump has its own lifetime token and is later cancelled/observed
+        // by the owning Connection before the process is disposed.
+        var stderrPump = ProcessStderrPump.Start(cliProcess, logger);
 
         var detectedLocalhostTcpPort = (int?)null;
-        if (!options.UseStdio)
+        try
         {
-            // Wait for port announcement
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(30));
-
-            while (!cts.Token.IsCancellationRequested)
+            if (!options.UseStdio)
             {
-                var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token) ?? throw new IOException("CLI process exited unexpectedly");
-                if (ListeningOnPortRegex().Match(line) is { Success: true } match)
+                // Wait for port announcement
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(30));
+
+                while (!cts.Token.IsCancellationRequested)
                 {
-                    detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-                    break;
+                    var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token) ?? throw new IOException("CLI process exited unexpectedly");
+                    if (ListeningOnPortRegex().Match(line) is { Success: true } match)
+                    {
+                        detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+                        break;
+                    }
                 }
             }
-        }
 
-        return (cliProcess, detectedLocalhostTcpPort, stderrBuffer);
+            return (cliProcess, detectedLocalhostTcpPort, stderrPump);
+        }
+        catch
+        {
+            stderrPump.Cancel();
+
+            try
+            {
+                if (!cliProcess.HasExited)
+                {
+                    cliProcess.Kill();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Failed to kill CLI process after startup failure");
+            }
+
+            try
+            {
+                await stderrPump.WaitForCompletionAsync();
+            }
+            finally
+            {
+                stderrPump.Dispose();
+                cliProcess.Dispose();
+            }
+
+            throw;
+        }
     }
 
     private static string? GetBundledCliPath(out string searchedPath)
@@ -1326,7 +1351,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return (cliPath, args);
     }
 
-    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, StringBuilder? stderrBuffer, CancellationToken cancellationToken)
+    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, ProcessStderrPump? stderrPump, CancellationToken cancellationToken)
     {
         Stream inputStream, outputStream;
         TcpClient? tcpClient = null;
@@ -1384,7 +1409,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _rpc = new ServerRpc(rpc);
 
-        return new Connection(rpc, cliProcess, tcpClient, networkStream, stderrBuffer);
+        return new Connection(rpc, cliProcess, tcpClient, networkStream, stderrPump);
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Using happy path from https://microsoft.github.io/vs-streamjsonrpc/docs/nativeAOT.html")]
@@ -1613,13 +1638,98 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Process? cliProcess, // Set if we created the child process
         TcpClient? tcpClient, // Set if using TCP
         NetworkStream? networkStream, // Set if using TCP
-        StringBuilder? stderrBuffer = null) // Captures stderr for error messages
+        ProcessStderrPump? stderrPump = null) // Captures stderr for error messages
     {
         public Process? CliProcess => cliProcess;
         public TcpClient? TcpClient => tcpClient;
         public JsonRpc Rpc => rpc;
         public NetworkStream? NetworkStream => networkStream;
-        public StringBuilder? StderrBuffer => stderrBuffer;
+        public ProcessStderrPump? StderrPump => stderrPump;
+        public StringBuilder? StderrBuffer => stderrPump?.Buffer;
+    }
+
+    private sealed class ProcessStderrPump : IDisposable
+    {
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
+        private readonly Task _completion;
+        private bool _disposed;
+
+        private ProcessStderrPump(Process process, ILogger logger)
+        {
+            _completion = Task.Run(() => PumpAsync(process, logger, _cancellationTokenSource.Token));
+        }
+
+        public StringBuilder Buffer { get; } = new();
+
+        public static ProcessStderrPump Start(Process process, ILogger logger)
+        {
+            return new ProcessStderrPump(process, logger);
+        }
+
+        public void Cancel()
+        {
+            if (!_disposed)
+            {
+                _cancellationTokenSource.Cancel();
+            }
+        }
+
+        public async Task WaitForCompletionAsync()
+        {
+            await _completion;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _cancellationTokenSource.Dispose();
+        }
+
+        private async Task PumpAsync(Process process, ILogger logger, CancellationToken cancellationToken)
+        {
+            try
+            {
+                while (true)
+                {
+                    var line = await process.StandardError.ReadLineAsync(cancellationToken);
+                    if (line is null)
+                    {
+                        break;
+                    }
+
+                    lock (Buffer)
+                    {
+                        Buffer.AppendLine(line);
+                    }
+
+                    if (logger.IsEnabled(LogLevel.Debug))
+                    {
+                        logger.LogDebug("[CLI] {Line}", line);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (InvalidOperationException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (IOException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "CLI stderr pump stopped unexpectedly");
+            }
+        }
     }
 
     private static class ProcessArgumentEscaper
