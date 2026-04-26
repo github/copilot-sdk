@@ -25,6 +25,7 @@ import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
+import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.ToolDefinition;
 
@@ -305,10 +306,9 @@ public class ToolsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(
-                            new SessionConfig().setTools(List.of(encryptTool))
-                                    .setOnPermissionRequest((request, invocation) -> CompletableFuture.completedFuture(
-                                            new PermissionRequestResult().setKind("denied-interactively-by-user"))))
+                    .createSession(new SessionConfig().setTools(List.of(encryptTool))
+                            .setOnPermissionRequest((request, invocation) -> CompletableFuture.completedFuture(
+                                    new PermissionRequestResult().setKind(PermissionRequestResultKind.REJECTED))))
                     .get();
 
             session.sendAndWait(new MessageOptions().setPrompt("Use encrypt_string to encrypt this string: Hello"))
