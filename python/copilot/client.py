@@ -15,6 +15,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import inspect
 import os
 import re
@@ -68,6 +69,9 @@ from .tools import Tool, ToolInvocation, ToolResult
 # ============================================================================
 
 ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
+
+# Check if psutil is available for process tree cleanup on Windows
+HAS_PSUTIL = importlib.util.find_spec("psutil") is not None
 
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
 
@@ -803,6 +807,114 @@ def _extract_transform_callbacks(
     return wire_payload, callbacks
 
 
+def _kill_process_tree(process: subprocess.Popen) -> None:
+    """
+    Gracefully terminate a process and all its children.
+
+    Sends SIGTERM to all children, waits up to 3 seconds for clean exit,
+    then force-kills any survivors. Falls back to simple terminate() if
+    psutil is unavailable.
+
+    On Windows, subprocess.Popen.terminate() only kills the parent process,
+    leaving child processes (like MCP servers) running as orphans. This function
+    ensures all descendants are terminated gracefully.
+
+    Args:
+        process: The subprocess.Popen instance to terminate.
+
+    Note:
+        If psutil is not available, falls back to simple terminate() which may
+        leave child processes running on Windows.
+    """
+    if not process or not process.pid:
+        return
+
+    if HAS_PSUTIL and sys.platform == "win32":
+        try:
+            import psutil as ps  # Import here to get the real exception classes
+
+            parent = ps.Process(process.pid)
+            # Get all child processes recursively
+            children = parent.children(recursive=True)
+
+            # Graceful termination: terminate children first (bottom-up)
+            for child in children:
+                try:
+                    child.terminate()
+                except ps.NoSuchProcess:
+                    pass
+
+            # Give children a chance to terminate gracefully
+            _, alive = ps.wait_procs(children, timeout=3)
+
+            # Force kill any that didn't terminate
+            for child in alive:
+                try:
+                    child.kill()
+                except ps.NoSuchProcess:
+                    pass
+
+            # Finally terminate the parent
+            try:
+                parent.terminate()
+            except ps.NoSuchProcess:
+                pass
+
+        except Exception:
+            # If psutil fails for any reason, fall back to simple terminate
+            process.terminate()
+    else:
+        # On non-Windows or without psutil, use simple terminate
+        # (child processes typically die with parent on Unix-like systems)
+        process.terminate()
+
+
+def _kill_process_tree_force(process: subprocess.Popen) -> None:
+    """
+    Immediately kill a process and all its children. No grace period.
+
+    Intended for force_stop() — skips SIGTERM and wait entirely,
+    sends SIGKILL straight away to every process in the tree.
+
+    Args:
+        process: The subprocess.Popen instance to kill.
+
+    Note:
+        If psutil is not available, falls back to simple kill() which may
+        leave child processes running on Windows.
+    """
+    if not process or not process.pid:
+        return
+
+    if HAS_PSUTIL and sys.platform == "win32":
+        try:
+            import psutil as ps  # Import here to get the real exception classes
+
+            parent = ps.Process(process.pid)
+            # Get all child processes recursively
+            children = parent.children(recursive=True)
+
+            # SIGKILL immediately, no wait
+            for child in children:
+                try:
+                    child.kill()
+                except ps.NoSuchProcess:
+                    pass
+
+            try:
+                parent.kill()
+            except ps.NoSuchProcess:
+                pass
+
+        except Exception:
+            # If psutil fails for any reason, fall back to simple kill
+            process.kill()
+    else:
+        # On non-Windows or without psutil, use simple kill
+        # (child processes typically die with parent on Unix-like systems)
+        process.kill()
+
+
 class CopilotClient:
     """
     Main client for interacting with the Copilot CLI.
@@ -1124,7 +1236,7 @@ class CopilotClient:
 
         # Kill CLI process (only if we spawned it)
         if self._process and not self._is_external_server:
-            self._process.terminate()
+            _kill_process_tree(self._process)
             try:
                 self._process.wait(timeout=5)
             except subprocess.TimeoutExpired:
@@ -1166,7 +1278,7 @@ class CopilotClient:
                 if self._is_external_server:
                     self._process.terminate()  # closes the TCP socket
                 else:
-                    self._process.kill()
+                    _kill_process_tree_force(self._process)
                     self._process = None
             except Exception:
                 pass
