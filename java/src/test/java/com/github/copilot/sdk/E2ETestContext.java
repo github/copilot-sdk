@@ -324,6 +324,7 @@ public class E2ETestContext implements AutoCloseable {
      */
     public void setCopilotUserByToken(String token, String login, String copilotPlan, String apiUrl,
             String telemetryUrl, String analyticsTrackingId) throws IOException, InterruptedException {
+        ensureProxyAlive();
         proxy.setCopilotUserByToken(token, login, copilotPlan, apiUrl, telemetryUrl, analyticsTrackingId);
     }
 

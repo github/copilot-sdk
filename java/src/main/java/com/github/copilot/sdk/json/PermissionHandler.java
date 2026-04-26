@@ -20,11 +20,13 @@ import java.util.concurrent.CompletableFuture;
  * 	// Check the permission kind
  * 	if ("dangerous-action".equals(request.getKind())) {
  * 		// Deny dangerous actions
- * 		return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("user-denied"));
+ * 		return CompletableFuture
+ * 				.completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.REJECTED));
  * 	}
  *
  * 	// Approve other requests
- * 	return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("user-approved"));
+ * 	return CompletableFuture
+ * 			.completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
  * };
  * }</pre>
  *
