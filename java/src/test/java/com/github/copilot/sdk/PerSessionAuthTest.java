@@ -54,6 +54,10 @@ public class PerSessionAuthTest {
     }
 
     private void setupCopilotUsers() throws Exception {
+        // Initialize proxy state before registering tokens — the proxy requires its
+        // internal state to be initialized (via /config) before it can handle the
+        // /copilot_internal/user endpoint used for per-session auth resolution.
+        ctx.initializeProxy();
         ctx.setCopilotUserByToken("token-alice", "alice", "individual_pro", ctx.getProxyUrl(),
                 "https://localhost:1/telemetry", "alice-tracking-id");
         ctx.setCopilotUserByToken("token-bob", "bob", "business", ctx.getProxyUrl(), "https://localhost:1/telemetry",

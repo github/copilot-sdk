@@ -327,6 +327,33 @@ public class E2ETestContext implements AutoCloseable {
         proxy.setCopilotUserByToken(token, login, copilotPlan, apiUrl, telemetryUrl, analyticsTrackingId);
     }
 
+    /**
+     * Initializes the proxy state without loading a snapshot.
+     * <p>
+     * Use this for tests that need the proxy to be active (e.g., for per-session
+     * auth token resolution via {@code /copilot_internal/user}) but do not make AI
+     * completion requests and therefore have no snapshot to load.
+     * </p>
+     * <p>
+     * The proxy requires its internal {@code state} to be initialized before it can
+     * handle most endpoints. Without this call the proxy throws an error and
+     * returns HTTP 500 for any request that arrives before a {@code /config} POST
+     * has been made.
+     * </p>
+     *
+     * @throws IOException
+     *             if the proxy configuration request fails
+     * @throws InterruptedException
+     *             if the request is interrupted
+     */
+    public void initializeProxy() throws IOException, InterruptedException {
+        ensureProxyAlive();
+        // Pass a non-existent snapshot path. The proxy initializes its state even when
+        // the file is absent (storedData simply remains undefined), which is fine for
+        // tests that never make AI chat-completion requests.
+        proxy.configure(workDir.resolve("no-snapshot.yaml").toString(), workDir.toString());
+    }
+
     @Override
     public void close() throws Exception {
         proxy.stop();

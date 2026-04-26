@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -23,6 +25,7 @@ import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.SessionConfig;
+import com.github.copilot.sdk.json.ToolDefinition;
 
 /**
  * Tests for MCP Servers and Custom Agents functionality.
@@ -349,17 +352,33 @@ public class McpAndAgentsTest {
         ctx.configureForTest("mcp_and_agents", "should_hide_excluded_tools_from_default_agent");
 
         try (CopilotClient client = ctx.createClient()) {
+            // Register a secret_tool and exclude it from the default agent — the LLM
+            // should report it has no access to the tool.
+            Map<String, Object> parameters = new HashMap<>();
+            parameters.put("type", "object");
+            parameters.put("properties", Map.of("input", Map.of("type", "string")));
+            parameters.put("required", List.of("input"));
+
+            ToolDefinition secretTool = ToolDefinition.create("secret_tool",
+                    "A secret tool hidden from the default agent", parameters,
+                    invocation -> CompletableFuture.completedFuture("SECRET"));
+
             SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setDefaultAgent(new DefaultAgentConfig().setExcludedTools(List.of("view")));
+                    .setTools(List.of(secretTool))
+                    .setDefaultAgent(new DefaultAgentConfig().setExcludedTools(List.of("secret_tool")));
 
             CopilotSession session = client.createSession(config).get();
 
             assertNotNull(session.getSessionId());
 
-            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
-                    TimeUnit.SECONDS);
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions()
+                            .setPrompt("Do you have access to a tool called secret_tool? Answer yes or no."))
+                    .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
+            assertTrue(response.getData().content().toLowerCase().contains("no"),
+                    "Response should indicate that secret_tool is not accessible: " + response.getData().content());
             session.close();
         }
     }
@@ -380,7 +399,11 @@ public class McpAndAgentsTest {
 
             assertNotNull(session.getSessionId());
             String sessionId = session.getSessionId();
-            session.close();
+            // Do not call session.close() here — that invokes session.destroy on the
+            // server,
+            // which removes the session and causes the subsequent resumeSession to fail
+            // with "Session not found". The session handle is simply abandoned and the
+            // server-side session remains alive for the resume call below.
 
             CopilotSession resumedSession = client.resumeSession(sessionId,
                     new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
