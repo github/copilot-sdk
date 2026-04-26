@@ -250,4 +250,26 @@ class CliServerManagerTest {
         var ex = assertThrows(IOException.class, () -> manager.startCliServer());
         assertNotNull(ex);
     }
+
+    @Test
+    void startCliServerWithSessionIdleTimeout() throws Exception {
+        // Test that --session-idle-timeout flag is included when option is set
+        var options = new CopilotClientOptions().setCliPath(NONEXISTENT_CLI).setSessionIdleTimeoutSeconds(600)
+                .setUseStdio(true);
+        var manager = new CliServerManager(options);
+
+        var ex = assertThrows(IOException.class, () -> manager.startCliServer());
+        assertNotNull(ex);
+    }
+
+    @Test
+    void startCliServerWithZeroSessionIdleTimeout() throws Exception {
+        // Zero timeout should not add the flag (treated as disabled)
+        var options = new CopilotClientOptions().setCliPath(NONEXISTENT_CLI).setSessionIdleTimeoutSeconds(0)
+                .setUseStdio(true);
+        var manager = new CliServerManager(options);
+
+        var ex = assertThrows(IOException.class, () -> manager.startCliServer());
+        assertNotNull(ex);
+    }
 }

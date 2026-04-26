@@ -220,6 +220,54 @@ public class CapiProxy implements AutoCloseable {
     }
 
     /**
+     * Configures the proxy to return a specific Copilot user response for a given
+     * token. Used for per-session authentication tests.
+     *
+     * @param token
+     *            the GitHub token to configure
+     * @param login
+     *            the user login to return
+     * @param copilotPlan
+     *            the Copilot plan to return
+     * @param apiUrl
+     *            the API URL for the user endpoints
+     * @param telemetryUrl
+     *            the telemetry URL for the user endpoints
+     * @param analyticsTrackingId
+     *            the analytics tracking ID for the user
+     * @throws IOException
+     *             if the request fails
+     * @throws InterruptedException
+     *             if the request is interrupted
+     */
+    public void setCopilotUserByToken(String token, String login, String copilotPlan, String apiUrl,
+            String telemetryUrl, String analyticsTrackingId) throws IOException, InterruptedException {
+        if (proxyUrl == null) {
+            throw new IllegalStateException("Proxy not started");
+        }
+
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("token", token);
+        Map<String, Object> responseMap = new java.util.HashMap<>();
+        responseMap.put("login", login);
+        responseMap.put("copilotPlan", copilotPlan);
+        responseMap.put("endpoints", Map.of("api", apiUrl, "telemetry", telemetryUrl));
+        responseMap.put("analyticsTrackingId", analyticsTrackingId);
+        payload.put("response", responseMap);
+
+        String body = MAPPER.writeValueAsString(payload);
+
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(proxyUrl + "/copilot-user-config"))
+                .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new IOException(
+                    "Failed to set copilot user config: " + response.statusCode() + ": " + response.body());
+        }
+    }
+
+    /**
      * Stops the proxy server gracefully.
      *
      * @throws IOException

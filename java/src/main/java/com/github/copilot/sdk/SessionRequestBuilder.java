@@ -118,6 +118,7 @@ final class SessionRequestBuilder {
         request.setIncludeSubAgentStreamingEvents(config.getIncludeSubAgentStreamingEvents());
         request.setMcpServers(config.getMcpServers());
         request.setCustomAgents(config.getCustomAgents());
+        request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setSkillDirectories(config.getSkillDirectories());
@@ -135,6 +136,7 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
         }
+        request.setGitHubToken(config.getGitHubToken());
 
         return request;
     }
@@ -194,6 +196,7 @@ final class SessionRequestBuilder {
         request.setIncludeSubAgentStreamingEvents(config.getIncludeSubAgentStreamingEvents());
         request.setMcpServers(config.getMcpServers());
         request.setCustomAgents(config.getCustomAgents());
+        request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setDisabledSkills(config.getDisabledSkills());
@@ -209,6 +212,7 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
         }
+        request.setGitHubToken(config.getGitHubToken());
 
         return request;
     }

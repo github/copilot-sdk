@@ -52,6 +52,7 @@ public class CopilotClientOptions {
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private int port;
     private TelemetryConfig telemetry;
+    private Integer sessionIdleTimeoutSeconds;
     private Boolean useLoggedInUser;
     private boolean useStdio = true;
 
@@ -431,6 +432,37 @@ public class CopilotClientOptions {
     }
 
     /**
+     * Gets the server-wide idle timeout for sessions in seconds.
+     *
+     * @return the session idle timeout in seconds, or {@code null} to disable
+     *         (sessions live indefinitely)
+     * @since 1.3.0
+     */
+    public Integer getSessionIdleTimeoutSeconds() {
+        return sessionIdleTimeoutSeconds;
+    }
+
+    /**
+     * Sets the server-wide idle timeout for sessions in seconds.
+     * <p>
+     * Sessions without activity for this duration are automatically cleaned up. Set
+     * to {@code 0} or leave as {@code null} to disable (sessions live
+     * indefinitely).
+     * <p>
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link #setCliUrl(String)}.
+     *
+     * @param sessionIdleTimeoutSeconds
+     *            the idle timeout in seconds, or {@code null} to disable
+     * @return this options instance for method chaining
+     * @since 1.3.0
+     */
+    public CopilotClientOptions setSessionIdleTimeoutSeconds(Integer sessionIdleTimeoutSeconds) {
+        this.sessionIdleTimeoutSeconds = sessionIdleTimeoutSeconds;
+        return this;
+    }
+
+    /**
      * Returns whether to use the logged-in user for authentication.
      *
      * @return {@code true} to use logged-in user auth, {@code false} to use only
@@ -508,6 +540,7 @@ public class CopilotClientOptions {
         copy.logLevel = this.logLevel;
         copy.onListModels = this.onListModels;
         copy.port = this.port;
+        copy.sessionIdleTimeoutSeconds = this.sessionIdleTimeoutSeconds;
         copy.telemetry = this.telemetry;
         copy.useLoggedInUser = this.useLoggedInUser;
         copy.useStdio = this.useStdio;

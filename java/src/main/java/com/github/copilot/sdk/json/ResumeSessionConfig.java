@@ -56,6 +56,7 @@ public class ResumeSessionConfig {
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
     private List<CustomAgentConfig> customAgents;
+    private DefaultAgentConfig defaultAgent;
     private String agent;
     private List<String> skillDirectories;
     private List<String> disabledSkills;
@@ -63,6 +64,7 @@ public class ResumeSessionConfig {
     private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
     private ElicitationHandler onElicitationRequest;
+    private String gitHubToken;
 
     /**
      * Gets the AI model to use.
@@ -521,6 +523,31 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the default agent configuration.
+     *
+     * @return the default agent configuration, or {@code null} if not set
+     */
+    public DefaultAgentConfig getDefaultAgent() {
+        return defaultAgent;
+    }
+
+    /**
+     * Sets the default agent configuration.
+     * <p>
+     * Use {@link DefaultAgentConfig#setExcludedTools(List)} to hide specific tools
+     * from the default agent while keeping them available to custom sub-agents.
+     *
+     * @param defaultAgent
+     *            the default agent configuration
+     * @return this config for method chaining
+     * @see DefaultAgentConfig
+     */
+    public ResumeSessionConfig setDefaultAgent(DefaultAgentConfig defaultAgent) {
+        this.defaultAgent = defaultAgent;
+        return this;
+    }
+
+    /**
      * Gets the name of the custom agent to activate at session start.
      *
      * @return the agent name, or {@code null} if not set
@@ -685,6 +712,33 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the GitHub token for per-session authentication.
+     *
+     * @return the GitHub token, or {@code null} if not set
+     * @since 1.3.0
+     */
+    public String getGitHubToken() {
+        return gitHubToken;
+    }
+
+    /**
+     * Sets the GitHub token for per-session authentication.
+     * <p>
+     * When provided, the runtime resolves this token into a full GitHub identity
+     * and stores it on the session for content exclusion, model routing, and quota
+     * checks.
+     *
+     * @param gitHubToken
+     *            the GitHub token for per-session authentication
+     * @return this config for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setGitHubToken(String gitHubToken) {
+        this.gitHubToken = gitHubToken;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -718,6 +772,7 @@ public class ResumeSessionConfig {
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
+        copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
@@ -725,6 +780,7 @@ public class ResumeSessionConfig {
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
+        copy.gitHubToken = this.gitHubToken;
         return copy;
     }
 }

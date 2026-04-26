@@ -19,13 +19,13 @@ import com.fasterxml.jackson.annotation.JsonValue;
  *
  * <h2>Well-known kinds</h2>
  * <ul>
- * <li>{@link #APPROVED} — the permission was approved.</li>
- * <li>{@link #DENIED_BY_RULES} — the permission was denied by policy
- * rules.</li>
- * <li>{@link #DENIED_COULD_NOT_REQUEST_FROM_USER} — the permission was denied
- * because no approval rule was found and the user could not be prompted.</li>
- * <li>{@link #DENIED_INTERACTIVELY_BY_USER} — the permission was denied
- * interactively by the user.</li>
+ * <li>{@link #APPROVED} — the permission was approved for this one
+ * instance.</li>
+ * <li>{@link #REJECTED} — the permission was denied interactively by the
+ * user.</li>
+ * <li>{@link #USER_NOT_AVAILABLE} — the permission was denied because user
+ * confirmation was unavailable.</li>
+ * <li>{@link #NO_RESULT} — no permission decision was made.</li>
  * </ul>
  *
  * @see PermissionRequestResult
@@ -33,23 +33,15 @@ import com.fasterxml.jackson.annotation.JsonValue;
  */
 public final class PermissionRequestResultKind {
 
-    /** The permission was approved. */
-    public static final PermissionRequestResultKind APPROVED = new PermissionRequestResultKind("approved");
-
-    /** The permission was denied by policy rules. */
-    public static final PermissionRequestResultKind DENIED_BY_RULES = new PermissionRequestResultKind(
-            "denied-by-rules");
-
-    /**
-     * The permission was denied because no approval rule was found and the user
-     * could not be prompted.
-     */
-    public static final PermissionRequestResultKind DENIED_COULD_NOT_REQUEST_FROM_USER = new PermissionRequestResultKind(
-            "denied-no-approval-rule-and-could-not-request-from-user");
+    /** The permission was approved for this one instance. */
+    public static final PermissionRequestResultKind APPROVED = new PermissionRequestResultKind("approve-once");
 
     /** The permission was denied interactively by the user. */
-    public static final PermissionRequestResultKind DENIED_INTERACTIVELY_BY_USER = new PermissionRequestResultKind(
-            "denied-interactively-by-user");
+    public static final PermissionRequestResultKind REJECTED = new PermissionRequestResultKind("reject");
+
+    /** The permission was denied because user confirmation was unavailable. */
+    public static final PermissionRequestResultKind USER_NOT_AVAILABLE = new PermissionRequestResultKind(
+            "user-not-available");
 
     /**
      * Leaves the pending permission request unanswered.
@@ -65,6 +57,24 @@ public final class PermissionRequestResultKind {
      * response per permission request.
      */
     public static final PermissionRequestResultKind NO_RESULT = new PermissionRequestResultKind("no-result");
+
+    /**
+     * @deprecated Use {@link #REJECTED} instead.
+     */
+    @Deprecated
+    public static final PermissionRequestResultKind DENIED_INTERACTIVELY_BY_USER = REJECTED;
+
+    /**
+     * @deprecated Use {@link #USER_NOT_AVAILABLE} instead.
+     */
+    @Deprecated
+    public static final PermissionRequestResultKind DENIED_COULD_NOT_REQUEST_FROM_USER = USER_NOT_AVAILABLE;
+
+    /**
+     * @deprecated Use {@link #USER_NOT_AVAILABLE} instead.
+     */
+    @Deprecated
+    public static final PermissionRequestResultKind DENIED_BY_RULES = USER_NOT_AVAILABLE;
 
     private final String value;
 

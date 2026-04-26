@@ -26,6 +26,7 @@ import com.github.copilot.sdk.json.CopilotClientOptions;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PermissionRequestResult;
+import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.PreToolUseHookOutput;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.SessionHooks;
@@ -199,7 +200,7 @@ public class ExecutorWiringTest {
         TrackingExecutor trackingExecutor = new TrackingExecutor(ForkJoinPool.commonPool());
 
         var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> CompletableFuture
-                .completedFuture(new PermissionRequestResult().setKind("approved")));
+                .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED)));
 
         try (CopilotClient client = new CopilotClient(createOptionsWithExecutor(trackingExecutor))) {
             CopilotSession session = client.createSession(config).get();

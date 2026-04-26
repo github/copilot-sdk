@@ -304,7 +304,7 @@ class RpcHandlerDispatcherTest {
 
         JsonNode response = readResponse();
         JsonNode result = response.get("result").get("result");
-        assertEquals("denied-no-approval-rule-and-could-not-request-from-user", result.get("kind").asText());
+        assertEquals("user-not-available", result.get("kind").asText());
     }
 
     @Test
@@ -339,7 +339,7 @@ class RpcHandlerDispatcherTest {
         JsonNode response = readResponse();
         // CopilotSession catches the exception and returns a denied result
         JsonNode result = response.get("result").get("result");
-        assertEquals("denied-no-approval-rule-and-could-not-request-from-user", result.get("kind").asText());
+        assertEquals("user-not-available", result.get("kind").asText());
     }
 
     @Test
@@ -358,7 +358,7 @@ class RpcHandlerDispatcherTest {
         // to the exception path and respond with denied.
         JsonNode response = readResponse();
         JsonNode result = response.get("result").get("result");
-        assertEquals("denied-no-approval-rule-and-could-not-request-from-user", result.get("kind").asText());
+        assertEquals("user-not-available", result.get("kind").asText());
     }
 
     // ===== userInput.request tests =====

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.generated.SessionEvent;
 import com.github.copilot.sdk.json.CopilotClientOptions;
+import com.github.copilot.sdk.json.DefaultAgentConfig;
 import com.github.copilot.sdk.json.InfiniteSessionConfig;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.ModelInfo;
@@ -288,5 +289,41 @@ class ConfigCloneTest {
         var infiniteConfig = new InfiniteSessionConfig().setEnabled(true);
         config.setInfiniteSessions(infiniteConfig);
         assertSame(infiniteConfig, config.getInfiniteSessions());
+    }
+
+    @Test
+    void sessionConfigNewFieldsCloned() {
+        SessionConfig original = new SessionConfig();
+        original.setGitHubToken("ghp_per_session_token");
+        DefaultAgentConfig defaultAgent = new DefaultAgentConfig().setExcludedTools(List.of("secret_tool"));
+        original.setDefaultAgent(defaultAgent);
+
+        SessionConfig cloned = original.clone();
+
+        assertEquals("ghp_per_session_token", cloned.getGitHubToken());
+        assertSame(defaultAgent, cloned.getDefaultAgent());
+    }
+
+    @Test
+    void resumeSessionConfigNewFieldsCloned() {
+        ResumeSessionConfig original = new ResumeSessionConfig();
+        original.setGitHubToken("ghp_per_session_token");
+        DefaultAgentConfig defaultAgent = new DefaultAgentConfig().setExcludedTools(List.of("secret_tool"));
+        original.setDefaultAgent(defaultAgent);
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertEquals("ghp_per_session_token", cloned.getGitHubToken());
+        assertSame(defaultAgent, cloned.getDefaultAgent());
+    }
+
+    @Test
+    void copilotClientOptionsSessionIdleTimeoutCloned() {
+        CopilotClientOptions original = new CopilotClientOptions();
+        original.setSessionIdleTimeoutSeconds(600);
+
+        CopilotClientOptions cloned = original.clone();
+
+        assertEquals(600, cloned.getSessionIdleTimeoutSeconds());
     }
 }

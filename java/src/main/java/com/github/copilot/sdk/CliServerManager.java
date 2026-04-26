@@ -83,6 +83,11 @@ final class CliServerManager {
             args.add("--no-auto-login");
         }
 
+        if (options.getSessionIdleTimeoutSeconds() != null && options.getSessionIdleTimeoutSeconds() > 0) {
+            args.add("--session-idle-timeout");
+            args.add(String.valueOf(options.getSessionIdleTimeoutSeconds()));
+        }
+
         List<String> command = resolveCliCommand(cliPath, args);
 
         var pb = new ProcessBuilder(command);

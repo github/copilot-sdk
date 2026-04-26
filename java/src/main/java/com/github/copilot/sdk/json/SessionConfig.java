@@ -53,6 +53,7 @@ public class SessionConfig {
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
     private List<CustomAgentConfig> customAgents;
+    private DefaultAgentConfig defaultAgent;
     private String agent;
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
@@ -63,6 +64,7 @@ public class SessionConfig {
     private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
     private ElicitationHandler onElicitationRequest;
+    private String gitHubToken;
 
     /**
      * Gets the custom session ID.
@@ -449,6 +451,31 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the default agent configuration.
+     *
+     * @return the default agent configuration, or {@code null} if not set
+     */
+    public DefaultAgentConfig getDefaultAgent() {
+        return defaultAgent;
+    }
+
+    /**
+     * Sets the default agent configuration.
+     * <p>
+     * Use {@link DefaultAgentConfig#setExcludedTools(List)} to hide specific tools
+     * from the default agent while keeping them available to custom sub-agents.
+     *
+     * @param defaultAgent
+     *            the default agent configuration
+     * @return this config instance for method chaining
+     * @see DefaultAgentConfig
+     */
+    public SessionConfig setDefaultAgent(DefaultAgentConfig defaultAgent) {
+        this.defaultAgent = defaultAgent;
+        return this;
+    }
+
+    /**
      * Gets the name of the custom agent to activate at session start.
      *
      * @return the agent name, or {@code null} if not set
@@ -737,6 +764,33 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the GitHub token for per-session authentication.
+     *
+     * @return the GitHub token, or {@code null} if not set
+     * @since 1.3.0
+     */
+    public String getGitHubToken() {
+        return gitHubToken;
+    }
+
+    /**
+     * Sets the GitHub token for per-session authentication.
+     * <p>
+     * When provided, the runtime resolves this token into a full GitHub identity
+     * and stores it on the session for content exclusion, model routing, and quota
+     * checks.
+     *
+     * @param gitHubToken
+     *            the GitHub token for per-session authentication
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setGitHubToken(String gitHubToken) {
+        this.gitHubToken = gitHubToken;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -767,6 +821,7 @@ public class SessionConfig {
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
+        copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
         copy.infiniteSessions = this.infiniteSessions;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
@@ -777,6 +832,7 @@ public class SessionConfig {
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
+        copy.gitHubToken = this.gitHubToken;
         return copy;
     }
 }

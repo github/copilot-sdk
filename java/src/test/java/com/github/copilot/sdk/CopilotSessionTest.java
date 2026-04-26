@@ -34,6 +34,7 @@ import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.SessionConfig;
+import com.github.copilot.sdk.json.DefaultAgentConfig;
 import com.github.copilot.sdk.json.SystemMessageConfig;
 import com.github.copilot.sdk.json.ToolDefinition;
 
@@ -873,6 +874,41 @@ public class CopilotSessionTest {
             assertNotNull(rpc.commands, "SessionRpc.commands must not be null");
             assertNotNull(rpc.ui, "SessionRpc.ui must not be null");
 
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that sessions can be created with defaultAgent.excludedTools
+     * configuration.
+     *
+     * @see Snapshot:
+     *      session/should_create_a_session_with_defaultagent_excludedtools
+     */
+    @Test
+    void testShouldCreateSessionWithDefaultAgentExcludedTools() throws Exception {
+        ctx.configureForTest("session", "should_create_a_session_with_defaultagent_excludedtools");
+
+        Map<String, Object> parameters = new java.util.HashMap<>();
+        parameters.put("type", "object");
+        parameters.put("properties", new java.util.HashMap<>());
+
+        ToolDefinition secretTool = ToolDefinition.create("secret_tool", "A secret tool hidden from the default agent",
+                parameters, (invocation) -> CompletableFuture.completedFuture("SECRET"));
+
+        try (CopilotClient client = ctx.createClient()) {
+            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setTools(List.of(secretTool))
+                    .setDefaultAgent(new DefaultAgentConfig().setExcludedTools(List.of("secret_tool")));
+
+            CopilotSession session = client.createSession(config).get();
+
+            assertNotNull(session.getSessionId());
+
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60,
+                    TimeUnit.SECONDS);
+
+            assertNotNull(response);
             session.close();
         }
     }

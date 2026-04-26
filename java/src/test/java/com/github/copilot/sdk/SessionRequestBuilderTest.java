@@ -13,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.CreateSessionRequest;
+import com.github.copilot.sdk.json.DefaultAgentConfig;
 import com.github.copilot.sdk.json.ElicitationHandler;
 import com.github.copilot.sdk.json.ElicitationResult;
 import com.github.copilot.sdk.json.ElicitationResultAction;
@@ -399,5 +400,45 @@ public class SessionRequestBuilderTest {
 
         // Covers ResumeSessionConfig.getOnEvent() != null branch (L277-278)
         SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void testBuildCreateRequestWithDefaultAgent() {
+        var defaultAgent = new DefaultAgentConfig().setExcludedTools(List.of("secret_tool"));
+        var config = new SessionConfig().setDefaultAgent(defaultAgent);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertNotNull(request.getDefaultAgent());
+        assertEquals(List.of("secret_tool"), request.getDefaultAgent().getExcludedTools());
+    }
+
+    @Test
+    void testBuildCreateRequestWithGitHubToken() {
+        var config = new SessionConfig().setGitHubToken("ghp_per_session_token");
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertEquals("ghp_per_session_token", request.getGitHubToken());
+    }
+
+    @Test
+    void testBuildResumeRequestWithDefaultAgent() {
+        var defaultAgent = new DefaultAgentConfig().setExcludedTools(List.of("secret_tool"));
+        var config = new ResumeSessionConfig().setDefaultAgent(defaultAgent);
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("test-session", config);
+
+        assertNotNull(request.getDefaultAgent());
+        assertEquals(List.of("secret_tool"), request.getDefaultAgent().getExcludedTools());
+    }
+
+    @Test
+    void testBuildResumeRequestWithGitHubToken() {
+        var config = new ResumeSessionConfig().setGitHubToken("ghp_per_session_token");
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("test-session", config);
+
+        assertEquals("ghp_per_session_token", request.getGitHubToken());
     }
 }

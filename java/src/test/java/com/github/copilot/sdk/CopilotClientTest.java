@@ -185,6 +185,20 @@ public class CopilotClientTest {
         assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
     }
 
+    @Test
+    void testSessionIdleTimeoutSecondsDefaultsToNull() {
+        var options = new CopilotClientOptions();
+
+        assertNull(options.getSessionIdleTimeoutSeconds());
+    }
+
+    @Test
+    void testSessionIdleTimeoutSecondsOptionAccepted() {
+        var options = new CopilotClientOptions().setSessionIdleTimeoutSeconds(600);
+
+        assertEquals(600, options.getSessionIdleTimeoutSeconds());
+    }
+
     // ===== onLifecycle tests =====
 
     /**

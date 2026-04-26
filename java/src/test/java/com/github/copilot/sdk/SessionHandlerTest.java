@@ -66,7 +66,7 @@ public class SessionHandlerTest {
 
         PermissionRequestResult result = session.handlePermissionRequest(data).get();
 
-        assertEquals("denied-no-approval-rule-and-could-not-request-from-user", result.getKind());
+        assertEquals("user-not-available", result.getKind());
     }
 
     // ===== handlePermissionRequest: handler throws =====
@@ -81,7 +81,7 @@ public class SessionHandlerTest {
 
         PermissionRequestResult result = session.handlePermissionRequest(data).get();
 
-        assertEquals("denied-no-approval-rule-and-could-not-request-from-user", result.getKind());
+        assertEquals("user-not-available", result.getKind());
     }
 
     // ===== handlePermissionRequest: handler future fails =====
@@ -95,7 +95,7 @@ public class SessionHandlerTest {
 
         PermissionRequestResult result = session.handlePermissionRequest(data).get();
 
-        assertEquals("denied-no-approval-rule-and-could-not-request-from-user", result.getKind());
+        assertEquals("user-not-available", result.getKind());
     }
 
     // ===== handlePermissionRequest: handler succeeds =====

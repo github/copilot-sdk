@@ -272,6 +272,89 @@ public class E2ETestContext implements AutoCloseable {
         return new CopilotClient(options);
     }
 
+    /**
+     * Creates a CopilotClient with the given options, applied on top of the default
+     * options for this test context.
+     *
+     * @param options
+     *            options to apply; environment and cliPath will be set from the
+     *            context if not already set
+     * @return a new CopilotClient
+     */
+    public CopilotClient createClient(CopilotClientOptions options) {
+        if (options.getCliPath() == null) {
+            options.setCliPath(cliPath);
+        }
+        if (options.getCwd() == null) {
+            options.setCwd(workDir.toString());
+        }
+        if (options.getEnvironment() == null || options.getEnvironment().isEmpty()) {
+            options.setEnvironment(getEnvironment());
+        }
+
+        // In CI (GitHub Actions), use a fake token to avoid auth issues
+        String ci = System.getenv("GITHUB_ACTIONS");
+        if (ci != null && !ci.isEmpty() && options.getGitHubToken() == null) {
+            options.setGitHubToken("fake-token-for-e2e-tests");
+        }
+
+        return new CopilotClient(options);
+    }
+
+    /**
+     * Configures the proxy to return a specific Copilot user response for a given
+     * token. Used for per-session authentication tests.
+     *
+     * @param token
+     *            the GitHub token
+     * @param login
+     *            the user login
+     * @param copilotPlan
+     *            the Copilot plan
+     * @param apiUrl
+     *            the API URL for the user endpoints
+     * @param telemetryUrl
+     *            the telemetry URL
+     * @param analyticsTrackingId
+     *            the analytics tracking ID
+     * @throws IOException
+     *             if the request fails
+     * @throws InterruptedException
+     *             if the request is interrupted
+     */
+    public void setCopilotUserByToken(String token, String login, String copilotPlan, String apiUrl,
+            String telemetryUrl, String analyticsTrackingId) throws IOException, InterruptedException {
+        ensureProxyAlive();
+        proxy.setCopilotUserByToken(token, login, copilotPlan, apiUrl, telemetryUrl, analyticsTrackingId);
+    }
+
+    /**
+     * Initializes the proxy state without loading a snapshot.
+     * <p>
+     * Use this for tests that need the proxy to be active (e.g., for per-session
+     * auth token resolution via {@code /copilot_internal/user}) but do not make AI
+     * completion requests and therefore have no snapshot to load.
+     * </p>
+     * <p>
+     * The proxy requires its internal {@code state} to be initialized before it can
+     * handle most endpoints. Without this call the proxy throws an error and
+     * returns HTTP 500 for any request that arrives before a {@code /config} POST
+     * has been made.
+     * </p>
+     *
+     * @throws IOException
+     *             if the proxy configuration request fails
+     * @throws InterruptedException
+     *             if the request is interrupted
+     */
+    public void initializeProxy() throws IOException, InterruptedException {
+        ensureProxyAlive();
+        // Pass a non-existent snapshot path. The proxy initializes its state even when
+        // the file is absent (storedData simply remains undefined), which is fine for
+        // tests that never make AI chat-completion requests.
+        proxy.configure(workDir.resolve("no-snapshot.yaml").toString(), workDir.toString());
+    }
+
     @Override
     public void close() throws Exception {
         proxy.stop();

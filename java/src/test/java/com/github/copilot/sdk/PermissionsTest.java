@@ -22,6 +22,7 @@ import com.github.copilot.sdk.generated.ToolExecutionCompleteEvent;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
+import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.MessageOptions;
@@ -67,7 +68,8 @@ public class PermissionsTest {
             permissionRequests.add(request);
             assertEquals(sessionIdHolder[0], invocation.getSessionId());
             // Approve the permission
-            return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("approved"));
+            return CompletableFuture
+                    .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
         });
 
         try (CopilotClient client = ctx.createClient()) {
@@ -104,7 +106,7 @@ public class PermissionsTest {
         var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             // Deny all permissions
             return CompletableFuture
-                    .completedFuture(new PermissionRequestResult().setKind("denied-interactively-by-user"));
+                    .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.REJECTED));
         });
 
         try (CopilotClient client = ctx.createClient()) {
@@ -171,7 +173,7 @@ public class PermissionsTest {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
-                return new PermissionRequestResult().setKind("approved");
+                return new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED);
             });
         });
 
@@ -209,7 +211,8 @@ public class PermissionsTest {
             // Resume with permission handler
             var resumeConfig = new ResumeSessionConfig().setOnPermissionRequest((request, invocation) -> {
                 permissionRequests.add(request);
-                return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("approved"));
+                return CompletableFuture
+                        .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
             });
 
             CopilotSession session2 = client.resumeSession(sessionId, resumeConfig).get();
@@ -241,7 +244,8 @@ public class PermissionsTest {
                 receivedToolCallId[0] = true;
                 assertFalse(request.getToolCallId().isEmpty(), "Tool call ID should not be empty");
             }
-            return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("approved"));
+            return CompletableFuture
+                    .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
         });
 
         try (CopilotClient client = ctx.createClient()) {
@@ -301,11 +305,9 @@ public class PermissionsTest {
         ctx.configureForTest("permissions", "should_deny_tool_operations_when_handler_explicitly_denies");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client
-                    .createSession(
-                            new SessionConfig().setOnPermissionRequest((request,
-                                    invocation) -> CompletableFuture.completedFuture(new PermissionRequestResult()
-                                            .setKind("denied-no-approval-rule-and-could-not-request-from-user"))))
+            CopilotSession session = client.createSession(new SessionConfig()
+                    .setOnPermissionRequest((request, invocation) -> CompletableFuture.completedFuture(
+                            new PermissionRequestResult().setKind(PermissionRequestResultKind.USER_NOT_AVAILABLE))))
                     .get();
 
             final boolean[] permissionDenied = {false};
@@ -341,11 +343,9 @@ public class PermissionsTest {
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
-            CopilotSession session2 = client
-                    .resumeSession(sessionId,
-                            new ResumeSessionConfig().setOnPermissionRequest((request,
-                                    invocation) -> CompletableFuture.completedFuture(new PermissionRequestResult()
-                                            .setKind("denied-no-approval-rule-and-could-not-request-from-user"))))
+            CopilotSession session2 = client.resumeSession(sessionId, new ResumeSessionConfig()
+                    .setOnPermissionRequest((request, invocation) -> CompletableFuture.completedFuture(
+                            new PermissionRequestResult().setKind(PermissionRequestResultKind.USER_NOT_AVAILABLE))))
                     .get();
 
             final boolean[] permissionDenied = {false};

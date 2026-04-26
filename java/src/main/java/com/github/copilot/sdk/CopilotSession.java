@@ -1224,7 +1224,7 @@ public final class CopilotSession implements AutoCloseable {
         PermissionHandler handler = permissionHandler.get();
         if (handler == null) {
             PermissionRequestResult result = new PermissionRequestResult();
-            result.setKind("denied-no-approval-rule-and-could-not-request-from-user");
+            result.setKind(PermissionRequestResultKind.USER_NOT_AVAILABLE);
             return CompletableFuture.completedFuture(result);
         }
 
@@ -1235,13 +1235,13 @@ public final class CopilotSession implements AutoCloseable {
             return handler.handle(request, invocation).exceptionally(ex -> {
                 LOG.log(Level.SEVERE, "Permission handler threw an exception", ex);
                 PermissionRequestResult result = new PermissionRequestResult();
-                result.setKind("denied-no-approval-rule-and-could-not-request-from-user");
+                result.setKind(PermissionRequestResultKind.USER_NOT_AVAILABLE);
                 return result;
             });
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "Failed to process permission request", e);
             PermissionRequestResult result = new PermissionRequestResult();
-            result.setKind("denied-no-approval-rule-and-could-not-request-from-user");
+            result.setKind(PermissionRequestResultKind.USER_NOT_AVAILABLE);
             return CompletableFuture.completedFuture(result);
         }
     }
