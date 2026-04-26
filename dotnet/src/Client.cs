@@ -942,7 +942,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var connection = await EnsureConnectedAsync(cancellationToken);
 
         var response = await InvokeRpcAsync<SetForegroundSessionResponse>(
-            connection.Rpc, "session.setForeground", [new { sessionId }], cancellationToken);
+            connection.Rpc, "session.setForeground", [new SetForegroundSessionRequest(sessionId)], cancellationToken);
 
         if (!response.Success)
         {
@@ -1753,6 +1753,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record GetSessionMetadataResponse(
         SessionMetadata? Session);
 
+    internal record SetForegroundSessionRequest(
+        string SessionId);
+
     internal record UserInputRequestResponse(
         string Answer,
         bool WasFreeform);
@@ -1871,6 +1874,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(SessionCapabilities))]
     [JsonSerializable(typeof(SessionUiCapabilities))]
     [JsonSerializable(typeof(SessionMetadata))]
+    [JsonSerializable(typeof(SetForegroundSessionRequest))]
     [JsonSerializable(typeof(SystemMessageConfig))]
     [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
     [JsonSerializable(typeof(CommandWireDefinition))]
