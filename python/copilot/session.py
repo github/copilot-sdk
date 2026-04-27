@@ -31,6 +31,8 @@ from .generated.rpc import (
     PermissionDecisionRequest,
     SessionLogLevel,
     SessionRpc,
+    ShellExecRequest,
+    ShellExecResult,
     ToolCallResult,
     ToolsHandlePendingToolCallRequest,
     UIElicitationRequest,
@@ -575,6 +577,7 @@ class ShellOutputNotification:
     processId: str
     stream: ShellOutputStream
     data: str
+    sessionId: str | None = None
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> ShellOutputNotification:
@@ -582,6 +585,7 @@ class ShellOutputNotification:
             processId=str(data.get("processId", "")),
             stream=cast(ShellOutputStream, data.get("stream", "stdout")),
             data=str(data.get("data", "")),
+            sessionId=data.get("sessionId"),
         )
 
 
@@ -591,12 +595,14 @@ class ShellExitNotification:
 
     processId: str
     exitCode: int
+    sessionId: str | None = None
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> ShellExitNotification:
         return ShellExitNotification(
             processId=str(data.get("processId", "")),
             exitCode=int(data.get("exitCode", 1)),
+            sessionId=data.get("sessionId"),
         )
 
 
@@ -1099,7 +1105,7 @@ class CopilotSession:
     def rpc(self) -> SessionRpc:
         """Typed session-scoped RPC methods."""
         if self._rpc is None:
-            self._rpc = SessionRpc(self._client, self.session_id, self._track_shell_process)
+            self._rpc = SessionRpc(self._client, self.session_id)
         return self._rpc
 
     @property
@@ -1375,6 +1381,34 @@ class CopilotSession:
             self._tracked_process_ids.add(process_id)
         if self._register_shell_process is not None:
             self._register_shell_process(process_id, self)
+
+    async def shell_exec(
+        self,
+        command: str,
+        cwd: str | None = None,
+        timeout: int | None = None,
+    ) -> ShellExecResult:
+        """Execute a shell command and automatically track the process ID.
+
+        This is the recommended way to run shell commands. It calls
+        ``self.rpc.shell.exec()`` and then registers the returned process ID
+        so that ``shell.output`` and ``shell.exit`` notifications are routed
+        to this session's :meth:`on_shell_output` and :meth:`on_shell_exit`
+        handlers.
+
+        Args:
+            command: Shell command to execute.
+            cwd: Working directory (defaults to session working directory).
+            timeout: Timeout in milliseconds (default: 30000).
+
+        Returns:
+            The shell exec result containing the process ID.
+        """
+        result = await self.rpc.shell.exec(
+            ShellExecRequest(command=command, cwd=cwd, timeout=timeout)
+        )
+        self._track_shell_process(result.process_id)
+        return result
 
     def _untrack_shell_process(self, process_id: str) -> None:
         """Stop tracking a shell process ID."""

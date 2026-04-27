@@ -95,7 +95,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Gets the typed RPC client for session-scoped methods.
     /// </summary>
-    public SessionRpc Rpc => _sessionRpc ??= new SessionRpc(_rpc, SessionId, TrackShellProcess);
+    public SessionRpc Rpc => _sessionRpc ??= new SessionRpc(_rpc, SessionId);
 
     /// <summary>
     /// Gets the path to the session workspace directory when infinite sessions are enabled.
@@ -437,6 +437,27 @@ public sealed partial class CopilotSession : IAsyncDisposable
             _trackedProcessIds.Add(processId);
         }
         _registerShellProcess?.Invoke(processId, this);
+    }
+
+    /// <summary>
+    /// Executes a shell command via the session RPC and automatically tracks the process ID
+    /// so that <c>shell.output</c> and <c>shell.exit</c> notifications are routed to this
+    /// session's <see cref="OnShellOutput"/> and <see cref="OnShellExit"/> handlers.
+    /// </summary>
+    /// <remarks>
+    /// This is the recommended way to run shell commands. Calling
+    /// <c>session.Rpc.Shell.ExecAsync()</c> directly will not register process tracking.
+    /// </remarks>
+    /// <param name="command">Shell command to execute.</param>
+    /// <param name="cwd">Working directory (defaults to session working directory).</param>
+    /// <param name="timeout">Timeout (default: 30 seconds).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The shell exec result containing the process ID.</returns>
+    public async Task<ShellExecResult> ShellExecAsync(string command, string? cwd = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    {
+        var result = await Rpc.Shell.ExecAsync(command, cwd, timeout, cancellationToken);
+        TrackShellProcess(result.ProcessId);
+        return result;
     }
 
     /// <summary>
@@ -1304,18 +1325,20 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             // Connection is broken or closed
         }
-
-        _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<SessionEventHandler>.Empty);
-        ShellOutputHandlers = null;
-        ShellExitHandlers = null;
-
-        lock (_trackedProcessIdsLock)
+        finally
         {
-            foreach (var processId in _trackedProcessIds)
+            _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<SessionEventHandler>.Empty);
+            ShellOutputHandlers = null;
+            ShellExitHandlers = null;
+
+            lock (_trackedProcessIdsLock)
             {
-                _unregisterShellProcess?.Invoke(processId);
+                foreach (var processId in _trackedProcessIds)
+                {
+                    _unregisterShellProcess?.Invoke(processId);
+                }
+                _trackedProcessIds.Clear();
             }
-            _trackedProcessIds.Clear();
         }
 
         _toolHandlers.Clear();
