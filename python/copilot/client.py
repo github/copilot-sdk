@@ -2164,6 +2164,25 @@ class CopilotClient:
         with self._shell_process_map_lock:
             self._shell_process_map.pop(process_id, None)
 
+    def _get_session_for_shell_notification(self, params: dict[str, Any]) -> CopilotSession | None:
+        """Route a shell notification to the correct session.
+
+        Tries sessionId first (if present), then falls back to the processId map.
+        """
+        session_id = params.get("sessionId")
+        if isinstance(session_id, str):
+            with self._sessions_lock:
+                session = self._sessions.get(session_id)
+            if session:
+                return session
+
+        process_id = params.get("processId")
+        if isinstance(process_id, str):
+            with self._shell_process_map_lock:
+                return self._shell_process_map.get(process_id)
+
+        return None
+
     async def _verify_protocol_version(self) -> None:
         """Verify that the server's protocol version is within the supported range
         and store the negotiated version."""
@@ -2446,22 +2465,17 @@ class CopilotClient:
                 lifecycle_event = SessionLifecycleEvent.from_dict(params)
                 self._dispatch_lifecycle_event(lifecycle_event)
             elif method == "shell.output":
-                process_id = params.get("processId")
-                if process_id:
-                    with self._shell_process_map_lock:
-                        session = self._shell_process_map.get(process_id)
-                    if session:
-                        notification = ShellOutputNotification.from_dict(params)
-                        session._dispatch_shell_output(notification)
+                session = self._get_session_for_shell_notification(params)
+                if session:
+                    notification = ShellOutputNotification.from_dict(params)
+                    session._dispatch_shell_output(notification)
             elif method == "shell.exit":
                 process_id = params.get("processId")
-                if process_id:
-                    with self._shell_process_map_lock:
-                        session = self._shell_process_map.get(process_id)
-                    if session:
-                        notification = ShellExitNotification.from_dict(params)
-                        session._dispatch_shell_exit(notification)
-                        # Clean up the mapping after exit
+                session = self._get_session_for_shell_notification(params)
+                if session:
+                    notification = ShellExitNotification.from_dict(params)
+                    session._dispatch_shell_exit(notification)
+                    if process_id:
                         with self._shell_process_map_lock:
                             self._shell_process_map.pop(process_id, None)
                         session._untrack_shell_process(process_id)
@@ -2572,22 +2586,17 @@ class CopilotClient:
                 lifecycle_event = SessionLifecycleEvent.from_dict(params)
                 self._dispatch_lifecycle_event(lifecycle_event)
             elif method == "shell.output":
-                process_id = params.get("processId")
-                if process_id:
-                    with self._shell_process_map_lock:
-                        session = self._shell_process_map.get(process_id)
-                    if session:
-                        notification = ShellOutputNotification.from_dict(params)
-                        session._dispatch_shell_output(notification)
+                session = self._get_session_for_shell_notification(params)
+                if session:
+                    notification = ShellOutputNotification.from_dict(params)
+                    session._dispatch_shell_output(notification)
             elif method == "shell.exit":
                 process_id = params.get("processId")
-                if process_id:
-                    with self._shell_process_map_lock:
-                        session = self._shell_process_map.get(process_id)
-                    if session:
-                        notification = ShellExitNotification.from_dict(params)
-                        session._dispatch_shell_exit(notification)
-                        # Clean up the mapping after exit
+                session = self._get_session_for_shell_notification(params)
+                if session:
+                    notification = ShellExitNotification.from_dict(params)
+                    session._dispatch_shell_exit(notification)
+                    if process_id:
                         with self._shell_process_map_lock:
                             self._shell_process_map.pop(process_id, None)
                         session._untrack_shell_process(process_id)

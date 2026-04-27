@@ -1293,10 +1293,9 @@ func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
 //	}
 func (s *Session) Disconnect() error {
 	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
-	if err != nil {
-		return fmt.Errorf("failed to disconnect session: %w", err)
-	}
 
+	// Clean up local state regardless of whether destroy succeeded,
+	// so we don't leak handlers or process tracking.
 	s.closeOnce.Do(func() { close(s.eventCh) })
 
 	// Clear handlers
@@ -1334,6 +1333,9 @@ func (s *Session) Disconnect() error {
 	s.trackedProcessIDs = nil
 	s.trackedProcessMux.Unlock()
 
+	if err != nil {
+		return fmt.Errorf("failed to disconnect session: %w", err)
+	}
 	return nil
 }
 
