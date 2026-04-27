@@ -80,6 +80,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = [];
     private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = [];
     private readonly object _lifecycleHandlersLock = new();
+    private readonly ConcurrentDictionary<string, CopilotSession> _shellProcessMap = new();
     private ServerRpc? _rpc;
 
     /// <summary>
@@ -478,6 +479,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
         _sessions[sessionId] = session;
+        session.SetShellProcessCallbacks(
+            (processId, s) => _shellProcessMap[processId] = s,
+            processId => _shellProcessMap.TryRemove(processId, out _));
 
         try
         {
@@ -603,6 +607,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
         _sessions[sessionId] = session;
+        session.SetShellProcessCallbacks(
+            (processId, s) => _shellProcessMap[processId] = s,
+            processId => _shellProcessMap.TryRemove(processId, out _));
 
         try
         {
@@ -1371,6 +1378,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.AddLocalRpcMethod("permission.request", handler.OnPermissionRequestV2);
         rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
+        rpc.AddLocalRpcMethod("shell.output", handler.OnShellOutput);
+        rpc.AddLocalRpcMethod("shell.exit", handler.OnShellExit);
         rpc.AddLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
         ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
         {
@@ -1604,6 +1613,58 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 {
                     Kind = PermissionRequestResultKind.UserNotAvailable
                 });
+            }
+        }
+
+        public void OnShellOutput(string processId, string stream, string data, string? sessionId = null)
+        {
+            CopilotSession? session = null;
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                session = client.GetSession(sessionId!);
+            }
+
+            if (session is null)
+            {
+                client._shellProcessMap.TryGetValue(processId, out session);
+            }
+
+            if (session is not null)
+            {
+                session.DispatchShellOutput(new ShellOutputNotification
+                {
+                    SessionId = sessionId,
+                    ProcessId = processId,
+                    Stream = stream,
+                    Data = data,
+                });
+            }
+        }
+
+        public void OnShellExit(string processId, int exitCode, string? sessionId = null)
+        {
+            CopilotSession? session = null;
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                session = client.GetSession(sessionId!);
+            }
+
+            if (session is null)
+            {
+                client._shellProcessMap.TryGetValue(processId, out session);
+            }
+
+            if (session is not null)
+            {
+                session.DispatchShellExit(new ShellExitNotification
+                {
+                    SessionId = sessionId,
+                    ProcessId = processId,
+                    ExitCode = exitCode,
+                });
+                // Clean up the mapping after exit
+                client._shellProcessMap.TryRemove(processId, out _);
+                session.UntrackShellProcess(processId);
             }
         }
     }

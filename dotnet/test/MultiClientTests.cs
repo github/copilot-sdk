@@ -169,12 +169,23 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
 
         var client1Events = new ConcurrentBag<SessionEvent>();
         var client2Events = new ConcurrentBag<SessionEvent>();
+        var client1Requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client2Requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client1Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client2Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        // Wait for PermissionCompletedEvent on client2 which may arrive slightly after session1 goes idle
-        var client2PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session2);
-
-        using var sub1 = session1.On(evt => client1Events.Add(evt));
-        using var sub2 = session2.On(evt => client2Events.Add(evt));
+        using var sub1 = session1.On(evt =>
+        {
+            client1Events.Add(evt);
+            if (evt is PermissionRequestedEvent) client1Requested.TrySetResult(true);
+            if (evt is PermissionCompletedEvent) client1Completed.TrySetResult(true);
+        });
+        using var sub2 = session2.On(evt =>
+        {
+            client2Events.Add(evt);
+            if (evt is PermissionRequestedEvent) client2Requested.TrySetResult(true);
+            if (evt is PermissionCompletedEvent) client2Completed.TrySetResult(true);
+        });
 
         var response = await session1.SendAndWaitAsync(new MessageOptions
         {
@@ -184,7 +195,9 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         Assert.NotNull(response);
         Assert.NotEmpty(client1PermissionRequests);
 
-        await client2PermissionCompleted;
+        await Task.WhenAll(
+            client1Requested.Task, client2Requested.Task,
+            client1Completed.Task, client2Completed.Task).WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Contains(client1Events, e => e is PermissionRequestedEvent);
         Assert.Contains(client2Events, e => e is PermissionRequestedEvent);
@@ -219,9 +232,23 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
 
         var client1Events = new ConcurrentBag<SessionEvent>();
         var client2Events = new ConcurrentBag<SessionEvent>();
+        var client1Requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client2Requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client1Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client2Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var sub1 = session1.On(evt => client1Events.Add(evt));
-        using var sub2 = session2.On(evt => client2Events.Add(evt));
+        using var sub1 = session1.On(evt =>
+        {
+            client1Events.Add(evt);
+            if (evt is PermissionRequestedEvent) client1Requested.TrySetResult(true);
+            if (evt is PermissionCompletedEvent) client1Completed.TrySetResult(true);
+        });
+        using var sub2 = session2.On(evt =>
+        {
+            client2Events.Add(evt);
+            if (evt is PermissionRequestedEvent) client2Requested.TrySetResult(true);
+            if (evt is PermissionCompletedEvent) client2Completed.TrySetResult(true);
+        });
 
         // Write a file so the agent has something to edit
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "protected.txt"), "protected content");
@@ -234,6 +261,10 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         // Verify the file was NOT modified
         var content = await File.ReadAllTextAsync(Path.Combine(Ctx.WorkDir, "protected.txt"));
         Assert.Equal("protected content", content);
+
+        await Task.WhenAll(
+            client1Requested.Task, client2Requested.Task,
+            client1Completed.Task, client2Completed.Task).WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Contains(client1Events, e => e is PermissionRequestedEvent);
         Assert.Contains(client2Events, e => e is PermissionRequestedEvent);

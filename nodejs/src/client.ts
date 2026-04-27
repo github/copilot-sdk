@@ -47,6 +47,8 @@ import type {
     SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
+    ShellExitNotification,
+    ShellOutputNotification,
     SystemMessageCustomizeConfig,
     TelemetryConfig,
     Tool,
@@ -241,6 +243,7 @@ export class CopilotClient {
         Set<(event: SessionLifecycleEvent) => void>
     > = new Map();
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
+    private shellProcessMap: Map<string, CopilotSession> = new Map();
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
@@ -686,6 +689,10 @@ export class CopilotClient {
             undefined,
             this.onGetTraceContext
         );
+        session._setShellProcessCallbacks(
+            (processId, trackedSession) => this.shellProcessMap.set(processId, trackedSession),
+            (processId) => this.shellProcessMap.delete(processId)
+        );
         session.registerTools(config.tools);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
@@ -827,6 +834,10 @@ export class CopilotClient {
             this.connection!,
             undefined,
             this.onGetTraceContext
+        );
+        session._setShellProcessCallbacks(
+            (processId, trackedSession) => this.shellProcessMap.set(processId, trackedSession),
+            (processId) => this.shellProcessMap.delete(processId)
         );
         session.registerTools(config.tools);
         session.registerCommands(config.commands);
@@ -1685,6 +1696,14 @@ export class CopilotClient {
             this.handleSessionLifecycleNotification(notification);
         });
 
+        this.connection.onNotification("shell.output", (notification: unknown) => {
+            this.handleShellOutputNotification(notification);
+        });
+
+        this.connection.onNotification("shell.exit", (notification: unknown) => {
+            this.handleShellExitNotification(notification);
+        });
+
         // Protocol v3 servers send tool calls and permission requests as broadcast events
         // (external_tool.requested / permission.requested) handled in CopilotSession._dispatchEvent.
         // Protocol v2 servers use the older tool.call / permission.request RPC model instead.
@@ -1801,6 +1820,53 @@ export class CopilotClient {
                 // Ignore handler errors
             }
         }
+    }
+
+    private handleShellOutputNotification(notification: unknown): void {
+        if (typeof notification !== "object" || !notification) {
+            return;
+        }
+
+        const session = this.getSessionForShellNotification(
+            notification as { sessionId?: unknown; processId?: unknown }
+        );
+        if (session) {
+            session._dispatchShellOutput(notification as ShellOutputNotification);
+        }
+    }
+
+    private handleShellExitNotification(notification: unknown): void {
+        if (typeof notification !== "object" || !notification) {
+            return;
+        }
+
+        const typedNotification = notification as { sessionId?: unknown; processId?: unknown };
+        const session = this.getSessionForShellNotification(typedNotification);
+        if (session) {
+            session._dispatchShellExit(notification as ShellExitNotification);
+            if (typeof typedNotification.processId === "string") {
+                this.shellProcessMap.delete(typedNotification.processId);
+                session._untrackShellProcess(typedNotification.processId);
+            }
+        }
+    }
+
+    private getSessionForShellNotification(notification: {
+        sessionId?: unknown;
+        processId?: unknown;
+    }): CopilotSession | undefined {
+        if (typeof notification.sessionId === "string") {
+            const session = this.sessions.get(notification.sessionId);
+            if (session) {
+                return session;
+            }
+        }
+
+        if (typeof notification.processId === "string") {
+            return this.shellProcessMap.get(notification.processId);
+        }
+
+        return undefined;
     }
 
     private async handleUserInputRequest(params: {

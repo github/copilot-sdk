@@ -28,6 +28,11 @@ from .session import (
     SessionFsConfig,
     SessionUiApi,
     SessionUiCapabilities,
+    ShellExitHandler,
+    ShellExitNotification,
+    ShellOutputHandler,
+    ShellOutputNotification,
+    ShellOutputStream,
 )
 from .session_fs_provider import (
     SessionFsFileInfo,
@@ -62,6 +67,11 @@ __all__ = [
     "create_session_fs_adapter",
     "SessionUiApi",
     "SessionUiCapabilities",
+    "ShellExitHandler",
+    "ShellExitNotification",
+    "ShellOutputHandler",
+    "ShellOutputNotification",
+    "ShellOutputStream",
     "SubprocessConfig",
     "convert_mcp_call_tool_result",
     "define_tool",

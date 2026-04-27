@@ -107,6 +107,8 @@ type Client struct {
 	lifecycleHandlers         []SessionLifecycleHandler
 	typedLifecycleHandlers    map[SessionLifecycleEventType][]SessionLifecycleHandler
 	lifecycleHandlersMux      sync.Mutex
+	shellProcessMap           map[string]*Session
+	shellProcessMapMux        sync.Mutex
 	startStopMux              sync.RWMutex // protects process and state during start/[force]stop
 	processDone               chan struct{}
 	processErrorPtr           *error
@@ -146,6 +148,7 @@ func NewClient(options *ClientOptions) *Client {
 		options:          opts,
 		state:            StateDisconnected,
 		sessions:         make(map[string]*Session),
+		shellProcessMap:  make(map[string]*Session),
 		actualHost:       "localhost",
 		isExternalServer: false,
 		useStdio:         true,
@@ -648,6 +651,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
 	session := newSession(sessionID, c.client, "")
+	session.setShellProcessCallbacks(c.registerShellProcess, c.unregisterShellProcess)
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -808,6 +812,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
 	session := newSession(sessionID, c.client, "")
+	session.setShellProcessCallbacks(c.registerShellProcess, c.unregisterShellProcess)
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -1610,6 +1615,8 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
+	c.client.SetRequestHandler("shell.output", jsonrpc2.NotificationHandlerFor(c.handleShellOutput))
+	c.client.SetRequestHandler("shell.exit", jsonrpc2.NotificationHandlerFor(c.handleShellExit))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
 	rpc.RegisterClientSessionApiHandlers(c.client, func(sessionID string) *rpc.ClientSessionApiHandlers {
 		c.sessionsMux.Lock()
@@ -1634,6 +1641,68 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	if ok {
 		session.dispatchEvent(req.Event)
 	}
+}
+
+func (c *Client) handleShellOutput(notification ShellOutputNotification) {
+	var sessionID string
+	if notification.SessionID != nil {
+		sessionID = *notification.SessionID
+	}
+	session, ok := c.getShellNotificationSession(sessionID, notification.ProcessID)
+
+	if ok {
+		session.dispatchShellOutput(notification)
+	}
+}
+
+func (c *Client) handleShellExit(notification ShellExitNotification) {
+	var sessionID string
+	if notification.SessionID != nil {
+		sessionID = *notification.SessionID
+	}
+	session, ok := c.getShellNotificationSession(sessionID, notification.ProcessID)
+
+	if ok {
+		session.dispatchShellExit(notification)
+		if notification.ProcessID != "" {
+			c.shellProcessMapMux.Lock()
+			delete(c.shellProcessMap, notification.ProcessID)
+			c.shellProcessMapMux.Unlock()
+			session.untrackShellProcess(notification.ProcessID)
+		}
+	}
+}
+
+func (c *Client) getShellNotificationSession(sessionID, processID string) (*Session, bool) {
+	if sessionID != "" {
+		c.sessionsMux.Lock()
+		session, ok := c.sessions[sessionID]
+		c.sessionsMux.Unlock()
+		if ok {
+			return session, true
+		}
+	}
+
+	if processID != "" {
+		c.shellProcessMapMux.Lock()
+		session, ok := c.shellProcessMap[processID]
+		c.shellProcessMapMux.Unlock()
+		return session, ok
+	}
+
+	return nil, false
+}
+
+func (c *Client) registerShellProcess(processID string, session *Session) {
+	c.shellProcessMapMux.Lock()
+	c.shellProcessMap[processID] = session
+	c.shellProcessMapMux.Unlock()
+}
+
+func (c *Client) unregisterShellProcess(processID string) {
+	c.shellProcessMapMux.Lock()
+	delete(c.shellProcessMap, processID)
+	c.shellProcessMapMux.Unlock()
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.

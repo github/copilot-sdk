@@ -2657,6 +2657,66 @@ public class SessionLifecycleEvent
     public SessionLifecycleEventMetadata? Metadata { get; set; }
 }
 
+// ============================================================================
+// Shell Notification Types
+// ============================================================================
+
+/// <summary>
+/// Notification sent when a shell command produces output.
+/// Streamed in chunks (up to 64KB per notification).
+/// </summary>
+public class ShellOutputNotification
+{
+    /// <summary>
+    /// Process identifier returned by shell.exec.
+    /// </summary>
+    [JsonPropertyName("processId")]
+    public string ProcessId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Identifier of the session that produced this notification, when provided by the runtime.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+
+    /// <summary>
+    /// Which output stream produced this chunk ("stdout" or "stderr").
+    /// </summary>
+    [JsonPropertyName("stream")]
+    public string Stream { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The output data (UTF-8 string).
+    /// </summary>
+    [JsonPropertyName("data")]
+    public string Data { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Notification sent when a shell command exits.
+/// Sent after all output has been streamed.
+/// </summary>
+public class ShellExitNotification
+{
+    /// <summary>
+    /// Process identifier returned by shell.exec.
+    /// </summary>
+    [JsonPropertyName("processId")]
+    public string ProcessId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Identifier of the session that produced this notification, when provided by the runtime.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+
+    /// <summary>
+    /// Process exit code (0 = success).
+    /// </summary>
+    [JsonPropertyName("exitCode")]
+    public int ExitCode { get; set; }
+}
+
 /// <summary>
 /// Response from session.getForeground
 /// </summary>
@@ -2745,6 +2805,8 @@ public class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionLifecycleEvent))]
 [JsonSerializable(typeof(SessionLifecycleEventMetadata))]
+[JsonSerializable(typeof(ShellExitNotification))]
+[JsonSerializable(typeof(ShellOutputNotification))]
 [JsonSerializable(typeof(SessionListFilter))]
 [JsonSerializable(typeof(SectionOverride))]
 [JsonSerializable(typeof(SessionMetadata))]
