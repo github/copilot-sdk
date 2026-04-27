@@ -1080,20 +1080,22 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
-        await this.connection.sendRequest("session.destroy", {
-            sessionId: this.sessionId,
-        });
-        this.eventHandlers.clear();
-        this.typedEventHandlers.clear();
-        this.toolHandlers.clear();
-        this.permissionHandler = undefined;
-        this.shellOutputHandlers.clear();
-        this.shellExitHandlers.clear();
-        // Unregister all tracked processes
-        for (const processId of this.trackedProcessIds) {
-            this._unregisterShellProcess?.(processId);
+        try {
+            await this.connection.sendRequest("session.destroy", {
+                sessionId: this.sessionId,
+            });
+        } finally {
+            this.eventHandlers.clear();
+            this.typedEventHandlers.clear();
+            this.toolHandlers.clear();
+            this.permissionHandler = undefined;
+            this.shellOutputHandlers.clear();
+            this.shellExitHandlers.clear();
+            for (const processId of this.trackedProcessIds) {
+                this._unregisterShellProcess?.(processId);
+            }
+            this.trackedProcessIds.clear();
         }
-        this.trackedProcessIds.clear();
     }
 
     /**

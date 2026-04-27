@@ -1761,6 +1761,8 @@ export type ShellOutputStream = "stdout" | "stderr";
  * Streamed in chunks (up to 64KB per notification).
  */
 export interface ShellOutputNotification {
+    /** Session that owns this process (used for routing when available) */
+    sessionId?: string;
     /** Process identifier returned by shell.exec */
     processId: string;
     /** Which output stream produced this chunk */
@@ -1774,6 +1776,8 @@ export interface ShellOutputNotification {
  * Sent after all output has been streamed.
  */
 export interface ShellExitNotification {
+    /** Session that owns this process (used for routing when available) */
+    sessionId?: string;
     /** Process identifier returned by shell.exec */
     processId: string;
     /** Process exit code (0 = success) */
