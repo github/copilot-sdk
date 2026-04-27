@@ -122,7 +122,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		eventCh:           make(chan SessionEvent, 128),
 		trackedProcessIDs: make(map[string]struct{}),
 	}
-	s.RPC = rpc.NewSessionRpc(client, sessionID, s.trackShellProcess)
+	s.RPC = rpc.NewSessionRpc(client, sessionID)
 	go s.processEvents()
 	return s
 }
@@ -1017,6 +1017,21 @@ func (s *Session) trackShellProcess(processID string) {
 	if s.registerShellProc != nil {
 		s.registerShellProc(processID, s)
 	}
+}
+
+// ShellExec executes a shell command via the session RPC and automatically
+// tracks the process ID so that shell.output and shell.exit notifications
+// are routed to this session's OnShellOutput/OnShellExit handlers.
+//
+// This is the recommended way to run shell commands. Calling
+// session.RPC.Shell.Exec() directly will not register process tracking.
+func (s *Session) ShellExec(ctx context.Context, params *rpc.ShellExecRequest) (*rpc.ShellExecResult, error) {
+	result, err := s.RPC.Shell.Exec(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	s.trackShellProcess(result.ProcessID)
+	return result, nil
 }
 
 // untrackShellProcess stops tracking a shell process ID.
