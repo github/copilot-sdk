@@ -1,31 +1,29 @@
 //! Observe lifecycle and event traffic without owning permission decisions.
 //!
-//! Demonstrates the observer-shaped APIs added in 0.1.0:
+//! Demonstrates the channel-based observer APIs:
 //!
-//! - [`Client::on`] — fire-and-forget subscriber for *all* lifecycle events
-//!   (`session.lifecycle` notifications: created / destroyed / errored / etc.).
-//! - [`Client::on_event_type`] — same idea, but filtered to a single event
-//!   type.
-//! - [`Session::on`] — observe-only subscriber for the per-session
-//!   `session.event` stream (assistant messages, tool calls, permission
-//!   prompts, etc.). Cannot return a `HandlerResponse` — that's still the
-//!   constructor handler's job.
+//! - [`Client::subscribe_lifecycle`] — `tokio::sync::broadcast::Receiver` of
+//!   every `session.lifecycle` notification (created / destroyed / errored /
+//!   foreground / background). Filter by matching on `event.event_type` in
+//!   the consumer.
+//! - [`Session::subscribe`] — receiver for the per-session `session.event`
+//!   stream (assistant messages, tool calls, permission prompts, etc.).
+//!   Observe-only — the constructor handler still owns permission decisions.
 //! - [`Client::state`] — current connection state without polling.
 //! - [`Client::get_session_metadata`] — inspect a session without resuming
 //!   it.
 //! - [`Client::force_stop`] — synchronous shutdown for cleanup paths.
 //!
-//! Each subscriber returns an `Unsubscribe` handle. Drop it (or call
-//! `.cancel()`) to stop receiving events. Subscribers cannot poison each
-//! other: panics are isolated via `catch_unwind`.
+//! Drop the receiver to unsubscribe — there is no separate cancel handle.
+//! Slow consumers receive `RecvError::Lagged(n)` and resync on the next
+//! event; they do not block the producer.
 //!
 //! ```sh
 //! cargo run -p copilot-sdk --example lifecycle_observer
 //! ```
 //!
-//! [`Client::on`]: copilot::Client::on
-//! [`Client::on_event_type`]: copilot::Client::on_event_type
-//! [`Session::on`]: copilot::session::Session::on
+//! [`Client::subscribe_lifecycle`]: copilot::Client::subscribe_lifecycle
+//! [`Session::subscribe`]: copilot::session::Session::subscribe
 //! [`Client::state`]: copilot::Client::state
 //! [`Client::get_session_metadata`]: copilot::Client::get_session_metadata
 //! [`Client::force_stop`]: copilot::Client::force_stop
@@ -43,25 +41,26 @@ async fn main() -> Result<(), copilot::Error> {
     let client = Client::start(ClientOptions::default()).await?;
     println!("[client] state: {:?}", client.state());
 
-    // Wildcard lifecycle subscriber: see every session.lifecycle event.
-    let _all = client.on(|event| {
-        let summary = event
-            .metadata
-            .as_ref()
-            .and_then(|m| m.summary.as_deref())
-            .unwrap_or("<no summary>");
-        println!(
-            "[lifecycle:*] {:?} session={} summary={}",
-            event.event_type, event.session_id, summary,
-        );
-    });
-
-    // Typed subscriber: count how many sessions get deleted in this run.
-    // Useful for metrics or debugging session leaks.
+    // Wildcard lifecycle subscriber: see every session.lifecycle event,
+    // counting deletions inline by filtering on event_type.
+    let mut lifecycle_rx = client.subscribe_lifecycle();
     let deleted = Arc::new(AtomicUsize::new(0));
     let deleted_clone = Arc::clone(&deleted);
-    let _deleted_handle = client.on_event_type(SessionLifecycleEventType::Deleted, move |_event| {
-        deleted_clone.fetch_add(1, Ordering::Relaxed);
+    let lifecycle_task = tokio::spawn(async move {
+        while let Ok(event) = lifecycle_rx.recv().await {
+            let summary = event
+                .metadata
+                .as_ref()
+                .and_then(|m| m.summary.as_deref())
+                .unwrap_or("<no summary>");
+            println!(
+                "[lifecycle:*] {:?} session={} summary={}",
+                event.event_type, event.session_id, summary,
+            );
+            if event.event_type == SessionLifecycleEventType::Deleted {
+                deleted_clone.fetch_add(1, Ordering::Relaxed);
+            }
+        }
     });
 
     let config = SessionConfig::default().with_handler(Arc::new(ApproveAllHandler));
@@ -69,17 +68,19 @@ async fn main() -> Result<(), copilot::Error> {
     println!("[client] state after create: {:?}", client.state());
 
     // Per-session observer: see every assistant message, tool call, etc.
-    // Observers fire *before* the constructor handler, so they're great for
+    // Subscribers fire alongside the constructor handler; they're great for
     // logging or metrics that should run regardless of how the handler
     // decides to respond.
+    let mut session_rx = session.subscribe();
     let session_events = Arc::new(AtomicUsize::new(0));
     let session_events_clone = Arc::clone(&session_events);
-    let _events_handle = session.on(move |event| {
-        session_events_clone.fetch_add(1, Ordering::Relaxed);
-        println!("[session-event] {}", event.event_type);
+    let session_task = tokio::spawn(async move {
+        while let Ok(event) = session_rx.recv().await {
+            session_events_clone.fetch_add(1, Ordering::Relaxed);
+            println!("[session-event] {}", event.event_type);
+        }
     });
 
-    // Inspect the session without resuming it.
     if let Some(metadata) = client.get_session_metadata(session.id()).await? {
         println!(
             "[metadata] id={} modified={} summary={}",
@@ -89,7 +90,6 @@ async fn main() -> Result<(), copilot::Error> {
         );
     }
 
-    // Drive a short interaction so subscribers have something to observe.
     session
         .send_and_wait(
             SendOptions::new("Say hello in five words or fewer.")
@@ -104,6 +104,11 @@ async fn main() -> Result<(), copilot::Error> {
     // For graceful shutdown in normal flow, prefer `client.stop().await`.
     client.force_stop();
     println!("[client] state after force_stop: {:?}", client.state());
+
+    // Stopping the client closes the broadcast senders, so the consumer
+    // tasks observe `RecvError::Closed` and exit cleanly.
+    let _ = lifecycle_task.await;
+    let _ = session_task.await;
 
     println!(
         "\n[summary] session_events={} sessions_deleted={}",

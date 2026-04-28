@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde_json::Value;
@@ -15,6 +14,7 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::{
     ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData, SessionEventType,
+    UserInputRequestedData,
 };
 use crate::handler::{
     ExitPlanModeResult, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
@@ -59,17 +59,8 @@ pub struct Session {
     idle_waiter: Arc<Mutex<Option<IdleWaiter>>>,
     /// Capabilities negotiated with the CLI, updated on `capabilities.changed` events.
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
-    /// Runtime-registered observers for SessionEvents — see [`Session::on`].
-    event_subscribers: Arc<parking_lot::Mutex<Vec<EventSubscriberEntry>>>,
-    event_subscriber_id: Arc<AtomicU64>,
-}
-
-type EventSubscriberFn = Arc<dyn Fn(SessionEvent) + Send + Sync + 'static>;
-
-#[derive(Clone)]
-struct EventSubscriberEntry {
-    id: u64,
-    handler: EventSubscriberFn,
+    /// Broadcast channel for runtime event subscribers — see [`Session::subscribe`].
+    event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
 }
 
 impl Session {
@@ -101,12 +92,11 @@ impl Session {
         self.capabilities.read().clone()
     }
 
-    /// Subscribe to session events at runtime.
+    /// Subscribe to events for this session.
     ///
-    /// Mirrors Go's `Session.On` (`go/session.go:258`). Useful for adding
-    /// observers after a session is created — for instance to update UI
-    /// state — without replacing the [`SessionHandler`] passed at creation
-    /// time.
+    /// Returns a [`broadcast::Receiver`](tokio::sync::broadcast::Receiver) that
+    /// yields every [`SessionEvent`] dispatched on this session's event loop.
+    /// Drop the receiver to unsubscribe.
     ///
     /// **Observe-only.** Subscribers receive a clone of every
     /// [`SessionEvent`] but cannot influence permission decisions, tool
@@ -115,37 +105,26 @@ impl Session {
     /// the responsibility of the [`SessionHandler`] passed via
     /// [`SessionConfig::handler`](crate::types::SessionConfig::handler).
     ///
-    /// Subscribers run synchronously on the session's event loop — keep
-    /// them fast and non-blocking. A panicking subscriber is caught
-    /// (mirroring Go's `recover()`) and won't poison the event loop or
-    /// block siblings.
-    ///
-    /// The returned [`Unsubscribe`](crate::Unsubscribe) handle removes the
-    /// subscriber when called or dropped.
+    /// Each receiver maintains its own queue. If a consumer cannot keep up,
+    /// the oldest events are dropped and `recv` returns
+    /// [`RecvError::Lagged`](tokio::sync::broadcast::error::RecvError::Lagged)
+    /// with the count of skipped events. Slow consumers do not block the
+    /// session's event loop.
     ///
     /// # Example
     ///
     /// ```no_run
     /// # async fn example(session: copilot::session::Session) {
-    /// let _unsub = session.on(|event| {
-    ///     println!("[{}] event {}", event.id, event.event_type);
+    /// let mut events = session.subscribe();
+    /// tokio::spawn(async move {
+    ///     while let Ok(event) = events.recv().await {
+    ///         println!("[{}] event {}", event.id, event.event_type);
+    ///     }
     /// });
-    /// // ... unsub drops at end of scope and removes the subscriber.
     /// # }
     /// ```
-    pub fn on<F>(&self, handler: F) -> crate::Unsubscribe
-    where
-        F: Fn(SessionEvent) + Send + Sync + 'static,
-    {
-        let id = self.event_subscriber_id.fetch_add(1, Ordering::Relaxed);
-        self.event_subscribers.lock().push(EventSubscriberEntry {
-            id,
-            handler: Arc::new(handler),
-        });
-        let subscribers = self.event_subscribers.clone();
-        crate::Unsubscribe::new(move || {
-            subscribers.lock().retain(|e| e.id != id);
-        })
+    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<SessionEvent> {
+        self.event_tx.subscribe()
     }
 
     /// The underlying Client (for advanced use cases).
@@ -820,8 +799,7 @@ impl Client {
         let channels = self.register_session(&session_id);
 
         let idle_waiter = Arc::new(Mutex::new(None));
-        let event_subscribers = Arc::new(parking_lot::Mutex::new(Vec::new()));
-        let event_subscriber_id = Arc::new(AtomicU64::new(0));
+        let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -831,7 +809,7 @@ impl Client {
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
-            event_subscribers.clone(),
+            event_tx.clone(),
         );
 
         Ok(Session {
@@ -843,8 +821,7 @@ impl Client {
             event_loop: Mutex::new(Some(event_loop)),
             idle_waiter,
             capabilities,
-            event_subscribers,
-            event_subscriber_id,
+            event_tx,
         })
     }
 
@@ -913,8 +890,7 @@ impl Client {
         let channels = self.register_session(&cli_session_id);
 
         let idle_waiter = Arc::new(Mutex::new(None));
-        let event_subscribers = Arc::new(parking_lot::Mutex::new(Vec::new()));
-        let event_subscriber_id = Arc::new(AtomicU64::new(0));
+        let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             cli_session_id.clone(),
             self.clone(),
@@ -924,7 +900,7 @@ impl Client {
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
-            event_subscribers.clone(),
+            event_tx.clone(),
         );
 
         Ok(Session {
@@ -936,8 +912,7 @@ impl Client {
             event_loop: Mutex::new(Some(event_loop)),
             idle_waiter,
             capabilities,
-            event_subscribers,
-            event_subscriber_id,
+            event_tx,
         })
     }
 }
@@ -952,7 +927,7 @@ fn spawn_event_loop(
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<Mutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
-    event_subscribers: Arc<parking_lot::Mutex<Vec<EventSubscriberEntry>>>,
+    event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
 ) -> JoinHandle<()> {
     let crate::router::SessionChannels {
         mut notifications,
@@ -964,7 +939,7 @@ fn spawn_event_loop(
             tokio::select! {
                 Some(notification) = notifications.recv() => {
                     handle_notification(
-                        &session_id, &client, &handler, notification, &idle_waiter, &capabilities, &event_subscribers,
+                        &session_id, &client, &handler, notification, &idle_waiter, &capabilities, &event_tx,
                     ).await;
                 }
                 Some(request) = requests.recv() => {
@@ -1013,6 +988,40 @@ fn permission_request_response(response: &HandlerResponse) -> PermissionDecision
     }
 }
 
+/// Map a handler response into the `result` payload for the notification
+/// path (`session.permissions.handlePendingPermissionRequest`).
+///
+/// Returns `None` when the SDK must not respond — currently only the
+/// [`PermissionResult::Deferred`] case, where the handler takes over
+/// responsibility for the round-trip itself.
+fn notification_permission_payload(response: &HandlerResponse) -> Option<Value> {
+    match response {
+        HandlerResponse::Permission(PermissionResult::Deferred) => None,
+        HandlerResponse::Permission(PermissionResult::Custom(value)) => Some(value.clone()),
+        _ => Some(serde_json::json!({
+            "kind": pending_permission_result_kind(response),
+        })),
+    }
+}
+
+/// Map a handler response into the JSON-RPC `result` payload for the
+/// direct-RPC path (`permission.request`).
+///
+/// Always returns a value. [`PermissionResult::Deferred`] is treated as
+/// [`PermissionResult::Approved`] here because the JSON-RPC contract
+/// requires a reply — see the variant's doc comment.
+fn direct_permission_payload(response: &HandlerResponse) -> Value {
+    match response {
+        HandlerResponse::Permission(PermissionResult::Custom(value)) => value.clone(),
+        HandlerResponse::Permission(PermissionResult::Deferred) => serde_json::to_value(
+            permission_request_response(&HandlerResponse::Permission(PermissionResult::Approved)),
+        )
+        .expect("serializing direct permission response should succeed"),
+        _ => serde_json::to_value(permission_request_response(response))
+            .expect("serializing direct permission response should succeed"),
+    }
+}
+
 /// Process a notification from the CLI's broadcast channel.
 #[allow(clippy::too_many_arguments)]
 async fn handle_notification(
@@ -1022,7 +1031,7 @@ async fn handle_notification(
     notification: SessionEventNotification,
     idle_waiter: &Arc<Mutex<Option<IdleWaiter>>>,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
-    event_subscribers: &Arc<parking_lot::Mutex<Vec<EventSubscriberEntry>>>,
+    event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
 ) {
     let event = notification.event.clone();
     let event_type = event.parsed_type();
@@ -1068,18 +1077,10 @@ async fn handle_notification(
         _ => {}
     }
 
-    // Dispatch to runtime-registered observers (Session::on subscribers).
-    let subscribers: Vec<EventSubscriberEntry> = event_subscribers.lock().clone();
-    for entry in subscribers {
-        let event = event.clone();
-        // Mirror the lifecycle dispatcher: a panicking subscriber must
-        // not poison the event loop or block siblings.
-        let result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (entry.handler)(event)));
-        if result.is_err() {
-            warn!(handler_id = entry.id, "Session::on subscriber panicked");
-        }
-    }
+    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
+    // only errors when there are no receivers, which is the normal case
+    // before any consumer subscribes.
+    let _ = event_tx.send(event.clone());
 
     // Fire-and-forget dispatch for the general event.
     handler
@@ -1120,13 +1121,18 @@ async fn handle_notification(
                         data,
                     })
                     .await;
+                let Some(result_value) = notification_permission_payload(&response) else {
+                    // Handler returned Deferred — it will call
+                    // handlePendingPermissionRequest itself.
+                    return;
+                };
                 let _ = client
                     .call(
                         "session.permissions.handlePendingPermissionRequest",
                         Some(serde_json::json!({
                             "sessionId": sid,
                             "requestId": request_id,
-                            "result": { "kind": pending_permission_result_kind(&response) },
+                            "result": result_value,
                         })),
                     )
                     .await;
@@ -1205,6 +1211,49 @@ async fn handle_notification(
                             "result": result_value,
                         })),
                     )
+                    .await;
+            });
+        }
+        SessionEventType::UserInputRequested => {
+            let user_input_data: UserInputRequestedData =
+                match serde_json::from_value(notification.event.data.clone()) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        warn!(error = %e, "failed to deserialize user_input.requested");
+                        return;
+                    }
+                };
+            let client = client.clone();
+            let handler = handler.clone();
+            let sid = session_id.clone();
+            tokio::spawn(async move {
+                let response = handler
+                    .on_event(HandlerEvent::UserInput {
+                        session_id: sid.clone(),
+                        question: user_input_data.question,
+                        choices: (!user_input_data.choices.is_empty())
+                            .then_some(user_input_data.choices),
+                        allow_freeform: user_input_data.allow_freeform,
+                    })
+                    .await;
+                let result = match response {
+                    HandlerResponse::UserInput(Some(UserInputResponse {
+                        answer,
+                        was_freeform,
+                    })) => serde_json::json!({
+                        "sessionId": sid,
+                        "requestId": user_input_data.request_id,
+                        "answer": answer,
+                        "wasFreeform": was_freeform,
+                    }),
+                    _ => serde_json::json!({
+                        "sessionId": sid,
+                        "requestId": user_input_data.request_id,
+                        "noResponse": true,
+                    }),
+                };
+                let _ = client
+                    .call("session.respondToUserInput", Some(result))
                     .await;
             });
         }
@@ -1518,10 +1567,7 @@ async fn handle_request(
             let rpc_response = JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
-                result: Some(
-                    serde_json::to_value(permission_request_response(&response))
-                        .expect("serializing direct permission response should succeed"),
-                ),
+                result: Some(direct_permission_payload(&response)),
                 error: None,
             };
             let _ = client.send_response(&rpc_response).await;
@@ -1650,7 +1696,10 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{pending_permission_result_kind, permission_request_response};
+    use super::{
+        direct_permission_payload, notification_permission_payload, pending_permission_result_kind,
+        permission_request_response,
+    };
     use crate::handler::{HandlerResponse, PermissionResult};
 
     #[test]
@@ -1690,6 +1739,74 @@ mod tests {
         assert_eq!(
             serde_json::to_value(permission_request_response(&HandlerResponse::Ok))
                 .expect("serializing fallback permission response should succeed"),
+            json!({ "kind": "reject" })
+        );
+    }
+
+    #[test]
+    fn notification_payload_handles_deferred_and_custom() {
+        // Deferred → no payload, SDK must not respond.
+        assert!(
+            notification_permission_payload(&HandlerResponse::Permission(
+                PermissionResult::Deferred,
+            ))
+            .is_none()
+        );
+
+        // Custom → handler-supplied value passed through verbatim.
+        let custom = json!({
+            "kind": "approve-and-remember",
+            "allowlist": ["ls", "grep"],
+        });
+        assert_eq!(
+            notification_permission_payload(&HandlerResponse::Permission(
+                PermissionResult::Custom(custom.clone()),
+            )),
+            Some(custom)
+        );
+
+        // Approved/Denied → existing kind-only shape.
+        assert_eq!(
+            notification_permission_payload(&HandlerResponse::Permission(
+                PermissionResult::Approved,
+            )),
+            Some(json!({ "kind": "approve-once" }))
+        );
+        assert_eq!(
+            notification_permission_payload(
+                &HandlerResponse::Permission(PermissionResult::Denied,)
+            ),
+            Some(json!({ "kind": "reject" }))
+        );
+    }
+
+    #[test]
+    fn direct_payload_handles_deferred_and_custom() {
+        // Custom → handler-supplied value passed through verbatim.
+        let custom = json!({
+            "kind": "approve-and-remember",
+            "allowlist": ["ls", "grep"],
+        });
+        assert_eq!(
+            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Custom(
+                custom.clone(),
+            ))),
+            custom
+        );
+
+        // Deferred → falls back to Approved because the direct RPC must reply.
+        assert_eq!(
+            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Deferred)),
+            json!({ "kind": "approve-once" })
+        );
+
+        // Approved/Denied → existing kind-only shape.
+        assert_eq!(
+            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Approved)),
+            json!({ "kind": "approve-once" })
+        );
+        assert_eq!(
+            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Denied)),
             json!({ "kind": "reject" })
         );
     }

@@ -113,79 +113,32 @@ Two CI checks defend the API surface:
   crates.io. Currently `continue-on-error: true` because there's no
   baseline yet. **Flip it to `false` after 0.1.0 ships** to make SemVer
   enforcement blocking.
-- **`PUBLIC_API.txt` drift check** (same workflow) — fails the build if the
-  public surface changes without updating the checked-in baseline. Catches
-  *any* surface change (additive or breaking), not just breaking ones.
-  Regenerate locally with:
 
-  ```sh
-  cd rust
-  cargo public-api -sss --features derive,test-support > PUBLIC_API.txt
-  ```
+For ad-hoc public-surface inspection, `cargo public-api -sss --features
+derive,test-support` is handy — but the surface is not snapshotted in the
+repo. The rendered docs on [docs.rs](https://docs.rs/copilot-sdk) are the
+canonical reference; `cargo-semver-checks` is the gate.
 
-For 0.x → 1.0, do an explicit API review pass (compare `PUBLIC_API.txt`
-against the language siblings under `../{nodejs,python,go,dotnet}/`),
+For 0.x → 1.0, do an explicit API review pass (compare against the
+language siblings under `../{nodejs,python,go,dotnet}/`),
 remove anything `#[doc(hidden)]` you don't intend to keep public, and
 write out the 1.0 commitment in the CHANGELOG.
 
 ---
 
-## Coordinating with `github/github-app`
+## Public-disclosure gate
 
-The Rust SDK is the source of truth for `github/github-app`'s
-`crates/copilot-sdk/` — that copy is published *from* this monorepo, not
-the other way around. A round-trip exists for cases where an in-flight
-github-app PR needs an SDK fix that has to be authored upstream first.
-
-### Sync direction & script
-
-The script lives at [`scripts/sync-rust-sdk.sh`](../scripts/sync-rust-sdk.sh)
-and only exists in this monorepo. From a `copilot-sdk` checkout:
-
-```sh
-scripts/sync-rust-sdk.sh diff     [GITHUB_APP_DIR]   # show what would change
-scripts/sync-rust-sdk.sh from-app [GITHUB_APP_DIR]   # github-app → monorepo
-scripts/sync-rust-sdk.sh to-app   [GITHUB_APP_DIR]   # monorepo → github-app
-```
-
-`GITHUB_APP_DIR` defaults to `../github-app`. The script uses
-`rsync --delete` over a curated path list (`src/`, `tests/`, `examples/`,
-`build.rs`, `README.md`); generated files, Cargo metadata, license, and
-toolchain pins are never synced.
-
-### Sequencing rules
-
-1. **Never run `to-app` mid-PR.** If a github-app PR (e.g. one adopting
-   new SDK ergonomics) is open, do not push more SDK changes through `to-app`
-   until that PR merges. The next sync will rebase against post-merge `main`,
-   which keeps blast radius small.
-2. **Author SDK fixes upstream first, even when caught downstream.** If a
-   bot caught an SDK bug on a github-app PR, fix it in this monorepo, then
-   re-sync to github-app. Fixing it directly on the github-app side gets
-   clobbered on the next sync.
-3. **Use targeted patches when full sync would clobber unreleased work.**
-   Sometimes the monorepo has unreleased SDK changes that aren't ready to
-   publish, but a github-app commit (e.g. a `SessionId` newtype migration)
-   needs to come back upstream. Use `git format-patch` against the
-   github-app commit, sed-rewrite paths from `crates/copilot-sdk/` to
-   `rust/`, then `git apply --3way` in the monorepo. Cleaner than `from-app`
-   when there's local work in flight.
-
-### Public-disclosure gate
-
-**This repo is public.** The Rust SDK release-prep work happens on
-`tclem/rust-sdk-release-prep` and is held *unpushed* until product/comms
-gives explicit OK. Do not push the branch, open a PR, or otherwise expose
-the work without that signal — even if CI looks ready.
+The Rust SDK release-prep work happens on `tclem/rust-sdk-release-prep`
+and is held *unpushed* until product/comms gives explicit OK. Do not push
+the branch, open a PR, or otherwise expose the work without that signal —
+even if CI looks ready.
 
 Ways to keep moving without pushing:
 
 - Land work in local commits on the prep branch.
 - Use `cargo publish --dry-run --allow-dirty` to validate package contents.
-- Use `scripts/sync-rust-sdk.sh diff` to see what a sync would do, without
-  doing it.
-- Pull github-app-side commits in via `git format-patch` + `--3way` (see
-  above) so the round-trip stays current.
+- Use `cargo public-api -sss --features derive,test-support` for ad-hoc
+  surface inspection.
 
 When the gate opens:
 
@@ -193,8 +146,6 @@ When the gate opens:
 2. Open a PR titled "Rust SDK: prepare for 0.1.0 release" (or similar).
 3. Once it merges, trigger the **Rust SDK: Create Release PR** workflow and
    proceed with the publish flow above.
-4. Coordinate the next github-app `to-app` sync with whichever PR is in
-   flight there.
 
 ---
 

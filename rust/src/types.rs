@@ -37,11 +37,12 @@ pub enum ConnectionState {
     Errored,
 }
 
-/// Type of [`SessionLifecycleEvent`] received via [`Client::on`](crate::Client::on).
+/// Type of [`SessionLifecycleEvent`] received via [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
 ///
 /// Mirrors Go's `SessionLifecycleEventType` (`go/types.go:961`). Values
 /// serialize as the dotted JSON strings the CLI sends (e.g. `"session.created"`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum SessionLifecycleEventType {
     /// A new session was created.
     #[serde(rename = "session.created")]
@@ -76,9 +77,8 @@ pub struct SessionLifecycleEventMetadata {
     pub summary: Option<String>,
 }
 
-/// A `session.lifecycle` notification dispatched to subscribers registered via
-/// [`Client::on`](crate::Client::on) and
-/// [`Client::on_event_type`](crate::Client::on_event_type).
+/// A `session.lifecycle` notification dispatched to subscribers obtained via
+/// [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
 ///
 /// Mirrors Go's `SessionLifecycleEvent` (`go/types.go:970`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -88,7 +88,7 @@ pub struct SessionLifecycleEvent {
     pub event_type: SessionLifecycleEventType,
     /// Identifier of the session this event refers to.
     #[serde(rename = "sessionId")]
-    pub session_id: String,
+    pub session_id: SessionId,
     /// Optional metadata describing the session at the time of the event.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<SessionLifecycleEventMetadata>,
@@ -1104,6 +1104,7 @@ pub struct AttachmentSelectionRange {
 /// Type of GitHub reference attachment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum GitHubReferenceType {
     /// GitHub issue.
     Issue,
@@ -1120,6 +1121,7 @@ pub enum GitHubReferenceType {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
+#[non_exhaustive]
 pub enum Attachment {
     /// A file path, optionally with a line range.
     File {
@@ -1466,6 +1468,7 @@ pub struct ToolResultExpanded {
 /// Result of a tool invocation — either a plain text string or an expanded result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ToolResult {
     /// Simple text result passed directly to the LLM.
     Text(String),
@@ -1559,6 +1562,7 @@ pub struct ElicitationResult {
 /// values so the SDK can still surface the request to callers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ElicitationMode {
     /// Structured form input rendered by the host.
     Form,
@@ -1633,6 +1637,7 @@ pub struct InputOptions<'a> {
 
 /// Semantic format hints for text input fields.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum InputFormat {
     /// Email address.
     Email,
@@ -1760,7 +1765,7 @@ mod tests {
                 "title": "Fix rendering",
                 "referenceType": "issue",
                 "state": "open",
-                "url": "https://github.com/github/github-app/issues/42"
+                "url": "https://github.com/example/repo/issues/42"
             }
         ]))
         .expect("attachments should deserialize");
@@ -1810,7 +1815,7 @@ mod tests {
                 url,
             } if title == "Fix rendering"
                 && state == "open"
-                && url == "https://github.com/github/github-app/issues/42"
+                && url == "https://github.com/example/repo/issues/42"
         ));
     }
 

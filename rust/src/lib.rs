@@ -27,11 +27,9 @@ pub mod types;
 /// Auto-generated protocol types from Copilot JSON Schemas.
 pub mod generated;
 
-use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
 // JSON-RPC wire types are internal transport details (like Go SDK's internal/jsonrpc2/).
@@ -63,6 +61,7 @@ const MIN_PROTOCOL_VERSION: u32 = 2;
 
 /// Errors returned by the SDK.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     /// JSON-RPC transport or protocol violation.
     #[error("protocol error: {0}")]
@@ -113,6 +112,7 @@ impl Error {
 
 /// Specific protocol-level errors in the JSON-RPC transport or CLI lifecycle.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ProtocolError {
     /// Missing `Content-Length` header in a JSON-RPC message.
     #[error("missing Content-Length header")]
@@ -157,6 +157,7 @@ pub enum ProtocolError {
 
 /// Session-scoped errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SessionError {
     /// The CLI could not find the requested session.
     #[error("session not found: {0}")]
@@ -188,6 +189,7 @@ pub enum SessionError {
 
 /// How the SDK communicates with the CLI server.
 #[derive(Debug, Default)]
+#[non_exhaustive]
 pub enum Transport {
     /// Communicate over stdin/stdout pipes (default).
     #[default]
@@ -302,59 +304,7 @@ struct ClientInner {
     negotiated_protocol_version: OnceLock<u32>,
     server_telemetry_method: parking_lot::Mutex<Option<ServerTelemetryRpcMethod>>,
     state: parking_lot::Mutex<ConnectionState>,
-    lifecycle_handlers: parking_lot::Mutex<Vec<LifecycleHandlerEntry>>,
-    typed_lifecycle_handlers:
-        parking_lot::Mutex<HashMap<SessionLifecycleEventType, Vec<LifecycleHandlerEntry>>>,
-    lifecycle_handler_id: AtomicU64,
-}
-
-type LifecycleHandlerFn = Arc<dyn Fn(SessionLifecycleEvent) + Send + Sync + 'static>;
-
-#[derive(Clone)]
-struct LifecycleHandlerEntry {
-    id: u64,
-    handler: LifecycleHandlerFn,
-}
-
-/// Handle returned by [`Client::on`] / [`Client::on_event_type`] /
-/// `Session::on` for canceling a subscription.
-///
-/// Drop or [`cancel`](Self::cancel) the handle to remove the registered
-/// handler. Cancellation is idempotent — calling `cancel` more than once is
-/// safe.
-pub struct Unsubscribe {
-    cancel: Option<Box<dyn FnOnce() + Send + 'static>>,
-}
-
-impl Unsubscribe {
-    pub(crate) fn new<F: FnOnce() + Send + 'static>(f: F) -> Self {
-        Self {
-            cancel: Some(Box::new(f)),
-        }
-    }
-
-    /// Cancel the subscription, removing the registered handler.
-    pub fn cancel(mut self) {
-        if let Some(cancel) = self.cancel.take() {
-            cancel();
-        }
-    }
-}
-
-impl Drop for Unsubscribe {
-    fn drop(&mut self) {
-        if let Some(cancel) = self.cancel.take() {
-            cancel();
-        }
-    }
-}
-
-impl std::fmt::Debug for Unsubscribe {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Unsubscribe")
-            .field("active", &self.cancel.is_some())
-            .finish()
-    }
+    lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -486,18 +436,16 @@ impl Client {
                 negotiated_protocol_version: OnceLock::new(),
                 server_telemetry_method: parking_lot::Mutex::new(None),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
-                lifecycle_handlers: parking_lot::Mutex::new(Vec::new()),
-                typed_lifecycle_handlers: parking_lot::Mutex::new(HashMap::new()),
-                lifecycle_handler_id: AtomicU64::new(0),
+                lifecycle_tx: broadcast::channel(256).0,
             }),
         };
         client.spawn_lifecycle_dispatcher();
         Ok(client)
     }
 
-    /// Spawn the background task that dispatches `session.lifecycle`
-    /// notifications to handlers registered via [`Self::on`] and
-    /// [`Self::on_event_type`].
+    /// Spawn the background task that re-broadcasts `session.lifecycle`
+    /// notifications via [`ClientInner::lifecycle_tx`] to subscribers
+    /// returned by [`Self::subscribe_lifecycle`].
     fn spawn_lifecycle_dispatcher(&self) {
         let inner = Arc::clone(&self.inner);
         let mut notif_rx = inner.notification_tx.subscribe();
@@ -522,7 +470,9 @@ impl Client {
                                     continue;
                                 }
                             };
-                        Self::dispatch_lifecycle(&inner, event);
+                        // `send` only errors when there are no subscribers — that's
+                        // the normal case before any consumer calls subscribe_lifecycle.
+                        let _ = inner.lifecycle_tx.send(event);
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!(missed = n, "lifecycle dispatcher lagged");
@@ -531,27 +481,6 @@ impl Client {
                 }
             }
         });
-    }
-
-    fn dispatch_lifecycle(inner: &ClientInner, event: SessionLifecycleEvent) {
-        // Snapshot handler lists under the lock, then invoke without holding it.
-        let typed: Vec<LifecycleHandlerEntry> = inner
-            .typed_lifecycle_handlers
-            .lock()
-            .get(&event.event_type)
-            .cloned()
-            .unwrap_or_default();
-        let wildcard: Vec<LifecycleHandlerEntry> = inner.lifecycle_handlers.lock().clone();
-        for entry in typed.into_iter().chain(wildcard.into_iter()) {
-            // Mirror Go's `recover()`: a panicking handler must not poison the
-            // dispatcher loop or block siblings.
-            let event = event.clone();
-            let result =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (entry.handler)(event)));
-            if result.is_err() {
-                error!(handler_id = entry.id, "lifecycle handler panicked");
-            }
-        }
     }
 
     fn build_command(program: &Path, options: &ClientOptions) -> Command {
@@ -863,7 +792,8 @@ impl Client {
     ///
     /// ```no_run
     /// # async fn example(client: &copilot::Client) -> Result<(), copilot::Error> {
-    /// if let Some(metadata) = client.get_session_metadata("session-123").await? {
+    /// use copilot::types::SessionId;
+    /// if let Some(metadata) = client.get_session_metadata(&SessionId::new("session-123")).await? {
     ///     println!("Session started at: {}", metadata.start_time);
     /// }
     /// # Ok(())
@@ -871,7 +801,7 @@ impl Client {
     /// ```
     pub async fn get_session_metadata(
         &self,
-        session_id: &str,
+        session_id: &SessionId,
     ) -> Result<Option<SessionMetadata>, Error> {
         let result = self
             .call(
@@ -938,7 +868,7 @@ impl Client {
     /// (`--ui-server`).
     ///
     /// Mirrors Go's `Client.SetForegroundSessionID`.
-    pub async fn set_foreground_session_id(&self, session_id: &str) -> Result<(), Error> {
+    pub async fn set_foreground_session_id(&self, session_id: &SessionId) -> Result<(), Error> {
         self.call(
             "session.setForeground",
             Some(serde_json::json!({ "sessionId": session_id })),
@@ -1086,74 +1016,36 @@ impl Client {
         *self.inner.state.lock() = ConnectionState::Disconnected;
     }
 
-    /// Subscribe to all session lifecycle events.
+    /// Subscribe to session lifecycle events.
     ///
-    /// The returned [`Unsubscribe`] handle removes the handler when called or
-    /// dropped. Mirrors Go's `Client.On` (`go/client.go:1102`).
+    /// Returns a [`tokio::sync::broadcast::Receiver`] that
+    /// yields every [`SessionLifecycleEvent`] sent by the CLI. Drop the
+    /// receiver to unsubscribe.
     ///
-    /// Handlers run on the SDK's tokio runtime — keep them fast and
-    /// non-blocking. A panicking handler is caught (mirroring Go's
-    /// `recover()`) and won't poison the dispatcher or block other
-    /// subscribers.
+    /// Each receiver maintains its own queue. If a consumer cannot keep up,
+    /// the oldest events are dropped and `recv` returns
+    /// [`RecvError::Lagged`](tokio::sync::broadcast::error::RecvError::Lagged)
+    /// with the count of skipped events; consumers should match on it and
+    /// continue. Slow consumers do not block the producer.
+    ///
+    /// To filter by event type, match on `event.event_type` in the consumer
+    /// task. There is no built-in typed filter — `match` is more flexible and
+    /// keeps the API surface small.
     ///
     /// # Example
     ///
     /// ```no_run
     /// # async fn example(client: copilot::Client) {
-    /// let unsubscribe = client.on(|event| {
-    ///     println!("session {} -> {:?}", event.session_id, event.event_type);
+    /// let mut events = client.subscribe_lifecycle();
+    /// tokio::spawn(async move {
+    ///     while let Ok(event) = events.recv().await {
+    ///         println!("session {} -> {:?}", event.session_id, event.event_type);
+    ///     }
     /// });
-    /// // ... later
-    /// unsubscribe.cancel();
     /// # }
     /// ```
-    pub fn on<F>(&self, handler: F) -> Unsubscribe
-    where
-        F: Fn(SessionLifecycleEvent) + Send + Sync + 'static,
-    {
-        let id = self
-            .inner
-            .lifecycle_handler_id
-            .fetch_add(1, Ordering::Relaxed);
-        let entry = LifecycleHandlerEntry {
-            id,
-            handler: Arc::new(handler),
-        };
-        self.inner.lifecycle_handlers.lock().push(entry);
-        let inner = Arc::clone(&self.inner);
-        Unsubscribe::new(move || {
-            inner.lifecycle_handlers.lock().retain(|e| e.id != id);
-        })
-    }
-
-    /// Subscribe to a specific session lifecycle event type.
-    ///
-    /// Mirrors Go's `Client.OnEventType` (`go/client.go:1130`). See [`Self::on`]
-    /// for handler semantics and panic handling.
-    pub fn on_event_type<F>(&self, event_type: SessionLifecycleEventType, handler: F) -> Unsubscribe
-    where
-        F: Fn(SessionLifecycleEvent) + Send + Sync + 'static,
-    {
-        let id = self
-            .inner
-            .lifecycle_handler_id
-            .fetch_add(1, Ordering::Relaxed);
-        let entry = LifecycleHandlerEntry {
-            id,
-            handler: Arc::new(handler),
-        };
-        self.inner
-            .typed_lifecycle_handlers
-            .lock()
-            .entry(event_type)
-            .or_default()
-            .push(entry);
-        let inner = Arc::clone(&self.inner);
-        Unsubscribe::new(move || {
-            if let Some(list) = inner.typed_lifecycle_handlers.lock().get_mut(&event_type) {
-                list.retain(|e| e.id != id);
-            }
-        })
+    pub fn subscribe_lifecycle(&self) -> broadcast::Receiver<SessionLifecycleEvent> {
+        self.inner.lifecycle_tx.subscribe()
     }
 
     /// Return the current [`ConnectionState`].

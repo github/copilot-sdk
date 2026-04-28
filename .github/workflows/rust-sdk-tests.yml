@@ -57,8 +57,8 @@ jobs:
           components: rustfmt, clippy
 
       # Nightly rustfmt for unstable format options (group_imports,
-      # imports_granularity, reorder_impl_items) — must match the pin in
-      # github/github-app exactly.
+      # imports_granularity, reorder_impl_items) — pinned in
+      # `.rustfmt.nightly.toml`.
       - name: Install nightly rustfmt
         if: runner.os == 'Linux'
         uses: dtolnay/rust-toolchain@master
@@ -110,20 +110,3 @@ jobs:
           package: copilot-sdk
           manifest-path: rust/Cargo.toml
 
-      # Snapshot the public API surface and fail on any drift from the
-      # checked-in PUBLIC_API.txt. Complements cargo semver-checks: that
-      # tool catches breaking changes against the last *published*
-      # version (crates.io), this one catches *any* surface change
-      # against the last *reviewed* baseline. Regenerate locally with:
-      #   cargo public-api -sss --features derive,test-support > PUBLIC_API.txt
-      - name: cargo public-api diff
-        if: runner.os == 'Linux'
-        run: |
-          cargo install --locked --quiet cargo-public-api
-          cargo public-api -sss --features derive,test-support > PUBLIC_API.txt.new
-          if ! diff -u PUBLIC_API.txt PUBLIC_API.txt.new; then
-            echo "::error::Public API surface changed. Review the diff above and"
-            echo "::error::regenerate the baseline with:"
-            echo "::error::  cargo public-api -sss --features derive,test-support > rust/PUBLIC_API.txt"
-            exit 1
-          fi

@@ -19,8 +19,9 @@ over JSON-RPC 2.0 (stdio or TCP), with handler-based event dispatch, typed
 tool/permission/elicitation helpers, and runtime session management.
 
 This is a **technical preview**. The crate is pre-1.0 and the public API may
-change in breaking ways before 1.0; see [`PUBLIC_API.txt`](PUBLIC_API.txt) for
-the exact surface tracked by CI.
+change in breaking ways before 1.0. The rendered docs on
+[docs.rs](https://docs.rs/copilot-sdk) are the canonical reference for the
+public surface.
 
 ### Added
 
@@ -31,8 +32,11 @@ the exact surface tracked by CI.
 - `Client::stop` / `Client::force_stop` — graceful and immediate shutdown.
 - `Client::state` returning `ConnectionState` (`Connecting`, `Connected`,
   `Disconnecting`, `Disconnected`).
-- `Client::on` / `Client::on_event_type` for `SessionLifecycleEvent`
-  subscription (created, destroyed, foreground, background, …).
+- `Client::subscribe_lifecycle` returning a
+  `tokio::sync::broadcast::Receiver<SessionLifecycleEvent>` for runtime
+  observation of created / destroyed / foreground / background events.
+  Drop the receiver to unsubscribe; filter by matching on `event.event_type`
+  in the consumer.
 - `Client::ping(message)` returning typed `PingResponse` and
   `Client::verify_protocol_version` for handshake validation.
 - `Client::list_sessions`, `get_session_metadata`, `delete_session`,
@@ -48,7 +52,9 @@ the exact surface tracked by CI.
 - `Session::send_message` returning the assigned message ID for
   correlation with later events.
 - `Session::send_and_wait` for synchronous prompt → final-event flows.
-- `Session::on` for runtime event subscription.
+- `Session::subscribe` returning a
+  `tokio::sync::broadcast::Receiver<SessionEvent>` for observe-only access
+  to the session's event stream. Drop the receiver to unsubscribe.
 - Mode + model controls: `get_mode` / `set_mode`, `get_model` /
   `set_model(model, SetModelOptions)` with `reasoning_effort` and
   `model_capabilities` overrides.
@@ -72,8 +78,27 @@ the exact surface tracked by CI.
   `permission::deny_all`, `permission::approve_if`, plus chainable
   builders on `SessionConfig` (`approve_all_permissions`,
   `deny_all_permissions`, `approve_if`).
+- `PermissionResult` is `#[non_exhaustive]` and supports `Approved`,
+  `Denied`, `Deferred` (handler will resolve via
+  `handlePendingPermissionRequest` itself — notification path only;
+  direct RPC falls back to `Approved`), and
+  `Custom(serde_json::Value)` for response shapes beyond
+  `{ "kind": "approve-once" | "reject" }` (e.g. allowlist payloads).
+- All extension-point and protocol-evolving public enums are
+  `#[non_exhaustive]` so future variants are additive (non-breaking):
+  `Error`, `ProtocolError`, `SessionError`, `Transport`, `Attachment`,
+  `ToolResult`, `ElicitationMode`, `InputFormat`, `GitHubReferenceType`,
+  `SessionLifecycleEventType`, plus the handler/hook event/response enums.
+  Closed taxonomies (`LogLevel`, `ConnectionState`, `CliProgram`) remain
+  exhaustive so callers benefit from compile-time exhaustiveness checks.
 - Tool helpers: `tool::DefineTool`, `tool::tool_schema_for<T>`,
   `tool::ToolHandlerRouter`, derive support via `derive` feature.
+  `ToolHandlerRouter` overrides each `SessionHandler` per-event method
+  directly, so callers can use the narrow-typed entry points (e.g.
+  `router.on_external_tool(invocation).await -> ToolResult`) instead of
+  unwrapping a `HandlerResponse` from `on_event`. The default `on_event`
+  still routes correctly through the per-event methods, so legacy
+  callers are unaffected.
 - Hooks API for instrumenting send/receive flows (`copilot::hooks`).
 
 #### Types
@@ -91,7 +116,6 @@ the exact surface tracked by CI.
 - Examples under `examples/`: `chat`, `hooks`, `tool_server`,
   `lifecycle_observer`.
 - `RELEASING.md` operational runbook for maintainers.
-- `PUBLIC_API.txt` baseline checked in CI to catch unintended API drift.
 
 ### Notes
 - Minimum supported Rust version (MSRV): 1.94.0 (pinned via

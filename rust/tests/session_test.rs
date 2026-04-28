@@ -177,19 +177,20 @@ fn rand_id() -> u64 {
 }
 
 #[tokio::test]
-async fn session_on_dispatches_events_observe_only() {
+async fn session_subscribe_yields_events_observe_only() {
     let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
 
+    let mut events = session.subscribe();
     let count = Arc::new(AtomicUsize::new(0));
     let last_type = Arc::new(parking_lot::Mutex::new(String::new()));
-    let _unsub = {
-        let count = count.clone();
-        let last_type = last_type.clone();
-        session.on(move |event| {
-            count.fetch_add(1, Ordering::Relaxed);
-            *last_type.lock() = event.event_type.clone();
-        })
-    };
+    let count_clone = count.clone();
+    let last_type_clone = last_type.clone();
+    let consumer = tokio::spawn(async move {
+        while let Ok(event) = events.recv().await {
+            count_clone.fetch_add(1, Ordering::Relaxed);
+            *last_type_clone.lock() = event.event_type.clone();
+        }
+    });
 
     server.send_event("noop.event", serde_json::json!({})).await;
     server
@@ -204,19 +205,21 @@ async fn session_on_dispatches_events_observe_only() {
     }
     assert_eq!(count.load(Ordering::Relaxed), 2);
     assert_eq!(last_type.lock().as_str(), "another.event");
+    consumer.abort();
 }
 
 #[tokio::test]
-async fn session_on_unsubscribe_stops_delivery() {
+async fn session_subscribe_drop_stops_delivery() {
     let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
 
+    let mut events = session.subscribe();
     let count = Arc::new(AtomicUsize::new(0));
-    let unsub = {
-        let count = count.clone();
-        session.on(move |_event| {
-            count.fetch_add(1, Ordering::Relaxed);
-        })
-    };
+    let count_clone = count.clone();
+    let consumer = tokio::spawn(async move {
+        while let Ok(_event) = events.recv().await {
+            count_clone.fetch_add(1, Ordering::Relaxed);
+        }
+    });
 
     server.send_event("first", serde_json::json!({})).await;
     for _ in 0..50 {
@@ -227,35 +230,14 @@ async fn session_on_unsubscribe_stops_delivery() {
     }
     assert_eq!(count.load(Ordering::Relaxed), 1);
 
-    unsub.cancel();
+    // Aborting the consumer drops its receiver; further events have no
+    // effect on the (now-zero) subscriber count.
+    consumer.abort();
+    tokio::time::sleep(Duration::from_millis(20)).await;
 
     server.send_event("second", serde_json::json!({})).await;
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(count.load(Ordering::Relaxed), 1);
-}
-
-#[tokio::test]
-async fn session_on_panic_is_isolated() {
-    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
-
-    let survived = Arc::new(AtomicUsize::new(0));
-    let _bad = session.on(|_event| panic!("subscriber boom"));
-    let _good = {
-        let survived = survived.clone();
-        session.on(move |_event| {
-            survived.fetch_add(1, Ordering::Relaxed);
-        })
-    };
-
-    server.send_event("evt", serde_json::json!({})).await;
-
-    for _ in 0..50 {
-        if survived.load(Ordering::Relaxed) >= 1 {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
-    assert_eq!(survived.load(Ordering::Relaxed), 1);
 }
 
 #[tokio::test]
@@ -619,29 +601,34 @@ async fn stop_transitions_state_to_disconnected() {
 }
 
 #[tokio::test]
-async fn lifecycle_dispatches_to_wildcard_and_typed() {
+async fn lifecycle_subscribe_yields_events_with_filter() {
     use copilot::{SessionLifecycleEventMetadata, SessionLifecycleEventType as Type};
 
     let (client, _server_read, mut server_write) = make_client();
+
+    let mut all_events = client.subscribe_lifecycle();
+    let mut foreground_events = client.subscribe_lifecycle();
 
     let wildcard_count = Arc::new(AtomicUsize::new(0));
     let foreground_count = Arc::new(AtomicUsize::new(0));
     let last_session = Arc::new(parking_lot::Mutex::new(None));
 
-    let _w_unsub = {
-        let count = wildcard_count.clone();
-        let last = last_session.clone();
-        client.on(move |event| {
-            count.fetch_add(1, Ordering::Relaxed);
-            *last.lock() = Some(event.session_id.clone());
-        })
-    };
-    let _f_unsub = {
-        let count = foreground_count.clone();
-        client.on_event_type(Type::Foreground, move |_event| {
-            count.fetch_add(1, Ordering::Relaxed);
-        })
-    };
+    let w_count = wildcard_count.clone();
+    let w_last = last_session.clone();
+    let w_consumer = tokio::spawn(async move {
+        while let Ok(event) = all_events.recv().await {
+            w_count.fetch_add(1, Ordering::Relaxed);
+            *w_last.lock() = Some(event.session_id.clone());
+        }
+    });
+    let f_count = foreground_count.clone();
+    let f_consumer = tokio::spawn(async move {
+        while let Ok(event) = foreground_events.recv().await {
+            if event.event_type == Type::Foreground {
+                f_count.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    });
 
     let body1 = serde_json::to_vec(&serde_json::json!({
         "jsonrpc": "2.0",
@@ -675,7 +662,6 @@ async fn lifecycle_dispatches_to_wildcard_and_typed() {
     write_framed(&mut server_write, &body2).await;
     write_framed(&mut server_write, &body3).await;
 
-    // Give the dispatcher a moment to drain the broadcast queue.
     for _ in 0..50 {
         if wildcard_count.load(Ordering::Relaxed) >= 2 {
             break;
@@ -685,8 +671,9 @@ async fn lifecycle_dispatches_to_wildcard_and_typed() {
     assert_eq!(wildcard_count.load(Ordering::Relaxed), 2);
     assert_eq!(foreground_count.load(Ordering::Relaxed), 1);
     assert_eq!(last_session.lock().as_deref(), Some("s2"));
+    w_consumer.abort();
+    f_consumer.abort();
 
-    // Verify metadata round-trips correctly.
     let meta = SessionLifecycleEventMetadata {
         start_time: "t1".into(),
         modified_time: "t2".into(),
@@ -696,16 +683,17 @@ async fn lifecycle_dispatches_to_wildcard_and_typed() {
 }
 
 #[tokio::test]
-async fn lifecycle_unsubscribe_stops_delivery() {
+async fn lifecycle_subscribe_drop_stops_delivery() {
     let (client, _server_read, mut server_write) = make_client();
 
+    let mut events = client.subscribe_lifecycle();
     let count = Arc::new(AtomicUsize::new(0));
-    let unsub = {
-        let count = count.clone();
-        client.on(move |_event| {
-            count.fetch_add(1, Ordering::Relaxed);
-        })
-    };
+    let count_clone = count.clone();
+    let consumer = tokio::spawn(async move {
+        while let Ok(_event) = events.recv().await {
+            count_clone.fetch_add(1, Ordering::Relaxed);
+        }
+    });
 
     let lifecycle_body = serde_json::to_vec(&serde_json::json!({
         "jsonrpc": "2.0",
@@ -723,42 +711,12 @@ async fn lifecycle_unsubscribe_stops_delivery() {
     }
     assert_eq!(count.load(Ordering::Relaxed), 1);
 
-    unsub.cancel();
+    consumer.abort();
+    tokio::time::sleep(Duration::from_millis(20)).await;
 
     write_framed(&mut server_write, &lifecycle_body).await;
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(count.load(Ordering::Relaxed), 1);
-}
-
-#[tokio::test]
-async fn lifecycle_handler_panic_is_isolated() {
-    let (client, _server_read, mut server_write) = make_client();
-
-    let survived = Arc::new(AtomicUsize::new(0));
-    let _bad = client.on(|_event| panic!("boom"));
-    let _good = {
-        let survived = survived.clone();
-        client.on(move |_event| {
-            survived.fetch_add(1, Ordering::Relaxed);
-        })
-    };
-
-    let body = serde_json::to_vec(&serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "session.lifecycle",
-        "params": { "type": "session.created", "sessionId": "x" },
-    }))
-    .unwrap();
-    write_framed(&mut server_write, &body).await;
-
-    for _ in 0..50 {
-        if survived.load(Ordering::Relaxed) >= 1 {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
-    // The panicking handler must not block the surviving subscriber.
-    assert_eq!(survived.load(Ordering::Relaxed), 1);
 }
 
 #[tokio::test]
@@ -854,7 +812,11 @@ async fn set_foreground_session_id_sends_session_id() {
 
     let handle = tokio::spawn({
         let client = client.clone();
-        async move { client.set_foreground_session_id("s-target").await }
+        async move {
+            client
+                .set_foreground_session_id(&SessionId::new("s-target"))
+                .await
+        }
     });
 
     let request = read_framed(&mut server_read).await;
@@ -873,7 +835,12 @@ async fn get_session_metadata_returns_typed_metadata() {
 
     let handle = tokio::spawn({
         let client = client.clone();
-        async move { client.get_session_metadata("s1").await.unwrap() }
+        async move {
+            client
+                .get_session_metadata(&SessionId::new("s1"))
+                .await
+                .unwrap()
+        }
     });
 
     let request = read_framed(&mut server_read).await;
@@ -908,7 +875,12 @@ async fn get_session_metadata_returns_none_when_missing() {
 
     let handle = tokio::spawn({
         let client = client.clone();
-        async move { client.get_session_metadata("missing").await.unwrap() }
+        async move {
+            client
+                .get_session_metadata(&SessionId::new("missing"))
+                .await
+                .unwrap()
+        }
     });
 
     let request = read_framed(&mut server_read).await;
@@ -1199,6 +1171,53 @@ async fn user_input_request_dispatches_to_handler() {
     assert_eq!(response["id"], 300);
     assert_eq!(response["result"]["answer"], "blue");
     assert_eq!(response["result"]["wasFreeform"], true);
+}
+
+#[tokio::test]
+async fn user_input_requested_event_dispatches_to_handler_and_responds() {
+    struct InputHandler;
+    #[async_trait]
+    impl SessionHandler for InputHandler {
+        async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
+            match event {
+                HandlerEvent::UserInput {
+                    question,
+                    choices,
+                    allow_freeform,
+                    ..
+                } => {
+                    assert_eq!(question, "Allow shell access?");
+                    assert_eq!(choices, Some(vec!["Yes".to_string(), "No".to_string()]));
+                    assert_eq!(allow_freeform, Some(false));
+                    HandlerResponse::UserInput(Some(UserInputResponse {
+                        answer: "Yes".to_string(),
+                        was_freeform: false,
+                    }))
+                }
+                _ => HandlerResponse::Ok,
+            }
+        }
+    }
+
+    let (_session, mut server) = create_session_pair(Arc::new(InputHandler)).await;
+    server
+        .send_event(
+            "user_input.requested",
+            serde_json::json!({
+                "requestId": "ui-1",
+                "question": "Allow shell access?",
+                "choices": ["Yes", "No"],
+                "allowFreeform": false,
+            }),
+        )
+        .await;
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.respondToUserInput");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    assert_eq!(request["params"]["requestId"], "ui-1");
+    assert_eq!(request["params"]["answer"], "Yes");
+    assert_eq!(request["params"]["wasFreeform"], false);
 }
 
 #[tokio::test]

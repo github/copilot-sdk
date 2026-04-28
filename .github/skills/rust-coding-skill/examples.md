@@ -42,7 +42,13 @@ impl ToolHandler for GetWeatherTool {
     }
 }
 
-let router = ToolHandlerRouter::new(vec![std::sync::Arc::new(GetWeatherTool)]);
+use copilot::handler::ApproveAllHandler;
+use std::sync::Arc;
+
+let router = ToolHandlerRouter::new(
+    vec![Box::new(GetWeatherTool)],
+    Arc::new(ApproveAllHandler),
+);
 ```
 
 ## Spans for spawned event loops
@@ -139,10 +145,11 @@ When a test doesn't exercise the permission flow, use the SDK's built-in
 
 ```rust
 use copilot::handler::ApproveAllHandler;
+use copilot::types::SessionConfig;
 use std::sync::Arc;
 
 let session = client
-    .create_session(config, Arc::new(ApproveAllHandler), None, None)
+    .create_session(SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)))
     .await?;
 ```
 

@@ -98,12 +98,35 @@ pub enum HandlerResponse {
 }
 
 /// Result of a permission request.
+///
+/// `#[non_exhaustive]` so future variants can be added without a major
+/// version bump. Match arms must include a `_` fallback.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum PermissionResult {
     /// Permission granted.
     Approved,
     /// Permission denied.
     Denied,
+    /// Defer the response. The handler will resolve this request itself
+    /// later — typically after a UI prompt — by calling
+    /// `session.permissions.handlePendingPermissionRequest` directly. The
+    /// SDK will not send a response for this request.
+    ///
+    /// **Notification path only** (`permission.requested`). On the direct
+    /// RPC path (`permission.request`), `Deferred` falls back to
+    /// [`Approved`](Self::Approved) because that path must return a value
+    /// to satisfy the JSON-RPC reply contract.
+    Deferred,
+    /// Provide the full response payload. The SDK passes the value as-is
+    /// in the `result` field of `handlePendingPermissionRequest`
+    /// (notification path) or as the JSON-RPC `result` directly (direct
+    /// RPC path).
+    ///
+    /// Use this for response shapes beyond `{ "kind": "approve-once" }`
+    /// or `{ "kind": "reject" }` — for example, "approve and remember"
+    /// with allowlist data.
+    Custom(serde_json::Value),
 }
 
 /// Response to a user input request.

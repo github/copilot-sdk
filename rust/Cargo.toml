@@ -3,7 +3,7 @@ name = "copilot-sdk"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.94.0"
-description = "Rust SDK for programmatic control of GitHub Copilot CLI via JSON-RPC."
+description = "Rust SDK for programmatic control of the GitHub Copilot CLI via JSON-RPC. Technical preview, pre-1.0."
 keywords = ["copilot", "github", "ai", "json-rpc", "sdk"]
 categories = ["api-bindings", "development-tools"]
 repository = "https://github.com/github/copilot-sdk"
@@ -12,7 +12,6 @@ documentation = "https://docs.rs/copilot-sdk"
 readme = "README.md"
 license = "MIT"
 exclude = [
-    "PUBLIC_API.txt",
     "RELEASING.md",
     "release-plz.toml",
     "rust-toolchain.toml",
