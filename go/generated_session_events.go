@@ -263,6 +263,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeModelCallFailure:
+		var d ModelCallFailureData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAbort:
 		var d AbortData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -556,82 +562,83 @@ func (e SessionEvent) MarshalJSON() ([]byte, error) {
 type SessionEventType string
 
 const (
-	SessionEventTypeSessionStart                  SessionEventType = "session.start"
-	SessionEventTypeSessionResume                 SessionEventType = "session.resume"
+	SessionEventTypeSessionStart SessionEventType = "session.start"
+	SessionEventTypeSessionResume SessionEventType = "session.resume"
 	SessionEventTypeSessionRemoteSteerableChanged SessionEventType = "session.remote_steerable_changed"
-	SessionEventTypeSessionError                  SessionEventType = "session.error"
-	SessionEventTypeSessionIdle                   SessionEventType = "session.idle"
-	SessionEventTypeSessionTitleChanged           SessionEventType = "session.title_changed"
-	SessionEventTypeSessionInfo                   SessionEventType = "session.info"
-	SessionEventTypeSessionWarning                SessionEventType = "session.warning"
-	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
-	SessionEventTypeSessionModeChanged            SessionEventType = "session.mode_changed"
-	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
-	SessionEventTypeSessionWorkspaceFileChanged   SessionEventType = "session.workspace_file_changed"
-	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"
-	SessionEventTypeSessionTruncation             SessionEventType = "session.truncation"
-	SessionEventTypeSessionSnapshotRewind         SessionEventType = "session.snapshot_rewind"
-	SessionEventTypeSessionShutdown               SessionEventType = "session.shutdown"
-	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
-	SessionEventTypeSessionUsageInfo              SessionEventType = "session.usage_info"
-	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
-	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
-	SessionEventTypeSessionTaskComplete           SessionEventType = "session.task_complete"
-	SessionEventTypeUserMessage                   SessionEventType = "user.message"
-	SessionEventTypePendingMessagesModified       SessionEventType = "pending_messages.modified"
-	SessionEventTypeAssistantTurnStart            SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantIntent               SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantReasoning            SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta       SessionEventType = "assistant.reasoning_delta"
-	SessionEventTypeAssistantStreamingDelta       SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantMessage              SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta         SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantTurnEnd              SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
-	SessionEventTypeAbort                         SessionEventType = "abort"
-	SessionEventTypeToolUserRequested             SessionEventType = "tool.user_requested"
-	SessionEventTypeToolExecutionStart            SessionEventType = "tool.execution_start"
-	SessionEventTypeToolExecutionPartialResult    SessionEventType = "tool.execution_partial_result"
-	SessionEventTypeToolExecutionProgress         SessionEventType = "tool.execution_progress"
-	SessionEventTypeToolExecutionComplete         SessionEventType = "tool.execution_complete"
-	SessionEventTypeSkillInvoked                  SessionEventType = "skill.invoked"
-	SessionEventTypeSubagentStarted               SessionEventType = "subagent.started"
-	SessionEventTypeSubagentCompleted             SessionEventType = "subagent.completed"
-	SessionEventTypeSubagentFailed                SessionEventType = "subagent.failed"
-	SessionEventTypeSubagentSelected              SessionEventType = "subagent.selected"
-	SessionEventTypeSubagentDeselected            SessionEventType = "subagent.deselected"
-	SessionEventTypeHookStart                     SessionEventType = "hook.start"
-	SessionEventTypeHookEnd                       SessionEventType = "hook.end"
-	SessionEventTypeSystemMessage                 SessionEventType = "system.message"
-	SessionEventTypeSystemNotification            SessionEventType = "system.notification"
-	SessionEventTypePermissionRequested           SessionEventType = "permission.requested"
-	SessionEventTypePermissionCompleted           SessionEventType = "permission.completed"
-	SessionEventTypeUserInputRequested            SessionEventType = "user_input.requested"
-	SessionEventTypeUserInputCompleted            SessionEventType = "user_input.completed"
-	SessionEventTypeElicitationRequested          SessionEventType = "elicitation.requested"
-	SessionEventTypeElicitationCompleted          SessionEventType = "elicitation.completed"
-	SessionEventTypeSamplingRequested             SessionEventType = "sampling.requested"
-	SessionEventTypeSamplingCompleted             SessionEventType = "sampling.completed"
-	SessionEventTypeMcpOauthRequired              SessionEventType = "mcp.oauth_required"
-	SessionEventTypeMcpOauthCompleted             SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeExternalToolRequested         SessionEventType = "external_tool.requested"
-	SessionEventTypeExternalToolCompleted         SessionEventType = "external_tool.completed"
-	SessionEventTypeCommandQueued                 SessionEventType = "command.queued"
-	SessionEventTypeCommandExecute                SessionEventType = "command.execute"
-	SessionEventTypeCommandCompleted              SessionEventType = "command.completed"
-	SessionEventTypeAutoModeSwitchRequested       SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeAutoModeSwitchCompleted       SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeCommandsChanged               SessionEventType = "commands.changed"
-	SessionEventTypeCapabilitiesChanged           SessionEventType = "capabilities.changed"
-	SessionEventTypeExitPlanModeRequested         SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExitPlanModeCompleted         SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeSessionToolsUpdated           SessionEventType = "session.tools_updated"
+	SessionEventTypeSessionError SessionEventType = "session.error"
+	SessionEventTypeSessionIdle SessionEventType = "session.idle"
+	SessionEventTypeSessionTitleChanged SessionEventType = "session.title_changed"
+	SessionEventTypeSessionInfo SessionEventType = "session.info"
+	SessionEventTypeSessionWarning SessionEventType = "session.warning"
+	SessionEventTypeSessionModelChange SessionEventType = "session.model_change"
+	SessionEventTypeSessionModeChanged SessionEventType = "session.mode_changed"
+	SessionEventTypeSessionPlanChanged SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionWorkspaceFileChanged SessionEventType = "session.workspace_file_changed"
+	SessionEventTypeSessionHandoff SessionEventType = "session.handoff"
+	SessionEventTypeSessionTruncation SessionEventType = "session.truncation"
+	SessionEventTypeSessionSnapshotRewind SessionEventType = "session.snapshot_rewind"
+	SessionEventTypeSessionShutdown SessionEventType = "session.shutdown"
+	SessionEventTypeSessionContextChanged SessionEventType = "session.context_changed"
+	SessionEventTypeSessionUsageInfo SessionEventType = "session.usage_info"
+	SessionEventTypeSessionCompactionStart SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionCompactionComplete SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionTaskComplete SessionEventType = "session.task_complete"
+	SessionEventTypeUserMessage SessionEventType = "user.message"
+	SessionEventTypePendingMessagesModified SessionEventType = "pending_messages.modified"
+	SessionEventTypeAssistantTurnStart SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantIntent SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantReasoning SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantStreamingDelta SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantMessage SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantTurnEnd SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantUsage SessionEventType = "assistant.usage"
+	SessionEventTypeModelCallFailure SessionEventType = "model.call_failure"
+	SessionEventTypeAbort SessionEventType = "abort"
+	SessionEventTypeToolUserRequested SessionEventType = "tool.user_requested"
+	SessionEventTypeToolExecutionStart SessionEventType = "tool.execution_start"
+	SessionEventTypeToolExecutionPartialResult SessionEventType = "tool.execution_partial_result"
+	SessionEventTypeToolExecutionProgress SessionEventType = "tool.execution_progress"
+	SessionEventTypeToolExecutionComplete SessionEventType = "tool.execution_complete"
+	SessionEventTypeSkillInvoked SessionEventType = "skill.invoked"
+	SessionEventTypeSubagentStarted SessionEventType = "subagent.started"
+	SessionEventTypeSubagentCompleted SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentFailed SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentDeselected SessionEventType = "subagent.deselected"
+	SessionEventTypeHookStart SessionEventType = "hook.start"
+	SessionEventTypeHookEnd SessionEventType = "hook.end"
+	SessionEventTypeSystemMessage SessionEventType = "system.message"
+	SessionEventTypeSystemNotification SessionEventType = "system.notification"
+	SessionEventTypePermissionRequested SessionEventType = "permission.requested"
+	SessionEventTypePermissionCompleted SessionEventType = "permission.completed"
+	SessionEventTypeUserInputRequested SessionEventType = "user_input.requested"
+	SessionEventTypeUserInputCompleted SessionEventType = "user_input.completed"
+	SessionEventTypeElicitationRequested SessionEventType = "elicitation.requested"
+	SessionEventTypeElicitationCompleted SessionEventType = "elicitation.completed"
+	SessionEventTypeSamplingRequested SessionEventType = "sampling.requested"
+	SessionEventTypeSamplingCompleted SessionEventType = "sampling.completed"
+	SessionEventTypeMcpOauthRequired SessionEventType = "mcp.oauth_required"
+	SessionEventTypeMcpOauthCompleted SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeExternalToolRequested SessionEventType = "external_tool.requested"
+	SessionEventTypeExternalToolCompleted SessionEventType = "external_tool.completed"
+	SessionEventTypeCommandQueued SessionEventType = "command.queued"
+	SessionEventTypeCommandExecute SessionEventType = "command.execute"
+	SessionEventTypeCommandCompleted SessionEventType = "command.completed"
+	SessionEventTypeAutoModeSwitchRequested SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeAutoModeSwitchCompleted SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeCommandsChanged SessionEventType = "commands.changed"
+	SessionEventTypeCapabilitiesChanged SessionEventType = "capabilities.changed"
+	SessionEventTypeExitPlanModeRequested SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExitPlanModeCompleted SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeSessionToolsUpdated SessionEventType = "session.tools_updated"
 	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
-	SessionEventTypeSessionSkillsLoaded           SessionEventType = "session.skills_loaded"
-	SessionEventTypeSessionCustomAgentsUpdated    SessionEventType = "session.custom_agents_updated"
-	SessionEventTypeSessionMcpServersLoaded       SessionEventType = "session.mcp_servers_loaded"
+	SessionEventTypeSessionSkillsLoaded SessionEventType = "session.skills_loaded"
+	SessionEventTypeSessionCustomAgentsUpdated SessionEventType = "session.custom_agents_updated"
+	SessionEventTypeSessionMcpServersLoaded SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionMcpServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
-	SessionEventTypeSessionExtensionsLoaded       SessionEventType = "session.extensions_loaded"
+	SessionEventTypeSessionExtensionsLoaded SessionEventType = "session.extensions_loaded"
 )
 
 // Agent intent description for current activity or plan
@@ -707,6 +714,8 @@ type AutoModeSwitchRequestedData struct {
 	ErrorCode *string `json:"errorCode,omitempty"`
 	// Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
 	RequestID string `json:"requestId"`
+	// Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.
+	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
 }
 
 func (*AutoModeSwitchRequestedData) sessionEventData() {}
@@ -859,6 +868,10 @@ func (*PendingMessagesModifiedData) sessionEventData() {}
 
 // Error details for timeline display including message and optional diagnostic information
 type SessionErrorData struct {
+	// Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
+	EligibleForAutoSwitch *bool `json:"eligibleForAutoSwitch,omitempty"`
+	// Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).
+	ErrorCode *string `json:"errorCode,omitempty"`
 	// Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query")
 	ErrorType string `json:"errorType"`
 	// Human-readable error message
@@ -903,6 +916,28 @@ type ExternalToolRequestedData struct {
 
 func (*ExternalToolRequestedData) sessionEventData() {}
 
+// Failed LLM API call metadata for telemetry
+type ModelCallFailureData struct {
+	// Completion ID from the model provider (e.g., chatcmpl-abc123)
+	APICallID *string `json:"apiCallId,omitempty"`
+	// Duration of the failed API call in milliseconds
+	DurationMs *float64 `json:"durationMs,omitempty"`
+	// Raw provider/runtime error message for restricted telemetry
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
+	Initiator *string `json:"initiator,omitempty"`
+	// Model identifier used for the failed API call
+	Model *string `json:"model,omitempty"`
+	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
+	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Where the failed model call originated
+	Source ModelCallFailureSource `json:"source"`
+	// HTTP status code from the failed request
+	StatusCode *int64 `json:"statusCode,omitempty"`
+}
+
+func (*ModelCallFailureData) sessionEventData() {}
+
 // Hook invocation completion details including output, success status, and error information
 type HookEndData struct {
 	// Error details when the hook failed
@@ -937,6 +972,8 @@ type SessionInfoData struct {
 	InfoType string `json:"infoType"`
 	// Human-readable informational message for display in the timeline
 	Message string `json:"message"`
+	// Optional actionable tip displayed with this message
+	Tip *string `json:"tip,omitempty"`
 	// Optional URL associated with this message that the user can open in a browser
 	URL *string `json:"url,omitempty"`
 }
@@ -994,6 +1031,8 @@ func (*McpOauthCompletedData) sessionEventData() {}
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
+	// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+	Cause *string `json:"cause,omitempty"`
 	// Newly selected model identifier
 	NewModel string `json:"newModel"`
 	// Model that was previously selected, if any
@@ -2028,7 +2067,7 @@ type SystemNotification struct {
 	Prompt *string `json:"prompt,omitempty"`
 	// Human-readable name of the sender
 	SenderName *string `json:"senderName,omitempty"`
-	// Category of the sender (e.g., ambient-agent, plugin, hook)
+	// Category of the sender (e.g., sidekick-agent, plugin, hook)
 	SenderType *string `json:"senderType,omitempty"`
 	// Unique identifier of the shell session
 	ShellID *string `json:"shellId,omitempty"`
@@ -2157,7 +2196,7 @@ type AssistantUsageQuotaSnapshot struct {
 
 type CommandsChangedCommand struct {
 	Description *string `json:"description,omitempty"`
-	Name        string  `json:"name"`
+	Name string `json:"name"`
 }
 
 type CustomAgentsUpdatedAgent struct {
@@ -2239,11 +2278,11 @@ type SkillsLoadedSkill struct {
 type McpServersLoadedServerStatus string
 
 const (
-	McpServersLoadedServerStatusConnected     McpServersLoadedServerStatus = "connected"
-	McpServersLoadedServerStatusFailed        McpServersLoadedServerStatus = "failed"
-	McpServersLoadedServerStatusNeedsAuth     McpServersLoadedServerStatus = "needs-auth"
-	McpServersLoadedServerStatusPending       McpServersLoadedServerStatus = "pending"
-	McpServersLoadedServerStatusDisabled      McpServersLoadedServerStatus = "disabled"
+	McpServersLoadedServerStatusConnected McpServersLoadedServerStatus = "connected"
+	McpServersLoadedServerStatusFailed McpServersLoadedServerStatus = "failed"
+	McpServersLoadedServerStatusNeedsAuth McpServersLoadedServerStatus = "needs-auth"
+	McpServersLoadedServerStatusPending McpServersLoadedServerStatus = "pending"
+	McpServersLoadedServerStatusDisabled McpServersLoadedServerStatus = "disabled"
 	McpServersLoadedServerStatusNotConfigured McpServersLoadedServerStatus = "not_configured"
 )
 
@@ -2251,9 +2290,9 @@ const (
 type ExtensionsLoadedExtensionStatus string
 
 const (
-	ExtensionsLoadedExtensionStatusRunning  ExtensionsLoadedExtensionStatus = "running"
+	ExtensionsLoadedExtensionStatusRunning ExtensionsLoadedExtensionStatus = "running"
 	ExtensionsLoadedExtensionStatusDisabled ExtensionsLoadedExtensionStatus = "disabled"
-	ExtensionsLoadedExtensionStatusFailed   ExtensionsLoadedExtensionStatus = "failed"
+	ExtensionsLoadedExtensionStatusFailed ExtensionsLoadedExtensionStatus = "failed"
 	ExtensionsLoadedExtensionStatusStarting ExtensionsLoadedExtensionStatus = "starting"
 )
 
@@ -2262,7 +2301,7 @@ type ExtensionsLoadedExtensionSource string
 
 const (
 	ExtensionsLoadedExtensionSourceProject ExtensionsLoadedExtensionSource = "project"
-	ExtensionsLoadedExtensionSourceUser    ExtensionsLoadedExtensionSource = "user"
+	ExtensionsLoadedExtensionSourceUser ExtensionsLoadedExtensionSource = "user"
 )
 
 // Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
@@ -2270,7 +2309,7 @@ type ElicitationRequestedMode string
 
 const (
 	ElicitationRequestedModeForm ElicitationRequestedMode = "form"
-	ElicitationRequestedModeURL  ElicitationRequestedMode = "url"
+	ElicitationRequestedModeURL ElicitationRequestedMode = "url"
 )
 
 // Hosting platform type of the repository (github or ado)
@@ -2278,43 +2317,43 @@ type WorkingDirectoryContextHostType string
 
 const (
 	WorkingDirectoryContextHostTypeGithub WorkingDirectoryContextHostType = "github"
-	WorkingDirectoryContextHostTypeAdo    WorkingDirectoryContextHostType = "ado"
+	WorkingDirectoryContextHostTypeAdo WorkingDirectoryContextHostType = "ado"
 )
 
 // Kind discriminator for PermissionPromptRequest.
 type PermissionPromptRequestKind string
 
 const (
-	PermissionPromptRequestKindCommands   PermissionPromptRequestKind = "commands"
-	PermissionPromptRequestKindWrite      PermissionPromptRequestKind = "write"
-	PermissionPromptRequestKindRead       PermissionPromptRequestKind = "read"
-	PermissionPromptRequestKindMcp        PermissionPromptRequestKind = "mcp"
-	PermissionPromptRequestKindURL        PermissionPromptRequestKind = "url"
-	PermissionPromptRequestKindMemory     PermissionPromptRequestKind = "memory"
+	PermissionPromptRequestKindCommands PermissionPromptRequestKind = "commands"
+	PermissionPromptRequestKindWrite PermissionPromptRequestKind = "write"
+	PermissionPromptRequestKindRead PermissionPromptRequestKind = "read"
+	PermissionPromptRequestKindMcp PermissionPromptRequestKind = "mcp"
+	PermissionPromptRequestKindURL PermissionPromptRequestKind = "url"
+	PermissionPromptRequestKindMemory PermissionPromptRequestKind = "memory"
 	PermissionPromptRequestKindCustomTool PermissionPromptRequestKind = "custom-tool"
-	PermissionPromptRequestKindPath       PermissionPromptRequestKind = "path"
-	PermissionPromptRequestKindHook       PermissionPromptRequestKind = "hook"
+	PermissionPromptRequestKindPath PermissionPromptRequestKind = "path"
+	PermissionPromptRequestKindHook PermissionPromptRequestKind = "hook"
 )
 
 // Kind discriminator for PermissionRequest.
 type PermissionRequestKind string
 
 const (
-	PermissionRequestKindShell      PermissionRequestKind = "shell"
-	PermissionRequestKindWrite      PermissionRequestKind = "write"
-	PermissionRequestKindRead       PermissionRequestKind = "read"
-	PermissionRequestKindMcp        PermissionRequestKind = "mcp"
-	PermissionRequestKindURL        PermissionRequestKind = "url"
-	PermissionRequestKindMemory     PermissionRequestKind = "memory"
+	PermissionRequestKindShell PermissionRequestKind = "shell"
+	PermissionRequestKindWrite PermissionRequestKind = "write"
+	PermissionRequestKindRead PermissionRequestKind = "read"
+	PermissionRequestKindMcp PermissionRequestKind = "mcp"
+	PermissionRequestKindURL PermissionRequestKind = "url"
+	PermissionRequestKindMemory PermissionRequestKind = "memory"
 	PermissionRequestKindCustomTool PermissionRequestKind = "custom-tool"
-	PermissionRequestKindHook       PermissionRequestKind = "hook"
+	PermissionRequestKindHook PermissionRequestKind = "hook"
 )
 
 // Message role: "system" for system prompts, "developer" for developer-injected instructions
 type SystemMessageRole string
 
 const (
-	SystemMessageRoleSystem    SystemMessageRole = "system"
+	SystemMessageRoleSystem SystemMessageRole = "system"
 	SystemMessageRoleDeveloper SystemMessageRole = "developer"
 )
 
@@ -2322,11 +2361,11 @@ const (
 type McpServerStatusChangedStatus string
 
 const (
-	McpServerStatusChangedStatusConnected     McpServerStatusChangedStatus = "connected"
-	McpServerStatusChangedStatusFailed        McpServerStatusChangedStatus = "failed"
-	McpServerStatusChangedStatusNeedsAuth     McpServerStatusChangedStatus = "needs-auth"
-	McpServerStatusChangedStatusPending       McpServerStatusChangedStatus = "pending"
-	McpServerStatusChangedStatusDisabled      McpServerStatusChangedStatus = "disabled"
+	McpServerStatusChangedStatusConnected McpServerStatusChangedStatus = "connected"
+	McpServerStatusChangedStatusFailed McpServerStatusChangedStatus = "failed"
+	McpServerStatusChangedStatusNeedsAuth McpServerStatusChangedStatus = "needs-auth"
+	McpServerStatusChangedStatusPending McpServerStatusChangedStatus = "pending"
+	McpServerStatusChangedStatusDisabled McpServerStatusChangedStatus = "disabled"
 	McpServerStatusChangedStatusNotConfigured McpServerStatusChangedStatus = "not_configured"
 )
 
@@ -2335,7 +2374,7 @@ type HandoffSourceType string
 
 const (
 	HandoffSourceTypeRemote HandoffSourceType = "remote"
-	HandoffSourceTypeLocal  HandoffSourceType = "local"
+	HandoffSourceTypeLocal HandoffSourceType = "local"
 )
 
 // The agent mode that was active when this message was sent
@@ -2343,23 +2382,23 @@ type UserMessageAgentMode string
 
 const (
 	UserMessageAgentModeInteractive UserMessageAgentMode = "interactive"
-	UserMessageAgentModePlan        UserMessageAgentMode = "plan"
-	UserMessageAgentModeAutopilot   UserMessageAgentMode = "autopilot"
-	UserMessageAgentModeShell       UserMessageAgentMode = "shell"
+	UserMessageAgentModePlan UserMessageAgentMode = "plan"
+	UserMessageAgentModeAutopilot UserMessageAgentMode = "autopilot"
+	UserMessageAgentModeShell UserMessageAgentMode = "shell"
 )
 
 // The outcome of the permission request
 type PermissionCompletedKind string
 
 const (
-	PermissionCompletedKindApproved                                       PermissionCompletedKind = "approved"
-	PermissionCompletedKindApprovedForSession                             PermissionCompletedKind = "approved-for-session"
-	PermissionCompletedKindApprovedForLocation                            PermissionCompletedKind = "approved-for-location"
-	PermissionCompletedKindDeniedByRules                                  PermissionCompletedKind = "denied-by-rules"
+	PermissionCompletedKindApproved PermissionCompletedKind = "approved"
+	PermissionCompletedKindApprovedForSession PermissionCompletedKind = "approved-for-session"
+	PermissionCompletedKindApprovedForLocation PermissionCompletedKind = "approved-for-location"
+	PermissionCompletedKindDeniedByRules PermissionCompletedKind = "denied-by-rules"
 	PermissionCompletedKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionCompletedKind = "denied-no-approval-rule-and-could-not-request-from-user"
-	PermissionCompletedKindDeniedInteractivelyByUser                      PermissionCompletedKind = "denied-interactively-by-user"
-	PermissionCompletedKindDeniedByContentExclusionPolicy                 PermissionCompletedKind = "denied-by-content-exclusion-policy"
-	PermissionCompletedKindDeniedByPermissionRequestHook                  PermissionCompletedKind = "denied-by-permission-request-hook"
+	PermissionCompletedKindDeniedInteractivelyByUser PermissionCompletedKind = "denied-interactively-by-user"
+	PermissionCompletedKindDeniedByContentExclusionPolicy PermissionCompletedKind = "denied-by-content-exclusion-policy"
+	PermissionCompletedKindDeniedByPermissionRequestHook PermissionCompletedKind = "denied-by-permission-request-hook"
 )
 
 // The type of operation performed on the plan file
@@ -2375,9 +2414,9 @@ const (
 type ElicitationCompletedAction string
 
 const (
-	ElicitationCompletedActionAccept  ElicitationCompletedAction = "accept"
+	ElicitationCompletedActionAccept ElicitationCompletedAction = "accept"
 	ElicitationCompletedActionDecline ElicitationCompletedAction = "decline"
-	ElicitationCompletedActionCancel  ElicitationCompletedAction = "cancel"
+	ElicitationCompletedActionCancel ElicitationCompletedAction = "cancel"
 )
 
 // Theme variant this icon is intended for
@@ -2385,7 +2424,7 @@ type ToolExecutionCompleteContentResourceLinkIconTheme string
 
 const (
 	ToolExecutionCompleteContentResourceLinkIconThemeLight ToolExecutionCompleteContentResourceLinkIconTheme = "light"
-	ToolExecutionCompleteContentResourceLinkIconThemeDark  ToolExecutionCompleteContentResourceLinkIconTheme = "dark"
+	ToolExecutionCompleteContentResourceLinkIconThemeDark ToolExecutionCompleteContentResourceLinkIconTheme = "dark"
 )
 
 // Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
@@ -2393,17 +2432,17 @@ type AssistantMessageToolRequestType string
 
 const (
 	AssistantMessageToolRequestTypeFunction AssistantMessageToolRequestType = "function"
-	AssistantMessageToolRequestTypeCustom   AssistantMessageToolRequestType = "custom"
+	AssistantMessageToolRequestTypeCustom AssistantMessageToolRequestType = "custom"
 )
 
 // Type discriminator for SystemNotification.
 type SystemNotificationType string
 
 const (
-	SystemNotificationTypeAgentCompleted         SystemNotificationType = "agent_completed"
-	SystemNotificationTypeAgentIdle              SystemNotificationType = "agent_idle"
-	SystemNotificationTypeNewInboxMessage        SystemNotificationType = "new_inbox_message"
-	SystemNotificationTypeShellCompleted         SystemNotificationType = "shell_completed"
+	SystemNotificationTypeAgentCompleted SystemNotificationType = "agent_completed"
+	SystemNotificationTypeAgentIdle SystemNotificationType = "agent_idle"
+	SystemNotificationTypeNewInboxMessage SystemNotificationType = "new_inbox_message"
+	SystemNotificationTypeShellCompleted SystemNotificationType = "shell_completed"
 	SystemNotificationTypeShellDetachedCompleted SystemNotificationType = "shell_detached_completed"
 )
 
@@ -2411,31 +2450,31 @@ const (
 type ToolExecutionCompleteContentType string
 
 const (
-	ToolExecutionCompleteContentTypeText         ToolExecutionCompleteContentType = "text"
-	ToolExecutionCompleteContentTypeTerminal     ToolExecutionCompleteContentType = "terminal"
-	ToolExecutionCompleteContentTypeImage        ToolExecutionCompleteContentType = "image"
-	ToolExecutionCompleteContentTypeAudio        ToolExecutionCompleteContentType = "audio"
+	ToolExecutionCompleteContentTypeText ToolExecutionCompleteContentType = "text"
+	ToolExecutionCompleteContentTypeTerminal ToolExecutionCompleteContentType = "terminal"
+	ToolExecutionCompleteContentTypeImage ToolExecutionCompleteContentType = "image"
+	ToolExecutionCompleteContentTypeAudio ToolExecutionCompleteContentType = "audio"
 	ToolExecutionCompleteContentTypeResourceLink ToolExecutionCompleteContentType = "resource_link"
-	ToolExecutionCompleteContentTypeResource     ToolExecutionCompleteContentType = "resource"
+	ToolExecutionCompleteContentTypeResource ToolExecutionCompleteContentType = "resource"
 )
 
 // Type discriminator for UserMessageAttachment.
 type UserMessageAttachmentType string
 
 const (
-	UserMessageAttachmentTypeFile            UserMessageAttachmentType = "file"
-	UserMessageAttachmentTypeDirectory       UserMessageAttachmentType = "directory"
-	UserMessageAttachmentTypeSelection       UserMessageAttachmentType = "selection"
+	UserMessageAttachmentTypeFile UserMessageAttachmentType = "file"
+	UserMessageAttachmentTypeDirectory UserMessageAttachmentType = "directory"
+	UserMessageAttachmentTypeSelection UserMessageAttachmentType = "selection"
 	UserMessageAttachmentTypeGithubReference UserMessageAttachmentType = "github_reference"
-	UserMessageAttachmentTypeBlob            UserMessageAttachmentType = "blob"
+	UserMessageAttachmentTypeBlob UserMessageAttachmentType = "blob"
 )
 
 // Type of GitHub reference
 type UserMessageAttachmentGithubReferenceType string
 
 const (
-	UserMessageAttachmentGithubReferenceTypeIssue      UserMessageAttachmentGithubReferenceType = "issue"
-	UserMessageAttachmentGithubReferenceTypePr         UserMessageAttachmentGithubReferenceType = "pr"
+	UserMessageAttachmentGithubReferenceTypeIssue UserMessageAttachmentGithubReferenceType = "issue"
+	UserMessageAttachmentGithubReferenceTypePr UserMessageAttachmentGithubReferenceType = "pr"
 	UserMessageAttachmentGithubReferenceTypeDiscussion UserMessageAttachmentGithubReferenceType = "discussion"
 )
 
@@ -2443,7 +2482,7 @@ const (
 type PermissionPromptRequestPathAccessKind string
 
 const (
-	PermissionPromptRequestPathAccessKindRead  PermissionPromptRequestPathAccessKind = "read"
+	PermissionPromptRequestPathAccessKindRead PermissionPromptRequestPathAccessKind = "read"
 	PermissionPromptRequestPathAccessKindShell PermissionPromptRequestPathAccessKind = "shell"
 	PermissionPromptRequestPathAccessKindWrite PermissionPromptRequestPathAccessKind = "write"
 )
@@ -2452,7 +2491,7 @@ const (
 type PermissionPromptRequestMemoryDirection string
 
 const (
-	PermissionPromptRequestMemoryDirectionUpvote   PermissionPromptRequestMemoryDirection = "upvote"
+	PermissionPromptRequestMemoryDirectionUpvote PermissionPromptRequestMemoryDirection = "upvote"
 	PermissionPromptRequestMemoryDirectionDownvote PermissionPromptRequestMemoryDirection = "downvote"
 )
 
@@ -2460,8 +2499,17 @@ const (
 type PermissionRequestMemoryDirection string
 
 const (
-	PermissionRequestMemoryDirectionUpvote   PermissionRequestMemoryDirection = "upvote"
+	PermissionRequestMemoryDirectionUpvote PermissionRequestMemoryDirection = "upvote"
 	PermissionRequestMemoryDirectionDownvote PermissionRequestMemoryDirection = "downvote"
+)
+
+// Where the failed model call originated
+type ModelCallFailureSource string
+
+const (
+	ModelCallFailureSourceTopLevel ModelCallFailureSource = "top_level"
+	ModelCallFailureSourceSubagent ModelCallFailureSource = "subagent"
+	ModelCallFailureSourceMcpSampling ModelCallFailureSource = "mcp_sampling"
 )
 
 // Whether the agent completed successfully or failed
@@ -2469,7 +2517,7 @@ type SystemNotificationAgentCompletedStatus string
 
 const (
 	SystemNotificationAgentCompletedStatusCompleted SystemNotificationAgentCompletedStatus = "completed"
-	SystemNotificationAgentCompletedStatusFailed    SystemNotificationAgentCompletedStatus = "failed"
+	SystemNotificationAgentCompletedStatusFailed SystemNotificationAgentCompletedStatus = "failed"
 )
 
 // Whether the file was newly created or updated
@@ -2485,7 +2533,7 @@ type ShutdownType string
 
 const (
 	ShutdownTypeRoutine ShutdownType = "routine"
-	ShutdownTypeError   ShutdownType = "error"
+	ShutdownTypeError ShutdownType = "error"
 )
 
 // Whether this is a store or vote memory operation
@@ -2493,7 +2541,7 @@ type PermissionPromptRequestMemoryAction string
 
 const (
 	PermissionPromptRequestMemoryActionStore PermissionPromptRequestMemoryAction = "store"
-	PermissionPromptRequestMemoryActionVote  PermissionPromptRequestMemoryAction = "vote"
+	PermissionPromptRequestMemoryActionVote PermissionPromptRequestMemoryAction = "vote"
 )
 
 // Whether this is a store or vote memory operation
@@ -2501,22 +2549,22 @@ type PermissionRequestMemoryAction string
 
 const (
 	PermissionRequestMemoryActionStore PermissionRequestMemoryAction = "store"
-	PermissionRequestMemoryActionVote  PermissionRequestMemoryAction = "vote"
+	PermissionRequestMemoryActionVote PermissionRequestMemoryAction = "vote"
 )
 
 // Type aliases for convenience.
 type (
 	PermissionRequestCommand = PermissionRequestShellCommand
-	PossibleURL              = PermissionRequestShellPossibleURL
-	Attachment               = UserMessageAttachment
-	AttachmentType           = UserMessageAttachmentType
+	PossibleURL = PermissionRequestShellPossibleURL
+	Attachment = UserMessageAttachment
+	AttachmentType = UserMessageAttachmentType
 )
 
 // Constant aliases for convenience.
 const (
-	AttachmentTypeFile            = UserMessageAttachmentTypeFile
-	AttachmentTypeDirectory       = UserMessageAttachmentTypeDirectory
-	AttachmentTypeSelection       = UserMessageAttachmentTypeSelection
+	AttachmentTypeFile = UserMessageAttachmentTypeFile
+	AttachmentTypeDirectory = UserMessageAttachmentTypeDirectory
+	AttachmentTypeSelection = UserMessageAttachmentTypeSelection
 	AttachmentTypeGithubReference = UserMessageAttachmentTypeGithubReference
-	AttachmentTypeBlob            = UserMessageAttachmentTypeBlob
+	AttachmentTypeBlob = UserMessageAttachmentTypeBlob
 )

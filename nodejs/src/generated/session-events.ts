@@ -36,6 +36,7 @@ export type SessionEvent =
   | AssistantMessageDeltaEvent
   | AssistantTurnEndEvent
   | AssistantUsageEvent
+  | ModelCallFailureEvent
   | AbortEvent
   | ToolUserRequestedEvent
   | ToolExecutionStartEvent
@@ -121,6 +122,10 @@ export type UserMessageAttachmentGithubReferenceType = "issue" | "pr" | "discuss
  * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
  */
 export type AssistantMessageToolRequestType = "function" | "custom";
+/**
+ * Where the failed model call originated
+ */
+export type ModelCallFailureSource = "top_level" | "subagent" | "mcp_sampling";
 /**
  * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
  */
@@ -467,6 +472,14 @@ export interface ErrorEvent {
  */
 export interface ErrorData {
   /**
+   * Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
+   */
+  eligibleForAutoSwitch?: boolean;
+  /**
+   * Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).
+   */
+  errorCode?: string;
+  /**
    * Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query")
    */
   errorType: string;
@@ -588,6 +601,10 @@ export interface InfoData {
    */
   message: string;
   /**
+   * Optional actionable tip displayed with this message
+   */
+  tip?: string;
+  /**
    * Optional URL associated with this message that the user can open in a browser
    */
   url?: string;
@@ -661,6 +678,10 @@ export interface ModelChangeEvent {
  * Model change details including previous and new model identifiers
  */
 export interface ModelChangeData {
+  /**
+   * Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+   */
+  cause?: string;
   /**
    * Newly selected model identifier
    */
@@ -2118,6 +2139,61 @@ export interface AssistantUsageQuotaSnapshot {
    */
   usedRequests: number;
 }
+export interface ModelCallFailureEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ModelCallFailureData;
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "model.call_failure";
+}
+/**
+ * Failed LLM API call metadata for telemetry
+ */
+export interface ModelCallFailureData {
+  /**
+   * Completion ID from the model provider (e.g., chatcmpl-abc123)
+   */
+  apiCallId?: string;
+  /**
+   * Duration of the failed API call in milliseconds
+   */
+  durationMs?: number;
+  /**
+   * Raw provider/runtime error message for restricted telemetry
+   */
+  errorMessage?: string;
+  /**
+   * What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
+   */
+  initiator?: string;
+  /**
+   * Model identifier used for the failed API call
+   */
+  model?: string;
+  /**
+   * GitHub request tracing ID (x-github-request-id header) for server-side log correlation
+   */
+  providerCallId?: string;
+  source: ModelCallFailureSource;
+  /**
+   * HTTP status code from the failed request
+   */
+  statusCode?: number;
+}
 export interface AbortEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3097,7 +3173,7 @@ export interface SystemNotificationNewInboxMessage {
    */
   senderName: string;
   /**
-   * Category of the sender (e.g., ambient-agent, plugin, hook)
+   * Category of the sender (e.g., sidekick-agent, plugin, hook)
    */
   senderType: string;
   /**
@@ -4267,6 +4343,10 @@ export interface AutoModeSwitchRequestedData {
    * Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
    */
   requestId: string;
+  /**
+   * Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.
+   */
+  retryAfterSeconds?: number;
 }
 export interface AutoModeSwitchCompletedEvent {
   /**

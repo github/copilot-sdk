@@ -50,6 +50,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
 [JsonDerivedType(typeof(McpOauthCompletedEvent), "mcp.oauth_completed")]
 [JsonDerivedType(typeof(McpOauthRequiredEvent), "mcp.oauth_required")]
+[JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
@@ -549,6 +550,19 @@ public partial class AssistantUsageEvent : SessionEvent
     /// <summary>The <c>assistant.usage</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required AssistantUsageData Data { get; set; }
+}
+
+/// <summary>Failed LLM API call metadata for telemetry.</summary>
+/// <remarks>Represents the <c>model.call_failure</c> event.</remarks>
+public partial class ModelCallFailureEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "model.call_failure";
+
+    /// <summary>The <c>model.call_failure</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required ModelCallFailureData Data { get; set; }
 }
 
 /// <summary>Turn abort information including the reason for termination.</summary>
@@ -1213,6 +1227,16 @@ public partial class SessionRemoteSteerableChangedData
 /// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
 public partial class SessionErrorData
 {
+    /// <summary>Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("eligibleForAutoSwitch")]
+    public bool? EligibleForAutoSwitch { get; set; }
+
+    /// <summary>Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
     /// <summary>Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query").</summary>
     [JsonPropertyName("errorType")]
     public required string ErrorType { get; set; }
@@ -1272,6 +1296,11 @@ public partial class SessionInfoData
     [JsonPropertyName("message")]
     public required string Message { get; set; }
 
+    /// <summary>Optional actionable tip displayed with this message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tip")]
+    public string? Tip { get; set; }
+
     /// <summary>Optional URL associated with this message that the user can open in a browser.</summary>
     [Url]
     [StringSyntax(StringSyntaxAttribute.Uri)]
@@ -1302,6 +1331,11 @@ public partial class SessionWarningData
 /// <summary>Model change details including previous and new model identifiers.</summary>
 public partial class SessionModelChangeData
 {
+    /// <summary>Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cause")]
+    public string? Cause { get; set; }
+
     /// <summary>Newly selected model identifier.</summary>
     [JsonPropertyName("newModel")]
     public required string NewModel { get; set; }
@@ -1961,6 +1995,49 @@ public partial class AssistantUsageData
     public double? TtftMs { get; set; }
 }
 
+/// <summary>Failed LLM API call metadata for telemetry.</summary>
+public partial class ModelCallFailureData
+{
+    /// <summary>Completion ID from the model provider (e.g., chatcmpl-abc123).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("apiCallId")]
+    public string? ApiCallId { get; set; }
+
+    /// <summary>Duration of the failed API call in milliseconds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("durationMs")]
+    public double? DurationMs { get; set; }
+
+    /// <summary>Raw provider/runtime error message for restricted telemetry.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("initiator")]
+    public string? Initiator { get; set; }
+
+    /// <summary>Model identifier used for the failed API call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>GitHub request tracing ID (x-github-request-id header) for server-side log correlation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerCallId")]
+    public string? ProviderCallId { get; set; }
+
+    /// <summary>Where the failed model call originated.</summary>
+    [JsonPropertyName("source")]
+    public required ModelCallFailureSource Source { get; set; }
+
+    /// <summary>HTTP status code from the failed request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("statusCode")]
+    public long? StatusCode { get; set; }
+}
+
 /// <summary>Turn abort information including the reason for termination.</summary>
 public partial class AbortData
 {
@@ -2607,6 +2684,11 @@ public partial class AutoModeSwitchRequestedData
     /// <summary>Unique identifier for this request; used to respond via session.respondToAutoModeSwitch().</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+
+    /// <summary>Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("retryAfterSeconds")]
+    public double? RetryAfterSeconds { get; set; }
 }
 
 /// <summary>Auto mode switch completion notification.</summary>
@@ -3552,7 +3634,7 @@ public partial class SystemNotificationNewInboxMessage : SystemNotification
     [JsonPropertyName("senderName")]
     public required string SenderName { get; set; }
 
-    /// <summary>Category of the sender (e.g., ambient-agent, plugin, hook).</summary>
+    /// <summary>Category of the sender (e.g., sidekick-agent, plugin, hook).</summary>
     [JsonPropertyName("senderType")]
     public required string SenderType { get; set; }
 
@@ -4485,6 +4567,21 @@ public enum AssistantMessageToolRequestType
     Custom,
 }
 
+/// <summary>Where the failed model call originated.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ModelCallFailureSource>))]
+public enum ModelCallFailureSource
+{
+    /// <summary>The <c>top_level</c> variant.</summary>
+    [JsonStringEnumMemberName("top_level")]
+    TopLevel,
+    /// <summary>The <c>subagent</c> variant.</summary>
+    [JsonStringEnumMemberName("subagent")]
+    Subagent,
+    /// <summary>The <c>mcp_sampling</c> variant.</summary>
+    [JsonStringEnumMemberName("mcp_sampling")]
+    McpSampling,
+}
+
 /// <summary>Theme variant this icon is intended for.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<ToolExecutionCompleteContentResourceLinkIconTheme>))]
 public enum ToolExecutionCompleteContentResourceLinkIconTheme
@@ -4794,6 +4891,8 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(McpOauthRequiredEvent))]
 [JsonSerializable(typeof(McpOauthRequiredStaticClientConfig))]
 [JsonSerializable(typeof(McpServersLoadedServer))]
+[JsonSerializable(typeof(ModelCallFailureData))]
+[JsonSerializable(typeof(ModelCallFailureEvent))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]

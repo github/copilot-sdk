@@ -156,19 +156,27 @@ class AgentInfo:
     name: str
     """Unique identifier of the custom agent"""
 
+    path: str | None = None
+    """Absolute local file path of the agent definition. Only set for file-based agents loaded
+    from disk; remote agents do not have a path.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'AgentInfo':
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         display_name = from_str(obj.get("displayName"))
         name = from_str(obj.get("name"))
-        return AgentInfo(description, display_name, name)
+        path = from_union([from_str, from_none], obj.get("path"))
+        return AgentInfo(description, display_name, name, path)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["description"] = from_str(self.description)
         result["displayName"] = from_str(self.display_name)
         result["name"] = from_str(self.name)
+        if self.path is not None:
+            result["path"] = from_union([from_str, from_none], self.path)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -884,7 +892,7 @@ class ModelsListRequest:
 @dataclass
 class NameGetResult:
     name: str | None = None
-    """The session name, falling back to the auto-generated summary, or null if neither exists"""
+    """The session name (user-set or auto-generated), or null if not yet set"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'NameGetResult':
@@ -1738,6 +1746,200 @@ class SkillsEnableRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["name"] = from_str(self.name)
+        return result
+
+class TaskInfoExecutionMode(Enum):
+    """How the agent is currently being managed by the runtime
+
+    Whether the shell command is currently sync-waited or background-managed
+    """
+    BACKGROUND = "background"
+    SYNC = "sync"
+
+class TaskInfoStatus(Enum):
+    """Current lifecycle status of the task"""
+
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    IDLE = "idle"
+    RUNNING = "running"
+
+class TaskAgentInfoType(Enum):
+    AGENT = "agent"
+
+class TaskShellInfoAttachmentMode(Enum):
+    """Whether the shell runs inside a managed PTY session or as an independent background
+    process
+    """
+    ATTACHED = "attached"
+    DETACHED = "detached"
+
+class TaskInfoType(Enum):
+    AGENT = "agent"
+    SHELL = "shell"
+
+class TaskShellInfoType(Enum):
+    SHELL = "shell"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksCancelRequest:
+    id: str
+    """Task identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksCancelRequest':
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        return TasksCancelRequest(id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksCancelResult:
+    cancelled: bool
+    """Whether the task was successfully cancelled"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksCancelResult':
+        assert isinstance(obj, dict)
+        cancelled = from_bool(obj.get("cancelled"))
+        return TasksCancelResult(cancelled)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["cancelled"] = from_bool(self.cancelled)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksPromoteToBackgroundRequest:
+    id: str
+    """Task identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksPromoteToBackgroundRequest':
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        return TasksPromoteToBackgroundRequest(id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksPromoteToBackgroundResult:
+    promoted: bool
+    """Whether the task was successfully promoted to background mode"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksPromoteToBackgroundResult':
+        assert isinstance(obj, dict)
+        promoted = from_bool(obj.get("promoted"))
+        return TasksPromoteToBackgroundResult(promoted)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["promoted"] = from_bool(self.promoted)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksRemoveRequest:
+    id: str
+    """Task identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksRemoveRequest':
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        return TasksRemoveRequest(id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksRemoveResult:
+    removed: bool
+    """Whether the task was removed. Returns false if the task does not exist or is still
+    running/idle (cancel it first).
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksRemoveResult':
+        assert isinstance(obj, dict)
+        removed = from_bool(obj.get("removed"))
+        return TasksRemoveResult(removed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["removed"] = from_bool(self.removed)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksStartAgentRequest:
+    agent_type: str
+    """Type of agent to start (e.g., 'explore', 'task', 'general-purpose')"""
+
+    name: str
+    """Short name for the agent, used to generate a human-readable ID"""
+
+    prompt: str
+    """Task prompt for the agent"""
+
+    description: str | None = None
+    """Short description of the task"""
+
+    model: str | None = None
+    """Optional model override"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksStartAgentRequest':
+        assert isinstance(obj, dict)
+        agent_type = from_str(obj.get("agentType"))
+        name = from_str(obj.get("name"))
+        prompt = from_str(obj.get("prompt"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        model = from_union([from_str, from_none], obj.get("model"))
+        return TasksStartAgentRequest(agent_type, name, prompt, description, model)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agentType"] = from_str(self.agent_type)
+        result["name"] = from_str(self.name)
+        result["prompt"] = from_str(self.prompt)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.model is not None:
+            result["model"] = from_union([from_str, from_none], self.model)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksStartAgentResult:
+    agent_id: str
+    """Generated agent ID for the background task"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksStartAgentResult':
+        assert isinstance(obj, dict)
+        agent_id = from_str(obj.get("agentId"))
+        return TasksStartAgentResult(agent_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agentId"] = from_str(self.agent_id)
         return result
 
 @dataclass
@@ -3231,6 +3433,83 @@ class SkillList:
         return result
 
 @dataclass
+class TaskShellInfo:
+    attachment_mode: TaskShellInfoAttachmentMode
+    """Whether the shell runs inside a managed PTY session or as an independent background
+    process
+    """
+    command: str
+    """Command being executed"""
+
+    description: str
+    """Short description of the task"""
+
+    id: str
+    """Unique task identifier"""
+
+    started_at: datetime
+    """ISO 8601 timestamp when the task was started"""
+
+    status: TaskInfoStatus
+    """Current lifecycle status of the task"""
+
+    type: TaskShellInfoType
+    """Task kind"""
+
+    can_promote_to_background: bool | None = None
+    """Whether this shell task can be promoted to background mode"""
+
+    completed_at: datetime | None = None
+    """ISO 8601 timestamp when the task finished"""
+
+    execution_mode: TaskInfoExecutionMode | None = None
+    """Whether the shell command is currently sync-waited or background-managed"""
+
+    log_path: str | None = None
+    """Path to the detached shell log, when available"""
+
+    pid: int | None = None
+    """Process ID when available"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TaskShellInfo':
+        assert isinstance(obj, dict)
+        attachment_mode = TaskShellInfoAttachmentMode(obj.get("attachmentMode"))
+        command = from_str(obj.get("command"))
+        description = from_str(obj.get("description"))
+        id = from_str(obj.get("id"))
+        started_at = from_datetime(obj.get("startedAt"))
+        status = TaskInfoStatus(obj.get("status"))
+        type = TaskShellInfoType(obj.get("type"))
+        can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
+        completed_at = from_union([from_datetime, from_none], obj.get("completedAt"))
+        execution_mode = from_union([TaskInfoExecutionMode, from_none], obj.get("executionMode"))
+        log_path = from_union([from_str, from_none], obj.get("logPath"))
+        pid = from_union([from_int, from_none], obj.get("pid"))
+        return TaskShellInfo(attachment_mode, command, description, id, started_at, status, type, can_promote_to_background, completed_at, execution_mode, log_path, pid)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attachmentMode"] = to_enum(TaskShellInfoAttachmentMode, self.attachment_mode)
+        result["command"] = from_str(self.command)
+        result["description"] = from_str(self.description)
+        result["id"] = from_str(self.id)
+        result["startedAt"] = self.started_at.isoformat()
+        result["status"] = to_enum(TaskInfoStatus, self.status)
+        result["type"] = to_enum(TaskShellInfoType, self.type)
+        if self.can_promote_to_background is not None:
+            result["canPromoteToBackground"] = from_union([from_bool, from_none], self.can_promote_to_background)
+        if self.completed_at is not None:
+            result["completedAt"] = from_union([lambda x: x.isoformat(), from_none], self.completed_at)
+        if self.execution_mode is not None:
+            result["executionMode"] = from_union([lambda x: to_enum(TaskInfoExecutionMode, x), from_none], self.execution_mode)
+        if self.log_path is not None:
+            result["logPath"] = from_union([from_str, from_none], self.log_path)
+        if self.pid is not None:
+            result["pid"] = from_union([from_int, from_none], self.pid)
+        return result
+
+@dataclass
 class ToolList:
     tools: list[Tool]
     """List of available built-in tools with metadata"""
@@ -3560,6 +3839,7 @@ class Workspace:
     summary: str | None = None
     summary_count: int | None = None
     updated_at: datetime | None = None
+    user_named: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Workspace':
@@ -3581,7 +3861,8 @@ class Workspace:
         summary = from_union([from_str, from_none], obj.get("summary"))
         summary_count = from_union([from_int, from_none], obj.get("summary_count"))
         updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
-        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, session_sync_level, summary, summary_count, updated_at)
+        user_named = from_union([from_bool, from_none], obj.get("user_named"))
+        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, session_sync_level, summary, summary_count, updated_at, user_named)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3618,6 +3899,8 @@ class Workspace:
             result["summary_count"] = from_union([from_int, from_none], self.summary_count)
         if self.updated_at is not None:
             result["updated_at"] = from_union([lambda x: x.isoformat(), from_none], self.updated_at)
+        if self.user_named is not None:
+            result["user_named"] = from_union([from_bool, from_none], self.user_named)
         return result
 
 @dataclass
@@ -4400,6 +4683,281 @@ class ModelSwitchToRequest:
         return result
 
 @dataclass
+class TaskAgentInfo:
+    agent_type: str
+    """Type of agent running this task"""
+
+    description: str
+    """Short description of the task"""
+
+    id: str
+    """Unique task identifier"""
+
+    prompt: str
+    """Prompt passed to the agent"""
+
+    started_at: datetime
+    """ISO 8601 timestamp when the task was started"""
+
+    status: TaskInfoStatus
+    """Current lifecycle status of the task"""
+
+    tool_call_id: str
+    """Tool call ID associated with this agent task"""
+
+    type: TaskAgentInfoType
+    """Task kind"""
+
+    active_started_at: datetime | None = None
+    """ISO 8601 timestamp when the current active period began"""
+
+    active_time_ms: int | None = None
+    """Accumulated active execution time in milliseconds"""
+
+    can_promote_to_background: bool | None = None
+    """Whether the task is currently in the original sync wait and can be moved to background
+    mode. False once it is already backgrounded, idle, finished, or no longer has a
+    promotable sync waiter.
+    """
+    completed_at: datetime | None = None
+    """ISO 8601 timestamp when the task finished"""
+
+    error: str | None = None
+    """Error message when the task failed"""
+
+    execution_mode: TaskInfoExecutionMode | None = None
+    """How the agent is currently being managed by the runtime"""
+
+    idle_since: datetime | None = None
+    """ISO 8601 timestamp when the agent entered idle state"""
+
+    latest_response: str | None = None
+    """Most recent response text from the agent"""
+
+    model: str | None = None
+    """Model used for the task when specified"""
+
+    result: str | None = None
+    """Result text from the task when available"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TaskAgentInfo':
+        assert isinstance(obj, dict)
+        agent_type = from_str(obj.get("agentType"))
+        description = from_str(obj.get("description"))
+        id = from_str(obj.get("id"))
+        prompt = from_str(obj.get("prompt"))
+        started_at = from_datetime(obj.get("startedAt"))
+        status = TaskInfoStatus(obj.get("status"))
+        tool_call_id = from_str(obj.get("toolCallId"))
+        type = TaskAgentInfoType(obj.get("type"))
+        active_started_at = from_union([from_datetime, from_none], obj.get("activeStartedAt"))
+        active_time_ms = from_union([from_int, from_none], obj.get("activeTimeMs"))
+        can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
+        completed_at = from_union([from_datetime, from_none], obj.get("completedAt"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        execution_mode = from_union([TaskInfoExecutionMode, from_none], obj.get("executionMode"))
+        idle_since = from_union([from_datetime, from_none], obj.get("idleSince"))
+        latest_response = from_union([from_str, from_none], obj.get("latestResponse"))
+        model = from_union([from_str, from_none], obj.get("model"))
+        result = from_union([from_str, from_none], obj.get("result"))
+        return TaskAgentInfo(agent_type, description, id, prompt, started_at, status, tool_call_id, type, active_started_at, active_time_ms, can_promote_to_background, completed_at, error, execution_mode, idle_since, latest_response, model, result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agentType"] = from_str(self.agent_type)
+        result["description"] = from_str(self.description)
+        result["id"] = from_str(self.id)
+        result["prompt"] = from_str(self.prompt)
+        result["startedAt"] = self.started_at.isoformat()
+        result["status"] = to_enum(TaskInfoStatus, self.status)
+        result["toolCallId"] = from_str(self.tool_call_id)
+        result["type"] = to_enum(TaskAgentInfoType, self.type)
+        if self.active_started_at is not None:
+            result["activeStartedAt"] = from_union([lambda x: x.isoformat(), from_none], self.active_started_at)
+        if self.active_time_ms is not None:
+            result["activeTimeMs"] = from_union([from_int, from_none], self.active_time_ms)
+        if self.can_promote_to_background is not None:
+            result["canPromoteToBackground"] = from_union([from_bool, from_none], self.can_promote_to_background)
+        if self.completed_at is not None:
+            result["completedAt"] = from_union([lambda x: x.isoformat(), from_none], self.completed_at)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.execution_mode is not None:
+            result["executionMode"] = from_union([lambda x: to_enum(TaskInfoExecutionMode, x), from_none], self.execution_mode)
+        if self.idle_since is not None:
+            result["idleSince"] = from_union([lambda x: x.isoformat(), from_none], self.idle_since)
+        if self.latest_response is not None:
+            result["latestResponse"] = from_union([from_str, from_none], self.latest_response)
+        if self.model is not None:
+            result["model"] = from_union([from_str, from_none], self.model)
+        if self.result is not None:
+            result["result"] = from_union([from_str, from_none], self.result)
+        return result
+
+@dataclass
+class TaskInfo:
+    description: str
+    """Short description of the task"""
+
+    id: str
+    """Unique task identifier"""
+
+    started_at: datetime
+    """ISO 8601 timestamp when the task was started"""
+
+    status: TaskInfoStatus
+    """Current lifecycle status of the task"""
+
+    type: TaskInfoType
+    """Task kind"""
+
+    active_started_at: datetime | None = None
+    """ISO 8601 timestamp when the current active period began"""
+
+    active_time_ms: int | None = None
+    """Accumulated active execution time in milliseconds"""
+
+    agent_type: str | None = None
+    """Type of agent running this task"""
+
+    can_promote_to_background: bool | None = None
+    """Whether the task is currently in the original sync wait and can be moved to background
+    mode. False once it is already backgrounded, idle, finished, or no longer has a
+    promotable sync waiter.
+
+    Whether this shell task can be promoted to background mode
+    """
+    completed_at: datetime | None = None
+    """ISO 8601 timestamp when the task finished"""
+
+    error: str | None = None
+    """Error message when the task failed"""
+
+    execution_mode: TaskInfoExecutionMode | None = None
+    """How the agent is currently being managed by the runtime
+
+    Whether the shell command is currently sync-waited or background-managed
+    """
+    idle_since: datetime | None = None
+    """ISO 8601 timestamp when the agent entered idle state"""
+
+    latest_response: str | None = None
+    """Most recent response text from the agent"""
+
+    model: str | None = None
+    """Model used for the task when specified"""
+
+    prompt: str | None = None
+    """Prompt passed to the agent"""
+
+    result: str | None = None
+    """Result text from the task when available"""
+
+    tool_call_id: str | None = None
+    """Tool call ID associated with this agent task"""
+
+    attachment_mode: TaskShellInfoAttachmentMode | None = None
+    """Whether the shell runs inside a managed PTY session or as an independent background
+    process
+    """
+    command: str | None = None
+    """Command being executed"""
+
+    log_path: str | None = None
+    """Path to the detached shell log, when available"""
+
+    pid: int | None = None
+    """Process ID when available"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TaskInfo':
+        assert isinstance(obj, dict)
+        description = from_str(obj.get("description"))
+        id = from_str(obj.get("id"))
+        started_at = from_datetime(obj.get("startedAt"))
+        status = TaskInfoStatus(obj.get("status"))
+        type = TaskInfoType(obj.get("type"))
+        active_started_at = from_union([from_datetime, from_none], obj.get("activeStartedAt"))
+        active_time_ms = from_union([from_int, from_none], obj.get("activeTimeMs"))
+        agent_type = from_union([from_str, from_none], obj.get("agentType"))
+        can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
+        completed_at = from_union([from_datetime, from_none], obj.get("completedAt"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        execution_mode = from_union([TaskInfoExecutionMode, from_none], obj.get("executionMode"))
+        idle_since = from_union([from_datetime, from_none], obj.get("idleSince"))
+        latest_response = from_union([from_str, from_none], obj.get("latestResponse"))
+        model = from_union([from_str, from_none], obj.get("model"))
+        prompt = from_union([from_str, from_none], obj.get("prompt"))
+        result = from_union([from_str, from_none], obj.get("result"))
+        tool_call_id = from_union([from_str, from_none], obj.get("toolCallId"))
+        attachment_mode = from_union([TaskShellInfoAttachmentMode, from_none], obj.get("attachmentMode"))
+        command = from_union([from_str, from_none], obj.get("command"))
+        log_path = from_union([from_str, from_none], obj.get("logPath"))
+        pid = from_union([from_int, from_none], obj.get("pid"))
+        return TaskInfo(description, id, started_at, status, type, active_started_at, active_time_ms, agent_type, can_promote_to_background, completed_at, error, execution_mode, idle_since, latest_response, model, prompt, result, tool_call_id, attachment_mode, command, log_path, pid)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["description"] = from_str(self.description)
+        result["id"] = from_str(self.id)
+        result["startedAt"] = self.started_at.isoformat()
+        result["status"] = to_enum(TaskInfoStatus, self.status)
+        result["type"] = to_enum(TaskInfoType, self.type)
+        if self.active_started_at is not None:
+            result["activeStartedAt"] = from_union([lambda x: x.isoformat(), from_none], self.active_started_at)
+        if self.active_time_ms is not None:
+            result["activeTimeMs"] = from_union([from_int, from_none], self.active_time_ms)
+        if self.agent_type is not None:
+            result["agentType"] = from_union([from_str, from_none], self.agent_type)
+        if self.can_promote_to_background is not None:
+            result["canPromoteToBackground"] = from_union([from_bool, from_none], self.can_promote_to_background)
+        if self.completed_at is not None:
+            result["completedAt"] = from_union([lambda x: x.isoformat(), from_none], self.completed_at)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.execution_mode is not None:
+            result["executionMode"] = from_union([lambda x: to_enum(TaskInfoExecutionMode, x), from_none], self.execution_mode)
+        if self.idle_since is not None:
+            result["idleSince"] = from_union([lambda x: x.isoformat(), from_none], self.idle_since)
+        if self.latest_response is not None:
+            result["latestResponse"] = from_union([from_str, from_none], self.latest_response)
+        if self.model is not None:
+            result["model"] = from_union([from_str, from_none], self.model)
+        if self.prompt is not None:
+            result["prompt"] = from_union([from_str, from_none], self.prompt)
+        if self.result is not None:
+            result["result"] = from_union([from_str, from_none], self.result)
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_str, from_none], self.tool_call_id)
+        if self.attachment_mode is not None:
+            result["attachmentMode"] = from_union([lambda x: to_enum(TaskShellInfoAttachmentMode, x), from_none], self.attachment_mode)
+        if self.command is not None:
+            result["command"] = from_union([from_str, from_none], self.command)
+        if self.log_path is not None:
+            result["logPath"] = from_union([from_str, from_none], self.log_path)
+        if self.pid is not None:
+            result["pid"] = from_union([from_int, from_none], self.pid)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TaskList:
+    tasks: list[TaskInfo]
+    """Currently tracked tasks"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TaskList':
+        assert isinstance(obj, dict)
+        tasks = from_list(TaskInfo.from_dict, obj.get("tasks"))
+        return TaskList(tasks)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tasks"] = from_list(lambda x: to_class(TaskInfo, x), self.tasks)
+        return result
+
+@dataclass
 class RPC:
     account_get_quota_request: AccountGetQuotaRequest
     account_get_quota_result: AccountGetQuotaResult
@@ -4552,6 +5110,23 @@ class RPC:
     skills_disable_request: SkillsDisableRequest
     skills_discover_request: SkillsDiscoverRequest
     skills_enable_request: SkillsEnableRequest
+    task_agent_info: TaskAgentInfo
+    task_agent_info_execution_mode: TaskInfoExecutionMode
+    task_agent_info_status: TaskInfoStatus
+    task_info: TaskInfo
+    task_list: TaskList
+    tasks_cancel_request: TasksCancelRequest
+    tasks_cancel_result: TasksCancelResult
+    task_shell_info: TaskShellInfo
+    task_shell_info_attachment_mode: TaskShellInfoAttachmentMode
+    task_shell_info_execution_mode: TaskInfoExecutionMode
+    task_shell_info_status: TaskInfoStatus
+    tasks_promote_to_background_request: TasksPromoteToBackgroundRequest
+    tasks_promote_to_background_result: TasksPromoteToBackgroundResult
+    tasks_remove_request: TasksRemoveRequest
+    tasks_remove_result: TasksRemoveResult
+    tasks_start_agent_request: TasksStartAgentRequest
+    tasks_start_agent_result: TasksStartAgentResult
     tool: Tool
     tool_call_result: ToolCallResult
     tool_list: ToolList
@@ -4745,6 +5320,23 @@ class RPC:
         skills_disable_request = SkillsDisableRequest.from_dict(obj.get("SkillsDisableRequest"))
         skills_discover_request = SkillsDiscoverRequest.from_dict(obj.get("SkillsDiscoverRequest"))
         skills_enable_request = SkillsEnableRequest.from_dict(obj.get("SkillsEnableRequest"))
+        task_agent_info = TaskAgentInfo.from_dict(obj.get("TaskAgentInfo"))
+        task_agent_info_execution_mode = TaskInfoExecutionMode(obj.get("TaskAgentInfoExecutionMode"))
+        task_agent_info_status = TaskInfoStatus(obj.get("TaskAgentInfoStatus"))
+        task_info = TaskInfo.from_dict(obj.get("TaskInfo"))
+        task_list = TaskList.from_dict(obj.get("TaskList"))
+        tasks_cancel_request = TasksCancelRequest.from_dict(obj.get("TasksCancelRequest"))
+        tasks_cancel_result = TasksCancelResult.from_dict(obj.get("TasksCancelResult"))
+        task_shell_info = TaskShellInfo.from_dict(obj.get("TaskShellInfo"))
+        task_shell_info_attachment_mode = TaskShellInfoAttachmentMode(obj.get("TaskShellInfoAttachmentMode"))
+        task_shell_info_execution_mode = TaskInfoExecutionMode(obj.get("TaskShellInfoExecutionMode"))
+        task_shell_info_status = TaskInfoStatus(obj.get("TaskShellInfoStatus"))
+        tasks_promote_to_background_request = TasksPromoteToBackgroundRequest.from_dict(obj.get("TasksPromoteToBackgroundRequest"))
+        tasks_promote_to_background_result = TasksPromoteToBackgroundResult.from_dict(obj.get("TasksPromoteToBackgroundResult"))
+        tasks_remove_request = TasksRemoveRequest.from_dict(obj.get("TasksRemoveRequest"))
+        tasks_remove_result = TasksRemoveResult.from_dict(obj.get("TasksRemoveResult"))
+        tasks_start_agent_request = TasksStartAgentRequest.from_dict(obj.get("TasksStartAgentRequest"))
+        tasks_start_agent_result = TasksStartAgentResult.from_dict(obj.get("TasksStartAgentResult"))
         tool = Tool.from_dict(obj.get("Tool"))
         tool_call_result = ToolCallResult.from_dict(obj.get("ToolCallResult"))
         tool_list = ToolList.from_dict(obj.get("ToolList"))
@@ -4783,7 +5375,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, tool, tool_call_result, tool_list, tools_handle_pending_tool_call, tools_handle_pending_tool_call_request, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_usage, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_call_result, tool_list, tools_handle_pending_tool_call, tools_handle_pending_tool_call_request, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_usage, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -4938,6 +5530,23 @@ class RPC:
         result["SkillsDisableRequest"] = to_class(SkillsDisableRequest, self.skills_disable_request)
         result["SkillsDiscoverRequest"] = to_class(SkillsDiscoverRequest, self.skills_discover_request)
         result["SkillsEnableRequest"] = to_class(SkillsEnableRequest, self.skills_enable_request)
+        result["TaskAgentInfo"] = to_class(TaskAgentInfo, self.task_agent_info)
+        result["TaskAgentInfoExecutionMode"] = to_enum(TaskInfoExecutionMode, self.task_agent_info_execution_mode)
+        result["TaskAgentInfoStatus"] = to_enum(TaskInfoStatus, self.task_agent_info_status)
+        result["TaskInfo"] = to_class(TaskInfo, self.task_info)
+        result["TaskList"] = to_class(TaskList, self.task_list)
+        result["TasksCancelRequest"] = to_class(TasksCancelRequest, self.tasks_cancel_request)
+        result["TasksCancelResult"] = to_class(TasksCancelResult, self.tasks_cancel_result)
+        result["TaskShellInfo"] = to_class(TaskShellInfo, self.task_shell_info)
+        result["TaskShellInfoAttachmentMode"] = to_enum(TaskShellInfoAttachmentMode, self.task_shell_info_attachment_mode)
+        result["TaskShellInfoExecutionMode"] = to_enum(TaskInfoExecutionMode, self.task_shell_info_execution_mode)
+        result["TaskShellInfoStatus"] = to_enum(TaskInfoStatus, self.task_shell_info_status)
+        result["TasksPromoteToBackgroundRequest"] = to_class(TasksPromoteToBackgroundRequest, self.tasks_promote_to_background_request)
+        result["TasksPromoteToBackgroundResult"] = to_class(TasksPromoteToBackgroundResult, self.tasks_promote_to_background_result)
+        result["TasksRemoveRequest"] = to_class(TasksRemoveRequest, self.tasks_remove_request)
+        result["TasksRemoveResult"] = to_class(TasksRemoveResult, self.tasks_remove_result)
+        result["TasksStartAgentRequest"] = to_class(TasksStartAgentRequest, self.tasks_start_agent_request)
+        result["TasksStartAgentResult"] = to_class(TasksStartAgentResult, self.tasks_start_agent_result)
         result["Tool"] = to_class(Tool, self.tool)
         result["ToolCallResult"] = to_class(ToolCallResult, self.tool_call_result)
         result["ToolList"] = to_class(ToolList, self.tool_list)
@@ -5269,6 +5878,36 @@ class AgentApi:
 
 
 # Experimental: this API group is experimental and may change or be removed.
+class TasksApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def start_agent(self, params: TasksStartAgentRequest, *, timeout: float | None = None) -> TasksStartAgentResult:
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return TasksStartAgentResult.from_dict(await self._client.request("session.tasks.startAgent", params_dict, **_timeout_kwargs(timeout)))
+
+    async def list(self, *, timeout: float | None = None) -> TaskList:
+        return TaskList.from_dict(await self._client.request("session.tasks.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+
+    async def promote_to_background(self, params: TasksPromoteToBackgroundRequest, *, timeout: float | None = None) -> TasksPromoteToBackgroundResult:
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return TasksPromoteToBackgroundResult.from_dict(await self._client.request("session.tasks.promoteToBackground", params_dict, **_timeout_kwargs(timeout)))
+
+    async def cancel(self, params: TasksCancelRequest, *, timeout: float | None = None) -> TasksCancelResult:
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return TasksCancelResult.from_dict(await self._client.request("session.tasks.cancel", params_dict, **_timeout_kwargs(timeout)))
+
+    async def remove(self, params: TasksRemoveRequest, *, timeout: float | None = None) -> TasksRemoveResult:
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return TasksRemoveResult.from_dict(await self._client.request("session.tasks.remove", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
 class SkillsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -5472,6 +6111,7 @@ class SessionRpc:
         self.instructions = InstructionsApi(client, session_id)
         self.fleet = FleetApi(client, session_id)
         self.agent = AgentApi(client, session_id)
+        self.tasks = TasksApi(client, session_id)
         self.skills = SkillsApi(client, session_id)
         self.mcp = McpApi(client, session_id)
         self.plugins = PluginsApi(client, session_id)
