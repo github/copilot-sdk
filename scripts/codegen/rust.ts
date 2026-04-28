@@ -38,6 +38,18 @@ const execFileAsync = promisify(execFile);
 
 const GENERATED_DIR = path.join(REPO_ROOT, "rust/src/generated");
 
+/**
+ * JSON property names that should be emitted as a hand-authored newtype rather
+ * than `String`. The newtype is `#[serde(transparent)]`, so the wire format is
+ * unchanged. Add new entries sparingly — these only fire when a schema field
+ * has type `string` and an exact-match name in this map.
+ */
+const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
+	sessionId: "SessionId",
+	remoteSessionId: "SessionId",
+	requestId: "RequestId",
+};
+
 // ── Naming helpers ──────────────────────────────────────────────────────────
 
 function toPascalCase(s: string): string {
@@ -402,7 +414,11 @@ function resolveRustType(
 	}
 
 	// Primitive types
-	if (schemaType === "string") return wrapOption("String", isRequired);
+	if (schemaType === "string") {
+		const newtype = STRING_NEWTYPE_OVERRIDES[jsonPropName];
+		if (newtype) return wrapOption(newtype, isRequired);
+		return wrapOption("String", isRequired);
+	}
 	if (schemaType === "number") return wrapOption("f64", isRequired);
 	if (schemaType === "integer") return wrapOption("i64", isRequired);
 	if (schemaType === "boolean") return wrapOption("bool", isRequired);
@@ -771,6 +787,8 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	out.push("");
 	out.push("use serde::{Deserialize, Serialize};");
 	out.push("");
+	out.push("use crate::types::{RequestId, SessionId};");
+	out.push("");
 
 	// SessionEventType enum
 	out.push(typeEnumLines.join("\n"));
@@ -917,6 +935,8 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	out.push("use std::collections::HashMap;");
 	out.push("");
 	out.push("use serde::{Deserialize, Serialize};");
+	out.push("");
+	out.push("use crate::types::{RequestId, SessionId};");
 	out.push("");
 
 	// Method constants

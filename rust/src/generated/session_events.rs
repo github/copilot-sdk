@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::types::{RequestId, SessionId};
+
 /// Identifies the kind of session event.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SessionEventType {
@@ -400,7 +402,7 @@ pub struct SessionStartData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
     /// Unique identifier for the session
-    pub session_id: String,
+    pub session_id: SessionId,
     /// ISO 8601 timestamp when the session was created
     pub start_time: String,
     /// Schema version number for the session event format
@@ -577,7 +579,7 @@ pub struct SessionHandoffData {
     pub host: Option<String>,
     /// Session ID of the remote session being handed off
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub remote_session_id: Option<String>,
+    pub remote_session_id: Option<SessionId>,
     /// Repository context for the handed-off session
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<HandoffRepository>,
@@ -856,7 +858,7 @@ pub struct SessionCompactionCompleteData {
     pub pre_compaction_tokens: Option<f64>,
     /// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_id: Option<String>,
+    pub request_id: Option<RequestId>,
     /// Whether compaction completed successfully
     pub success: bool,
     /// LLM-generated summary of the compacted conversation history
@@ -1022,7 +1024,7 @@ pub struct AssistantMessageData {
     pub reasoning_text: Option<String>,
     /// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_id: Option<String>,
+    pub request_id: Option<RequestId>,
     /// Tool invocations requested by the assistant in this message
     #[serde(default)]
     pub tool_requests: Vec<AssistantMessageToolRequest>,
@@ -1826,7 +1828,7 @@ pub struct PermissionRequestedData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_request: Option<PermissionPromptRequest>,
     /// Unique identifier for this permission request; used to respond via session.respondToPermission()
-    pub request_id: String,
+    pub request_id: RequestId,
     /// When true, this permission was already resolved by a permissionRequest hook and requires no client action
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolved_by_hook: Option<bool>,
@@ -1845,7 +1847,7 @@ pub struct PermissionCompletedResult {
 #[serde(rename_all = "camelCase")]
 pub struct PermissionCompletedData {
     /// Request ID of the resolved permission request; clients should dismiss any UI for this request
-    pub request_id: String,
+    pub request_id: RequestId,
     /// The result of the permission request
     pub result: PermissionCompletedResult,
     /// Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts
@@ -1866,7 +1868,7 @@ pub struct UserInputRequestedData {
     /// The question or prompt to present to the user
     pub question: String,
     /// Unique identifier for this input request; used to respond via session.respondToUserInput()
-    pub request_id: String,
+    pub request_id: RequestId,
     /// The LLM-assigned tool call ID that triggered this request; used by remote UIs to correlate responses
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -1880,7 +1882,7 @@ pub struct UserInputCompletedData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub answer: Option<String>,
     /// Request ID of the resolved user input request; clients should dismiss any UI for this request
-    pub request_id: String,
+    pub request_id: RequestId,
     /// Whether the answer was typed as free-form text rather than selected from choices
     #[serde(skip_serializing_if = "Option::is_none")]
     pub was_freeform: Option<bool>,
@@ -1915,7 +1917,7 @@ pub struct ElicitationRequestedData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requested_schema: Option<ElicitationRequestedSchema>,
     /// Unique identifier for this elicitation request; used to respond via session.respondToElicitation()
-    pub request_id: String,
+    pub request_id: RequestId,
     /// Tool call ID from the LLM completion; used to correlate with CompletionChunk.toolCall.id for remote UIs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -1935,7 +1937,7 @@ pub struct ElicitationCompletedData {
     #[serde(default)]
     pub content: HashMap<String, serde_json::Value>,
     /// Request ID of the resolved elicitation request; clients should dismiss any UI for this request
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 /// Sampling request from an MCP server; contains the server name and a requestId for correlation
@@ -1945,7 +1947,7 @@ pub struct SamplingRequestedData {
     /// The JSON-RPC request ID from the MCP protocol
     pub mcp_request_id: serde_json::Value,
     /// Unique identifier for this sampling request; used to respond via session.respondToSampling()
-    pub request_id: String,
+    pub request_id: RequestId,
     /// Name of the MCP server that initiated the sampling request
     pub server_name: String,
 }
@@ -1955,7 +1957,7 @@ pub struct SamplingRequestedData {
 #[serde(rename_all = "camelCase")]
 pub struct SamplingCompletedData {
     /// Request ID of the resolved sampling request; clients should dismiss any UI for this request
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 /// Static OAuth client configuration, if the server specifies one
@@ -1974,7 +1976,7 @@ pub struct McpOauthRequiredStaticClientConfig {
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthRequiredData {
     /// Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth()
-    pub request_id: String,
+    pub request_id: RequestId,
     /// Display name of the MCP server that requires OAuth
     pub server_name: String,
     /// URL of the MCP server that requires OAuth
@@ -1989,7 +1991,7 @@ pub struct McpOauthRequiredData {
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthCompletedData {
     /// Request ID of the resolved OAuth request
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 /// External tool invocation request for client-side tool execution
@@ -2000,9 +2002,9 @@ pub struct ExternalToolRequestedData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<serde_json::Value>,
     /// Unique identifier for this request; used to respond via session.respondToExternalTool()
-    pub request_id: String,
+    pub request_id: RequestId,
     /// Session ID that this external tool request belongs to
-    pub session_id: String,
+    pub session_id: SessionId,
     /// Tool call ID assigned to this external tool invocation
     pub tool_call_id: String,
     /// Name of the external tool to invoke
@@ -2020,7 +2022,7 @@ pub struct ExternalToolRequestedData {
 #[serde(rename_all = "camelCase")]
 pub struct ExternalToolCompletedData {
     /// Request ID of the resolved external tool request; clients should dismiss any UI for this request
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 /// Queued slash command dispatch request for client execution
@@ -2030,7 +2032,7 @@ pub struct CommandQueuedData {
     /// The slash command text to be executed (e.g., /help, /clear)
     pub command: String,
     /// Unique identifier for this request; used to respond via session.respondToQueuedCommand()
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 /// Registered command dispatch request routed to the owning client
@@ -2044,7 +2046,7 @@ pub struct CommandExecuteData {
     /// Command name without leading /
     pub command_name: String,
     /// Unique identifier; used to respond via session.commands.handlePendingCommand()
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 /// Queued command completion notification signaling UI dismissal
@@ -2052,7 +2054,7 @@ pub struct CommandExecuteData {
 #[serde(rename_all = "camelCase")]
 pub struct CommandCompletedData {
     /// Request ID of the resolved command request; clients should dismiss any UI for this request
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 /// Auto mode switch request notification requiring user approval
@@ -2063,7 +2065,7 @@ pub struct AutoModeSwitchRequestedData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
     /// Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 /// Auto mode switch completion notification
@@ -2071,7 +2073,7 @@ pub struct AutoModeSwitchRequestedData {
 #[serde(rename_all = "camelCase")]
 pub struct AutoModeSwitchCompletedData {
     /// Request ID of the resolved request; clients should dismiss any UI for this request
-    pub request_id: String,
+    pub request_id: RequestId,
     /// The user's choice: 'yes', 'yes_always', or 'no'
     pub response: String,
 }
@@ -2121,7 +2123,7 @@ pub struct ExitPlanModeRequestedData {
     /// The recommended action for the user to take
     pub recommended_action: String,
     /// Unique identifier for this request; used to respond via session.respondToExitPlanMode()
-    pub request_id: String,
+    pub request_id: RequestId,
     /// Summary of the plan that was created
     pub summary: String,
 }
@@ -2140,7 +2142,7 @@ pub struct ExitPlanModeCompletedData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feedback: Option<String>,
     /// Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request
-    pub request_id: String,
+    pub request_id: RequestId,
     /// Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only')
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_action: Option<String>,

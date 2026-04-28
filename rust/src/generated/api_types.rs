@@ -6,6 +6,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::types::{RequestId, SessionId};
+
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
     /// `ping`
@@ -248,7 +250,7 @@ pub struct CommandsHandlePendingCommandRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
     /// Request ID from the command invocation event
-    pub request_id: String,
+    pub request_id: RequestId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -968,7 +970,7 @@ pub struct PermissionDecisionUserNotAvailable {
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDecisionRequest {
     /// Request ID of the pending permission request
-    pub request_id: String,
+    pub request_id: RequestId,
     pub result: PermissionDecision,
 }
 
@@ -1303,7 +1305,7 @@ pub struct SessionFsWriteFileRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SessionsForkRequest {
     /// Source session ID to fork from
-    pub session_id: String,
+    pub session_id: SessionId,
     /// Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_event_id: Option<String>,
@@ -1313,7 +1315,7 @@ pub struct SessionsForkRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SessionsForkResult {
     /// The new forked session's ID
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1458,7 +1460,7 @@ pub struct ToolsHandlePendingToolCallRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
     /// Request ID of the pending tool call
-    pub request_id: String,
+    pub request_id: RequestId,
     /// Tool call result (string or expanded result object)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
@@ -1651,7 +1653,7 @@ pub struct UIElicitationStringOneOfField {
 #[serde(rename_all = "camelCase")]
 pub struct UIHandlePendingElicitationRequest {
     /// The unique request ID from the elicitation.requested event
-    pub request_id: String,
+    pub request_id: RequestId,
     /// The elicitation response (accept with form values, decline, or cancel)
     pub result: UIElicitationResponse,
 }
@@ -1838,7 +1840,7 @@ pub struct SkillsDiscoverResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionAuthGetStatusParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1867,7 +1869,7 @@ pub struct SessionAuthGetStatusResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelGetCurrentParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1890,14 +1892,14 @@ pub struct SessionModelSwitchToResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionModeGetParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionNameGetParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1911,7 +1913,7 @@ pub struct SessionNameGetResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionPlanReadParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1929,14 +1931,14 @@ pub struct SessionPlanReadResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionPlanDeleteParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionWorkspacesGetWorkspaceParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1991,7 +1993,7 @@ pub struct SessionWorkspacesGetWorkspaceResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionWorkspacesListFilesParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2012,7 +2014,7 @@ pub struct SessionWorkspacesReadFileResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionInstructionsGetSourcesParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2033,7 +2035,7 @@ pub struct SessionFleetStartResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionAgentListParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2047,7 +2049,7 @@ pub struct SessionAgentListResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionAgentGetCurrentParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2068,14 +2070,14 @@ pub struct SessionAgentSelectResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionAgentDeselectParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionAgentReloadParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2089,7 +2091,7 @@ pub struct SessionAgentReloadResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionSkillsListParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2103,14 +2105,14 @@ pub struct SessionSkillsListResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionSkillsReloadParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpListParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2124,7 +2126,7 @@ pub struct SessionMcpListResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpReloadParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2139,7 +2141,7 @@ pub struct SessionMcpOauthLoginResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionPluginsListParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2153,7 +2155,7 @@ pub struct SessionPluginsListResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionExtensionsListParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2167,7 +2169,7 @@ pub struct SessionExtensionsListResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionExtensionsReloadParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2248,7 +2250,7 @@ pub struct SessionShellKillResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionHistoryCompactParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2276,7 +2278,7 @@ pub struct SessionHistoryTruncateResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionUsageGetMetricsParams {
     /// Target session identifier
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
