@@ -1449,6 +1449,32 @@ pub struct ToolInvocation {
     pub arguments: Value,
 }
 
+impl ToolInvocation {
+    /// Deserialize this invocation's [`arguments`](Self::arguments) into a
+    /// strongly-typed parameter struct.
+    ///
+    /// Idiomatic way to extract typed parameters when implementing
+    /// [`ToolHandler`](crate::tool::ToolHandler) directly. Equivalent to
+    /// `serde_json::from_value(invocation.arguments.clone())` with the SDK's
+    /// error type.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use copilot::{Error, types::ToolInvocation, ToolResult};
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct MyParams { city: String }
+    /// # async fn example(inv: ToolInvocation) -> Result<ToolResult, Error> {
+    /// let params: MyParams = inv.params()?;
+    /// // …use `inv.session_id` / `inv.tool_call_id` alongside `params`…
+    /// # let _ = params; Ok(ToolResult::Text(String::new()))
+    /// # }
+    /// ```
+    pub fn params<P: serde::de::DeserializeOwned>(&self) -> Result<P, crate::Error> {
+        serde_json::from_value(self.arguments.clone()).map_err(crate::Error::from)
+    }
+}
+
 /// Expanded tool result with metadata for the LLM and session log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

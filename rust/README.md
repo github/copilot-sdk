@@ -366,7 +366,7 @@ let router = ToolHandlerRouter::new(
     vec![define_tool(
         "get_weather",
         "Get weather for a city",
-        |params: GetWeatherParams| async move {
+        |_inv, params: GetWeatherParams| async move {
             Ok(ToolResult::Text(format!("Sunny in {}", params.city)))
         },
     )],
@@ -374,7 +374,9 @@ let router = ToolHandlerRouter::new(
 );
 ```
 
-Use `define_tool` for quick one-liners and the `ToolHandler` trait when you need invocation metadata or shared state.
+The closure receives the full [`ToolInvocation`](crate::types::ToolInvocation) alongside the deserialized parameters, so handlers that need `inv.session_id` or `inv.tool_call_id` for telemetry, streaming updates, or scoped lookups can use them directly. Use `_inv` when you don't need the metadata.
+
+Reach for the `ToolHandler` trait directly when you need shared state across multiple methods or want a named type that shows up by name in stack traces.
 
 ### Permission Policies
 

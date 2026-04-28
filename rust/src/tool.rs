@@ -149,20 +149,22 @@ pub trait ToolHandler: Send + Sync {
 /// [`ToolHandlerRouter::new`]. JSON Schema for the parameter type is generated
 /// via [`schema_for`] at construction time.
 ///
-/// The handler bound (`Fn(P) -> Fut + Send + Sync + 'static`) accepts both
-/// bare `async fn` items and closures — the same shape as
+/// The handler bound (`Fn(ToolInvocation, P) -> Fut + Send + Sync + 'static`)
+/// accepts both bare `async fn` items and closures — the same shape as
 /// [`tower::service_fn`][tower-service-fn] and
 /// [`hyper::service::service_fn`][hyper-service-fn]. Prefer a free `async fn`
 /// for non-trivial tools so it shows up in stack traces by name.
 ///
-/// For tools that need access to the raw [`ToolInvocation`] (invocation id,
-/// correlation metadata) or that build their schema dynamically, implement
-/// [`ToolHandler`] by hand instead.
+/// The closure receives the full [`ToolInvocation`] alongside the deserialized
+/// parameters so handlers can use `inv.session_id`, `inv.tool_call_id`, or
+/// other invocation metadata. Handlers that don't need that metadata can
+/// destructure with `|_inv, params|`.
 ///
 /// # Example
 ///
 /// ```rust,no_run
 /// use copilot::tool::{define_tool, JsonSchema};
+/// use copilot::types::ToolInvocation;
 /// use copilot::{Error, ToolResult};
 /// use serde::Deserialize;
 ///
@@ -172,7 +174,13 @@ pub trait ToolHandler: Send + Sync {
 ///     city: String,
 /// }
 ///
-/// async fn get_weather(params: GetWeatherParams) -> Result<ToolResult, Error> {
+/// async fn get_weather(
+///     inv: ToolInvocation,
+///     params: GetWeatherParams,
+/// ) -> Result<ToolResult, Error> {
+///     // `inv.session_id` and `inv.tool_call_id` are available for telemetry,
+///     // streaming updates, scoping DB lookups, etc.
+///     let _ = inv.session_id;
 ///     Ok(ToolResult::Text(format!("Sunny in {}", params.city)))
 /// }
 ///
@@ -183,7 +191,7 @@ pub trait ToolHandler: Send + Sync {
 /// let tool = define_tool(
 ///     "echo",
 ///     "Echo the input",
-///     |params: GetWeatherParams| async move {
+///     |_inv, params: GetWeatherParams| async move {
 ///         Ok(ToolResult::Text(params.city))
 ///     },
 /// );
@@ -200,7 +208,7 @@ pub fn define_tool<P, F, Fut>(
 ) -> Box<dyn ToolHandler>
 where
     P: schemars::JsonSchema + serde::de::DeserializeOwned + Send + 'static,
-    F: Fn(P) -> Fut + Send + Sync + 'static,
+    F: Fn(ToolInvocation, P) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = Result<ToolResult, Error>> + Send + 'static,
 {
     struct FnTool<P, F> {
@@ -215,7 +223,7 @@ where
     impl<P, F, Fut> ToolHandler for FnTool<P, F>
     where
         P: schemars::JsonSchema + serde::de::DeserializeOwned + Send + 'static,
-        F: Fn(P) -> Fut + Send + Sync + 'static,
+        F: Fn(ToolInvocation, P) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = Result<ToolResult, Error>> + Send + 'static,
     {
         fn tool(&self) -> Tool {
@@ -227,9 +235,10 @@ where
             }
         }
 
-        async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
-            let params: P = serde_json::from_value(invocation.arguments)?;
-            (self.handler)(params).await
+        async fn call(&self, mut invocation: ToolInvocation) -> Result<ToolResult, Error> {
+            let arguments = std::mem::take(&mut invocation.arguments);
+            let params: P = serde_json::from_value(arguments)?;
+            (self.handler)(invocation, params).await
         }
     }
 
@@ -438,7 +447,9 @@ mod tests {
         let tool = define_tool(
             "weather",
             "Get the weather for a city",
-            |params: Params| async move { Ok(ToolResult::Text(format!("sunny in {}", params.city))) },
+            |_inv, params: Params| async move {
+                Ok(ToolResult::Text(format!("sunny in {}", params.city)))
+            },
         );
 
         let def = tool.tool();
