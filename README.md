@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/github-copilot-sdk-badge.png)](https://mseep.ai/app/github-copilot-sdk)
+
 # GitHub Copilot CLI SDKs
 
 ![GitHub Copilot SDK](./assets/RepoHeader_01.png)
