@@ -3,13 +3,13 @@ default:
     @just --list
 
 # Format all code across all languages
-format: format-go format-python format-nodejs format-dotnet
+format: format-go format-python format-nodejs format-dotnet format-rust
 
 # Lint all code across all languages
-lint: lint-go lint-python lint-nodejs lint-dotnet
+lint: lint-go lint-python lint-nodejs lint-dotnet lint-rust
 
 # Run tests for all languages
-test: test-go test-python test-nodejs test-dotnet test-corrections
+test: test-go test-python test-nodejs test-dotnet test-rust test-corrections
 
 # Format Go code
 format-go:
@@ -70,6 +70,27 @@ test-nodejs:
 test-dotnet:
     @echo "=== Testing .NET code ==="
     @cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj
+
+# Format Rust code (uses nightly for unstable formatting options)
+format-rust:
+    @echo "=== Formatting Rust code ==="
+    @cd rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
+
+# Lint Rust code
+lint-rust:
+    @echo "=== Linting Rust code ==="
+    @cd rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+    @cd rust && cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+
+# Test Rust code
+test-rust:
+    @echo "=== Testing Rust code ==="
+    @cd rust && cargo test --features test-support
+
+# Generate Rust types from JSON schemas
+generate-rust:
+    @echo "=== Generating Rust types ==="
+    @cd scripts/codegen && npm run generate:rust
 
 # Test correction collection scripts
 test-corrections:

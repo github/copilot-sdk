@@ -1,0 +1,11 @@
+[package]
+name = "tool-overrides-rust"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+copilot-sdk = { path = "../../../../../rust", features = ["derive"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

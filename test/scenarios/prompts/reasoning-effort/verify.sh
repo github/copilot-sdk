@@ -110,6 +110,8 @@ check "Go (build)" bash -c "cd '$SCRIPT_DIR/go' && go build -o reasoning-effort-
 
 # C#: build
 check "C# (build)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet build --nologo -v q 2>&1"
+# Rust: build
+check "Rust (build)" bash -c "cd '$SCRIPT_DIR/rust' && cargo build --quiet 2>&1"
 
 echo "══════════════════════════════════════"
 echo " Phase 2: E2E Run (timeout ${TIMEOUT}s each)"
@@ -127,6 +129,8 @@ run_with_timeout "Go (run)" bash -c "cd '$SCRIPT_DIR/go' && ./reasoning-effort-g
 
 # C#: run
 run_with_timeout "C# (run)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet run --no-build 2>&1"
+# Rust: run
+run_with_timeout "Rust (run)" bash -c "cd '$SCRIPT_DIR/rust' && cargo run --quiet 2>&1"
 
 echo "══════════════════════════════════════"
 echo " Results: $PASS passed, $FAIL failed"

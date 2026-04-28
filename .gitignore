@@ -2,3 +2,7 @@
 # Documentation validation output
 docs/.validation/
 .DS_Store
+
+# Rust scenario build artifacts
+test/scenarios/**/rust/target/
+test/scenarios/**/rust/Cargo.lock

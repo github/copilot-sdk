@@ -1,0 +1,73 @@
+name: "Rust SDK: Publish Release"
+
+# Publishes the `copilot-sdk` crate to crates.io when a release-plz
+# version-bump PR is merged to `main`. release-plz detects that the
+# current HEAD's `Cargo.toml` version is newer than the latest
+# `rust-vX.Y.Z` tag, then runs `cargo publish` and creates the tag +
+# GitHub Release.
+#
+# Does NOTHING on non-release commits — safe to run on every push.
+#
+# ## Setup checklist (one-time, before enabling this workflow)
+#
+# 1. Reserve the `copilot-sdk` crate name on crates.io via the owner
+#    account (the GitHub service account or a human maintainer with
+#    crates.io 2FA).
+# 2. Generate a crates.io API token scoped to publish `copilot-sdk`
+#    only (Account Settings → API Tokens → "New Token" → restrict
+#    crates to `copilot-sdk`).
+# 3. Add it to this repository's secrets as `CARGO_REGISTRY_TOKEN`.
+# 4. Rotate the token annually and whenever maintainers change.
+#
+# Until the setup checklist is complete, this workflow will fail on
+# `cargo publish`. That's intentional — it keeps accidental publishes
+# from happening before the repo is ready.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust/Cargo.toml'
+      - 'rust/Cargo.lock'
+      - 'rust/release-plz.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rust-release-plz-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+
+      - name: Run release-plz release
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+          manifest_path: rust/Cargo.toml
+          config: rust/release-plz.toml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

@@ -9,10 +9,18 @@ on:
     paths:
       - 'scripts/codegen/**'
       - 'nodejs/src/generated/**'
+      - 'nodejs/src/sdkProtocolVersion.ts'
+      - 'nodejs/scripts/update-protocol-version.ts'
       - 'dotnet/src/Generated/**'
+      - 'dotnet/src/SdkProtocolVersion.cs'
       - 'python/copilot/generated/**'
+      - 'python/copilot/_sdk_protocol_version.py'
       - 'go/generated_*.go'
       - 'go/rpc/**'
+      - 'go/sdk_protocol_version.go'
+      - 'rust/src/generated/**'
+      - 'rust/src/sdk_protocol_version.rs'
+      - 'sdk-protocol-version.json'
       - '.github/workflows/codegen-check.yml'
   workflow_dispatch:
 
@@ -34,6 +42,13 @@ jobs:
         with:
           go-version: '1.22'
 
+      # Rust generator runs `cargo fmt` on the output, so we need a toolchain with rustfmt.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt
+
       - name: Install nodejs SDK dependencies
         working-directory: ./nodejs
         run: npm ci
@@ -46,10 +61,14 @@ jobs:
         working-directory: ./scripts/codegen
         run: npm run generate
 
+      - name: Regenerate SDK protocol version constants
+        working-directory: ./nodejs
+        run: npm run update:protocol-version
+
       - name: Check for uncommitted changes
         run: |
           if [ -n "$(git status --porcelain)" ]; then
-            echo "::error::Generated files are out of date. Run 'cd scripts/codegen && npm run generate' and commit the changes."
+            echo "::error::Generated files are out of date. Run 'cd scripts/codegen && npm run generate' and 'cd nodejs && npm run update:protocol-version', then commit the changes."
             git diff --stat
             git diff
             exit 1

@@ -1,0 +1,129 @@
+name: "Rust SDK Tests"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'rust/**'
+      - 'test/**'
+      - 'nodejs/package.json'
+      - '.github/workflows/rust-sdk-tests.yml'
+      - '.github/actions/setup-copilot/**'
+      - '!**/*.md'
+      - '!**/LICENSE*'
+      - '!**/.gitignore'
+      - '!**/.editorconfig'
+      - '!**/*.png'
+      - '!**/*.jpg'
+      - '!**/*.jpeg'
+      - '!**/*.gif'
+      - '!**/*.svg'
+  workflow_dispatch:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: "Rust SDK Tests"
+    env:
+      POWERSHELL_UPDATECHECK: Off
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: ./.github/actions/setup-copilot
+        id: setup-copilot
+
+      # rust-toolchain.toml in rust/ pins the stable channel + components.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt, clippy
+
+      # Nightly rustfmt for unstable format options (group_imports,
+      # imports_granularity, reorder_impl_items) — must match the pin in
+      # github/github-app exactly.
+      - name: Install nightly rustfmt
+        if: runner.os == 'Linux'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+
+      - name: cargo fmt --check (nightly)
+        if: runner.os == 'Linux'
+        run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+
+      - name: cargo clippy
+        if: runner.os == 'Linux'
+        run: cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+
+      - name: cargo doc
+        if: runner.os == 'Linux'
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --no-deps --features test-support
+
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+
+      - name: cargo test
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
+        run: cargo test --features test-support
+
+      # Detects accidental public-API breakage against the crate's last
+      # published version on crates.io. Non-blocking until the crate has
+      # a first published release — once a 0.1.0 ships, flip
+      # `continue-on-error` to `false` to enforce SemVer.
+      - name: cargo semver-checks
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: copilot-sdk
+          manifest-path: rust/Cargo.toml
+
+      # Snapshot the public API surface and fail on any drift from the
+      # checked-in PUBLIC_API.txt. Complements cargo semver-checks: that
+      # tool catches breaking changes against the last *published*
+      # version (crates.io), this one catches *any* surface change
+      # against the last *reviewed* baseline. Regenerate locally with:
+      #   cargo public-api -sss --features derive,test-support > PUBLIC_API.txt
+      - name: cargo public-api diff
+        if: runner.os == 'Linux'
+        run: |
+          cargo install --locked --quiet cargo-public-api
+          cargo public-api -sss --features derive,test-support > PUBLIC_API.txt.new
+          if ! diff -u PUBLIC_API.txt PUBLIC_API.txt.new; then
+            echo "::error::Public API surface changed. Review the diff above and"
+            echo "::error::regenerate the baseline with:"
+            echo "::error::  cargo public-api -sss --features derive,test-support > rust/PUBLIC_API.txt"
+            exit 1
+          fi

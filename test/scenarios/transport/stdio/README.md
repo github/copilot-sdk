@@ -23,6 +23,7 @@ Each sample follows the same flow:
 | `typescript/` | `@github/copilot-sdk` | TypeScript (Node.js) |
 | `python/` | `github-copilot-sdk` | Python |
 | `go/` | `github.com/github/copilot-sdk/go` | Go |
+| `rust/` | `copilot-sdk` | Rust |
 
 ## Prerequisites
 

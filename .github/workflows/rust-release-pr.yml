@@ -1,0 +1,56 @@
+name: "Rust SDK: Create Release PR"
+
+# release-plz opens a PR that bumps the `copilot-sdk` version in
+# `rust/Cargo.toml` and updates `rust/CHANGELOG.md` based on
+# conventional-commit history since the last `rust-vX.Y.Z` tag.
+#
+# Review and merge that PR on the maintainer's schedule. Publishing to
+# crates.io happens separately in `rust-publish-release.yml` once the
+# version bump lands on `main`.
+#
+# Runs manually only — we don't want a PR to race with every push.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: rust-release-plz-pr
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+
+      - name: Run release-plz release-pr
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+          manifest_path: rust/Cargo.toml
+          config: rust/release-plz.toml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # CARGO_REGISTRY_TOKEN is not required for release-pr (no publish),
+          # but release-plz inspects the crate on crates.io to compute the
+          # next version. Public crate inspection doesn't need auth.
