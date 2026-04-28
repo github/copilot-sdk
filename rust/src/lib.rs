@@ -726,7 +726,7 @@ impl Client {
     /// doesn't report a version, logs a warning and succeeds (backward
     /// compatibility with older CLI versions).
     pub async fn verify_protocol_version(&self) -> Result<(), Error> {
-        let response = self.ping("").await?;
+        let response = self.ping(None).await?;
         let server_version = response.protocol_version;
 
         match server_version {
@@ -759,14 +759,17 @@ impl Client {
 
     /// Send a `ping` RPC and return the typed [`PingResponse`].
     ///
-    /// The `message` is echoed back by the server. Mirrors Go's
-    /// `Client.Ping(ctx, message)`.
+    /// Pass `Some(message)` to have the server echo it back; pass `None` for
+    /// a bare health check. The response includes a `protocolVersion` when
+    /// the CLI reports one.
     ///
     /// [`PingResponse`]: crate::types::PingResponse
-    pub async fn ping(&self, message: &str) -> Result<crate::types::PingResponse, Error> {
-        let value = self
-            .call("ping", Some(serde_json::json!({ "message": message })))
-            .await?;
+    pub async fn ping(&self, message: Option<&str>) -> Result<crate::types::PingResponse, Error> {
+        let params = match message {
+            Some(m) => serde_json::json!({ "message": m }),
+            None => serde_json::json!({}),
+        };
+        let value = self.call("ping", Some(params)).await?;
         Ok(serde_json::from_value(value)?)
     }
 

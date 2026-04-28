@@ -25,7 +25,7 @@ async fn start_ping_stop() {
         .expect("protocol version not negotiated");
     assert!((2..=SDK_PROTOCOL_VERSION).contains(&version));
 
-    client.ping("").await.expect("ping failed");
+    client.ping(None).await.expect("ping failed");
     client.stop().await.expect("stop failed");
 }
 
@@ -65,7 +65,7 @@ async fn cli_operation_latency() {
 
     // Warm ping: RPC round-trip on an already-running process
     let t1 = Instant::now();
-    client.ping("").await.expect("warm ping failed");
+    client.ping(None).await.expect("warm ping failed");
     let warm_ping = t1.elapsed();
 
     // list_models: RPC that fetches available models from the CLI
