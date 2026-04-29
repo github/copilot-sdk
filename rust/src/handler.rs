@@ -505,6 +505,8 @@ mod tests {
                     tool_call_id: "tc1".to_string(),
                     tool_name: "missing".to_string(),
                     arguments: Value::Null,
+                    traceparent: None,
+                    tracestate: None,
                 },
             })
             .await;

@@ -24,13 +24,14 @@ use crate::handler::{
 };
 use crate::hooks::SessionHooks;
 use crate::session_fs::SessionFsProvider;
+use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
     PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
     SessionConfig, SessionEvent, SessionId, SessionTelemetryEvent, SetModelOptions,
-    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultResponse,
+    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultResponse, TraceContext,
     ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
@@ -209,6 +210,15 @@ impl Session {
         {
             params["requestHeaders"] = serde_json::to_value(headers)?;
         }
+        let trace_ctx = if opts.traceparent.is_some() || opts.tracestate.is_some() {
+            TraceContext {
+                traceparent: opts.traceparent,
+                tracestate: opts.tracestate,
+            }
+        } else {
+            self.client.resolve_trace_context().await
+        };
+        inject_trace_context(&mut params, &trace_ctx);
         let result = self.client.call("session.send", Some(params)).await?;
         let message_id = result
             .get("messageId")
@@ -712,7 +722,9 @@ impl Client {
         if let Some(ref transforms) = transforms {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
-        let params = serde_json::to_value(&config)?;
+        let mut params = serde_json::to_value(&config)?;
+        let trace_ctx = self.resolve_trace_context().await;
+        inject_trace_context(&mut params, &trace_ctx);
         let result = self.call("session.create", Some(params)).await?;
         let create_result: CreateSessionResult = serde_json::from_value(result)?;
 
@@ -781,7 +793,9 @@ impl Client {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
         let session_id = config.session_id.clone();
-        let params = serde_json::to_value(&config)?;
+        let mut params = serde_json::to_value(&config)?;
+        let trace_ctx = self.resolve_trace_context().await;
+        inject_trace_context(&mut params, &trace_ctx);
         let result = self.call("session.resume", Some(params)).await?;
 
         // The CLI may reassign the session ID on resume.
@@ -1160,6 +1174,8 @@ async fn handle_notification(
                     arguments: data
                         .arguments
                         .unwrap_or(Value::Object(serde_json::Map::new())),
+                    traceparent: data.traceparent,
+                    tracestate: data.tracestate,
                 };
                 let response = handler
                     .on_event(HandlerEvent::ExternalTool { invocation })

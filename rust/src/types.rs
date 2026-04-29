@@ -18,6 +18,7 @@ pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConfig, SessionFsConventions,
     SessionFsProvider,
 };
+pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;
 
 /// Lifecycle state of a [`Client`](crate::Client) connection to the CLI.
@@ -1633,6 +1634,18 @@ pub struct MessageOptions {
     /// `MessageOptions.RequestHeaders`. When `None` or empty, no
     /// `requestHeaders` field is sent on the wire.
     pub request_headers: Option<HashMap<String, String>>,
+    /// W3C Trace Context `traceparent` header for this turn.
+    ///
+    /// Per-turn override that takes precedence over
+    /// [`ClientOptions::on_get_trace_context`](crate::ClientOptions::on_get_trace_context).
+    /// When `None`, the SDK falls back to the provider (if configured)
+    /// before omitting the field. Mirrors Go's `MessageOptions.Traceparent`.
+    pub traceparent: Option<String>,
+    /// W3C Trace Context `tracestate` header for this turn.
+    ///
+    /// Per-turn override paired with [`traceparent`](Self::traceparent).
+    /// Mirrors Go's `MessageOptions.Tracestate`.
+    pub tracestate: Option<String>,
 }
 
 impl MessageOptions {
@@ -1644,6 +1657,8 @@ impl MessageOptions {
             attachments: None,
             wait_timeout: None,
             request_headers: None,
+            traceparent: None,
+            tracestate: None,
         }
     }
 
@@ -1668,6 +1683,28 @@ impl MessageOptions {
     /// Set custom HTTP headers for outbound model requests for this turn.
     pub fn with_request_headers(mut self, headers: HashMap<String, String>) -> Self {
         self.request_headers = Some(headers);
+        self
+    }
+
+    /// Set both `traceparent` and `tracestate` from a [`TraceContext`].
+    /// Either field may remain `None` if the [`TraceContext`] has no value
+    /// for it. Use [`with_traceparent`](Self::with_traceparent) or
+    /// [`with_tracestate`](Self::with_tracestate) to set them individually.
+    pub fn with_trace_context(mut self, ctx: TraceContext) -> Self {
+        self.traceparent = ctx.traceparent;
+        self.tracestate = ctx.tracestate;
+        self
+    }
+
+    /// Set the W3C `traceparent` header for this turn.
+    pub fn with_traceparent(mut self, traceparent: impl Into<String>) -> Self {
+        self.traceparent = Some(traceparent.into());
+        self
+    }
+
+    /// Set the W3C `tracestate` header for this turn.
+    pub fn with_tracestate(mut self, tracestate: impl Into<String>) -> Self {
+        self.tracestate = Some(tracestate.into());
         self
     }
 }
@@ -1770,6 +1807,7 @@ impl SessionEvent {
 /// must respond with a [`ToolResultResponse`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ToolInvocation {
     /// Session that owns this tool call.
     pub session_id: SessionId,
@@ -1779,6 +1817,16 @@ pub struct ToolInvocation {
     pub tool_name: String,
     /// Tool arguments as JSON.
     pub arguments: Value,
+    /// W3C Trace Context `traceparent` header propagated from the CLI's
+    /// `execute_tool` span. Pass through to OpenTelemetry-aware code so
+    /// child spans created inside the handler are parented to the CLI
+    /// span. `None` when the CLI has no trace context for this call.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
+    /// W3C Trace Context `tracestate` paired with
+    /// [`traceparent`](Self::traceparent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tracestate: Option<String>,
 }
 
 impl ToolInvocation {
@@ -1804,6 +1852,15 @@ impl ToolInvocation {
     /// ```
     pub fn params<P: serde::de::DeserializeOwned>(&self) -> Result<P, crate::Error> {
         serde_json::from_value(self.arguments.clone()).map_err(crate::Error::from)
+    }
+
+    /// Returns the propagated [`TraceContext`] for this invocation, or
+    /// [`TraceContext::default()`] when the CLI sent no headers.
+    pub fn trace_context(&self) -> TraceContext {
+        TraceContext {
+            traceparent: self.traceparent.clone(),
+            tracestate: self.tracestate.clone(),
+        }
     }
 }
 

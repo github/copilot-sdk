@@ -425,6 +425,8 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "echo".to_string(),
             arguments: serde_json::json!({"msg": "hello"}),
+            traceparent: None,
+            tracestate: None,
         };
 
         let result = tool.call(inv).await.unwrap();
@@ -463,6 +465,8 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "weather".to_string(),
             arguments: serde_json::json!({"city": "Seattle"}),
+            traceparent: None,
+            tracestate: None,
         };
         match tool.call(inv).await.unwrap() {
             ToolResult::Text(s) => assert_eq!(s, "sunny in Seattle"),
@@ -524,6 +528,8 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "tool_b".to_string(),
                 arguments: serde_json::json!({}),
+                traceparent: None,
+                tracestate: None,
             })
             .await;
         match response {
@@ -558,6 +564,8 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "unknown".to_string(),
                 arguments: serde_json::json!({}),
+                traceparent: None,
+                tracestate: None,
             })
             .await;
         assert!(fallback.called.load(Ordering::Relaxed));
@@ -602,6 +610,8 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "bad_tool".to_string(),
                 arguments: serde_json::json!({}),
+                traceparent: None,
+                tracestate: None,
             })
             .await;
         match response {
@@ -680,6 +690,8 @@ mod tests {
                     tool_call_id: "tc1".to_string(),
                     tool_name: "ok_tool".to_string(),
                     arguments: serde_json::json!({}),
+                    traceparent: None,
+                    tracestate: None,
                 },
             })
             .await;
@@ -763,6 +775,8 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"city": "Seattle", "unit": "celsius"}),
+                traceparent: None,
+                tracestate: None,
             };
 
             let result = tool.call(inv).await.unwrap();
@@ -780,6 +794,8 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"wrong_field": 42}),
+                traceparent: None,
+                tracestate: None,
             };
 
             let err = tool.call(inv).await.unwrap_err();
@@ -803,6 +819,8 @@ mod tests {
                     tool_call_id: "tc1".to_string(),
                     tool_name: "get_weather".to_string(),
                     arguments: serde_json::json!({"city": "Portland"}),
+                    traceparent: None,
+                    tracestate: None,
                 })
                 .await;
             match response {

@@ -241,6 +241,21 @@ public surface.
   Diverges from Node/Python/Go's factory-closure pattern in favor of
   direct `Arc<dyn SessionFsProvider>` registration — see
   `docs/adr/0001-session-fs-provider.md` for the rationale.
+- W3C Trace Context propagation: new [`TraceContext`] struct and
+  [`TraceContextProvider`] async trait in `crate::trace_context` (also
+  re-exported from `crate::types`). Hybrid shape combines Node's
+  callback-based `onGetTraceContext` and Go's per-turn
+  `MessageOptions.Traceparent` / `Tracestate`:
+  [`ClientOptions::on_get_trace_context`] supplies an ambient provider that
+  injects `traceparent` / `tracestate` on `session.create`,
+  `session.resume`, and `session.send`, while
+  [`MessageOptions::with_traceparent`], [`MessageOptions::with_tracestate`],
+  and [`MessageOptions::with_trace_context`] override per-turn (override
+  wins; provider is not invoked when MessageOptions carries trace headers).
+  [`ToolInvocation`] is now `#[non_exhaustive]` and exposes inbound
+  `traceparent` / `tracestate` populated from `external_tool.requested`
+  events, plus a [`ToolInvocation::trace_context`] helper. Wire fields are
+  omitted when unset (matches Node/Go `omitempty` semantics).
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.

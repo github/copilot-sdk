@@ -24,6 +24,8 @@ mod session_fs_dispatch;
 pub mod subscription;
 /// Typed tool definition framework and dispatch router.
 pub mod tool;
+/// W3C Trace Context propagation for distributed tracing.
+pub mod trace_context;
 /// System message transform callbacks for customizing agent prompts.
 pub mod transforms;
 /// Protocol types shared between the SDK and the Copilot CLI.
@@ -355,6 +357,17 @@ pub struct ClientOptions {
     /// [`SessionConfig::with_session_fs_provider`](crate::SessionConfig::with_session_fs_provider).
     /// Mirrors Node's `sessionFs` option. See `docs/adr/0001-session-fs-provider.md`.
     pub session_fs: Option<SessionFsConfig>,
+    /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
+    /// headers (`traceparent` / `tracestate`) on outbound `session.create`,
+    /// `session.resume`, and `session.send` requests.
+    ///
+    /// Mirrors Node's `onGetTraceContext` callback. When [`MessageOptions`]
+    /// carries a per-turn override (set via
+    /// [`MessageOptions::with_trace_context`](crate::types::MessageOptions::with_trace_context)
+    /// or the underlying fields), it takes precedence over this provider.
+    ///
+    /// [`MessageOptions`]: crate::types::MessageOptions
+    pub on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -382,6 +395,10 @@ impl std::fmt::Debug for ClientOptions {
                 &self.on_list_models.as_ref().map(|_| "<set>"),
             )
             .field("session_fs", &self.session_fs)
+            .field(
+                "on_get_trace_context",
+                &self.on_get_trace_context.as_ref().map(|_| "<set>"),
+            )
             .finish()
     }
 }
@@ -457,6 +474,7 @@ impl Default for ClientOptions {
             session_idle_timeout_seconds: None,
             on_list_models: None,
             session_fs: None,
+            on_get_trace_context: None,
         }
     }
 }
@@ -507,6 +525,7 @@ struct ClientInner {
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
     on_list_models: Option<Arc<dyn ListModelsHandler>>,
     session_fs_configured: bool,
+    on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -579,6 +598,7 @@ impl Client {
                     options.cwd,
                     options.on_list_models,
                     session_fs_config.is_some(),
+                    options.on_get_trace_context,
                 )?
             }
             Transport::Tcp { port } => {
@@ -593,6 +613,7 @@ impl Client {
                     options.cwd,
                     options.on_list_models,
                     session_fs_config.is_some(),
+                    options.on_get_trace_context,
                 )?
             }
             Transport::Stdio => {
@@ -607,6 +628,7 @@ impl Client {
                     options.cwd,
                     options.on_list_models,
                     session_fs_config.is_some(),
+                    options.on_get_trace_context,
                 )?
             }
         };
@@ -642,7 +664,24 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false)
+        Self::from_transport(reader, writer, None, cwd, None, false, None)
+    }
+
+    /// Construct a [`Client`] from raw streams with a
+    /// [`TraceContextProvider`] preset, for integration testing.
+    ///
+    /// Mirrors [`from_streams`](Self::from_streams) but exposes the
+    /// `on_get_trace_context` plumbing so tests can verify outbound
+    /// `traceparent` / `tracestate` injection on `session.create`,
+    /// `session.resume`, and `session.send`.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn from_streams_with_trace_provider(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        cwd: PathBuf,
+        provider: Arc<dyn TraceContextProvider>,
+    ) -> Result<Self, Error> {
+        Self::from_transport(reader, writer, None, cwd, None, false, Some(provider))
     }
 
     fn from_transport(
@@ -652,6 +691,7 @@ impl Client {
         cwd: PathBuf,
         on_list_models: Option<Arc<dyn ListModelsHandler>>,
         session_fs_configured: bool,
+        on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
     ) -> Result<Self, Error> {
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
         let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
@@ -679,6 +719,7 @@ impl Client {
                 lifecycle_tx: broadcast::channel(256).0,
                 on_list_models,
                 session_fs_configured,
+                on_get_trace_context,
             }),
         };
         client.spawn_lifecycle_dispatcher();
@@ -1182,6 +1223,16 @@ impl Client {
         Ok(self.rpc().models().list().await?.models)
     }
 
+    /// Invoke [`ClientOptions::on_get_trace_context`] when configured,
+    /// otherwise return [`TraceContext::default()`].
+    pub(crate) async fn resolve_trace_context(&self) -> TraceContext {
+        if let Some(provider) = &self.inner.on_get_trace_context {
+            provider.get_trace_context().await
+        } else {
+            TraceContext::default()
+        }
+    }
+
     /// Send a top-level telemetry event via `sendTelemetry`.
     pub async fn send_telemetry(&self, event: ServerTelemetryEvent) -> Result<(), Error> {
         let params = serde_json::to_value(event)?;
@@ -1614,6 +1665,7 @@ mod tests {
             lifecycle_tx: broadcast::channel(16).0,
             on_list_models: Some(handler),
             session_fs_configured: false,
+            on_get_trace_context: None,
         };
         let client = Client {
             inner: Arc::new(inner),

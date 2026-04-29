@@ -2984,3 +2984,339 @@ async fn create_session_errors_when_provider_required_but_missing() {
     let err = github_copilot_sdk::SessionError::SessionFsProviderRequired;
     assert!(format!("{err}").contains("session_fs"));
 }
+
+// ---------- 4.3 trace context tests ----------
+
+struct StaticTraceProvider {
+    ctx: github_copilot_sdk::types::TraceContext,
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl github_copilot_sdk::types::TraceContextProvider for StaticTraceProvider {
+    async fn get_trace_context(&self) -> github_copilot_sdk::types::TraceContext {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        self.ctx.clone()
+    }
+}
+
+fn make_client_with_trace_provider(
+    provider: Arc<dyn github_copilot_sdk::types::TraceContextProvider>,
+) -> (Client, tokio::io::DuplexStream, tokio::io::DuplexStream) {
+    let (client_write, server_read) = duplex(8192);
+    let (server_write, client_read) = duplex(8192);
+    let client = Client::from_streams_with_trace_provider(
+        client_read,
+        client_write,
+        std::env::temp_dir(),
+        provider,
+    )
+    .unwrap();
+    (client, server_read, server_write)
+}
+
+#[tokio::test]
+async fn on_get_trace_context_called_on_session_create() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let provider = Arc::new(StaticTraceProvider {
+        ctx: github_copilot_sdk::types::TraceContext::from_traceparent("00-aaaa-bbbb-01")
+            .with_tracestate("vendor=value"),
+        calls: calls.clone(),
+    });
+    let (client, server_read, server_write) = make_client_with_trace_provider(provider);
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "trace-create".to_string(),
+    };
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
+                .await
+                .unwrap()
+        }
+    });
+
+    let req = server.read_request().await;
+    assert_eq!(req["method"], "session.create");
+    assert_eq!(req["params"]["traceparent"], "00-aaaa-bbbb-01");
+    assert_eq!(req["params"]["tracestate"], "vendor=value");
+    server
+        .respond(
+            &req,
+            serde_json::json!({"sessionId": "trace-create", "workspacePath": "/tmp/ws"}),
+        )
+        .await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn on_get_trace_context_called_on_session_resume() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let provider = Arc::new(StaticTraceProvider {
+        ctx: github_copilot_sdk::types::TraceContext::from_traceparent("00-resume-trace-01"),
+        calls: calls.clone(),
+    });
+    let (client, server_read, server_write) = make_client_with_trace_provider(provider);
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "trace-resume".to_string(),
+    };
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            let cfg = ResumeSessionConfig::new(SessionId::from("trace-resume"))
+                .with_handler(Arc::new(NoopHandler));
+            client.resume_session(cfg).await.unwrap()
+        }
+    });
+
+    // resume sends `session.resume` then `session.skills.reload`.
+    let req = server.read_request().await;
+    assert_eq!(req["method"], "session.resume");
+    assert_eq!(req["params"]["traceparent"], "00-resume-trace-01");
+    assert!(
+        req["params"].get("tracestate").is_none(),
+        "tracestate should be omitted when None"
+    );
+    server
+        .respond(
+            &req,
+            serde_json::json!({"sessionId": "trace-resume", "workspacePath": "/tmp/ws"}),
+        )
+        .await;
+    let reload_req = server.read_request().await;
+    assert_eq!(reload_req["method"], "session.skills.reload");
+    server.respond(&reload_req, serde_json::json!({})).await;
+
+    timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn on_get_trace_context_called_on_session_send() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let provider = Arc::new(StaticTraceProvider {
+        ctx: github_copilot_sdk::types::TraceContext::from_traceparent("00-send-trace-01"),
+        calls: calls.clone(),
+    });
+    let (client, server_read, server_write) = make_client_with_trace_provider(provider);
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "trace-send".to_string(),
+    };
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
+                .await
+                .unwrap()
+        }
+    });
+    let create_req = server.read_request().await;
+    server
+        .respond(
+            &create_req,
+            serde_json::json!({"sessionId": "trace-send", "workspacePath": "/tmp/ws"}),
+        )
+        .await;
+    let session = Arc::new(timeout(TIMEOUT, create_handle).await.unwrap().unwrap());
+
+    // Provider was called once for create; reset by reading the count baseline.
+    let baseline = calls.load(Ordering::Relaxed);
+    assert_eq!(baseline, 1, "create_session should call the provider once");
+
+    let send_handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("hi")).await }
+    });
+    let send_req = server.read_request().await;
+    assert_eq!(send_req["method"], "session.send");
+    assert_eq!(send_req["params"]["traceparent"], "00-send-trace-01");
+    server.respond(&send_req, serde_json::json!({})).await;
+    timeout(TIMEOUT, send_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(calls.load(Ordering::Relaxed), baseline + 1);
+}
+
+#[tokio::test]
+async fn message_options_trace_context_overrides_callback() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let provider = Arc::new(StaticTraceProvider {
+        ctx: github_copilot_sdk::types::TraceContext::from_traceparent("00-callback-01"),
+        calls: calls.clone(),
+    });
+    let (client, server_read, server_write) = make_client_with_trace_provider(provider);
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "trace-override".to_string(),
+    };
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
+                .await
+                .unwrap()
+        }
+    });
+    let create_req = server.read_request().await;
+    server
+        .respond(
+            &create_req,
+            serde_json::json!({"sessionId": "trace-override", "workspacePath": "/tmp/ws"}),
+        )
+        .await;
+    let session = Arc::new(timeout(TIMEOUT, create_handle).await.unwrap().unwrap());
+
+    let baseline = calls.load(Ordering::Relaxed);
+
+    let send_handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(
+                    MessageOptions::new("hi")
+                        .with_traceparent("00-override-01")
+                        .with_tracestate("vendor=override"),
+                )
+                .await
+        }
+    });
+    let send_req = server.read_request().await;
+    assert_eq!(send_req["params"]["traceparent"], "00-override-01");
+    assert_eq!(send_req["params"]["tracestate"], "vendor=override");
+    server.respond(&send_req, serde_json::json!({})).await;
+    timeout(TIMEOUT, send_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+
+    // Callback must NOT have been invoked when MessageOptions carried an override.
+    assert_eq!(
+        calls.load(Ordering::Relaxed),
+        baseline,
+        "callback should be skipped when MessageOptions carries trace headers"
+    );
+}
+
+#[tokio::test]
+async fn message_options_trace_context_used_without_callback() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let send_handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(MessageOptions::new("hi").with_traceparent("00-direct-01"))
+                .await
+        }
+    });
+    let req = server.read_request().await;
+    assert_eq!(req["method"], "session.send");
+    assert_eq!(req["params"]["traceparent"], "00-direct-01");
+    assert!(
+        req["params"].get("tracestate").is_none(),
+        "tracestate should be omitted when only traceparent is set"
+    );
+    server.respond(&req, serde_json::json!({})).await;
+    timeout(TIMEOUT, send_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn tool_invocation_carries_trace_context_from_event() {
+    use github_copilot_sdk::handler::{HandlerEvent, HandlerResponse, SessionHandler};
+
+    struct CapturingHandler {
+        captured: parking_lot::Mutex<Option<(Option<String>, Option<String>)>>,
+        signal: tokio::sync::Notify,
+    }
+
+    #[async_trait]
+    impl SessionHandler for CapturingHandler {
+        async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
+            if let HandlerEvent::ExternalTool { invocation } = event {
+                *self.captured.lock() = Some((
+                    invocation.traceparent.clone(),
+                    invocation.tracestate.clone(),
+                ));
+                self.signal.notify_one();
+                return HandlerResponse::ToolResult(ToolResult::Text("ok".into()));
+            }
+            HandlerResponse::Ok
+        }
+    }
+
+    let handler = Arc::new(CapturingHandler {
+        captured: parking_lot::Mutex::new(None),
+        signal: tokio::sync::Notify::new(),
+    });
+    let (_session, mut server) = create_session_pair(handler.clone()).await;
+
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "req-1",
+                "sessionId": server.session_id,
+                "toolCallId": "tc-1",
+                "toolName": "calc",
+                "arguments": {"x": 1},
+                "traceparent": "00-tool-01",
+                "tracestate": "vendor=tool",
+            }),
+        )
+        .await;
+
+    // Drain the handlePendingToolCall RPC the dispatcher sends after the handler runs.
+    let pending = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(pending["method"], "session.tools.handlePendingToolCall");
+
+    timeout(TIMEOUT, handler.signal.notified()).await.unwrap();
+    let captured = handler.captured.lock().clone();
+    assert_eq!(
+        captured,
+        Some((Some("00-tool-01".into()), Some("vendor=tool".into()))),
+    );
+}
+
+#[tokio::test]
+async fn wire_omits_trace_fields_when_unset() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let send_handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("hi")).await }
+    });
+    let req = server.read_request().await;
+    assert!(req["params"].get("traceparent").is_none());
+    assert!(req["params"].get("tracestate").is_none());
+    server.respond(&req, serde_json::json!({})).await;
+    timeout(TIMEOUT, send_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+}
