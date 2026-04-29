@@ -263,6 +263,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeModelCallFailure:
+		var d ModelCallFailureData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAbort:
 		var d AbortData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -588,6 +594,7 @@ const (
 	SessionEventTypeAssistantMessageDelta         SessionEventType = "assistant.message_delta"
 	SessionEventTypeAssistantTurnEnd              SessionEventType = "assistant.turn_end"
 	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
+	SessionEventTypeModelCallFailure              SessionEventType = "model.call_failure"
 	SessionEventTypeAbort                         SessionEventType = "abort"
 	SessionEventTypeToolUserRequested             SessionEventType = "tool.user_requested"
 	SessionEventTypeToolExecutionStart            SessionEventType = "tool.execution_start"
@@ -903,6 +910,28 @@ type ExternalToolRequestedData struct {
 
 func (*ExternalToolRequestedData) sessionEventData() {}
 
+// Failed LLM API call metadata for telemetry
+type ModelCallFailureData struct {
+	// Completion ID from the model provider (e.g., chatcmpl-abc123)
+	APICallID *string `json:"apiCallId,omitempty"`
+	// Duration of the failed API call in milliseconds
+	DurationMs *float64 `json:"durationMs,omitempty"`
+	// Raw provider/runtime error message for restricted telemetry
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
+	Initiator *string `json:"initiator,omitempty"`
+	// Model identifier used for the failed API call
+	Model *string `json:"model,omitempty"`
+	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
+	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Where the failed model call originated
+	Source ModelCallFailureSource `json:"source"`
+	// HTTP status code from the failed request
+	StatusCode *int64 `json:"statusCode,omitempty"`
+}
+
+func (*ModelCallFailureData) sessionEventData() {}
+
 // Hook invocation completion details including output, success status, and error information
 type HookEndData struct {
 	// Error details when the hook failed
@@ -937,6 +966,8 @@ type SessionInfoData struct {
 	InfoType string `json:"infoType"`
 	// Human-readable informational message for display in the timeline
 	Message string `json:"message"`
+	// Optional actionable tip displayed with this message
+	Tip *string `json:"tip,omitempty"`
 	// Optional URL associated with this message that the user can open in a browser
 	URL *string `json:"url,omitempty"`
 }
@@ -2028,7 +2059,7 @@ type SystemNotification struct {
 	Prompt *string `json:"prompt,omitempty"`
 	// Human-readable name of the sender
 	SenderName *string `json:"senderName,omitempty"`
-	// Category of the sender (e.g., ambient-agent, plugin, hook)
+	// Category of the sender (e.g., sidekick-agent, plugin, hook)
 	SenderType *string `json:"senderType,omitempty"`
 	// Unique identifier of the shell session
 	ShellID *string `json:"shellId,omitempty"`
@@ -2462,6 +2493,15 @@ type PermissionRequestMemoryDirection string
 const (
 	PermissionRequestMemoryDirectionUpvote   PermissionRequestMemoryDirection = "upvote"
 	PermissionRequestMemoryDirectionDownvote PermissionRequestMemoryDirection = "downvote"
+)
+
+// Where the failed model call originated
+type ModelCallFailureSource string
+
+const (
+	ModelCallFailureSourceTopLevel    ModelCallFailureSource = "top_level"
+	ModelCallFailureSourceSubagent    ModelCallFailureSource = "subagent"
+	ModelCallFailureSourceMcpSampling ModelCallFailureSource = "mcp_sampling"
 )
 
 // Whether the agent completed successfully or failed

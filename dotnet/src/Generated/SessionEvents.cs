@@ -50,6 +50,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
 [JsonDerivedType(typeof(McpOauthCompletedEvent), "mcp.oauth_completed")]
 [JsonDerivedType(typeof(McpOauthRequiredEvent), "mcp.oauth_required")]
+[JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
@@ -549,6 +550,19 @@ public partial class AssistantUsageEvent : SessionEvent
     /// <summary>The <c>assistant.usage</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required AssistantUsageData Data { get; set; }
+}
+
+/// <summary>Failed LLM API call metadata for telemetry.</summary>
+/// <remarks>Represents the <c>model.call_failure</c> event.</remarks>
+public partial class ModelCallFailureEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "model.call_failure";
+
+    /// <summary>The <c>model.call_failure</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required ModelCallFailureData Data { get; set; }
 }
 
 /// <summary>Turn abort information including the reason for termination.</summary>
@@ -1272,6 +1286,11 @@ public partial class SessionInfoData
     [JsonPropertyName("message")]
     public required string Message { get; set; }
 
+    /// <summary>Optional actionable tip displayed with this message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tip")]
+    public string? Tip { get; set; }
+
     /// <summary>Optional URL associated with this message that the user can open in a browser.</summary>
     [Url]
     [StringSyntax(StringSyntaxAttribute.Uri)]
@@ -1959,6 +1978,49 @@ public partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ttftMs")]
     public double? TtftMs { get; set; }
+}
+
+/// <summary>Failed LLM API call metadata for telemetry.</summary>
+public partial class ModelCallFailureData
+{
+    /// <summary>Completion ID from the model provider (e.g., chatcmpl-abc123).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("apiCallId")]
+    public string? ApiCallId { get; set; }
+
+    /// <summary>Duration of the failed API call in milliseconds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("durationMs")]
+    public double? DurationMs { get; set; }
+
+    /// <summary>Raw provider/runtime error message for restricted telemetry.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("initiator")]
+    public string? Initiator { get; set; }
+
+    /// <summary>Model identifier used for the failed API call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>GitHub request tracing ID (x-github-request-id header) for server-side log correlation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerCallId")]
+    public string? ProviderCallId { get; set; }
+
+    /// <summary>Where the failed model call originated.</summary>
+    [JsonPropertyName("source")]
+    public required ModelCallFailureSource Source { get; set; }
+
+    /// <summary>HTTP status code from the failed request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("statusCode")]
+    public long? StatusCode { get; set; }
 }
 
 /// <summary>Turn abort information including the reason for termination.</summary>
@@ -3552,7 +3614,7 @@ public partial class SystemNotificationNewInboxMessage : SystemNotification
     [JsonPropertyName("senderName")]
     public required string SenderName { get; set; }
 
-    /// <summary>Category of the sender (e.g., ambient-agent, plugin, hook).</summary>
+    /// <summary>Category of the sender (e.g., sidekick-agent, plugin, hook).</summary>
     [JsonPropertyName("senderType")]
     public required string SenderType { get; set; }
 
@@ -4485,6 +4547,21 @@ public enum AssistantMessageToolRequestType
     Custom,
 }
 
+/// <summary>Where the failed model call originated.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ModelCallFailureSource>))]
+public enum ModelCallFailureSource
+{
+    /// <summary>The <c>top_level</c> variant.</summary>
+    [JsonStringEnumMemberName("top_level")]
+    TopLevel,
+    /// <summary>The <c>subagent</c> variant.</summary>
+    [JsonStringEnumMemberName("subagent")]
+    Subagent,
+    /// <summary>The <c>mcp_sampling</c> variant.</summary>
+    [JsonStringEnumMemberName("mcp_sampling")]
+    McpSampling,
+}
+
 /// <summary>Theme variant this icon is intended for.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<ToolExecutionCompleteContentResourceLinkIconTheme>))]
 public enum ToolExecutionCompleteContentResourceLinkIconTheme
@@ -4794,6 +4871,8 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(McpOauthRequiredEvent))]
 [JsonSerializable(typeof(McpOauthRequiredStaticClientConfig))]
 [JsonSerializable(typeof(McpServersLoadedServer))]
+[JsonSerializable(typeof(ModelCallFailureData))]
+[JsonSerializable(typeof(ModelCallFailureEvent))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]

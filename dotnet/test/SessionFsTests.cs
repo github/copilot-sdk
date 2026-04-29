@@ -16,7 +16,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
     private static readonly SessionFsConfig SessionFsConfig = new()
     {
         InitialCwd = "/",
-        SessionStatePath = "/session-state",
+        SessionStatePath = CreateSessionStatePath(),
         Conventions = SessionFsSetProviderConventions.Posix,
     };
 
@@ -38,7 +38,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             Assert.Contains("300", msg?.Data.Content ?? string.Empty);
             await session.DisposeAsync();
 
-            var eventsPath = GetStoredPath(providerRoot, session.SessionId, "/session-state/events.jsonl");
+            var eventsPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/events.jsonl");
             await WaitForConditionAsync(() => File.Exists(eventsPath));
             var content = await ReadAllTextSharedAsync(eventsPath);
             Assert.Contains("300", content);
@@ -69,7 +69,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             Assert.Contains("100", msg?.Data.Content ?? string.Empty);
             await session1.DisposeAsync();
 
-            var eventsPath = GetStoredPath(providerRoot, sessionId, "/session-state/events.jsonl");
+            var eventsPath = GetStoredPath(providerRoot, sessionId, $"{SessionFsConfig.SessionStatePath}/events.jsonl");
             await WaitForConditionAsync(() => File.Exists(eventsPath));
 
             var session2 = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
@@ -165,11 +165,11 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             var messages = await session.GetMessagesAsync();
             var toolResult = FindToolCallResult(messages, "get_big_string");
             Assert.NotNull(toolResult);
-            Assert.Contains("/session-state/temp/", toolResult);
+            Assert.Contains($"{SessionFsConfig.SessionStatePath}/temp/", toolResult);
 
             var match = System.Text.RegularExpressions.Regex.Match(
                 toolResult!,
-                @"([/\\]session-state[/\\]temp[/\\][^\s]+)");
+                $"({System.Text.RegularExpressions.Regex.Escape(SessionFsConfig.SessionStatePath)}/temp/[^\\s]+)");
             Assert.True(match.Success);
 
             var fileContent = await ReadAllTextSharedAsync(GetStoredPath(providerRoot, session.SessionId, match.Groups[1].Value));
@@ -206,7 +206,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
             await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
 
-            var eventsPath = GetStoredPath(providerRoot, session.SessionId, "/session-state/events.jsonl");
+            var eventsPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/events.jsonl");
             await WaitForConditionAsync(() => File.Exists(eventsPath), TimeSpan.FromSeconds(30));
             var contentBefore = await ReadAllTextSharedAsync(eventsPath);
             Assert.DoesNotContain("checkpointNumber", contentBefore);
@@ -244,13 +244,13 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             Assert.Contains("56", msg?.Data.Content ?? string.Empty);
 
             // WorkspaceManager should have created workspace.yaml via sessionFs
-            var workspaceYamlPath = GetStoredPath(providerRoot, session.SessionId, "/session-state/workspace.yaml");
+            var workspaceYamlPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/workspace.yaml");
             await WaitForConditionAsync(() => File.Exists(workspaceYamlPath));
             var yaml = await ReadAllTextSharedAsync(workspaceYamlPath);
             Assert.Contains("id:", yaml);
 
             // Checkpoint index should also exist
-            var indexPath = GetStoredPath(providerRoot, session.SessionId, "/session-state/checkpoints/index.md");
+            var indexPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/checkpoints/index.md");
             await WaitForConditionAsync(() => File.Exists(indexPath));
 
             await session.DisposeAsync();
@@ -278,7 +278,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2 + 3?" });
             await session.Rpc.Plan.UpdateAsync("# Test Plan\n\nThis is a test.");
 
-            var planPath = GetStoredPath(providerRoot, session.SessionId, "/session-state/plan.md");
+            var planPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/plan.md");
             await WaitForConditionAsync(() => File.Exists(planPath));
             var content = await ReadAllTextSharedAsync(planPath);
             Assert.Contains("# Test Plan", content);
@@ -322,6 +322,17 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
     private static string CreateProviderRoot()
         => Path.Join(Path.GetTempPath(), $"copilot-sessionfs-{Guid.NewGuid():N}");
+
+    private static string CreateSessionStatePath()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return "/session-state";
+        }
+
+        return Path.Join(Path.GetTempPath(), $"copilot-sessionfs-state-{Guid.NewGuid():N}", "session-state")
+            .Replace(Path.DirectorySeparatorChar, '/');
+    }
 
     private static string GetStoredPath(string providerRoot, string sessionId, string sessionPath)
     {

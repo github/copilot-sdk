@@ -172,6 +172,43 @@ export type SessionFsSetProviderConventions = "windows" | "posix";
  */
 export type ShellKillSignal = "SIGTERM" | "SIGKILL" | "SIGINT";
 /**
+ * Current lifecycle status of the task
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskAgentInfoStatus".
+ */
+export type TaskAgentInfoStatus = "running" | "idle" | "completed" | "failed" | "cancelled";
+/**
+ * How the agent is currently being managed by the runtime
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskAgentInfoExecutionMode".
+ */
+export type TaskAgentInfoExecutionMode = "sync" | "background";
+
+export type TaskInfo = TaskAgentInfo | TaskShellInfo;
+/**
+ * Current lifecycle status of the task
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskShellInfoStatus".
+ */
+export type TaskShellInfoStatus = "running" | "idle" | "completed" | "failed" | "cancelled";
+/**
+ * Whether the shell runs inside a managed PTY session or as an independent background process
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskShellInfoAttachmentMode".
+ */
+export type TaskShellInfoAttachmentMode = "attached" | "detached";
+/**
+ * Whether the shell command is currently sync-waited or background-managed
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskShellInfoExecutionMode".
+ */
+export type TaskShellInfoExecutionMode = "sync" | "background";
+/**
  * Tool call result (string or expanded result object)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -273,6 +310,10 @@ export interface AgentInfo {
    * Description of the agent's purpose
    */
   description: string;
+  /**
+   * Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path.
+   */
+  path?: string;
 }
 
 /** @experimental */
@@ -901,7 +942,7 @@ export interface ModeSetRequest {
 
 export interface NameGetResult {
   /**
-   * The session name, falling back to the auto-generated summary, or null if neither exists
+   * The session name (user-set or auto-generated), or null if not yet set
    */
   name: string | null;
 }
@@ -1562,6 +1603,205 @@ export interface SkillsEnableRequest {
   name: string;
 }
 
+export interface TaskAgentInfo {
+  /**
+   * Task kind
+   */
+  type: "agent";
+  /**
+   * Unique task identifier
+   */
+  id: string;
+  /**
+   * Tool call ID associated with this agent task
+   */
+  toolCallId: string;
+  /**
+   * Short description of the task
+   */
+  description: string;
+  status: TaskAgentInfoStatus;
+  /**
+   * ISO 8601 timestamp when the task was started
+   */
+  startedAt: string;
+  /**
+   * ISO 8601 timestamp when the task finished
+   */
+  completedAt?: string;
+  /**
+   * Accumulated active execution time in milliseconds
+   */
+  activeTimeMs?: number;
+  /**
+   * ISO 8601 timestamp when the current active period began
+   */
+  activeStartedAt?: string;
+  /**
+   * Error message when the task failed
+   */
+  error?: string;
+  /**
+   * Type of agent running this task
+   */
+  agentType: string;
+  /**
+   * Prompt passed to the agent
+   */
+  prompt: string;
+  /**
+   * Result text from the task when available
+   */
+  result?: string;
+  /**
+   * Model used for the task when specified
+   */
+  model?: string;
+  executionMode?: TaskAgentInfoExecutionMode;
+  /**
+   * Whether the task is currently in the original sync wait and can be moved to background mode. False once it is already backgrounded, idle, finished, or no longer has a promotable sync waiter.
+   */
+  canPromoteToBackground?: boolean;
+  /**
+   * Most recent response text from the agent
+   */
+  latestResponse?: string;
+  /**
+   * ISO 8601 timestamp when the agent entered idle state
+   */
+  idleSince?: string;
+}
+
+export interface TaskShellInfo {
+  /**
+   * Task kind
+   */
+  type: "shell";
+  /**
+   * Unique task identifier
+   */
+  id: string;
+  /**
+   * Short description of the task
+   */
+  description: string;
+  status: TaskShellInfoStatus;
+  /**
+   * ISO 8601 timestamp when the task was started
+   */
+  startedAt: string;
+  /**
+   * ISO 8601 timestamp when the task finished
+   */
+  completedAt?: string;
+  /**
+   * Command being executed
+   */
+  command: string;
+  attachmentMode: TaskShellInfoAttachmentMode;
+  executionMode?: TaskShellInfoExecutionMode;
+  /**
+   * Whether this shell task can be promoted to background mode
+   */
+  canPromoteToBackground?: boolean;
+  /**
+   * Path to the detached shell log, when available
+   */
+  logPath?: string;
+  /**
+   * Process ID when available
+   */
+  pid?: number;
+}
+
+/** @experimental */
+export interface TaskList {
+  /**
+   * Currently tracked tasks
+   */
+  tasks: TaskInfo[];
+}
+
+/** @experimental */
+export interface TasksCancelRequest {
+  /**
+   * Task identifier
+   */
+  id: string;
+}
+
+/** @experimental */
+export interface TasksCancelResult {
+  /**
+   * Whether the task was successfully cancelled
+   */
+  cancelled: boolean;
+}
+
+/** @experimental */
+export interface TasksPromoteToBackgroundRequest {
+  /**
+   * Task identifier
+   */
+  id: string;
+}
+
+/** @experimental */
+export interface TasksPromoteToBackgroundResult {
+  /**
+   * Whether the task was successfully promoted to background mode
+   */
+  promoted: boolean;
+}
+
+/** @experimental */
+export interface TasksRemoveRequest {
+  /**
+   * Task identifier
+   */
+  id: string;
+}
+
+/** @experimental */
+export interface TasksRemoveResult {
+  /**
+   * Whether the task was removed. Returns false if the task does not exist or is still running/idle (cancel it first).
+   */
+  removed: boolean;
+}
+
+/** @experimental */
+export interface TasksStartAgentRequest {
+  /**
+   * Type of agent to start (e.g., 'explore', 'task', 'general-purpose')
+   */
+  agentType: string;
+  /**
+   * Task prompt for the agent
+   */
+  prompt: string;
+  /**
+   * Short name for the agent, used to generate a human-readable ID
+   */
+  name: string;
+  /**
+   * Short description of the task
+   */
+  description?: string;
+  /**
+   * Optional model override
+   */
+  model?: string;
+}
+
+/** @experimental */
+export interface TasksStartAgentResult {
+  /**
+   * Generated agent ID for the background task
+   */
+  agentId: string;
+}
+
 export interface Tool {
   /**
    * Tool identifier (e.g., "bash", "grep", "str_replace_editor")
@@ -1910,8 +2150,9 @@ export interface WorkspacesGetWorkspaceResult {
     repository?: string;
     host_type?: "github" | "ado";
     branch?: string;
-    summary?: string;
     name?: string;
+    user_named?: boolean;
+    summary?: string;
     summary_count?: number;
     created_at?: string;
     updated_at?: string;
@@ -2064,6 +2305,19 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.agent.deselect", { sessionId }),
             reload: async (): Promise<AgentReloadResult> =>
                 connection.sendRequest("session.agent.reload", { sessionId }),
+        },
+        /** @experimental */
+        tasks: {
+            startAgent: async (params: TasksStartAgentRequest): Promise<TasksStartAgentResult> =>
+                connection.sendRequest("session.tasks.startAgent", { sessionId, ...params }),
+            list: async (): Promise<TaskList> =>
+                connection.sendRequest("session.tasks.list", { sessionId }),
+            promoteToBackground: async (params: TasksPromoteToBackgroundRequest): Promise<TasksPromoteToBackgroundResult> =>
+                connection.sendRequest("session.tasks.promoteToBackground", { sessionId, ...params }),
+            cancel: async (params: TasksCancelRequest): Promise<TasksCancelResult> =>
+                connection.sendRequest("session.tasks.cancel", { sessionId, ...params }),
+            remove: async (params: TasksRemoveRequest): Promise<TasksRemoveResult> =>
+                connection.sendRequest("session.tasks.remove", { sessionId, ...params }),
         },
         /** @experimental */
         skills: {

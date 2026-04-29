@@ -156,6 +156,7 @@ func (c *TestContext) Env() []string {
 	// Add overrides (later values take precedence in most systems)
 	env = append(env,
 		"COPILOT_API_URL="+c.ProxyURL,
+		"COPILOT_HOME="+c.HomeDir,
 		"XDG_CONFIG_HOME="+c.HomeDir,
 		"XDG_STATE_HOME="+c.HomeDir,
 	)

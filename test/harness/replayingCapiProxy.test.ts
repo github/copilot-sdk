@@ -302,6 +302,28 @@ describe("ReplayingCapiProxy", () => {
     );
   });
 
+  test("strips system_reminder from user messages", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content:
+            "What is 2+2?\n\n<system_reminder>\n<sql_tables>No tables currently exist.</sql_tables>\n</system_reminder>",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "4" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe("What is 2+2?");
+  });
+
   test("strips agent_instructions from user messages", async () => {
     const requestBody = JSON.stringify({
       messages: [
