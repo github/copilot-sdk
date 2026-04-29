@@ -102,7 +102,9 @@ class TestSessionFs:
         assert "100" in msg.data.content
         await session1.disconnect()
 
-        assert provider_path(provider_root, session_id, f"{SESSION_STATE_PATH}/events.jsonl").exists()
+        assert provider_path(
+            provider_root, session_id, f"{SESSION_STATE_PATH}/events.jsonl"
+        ).exists()
 
         session2 = await session_fs_client.resume_session(
             session_id,
@@ -266,7 +268,9 @@ class TestSessionFs:
         await session.send_and_wait("What is 2 + 3?")
         await session.rpc.plan.update(PlanUpdateRequest(content="# Test Plan\n\nThis is a test."))
 
-        plan_path = provider_path(provider_root, session.session_id, f"{SESSION_STATE_PATH}/plan.md")
+        plan_path = provider_path(
+            provider_root, session.session_id, f"{SESSION_STATE_PATH}/plan.md"
+        )
         await wait_for_path(plan_path)
         content = plan_path.read_text(encoding="utf-8")
         assert "# Test Plan" in content
