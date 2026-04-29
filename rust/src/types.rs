@@ -39,6 +39,7 @@ pub enum ConnectionState {
     /// The client is connected and ready to handle RPC traffic.
     Connected,
     /// Startup failed or the connection encountered an unrecoverable error.
+    #[serde(rename = "error")]
     Errored,
 }
 
@@ -2203,8 +2204,32 @@ mod tests {
 
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        GitHubReferenceType, ensure_attachment_display_names,
+        ConnectionState, GitHubReferenceType, ensure_attachment_display_names,
     };
+
+    #[test]
+    fn connection_state_errored_serializes_as_error_to_match_go() {
+        let json = serde_json::to_string(&ConnectionState::Errored).unwrap();
+        assert_eq!(json, "\"error\"");
+        let parsed: ConnectionState = serde_json::from_str("\"error\"").unwrap();
+        assert_eq!(parsed, ConnectionState::Errored);
+    }
+
+    #[test]
+    fn connection_state_other_variants_serialize_as_lowercase() {
+        assert_eq!(
+            serde_json::to_string(&ConnectionState::Disconnected).unwrap(),
+            "\"disconnected\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ConnectionState::Connecting).unwrap(),
+            "\"connecting\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ConnectionState::Connected).unwrap(),
+            "\"connected\""
+        );
+    }
 
     #[test]
     fn deserializes_runtime_attachment_variants() {
