@@ -485,22 +485,32 @@ async fn send_telemetry_injects_payload_and_session_id() {
 async fn client_rpc_methods_send_correct_method_names() {
     let (client, mut server_read, mut server_write) = make_client();
 
-    for expected_method in ["getStatus", "getAuthStatus"] {
+    // Wire method names per the CLI runtime registration in @github/copilot
+    // app.js — verified against Node/Go/Python/.NET SDK call sites which all
+    // use these exact strings. The schema doesn't currently define these as
+    // typed RPCs (top-level methods, not under any namespace), so call site
+    // strings are the source of truth.
+    for expected_method in ["status.get", "auth.getStatus"] {
         let c = client.clone();
         let handle = tokio::spawn(async move {
             match expected_method {
-                "getStatus" => c.get_status().await.map(|_| ()),
-                "getAuthStatus" => c.get_auth_status().await.map(|_| ()),
+                "status.get" => c.get_status().await.map(|_| ()),
+                "auth.getStatus" => c.get_auth_status().await.map(|_| ()),
                 _ => unreachable!(),
             }
         });
 
         let request = read_framed(&mut server_read).await;
         assert_eq!(request["method"], expected_method);
+        // Regression-prevention: must not have reverted to the
+        // hand-authored `getStatus` / `getAuthStatus` names that don't
+        // exist on the wire.
+        assert_ne!(request["method"], "getStatus");
+        assert_ne!(request["method"], "getAuthStatus");
         let id = request["id"].as_u64().unwrap();
         let result = match expected_method {
-            "getStatus" => serde_json::json!({ "version": "1.0.0", "protocolVersion": 1 }),
-            "getAuthStatus" => serde_json::json!({ "isAuthenticated": true }),
+            "status.get" => serde_json::json!({ "version": "1.0.0", "protocolVersion": 1 }),
+            "auth.getStatus" => serde_json::json!({ "isAuthenticated": true }),
             _ => unreachable!(),
         };
         let resp = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result });

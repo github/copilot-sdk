@@ -372,6 +372,20 @@ public surface.
   round-tripped through both ends. The test now asserts the wrapped path
   (`params.filter.repository`) and explicitly rejects the flattened
   fallback (`params.repository`).
+- `Client::get_status` and `Client::get_auth_status` now use the
+  correct wire method names (`status.get` and `auth.getStatus`)
+  matching Node, Go, Python, and .NET. The hand-authored
+  implementation was sending `getStatus` and `getAuthStatus` — names
+  that aren't registered on the CLI runtime — so both calls would
+  have returned a "method not found" error (or a misleading no-such-
+  method log) instead of the expected status payload. Same class of
+  bug as the elicitation `requestedSchema` and `list_sessions`
+  filter-wrapping fixes above: the mock-server test for these
+  methods asserted on the wrong-name strings the implementation
+  used, so the bugs round-tripped through both ends. The test now
+  asserts on the canonical wire names AND explicitly rejects the
+  hand-authored aliases (`assert_ne!(request["method"], "getStatus")`
+  / `"getAuthStatus"`).
 
 ### Notes
 - Minimum supported Rust version (MSRV): 1.94.0 (pinned via

@@ -1298,14 +1298,14 @@ impl Client {
 
     /// Get the CLI server status.
     pub async fn get_status(&self) -> Result<GetStatusResponse, Error> {
-        let result = self.call("getStatus", Some(serde_json::json!({}))).await?;
+        let result = self.call("status.get", Some(serde_json::json!({}))).await?;
         Ok(serde_json::from_value(result)?)
     }
 
     /// Get authentication status.
     pub async fn get_auth_status(&self) -> Result<GetAuthStatusResponse, Error> {
         let result = self
-            .call("getAuthStatus", Some(serde_json::json!({})))
+            .call("auth.getStatus", Some(serde_json::json!({})))
             .await?;
         Ok(serde_json::from_value(result)?)
     }
