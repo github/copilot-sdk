@@ -60,14 +60,11 @@ struct GetWeatherTool;
 #[async_trait]
 impl ToolHandler for GetWeatherTool {
     fn tool(&self) -> Tool {
-        Tool {
-            name: "get_weather".to_string(),
-            namespaced_name: None,
-            description: "Get the current weather for a city.".to_string(),
-            parameters: tool_parameters(schema_for::<GetWeatherParams>()),
-            instructions: None,
-            ..Default::default()
-        }
+        let mut tool = Tool::default();
+        tool.name = "get_weather".to_string();
+        tool.description = "Get the current weather for a city.".to_string();
+        tool.parameters = tool_parameters(schema_for::<GetWeatherParams>());
+        tool
     }
 
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
@@ -94,20 +91,17 @@ struct RollDiceTool;
 #[async_trait]
 impl ToolHandler for RollDiceTool {
     fn tool(&self) -> Tool {
-        Tool {
-            name: "roll_dice".to_string(),
-            namespaced_name: None,
-            description: "Roll one or more dice and return the total.".to_string(),
-            parameters: tool_parameters(serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "sides": { "type": "integer", "description": "Number of sides per die (default 6, max 1000)." },
-                    "count": { "type": "integer", "description": "Number of dice to roll (default 1, max 100)." }
-                }
-            })),
-            instructions: None,
-            ..Default::default()
-        }
+        let mut tool = Tool::default();
+        tool.name = "roll_dice".to_string();
+        tool.description = "Roll one or more dice and return the total.".to_string();
+        tool.parameters = tool_parameters(serde_json::json!({
+            "type": "object",
+            "properties": {
+                "sides": { "type": "integer", "description": "Number of sides per die (default 6, max 1000)." },
+                "count": { "type": "integer", "description": "Number of dice to roll (default 1, max 100)." }
+            }
+        }));
+        tool
     }
 
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
@@ -160,11 +154,11 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     let client = Client::start(ClientOptions::default()).await?;
 
-    let config = SessionConfig {
-        tools: Some(tools),
-        ..Default::default()
-    }
-    .with_handler(handler);
+    let config = {
+        let mut cfg = SessionConfig::default();
+        cfg.tools = Some(tools);
+        cfg.with_handler(handler)
+    };
     let session = client.create_session(config).await?;
 
     println!(

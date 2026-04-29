@@ -6,10 +6,9 @@ use github_copilot_sdk::resolve::copilot_binary_with_source;
 use github_copilot_sdk::{Client, ClientOptions, SDK_PROTOCOL_VERSION};
 
 fn default_options() -> ClientOptions {
-    ClientOptions {
-        cwd: std::env::current_dir().expect("cwd"),
-        ..Default::default()
-    }
+    let mut opts = ClientOptions::default();
+    opts.cwd = std::env::current_dir().expect("cwd");
+    opts
 }
 
 #[tokio::test]

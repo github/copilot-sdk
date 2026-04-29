@@ -69,14 +69,10 @@ pub fn schema_for<T: schemars::JsonSchema>() -> serde_json::Value {
 /// use github_copilot_sdk::tool::tool_parameters;
 /// use github_copilot_sdk::Tool;
 ///
-/// let tool = Tool {
-///     name: "ping".to_string(),
-///     namespaced_name: None,
-///     description: "ping the server".to_string(),
-///     parameters: tool_parameters(serde_json::json!({"type": "object"})),
-///     instructions: None,
-///     ..Default::default()
-/// };
+/// let mut tool = Tool::default();
+/// tool.name = "ping".to_string();
+/// tool.description = "ping the server".to_string();
+/// tool.parameters = tool_parameters(serde_json::json!({"type": "object"}));
 /// # let _ = tool;
 /// ```
 pub fn tool_parameters(schema: serde_json::Value) -> HashMap<String, serde_json::Value> {

@@ -31,6 +31,7 @@ use crate::transforms::SystemMessageTransform;
 /// unexpectedly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum ConnectionState {
     /// No CLI process is attached or the process has exited cleanly.
     Disconnected,
@@ -303,6 +304,7 @@ impl PartialEq<&str> for RequestId {
 /// in the wire schema but are honored by the CLI.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Tool {
     /// Tool identifier (e.g., `"bash"`, `"grep"`, `"str_replace_editor"`).
     pub name: String,
@@ -436,6 +438,7 @@ impl Serialize for CommandDefinition {
 /// when the session starts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CustomAgentConfig {
     /// Unique name of the custom agent.
     pub name: String,
@@ -483,6 +486,7 @@ pub struct DefaultAgentConfig {
 /// directory.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct InfiniteSessionConfig {
     /// Whether infinite sessions are enabled. Defaults to `true` on the CLI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -534,6 +538,7 @@ pub struct InfiniteSessionConfig {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum McpServerConfig {
     /// Local MCP server launched as a subprocess and addressed over stdio.
     /// On the wire this serializes as `{"type": "stdio", ...}`. The CLI
@@ -601,6 +606,7 @@ pub struct McpHttpServerConfig {
 /// Copilot's default routing.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ProviderConfig {
     /// Provider type: `"openai"`, `"azure"`, or `"anthropic"`. Defaults to
     /// `"openai"` on the CLI.
@@ -650,6 +656,7 @@ pub struct AzureProviderOptions {
 /// `availableTools`, `systemMessage`, etc.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SessionConfig {
     /// Custom session ID. When unset, the CLI generates one.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -998,6 +1005,7 @@ impl SessionConfig {
 /// See [`SessionConfig`] for the note on snake_case vs. camelCase field naming.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ResumeSessionConfig {
     /// ID of the session to resume.
     pub session_id: SessionId,
@@ -1272,6 +1280,7 @@ impl ResumeSessionConfig {
 /// section-level overrides.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SystemMessageConfig {
     /// How content is applied: `"append"` (default), `"replace"`, or `"customize"`.
     #[serde(skip_serializing_if = "Option::is_none")]

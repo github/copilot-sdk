@@ -116,13 +116,14 @@ impl SessionFsProvider for InMemoryProvider {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provider: Arc<dyn SessionFsProvider> = Arc::new(InMemoryProvider::new());
 
-    let options = ClientOptions {
-        session_fs: Some(SessionFsConfig::new(
+    let options = {
+        let mut opts = ClientOptions::default();
+        opts.session_fs = Some(SessionFsConfig::new(
             "/workspace",
             "/workspace/.copilot",
             SessionFsConventions::Posix,
-        )),
-        ..Default::default()
+        ));
+        opts
     };
 
     let client = Client::start(options).await?;

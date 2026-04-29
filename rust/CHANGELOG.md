@@ -127,6 +127,20 @@ public surface.
   helper signatures are unchanged.
 
 #### Configuration parity
+- All remaining public configuration types are now `#[non_exhaustive]`
+  for forward-compatibility — adding fields post-1.0 is non-breaking on
+  consumers that construct via `Default::default()` plus field
+  assignment or the `with_*` builders. Affected: `SessionConfig`,
+  `ResumeSessionConfig`, `ClientOptions`, `ProviderConfig`,
+  `McpServerConfig`, `Tool`, `CustomAgentConfig`,
+  `InfiniteSessionConfig`, `SystemMessageConfig`, `ConnectionState`.
+  (`HookEvent`, `HookOutput`, `MessageOptions`, `TelemetryConfig`,
+  `SessionFsConfig`, `FsError`, `FileInfo`, `DirEntry`, `ToolInvocation`,
+  `Error`, `Transport`, `DeliveryMode` were already marked.) Callers
+  using exhaustive struct literals must switch to
+  `let mut x = Type::default(); x.field = ...;` or the available `with_*`
+  builders; `..Default::default()` no longer compiles for these types
+  outside the defining crate.
 - `MessageOptions::mode` is now typed `Option<DeliveryMode>` (was
   `Option<String>`). `DeliveryMode` is `#[non_exhaustive]` and serializes
   to the wire strings `"enqueue"` (default) and `"immediate"`. The prior

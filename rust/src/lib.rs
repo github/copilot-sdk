@@ -307,6 +307,7 @@ impl From<PathBuf> for CliProgram {
 /// embedded CLI, and then the system PATH and common install locations.
 ///
 /// Set `program` to [`CliProgram::Path`] to use an explicit binary.
+#[non_exhaustive]
 pub struct ClientOptions {
     /// How to locate the CLI binary.
     pub program: CliProgram,

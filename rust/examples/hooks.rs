@@ -101,12 +101,10 @@ impl SessionHooks for AuditHooks {
 async fn main() -> Result<(), github_copilot_sdk::Error> {
     let client = Client::start(ClientOptions::default()).await?;
 
-    let config = SessionConfig {
-        // hooks: true is set automatically when a hooks handler is provided.
-        ..Default::default()
-    }
-    .with_handler(Arc::new(ApproveAllHandler))
-    .with_hooks(Arc::new(AuditHooks));
+    // hooks: true is set automatically when a hooks handler is provided.
+    let config = SessionConfig::default()
+        .with_handler(Arc::new(ApproveAllHandler))
+        .with_hooks(Arc::new(AuditHooks));
     let session = client.create_session(config).await?;
 
     println!(

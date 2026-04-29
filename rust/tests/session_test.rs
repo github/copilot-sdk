@@ -249,13 +249,11 @@ async fn create_session_sends_correct_rpc() {
         let client = client.clone();
         async move {
             client
-                .create_session(
-                    SessionConfig {
-                        model: Some("gpt-4".to_string()),
-                        ..Default::default()
-                    }
-                    .with_handler(Arc::new(NoopHandler)),
-                )
+                .create_session({
+                    let mut cfg = SessionConfig::default();
+                    cfg.model = Some("gpt-4".to_string());
+                    cfg.with_handler(Arc::new(NoopHandler))
+                })
                 .await
                 .unwrap()
         }
@@ -1870,13 +1868,7 @@ async fn request_elicitation_sent_in_create_params() {
         let client = client.clone();
         async move {
             client
-                .create_session(
-                    SessionConfig {
-                        request_elicitation: Some(true),
-                        ..Default::default()
-                    }
-                    .with_handler(Arc::new(NoopHandler)),
-                )
+                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
                 .await
                 .unwrap()
         }
@@ -2413,13 +2405,14 @@ fn session_config_serializes_bucket_b_fields() {
 
     use github_copilot_sdk::{SessionConfig, SessionId};
 
-    let cfg = SessionConfig {
-        session_id: Some(SessionId::from("custom-id")),
-        config_dir: Some(PathBuf::from("/tmp/cfg")),
-        working_directory: Some(PathBuf::from("/tmp/work")),
-        github_token: Some("ghs_secret".to_string()),
-        include_sub_agent_streaming_events: Some(false),
-        ..SessionConfig::default()
+    let cfg = {
+        let mut cfg = SessionConfig::default();
+        cfg.session_id = Some(SessionId::from("custom-id"));
+        cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+        cfg.working_directory = Some(PathBuf::from("/tmp/work"));
+        cfg.github_token = Some("ghs_secret".to_string());
+        cfg.include_sub_agent_streaming_events = Some(false);
+        cfg
     };
     let json = serde_json::to_value(&cfg).unwrap();
     assert_eq!(json["sessionId"], "custom-id");
@@ -2967,9 +2960,10 @@ async fn validate_session_fs_config_rejects_empty_initial_cwd() {
         "/state",
         SessionFsConventions::Posix,
     );
-    let opts = github_copilot_sdk::ClientOptions {
-        session_fs: Some(cfg),
-        ..Default::default()
+    let opts = {
+        let mut opts = github_copilot_sdk::ClientOptions::default();
+        opts.session_fs = Some(cfg);
+        opts
     };
     let err = github_copilot_sdk::Client::start(opts).await.err();
     let err_string = format!("{err:?}");

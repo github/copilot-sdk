@@ -90,11 +90,11 @@ fn read_line() -> Option<String> {
 async fn main() -> Result<(), github_copilot_sdk::Error> {
     let client = Client::start(ClientOptions::default()).await?;
 
-    let config = SessionConfig {
-        streaming: Some(true),
-        ..Default::default()
-    }
-    .with_handler(Arc::new(ChatHandler));
+    let config = {
+        let mut cfg = SessionConfig::default();
+        cfg.streaming = Some(true);
+        cfg.with_handler(Arc::new(ChatHandler))
+    };
     let session = client.create_session(config).await?;
 
     println!(
