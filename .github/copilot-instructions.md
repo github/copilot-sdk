@@ -55,6 +55,6 @@
 
 ## Skills 🛠️
 
-Repo-scoped skills live under `.github/skills/<skill-name>/` and are auto-discovered by Copilot CLI. Load the relevant skill before editing the matching file types.
+Repo-scoped skills live under `.github/skills/<skill-name>/` and are auto-discovered by Copilot. Load the relevant skill before editing the matching file types.
 
 - **`rust-coding-skill`** (`.github/skills/rust-coding-skill/SKILL.md`) — load before editing any `*.rs` file in `rust/`. Covers error handling, async/concurrency, tracing, codegen workflow, and Rust SDK-specific trait patterns.
