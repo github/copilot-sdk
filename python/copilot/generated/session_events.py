@@ -136,6 +136,7 @@ class SessionEventType(Enum):
     ASSISTANT_MESSAGE_DELTA = "assistant.message_delta"
     ASSISTANT_TURN_END = "assistant.turn_end"
     ASSISTANT_USAGE = "assistant.usage"
+    MODEL_CALL_FAILURE = "model.call_failure"
     ABORT = "abort"
     TOOL_USER_REQUESTED = "tool.user_requested"
     TOOL_EXECUTION_START = "tool.execution_start"
@@ -1598,6 +1599,60 @@ class McpServersLoadedServer:
 
 
 @dataclass
+class ModelCallFailureData:
+    "Failed LLM API call metadata for telemetry"
+    source: ModelCallFailureSource
+    api_call_id: str | None = None
+    duration_ms: float | None = None
+    error_message: str | None = None
+    initiator: str | None = None
+    model: str | None = None
+    provider_call_id: str | None = None
+    status_code: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ModelCallFailureData":
+        assert isinstance(obj, dict)
+        source = parse_enum(ModelCallFailureSource, obj.get("source"))
+        api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
+        duration_ms = from_union([from_none, from_float], obj.get("durationMs"))
+        error_message = from_union([from_none, from_str], obj.get("errorMessage"))
+        initiator = from_union([from_none, from_str], obj.get("initiator"))
+        model = from_union([from_none, from_str], obj.get("model"))
+        provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
+        status_code = from_union([from_none, from_int], obj.get("statusCode"))
+        return ModelCallFailureData(
+            source=source,
+            api_call_id=api_call_id,
+            duration_ms=duration_ms,
+            error_message=error_message,
+            initiator=initiator,
+            model=model,
+            provider_call_id=provider_call_id,
+            status_code=status_code,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["source"] = to_enum(ModelCallFailureSource, self.source)
+        if self.api_call_id is not None:
+            result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
+        if self.duration_ms is not None:
+            result["durationMs"] = from_union([from_none, to_float], self.duration_ms)
+        if self.error_message is not None:
+            result["errorMessage"] = from_union([from_none, from_str], self.error_message)
+        if self.initiator is not None:
+            result["initiator"] = from_union([from_none, from_str], self.initiator)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
+        if self.provider_call_id is not None:
+            result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
+        if self.status_code is not None:
+            result["statusCode"] = from_union([from_none, to_int], self.status_code)
+        return result
+
+
+@dataclass
 class PendingMessagesModifiedData:
     "Empty payload; the event signals that the pending message queue has changed"
     @staticmethod
@@ -2427,6 +2482,7 @@ class SessionInfoData:
     "Informational message for timeline display with categorization"
     info_type: str
     message: str
+    tip: str | None = None
     url: str | None = None
 
     @staticmethod
@@ -2434,10 +2490,12 @@ class SessionInfoData:
         assert isinstance(obj, dict)
         info_type = from_str(obj.get("infoType"))
         message = from_str(obj.get("message"))
+        tip = from_union([from_none, from_str], obj.get("tip"))
         url = from_union([from_none, from_str], obj.get("url"))
         return SessionInfoData(
             info_type=info_type,
             message=message,
+            tip=tip,
             url=url,
         )
 
@@ -2445,6 +2503,8 @@ class SessionInfoData:
         result: dict = {}
         result["infoType"] = from_str(self.info_type)
         result["message"] = from_str(self.message)
+        if self.tip is not None:
+            result["tip"] = from_union([from_none, from_str], self.tip)
         if self.url is not None:
             result["url"] = from_union([from_none, from_str], self.url)
         return result
@@ -4279,6 +4339,13 @@ class McpServersLoadedServerStatus(Enum):
     NOT_CONFIGURED = "not_configured"
 
 
+class ModelCallFailureSource(Enum):
+    "Where the failed model call originated"
+    TOP_LEVEL = "top_level"
+    SUBAGENT = "subagent"
+    MCP_SAMPLING = "mcp_sampling"
+
+
 class PermissionCompletedKind(Enum):
     "The outcome of the permission request"
     APPROVED = "approved"
@@ -4433,7 +4500,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
 
 
 @dataclass
@@ -4489,6 +4556,7 @@ class SessionEvent:
             case SessionEventType.ASSISTANT_MESSAGE_DELTA: data = AssistantMessageDeltaData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_TURN_END: data = AssistantTurnEndData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_USAGE: data = AssistantUsageData.from_dict(data_obj)
+            case SessionEventType.MODEL_CALL_FAILURE: data = ModelCallFailureData.from_dict(data_obj)
             case SessionEventType.ABORT: data = AbortData.from_dict(data_obj)
             case SessionEventType.TOOL_USER_REQUESTED: data = ToolUserRequestedData.from_dict(data_obj)
             case SessionEventType.TOOL_EXECUTION_START: data = ToolExecutionStartData.from_dict(data_obj)

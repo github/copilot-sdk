@@ -686,7 +686,7 @@ internal sealed class ModeSetRequest
 /// <summary>RPC data type for NameGet operations.</summary>
 public sealed class NameGetResult
 {
-    /// <summary>The session name, falling back to the auto-generated summary, or null if neither exists.</summary>
+    /// <summary>The session name (user-set or auto-generated), or null if not yet set.</summary>
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 }
@@ -829,6 +829,10 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     /// <summary>Gets or sets the <c>updated_at</c> value.</summary>
     [JsonPropertyName("updated_at")]
     public DateTimeOffset? UpdatedAt { get; set; }
+
+    /// <summary>Gets or sets the <c>user_named</c> value.</summary>
+    [JsonPropertyName("user_named")]
+    public bool? UserNamed { get; set; }
 }
 
 /// <summary>RPC data type for WorkspacesGetWorkspace operations.</summary>
@@ -987,6 +991,10 @@ public sealed class AgentInfo
     /// <summary>Unique identifier of the custom agent.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path.</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
 }
 
 /// <summary>RPC data type for AgentList operations.</summary>
@@ -1069,6 +1077,286 @@ public sealed class AgentReloadResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionAgentReloadRequest
 {
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for TasksStartAgent operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TasksStartAgentResult
+{
+    /// <summary>Generated agent ID for the background task.</summary>
+    [JsonPropertyName("agentId")]
+    public string AgentId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for TasksStartAgent operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class TasksStartAgentRequest
+{
+    /// <summary>Type of agent to start (e.g., 'explore', 'task', 'general-purpose').</summary>
+    [JsonPropertyName("agentType")]
+    public string AgentType { get; set; } = string.Empty;
+
+    /// <summary>Short description of the task.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Optional model override.</summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Short name for the agent, used to generate a human-readable ID.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Task prompt for the agent.</summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Polymorphic base type discriminated by <c>type</c>.</summary>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(TaskInfoAgent), "agent")]
+[JsonDerivedType(typeof(TaskInfoShell), "shell")]
+public partial class TaskInfo
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>agent</c> variant of <see cref="TaskInfo"/>.</summary>
+public partial class TaskInfoAgent : TaskInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "agent";
+
+    /// <summary>ISO 8601 timestamp when the current active period began.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("activeStartedAt")]
+    public DateTimeOffset? ActiveStartedAt { get; set; }
+
+    /// <summary>Accumulated active execution time in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("activeTimeMs")]
+    public TimeSpan? ActiveTimeMs { get; set; }
+
+    /// <summary>Type of agent running this task.</summary>
+    [JsonPropertyName("agentType")]
+    public required string AgentType { get; set; }
+
+    /// <summary>Whether the task is currently in the original sync wait and can be moved to background mode. False once it is already backgrounded, idle, finished, or no longer has a promotable sync waiter.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("canPromoteToBackground")]
+    public bool? CanPromoteToBackground { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the task finished.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("completedAt")]
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary>Short description of the task.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Error message when the task failed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>How the agent is currently being managed by the runtime.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("executionMode")]
+    public TaskAgentInfoExecutionMode? ExecutionMode { get; set; }
+
+    /// <summary>Unique task identifier.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the agent entered idle state.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("idleSince")]
+    public DateTimeOffset? IdleSince { get; set; }
+
+    /// <summary>Most recent response text from the agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("latestResponse")]
+    public string? LatestResponse { get; set; }
+
+    /// <summary>Model used for the task when specified.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Prompt passed to the agent.</summary>
+    [JsonPropertyName("prompt")]
+    public required string Prompt { get; set; }
+
+    /// <summary>Result text from the task when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("result")]
+    public string? Result { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the task was started.</summary>
+    [JsonPropertyName("startedAt")]
+    public required DateTimeOffset StartedAt { get; set; }
+
+    /// <summary>Current lifecycle status of the task.</summary>
+    [JsonPropertyName("status")]
+    public required TaskAgentInfoStatus Status { get; set; }
+
+    /// <summary>Tool call ID associated with this agent task.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+}
+
+/// <summary>The <c>shell</c> variant of <see cref="TaskInfo"/>.</summary>
+public partial class TaskInfoShell : TaskInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "shell";
+
+    /// <summary>Whether the shell runs inside a managed PTY session or as an independent background process.</summary>
+    [JsonPropertyName("attachmentMode")]
+    public required TaskShellInfoAttachmentMode AttachmentMode { get; set; }
+
+    /// <summary>Whether this shell task can be promoted to background mode.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("canPromoteToBackground")]
+    public bool? CanPromoteToBackground { get; set; }
+
+    /// <summary>Command being executed.</summary>
+    [JsonPropertyName("command")]
+    public required string Command { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the task finished.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("completedAt")]
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary>Short description of the task.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Whether the shell command is currently sync-waited or background-managed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("executionMode")]
+    public TaskShellInfoExecutionMode? ExecutionMode { get; set; }
+
+    /// <summary>Unique task identifier.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    /// <summary>Path to the detached shell log, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("logPath")]
+    public string? LogPath { get; set; }
+
+    /// <summary>Process ID when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pid")]
+    public long? Pid { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the task was started.</summary>
+    [JsonPropertyName("startedAt")]
+    public required DateTimeOffset StartedAt { get; set; }
+
+    /// <summary>Current lifecycle status of the task.</summary>
+    [JsonPropertyName("status")]
+    public required TaskShellInfoStatus Status { get; set; }
+}
+
+/// <summary>RPC data type for TaskList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TaskList
+{
+    /// <summary>Currently tracked tasks.</summary>
+    [JsonPropertyName("tasks")]
+    public IList<TaskInfo> Tasks { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionTasksList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionTasksListRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for TasksPromoteToBackground operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TasksPromoteToBackgroundResult
+{
+    /// <summary>Whether the task was successfully promoted to background mode.</summary>
+    [JsonPropertyName("promoted")]
+    public bool Promoted { get; set; }
+}
+
+/// <summary>RPC data type for TasksPromoteToBackground operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class TasksPromoteToBackgroundRequest
+{
+    /// <summary>Task identifier.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for TasksCancel operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TasksCancelResult
+{
+    /// <summary>Whether the task was successfully cancelled.</summary>
+    [JsonPropertyName("cancelled")]
+    public bool Cancelled { get; set; }
+}
+
+/// <summary>RPC data type for TasksCancel operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class TasksCancelRequest
+{
+    /// <summary>Task identifier.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for TasksRemove operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TasksRemoveResult
+{
+    /// <summary>Whether the task was removed. Returns false if the task does not exist or is still running/idle (cancel it first).</summary>
+    [JsonPropertyName("removed")]
+    public bool Removed { get; set; }
+}
+
+/// <summary>RPC data type for TasksRemove operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class TasksRemoveRequest
+{
+    /// <summary>Task identifier.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -2539,6 +2827,89 @@ public enum InstructionsSourcesType
 }
 
 
+/// <summary>How the agent is currently being managed by the runtime.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TaskAgentInfoExecutionMode>))]
+public enum TaskAgentInfoExecutionMode
+{
+    /// <summary>The <c>sync</c> variant.</summary>
+    [JsonStringEnumMemberName("sync")]
+    Sync,
+    /// <summary>The <c>background</c> variant.</summary>
+    [JsonStringEnumMemberName("background")]
+    Background,
+}
+
+
+/// <summary>Current lifecycle status of the task.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TaskAgentInfoStatus>))]
+public enum TaskAgentInfoStatus
+{
+    /// <summary>The <c>running</c> variant.</summary>
+    [JsonStringEnumMemberName("running")]
+    Running,
+    /// <summary>The <c>idle</c> variant.</summary>
+    [JsonStringEnumMemberName("idle")]
+    Idle,
+    /// <summary>The <c>completed</c> variant.</summary>
+    [JsonStringEnumMemberName("completed")]
+    Completed,
+    /// <summary>The <c>failed</c> variant.</summary>
+    [JsonStringEnumMemberName("failed")]
+    Failed,
+    /// <summary>The <c>cancelled</c> variant.</summary>
+    [JsonStringEnumMemberName("cancelled")]
+    Cancelled,
+}
+
+
+/// <summary>Whether the shell runs inside a managed PTY session or as an independent background process.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TaskShellInfoAttachmentMode>))]
+public enum TaskShellInfoAttachmentMode
+{
+    /// <summary>The <c>attached</c> variant.</summary>
+    [JsonStringEnumMemberName("attached")]
+    Attached,
+    /// <summary>The <c>detached</c> variant.</summary>
+    [JsonStringEnumMemberName("detached")]
+    Detached,
+}
+
+
+/// <summary>Whether the shell command is currently sync-waited or background-managed.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TaskShellInfoExecutionMode>))]
+public enum TaskShellInfoExecutionMode
+{
+    /// <summary>The <c>sync</c> variant.</summary>
+    [JsonStringEnumMemberName("sync")]
+    Sync,
+    /// <summary>The <c>background</c> variant.</summary>
+    [JsonStringEnumMemberName("background")]
+    Background,
+}
+
+
+/// <summary>Current lifecycle status of the task.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TaskShellInfoStatus>))]
+public enum TaskShellInfoStatus
+{
+    /// <summary>The <c>running</c> variant.</summary>
+    [JsonStringEnumMemberName("running")]
+    Running,
+    /// <summary>The <c>idle</c> variant.</summary>
+    [JsonStringEnumMemberName("idle")]
+    Idle,
+    /// <summary>The <c>completed</c> variant.</summary>
+    [JsonStringEnumMemberName("completed")]
+    Completed,
+    /// <summary>The <c>failed</c> variant.</summary>
+    [JsonStringEnumMemberName("failed")]
+    Failed,
+    /// <summary>The <c>cancelled</c> variant.</summary>
+    [JsonStringEnumMemberName("cancelled")]
+    Cancelled,
+}
+
+
 /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<McpServerSource>))]
 public enum McpServerSource
@@ -2943,6 +3314,7 @@ public sealed class SessionRpc
         Instructions = new InstructionsApi(rpc, sessionId);
         Fleet = new FleetApi(rpc, sessionId);
         Agent = new AgentApi(rpc, sessionId);
+        Tasks = new TasksApi(rpc, sessionId);
         Skills = new SkillsApi(rpc, sessionId);
         Mcp = new McpApi(rpc, sessionId);
         Plugins = new PluginsApi(rpc, sessionId);
@@ -2982,6 +3354,9 @@ public sealed class SessionRpc
 
     /// <summary>Agent APIs.</summary>
     public AgentApi Agent { get; }
+
+    /// <summary>Tasks APIs.</summary>
+    public TasksApi Tasks { get; }
 
     /// <summary>Skills APIs.</summary>
     public SkillsApi Skills { get; }
@@ -3287,6 +3662,55 @@ public sealed class AgentApi
     {
         var request = new SessionAgentReloadRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<AgentReloadResult>(_rpc, "session.agent.reload", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Tasks APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TasksApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal TasksApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.tasks.startAgent".</summary>
+    public async Task<TasksStartAgentResult> StartAgentAsync(string agentType, string prompt, string name, string? description = null, string? model = null, CancellationToken cancellationToken = default)
+    {
+        var request = new TasksStartAgentRequest { SessionId = _sessionId, AgentType = agentType, Prompt = prompt, Name = name, Description = description, Model = model };
+        return await CopilotClient.InvokeRpcAsync<TasksStartAgentResult>(_rpc, "session.tasks.startAgent", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.tasks.list".</summary>
+    public async Task<TaskList> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionTasksListRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<TaskList>(_rpc, "session.tasks.list", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.tasks.promoteToBackground".</summary>
+    public async Task<TasksPromoteToBackgroundResult> PromoteToBackgroundAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var request = new TasksPromoteToBackgroundRequest { SessionId = _sessionId, Id = id };
+        return await CopilotClient.InvokeRpcAsync<TasksPromoteToBackgroundResult>(_rpc, "session.tasks.promoteToBackground", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.tasks.cancel".</summary>
+    public async Task<TasksCancelResult> CancelAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var request = new TasksCancelRequest { SessionId = _sessionId, Id = id };
+        return await CopilotClient.InvokeRpcAsync<TasksCancelResult>(_rpc, "session.tasks.cancel", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.tasks.remove".</summary>
+    public async Task<TasksRemoveResult> RemoveAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var request = new TasksRemoveRequest { SessionId = _sessionId, Id = id };
+        return await CopilotClient.InvokeRpcAsync<TasksRemoveResult>(_rpc, "session.tasks.remove", [request], cancellationToken);
     }
 }
 
@@ -3905,6 +4329,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionPluginsListRequest))]
 [JsonSerializable(typeof(SessionSkillsListRequest))]
 [JsonSerializable(typeof(SessionSkillsReloadRequest))]
+[JsonSerializable(typeof(SessionTasksListRequest))]
 [JsonSerializable(typeof(SessionUsageGetMetricsRequest))]
 [JsonSerializable(typeof(SessionWorkspacesGetWorkspaceRequest))]
 [JsonSerializable(typeof(SessionWorkspacesListFilesRequest))]
@@ -3920,6 +4345,16 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SkillsDisableRequest))]
 [JsonSerializable(typeof(SkillsDiscoverRequest))]
 [JsonSerializable(typeof(SkillsEnableRequest))]
+[JsonSerializable(typeof(TaskInfo))]
+[JsonSerializable(typeof(TaskList))]
+[JsonSerializable(typeof(TasksCancelRequest))]
+[JsonSerializable(typeof(TasksCancelResult))]
+[JsonSerializable(typeof(TasksPromoteToBackgroundRequest))]
+[JsonSerializable(typeof(TasksPromoteToBackgroundResult))]
+[JsonSerializable(typeof(TasksRemoveRequest))]
+[JsonSerializable(typeof(TasksRemoveResult))]
+[JsonSerializable(typeof(TasksStartAgentRequest))]
+[JsonSerializable(typeof(TasksStartAgentResult))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolList))]
 [JsonSerializable(typeof(ToolsHandlePendingToolCallRequest))]

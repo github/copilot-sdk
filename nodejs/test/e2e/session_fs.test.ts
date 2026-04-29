@@ -4,6 +4,9 @@
 
 import { SessionCompactionCompleteEvent } from "@github/copilot/sdk";
 import { MemoryProvider, VirtualProvider } from "@platformatic/vfs";
+import { mkdtempSync, realpathSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../../src/client.js";
 import type { SessionFsReaddirWithTypesEntry } from "../../src/generated/rpc.js";
@@ -17,6 +20,14 @@ import {
     type SessionFsFileInfo,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+
+const sessionStatePath =
+    process.platform === "win32"
+        ? "/session-state"
+        : join(
+              realpathSync(mkdtempSync(join(tmpdir(), "copilot-sessionfs-state-"))),
+              "session-state"
+          ).replace(/\\/g, "/");
 
 describe("Session Fs", async () => {
     // Single provider for the describe block — session IDs are unique per test,
@@ -43,7 +54,9 @@ describe("Session Fs", async () => {
         expect(msg?.data.content).toContain("300");
         await session.disconnect();
 
-        const buf = await provider.readFile(p(session.sessionId, "/session-state/events.jsonl"));
+        const buf = await provider.readFile(
+            p(session.sessionId, `${sessionStatePath}/events.jsonl`)
+        );
         const content = buf.toString("utf8");
         expect(content).toContain("300");
     });
@@ -60,7 +73,7 @@ describe("Session Fs", async () => {
         await session1.disconnect();
 
         // The events file should exist before resume
-        expect(await provider.exists(p(sessionId, "/session-state/events.jsonl"))).toBe(true);
+        expect(await provider.exists(p(sessionId, `${sessionStatePath}/events.jsonl`))).toBe(true);
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
@@ -116,8 +129,10 @@ describe("Session Fs", async () => {
         // The tool result should reference a temp file under the session state path
         const messages = await session.getMessages();
         const toolResult = findToolCallResult(messages, "get_big_string");
-        expect(toolResult).toContain("/session-state/temp/");
-        const filename = toolResult?.match(/(\/session-state\/temp\/[^\s]+)/)?.[1];
+        expect(toolResult).toContain(`${sessionStatePath}/temp/`);
+        const filename = toolResult?.match(
+            new RegExp(`(${escapeRegExp(sessionStatePath)}/temp/[^\\s]+)`)
+        )?.[1];
         expect(filename).toBeDefined();
 
         // Verify the file was written with the correct content via the provider
@@ -135,13 +150,13 @@ describe("Session Fs", async () => {
         expect(msg?.data.content).toContain("56");
 
         // WorkspaceManager should have created workspace.yaml via sessionFs
-        const workspaceYamlPath = p(session.sessionId, "/session-state/workspace.yaml");
+        const workspaceYamlPath = p(session.sessionId, `${sessionStatePath}/workspace.yaml`);
         await expect.poll(() => provider.exists(workspaceYamlPath)).toBe(true);
         const yaml = await provider.readFile(workspaceYamlPath, "utf8");
         expect(yaml).toContain("id:");
 
         // Checkpoint index should also exist
-        const indexPath = p(session.sessionId, "/session-state/checkpoints/index.md");
+        const indexPath = p(session.sessionId, `${sessionStatePath}/checkpoints/index.md`);
         await expect.poll(() => provider.exists(indexPath)).toBe(true);
 
         await session.disconnect();
@@ -157,7 +172,7 @@ describe("Session Fs", async () => {
         await session.sendAndWait({ prompt: "What is 2 + 3?" });
         await session.rpc.plan.update({ content: "# Test Plan\n\nThis is a test." });
 
-        const planPath = p(session.sessionId, "/session-state/plan.md");
+        const planPath = p(session.sessionId, `${sessionStatePath}/plan.md`);
         await expect.poll(() => provider.exists(planPath)).toBe(true);
         const content = await provider.readFile(planPath, "utf8");
         expect(content).toContain("# Test Plan");
@@ -176,7 +191,7 @@ describe("Session Fs", async () => {
 
         await session.sendAndWait({ prompt: "What is 2+2?" });
 
-        const eventsPath = p(session.sessionId, "/session-state/events.jsonl");
+        const eventsPath = p(session.sessionId, `${sessionStatePath}/events.jsonl`);
         await expect.poll(() => provider.exists(eventsPath)).toBe(true);
         const contentBefore = await provider.readFile(eventsPath, "utf8");
         expect(contentBefore).not.toContain("checkpointNumber");
@@ -212,9 +227,13 @@ function findToolName(messages: SessionEvent[], toolCallId: string): string | un
 
 const sessionFsConfig: SessionFsConfig = {
     initialCwd: "/",
-    sessionStatePath: "/session-state",
+    sessionStatePath,
     conventions: "posix",
 };
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function createTestSessionFsHandler(
     session: CopilotSession,

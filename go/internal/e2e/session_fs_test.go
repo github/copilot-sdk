@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,12 @@ import (
 func TestSessionFs(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	providerRoot := t.TempDir()
+	sessionStatePath := createSessionStatePath(t)
+	sessionFsConfig := &copilot.SessionFsConfig{
+		InitialCwd:       "/",
+		SessionStatePath: sessionStatePath,
+		Conventions:      rpc.SessionFSSetProviderConventionsPosix,
+	}
 	createSessionFsHandler := func(session *copilot.Session) copilot.SessionFsProvider {
 		return &testSessionFsHandler{
 			root:      providerRoot,
@@ -60,7 +67,7 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Failed to disconnect session: %v", err)
 		}
 
-		events, err := os.ReadFile(p(session.SessionID, "/session-state/events.jsonl"))
+		events, err := os.ReadFile(p(session.SessionID, sessionStatePath+"/events.jsonl"))
 		if err != nil {
 			t.Fatalf("Failed to read events file: %v", err)
 		}
@@ -98,7 +105,7 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Failed to disconnect first session: %v", err)
 		}
 
-		if _, err := os.Stat(p(sessionID, "/session-state/events.jsonl")); err != nil {
+		if _, err := os.Stat(p(sessionID, sessionStatePath+"/events.jsonl")); err != nil {
 			t.Fatalf("Expected events file to exist before resume: %v", err)
 		}
 
@@ -189,10 +196,10 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
 		toolResult := findToolCallResult(messages, "get_big_string")
-		if !strings.Contains(toolResult, "/session-state/temp/") {
-			t.Fatalf("Expected tool result to reference /session-state/temp/, got %q", toolResult)
+		if !strings.Contains(toolResult, sessionStatePath+"/temp/") {
+			t.Fatalf("Expected tool result to reference %s/temp/, got %q", sessionStatePath, toolResult)
 		}
-		match := regexp.MustCompile(`(/session-state/temp/[^\s]+)`).FindStringSubmatch(toolResult)
+		match := regexp.MustCompile(`(` + regexp.QuoteMeta(sessionStatePath) + `/temp/[^\s]+)`).FindStringSubmatch(toolResult)
 		if len(match) < 2 {
 			t.Fatalf("Expected temp file path in tool result, got %q", toolResult)
 		}
@@ -221,7 +228,7 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		eventsPath := p(session.SessionID, "/session-state/events.jsonl")
+		eventsPath := p(session.SessionID, sessionStatePath+"/events.jsonl")
 		if err := waitForFile(eventsPath, 5*time.Second); err != nil {
 			t.Fatalf("Timed out waiting for events file: %v", err)
 		}
@@ -271,7 +278,7 @@ func TestSessionFs(t *testing.T) {
 		}
 
 		// WorkspaceManager should have created workspace.yaml via sessionFs
-		workspaceYamlPath := p(session.SessionID, "/session-state/workspace.yaml")
+		workspaceYamlPath := p(session.SessionID, sessionStatePath+"/workspace.yaml")
 		if err := waitForFile(workspaceYamlPath, 5*time.Second); err != nil {
 			t.Fatalf("Timed out waiting for workspace.yaml: %v", err)
 		}
@@ -284,7 +291,7 @@ func TestSessionFs(t *testing.T) {
 		}
 
 		// Checkpoint index should also exist
-		indexPath := p(session.SessionID, "/session-state/checkpoints/index.md")
+		indexPath := p(session.SessionID, sessionStatePath+"/checkpoints/index.md")
 		if err := waitForFile(indexPath, 5*time.Second); err != nil {
 			t.Fatalf("Timed out waiting for checkpoints/index.md: %v", err)
 		}
@@ -313,7 +320,7 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Failed to update plan: %v", err)
 		}
 
-		planPath := p(session.SessionID, "/session-state/plan.md")
+		planPath := p(session.SessionID, sessionStatePath+"/plan.md")
 		if err := waitForFile(planPath, 5*time.Second); err != nil {
 			t.Fatalf("Timed out waiting for plan.md: %v", err)
 		}
@@ -331,10 +338,12 @@ func TestSessionFs(t *testing.T) {
 	})
 }
 
-var sessionFsConfig = &copilot.SessionFsConfig{
-	InitialCwd:       "/",
-	SessionStatePath: "/session-state",
-	Conventions:      rpc.SessionFSSetProviderConventionsPosix,
+func createSessionStatePath(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return "/session-state"
+	}
+	return filepath.ToSlash(filepath.Join(t.TempDir(), "session-state"))
 }
 
 type testSessionFsHandler struct {

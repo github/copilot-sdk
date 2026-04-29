@@ -95,6 +95,7 @@ public sealed class E2ETestContext : IAsyncDisposable
             .ToDictionary(e => (string)e.Key, e => e.Value?.ToString());
 
         env["COPILOT_API_URL"] = ProxyUrl;
+        env["COPILOT_HOME"] = HomeDir;
         env["XDG_CONFIG_HOME"] = HomeDir;
         env["XDG_STATE_HOME"] = HomeDir;
 

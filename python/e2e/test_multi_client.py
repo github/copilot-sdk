@@ -129,6 +129,7 @@ class MultiClientContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
+                "COPILOT_HOME": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }

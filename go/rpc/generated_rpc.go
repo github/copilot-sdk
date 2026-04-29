@@ -184,6 +184,23 @@ type RPCTypes struct {
 	SkillsEnableRequest                                     SkillsEnableRequest                                     `json:"SkillsEnableRequest"`
 	SkillsEnableResult                                      SkillsEnableResult                                      `json:"SkillsEnableResult"`
 	SkillsReloadResult                                      SkillsReloadResult                                      `json:"SkillsReloadResult"`
+	TaskAgentInfo                                           TaskAgentInfo                                           `json:"TaskAgentInfo"`
+	TaskAgentInfoExecutionMode                              TaskInfoExecutionMode                                   `json:"TaskAgentInfoExecutionMode"`
+	TaskAgentInfoStatus                                     TaskInfoStatus                                          `json:"TaskAgentInfoStatus"`
+	TaskInfo                                                TaskInfo                                                `json:"TaskInfo"`
+	TaskList                                                TaskList                                                `json:"TaskList"`
+	TasksCancelRequest                                      TasksCancelRequest                                      `json:"TasksCancelRequest"`
+	TasksCancelResult                                       TasksCancelResult                                       `json:"TasksCancelResult"`
+	TaskShellInfo                                           TaskShellInfo                                           `json:"TaskShellInfo"`
+	TaskShellInfoAttachmentMode                             TaskShellInfoAttachmentMode                             `json:"TaskShellInfoAttachmentMode"`
+	TaskShellInfoExecutionMode                              TaskInfoExecutionMode                                   `json:"TaskShellInfoExecutionMode"`
+	TaskShellInfoStatus                                     TaskInfoStatus                                          `json:"TaskShellInfoStatus"`
+	TasksPromoteToBackgroundRequest                         TasksPromoteToBackgroundRequest                         `json:"TasksPromoteToBackgroundRequest"`
+	TasksPromoteToBackgroundResult                          TasksPromoteToBackgroundResult                          `json:"TasksPromoteToBackgroundResult"`
+	TasksRemoveRequest                                      TasksRemoveRequest                                      `json:"TasksRemoveRequest"`
+	TasksRemoveResult                                       TasksRemoveResult                                       `json:"TasksRemoveResult"`
+	TasksStartAgentRequest                                  TasksStartAgentRequest                                  `json:"TasksStartAgentRequest"`
+	TasksStartAgentResult                                   TasksStartAgentResult                                   `json:"TasksStartAgentResult"`
 	Tool                                                    Tool                                                    `json:"Tool"`
 	ToolCallResult                                          ToolCallResult                                          `json:"ToolCallResult"`
 	ToolList                                                ToolList                                                `json:"ToolList"`
@@ -273,6 +290,9 @@ type AgentInfo struct {
 	DisplayName string `json:"displayName"`
 	// Unique identifier of the custom agent
 	Name string `json:"name"`
+	// Absolute local file path of the agent definition. Only set for file-based agents loaded
+	// from disk; remote agents do not have a path.
+	Path *string `json:"path,omitempty"`
 }
 
 // Experimental: AgentList is part of an experimental API and may change or be removed.
@@ -777,7 +797,7 @@ type ModelsListRequest struct {
 }
 
 type NameGetResult struct {
-	// The session name, falling back to the auto-generated summary, or null if neither exists
+	// The session name (user-set or auto-generated), or null if not yet set
 	Name *string `json:"name"`
 }
 
@@ -1301,6 +1321,192 @@ type SkillsEnableResult struct {
 type SkillsReloadResult struct {
 }
 
+type TaskAgentInfo struct {
+	// ISO 8601 timestamp when the current active period began
+	ActiveStartedAt *time.Time `json:"activeStartedAt,omitempty"`
+	// Accumulated active execution time in milliseconds
+	ActiveTimeMS *int64 `json:"activeTimeMs,omitempty"`
+	// Type of agent running this task
+	AgentType string `json:"agentType"`
+	// Whether the task is currently in the original sync wait and can be moved to background
+	// mode. False once it is already backgrounded, idle, finished, or no longer has a
+	// promotable sync waiter.
+	CanPromoteToBackground *bool `json:"canPromoteToBackground,omitempty"`
+	// ISO 8601 timestamp when the task finished
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	// Short description of the task
+	Description string `json:"description"`
+	// Error message when the task failed
+	Error *string `json:"error,omitempty"`
+	// How the agent is currently being managed by the runtime
+	ExecutionMode *TaskInfoExecutionMode `json:"executionMode,omitempty"`
+	// Unique task identifier
+	ID string `json:"id"`
+	// ISO 8601 timestamp when the agent entered idle state
+	IdleSince *time.Time `json:"idleSince,omitempty"`
+	// Most recent response text from the agent
+	LatestResponse *string `json:"latestResponse,omitempty"`
+	// Model used for the task when specified
+	Model *string `json:"model,omitempty"`
+	// Prompt passed to the agent
+	Prompt string `json:"prompt"`
+	// Result text from the task when available
+	Result *string `json:"result,omitempty"`
+	// ISO 8601 timestamp when the task was started
+	StartedAt time.Time `json:"startedAt"`
+	// Current lifecycle status of the task
+	Status TaskInfoStatus `json:"status"`
+	// Tool call ID associated with this agent task
+	ToolCallID string `json:"toolCallId"`
+	// Task kind
+	Type TaskAgentInfoType `json:"type"`
+}
+
+type TaskInfo struct {
+	// ISO 8601 timestamp when the current active period began
+	ActiveStartedAt *time.Time `json:"activeStartedAt,omitempty"`
+	// Accumulated active execution time in milliseconds
+	ActiveTimeMS *int64 `json:"activeTimeMs,omitempty"`
+	// Type of agent running this task
+	AgentType *string `json:"agentType,omitempty"`
+	// Whether the task is currently in the original sync wait and can be moved to background
+	// mode. False once it is already backgrounded, idle, finished, or no longer has a
+	// promotable sync waiter.
+	//
+	// Whether this shell task can be promoted to background mode
+	CanPromoteToBackground *bool `json:"canPromoteToBackground,omitempty"`
+	// ISO 8601 timestamp when the task finished
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	// Short description of the task
+	Description string `json:"description"`
+	// Error message when the task failed
+	Error *string `json:"error,omitempty"`
+	// How the agent is currently being managed by the runtime
+	//
+	// Whether the shell command is currently sync-waited or background-managed
+	ExecutionMode *TaskInfoExecutionMode `json:"executionMode,omitempty"`
+	// Unique task identifier
+	ID string `json:"id"`
+	// ISO 8601 timestamp when the agent entered idle state
+	IdleSince *time.Time `json:"idleSince,omitempty"`
+	// Most recent response text from the agent
+	LatestResponse *string `json:"latestResponse,omitempty"`
+	// Model used for the task when specified
+	Model *string `json:"model,omitempty"`
+	// Prompt passed to the agent
+	Prompt *string `json:"prompt,omitempty"`
+	// Result text from the task when available
+	Result *string `json:"result,omitempty"`
+	// ISO 8601 timestamp when the task was started
+	StartedAt time.Time `json:"startedAt"`
+	// Current lifecycle status of the task
+	Status TaskInfoStatus `json:"status"`
+	// Tool call ID associated with this agent task
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Task kind
+	Type TaskInfoType `json:"type"`
+	// Whether the shell runs inside a managed PTY session or as an independent background
+	// process
+	AttachmentMode *TaskShellInfoAttachmentMode `json:"attachmentMode,omitempty"`
+	// Command being executed
+	Command *string `json:"command,omitempty"`
+	// Path to the detached shell log, when available
+	LogPath *string `json:"logPath,omitempty"`
+	// Process ID when available
+	PID *int64 `json:"pid,omitempty"`
+}
+
+// Experimental: TaskList is part of an experimental API and may change or be removed.
+type TaskList struct {
+	// Currently tracked tasks
+	Tasks []TaskInfo `json:"tasks"`
+}
+
+type TaskShellInfo struct {
+	// Whether the shell runs inside a managed PTY session or as an independent background
+	// process
+	AttachmentMode TaskShellInfoAttachmentMode `json:"attachmentMode"`
+	// Whether this shell task can be promoted to background mode
+	CanPromoteToBackground *bool `json:"canPromoteToBackground,omitempty"`
+	// Command being executed
+	Command string `json:"command"`
+	// ISO 8601 timestamp when the task finished
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	// Short description of the task
+	Description string `json:"description"`
+	// Whether the shell command is currently sync-waited or background-managed
+	ExecutionMode *TaskInfoExecutionMode `json:"executionMode,omitempty"`
+	// Unique task identifier
+	ID string `json:"id"`
+	// Path to the detached shell log, when available
+	LogPath *string `json:"logPath,omitempty"`
+	// Process ID when available
+	PID *int64 `json:"pid,omitempty"`
+	// ISO 8601 timestamp when the task was started
+	StartedAt time.Time `json:"startedAt"`
+	// Current lifecycle status of the task
+	Status TaskInfoStatus `json:"status"`
+	// Task kind
+	Type TaskShellInfoType `json:"type"`
+}
+
+// Experimental: TasksCancelRequest is part of an experimental API and may change or be removed.
+type TasksCancelRequest struct {
+	// Task identifier
+	ID string `json:"id"`
+}
+
+// Experimental: TasksCancelResult is part of an experimental API and may change or be removed.
+type TasksCancelResult struct {
+	// Whether the task was successfully cancelled
+	Cancelled bool `json:"cancelled"`
+}
+
+// Experimental: TasksPromoteToBackgroundRequest is part of an experimental API and may change or be removed.
+type TasksPromoteToBackgroundRequest struct {
+	// Task identifier
+	ID string `json:"id"`
+}
+
+// Experimental: TasksPromoteToBackgroundResult is part of an experimental API and may change or be removed.
+type TasksPromoteToBackgroundResult struct {
+	// Whether the task was successfully promoted to background mode
+	Promoted bool `json:"promoted"`
+}
+
+// Experimental: TasksRemoveRequest is part of an experimental API and may change or be removed.
+type TasksRemoveRequest struct {
+	// Task identifier
+	ID string `json:"id"`
+}
+
+// Experimental: TasksRemoveResult is part of an experimental API and may change or be removed.
+type TasksRemoveResult struct {
+	// Whether the task was removed. Returns false if the task does not exist or is still
+	// running/idle (cancel it first).
+	Removed bool `json:"removed"`
+}
+
+// Experimental: TasksStartAgentRequest is part of an experimental API and may change or be removed.
+type TasksStartAgentRequest struct {
+	// Type of agent to start (e.g., 'explore', 'task', 'general-purpose')
+	AgentType string `json:"agentType"`
+	// Short description of the task
+	Description *string `json:"description,omitempty"`
+	// Optional model override
+	Model *string `json:"model,omitempty"`
+	// Short name for the agent, used to generate a human-readable ID
+	Name string `json:"name"`
+	// Task prompt for the agent
+	Prompt string `json:"prompt"`
+}
+
+// Experimental: TasksStartAgentResult is part of an experimental API and may change or be removed.
+type TasksStartAgentResult struct {
+	// Generated agent ID for the background task
+	AgentID string `json:"agentId"`
+}
+
 type Tool struct {
 	// Description of what the tool does
 	Description string `json:"description"`
@@ -1585,6 +1791,7 @@ type WorkspaceClass struct {
 	Summary                *string           `json:"summary,omitempty"`
 	SummaryCount           *int64            `json:"summary_count,omitempty"`
 	UpdatedAt              *time.Time        `json:"updated_at,omitempty"`
+	UserNamed              *bool             `json:"user_named,omitempty"`
 }
 
 type WorkspacesListFilesResult struct {
@@ -1865,6 +2072,55 @@ const (
 	ShellKillSignalSIGINT  ShellKillSignal = "SIGINT"
 	ShellKillSignalSIGKILL ShellKillSignal = "SIGKILL"
 	ShellKillSignalSIGTERM ShellKillSignal = "SIGTERM"
+)
+
+// How the agent is currently being managed by the runtime
+//
+// Whether the shell command is currently sync-waited or background-managed
+type TaskInfoExecutionMode string
+
+const (
+	TaskInfoExecutionModeBackground TaskInfoExecutionMode = "background"
+	TaskInfoExecutionModeSync       TaskInfoExecutionMode = "sync"
+)
+
+// Current lifecycle status of the task
+type TaskInfoStatus string
+
+const (
+	TaskInfoStatusCancelled TaskInfoStatus = "cancelled"
+	TaskInfoStatusCompleted TaskInfoStatus = "completed"
+	TaskInfoStatusIdle      TaskInfoStatus = "idle"
+	TaskInfoStatusFailed    TaskInfoStatus = "failed"
+	TaskInfoStatusRunning   TaskInfoStatus = "running"
+)
+
+type TaskAgentInfoType string
+
+const (
+	TaskAgentInfoTypeAgent TaskAgentInfoType = "agent"
+)
+
+// Whether the shell runs inside a managed PTY session or as an independent background
+// process
+type TaskShellInfoAttachmentMode string
+
+const (
+	TaskShellInfoAttachmentModeAttached TaskShellInfoAttachmentMode = "attached"
+	TaskShellInfoAttachmentModeDetached TaskShellInfoAttachmentMode = "detached"
+)
+
+type TaskInfoType string
+
+const (
+	TaskInfoTypeAgent TaskInfoType = "agent"
+	TaskInfoTypeShell TaskInfoType = "shell"
+)
+
+type TaskShellInfoType string
+
+const (
+	TaskShellInfoTypeShell TaskShellInfoType = "shell"
 )
 
 type UIElicitationArrayAnyOfFieldType string
@@ -2527,6 +2783,94 @@ func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
 	return &result, nil
 }
 
+// Experimental: TasksApi contains experimental APIs that may change or be removed.
+type TasksApi sessionApi
+
+func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentRequest) (*TasksStartAgentResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["agentType"] = params.AgentType
+		req["prompt"] = params.Prompt
+		req["name"] = params.Name
+		if params.Description != nil {
+			req["description"] = *params.Description
+		}
+		if params.Model != nil {
+			req["model"] = *params.Model
+		}
+	}
+	raw, err := a.client.Request("session.tasks.startAgent", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksStartAgentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.tasks.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TaskList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromoteToBackgroundRequest) (*TasksPromoteToBackgroundResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.tasks.promoteToBackground", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksPromoteToBackgroundResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*TasksCancelResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.tasks.cancel", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*TasksRemoveResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.tasks.remove", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksRemoveResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: SkillsApi contains experimental APIs that may change or be removed.
 type SkillsApi sessionApi
 
@@ -2992,6 +3336,7 @@ type SessionRpc struct {
 	Instructions *InstructionsApi
 	Fleet        *FleetApi
 	Agent        *AgentApi
+	Tasks        *TasksApi
 	Skills       *SkillsApi
 	Mcp          *McpApi
 	Plugins      *PluginsApi
@@ -3042,6 +3387,7 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Instructions = (*InstructionsApi)(&r.common)
 	r.Fleet = (*FleetApi)(&r.common)
 	r.Agent = (*AgentApi)(&r.common)
+	r.Tasks = (*TasksApi)(&r.common)
 	r.Skills = (*SkillsApi)(&r.common)
 	r.Mcp = (*McpApi)(&r.common)
 	r.Plugins = (*PluginsApi)(&r.common)
