@@ -171,8 +171,8 @@ pub enum SessionError {
     #[error("timed out after {0:?}")]
     Timeout(std::time::Duration),
 
-    /// `send_message` was called while a `send_and_wait` is in flight.
-    #[error("cannot send_message while send_and_wait is in flight")]
+    /// `send` was called while a `send_and_wait` is in flight.
+    #[error("cannot send while send_and_wait is in flight")]
     SendWhileWaiting,
 
     /// The session event loop exited before a pending `send_and_wait` completed.

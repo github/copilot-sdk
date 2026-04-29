@@ -32,7 +32,7 @@ use copilot::handler::ApproveAllHandler;
 #[cfg(feature = "derive")]
 use copilot::tool::{JsonSchema, ToolHandler, ToolHandlerRouter, schema_for, tool_parameters};
 #[cfg(feature = "derive")]
-use copilot::types::{SendOptions, SessionConfig, Tool, ToolInvocation, ToolResult};
+use copilot::types::{MessageOptions, SessionConfig, Tool, ToolInvocation, ToolResult};
 #[cfg(feature = "derive")]
 use copilot::{Client, ClientOptions, Error};
 #[cfg(feature = "derive")]
@@ -172,7 +172,7 @@ async fn main() -> Result<(), copilot::Error> {
 
     let response = session
         .send_and_wait(
-            SendOptions::new("What's the weather in Seattle? Also roll 3d20 for me.")
+            MessageOptions::new("What's the weather in Seattle? Also roll 3d20 for me.")
                 .with_wait_timeout(Duration::from_secs(60)),
         )
         .await?;

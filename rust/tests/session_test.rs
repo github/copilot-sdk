@@ -12,7 +12,8 @@ use copilot::handler::{
     SessionHandler, UserInputResponse,
 };
 use copilot::types::{
-    SendOptions, ServerTelemetryEvent, SessionConfig, SessionId, SessionTelemetryEvent, ToolResult,
+    MessageOptions, ServerTelemetryEvent, SessionConfig, SessionId, SessionTelemetryEvent,
+    ToolResult,
 };
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
@@ -278,7 +279,7 @@ async fn create_session_sends_correct_rpc() {
 }
 
 #[tokio::test]
-async fn send_message_injects_session_id() {
+async fn send_injects_session_id() {
     let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
     let session = Arc::new(session);
 
@@ -286,7 +287,7 @@ async fn send_message_injects_session_id() {
         let session = session.clone();
         async move {
             session
-                .send_message(SendOptions::new("hello").with_mode("agent"))
+                .send(MessageOptions::new("hello").with_mode("agent"))
                 .await
         }
     });
@@ -1394,7 +1395,9 @@ async fn send_and_wait_returns_last_assistant_message_on_idle() {
         let session = session.clone();
         async move {
             session
-                .send_and_wait(SendOptions::new("hello").with_wait_timeout(Duration::from_secs(5)))
+                .send_and_wait(
+                    MessageOptions::new("hello").with_wait_timeout(Duration::from_secs(5)),
+                )
                 .await
         }
     });
@@ -1428,7 +1431,9 @@ async fn send_and_wait_returns_error_on_session_error() {
         let session = session.clone();
         async move {
             session
-                .send_and_wait(SendOptions::new("fail").with_wait_timeout(Duration::from_secs(5)))
+                .send_and_wait(
+                    MessageOptions::new("fail").with_wait_timeout(Duration::from_secs(5)),
+                )
                 .await
         }
     });
@@ -1462,7 +1467,7 @@ async fn send_and_wait_times_out() {
         async move {
             session
                 .send_and_wait(
-                    SendOptions::new("hello").with_wait_timeout(Duration::from_millis(100)),
+                    MessageOptions::new("hello").with_wait_timeout(Duration::from_millis(100)),
                 )
                 .await
         }

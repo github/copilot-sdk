@@ -17,7 +17,7 @@ use copilot::hooks::{
     HookEvent, HookOutput, PostToolUseOutput, PreToolUseOutput, SessionEndOutput, SessionHooks,
     SessionStartOutput,
 };
-use copilot::types::{SendOptions, SessionConfig};
+use copilot::types::{MessageOptions, SessionConfig};
 use copilot::{Client, ClientOptions};
 
 /// Hooks implementation that logs lifecycle events to stdout.
@@ -116,7 +116,7 @@ async fn main() -> Result<(), copilot::Error> {
 
     let response = session
         .send_and_wait(
-            SendOptions::new("Say hello in three languages.")
+            MessageOptions::new("Say hello in three languages.")
                 .with_wait_timeout(Duration::from_secs(60)),
         )
         .await?;

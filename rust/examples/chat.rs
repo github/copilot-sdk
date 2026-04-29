@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use copilot::handler::{
     HandlerEvent, HandlerResponse, PermissionResult, SessionHandler, UserInputResponse,
 };
-use copilot::types::{SendOptions, SessionConfig, SessionEvent};
+use copilot::types::{MessageOptions, SessionConfig, SessionEvent};
 use copilot::{Client, ClientOptions};
 
 /// Handler that prints assistant message deltas as they stream in
@@ -112,7 +112,7 @@ async fn main() -> Result<(), copilot::Error> {
         }
 
         session
-            .send_and_wait(SendOptions::new(line).with_wait_timeout(Duration::from_secs(120)))
+            .send_and_wait(MessageOptions::new(line).with_wait_timeout(Duration::from_secs(120)))
             .await?;
     }
 

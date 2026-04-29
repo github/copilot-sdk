@@ -24,10 +24,10 @@ use crate::hooks::SessionHooks;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CreateSessionResult, ElicitationRequest, ElicitationResult, ExitPlanModeData,
-    GetMessagesResponse, InputOptions, PermissionRequestData, RequestId, ResumeSessionConfig,
-    SectionOverride, SendOptions, SessionCapabilities, SessionConfig, SessionEvent, SessionId,
-    SessionTelemetryEvent, SetModelOptions, SystemMessageConfig, ToolInvocation, ToolResult,
-    ToolResultResponse, ensure_attachment_display_names,
+    GetMessagesResponse, InputOptions, MessageOptions, PermissionRequestData, RequestId,
+    ResumeSessionConfig, SectionOverride, SessionCapabilities, SessionConfig, SessionEvent,
+    SessionId, SessionTelemetryEvent, SetModelOptions, SystemMessageConfig, ToolInvocation,
+    ToolResult, ToolResultResponse, ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -42,7 +42,7 @@ struct IdleWaiter {
 /// Created via [`Client::create_session`] or [`Client::resume_session`].
 /// Owns an internal event loop that dispatches events to the [`SessionHandler`].
 ///
-/// Protocol methods (`send_message`, `get_messages`, `abort`, etc.) automatically
+/// Protocol methods (`send`, `get_messages`, `abort`, etc.) automatically
 /// inject the session ID into RPC params.
 ///
 /// Call [`destroy`](Self::destroy) for graceful cleanup (RPC + local). If dropped
@@ -149,9 +149,9 @@ impl Session {
 
     /// Send a user message to the agent.
     ///
-    /// Accepts anything convertible to [`SendOptions`] — pass a `&str` for the
-    /// trivial case, or build a `SendOptions` for mode/attachments. The
-    /// `wait_timeout` field on `SendOptions` is ignored here (use
+    /// Accepts anything convertible to [`MessageOptions`] — pass a `&str` for the
+    /// trivial case, or build a `MessageOptions` for mode/attachments. The
+    /// `wait_timeout` field on `MessageOptions` is ignored here (use
     /// [`send_and_wait`](Self::send_and_wait) if you need to wait).
     ///
     /// Returns the assigned message ID, which can be used to correlate the
@@ -160,14 +160,14 @@ impl Session {
     ///
     /// Returns an error if a [`send_and_wait`](Self::send_and_wait) call is
     /// currently in flight, since the plain send would race with the waiter.
-    pub async fn send_message(&self, opts: impl Into<SendOptions>) -> Result<String, Error> {
+    pub async fn send(&self, opts: impl Into<MessageOptions>) -> Result<String, Error> {
         if self.idle_waiter.lock().await.is_some() {
             return Err(Error::Session(SessionError::SendWhileWaiting));
         }
-        self.send_message_inner(opts.into()).await
+        self.send_inner(opts.into()).await
     }
 
-    async fn send_message_inner(&self, opts: SendOptions) -> Result<String, Error> {
+    async fn send_inner(&self, opts: MessageOptions) -> Result<String, Error> {
         let mut params = serde_json::json!({
             "sessionId": self.id,
             "prompt": opts.prompt,
@@ -204,18 +204,18 @@ impl Session {
 
     /// Send a user message and wait for the agent to finish processing.
     ///
-    /// Accepts anything convertible to [`SendOptions`] — pass a `&str` for the
-    /// trivial case, or build a `SendOptions` for mode/attachments/timeout.
+    /// Accepts anything convertible to [`MessageOptions`] — pass a `&str` for the
+    /// trivial case, or build a `MessageOptions` for mode/attachments/timeout.
     /// Blocks until `session.idle` (success) or `session.error` (failure),
     /// returning the last `assistant.message` event captured during streaming.
-    /// Times out after `SendOptions::wait_timeout` (default 60 seconds).
+    /// Times out after `MessageOptions::wait_timeout` (default 60 seconds).
     ///
     /// Only one `send_and_wait` call may be active per session at a time.
-    /// Calling [`send_message`](Self::send_message) while a `send_and_wait`
+    /// Calling [`send`](Self::send) while a `send_and_wait`
     /// is in flight will also return an error.
     pub async fn send_and_wait(
         &self,
-        opts: impl Into<SendOptions>,
+        opts: impl Into<MessageOptions>,
     ) -> Result<Option<SessionEvent>, Error> {
         let opts = opts.into();
         let timeout_duration = opts.wait_timeout.unwrap_or(Duration::from_secs(60));
@@ -233,7 +233,7 @@ impl Session {
         }
 
         let result = tokio::time::timeout(timeout_duration, async {
-            if let Err(e) = self.send_message_inner(opts).await {
+            if let Err(e) = self.send_inner(opts).await {
                 self.idle_waiter.lock().await.take();
                 return Err(e);
             }

@@ -18,7 +18,7 @@ let client = Client::start(ClientOptions::default()).await?;
 let session = client.create_session(
     SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)),
 ).await?;
-let _message_id = session.send_message("Hello!").await?;
+let _message_id = session.send("Hello!").await?;
 session.disconnect().await?;
 client.stop().await?;
 # Ok(())
@@ -83,16 +83,16 @@ With the default `CliProgram::Resolve`, `Client::start()` automatically resolves
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches events to the `SessionHandler`.
 
 ```rust,ignore
-use copilot::SendOptions;
+use copilot::MessageOptions;
 
-// Simple send — &str / String convert into SendOptions automatically.
+// Simple send — &str / String convert into MessageOptions automatically.
 // Returns the assigned message ID for correlation with later events.
-let _id = session.send_message("Fix the bug in auth.rs").await?;
+let _id = session.send("Fix the bug in auth.rs").await?;
 
 // Send with mode and attachments
 let _id = session
-    .send_message(
-        SendOptions::new("What's in this image?")
+    .send(
+        MessageOptions::new("What's in this image?")
             .with_mode("autopilot")
             .with_attachments(attachments),
     )
@@ -429,12 +429,12 @@ For fire-and-forget messaging where you need to block until the agent finishes:
 
 ```rust,ignore
 use std::time::Duration;
-use copilot::SendOptions;
+use copilot::MessageOptions;
 
 // Sends a message and blocks until session.idle or session.error
 session
     .send_and_wait(
-        SendOptions::new("Fix the bug").with_wait_timeout(Duration::from_secs(120)),
+        MessageOptions::new("Fix the bug").with_wait_timeout(Duration::from_secs(120)),
     )
     .await?;
 ```
@@ -478,7 +478,7 @@ if err.is_transport_failure() {
 | File | Description |
 |---|---|
 | `lib.rs` | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error` |
-| `session.rs` | `Session` struct, event loop, `send_message`/`send_and_wait`, `Client::create_session`/`resume_session` |
+| `session.rs` | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session` |
 | `handler.rs` | `SessionHandler` trait, `HandlerEvent`/`HandlerResponse` enums, `ApproveAllHandler` |
 | `hooks.rs` | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs |
 | `transforms.rs` | `SystemMessageTransform` trait, section-level system message customization |

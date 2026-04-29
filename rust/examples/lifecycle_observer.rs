@@ -33,7 +33,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use copilot::handler::ApproveAllHandler;
-use copilot::types::{SendOptions, SessionConfig, SessionLifecycleEventType};
+use copilot::types::{MessageOptions, SessionConfig, SessionLifecycleEventType};
 use copilot::{Client, ClientOptions};
 
 #[tokio::main]
@@ -92,7 +92,7 @@ async fn main() -> Result<(), copilot::Error> {
 
     session
         .send_and_wait(
-            SendOptions::new("Say hello in five words or fewer.")
+            MessageOptions::new("Say hello in five words or fewer.")
                 .with_wait_timeout(Duration::from_secs(60)),
         )
         .await?;

@@ -925,22 +925,6 @@ pub struct CreateSessionResult {
     pub capabilities: Option<SessionCapabilities>,
 }
 
-/// Parameters for the `session.send` RPC — sends a user message to the agent.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MessageOptions {
-    /// Target session.
-    pub session_id: SessionId,
-    /// User message text.
-    pub prompt: String,
-    /// Session mode (e.g. `"interactive"`, `"plan"`, `"autopilot"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<String>,
-    /// File attachments to include with the message.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attachments: Option<Vec<Attachment>>,
-}
-
 /// Parameters for the `session.sendTelemetry` RPC.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1270,20 +1254,20 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
 
 /// Options for sending a user message to the agent.
 ///
-/// Used by both [`Session::send_message`](crate::session::Session::send_message) and
+/// Used by both [`Session::send`](crate::session::Session::send) and
 /// [`Session::send_and_wait`](crate::session::Session::send_and_wait); the
 /// `wait_timeout` field is honored only by `send_and_wait` and is ignored by
-/// `send_message`.
+/// `send`.
 ///
-/// `SendOptions` is `#[non_exhaustive]` and constructed via [`SendOptions::new`]
+/// `MessageOptions` is `#[non_exhaustive]` and constructed via [`MessageOptions::new`]
 /// plus the `with_*` chain so future fields can land without breaking callers.
-/// For the trivial case, both `&str` and `String` implement `Into<SendOptions>`,
+/// For the trivial case, both `&str` and `String` implement `Into<MessageOptions>`,
 /// so:
 ///
 /// ```no_run
 /// # use copilot::session::Session;
 /// # async fn run(session: Session) -> Result<(), copilot::Error> {
-/// session.send_message("hello").await?;
+/// session.send("hello").await?;
 /// # Ok(()) }
 /// ```
 ///
@@ -1291,14 +1275,14 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
 ///
 /// ```no_run
 /// # use copilot::session::Session;
-/// # use copilot::types::SendOptions;
+/// # use copilot::types::MessageOptions;
 /// # async fn run(session: Session) -> Result<(), copilot::Error> {
-/// session.send_message(SendOptions::new("hello")).await?;
+/// session.send(MessageOptions::new("hello")).await?;
 /// # Ok(()) }
 /// ```
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct SendOptions {
+pub struct MessageOptions {
     /// The user prompt to send.
     pub prompt: String,
     /// Optional permission mode for this turn (e.g. `"agent"`, `"autopilot"`).
@@ -1310,8 +1294,8 @@ pub struct SendOptions {
     pub wait_timeout: Option<Duration>,
 }
 
-impl SendOptions {
-    /// Build a new `SendOptions` with just a prompt.
+impl MessageOptions {
+    /// Build a new `MessageOptions` with just a prompt.
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
@@ -1340,19 +1324,19 @@ impl SendOptions {
     }
 }
 
-impl From<&str> for SendOptions {
+impl From<&str> for MessageOptions {
     fn from(prompt: &str) -> Self {
         Self::new(prompt)
     }
 }
 
-impl From<String> for SendOptions {
+impl From<String> for MessageOptions {
     fn from(prompt: String) -> Self {
         Self::new(prompt)
     }
 }
 
-impl From<&String> for SendOptions {
+impl From<&String> for MessageOptions {
     fn from(prompt: &String) -> Self {
         Self::new(prompt.clone())
     }

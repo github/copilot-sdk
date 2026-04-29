@@ -49,7 +49,7 @@ public surface.
 - `Client::create_session` and `Client::resume_session` accepting
   `SessionConfig` with handler, capabilities, system message, mode, model,
   permission policy, working directory, and resume parameters.
-- `Session::send_message` returning the assigned message ID for
+- `Session::send` returning the assigned message ID for
   correlation with later events.
 - `Session::send_and_wait` for synchronous prompt → final-event flows.
 - `Session::subscribe` returning a
@@ -106,7 +106,7 @@ public surface.
 - `LogLevel`, `LogOptions`, `SetModelOptions`, `PingResponse`,
   `SessionLifecycleEvent`, `SessionLifecycleEventType`, `ConnectionState`,
   `SessionTelemetryEvent`, `ServerTelemetryEvent`, `SystemMessageConfig`,
-  `SendOptions`, `MessageOptions`, `SectionOverride`, `Attachment`,
+  `MessageOptions`, `SectionOverride`, `Attachment`,
   `InputFormat`, `InputOptions`.
 - Strongly-typed `Error` and `ProtocolError` with `is_transport_failure`
   classifier and `error_codes` constants.
