@@ -368,6 +368,10 @@ pub struct ClientOptions {
     ///
     /// [`MessageOptions`]: crate::types::MessageOptions
     pub on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
+    /// OpenTelemetry config forwarded to the spawned CLI process. See
+    /// [`TelemetryConfig`] for the env-var mapping. The SDK takes no
+    /// OpenTelemetry dependency — this is pure spawn-time env injection.
+    pub telemetry: Option<TelemetryConfig>,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -399,6 +403,7 @@ impl std::fmt::Debug for ClientOptions {
                 "on_get_trace_context",
                 &self.on_get_trace_context.as_ref().map(|_| "<set>"),
             )
+            .field("telemetry", &self.telemetry)
             .finish()
     }
 }
@@ -458,6 +463,98 @@ impl std::fmt::Display for LogLevel {
     }
 }
 
+/// Backend exporter for the CLI's OpenTelemetry pipeline.
+///
+/// Maps to the `COPILOT_OTEL_EXPORTER_TYPE` environment variable on the
+/// spawned CLI process. Mirrors Node's `TelemetryConfig.exporterType`
+/// literal union (`"otlp-http" | "file"`).
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum OtelExporterType {
+    /// Export via OTLP HTTP to the endpoint configured by
+    /// [`TelemetryConfig::otlp_endpoint`].
+    OtlpHttp,
+    /// Export to a JSON-lines file at the path configured by
+    /// [`TelemetryConfig::file_path`].
+    File,
+}
+
+impl OtelExporterType {
+    /// Environment-variable value (`"otlp-http"` or `"file"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OtlpHttp => "otlp-http",
+            Self::File => "file",
+        }
+    }
+}
+
+/// OpenTelemetry configuration forwarded to the spawned Copilot CLI
+/// process.
+///
+/// When [`ClientOptions::telemetry`] is `Some(...)`, the SDK sets
+/// `COPILOT_OTEL_ENABLED=true` plus any populated fields below as the
+/// corresponding `OTEL_*` / `COPILOT_OTEL_*` environment variables. The
+/// CLI's built-in OpenTelemetry exporter consumes these at startup. The
+/// SDK itself takes no OpenTelemetry dependency.
+///
+/// Environment-variable mapping:
+///
+/// | Field                | Variable                                              |
+/// |----------------------|-------------------------------------------------------|
+/// | (any field set)      | `COPILOT_OTEL_ENABLED=true`                           |
+/// | [`otlp_endpoint`]    | `OTEL_EXPORTER_OTLP_ENDPOINT`                         |
+/// | [`file_path`]        | `COPILOT_OTEL_FILE_EXPORTER_PATH`                     |
+/// | [`exporter_type`]    | `COPILOT_OTEL_EXPORTER_TYPE`                          |
+/// | [`source_name`]      | `COPILOT_OTEL_SOURCE_NAME`                            |
+/// | [`capture_content`]  | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`  |
+///
+/// Caller-supplied entries in [`ClientOptions::env`] override these, so a
+/// developer can pin any individual variable to a different value while
+/// keeping the rest of the config managed by [`TelemetryConfig`].
+///
+/// Mirrors Node's `TelemetryConfig`, Python's `TelemetryConfig`, and Go's
+/// `TelemetryConfig`. Marked `#[non_exhaustive]` so future CLI-side
+/// telemetry knobs can be added without breaking callers.
+///
+/// [`otlp_endpoint`]: Self::otlp_endpoint
+/// [`file_path`]: Self::file_path
+/// [`exporter_type`]: Self::exporter_type
+/// [`source_name`]: Self::source_name
+/// [`capture_content`]: Self::capture_content
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct TelemetryConfig {
+    /// OTLP HTTP endpoint URL for trace/metric export.
+    pub otlp_endpoint: Option<String>,
+    /// File path for JSON-lines trace output.
+    pub file_path: Option<PathBuf>,
+    /// Exporter backend type. Typically [`OtelExporterType::OtlpHttp`] or
+    /// [`OtelExporterType::File`].
+    pub exporter_type: Option<OtelExporterType>,
+    /// Instrumentation scope name. Useful for distinguishing this
+    /// embedder's traces from other Copilot-CLI consumers exporting to the
+    /// same backend.
+    pub source_name: Option<String>,
+    /// Whether the CLI captures GenAI message content (prompts and
+    /// responses) on emitted spans. `Some(true)` opts in; `Some(false)`
+    /// opts out; `None` leaves the CLI default (typically off).
+    pub capture_content: Option<bool>,
+}
+
+impl TelemetryConfig {
+    /// Returns `true` if all fields are unset. Used by [`Client::start`]
+    /// to decide whether to set `COPILOT_OTEL_ENABLED`.
+    pub fn is_empty(&self) -> bool {
+        self.otlp_endpoint.is_none()
+            && self.file_path.is_none()
+            && self.exporter_type.is_none()
+            && self.source_name.is_none()
+            && self.capture_content.is_none()
+    }
+}
+
 impl Default for ClientOptions {
     fn default() -> Self {
         Self {
@@ -475,6 +572,7 @@ impl Default for ClientOptions {
             on_list_models: None,
             session_fs: None,
             on_get_trace_context: None,
+            telemetry: None,
         }
     }
 }
@@ -775,6 +873,29 @@ impl Client {
         // entries can override or strip it.
         if let Some(token) = &options.github_token {
             command.env("COPILOT_SDK_AUTH_TOKEN", token);
+        }
+        // Inject telemetry env vars before user env so callers can still
+        // override individual variables via `options.env`.
+        if let Some(telemetry) = &options.telemetry {
+            command.env("COPILOT_OTEL_ENABLED", "true");
+            if let Some(endpoint) = &telemetry.otlp_endpoint {
+                command.env("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
+            }
+            if let Some(path) = &telemetry.file_path {
+                command.env("COPILOT_OTEL_FILE_EXPORTER_PATH", path);
+            }
+            if let Some(exporter) = telemetry.exporter_type {
+                command.env("COPILOT_OTEL_EXPORTER_TYPE", exporter.as_str());
+            }
+            if let Some(source) = &telemetry.source_name {
+                command.env("COPILOT_OTEL_SOURCE_NAME", source);
+            }
+            if let Some(capture) = telemetry.capture_content {
+                command.env(
+                    "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+                    if capture { "true" } else { "false" },
+                );
+            }
         }
         for (key, value) in &options.env {
             command.env(key, value);
@@ -1541,6 +1662,156 @@ mod tests {
             .find(|(k, _)| *k == std::ffi::OsStr::new("COPILOT_SDK_AUTH_TOKEN"))
             .and_then(|(_, v)| v);
         assert_eq!(value, Some(std::ffi::OsStr::new("just-the-token")));
+    }
+
+    fn env_value<'a>(cmd: &'a tokio::process::Command, key: &str) -> Option<&'a std::ffi::OsStr> {
+        cmd.as_std()
+            .get_envs()
+            .find(|(k, _)| *k == std::ffi::OsStr::new(key))
+            .and_then(|(_, v)| v)
+    }
+
+    #[test]
+    fn build_command_sets_otel_env_when_telemetry_enabled() {
+        let opts = ClientOptions {
+            telemetry: Some(TelemetryConfig {
+                otlp_endpoint: Some("http://collector:4318".to_string()),
+                file_path: Some(PathBuf::from("/var/log/copilot.jsonl")),
+                exporter_type: Some(OtelExporterType::OtlpHttp),
+                source_name: Some("github-app".to_string()),
+                capture_content: Some(true),
+            }),
+            ..Default::default()
+        };
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        assert_eq!(
+            env_value(&cmd, "COPILOT_OTEL_ENABLED"),
+            Some(std::ffi::OsStr::new("true")),
+        );
+        assert_eq!(
+            env_value(&cmd, "OTEL_EXPORTER_OTLP_ENDPOINT"),
+            Some(std::ffi::OsStr::new("http://collector:4318")),
+        );
+        assert_eq!(
+            env_value(&cmd, "COPILOT_OTEL_FILE_EXPORTER_PATH"),
+            Some(std::ffi::OsStr::new("/var/log/copilot.jsonl")),
+        );
+        assert_eq!(
+            env_value(&cmd, "COPILOT_OTEL_EXPORTER_TYPE"),
+            Some(std::ffi::OsStr::new("otlp-http")),
+        );
+        assert_eq!(
+            env_value(&cmd, "COPILOT_OTEL_SOURCE_NAME"),
+            Some(std::ffi::OsStr::new("github-app")),
+        );
+        assert_eq!(
+            env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
+            Some(std::ffi::OsStr::new("true")),
+        );
+    }
+
+    #[test]
+    fn build_command_omits_otel_env_when_telemetry_none() {
+        let opts = ClientOptions::default();
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        for key in [
+            "COPILOT_OTEL_ENABLED",
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "COPILOT_OTEL_FILE_EXPORTER_PATH",
+            "COPILOT_OTEL_EXPORTER_TYPE",
+            "COPILOT_OTEL_SOURCE_NAME",
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+        ] {
+            assert!(
+                env_value(&cmd, key).is_none(),
+                "expected {key} to be unset when telemetry is None",
+            );
+        }
+    }
+
+    #[test]
+    fn build_command_omits_unset_telemetry_fields() {
+        let opts = ClientOptions {
+            telemetry: Some(TelemetryConfig {
+                otlp_endpoint: Some("http://collector:4318".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        // The one set field plus the implicit enabled flag should propagate.
+        assert_eq!(
+            env_value(&cmd, "COPILOT_OTEL_ENABLED"),
+            Some(std::ffi::OsStr::new("true")),
+        );
+        assert_eq!(
+            env_value(&cmd, "OTEL_EXPORTER_OTLP_ENDPOINT"),
+            Some(std::ffi::OsStr::new("http://collector:4318")),
+        );
+        // None of the other fields should leak as env vars.
+        for key in [
+            "COPILOT_OTEL_FILE_EXPORTER_PATH",
+            "COPILOT_OTEL_EXPORTER_TYPE",
+            "COPILOT_OTEL_SOURCE_NAME",
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+        ] {
+            assert!(env_value(&cmd, key).is_none(), "{key} should be unset");
+        }
+    }
+
+    #[test]
+    fn build_command_lets_user_env_override_telemetry() {
+        let opts = ClientOptions {
+            telemetry: Some(TelemetryConfig {
+                otlp_endpoint: Some("http://from-config:4318".to_string()),
+                ..Default::default()
+            }),
+            env: vec![(
+                std::ffi::OsString::from("OTEL_EXPORTER_OTLP_ENDPOINT"),
+                std::ffi::OsString::from("http://from-user-env:4318"),
+            )],
+            ..Default::default()
+        };
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        assert_eq!(
+            env_value(&cmd, "OTEL_EXPORTER_OTLP_ENDPOINT"),
+            Some(std::ffi::OsStr::new("http://from-user-env:4318")),
+            "user-supplied options.env should override telemetry config",
+        );
+    }
+
+    #[test]
+    fn telemetry_config_capture_content_serializes_as_lowercase_bool() {
+        let opts_true = ClientOptions {
+            telemetry: Some(TelemetryConfig {
+                capture_content: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let opts_false = ClientOptions {
+            telemetry: Some(TelemetryConfig {
+                capture_content: Some(false),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let cmd_true = Client::build_command(Path::new("/bin/echo"), &opts_true);
+        let cmd_false = Client::build_command(Path::new("/bin/echo"), &opts_false);
+        assert_eq!(
+            env_value(
+                &cmd_true,
+                "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
+            ),
+            Some(std::ffi::OsStr::new("true")),
+        );
+        assert_eq!(
+            env_value(
+                &cmd_false,
+                "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
+            ),
+            Some(std::ffi::OsStr::new("false")),
+        );
     }
 
     #[test]

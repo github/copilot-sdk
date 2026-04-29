@@ -261,6 +261,19 @@ public surface.
   type), but downstream test scaffolding can now use
   `ToolInvocation { tool_name: "...".into(), ..Default::default() }` and
   absorb future `#[non_exhaustive]` field additions automatically.
+- OpenTelemetry env-var passthrough: new [`TelemetryConfig`] struct and
+  [`OtelExporterType`] enum (both `#[non_exhaustive]`), wired on
+  [`ClientOptions::telemetry`]. When `Some(...)`, the SDK injects
+  `COPILOT_OTEL_ENABLED=true` plus `OTEL_EXPORTER_OTLP_ENDPOINT`,
+  `COPILOT_OTEL_FILE_EXPORTER_PATH`, `COPILOT_OTEL_EXPORTER_TYPE`,
+  `COPILOT_OTEL_SOURCE_NAME`, and
+  `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` into the spawned CLI
+  process — verbatim env-var names matching Node/Python/Go. Pure
+  passthrough: no `opentelemetry-rust` dependency; the CLI itself owns the
+  exporter. `exporter_type` is a typed enum (`OtlpHttp` / `File`) following
+  the [`LogLevel`](LogLevel) precedent for finite, enumerated CLI knobs;
+  serialized verbatim as `"otlp-http"` / `"file"`. User-supplied
+  `ClientOptions::env` continues to win over telemetry-injected values.
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.
