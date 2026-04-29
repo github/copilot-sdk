@@ -30,10 +30,9 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use tokio::sync::broadcast::Receiver;
-use tokio_stream::Stream;
-use tokio_stream::StreamExt as _;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tokio_stream::{Stream, StreamExt as _};
 
 use crate::types::{SessionEvent, SessionLifecycleEvent};
 
@@ -149,8 +148,9 @@ define_subscription! {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tokio::sync::broadcast;
+
+    use super::*;
 
     fn make_event(id: &str) -> SessionEvent {
         SessionEvent {
