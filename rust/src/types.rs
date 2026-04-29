@@ -648,7 +648,7 @@ pub struct AzureProviderOptions {
 /// "camelCase")]`. When porting code from the TypeScript, Go, Python, or
 /// .NET SDKs — or reading the raw JSON-RPC traces — fields appear as
 /// `availableTools`, `systemMessage`, etc.
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionConfig {
     /// Custom session ID. When unset, the CLI generates one.
@@ -688,17 +688,23 @@ pub struct SessionConfig {
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
-    /// Enable the `ask_user` tool for interactive user input.
+    /// Enable the `ask_user` tool for interactive user input. Defaults to
+    /// `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_user_input: Option<bool>,
-    /// Enable `permission.request` JSON-RPC calls from the CLI.
+    /// Enable `permission.request` JSON-RPC calls from the CLI. Defaults
+    /// to `Some(true)` via [`SessionConfig::default`]; the default
+    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) refuses all
+    /// requests so the wire surface is safe out-of-the-box.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_permission: Option<bool>,
     /// Enable `exitPlanMode.request` JSON-RPC calls for plan approval.
+    /// Defaults to `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_exit_plan_mode: Option<bool>,
     /// Advertise elicitation provider capability. When true, the CLI sends
     /// `elicitation.requested` events that the handler can respond to.
+    /// Defaults to `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
     /// Skill directory paths passed through to the Copilot CLI.
@@ -843,6 +849,55 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("transform", &self.transform.as_ref().map(|_| "<set>"))
             .finish()
+    }
+}
+
+impl Default for SessionConfig {
+    /// Mirrors Node's `client.ts` defaults: permission and elicitation
+    /// flows are enabled by default. With Rust's trait-based handlers,
+    /// the SDK installs `DenyAllHandler` when no handler is provided, so
+    /// these flags being `Some(true)` means the wire surface advertises
+    /// the capabilities — and the default handler safely refuses
+    /// requests. Callers that want the wire surface fully disabled set
+    /// these explicitly to `Some(false)`.
+    fn default() -> Self {
+        Self {
+            session_id: None,
+            model: None,
+            client_name: None,
+            reasoning_effort: None,
+            streaming: None,
+            system_message: None,
+            tools: None,
+            available_tools: None,
+            excluded_tools: None,
+            mcp_servers: None,
+            env_value_mode: None,
+            enable_config_discovery: None,
+            request_user_input: Some(true),
+            request_permission: Some(true),
+            request_exit_plan_mode: Some(true),
+            request_elicitation: Some(true),
+            skill_directories: None,
+            disabled_skills: None,
+            disabled_mcp_servers: None,
+            hooks: None,
+            custom_agents: None,
+            default_agent: None,
+            agent: None,
+            infinite_sessions: None,
+            provider: None,
+            model_capabilities: None,
+            config_dir: None,
+            working_directory: None,
+            github_token: None,
+            include_sub_agent_streaming_events: None,
+            commands: None,
+            session_fs_provider: None,
+            handler: None,
+            hooks_handler: None,
+            transform: None,
+        }
     }
 }
 
@@ -1112,10 +1167,10 @@ impl ResumeSessionConfig {
             mcp_servers: None,
             env_value_mode: None,
             enable_config_discovery: None,
-            request_user_input: None,
-            request_permission: None,
-            request_exit_plan_mode: None,
-            request_elicitation: None,
+            request_user_input: Some(true),
+            request_permission: Some(true),
+            request_exit_plan_mode: Some(true),
+            request_elicitation: Some(true),
             skill_directories: None,
             hooks: None,
             custom_agents: None,
@@ -2267,8 +2322,27 @@ mod tests {
 
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, DeliveryMode, GitHubReferenceType, ensure_attachment_display_names,
+        ConnectionState, DeliveryMode, GitHubReferenceType, ResumeSessionConfig, SessionConfig,
+        SessionId, ensure_attachment_display_names,
     };
+
+    #[test]
+    fn session_config_default_enables_permission_flow_flags() {
+        let cfg = SessionConfig::default();
+        assert_eq!(cfg.request_user_input, Some(true));
+        assert_eq!(cfg.request_permission, Some(true));
+        assert_eq!(cfg.request_exit_plan_mode, Some(true));
+        assert_eq!(cfg.request_elicitation, Some(true));
+    }
+
+    #[test]
+    fn resume_session_config_new_enables_permission_flow_flags() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("test-id"));
+        assert_eq!(cfg.request_user_input, Some(true));
+        assert_eq!(cfg.request_permission, Some(true));
+        assert_eq!(cfg.request_exit_plan_mode, Some(true));
+        assert_eq!(cfg.request_elicitation, Some(true));
+    }
 
     #[test]
     fn delivery_mode_serializes_to_kebab_case_strings() {

@@ -136,6 +136,15 @@ public surface.
   that previously passed `"agent"` or `"autopilot"` were already silently
   no-ops at the CLI level — switch to a `DeliveryMode` variant or omit
   the field entirely.
+- `SessionConfig::default()` and `ResumeSessionConfig::new()` now set the
+  four permission-flow flags (`request_user_input`, `request_permission`,
+  `request_exit_plan_mode`, `request_elicitation`) to `Some(true)` instead
+  of `None`. Mirrors Node's `client.ts` behavior of always advertising the
+  permission surface and deriving handler presence from the
+  `SessionHandler` impl. The default `DenyAllHandler` refuses all
+  permission requests so the wire surface is safe out-of-the-box; callers
+  that want the wire surface fully disabled set the flags explicitly to
+  `Some(false)`.
 - `SessionListFilter` — typed filter for `Client::list_sessions` covering
   `cwd`, `git_root`, `repository`, and `branch`. Replaces the prior
   `Option<serde_json::Value>` parameter.
