@@ -177,6 +177,22 @@ public surface.
     field is redacted from the `Debug` output.
   - `include_sub_agent_streaming_events: Option<bool>` — forward streaming
     delta events from sub-agents to this connection (Node default: true).
+- `ClientOptions` gains the simple subset of Node's
+  `CopilotClientOptions` knobs (Bucket B.2):
+  - `log_level: Option<LogLevel>` — typed enum (`None`, `Error`, `Warning`,
+    `Info`, `Debug`, `All`) replacing the previously hard-coded
+    `--log-level info` argument. When unset, the SDK still passes
+    `--log-level info` for parity with prior behavior.
+  - `session_idle_timeout_seconds: Option<u64>` — server-wide idle
+    timeout for sessions in seconds. When `Some(n)` with `n > 0`, the
+    SDK passes `--session-idle-timeout <n>`. `None` or `Some(0)` leaves
+    sessions running indefinitely (the CLI default).
+  - The Node knob `isChildProcess` (sub-CLI parent-stdio mode) and
+    `autoStart` (lazy-init pattern) are intentionally **not** ported —
+    `isChildProcess` requires a transport variant the Rust SDK does not
+    yet support; `autoStart` does not apply because [`Client::start`] is
+    a single explicit constructor rather than a deferred-init pattern.
+    The Node knob `onListModels` (BYOK callback) is tracked separately.
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.

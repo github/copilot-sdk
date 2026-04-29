@@ -48,6 +48,7 @@ pub mod test_support {
         error_codes,
     };
 }
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
@@ -310,6 +311,56 @@ pub struct ClientOptions {
     /// token is provided. `None` means use the runtime default (true unless
     /// [`Self::github_token`] is set, in which case false).
     pub use_logged_in_user: Option<bool>,
+    /// Log level passed to the CLI server via `--log-level`. When `None`,
+    /// the SDK uses [`LogLevel::Info`].
+    pub log_level: Option<LogLevel>,
+    /// Server-wide idle timeout for sessions, in seconds. When set to a
+    /// positive value, the SDK passes `--session-idle-timeout <secs>` to
+    /// the CLI; sessions without activity for this duration are
+    /// automatically cleaned up. `None` or `Some(0)` leaves sessions
+    /// running indefinitely (the CLI default).
+    pub session_idle_timeout_seconds: Option<u64>,
+}
+
+/// Log verbosity for the CLI server (passed via `--log-level`).
+///
+/// Mirrors Node's `CopilotClientOptions.logLevel` literal union and the
+/// CLI's `--log-level` argument.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    /// Suppress all CLI logs.
+    None,
+    /// Errors only.
+    Error,
+    /// Warnings and errors.
+    Warning,
+    /// Default. Info and above.
+    Info,
+    /// Debug, info, warnings, errors.
+    Debug,
+    /// Everything, including trace output.
+    All,
+}
+
+impl LogLevel {
+    /// CLI argument value (e.g. `"info"`, `"debug"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Error => "error",
+            Self::Warning => "warning",
+            Self::Info => "info",
+            Self::Debug => "debug",
+            Self::All => "all",
+        }
+    }
+}
+
+impl std::fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 impl Default for ClientOptions {
@@ -324,6 +375,8 @@ impl Default for ClientOptions {
             transport: Transport::default(),
             github_token: None,
             use_logged_in_user: None,
+            log_level: None,
+            session_idle_timeout_seconds: None,
         }
     }
 }
@@ -588,18 +641,32 @@ impl Client {
         args
     }
 
+    /// Returns `--session-idle-timeout <secs>` when
+    /// [`ClientOptions::session_idle_timeout_seconds`] is `Some(n)` with
+    /// `n > 0`. Otherwise returns an empty vector.
+    fn session_idle_timeout_args(options: &ClientOptions) -> Vec<String> {
+        match options.session_idle_timeout_seconds {
+            Some(secs) if secs > 0 => {
+                vec!["--session-idle-timeout".to_string(), secs.to_string()]
+            }
+            _ => Vec::new(),
+        }
+    }
+
     fn spawn_stdio(program: &Path, options: &ClientOptions) -> Result<Child, Error> {
         info!(cwd = ?options.cwd, program = %program.display(), "spawning copilot CLI (stdio)");
         let mut command = Self::build_command(program, options);
+        let log_level = options.log_level.unwrap_or(LogLevel::Info);
         command
             .args([
                 "--server",
                 "--stdio",
                 "--no-auto-update",
                 "--log-level",
-                "info",
+                log_level.as_str(),
             ])
             .args(Self::auth_args(options))
+            .args(Self::session_idle_timeout_args(options))
             .args(&options.extra_args)
             .stdin(Stdio::piped());
         Ok(command.spawn()?)
@@ -612,6 +679,7 @@ impl Client {
     ) -> Result<(Child, u16), Error> {
         info!(cwd = ?options.cwd, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options);
+        let log_level = options.log_level.unwrap_or(LogLevel::Info);
         command
             .args([
                 "--server",
@@ -619,9 +687,10 @@ impl Client {
                 &port.to_string(),
                 "--no-auto-update",
                 "--log-level",
-                "info",
+                log_level.as_str(),
             ])
             .args(Self::auth_args(options))
+            .args(Self::session_idle_timeout_args(options))
             .args(&options.extra_args)
             .stdin(Stdio::null());
         let mut child = command.spawn()?;
@@ -1278,5 +1347,50 @@ mod tests {
             .find(|(k, _)| *k == std::ffi::OsStr::new("COPILOT_SDK_AUTH_TOKEN"))
             .and_then(|(_, v)| v);
         assert_eq!(value, Some(std::ffi::OsStr::new("just-the-token")));
+    }
+
+    #[test]
+    fn session_idle_timeout_args_are_omitted_by_default() {
+        let opts = ClientOptions::default();
+        assert!(Client::session_idle_timeout_args(&opts).is_empty());
+    }
+
+    #[test]
+    fn session_idle_timeout_args_omitted_for_zero() {
+        let opts = ClientOptions {
+            session_idle_timeout_seconds: Some(0),
+            ..Default::default()
+        };
+        assert!(Client::session_idle_timeout_args(&opts).is_empty());
+    }
+
+    #[test]
+    fn session_idle_timeout_args_emit_flag_for_positive_value() {
+        let opts = ClientOptions {
+            session_idle_timeout_seconds: Some(300),
+            ..Default::default()
+        };
+        assert_eq!(
+            Client::session_idle_timeout_args(&opts),
+            vec!["--session-idle-timeout".to_string(), "300".to_string()]
+        );
+    }
+
+    #[test]
+    fn log_level_str_round_trips() {
+        for level in [
+            LogLevel::None,
+            LogLevel::Error,
+            LogLevel::Warning,
+            LogLevel::Info,
+            LogLevel::Debug,
+            LogLevel::All,
+        ] {
+            let s = level.as_str();
+            let json = serde_json::to_string(&level).unwrap();
+            assert_eq!(json, format!("\"{s}\""));
+            let parsed: LogLevel = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, level);
+        }
     }
 }
