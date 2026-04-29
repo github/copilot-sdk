@@ -82,7 +82,7 @@ jobs:
         if: runner.os == 'Linux'
         env:
           RUSTDOCFLAGS: "-D warnings"
-        run: cargo doc --no-deps --features test-support
+        run: cargo doc --no-deps --all-features
 
       - name: Install test harness dependencies
         working-directory: ./test/harness
