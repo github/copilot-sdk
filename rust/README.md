@@ -453,6 +453,132 @@ let config = SessionConfig {
 
 The handler receives `HandlerEvent::ElicitationRequest` with a message, optional JSON Schema for form fields, and an optional mode. Known modes include `Form` and `Url`, but the mode may be absent or an unknown future value. Return `HandlerResponse::Elicitation(result)`.
 
+### User Input Requests
+
+Some sessions ask the user free-form questions (or multiple-choice prompts) outside the elicitation flow. Implement `SessionHandler::on_user_input` and the SDK will forward `userInput.request` callbacks:
+
+```rust,ignore
+async fn on_user_input(
+    &self,
+    _session_id: SessionId,
+    question: String,
+    choices: Option<Vec<String>>,
+    _allow_freeform: Option<bool>,
+) -> Option<UserInputResponse> {
+    // Render `question` + `choices` to your UI, then:
+    Some(UserInputResponse {
+        answer: "Yes".to_string(),
+        was_freeform: false,
+    })
+}
+```
+
+Return `None` to signal "no answer available" (the CLI falls back to its own prompt). Enable via `SessionConfig::request_user_input` (defaults to `Some(true)`).
+
+### Slash Commands
+
+Register named commands so users can invoke them as `/name args` from the TUI:
+
+```rust,ignore
+use github_copilot_sdk::types::{CommandContext, CommandDefinition, CommandHandler};
+use async_trait::async_trait;
+
+struct DeployCommand;
+
+#[async_trait]
+impl CommandHandler for DeployCommand {
+    async fn on_command(&self, ctx: CommandContext) -> Result<(), github_copilot_sdk::Error> {
+        println!("deploy {}", ctx.args);
+        Ok(())
+    }
+}
+
+let mut config = SessionConfig::default();
+config.commands = Some(vec![
+    CommandDefinition::new("deploy", Arc::new(DeployCommand))
+        .with_description("Deploy the application"),
+]);
+```
+
+Only `name` and `description` are sent over the wire; the handler stays in your process. Returning `Err(_)` surfaces the message back through the TUI.
+
+### Streaming
+
+Set `streaming: true` to receive incremental delta events alongside finalized messages:
+
+```rust,ignore
+let mut config = SessionConfig::default();
+config.streaming = Some(true);
+
+let mut events = session.subscribe();
+while let Ok(event) = events.recv().await {
+    match event.event_type.as_str() {
+        "assistant.message_delta" | "assistant.reasoning_delta" => {
+            if let Some(d) = event.data.get("delta").and_then(|v| v.as_str()) {
+                print!("{d}");
+            }
+        }
+        "assistant.message" => println!(),  // final
+        _ => {}
+    }
+}
+```
+
+When streaming is off (the default), only the final `assistant.message` and `assistant.reasoning` events fire. Delta events arrive in order; concatenating their `delta` text payloads reproduces the final message.
+
+### Infinite Sessions
+
+Enable the SDK's session-store integration so conversations persist across CLI restarts and grow beyond the model's context window via automatic compaction:
+
+```rust,ignore
+use github_copilot_sdk::types::InfiniteSessionConfig;
+
+let mut infinite = InfiniteSessionConfig::default();
+infinite.workspace_path = Some("/path/to/workspace".into());
+
+let mut config = SessionConfig::default();
+config.infinite_sessions = Some(infinite);
+```
+
+The CLI emits `session.compaction_start` / `session.compaction_complete` events around each compaction. The session id remains stable across compactions; resume with `Client::resume_session` to pick up a prior conversation. Workspace state lives under `~/.copilot/session-state/{sessionId}` by default — override with `workspace_path` to relocate.
+
+### Custom Providers (BYOK)
+
+Route model traffic through your own inference endpoint instead of GitHub's hosted models:
+
+```rust,ignore
+use github_copilot_sdk::types::ProviderConfig;
+
+let mut provider = ProviderConfig::default();
+provider.provider_type = Some("openai".to_string());
+provider.base_url = "https://my-proxy.example.com/v1".to_string();
+provider.bearer_token = Some(std::env::var("OPENAI_API_KEY")?);
+
+let mut config = SessionConfig::default();
+config.provider = Some(provider);
+```
+
+Provider types include `"openai"`, `"azure"`, and `"anthropic"`. Set `wire_api` to `"completions"` or `"responses"` (OpenAI/Azure only). Custom headers go in `provider.headers`. The SDK forwards the configuration to the CLI verbatim — the CLI handles the upstream call, including authentication.
+
+### Telemetry
+
+Forward OpenTelemetry signals from the spawned CLI process to your collector:
+
+```rust,ignore
+use github_copilot_sdk::{ClientOptions, OtelExporterType, TelemetryConfig};
+
+let mut telem = TelemetryConfig::default();
+telem.exporter_type = Some(OtelExporterType::OtlpHttp);
+telem.otlp_endpoint = Some("http://localhost:4318".to_string());
+telem.source_name = Some("my-app".to_string());
+
+let mut opts = ClientOptions::default();
+opts.telemetry = Some(telem);
+let client = Client::start(opts).await?;
+```
+
+The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
+
 ### Progress Reporting (`send_and_wait`)
 
 For fire-and-forget messaging where you need to block until the agent finishes:

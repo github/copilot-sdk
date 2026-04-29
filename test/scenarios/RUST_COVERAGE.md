@@ -30,6 +30,7 @@ auto-discovers any `*/rust/Cargo.toml` under `test/scenarios/` and verifies it b
 | `callbacks/`   | `user-input`            | ✅     |
 | `prompts/`     | `system-message`        | ✅     |
 | `prompts/`     | `reasoning-effort`      | ✅     |
+| `prompts/`     | `attachments`           | ✅     |
 | `bundling/`    | *                       | ❌ app-level concern, not an SDK gap |
 | `auth/`        | *                       | ❌ deferred (GitHub-App / token-exchange) |
 
