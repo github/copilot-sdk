@@ -37,6 +37,7 @@ export async function createSdkTestContext({
     const env = {
         ...process.env,
         COPILOT_API_URL: proxyUrl,
+        COPILOT_HOME: homeDir,
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the

@@ -854,6 +854,7 @@ function normalizeUserMessage(content: string): string {
   return content
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
+    .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")
     .replace(/<agent_instructions>[\s\S]*?<\/agent_instructions>/g, "")
     .replace(
       /Please create a detailed summary of the conversation so far\. The history is being compacted[\s\S]*/,
