@@ -27,7 +27,7 @@ use crate::transforms::SystemMessageTransform;
 /// from `Connecting` → `Connected` during construction, transitions to
 /// `Disconnected` after [`Client::stop`](crate::Client::stop) or
 /// [`Client::force_stop`](crate::Client::force_stop), and lands in
-/// `Errored` if startup fails or the underlying transport tears down
+/// `Error` if startup fails or the underlying transport tears down
 /// unexpectedly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -39,8 +39,7 @@ pub enum ConnectionState {
     /// The client is connected and ready to handle RPC traffic.
     Connected,
     /// Startup failed or the connection encountered an unrecoverable error.
-    #[serde(rename = "error")]
-    Errored,
+    Error,
 }
 
 /// Type of [`SessionLifecycleEvent`] received via [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
@@ -2208,11 +2207,11 @@ mod tests {
     };
 
     #[test]
-    fn connection_state_errored_serializes_as_error_to_match_go() {
-        let json = serde_json::to_string(&ConnectionState::Errored).unwrap();
+    fn connection_state_error_serializes_to_match_go() {
+        let json = serde_json::to_string(&ConnectionState::Error).unwrap();
         assert_eq!(json, "\"error\"");
         let parsed: ConnectionState = serde_json::from_str("\"error\"").unwrap();
-        assert_eq!(parsed, ConnectionState::Errored);
+        assert_eq!(parsed, ConnectionState::Error);
     }
 
     #[test]
