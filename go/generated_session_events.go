@@ -714,6 +714,8 @@ type AutoModeSwitchRequestedData struct {
 	ErrorCode *string `json:"errorCode,omitempty"`
 	// Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
 	RequestID string `json:"requestId"`
+	// Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.
+	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
 }
 
 func (*AutoModeSwitchRequestedData) sessionEventData() {}
@@ -866,6 +868,10 @@ func (*PendingMessagesModifiedData) sessionEventData() {}
 
 // Error details for timeline display including message and optional diagnostic information
 type SessionErrorData struct {
+	// Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
+	EligibleForAutoSwitch *bool `json:"eligibleForAutoSwitch,omitempty"`
+	// Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).
+	ErrorCode *string `json:"errorCode,omitempty"`
 	// Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query")
 	ErrorType string `json:"errorType"`
 	// Human-readable error message
@@ -1025,6 +1031,8 @@ func (*McpOauthCompletedData) sessionEventData() {}
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
+	// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+	Cause *string `json:"cause,omitempty"`
 	// Newly selected model identifier
 	NewModel string `json:"newModel"`
 	// Model that was previously selected, if any
