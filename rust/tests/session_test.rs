@@ -12,8 +12,8 @@ use github_copilot_sdk::handler::{
     SessionHandler, UserInputResponse,
 };
 use github_copilot_sdk::types::{
-    MessageOptions, ServerTelemetryEvent, SessionConfig, SessionId, SessionTelemetryEvent,
-    ToolResult,
+    CommandContext, CommandDefinition, CommandHandler, MessageOptions, ServerTelemetryEvent,
+    SessionConfig, SessionId, SessionTelemetryEvent, ToolResult,
 };
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
@@ -2455,4 +2455,247 @@ fn resume_session_config_serializes_bucket_b_fields() {
 
     let debug = format!("{cfg:?}");
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
+}
+
+// =====================================================================
+// Slash commands (§ 4.1)
+// =====================================================================
+
+struct CountingCommandHandler {
+    last_ctx: Arc<parking_lot::Mutex<Option<CommandContext>>>,
+    error_to_return: Option<String>,
+}
+
+#[async_trait]
+impl CommandHandler for CountingCommandHandler {
+    async fn on_command(&self, ctx: CommandContext) -> Result<(), github_copilot_sdk::Error> {
+        *self.last_ctx.lock() = Some(ctx);
+        if let Some(message) = &self.error_to_return {
+            Err(github_copilot_sdk::Error::Session(
+                github_copilot_sdk::SessionError::AgentError(message.clone()),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+async fn create_session_pair_with_commands(
+    handler: Arc<dyn SessionHandler>,
+    commands: Vec<CommandDefinition>,
+) -> (github_copilot_sdk::session::Session, FakeServer, Value) {
+    let (client, server_read, server_write) = make_client();
+    let session_id = format!("test-session-{}", rand_id());
+
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: session_id.clone(),
+    };
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        let handler = handler.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_handler(handler)
+                        .with_commands(commands),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let create_req = server.read_request().await;
+    assert_eq!(create_req["method"], "session.create");
+    server
+        .respond(
+            &create_req,
+            serde_json::json!({
+                "sessionId": session_id,
+                "workspacePath": "/tmp/workspace"
+            }),
+        )
+        .await;
+
+    let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+    (session, server, create_req)
+}
+
+#[tokio::test]
+async fn create_serializes_commands_strips_handler() {
+    let last_ctx = Arc::new(parking_lot::Mutex::new(None));
+    let commands = vec![
+        CommandDefinition::new(
+            "deploy",
+            Arc::new(CountingCommandHandler {
+                last_ctx: last_ctx.clone(),
+                error_to_return: None,
+            }),
+        )
+        .with_description("Deploy to production"),
+        CommandDefinition::new(
+            "rollback",
+            Arc::new(CountingCommandHandler {
+                last_ctx: last_ctx.clone(),
+                error_to_return: None,
+            }),
+        ),
+    ];
+
+    let (_session, _server, create_req) =
+        create_session_pair_with_commands(Arc::new(NoopHandler), commands).await;
+
+    let wire = create_req["params"]["commands"]
+        .as_array()
+        .expect("commands should be an array");
+    assert_eq!(wire.len(), 2);
+
+    let deploy = &wire[0];
+    assert_eq!(deploy["name"], "deploy");
+    assert_eq!(deploy["description"], "Deploy to production");
+    assert!(
+        deploy.get("handler").is_none(),
+        "wire payload must not include handler, got: {deploy}"
+    );
+    let deploy_keys: Vec<&String> = deploy.as_object().unwrap().keys().collect();
+    assert_eq!(deploy_keys.len(), 2, "got keys: {deploy_keys:?}");
+
+    let rollback = &wire[1];
+    assert_eq!(rollback["name"], "rollback");
+    assert!(
+        rollback.get("description").is_none(),
+        "description should be omitted when None, got: {rollback}"
+    );
+    assert!(rollback.get("handler").is_none());
+    let rollback_keys: Vec<&String> = rollback.as_object().unwrap().keys().collect();
+    assert_eq!(rollback_keys.len(), 1, "got keys: {rollback_keys:?}");
+}
+
+#[tokio::test]
+async fn command_execute_dispatches_to_registered_handler_and_acks_success() {
+    let last_ctx = Arc::new(parking_lot::Mutex::new(None));
+    let commands = vec![CommandDefinition::new(
+        "deploy",
+        Arc::new(CountingCommandHandler {
+            last_ctx: last_ctx.clone(),
+            error_to_return: None,
+        }),
+    )];
+
+    let (session, mut server, _) =
+        create_session_pair_with_commands(Arc::new(NoopHandler), commands).await;
+
+    server
+        .send_event(
+            "command.execute",
+            serde_json::json!({
+                "requestId": "req-deploy-1",
+                "command": "/deploy production",
+                "commandName": "deploy",
+                "args": "production",
+            }),
+        )
+        .await;
+
+    let ack = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        ack["method"], "session.commands.handlePendingCommand",
+        "expected handlePendingCommand RPC, got: {ack}"
+    );
+    assert_eq!(
+        ack["params"]["sessionId"].as_str(),
+        Some(session.id().as_ref())
+    );
+    assert_eq!(ack["params"]["requestId"], "req-deploy-1");
+    assert!(
+        ack["params"].get("error").is_none(),
+        "success ack should omit error, got: {ack}"
+    );
+
+    server
+        .respond(&ack, serde_json::json!({ "success": true }))
+        .await;
+
+    let ctx = last_ctx
+        .lock()
+        .clone()
+        .expect("handler should have been invoked");
+    assert_eq!(ctx.command, "/deploy production");
+    assert_eq!(ctx.command_name, "deploy");
+    assert_eq!(ctx.args, "production");
+    assert_eq!(ctx.session_id.as_ref(), session.id().as_ref());
+}
+
+#[tokio::test]
+async fn command_execute_unknown_command_acks_with_error() {
+    let (session, mut server, _) =
+        create_session_pair_with_commands(Arc::new(NoopHandler), vec![]).await;
+
+    server
+        .send_event(
+            "command.execute",
+            serde_json::json!({
+                "requestId": "req-unknown-1",
+                "command": "/missing",
+                "commandName": "missing",
+                "args": "",
+            }),
+        )
+        .await;
+
+    let ack = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(ack["method"], "session.commands.handlePendingCommand");
+    assert_eq!(ack["params"]["requestId"], "req-unknown-1");
+    assert_eq!(
+        ack["params"]["error"], "Unknown command: missing",
+        "got: {ack}"
+    );
+    server
+        .respond(&ack, serde_json::json!({ "success": false }))
+        .await;
+    drop(session);
+}
+
+#[tokio::test]
+async fn command_execute_handler_error_propagates_to_ack() {
+    let last_ctx = Arc::new(parking_lot::Mutex::new(None));
+    let commands = vec![CommandDefinition::new(
+        "fail",
+        Arc::new(CountingCommandHandler {
+            last_ctx: last_ctx.clone(),
+            error_to_return: Some("deploy failed: dry-run rejected".to_string()),
+        }),
+    )];
+
+    let (_session, mut server, _) =
+        create_session_pair_with_commands(Arc::new(NoopHandler), commands).await;
+
+    server
+        .send_event(
+            "command.execute",
+            serde_json::json!({
+                "requestId": "req-fail-1",
+                "command": "/fail",
+                "commandName": "fail",
+                "args": "",
+            }),
+        )
+        .await;
+
+    let ack = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(ack["method"], "session.commands.handlePendingCommand");
+    assert_eq!(ack["params"]["requestId"], "req-fail-1");
+    let error_msg = ack["params"]["error"]
+        .as_str()
+        .expect("ack should include error");
+    assert!(
+        error_msg.contains("deploy failed: dry-run rejected"),
+        "expected handler error in ack, got: {error_msg}"
+    );
+    server
+        .respond(&ack, serde_json::json!({ "success": false }))
+        .await;
 }

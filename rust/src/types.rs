@@ -331,6 +331,98 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
+/// Context passed to a [`CommandHandler`] when a registered slash command
+/// is executed by the user.
+///
+/// Mirrors Node's `CommandContext` (`nodejs/src/types.ts:389`) and Go's
+/// `CommandContext` (`go/types.go:638`).
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct CommandContext {
+    /// Session ID where the command was invoked.
+    pub session_id: SessionId,
+    /// The full command text (e.g. `"/deploy production"`).
+    pub command: String,
+    /// Command name without the leading `/` (e.g. `"deploy"`).
+    pub command_name: String,
+    /// Raw argument string after the command name (e.g. `"production"`).
+    pub args: String,
+}
+
+/// Handler invoked when a registered slash command is executed.
+///
+/// Returning `Err(_)` causes the SDK to forward the error message back to
+/// the CLI via `session.commands.handlePendingCommand` so the TUI can
+/// surface it. Returning `Ok(())` reports success.
+///
+/// Mirrors Node's `CommandHandler` (`nodejs/src/types.ts:403`) and Go's
+/// `CommandHandler` (`go/types.go:652`).
+#[async_trait::async_trait]
+pub trait CommandHandler: Send + Sync {
+    /// Called when the user invokes the command this handler is registered for.
+    async fn on_command(&self, ctx: CommandContext) -> Result<(), crate::Error>;
+}
+
+/// Definition of a slash command registered with the session.
+///
+/// When the CLI is running with a TUI, registered commands appear as
+/// `/name` for the user to invoke. Only `name` and `description` are sent
+/// over the wire — the handler is local to this SDK process.
+///
+/// Mirrors Node's `CommandDefinition` (`nodejs/src/types.ts:410`) and Go's
+/// `CommandDefinition` (`go/types.go:656`).
+#[non_exhaustive]
+#[derive(Clone)]
+pub struct CommandDefinition {
+    /// Command name (without leading `/`).
+    pub name: String,
+    /// Human-readable description shown in command-completion UI.
+    pub description: Option<String>,
+    /// Handler invoked when the command is executed.
+    pub handler: Arc<dyn CommandHandler>,
+}
+
+impl CommandDefinition {
+    /// Construct a new command definition. Use [`with_description`](Self::with_description)
+    /// to add a description.
+    pub fn new(name: impl Into<String>, handler: Arc<dyn CommandHandler>) -> Self {
+        Self {
+            name: name.into(),
+            description: None,
+            handler,
+        }
+    }
+
+    /// Set the human-readable description shown in the CLI's command-completion UI.
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+}
+
+impl std::fmt::Debug for CommandDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommandDefinition")
+            .field("name", &self.name)
+            .field("description", &self.description)
+            .field("handler", &"<set>")
+            .finish()
+    }
+}
+
+impl Serialize for CommandDefinition {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let len = if self.description.is_some() { 2 } else { 1 };
+        let mut state = serializer.serialize_struct("CommandDefinition", len)?;
+        state.serialize_field("name", &self.name)?;
+        if let Some(description) = &self.description {
+            state.serialize_field("description", description)?;
+        }
+        state.end()
+    }
+}
+
 /// Configures a custom agent (sub-agent) for the session.
 ///
 /// Custom agents have their own prompt, tool allowlist, and optionally
@@ -665,6 +757,11 @@ pub struct SessionConfig {
     /// are delivered. Defaults to true on the CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
+    /// Slash commands registered for this session. When the CLI has a TUI,
+    /// each command appears as `/name` for the user to invoke and the
+    /// associated [`CommandHandler`] is called when executed.
+    #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
+    pub commands: Option<Vec<CommandDefinition>>,
     /// Session-level event handler. The default is
     /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
     /// requests are denied; other events are no-ops. Use
@@ -723,6 +820,7 @@ impl std::fmt::Debug for SessionConfig {
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
             )
+            .field("commands", &self.commands)
             .field("handler", &self.handler.as_ref().map(|_| "<set>"))
             .field(
                 "hooks_handler",
@@ -737,6 +835,15 @@ impl SessionConfig {
     /// Install a custom [`SessionHandler`] for this session.
     pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
         self.handler = Some(handler);
+        self
+    }
+
+    /// Register slash commands for this session. Each command appears as
+    /// `/name` in the CLI's TUI; the handler is invoked when the user
+    /// executes the command. Replaces any commands previously set on this
+    /// config. See [`CommandDefinition`].
+    pub fn with_commands(mut self, commands: Vec<CommandDefinition>) -> Self {
+        self.commands = Some(commands);
         self
     }
 
@@ -890,6 +997,11 @@ pub struct ResumeSessionConfig {
     /// Forward sub-agent streaming events to this connection on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
+    /// Slash commands registered for this session on resume. See
+    /// [`SessionConfig::commands`] — commands are not persisted server-side,
+    /// so the resume payload re-supplies the registration.
+    #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
+    pub commands: Option<Vec<CommandDefinition>>,
     /// Force-fail resume if the session does not exist on disk, instead of
     /// silently starting a new session. Mirrors Node's
     /// `ResumeSessionConfig.disableResume`.
@@ -940,6 +1052,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
             )
+            .field("commands", &self.commands)
             .field("handler", &self.handler.as_ref().map(|_| "<set>"))
             .field(
                 "hooks_handler",
@@ -982,6 +1095,7 @@ impl ResumeSessionConfig {
             working_directory: None,
             github_token: None,
             include_sub_agent_streaming_events: None,
+            commands: None,
             disable_resume: None,
             handler: None,
             hooks_handler: None,
@@ -1005,6 +1119,14 @@ impl ResumeSessionConfig {
     /// Install a [`SystemMessageTransform`].
     pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
         self.transform = Some(transform);
+        self
+    }
+
+    /// Register slash commands for the resumed session. See
+    /// [`SessionConfig::with_commands`] — commands are not persisted
+    /// server-side, so the resume payload re-supplies the registration.
+    pub fn with_commands(mut self, commands: Vec<CommandDefinition>) -> Self {
+        self.commands = Some(commands);
         self
     }
 

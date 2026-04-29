@@ -15,8 +15,8 @@ use crate::generated::api_types::{
     WorkspacesReadFileRequest,
 };
 use crate::generated::session_events::{
-    ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData, SessionEventType,
-    UserInputRequestedData,
+    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
+    SessionEventType, UserInputRequestedData,
 };
 use crate::handler::{
     ExitPlanModeResult, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
@@ -25,11 +25,12 @@ use crate::handler::{
 use crate::hooks::SessionHooks;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
-    CreateSessionResult, ElicitationRequest, ElicitationResult, ExitPlanModeData,
-    GetMessagesResponse, InputOptions, MessageOptions, PermissionRequestData, RequestId,
-    ResumeSessionConfig, SectionOverride, SessionCapabilities, SessionConfig, SessionEvent,
-    SessionId, SessionTelemetryEvent, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultResponse, ensure_attachment_display_names,
+    CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
+    ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
+    PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
+    SessionConfig, SessionEvent, SessionId, SessionTelemetryEvent, SetModelOptions,
+    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultResponse,
+    ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -698,6 +699,7 @@ impl Client {
             .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
+        let command_handlers = build_command_handler_map(config.commands.as_deref());
 
         if hooks.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
@@ -723,6 +725,7 @@ impl Client {
             handler,
             hooks,
             transforms,
+            command_handlers,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
@@ -759,6 +762,7 @@ impl Client {
             .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
+        let command_handlers = build_command_handler_map(config.commands.as_deref());
 
         if hooks.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
@@ -814,6 +818,7 @@ impl Client {
             handler,
             hooks,
             transforms,
+            command_handlers,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
@@ -834,6 +839,20 @@ impl Client {
     }
 }
 
+type CommandHandlerMap = HashMap<String, Arc<dyn CommandHandler>>;
+
+fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<CommandHandlerMap> {
+    let map = match commands {
+        Some(commands) => commands
+            .iter()
+            .filter(|cmd| !cmd.name.is_empty())
+            .map(|cmd| (cmd.name.clone(), cmd.handler.clone()))
+            .collect(),
+        None => HashMap::new(),
+    };
+    Arc::new(map)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_event_loop(
     session_id: SessionId,
@@ -841,6 +860,7 @@ fn spawn_event_loop(
     handler: Arc<dyn SessionHandler>,
     hooks: Option<Arc<dyn SessionHooks>>,
     transforms: Option<Arc<dyn SystemMessageTransform>>,
+    command_handlers: Arc<CommandHandlerMap>,
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<Mutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
@@ -858,7 +878,7 @@ fn spawn_event_loop(
                 tokio::select! {
                     Some(notification) = notifications.recv() => {
                         handle_notification(
-                            &session_id, &client, &handler, notification, &idle_waiter, &capabilities, &event_tx,
+                            &session_id, &client, &handler, &command_handlers, notification, &idle_waiter, &capabilities, &event_tx,
                         ).await;
                     }
                     Some(request) = requests.recv() => {
@@ -957,6 +977,7 @@ async fn handle_notification(
     session_id: &SessionId,
     client: &Client,
     handler: &Arc<dyn SessionHandler>,
+    command_handlers: &Arc<CommandHandlerMap>,
     notification: SessionEventNotification,
     idle_waiter: &Arc<Mutex<Option<IdleWaiter>>>,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
@@ -1271,6 +1292,47 @@ async fn handle_notification(
                         )
                         .await;
                 }
+            });
+        }
+        SessionEventType::CommandExecute => {
+            let data: CommandExecuteData =
+                match serde_json::from_value(notification.event.data.clone()) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        warn!(error = %e, "failed to deserialize command.execute");
+                        return;
+                    }
+                };
+            let client = client.clone();
+            let command_handlers = command_handlers.clone();
+            let sid = session_id.clone();
+            tokio::spawn(async move {
+                let request_id = data.request_id;
+                let ack_error = match command_handlers.get(&data.command_name).cloned() {
+                    None => Some(format!("Unknown command: {}", data.command_name)),
+                    Some(handler) => {
+                        let ctx = CommandContext {
+                            session_id: sid.clone(),
+                            command: data.command,
+                            command_name: data.command_name,
+                            args: data.args,
+                        };
+                        match handler.on_command(ctx).await {
+                            Ok(()) => None,
+                            Err(e) => Some(e.to_string()),
+                        }
+                    }
+                };
+                let mut params = serde_json::json!({
+                    "sessionId": sid,
+                    "requestId": request_id,
+                });
+                if let Some(error_msg) = ack_error {
+                    params["error"] = serde_json::Value::String(error_msg);
+                }
+                let _ = client
+                    .call("session.commands.handlePendingCommand", Some(params))
+                    .await;
             });
         }
         _ => {}

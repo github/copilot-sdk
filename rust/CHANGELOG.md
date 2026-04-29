@@ -208,6 +208,21 @@ public surface.
   the CLI via the `requestHeaders` field on `session.send`. The field is
   omitted from the wire when `None` or empty (matches Node's
   `omitempty` semantics).
+- Slash command registration: new [`CommandHandler`] async trait,
+  [`CommandDefinition`] (with `new`/`with_description` builders), and
+  [`CommandContext`] (`session_id`, `command`, `command_name`, `args`)
+  hand-authored in `crate::types`. `SessionConfig::commands` and
+  `ResumeSessionConfig::commands` accept a `Vec<CommandDefinition>` via
+  the new `with_commands` builder, matching Node's
+  `SessionConfig.commands`, Python's `SessionConfig.commands`, and Go's
+  `SessionConfig.Commands`. The SDK serializes only `{name, description?}`
+  on the wire (handlers stay client-side), and dispatches incoming
+  `command.execute` events to the registered handler — acking with no
+  error on success, `error: <message>` on `Err`, and
+  `error: "Unknown command: <name>"` when the name is unregistered.
+  `CommandContext` and `CommandDefinition` are `#[non_exhaustive]` so
+  forward-compatible fields (e.g. aliases, completion providers) can land
+  without breaking callers.
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.
