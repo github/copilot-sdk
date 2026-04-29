@@ -59,7 +59,7 @@ public surface.
   `model_capabilities` overrides.
 - Plan helpers: `read_plan`, `delete_plan`.
 - Workspace helpers: `list_workspace_files`, `read_workspace_file`,
-  `cwd`, `remote_url`.
+  `create_workspace_file`, `cwd`, `remote_url`.
 - UI primitives: `elicitation`, `confirm`, `select`, `input`.
 - `Session::log(message, LogOptions)` with optional severity and
   ephemeral flag.

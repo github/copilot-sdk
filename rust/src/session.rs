@@ -10,7 +10,7 @@ use tracing::{Instrument, warn};
 
 use crate::generated::api_types::{
     PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionApproveOnceKind,
-    PermissionDecisionReject, PermissionDecisionRejectKind,
+    PermissionDecisionReject, PermissionDecisionRejectKind, rpc_methods,
 };
 use crate::generated::session_events::{
     ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData, SessionEventType,
@@ -440,7 +440,7 @@ impl Session {
         let result = self
             .client
             .call(
-                "session.workspace.listFiles",
+                rpc_methods::SESSION_WORKSPACES_LISTFILES,
                 Some(serde_json::json!({ "sessionId": self.id })),
             )
             .await?;
@@ -461,7 +461,7 @@ impl Session {
         let result = self
             .client
             .call(
-                "session.workspace.readFile",
+                rpc_methods::SESSION_WORKSPACES_READFILE,
                 Some(serde_json::json!({
                     "sessionId": self.id,
                     "path": path.to_string_lossy(),
@@ -479,7 +479,7 @@ impl Session {
     pub async fn create_workspace_file(&self, path: &Path, content: &str) -> Result<(), Error> {
         self.client
             .call(
-                "session.workspace.createFile",
+                rpc_methods::SESSION_WORKSPACES_CREATEFILE,
                 Some(serde_json::json!({
                     "sessionId": self.id,
                     "path": path.to_string_lossy(),

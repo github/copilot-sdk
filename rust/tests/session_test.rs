@@ -1988,3 +1988,67 @@ async fn system_message_transform_returns_error_for_missing_sections() {
     assert_eq!(response["id"], 401);
     assert_eq!(response["error"]["code"], -32602);
 }
+
+#[tokio::test]
+async fn list_workspace_files_uses_plural_method_name() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let s = session.clone();
+    let handle = tokio::spawn(async move { s.list_workspace_files().await });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.workspaces.listFiles");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    server
+        .respond(
+            &request,
+            serde_json::json!({ "files": ["a.txt", "subdir/b.txt"] }),
+        )
+        .await;
+
+    let files = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(files, vec!["a.txt".to_string(), "subdir/b.txt".to_string()]);
+}
+
+#[tokio::test]
+async fn read_workspace_file_uses_plural_method_name_and_forwards_path() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let s = session.clone();
+    let handle =
+        tokio::spawn(async move { s.read_workspace_file(Path::new("notes/plan.md")).await });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.workspaces.readFile");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    assert_eq!(request["params"]["path"], "notes/plan.md");
+    server
+        .respond(&request, serde_json::json!({ "content": "hello" }))
+        .await;
+
+    let content = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(content, "hello");
+}
+
+#[tokio::test]
+async fn create_workspace_file_uses_plural_method_name_and_forwards_payload() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let s = session.clone();
+    let handle = tokio::spawn(async move {
+        s.create_workspace_file(Path::new("notes/plan.md"), "body")
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.workspaces.createFile");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    assert_eq!(request["params"]["path"], "notes/plan.md");
+    assert_eq!(request["params"]["content"], "body");
+    server.respond(&request, serde_json::json!({})).await;
+
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
