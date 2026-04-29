@@ -82,6 +82,16 @@ pub mod rpc_methods {
     pub const SESSION_AGENT_DESELECT: &str = "session.agent.deselect";
     /// `session.agent.reload`
     pub const SESSION_AGENT_RELOAD: &str = "session.agent.reload";
+    /// `session.tasks.startAgent`
+    pub const SESSION_TASKS_STARTAGENT: &str = "session.tasks.startAgent";
+    /// `session.tasks.list`
+    pub const SESSION_TASKS_LIST: &str = "session.tasks.list";
+    /// `session.tasks.promoteToBackground`
+    pub const SESSION_TASKS_PROMOTETOBACKGROUND: &str = "session.tasks.promoteToBackground";
+    /// `session.tasks.cancel`
+    pub const SESSION_TASKS_CANCEL: &str = "session.tasks.cancel";
+    /// `session.tasks.remove`
+    pub const SESSION_TASKS_REMOVE: &str = "session.tasks.remove";
     /// `session.skills.list`
     pub const SESSION_SKILLS_LIST: &str = "session.skills.list";
     /// `session.skills.enable`
@@ -206,6 +216,9 @@ pub struct AgentInfo {
     pub display_name: String,
     /// Unique identifier of the custom agent
     pub name: String,
+    /// Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -817,7 +830,7 @@ pub struct ModeSetRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NameGetResult {
-    /// The session name, falling back to the auto-generated summary, or null if neither exists
+    /// The session name (user-set or auto-generated), or null if not yet set
     pub name: Option<String>,
 }
 
@@ -1414,6 +1427,164 @@ pub struct SkillsEnableRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TaskAgentInfo {
+    /// ISO 8601 timestamp when the current active period began
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_started_at: Option<String>,
+    /// Accumulated active execution time in milliseconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_time_ms: Option<i64>,
+    /// Type of agent running this task
+    pub agent_type: String,
+    /// Whether the task is currently in the original sync wait and can be moved to background mode. False once it is already backgrounded, idle, finished, or no longer has a promotable sync waiter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub can_promote_to_background: Option<bool>,
+    /// ISO 8601 timestamp when the task finished
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+    /// Short description of the task
+    pub description: String,
+    /// Error message when the task failed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// How the agent is currently being managed by the runtime
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_mode: Option<TaskAgentInfoExecutionMode>,
+    /// Unique task identifier
+    pub id: String,
+    /// ISO 8601 timestamp when the agent entered idle state
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idle_since: Option<String>,
+    /// Most recent response text from the agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_response: Option<String>,
+    /// Model used for the task when specified
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Prompt passed to the agent
+    pub prompt: String,
+    /// Result text from the task when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    /// ISO 8601 timestamp when the task was started
+    pub started_at: String,
+    /// Current lifecycle status of the task
+    pub status: TaskAgentInfoStatus,
+    /// Tool call ID associated with this agent task
+    pub tool_call_id: String,
+    /// Task kind
+    pub r#type: TaskAgentInfoType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskList {
+    /// Currently tracked tasks
+    pub tasks: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksCancelRequest {
+    /// Task identifier
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksCancelResult {
+    /// Whether the task was successfully cancelled
+    pub cancelled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskShellInfo {
+    /// Whether the shell runs inside a managed PTY session or as an independent background process
+    pub attachment_mode: TaskShellInfoAttachmentMode,
+    /// Whether this shell task can be promoted to background mode
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub can_promote_to_background: Option<bool>,
+    /// Command being executed
+    pub command: String,
+    /// ISO 8601 timestamp when the task finished
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+    /// Short description of the task
+    pub description: String,
+    /// Whether the shell command is currently sync-waited or background-managed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_mode: Option<TaskShellInfoExecutionMode>,
+    /// Unique task identifier
+    pub id: String,
+    /// Path to the detached shell log, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_path: Option<String>,
+    /// Process ID when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pid: Option<i64>,
+    /// ISO 8601 timestamp when the task was started
+    pub started_at: String,
+    /// Current lifecycle status of the task
+    pub status: TaskShellInfoStatus,
+    /// Task kind
+    pub r#type: TaskShellInfoType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksPromoteToBackgroundRequest {
+    /// Task identifier
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksPromoteToBackgroundResult {
+    /// Whether the task was successfully promoted to background mode
+    pub promoted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksRemoveRequest {
+    /// Task identifier
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksRemoveResult {
+    /// Whether the task was removed. Returns false if the task does not exist or is still running/idle (cancel it first).
+    pub removed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksStartAgentRequest {
+    /// Type of agent to start (e.g., 'explore', 'task', 'general-purpose')
+    pub agent_type: String,
+    /// Short description of the task
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Optional model override
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Short name for the agent, used to generate a human-readable ID
+    pub name: String,
+    /// Task prompt for the agent
+    pub prompt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksStartAgentResult {
+    /// Generated agent ID for the background task
+    pub agent_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Tool {
     /// Description of what the tool does
     pub description: String,
@@ -1778,6 +1949,8 @@ pub struct WorkspacesGetWorkspaceResultWorkspace {
     pub summary_count: Option<i64>,
     #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+    #[serde(rename = "user_named", skip_serializing_if = "Option::is_none")]
+    pub user_named: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1905,7 +2078,7 @@ pub struct SessionNameGetParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionNameGetResult {
-    /// The session name, falling back to the auto-generated summary, or null if neither exists
+    /// The session name (user-set or auto-generated), or null if not yet set
     pub name: Option<String>,
 }
 
@@ -1980,6 +2153,8 @@ pub struct SessionWorkspacesGetWorkspaceResultWorkspace {
     pub summary_count: Option<i64>,
     #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+    #[serde(rename = "user_named", skip_serializing_if = "Option::is_none")]
+    pub user_named: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2085,6 +2260,48 @@ pub struct SessionAgentReloadParams {
 pub struct SessionAgentReloadResult {
     /// Reloaded custom agents
     pub agents: Vec<AgentInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTasksStartAgentResult {
+    /// Generated agent ID for the background task
+    pub agent_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTasksListParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTasksListResult {
+    /// Currently tracked tasks
+    pub tasks: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTasksPromoteToBackgroundResult {
+    /// Whether the task was successfully promoted to background mode
+    pub promoted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTasksCancelResult {
+    /// Whether the task was successfully cancelled
+    pub cancelled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTasksRemoveResult {
+    /// Whether the task was removed. Returns false if the task does not exist or is still running/idle (cancel it first).
+    pub removed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2732,6 +2949,92 @@ pub enum ShellKillSignal {
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,
+}
+
+/// How the agent is currently being managed by the runtime
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskAgentInfoExecutionMode {
+    #[serde(rename = "sync")]
+    Sync,
+    #[serde(rename = "background")]
+    Background,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Current lifecycle status of the task
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskAgentInfoStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "idle")]
+    Idle,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Task kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskAgentInfoType {
+    #[serde(rename = "agent")]
+    Agent,
+}
+
+/// Whether the shell runs inside a managed PTY session or as an independent background process
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskShellInfoAttachmentMode {
+    #[serde(rename = "attached")]
+    Attached,
+    #[serde(rename = "detached")]
+    Detached,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Whether the shell command is currently sync-waited or background-managed
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskShellInfoExecutionMode {
+    #[serde(rename = "sync")]
+    Sync,
+    #[serde(rename = "background")]
+    Background,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Current lifecycle status of the task
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskShellInfoStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "idle")]
+    Idle,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Task kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskShellInfoType {
+    #[serde(rename = "shell")]
+    Shell,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

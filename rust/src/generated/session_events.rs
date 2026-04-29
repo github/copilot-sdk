@@ -73,6 +73,8 @@ pub enum SessionEventType {
     AssistantTurnEnd,
     #[serde(rename = "assistant.usage")]
     AssistantUsage,
+    #[serde(rename = "model.call_failure")]
+    ModelCallFailure,
     #[serde(rename = "abort")]
     Abort,
     #[serde(rename = "tool.user_requested")]
@@ -236,6 +238,8 @@ pub enum SessionEventData {
     AssistantTurnEnd(AssistantTurnEndData),
     #[serde(rename = "assistant.usage")]
     AssistantUsage(AssistantUsageData),
+    #[serde(rename = "model.call_failure")]
+    ModelCallFailure(ModelCallFailureData),
     #[serde(rename = "abort")]
     Abort(AbortData),
     #[serde(rename = "tool.user_requested")]
@@ -489,6 +493,9 @@ pub struct SessionInfoData {
     pub info_type: String,
     /// Human-readable informational message for display in the timeline
     pub message: String,
+    /// Optional actionable tip displayed with this message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tip: Option<String>,
     /// Optional URL associated with this message that the user can open in a browser
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -1153,6 +1160,35 @@ pub struct AssistantUsageData {
     /// Time to first token in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ttft_ms: Option<f64>,
+}
+
+/// Failed LLM API call metadata for telemetry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCallFailureData {
+    /// Completion ID from the model provider (e.g., chatcmpl-abc123)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_call_id: Option<String>,
+    /// Duration of the failed API call in milliseconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<f64>,
+    /// Raw provider/runtime error message for restricted telemetry
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initiator: Option<String>,
+    /// Model identifier used for the failed API call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_call_id: Option<String>,
+    /// Where the failed model call originated
+    pub source: ModelCallFailureSource,
+    /// HTTP status code from the failed request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i64>,
 }
 
 /// Turn abort information including the reason for termination
@@ -2352,6 +2388,20 @@ pub enum AssistantMessageToolRequestType {
     Function,
     #[serde(rename = "custom")]
     Custom,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where the failed model call originated
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFailureSource {
+    #[serde(rename = "top_level")]
+    TopLevel,
+    #[serde(rename = "subagent")]
+    Subagent,
+    #[serde(rename = "mcp_sampling")]
+    McpSampling,
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,
