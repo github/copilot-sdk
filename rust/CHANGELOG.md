@@ -256,6 +256,11 @@ public surface.
   `traceparent` / `tracestate` populated from `external_tool.requested`
   events, plus a [`ToolInvocation::trace_context`] helper. Wire fields are
   omitted when unset (matches Node/Go `omitempty` semantics).
+- `ToolInvocation` and `SessionId` now derive `Default`. Production code
+  never constructs `ToolInvocation` literals (it's a CLI-emitted read-only
+  type), but downstream test scaffolding can now use
+  `ToolInvocation { tool_name: "...".into(), ..Default::default() }` and
+  absorb future `#[non_exhaustive]` field additions automatically.
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.

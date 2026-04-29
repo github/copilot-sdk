@@ -104,7 +104,7 @@ pub struct SessionLifecycleEvent {
 /// A newtype wrapper around `String` that provides type safety — prevents
 /// accidentally passing a workspace ID or request ID where a session ID
 /// is expected. Derefs to `str` for zero-friction borrowing.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SessionId(String);
 
@@ -1805,7 +1805,7 @@ impl SessionEvent {
 ///
 /// Received as a JSON-RPC request on the `tool.call` method. The client
 /// must respond with a [`ToolResultResponse`].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ToolInvocation {
