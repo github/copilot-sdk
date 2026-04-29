@@ -335,14 +335,12 @@ internal sealed partial class JsonRpc : IDisposable
             int lineEnd = headerLines.IndexOf("\r\n"u8);
             ReadOnlySpan<byte> line = lineEnd >= 0 ? headerLines.Slice(0, lineEnd) : headerLines;
 
-            if (line.StartsWith(prefix))
+            if (line.StartsWith(prefix) &&
+                (contentLength >= 0 ||
+                 !int.TryParse(line.Slice(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out contentLength) ||
+                 contentLength < 0))
             {
-                if (contentLength >= 0 ||
-                    !int.TryParse(line.Slice(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out contentLength) ||
-                    contentLength < 0)
-                {
-                    throw new InvalidDataException("JSON-RPC frame has a missing, duplicate, or invalid Content-Length header.");
-                }
+                throw new InvalidDataException("JSON-RPC frame has a missing, duplicate, or invalid Content-Length header.");
             }
 
             headerLines = lineEnd >= 0 ? headerLines.Slice(lineEnd + 2) : default;
