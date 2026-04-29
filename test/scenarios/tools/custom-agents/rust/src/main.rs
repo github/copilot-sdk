@@ -28,7 +28,7 @@ async fn main() -> Result<(), copilot::Error> {
     let analyze_codebase = define_tool(
         "analyze-codebase",
         "Performs deep analysis of the codebase",
-        |params: AnalyzeParams| async move {
+        |_inv, params: AnalyzeParams| async move {
             Ok(ToolResult::Text(format!(
                 "Analysis result for: {}",
                 params.query

@@ -28,7 +28,7 @@ async fn main() -> Result<(), copilot::Error> {
     let grep_tool = define_tool(
         "grep",
         "A custom grep implementation that overrides the built-in",
-        |params: GrepParams| async move {
+        |_inv, params: GrepParams| async move {
             Ok(ToolResult::Text(format!("CUSTOM_GREP_RESULT: {}", params.query)))
         },
     );
