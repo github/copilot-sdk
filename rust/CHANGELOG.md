@@ -192,7 +192,15 @@ public surface.
     `isChildProcess` requires a transport variant the Rust SDK does not
     yet support; `autoStart` does not apply because [`Client::start`] is
     a single explicit constructor rather than a deferred-init pattern.
-    The Node knob `onListModels` (BYOK callback) is tracked separately.
+  - `on_list_models: Option<Arc<dyn ListModelsHandler>>` — BYOK escape
+    hatch matching Node's `onListModels`. When set, [`Client::list_models`]
+    returns the handler's result without making a `models.list` RPC.
+    `ListModelsHandler` is a new public `async_trait` (mirrors the shape
+    of `SessionHandler` / `SessionHooks`) with a single
+    `async fn list_models(&self) -> Result<Vec<Model>, Error>` method.
+    `ClientOptions` switched from `#[derive(Debug)]` to a manual `Debug`
+    impl that prints the handler as `<set>` / `None` (same precedent as
+    `SessionConfig::handler` and `github_token`).
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.

@@ -34,6 +34,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, OnceLock};
 
+use async_trait::async_trait;
 // JSON-RPC wire types are internal transport details (like Go SDK's internal/jsonrpc2/).
 // External callers interact via Client/Session methods, not raw RPC.
 pub(crate) use jsonrpc::{
@@ -286,7 +287,6 @@ impl From<PathBuf> for CliProgram {
 /// embedded CLI, and then the system PATH and common install locations.
 ///
 /// Set `program` to [`CliProgram::Path`] to use an explicit binary.
-#[derive(Debug)]
 pub struct ClientOptions {
     /// How to locate the CLI binary.
     pub program: CliProgram,
@@ -320,6 +320,56 @@ pub struct ClientOptions {
     /// automatically cleaned up. `None` or `Some(0)` leaves sessions
     /// running indefinitely (the CLI default).
     pub session_idle_timeout_seconds: Option<u64>,
+    /// Optional override for [`Client::list_models`].
+    ///
+    /// When set, [`Client::list_models`] returns the handler's result
+    /// without making a `models.list` RPC. This is the BYOK escape hatch
+    /// for environments where the model catalog is provisioned separately
+    /// from the Copilot CLI (e.g. external inference servers selected via
+    /// [`Transport::External`]). Mirrors Node's `onListModels` option.
+    pub on_list_models: Option<Arc<dyn ListModelsHandler>>,
+}
+
+impl std::fmt::Debug for ClientOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClientOptions")
+            .field("program", &self.program)
+            .field("prefix_args", &self.prefix_args)
+            .field("cwd", &self.cwd)
+            .field("env", &self.env)
+            .field("env_remove", &self.env_remove)
+            .field("extra_args", &self.extra_args)
+            .field("transport", &self.transport)
+            .field(
+                "github_token",
+                &self.github_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field("use_logged_in_user", &self.use_logged_in_user)
+            .field("log_level", &self.log_level)
+            .field(
+                "session_idle_timeout_seconds",
+                &self.session_idle_timeout_seconds,
+            )
+            .field(
+                "on_list_models",
+                &self.on_list_models.as_ref().map(|_| "<set>"),
+            )
+            .finish()
+    }
+}
+
+/// Custom handler for [`Client::list_models`].
+///
+/// Implementations override the default `models.list` RPC, returning a
+/// caller-supplied catalog of models. Set via [`ClientOptions::on_list_models`].
+///
+/// Implementations must be `Send + Sync` because [`Client`] is shared across
+/// tasks. Errors returned by [`list_models`](Self::list_models) are propagated
+/// from [`Client::list_models`] unchanged.
+#[async_trait]
+pub trait ListModelsHandler: Send + Sync + 'static {
+    /// Return the list of available models.
+    async fn list_models(&self) -> Result<Vec<Model>, Error>;
 }
 
 /// Log verbosity for the CLI server (passed via `--log-level`).
@@ -377,6 +427,7 @@ impl Default for ClientOptions {
             use_logged_in_user: None,
             log_level: None,
             session_idle_timeout_seconds: None,
+            on_list_models: None,
         }
     }
 }
@@ -410,6 +461,7 @@ struct ClientInner {
     server_telemetry_method: parking_lot::Mutex<Option<ServerTelemetryRpcMethod>>,
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
+    on_list_models: Option<Arc<dyn ListModelsHandler>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -468,21 +520,33 @@ impl Client {
                 info!(host = %host, port = %port, "connecting to external CLI server");
                 let stream = TcpStream::connect((host.as_str(), port)).await?;
                 let (reader, writer) = tokio::io::split(stream);
-                Self::from_transport(reader, writer, None, options.cwd)?
+                Self::from_transport(reader, writer, None, options.cwd, options.on_list_models)?
             }
             Transport::Tcp { port } => {
                 let (mut child, actual_port) = Self::spawn_tcp(&program, &options, port).await?;
                 let stream = TcpStream::connect(("127.0.0.1", actual_port)).await?;
                 let (reader, writer) = tokio::io::split(stream);
                 Self::drain_stderr(&mut child);
-                Self::from_transport(reader, writer, Some(child), options.cwd)?
+                Self::from_transport(
+                    reader,
+                    writer,
+                    Some(child),
+                    options.cwd,
+                    options.on_list_models,
+                )?
             }
             Transport::Stdio => {
                 let mut child = Self::spawn_stdio(&program, &options)?;
                 let stdin = child.stdin.take().expect("stdin is piped");
                 let stdout = child.stdout.take().expect("stdout is piped");
                 Self::drain_stderr(&mut child);
-                Self::from_transport(stdout, stdin, Some(child), options.cwd)?
+                Self::from_transport(
+                    stdout,
+                    stdin,
+                    Some(child),
+                    options.cwd,
+                    options.on_list_models,
+                )?
             }
         };
 
@@ -509,7 +573,7 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd)
+        Self::from_transport(reader, writer, None, cwd, None)
     }
 
     fn from_transport(
@@ -517,6 +581,7 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         child: Option<Child>,
         cwd: PathBuf,
+        on_list_models: Option<Arc<dyn ListModelsHandler>>,
     ) -> Result<Self, Error> {
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
         let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
@@ -542,6 +607,7 @@ impl Client {
                 server_telemetry_method: parking_lot::Mutex::new(None),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
+                on_list_models,
             }),
         };
         client.spawn_lifecycle_dispatcher();
@@ -1035,7 +1101,13 @@ impl Client {
     }
 
     /// List available models.
+    ///
+    /// When [`ClientOptions::on_list_models`] is set, returns the handler's
+    /// result without making a `models.list` RPC. Otherwise queries the CLI.
     pub async fn list_models(&self) -> Result<Vec<Model>, Error> {
+        if let Some(handler) = &self.inner.on_list_models {
+            return handler.list_models().await;
+        }
         Ok(self.rpc().models().list().await?.models)
     }
 
@@ -1392,5 +1464,92 @@ mod tests {
             let parsed: LogLevel = serde_json::from_str(&json).unwrap();
             assert_eq!(parsed, level);
         }
+    }
+
+    #[test]
+    fn client_options_debug_redacts_handler() {
+        struct StubHandler;
+        #[async_trait]
+        impl ListModelsHandler for StubHandler {
+            async fn list_models(&self) -> Result<Vec<Model>, Error> {
+                Ok(vec![])
+            }
+        }
+        let opts = ClientOptions {
+            on_list_models: Some(Arc::new(StubHandler)),
+            github_token: Some("secret-token".into()),
+            ..Default::default()
+        };
+        let debug = format!("{opts:?}");
+        assert!(debug.contains("on_list_models: Some(\"<set>\")"));
+        assert!(debug.contains("github_token: Some(\"<redacted>\")"));
+        assert!(!debug.contains("secret-token"));
+    }
+
+    #[tokio::test]
+    async fn list_models_uses_on_list_models_handler_when_set() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct CountingHandler {
+            calls: Arc<AtomicUsize>,
+            models: Vec<Model>,
+        }
+        #[async_trait]
+        impl ListModelsHandler for CountingHandler {
+            async fn list_models(&self) -> Result<Vec<Model>, Error> {
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                Ok(self.models.clone())
+            }
+        }
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let model = Model {
+            billing: None,
+            capabilities: ModelCapabilities {
+                limits: None,
+                supports: None,
+            },
+            default_reasoning_effort: None,
+            id: "byok-gpt-4".into(),
+            name: "BYOK GPT-4".into(),
+            policy: None,
+            supported_reasoning_efforts: Vec::new(),
+        };
+        let handler = Arc::new(CountingHandler {
+            calls: Arc::clone(&calls),
+            models: vec![model.clone()],
+        });
+
+        // We can't call list_models() through Client::start without a CLI, but we
+        // can exercise the override path by directly constructing a Client whose
+        // inner has the handler set. This is the same dispatch path as the real
+        // call; from_streams's None default is replaced via inner construction.
+        let inner = ClientInner {
+            child: parking_lot::Mutex::new(None),
+            rpc: {
+                let (req_tx, _req_rx) = mpsc::unbounded_channel();
+                let (notif_tx, _notif_rx) = broadcast::channel(16);
+                let (read_pipe, _write_pipe) = tokio::io::duplex(64);
+                let (_unused_read, write_pipe) = tokio::io::duplex(64);
+                JsonRpcClient::new(write_pipe, read_pipe, notif_tx, req_tx)
+            },
+            cwd: PathBuf::from("."),
+            request_rx: parking_lot::Mutex::new(None),
+            notification_tx: broadcast::channel(16).0,
+            router: router::SessionRouter::new(),
+            negotiated_protocol_version: OnceLock::new(),
+            server_telemetry_method: parking_lot::Mutex::new(None),
+            state: parking_lot::Mutex::new(ConnectionState::Connected),
+            lifecycle_tx: broadcast::channel(16).0,
+            on_list_models: Some(handler),
+        };
+        let client = Client {
+            inner: Arc::new(inner),
+        };
+
+        let result = client.list_models().await.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, "byok-gpt-4");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 }
