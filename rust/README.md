@@ -499,9 +499,9 @@ COPILOT_CLI_VERSION=1.0.15 cargo build
 
 ### How it works
 
-1. **Build time:** The SDK's `build.rs` detects `COPILOT_CLI_VERSION`, downloads the platform-appropriate binary from npm (`@github/copilot-{platform}`), verifies the tarball's SHA-512 integrity hash against npm's registry metadata, compresses with zstd, and embeds via `include_bytes!()`. No extra steps or tools needed — just the env var.
+1. **Build time:** The SDK's `build.rs` detects `COPILOT_CLI_VERSION`, downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), verifies the archive's SHA-256 against the release's `SHA256SUMS.txt`, extracts the `copilot` binary, compresses it with zstd, and embeds via `include_bytes!()`. No extra steps or tools needed — just the env var.
 
-2. **Runtime:** On the first call to `copilot::resolve::copilot_binary()`, the embedded binary is lazily extracted to `~/.cache/copilot-sdk/copilot_{version}`, SHA-256 verified, and cached. Subsequent calls return the cached path.
+2. **Runtime:** On the first call to `copilot::resolve::copilot_binary()`, the embedded binary is lazily extracted to `~/.cache/copilot-sdk-{version}/copilot` (or `copilot.exe` on Windows), SHA-256 verified, and cached. Subsequent calls return the cached path.
 
 3. **Dev builds:** Without the env var, `build.rs` does nothing. The binary is resolved from PATH as usual — zero friction.
 

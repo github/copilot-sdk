@@ -34,8 +34,9 @@ pub fn bundled_version() -> Option<&'static str> {
 /// Returns the path to the installed CLI binary, lazily extracting on first call.
 ///
 /// When the SDK was built with `COPILOT_CLI_VERSION` set, this extracts the
-/// embedded binary to `~/.cache/copilot-sdk/copilot_{version}`, verifies the
-/// SHA-256 hash, and returns the path. Subsequent calls return the cached result.
+/// embedded binary to `~/.cache/copilot-sdk-{version}/copilot` (or
+/// `copilot.exe` on Windows), verifies the SHA-256 hash, and returns the
+/// path. Subsequent calls return the cached result.
 ///
 /// Returns `None` if no CLI was embedded at build time.
 pub fn path() -> Option<PathBuf> {

@@ -6,7 +6,7 @@ use std::time::Duration;
 use serde_json::Value;
 use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinHandle;
-use tracing::warn;
+use tracing::{Instrument, warn};
 
 use crate::generated::api_types::{
     PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionApproveOnceKind,
@@ -934,29 +934,33 @@ fn spawn_event_loop(
         mut requests,
     } = channels;
 
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                Some(notification) = notifications.recv() => {
-                    handle_notification(
-                        &session_id, &client, &handler, notification, &idle_waiter, &capabilities, &event_tx,
-                    ).await;
+    let span = tracing::error_span!("session_event_loop", session_id = %session_id);
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::select! {
+                    Some(notification) = notifications.recv() => {
+                        handle_notification(
+                            &session_id, &client, &handler, notification, &idle_waiter, &capabilities, &event_tx,
+                        ).await;
+                    }
+                    Some(request) = requests.recv() => {
+                        handle_request(
+                            &session_id, &client, &handler, hooks.as_deref(), transforms.as_deref(), request,
+                        ).await;
+                    }
+                    else => break,
                 }
-                Some(request) = requests.recv() => {
-                    handle_request(
-                        &session_id, &client, &handler, hooks.as_deref(), transforms.as_deref(), request,
-                    ).await;
-                }
-                else => break,
+            }
+            // Channels closed — fail any pending send_and_wait.
+            if let Some(waiter) = idle_waiter.lock().await.take() {
+                let _ = waiter
+                    .tx
+                    .send(Err(Error::Session(SessionError::EventLoopClosed)));
             }
         }
-        // Channels closed — fail any pending send_and_wait.
-        if let Some(waiter) = idle_waiter.lock().await.take() {
-            let _ = waiter
-                .tx
-                .send(Err(Error::Session(SessionError::EventLoopClosed)));
-        }
-    })
+        .instrument(span),
+    )
 }
 
 fn extract_request_id(data: &Value) -> Option<RequestId> {

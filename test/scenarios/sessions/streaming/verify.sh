@@ -112,7 +112,6 @@ check "Python (install)" bash -c "python3 -c 'import copilot' 2>/dev/null || (cd
 check "Python (syntax)"  bash -c "python3 -c \"import ast; ast.parse(open('$SCRIPT_DIR/python/main.py').read()); print('Syntax OK')\""
 
 # Go: build
-# Go: build
 check "Go (build)" bash -c "cd '$SCRIPT_DIR/go' && go build -o streaming-go . 2>&1"
 
 # Rust: build
