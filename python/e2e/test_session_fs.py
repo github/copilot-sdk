@@ -6,6 +6,7 @@ import asyncio
 import datetime as dt
 import os
 import re
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -26,9 +27,17 @@ from .testharness import E2ETestContext
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
+SESSION_STATE_PATH = (
+    "/session-state"
+    if os.name == "nt"
+    else (Path(tempfile.mkdtemp(prefix="copilot-sessionfs-state-")) / "session-state")
+    .resolve()
+    .as_posix()
+)
+
 SESSION_FS_CONFIG: SessionFsConfig = {
     "initial_cwd": "/",
-    "session_state_path": "/session-state",
+    "session_state_path": SESSION_STATE_PATH,
     "conventions": "posix",
 }
 
@@ -71,7 +80,7 @@ class TestSessionFs:
         await session.disconnect()
 
         events_path = provider_path(
-            provider_root, session.session_id, "/session-state/events.jsonl"
+            provider_root, session.session_id, f"{SESSION_STATE_PATH}/events.jsonl"
         )
         assert "300" in events_path.read_text(encoding="utf-8")
 
@@ -93,7 +102,7 @@ class TestSessionFs:
         assert "100" in msg.data.content
         await session1.disconnect()
 
-        assert provider_path(provider_root, session_id, "/session-state/events.jsonl").exists()
+        assert provider_path(provider_root, session_id, f"{SESSION_STATE_PATH}/events.jsonl").exists()
 
         session2 = await session_fs_client.resume_session(
             session_id,
@@ -169,8 +178,8 @@ class TestSessionFs:
         messages = await session.get_messages()
         tool_result = find_tool_call_result(messages, "get_big_string")
         assert tool_result is not None
-        assert "/session-state/temp/" in tool_result
-        match = re.search(r"(/session-state/temp/[^\s]+)", tool_result)
+        assert f"{SESSION_STATE_PATH}/temp/" in tool_result
+        match = re.search(rf"({re.escape(SESSION_STATE_PATH)}/temp/[^\s]+)", tool_result)
         assert match is not None
 
         temp_file = provider_path(provider_root, session.session_id, match.group(1))
@@ -200,7 +209,7 @@ class TestSessionFs:
         await session.send_and_wait("What is 2+2?")
 
         events_path = provider_path(
-            provider_root, session.session_id, "/session-state/events.jsonl"
+            provider_root, session.session_id, f"{SESSION_STATE_PATH}/events.jsonl"
         )
         await wait_for_path(events_path)
         assert "checkpointNumber" not in events_path.read_text(encoding="utf-8")
@@ -228,7 +237,7 @@ class TestSessionFs:
 
         # WorkspaceManager should have created workspace.yaml via sessionFs
         workspace_yaml_path = provider_path(
-            provider_root, session.session_id, "/session-state/workspace.yaml"
+            provider_root, session.session_id, f"{SESSION_STATE_PATH}/workspace.yaml"
         )
         await wait_for_path(workspace_yaml_path)
         yaml_content = workspace_yaml_path.read_text(encoding="utf-8")
@@ -236,7 +245,7 @@ class TestSessionFs:
 
         # Checkpoint index should also exist
         index_path = provider_path(
-            provider_root, session.session_id, "/session-state/checkpoints/index.md"
+            provider_root, session.session_id, f"{SESSION_STATE_PATH}/checkpoints/index.md"
         )
         await wait_for_path(index_path)
 
@@ -257,7 +266,7 @@ class TestSessionFs:
         await session.send_and_wait("What is 2 + 3?")
         await session.rpc.plan.update(PlanUpdateRequest(content="# Test Plan\n\nThis is a test."))
 
-        plan_path = provider_path(provider_root, session.session_id, "/session-state/plan.md")
+        plan_path = provider_path(provider_root, session.session_id, f"{SESSION_STATE_PATH}/plan.md")
         await wait_for_path(plan_path)
         content = plan_path.read_text(encoding="utf-8")
         assert "# Test Plan" in content

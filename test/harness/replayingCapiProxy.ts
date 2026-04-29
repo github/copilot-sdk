@@ -865,10 +865,15 @@ function normalizeUserMessage(content: string): string {
 
 function normalizeLargeOutputFilepaths(result: string): string {
   // Replaces filenames like 1774637043987-copilot-tool-output-tk7puw.txt with PLACEHOLDER-copilot-tool-output-PLACEHOLDER
-  return result.replace(
-    /\d+-copilot-tool-output-[a-z0-9.]+/g,
-    "PLACEHOLDER-copilot-tool-output-PLACEHOLDER",
-  );
+  return result
+    .replace(
+      /\d+-copilot-tool-output-[a-z0-9.]+/g,
+      "PLACEHOLDER-copilot-tool-output-PLACEHOLDER",
+    )
+    .replace(
+      /(?:[A-Za-z]:)?[^\s"'`]*[\\/]session-state[\\/]temp[\\/]PLACEHOLDER-copilot-tool-output-PLACEHOLDER/g,
+      "/session-state/temp/PLACEHOLDER-copilot-tool-output-PLACEHOLDER",
+    );
 }
 
 // Transforms a single OpenAI-style inbound response message into normalized form

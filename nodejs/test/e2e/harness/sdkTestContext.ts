@@ -30,6 +30,7 @@ export async function createSdkTestContext({
     copilotClientOptions?: CopilotClientOptions;
 } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
+    const copilotHomeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-home-")));
     const workDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-work-")));
 
     const openAiEndpoint = new CapiProxy();
@@ -37,7 +38,7 @@ export async function createSdkTestContext({
     const env = {
         ...process.env,
         COPILOT_API_URL: proxyUrl,
-        COPILOT_HOME: homeDir,
+        COPILOT_HOME: copilotHomeDir,
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
@@ -87,6 +88,7 @@ export async function createSdkTestContext({
     afterAll(async () => {
         await copilotClient.stop();
         await openAiEndpoint.stop(anyTestFailed);
+        await rmDir("remove e2e test copilotHomeDir", copilotHomeDir);
         await rmDir("remove e2e test homeDir", homeDir);
         await rmDir("remove e2e test workDir", workDir);
     });
