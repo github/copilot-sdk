@@ -19,8 +19,8 @@ use crate::generated::session_events::{
     SessionEventType, UserInputRequestedData,
 };
 use crate::handler::{
-    ExitPlanModeResult, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
-    UserInputResponse,
+    AutoModeSwitchResponse, ExitPlanModeResult, HandlerEvent, HandlerResponse, PermissionResult,
+    SessionHandler, UserInputResponse,
 };
 use crate::hooks::SessionHooks;
 use crate::session_fs::SessionFsProvider;
@@ -1568,6 +1568,40 @@ async fn handle_request(
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
                 result: Some(rpc_result),
+                error: None,
+            };
+            let _ = client.send_response(&rpc_response).await;
+        }
+
+        "autoModeSwitch.request" => {
+            let error_code = request
+                .params
+                .as_ref()
+                .and_then(|p| p.get("errorCode"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let retry_after_seconds = request
+                .params
+                .as_ref()
+                .and_then(|p| p.get("retryAfterSeconds"))
+                .and_then(|v| v.as_u64());
+
+            let response = handler
+                .on_event(HandlerEvent::AutoModeSwitch {
+                    session_id: sid,
+                    error_code,
+                    retry_after_seconds,
+                })
+                .await;
+
+            let answer = match response {
+                HandlerResponse::AutoModeSwitch(answer) => answer,
+                _ => AutoModeSwitchResponse::No,
+            };
+            let rpc_response = JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: Some(serde_json::json!({ "response": answer })),
                 error: None,
             };
             let _ = client.send_response(&rpc_response).await;

@@ -693,6 +693,19 @@ pub struct SessionConfig {
     /// Defaults to `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_exit_plan_mode: Option<bool>,
+    /// Enable `autoModeSwitch.request` JSON-RPC calls. When `true`, the CLI
+    /// asks the handler whether to switch to auto model when an eligible
+    /// rate limit is hit. Defaults to `Some(true)` via
+    /// [`SessionConfig::default`]. Without this flag, the CLI surfaces the
+    /// rate-limit error directly without offering the auto-mode switch.
+    ///
+    /// Currently a Rust-only typed handler; cross-SDK parity (Node /
+    /// Python / Go / .NET) is post-release follow-up work — see
+    /// [`SessionHandler::on_auto_mode_switch`].
+    ///
+    /// [`SessionHandler::on_auto_mode_switch`]: crate::handler::SessionHandler::on_auto_mode_switch
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_auto_mode_switch: Option<bool>,
     /// Advertise elicitation provider capability. When true, the CLI sends
     /// `elicitation.requested` events that the handler can respond to.
     /// Defaults to `Some(true)` via [`SessionConfig::default`].
@@ -807,6 +820,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("request_user_input", &self.request_user_input)
             .field("request_permission", &self.request_permission)
             .field("request_exit_plan_mode", &self.request_exit_plan_mode)
+            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
             .field("skill_directories", &self.skill_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -867,6 +881,7 @@ impl Default for SessionConfig {
             request_user_input: Some(true),
             request_permission: Some(true),
             request_exit_plan_mode: Some(true),
+            request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
             skill_directories: None,
             disabled_skills: None,
@@ -1026,6 +1041,11 @@ pub struct ResumeSessionConfig {
     /// Enable exit-plan-mode request RPCs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_exit_plan_mode: Option<bool>,
+    /// Enable auto-mode-switch request RPCs on resume. Defaults to
+    /// `Some(true)` via [`ResumeSessionConfig::new`]. See
+    /// [`SessionConfig::request_auto_mode_switch`] for details.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_auto_mode_switch: Option<bool>,
     /// Advertise elicitation provider capability on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
@@ -1107,6 +1127,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("request_user_input", &self.request_user_input)
             .field("request_permission", &self.request_permission)
             .field("request_exit_plan_mode", &self.request_exit_plan_mode)
+            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
             .field("skill_directories", &self.skill_directories)
             .field("hooks", &self.hooks)
@@ -1160,6 +1181,7 @@ impl ResumeSessionConfig {
             request_user_input: Some(true),
             request_permission: Some(true),
             request_exit_plan_mode: Some(true),
+            request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
             skill_directories: None,
             hooks: None,
@@ -2310,6 +2332,7 @@ mod tests {
         assert_eq!(cfg.request_user_input, Some(true));
         assert_eq!(cfg.request_permission, Some(true));
         assert_eq!(cfg.request_exit_plan_mode, Some(true));
+        assert_eq!(cfg.request_auto_mode_switch, Some(true));
         assert_eq!(cfg.request_elicitation, Some(true));
     }
 
@@ -2319,6 +2342,7 @@ mod tests {
         assert_eq!(cfg.request_user_input, Some(true));
         assert_eq!(cfg.request_permission, Some(true));
         assert_eq!(cfg.request_exit_plan_mode, Some(true));
+        assert_eq!(cfg.request_auto_mode_switch, Some(true));
         assert_eq!(cfg.request_elicitation, Some(true));
     }
 

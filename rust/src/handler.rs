@@ -5,6 +5,7 @@
 //! CLI events, permission requests, tool calls, and user input prompts.
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 use crate::types::{
     ElicitationRequest, ElicitationResult, ExitPlanModeData, PermissionRequestData, RequestId,
@@ -76,6 +77,21 @@ pub enum HandlerEvent {
         /// Plan mode exit payload.
         data: ExitPlanModeData,
     },
+
+    /// The CLI asks whether to switch to auto model when an eligible rate
+    /// limit is hit. Return [`HandlerResponse::AutoModeSwitch`].
+    AutoModeSwitch {
+        /// The requesting session.
+        session_id: SessionId,
+        /// The specific rate-limit error code that triggered the request,
+        /// if known (e.g. `user_weekly_rate_limited`, `user_global_rate_limited`).
+        error_code: Option<String>,
+        /// Seconds until the rate limit resets, when known. Per RFC 9110's
+        /// `Retry-After` `delta-seconds` form, this is an integer count of
+        /// seconds. Handlers can use it to render a humanized reset time
+        /// alongside the prompt.
+        retry_after_seconds: Option<u64>,
+    },
 }
 
 /// Response from the handler back to the SDK, used to construct the
@@ -95,6 +111,8 @@ pub enum HandlerResponse {
     Elicitation(ElicitationResult),
     /// Exit plan mode decision.
     ExitPlanMode(ExitPlanModeResult),
+    /// Auto-mode-switch decision.
+    AutoModeSwitch(AutoModeSwitchResponse),
 }
 
 /// Result of a permission request.
@@ -168,6 +186,24 @@ impl Default for ExitPlanModeResult {
     }
 }
 
+/// Response to a [`HandlerEvent::AutoModeSwitch`] request.
+///
+/// Wire serialization matches the CLI's `autoModeSwitch.request` response
+/// schema: `"yes"`, `"yes_always"`, or `"no"`.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoModeSwitchResponse {
+    /// Approve the auto-mode switch for this rate-limit cycle only.
+    Yes,
+    /// Approve and remember — auto-accept future auto-mode switches in this
+    /// session without prompting.
+    YesAlways,
+    /// Decline the auto-mode switch. The session stays on the current model
+    /// and surfaces the rate-limit error.
+    No,
+}
+
 /// Callback trait for session events.
 ///
 /// Implement this trait to control how a session responds to CLI events,
@@ -198,6 +234,8 @@ impl Default for ExitPlanModeResult {
 /// - External tool calls → failure result with "no handler registered".
 /// - Elicitation → `"cancel"`.
 /// - Exit plan mode → [`ExitPlanModeResult::default`].
+/// - Auto-mode-switch → [`AutoModeSwitchResponse::No`] (decline by default; the
+///   session stays on its current model and surfaces the rate-limit error).
 /// - Session events → ignored (fire-and-forget).
 ///
 /// # Concurrency
@@ -286,6 +324,14 @@ pub trait SessionHandler: Send + Sync + 'static {
             HandlerEvent::ExitPlanMode { session_id, data } => {
                 HandlerResponse::ExitPlanMode(self.on_exit_plan_mode(session_id, data).await)
             }
+            HandlerEvent::AutoModeSwitch {
+                session_id,
+                error_code,
+                retry_after_seconds,
+            } => HandlerResponse::AutoModeSwitch(
+                self.on_auto_mode_switch(session_id, error_code, retry_after_seconds)
+                    .await,
+            ),
         }
     }
 
@@ -368,6 +414,24 @@ pub trait SessionHandler: Send + Sync + 'static {
         _data: ExitPlanModeData,
     ) -> ExitPlanModeResult {
         ExitPlanModeResult::default()
+    }
+
+    /// The CLI is asking whether to switch to auto model after an eligible
+    /// rate limit.
+    ///
+    /// `retry_after_seconds`, when present, is the number of seconds until the
+    /// rate limit resets (RFC 9110 `Retry-After` `delta-seconds`). Handlers
+    /// can use it to render a humanized reset time alongside the prompt.
+    ///
+    /// Default: [`AutoModeSwitchResponse::No`] — decline. Override only if
+    /// your application surfaces a UX for the rate-limit-recovery prompt.
+    async fn on_auto_mode_switch(
+        &self,
+        _session_id: SessionId,
+        _error_code: Option<String>,
+        _retry_after_seconds: Option<u64>,
+    ) -> AutoModeSwitchResponse {
+        AutoModeSwitchResponse::No
     }
 }
 

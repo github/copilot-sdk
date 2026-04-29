@@ -583,6 +583,13 @@ none of them are scheduled for removal.
   arg vectors for "prepend before subcommand" vs "append after the
   built-in flags", giving precise control over CLI invocation order
   without string-splicing.
+- **`SessionHandler::on_auto_mode_switch`** — typed handler for the CLI's
+  rate-limit-recovery prompt (CLI's `autoModeSwitch.request` callback,
+  added in copilot-agent-runtime PR #7024). Returns
+  `AutoModeSwitchResponse::{Yes, YesAlways, No}`. Default impl declines.
+  Cross-SDK parity is post-release follow-up — Node / Python / Go / .NET
+  consumers currently observe the request as a raw event and must drive
+  the wire response themselves.
 
 ## Layout
 

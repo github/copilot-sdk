@@ -8,8 +8,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use github_copilot_sdk::Client;
 use github_copilot_sdk::handler::{
-    ApproveAllHandler, ExitPlanModeResult, HandlerEvent, HandlerResponse, PermissionResult,
-    SessionHandler, UserInputResponse,
+    ApproveAllHandler, AutoModeSwitchResponse, ExitPlanModeResult, HandlerEvent, HandlerResponse,
+    PermissionResult, SessionHandler, UserInputResponse,
 };
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, MessageOptions,
@@ -1446,6 +1446,81 @@ async fn exit_plan_mode_dispatches_to_handler() {
     let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
     assert_eq!(response["result"]["approved"], true);
     assert_eq!(response["result"]["selectedAction"], "autopilot");
+}
+
+#[tokio::test]
+async fn auto_mode_switch_dispatches_to_handler_and_serializes_response() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct AutoModeHandler {
+        calls: Arc<AtomicUsize>,
+        last_error_code: Arc<parking_lot::Mutex<Option<String>>>,
+        last_retry_after: Arc<parking_lot::Mutex<Option<u64>>>,
+    }
+    #[async_trait]
+    impl SessionHandler for AutoModeHandler {
+        async fn on_auto_mode_switch(
+            &self,
+            _session_id: github_copilot_sdk::types::SessionId,
+            error_code: Option<String>,
+            retry_after_seconds: Option<u64>,
+        ) -> AutoModeSwitchResponse {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            *self.last_error_code.lock() = error_code;
+            *self.last_retry_after.lock() = retry_after_seconds;
+            AutoModeSwitchResponse::YesAlways
+        }
+    }
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let last_error_code = Arc::new(parking_lot::Mutex::new(None));
+    let last_retry_after = Arc::new(parking_lot::Mutex::new(None));
+    let (_session, mut server) = create_session_pair(Arc::new(AutoModeHandler {
+        calls: calls.clone(),
+        last_error_code: last_error_code.clone(),
+        last_retry_after: last_retry_after.clone(),
+    }))
+    .await;
+
+    server
+        .send_request(
+            700,
+            "autoModeSwitch.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "errorCode": "user_weekly_rate_limited",
+                "retryAfterSeconds": 3600,
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 700);
+    assert_eq!(response["result"]["response"], "yes_always");
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        last_error_code.lock().as_deref(),
+        Some("user_weekly_rate_limited")
+    );
+    assert_eq!(*last_retry_after.lock(), Some(3600));
+}
+
+#[tokio::test]
+async fn auto_mode_switch_default_handler_replies_no() {
+    let (_session, mut server) = create_session_pair(Arc::new(ApproveAllHandler)).await;
+
+    server
+        .send_request(
+            701,
+            "autoModeSwitch.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["result"]["response"], "no");
 }
 
 #[tokio::test]

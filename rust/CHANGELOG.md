@@ -102,6 +102,20 @@ public surface.
   still routes correctly through the per-event methods, so legacy
   callers are unaffected.
 - Hooks API for instrumenting send/receive flows (`github_copilot_sdk::hooks`).
+- `SessionHandler::on_auto_mode_switch` — typed handler for the CLI's
+  rate-limit-recovery prompt (`autoModeSwitch.request` JSON-RPC
+  callback, added in copilot-agent-runtime PR #7024). Returns a typed
+  [`AutoModeSwitchResponse`] enum with `Yes`, `YesAlways`, `No`
+  variants (`#[serde(rename_all = "snake_case")]`, wire values byte-
+  identical to the runtime's `"yes" | "yes_always" | "no"` schema).
+  Default impl declines (`No`); override only if your application
+  surfaces a UX for the prompt. `SessionConfig::request_auto_mode_switch`
+  and `ResumeSessionConfig::request_auto_mode_switch` default to
+  `Some(true)` so the CLI advertises the callback to the SDK out of the
+  box. **Cross-SDK divergence:** typed handler is Rust-only as of 0.1.0.
+  Node, Python, Go, and .NET observe the request as a raw JSON-RPC
+  callback today; parity ports for those SDKs are post-release follow-up
+  work.
 
 #### Types
 - Newtype `SessionId`, plus generated RPC types under `github_copilot_sdk::generated`.
