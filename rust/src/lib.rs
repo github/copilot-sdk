@@ -1323,14 +1323,17 @@ impl Client {
     }
 
     /// Get the CLI server status.
-    pub async fn get_status(&self) -> Result<serde_json::Value, Error> {
-        self.call("getStatus", Some(serde_json::json!({}))).await
+    pub async fn get_status(&self) -> Result<GetStatusResponse, Error> {
+        let result = self.call("getStatus", Some(serde_json::json!({}))).await?;
+        Ok(serde_json::from_value(result)?)
     }
 
     /// Get authentication status.
-    pub async fn get_auth_status(&self) -> Result<serde_json::Value, Error> {
-        self.call("getAuthStatus", Some(serde_json::json!({})))
-            .await
+    pub async fn get_auth_status(&self) -> Result<GetAuthStatusResponse, Error> {
+        let result = self
+            .call("getAuthStatus", Some(serde_json::json!({})))
+            .await?;
+        Ok(serde_json::from_value(result)?)
     }
 
     /// List available models.

@@ -500,7 +500,12 @@ async fn client_rpc_methods_send_correct_method_names() {
         let request = read_framed(&mut server_read).await;
         assert_eq!(request["method"], expected_method);
         let id = request["id"].as_u64().unwrap();
-        let resp = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} });
+        let result = match expected_method {
+            "getStatus" => serde_json::json!({ "version": "1.0.0", "protocolVersion": 1 }),
+            "getAuthStatus" => serde_json::json!({ "isAuthenticated": true }),
+            _ => unreachable!(),
+        };
+        let resp = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result });
         write_framed(&mut server_write, &serde_json::to_vec(&resp).unwrap()).await;
         timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     }
@@ -1151,7 +1156,7 @@ async fn get_messages_returns_typed_events() {
 }
 
 #[tokio::test]
-async fn set_model_returns_model_id() {
+async fn set_model_sends_switch_to_request() {
     let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
     let session = Arc::new(session);
 
@@ -1170,10 +1175,7 @@ async fn set_model_returns_model_id() {
         )
         .await;
 
-    assert_eq!(
-        timeout(TIMEOUT, handle).await.unwrap().unwrap(),
-        Some("claude-sonnet-4".to_string())
-    );
+    timeout(TIMEOUT, handle).await.unwrap().unwrap();
 }
 
 #[tokio::test]
@@ -1234,6 +1236,7 @@ async fn elicitation_returns_typed_result() {
         let schema = schema.clone();
         async move {
             session
+                .ui()
                 .elicitation("Enter your name", schema)
                 .await
                 .unwrap()
@@ -1899,6 +1902,7 @@ async fn elicitation_methods_fail_without_capability() {
 
     // Session created without capabilities — elicitation should fail
     let err = session
+        .ui()
         .elicitation("test", serde_json::json!({}))
         .await
         .unwrap_err();
@@ -1909,7 +1913,7 @@ async fn elicitation_methods_fail_without_capability() {
         )
     ));
 
-    let err = session.confirm("ok?").await.unwrap_err();
+    let err = session.ui().confirm("ok?").await.unwrap_err();
     assert!(matches!(
         err,
         github_copilot_sdk::Error::Session(

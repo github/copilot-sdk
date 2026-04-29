@@ -322,18 +322,15 @@ impl Session {
     ///
     /// Pass `None` for `opts` if no extra configuration is needed. Mirrors
     /// Go's `Session.SetModel(ctx, model, *SetModelOptions)`.
-    pub async fn set_model(
-        &self,
-        model: &str,
-        opts: Option<SetModelOptions>,
-    ) -> Result<Option<String>, Error> {
+    pub async fn set_model(&self, model: &str, opts: Option<SetModelOptions>) -> Result<(), Error> {
         let opts = opts.unwrap_or_default();
         let request = ModelSwitchToRequest {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
             model_capabilities: opts.model_capabilities,
         };
-        Ok(self.rpc().model().switch_to(request).await?.model_id)
+        self.rpc().model().switch_to(request).await?;
+        Ok(())
     }
 
     /// Get the current model.
@@ -499,128 +496,15 @@ impl Session {
         Ok(())
     }
 
-    /// Request user input via an interactive UI form (elicitation).
+    /// Returns the UI sub-API for elicitation, confirmation, selection, and
+    /// free-form input.
     ///
-    /// Sends a JSON Schema describing form fields to the CLI host. The host
-    /// renders a form dialog and returns the user's response.
-    ///
-    /// Prefer the typed convenience methods [`confirm`](Self::confirm),
-    /// [`select`](Self::select), and [`input`](Self::input) for common cases.
-    pub async fn elicitation(
-        &self,
-        message: &str,
-        schema: Value,
-    ) -> Result<ElicitationResult, Error> {
-        self.assert_elicitation()?;
-        let result = self
-            .client
-            .call(
-                "session.ui.elicitation",
-                Some(serde_json::json!({
-                    "sessionId": self.id,
-                    "message": message,
-                    "schema": schema,
-                })),
-            )
-            .await?;
-        let elicitation: ElicitationResult = serde_json::from_value(result)?;
-        Ok(elicitation)
-    }
-
-    /// Ask the user a yes/no confirmation question.
-    ///
-    /// Returns `true` if the user accepted and confirmed, `false` otherwise.
-    pub async fn confirm(&self, message: &str) -> Result<bool, Error> {
-        self.assert_elicitation()?;
-        let schema = serde_json::json!({
-            "type": "object",
-            "properties": {
-                "confirmed": {
-                    "type": "boolean",
-                    "default": true,
-                }
-            },
-            "required": ["confirmed"]
-        });
-        let result = self.elicitation(message, schema).await?;
-        Ok(result.action == "accept"
-            && result
-                .content
-                .and_then(|c| c.get("confirmed").and_then(|v| v.as_bool()))
-                == Some(true))
-    }
-
-    /// Ask the user to select from a list of options.
-    ///
-    /// Returns the selected option string on accept, or `None` on decline/cancel.
-    pub async fn select(&self, message: &str, options: &[&str]) -> Result<Option<String>, Error> {
-        self.assert_elicitation()?;
-        let schema = serde_json::json!({
-            "type": "object",
-            "properties": {
-                "selection": {
-                    "type": "string",
-                    "enum": options,
-                }
-            },
-            "required": ["selection"]
-        });
-        let result = self.elicitation(message, schema).await?;
-        if result.action != "accept" {
-            return Ok(None);
-        }
-        let selection = result.content.and_then(|c| {
-            c.get("selection")
-                .and_then(|v| v.as_str())
-                .map(String::from)
-        });
-        Ok(selection)
-    }
-
-    /// Ask the user for free-form text input.
-    ///
-    /// Returns the input string on accept, or `None` on decline/cancel.
-    /// Use [`InputOptions`] to set validation constraints and field metadata.
-    pub async fn input(
-        &self,
-        message: &str,
-        options: Option<&InputOptions<'_>>,
-    ) -> Result<Option<String>, Error> {
-        self.assert_elicitation()?;
-        let mut field = serde_json::json!({ "type": "string" });
-        if let Some(opts) = options {
-            if let Some(title) = opts.title {
-                field["title"] = Value::String(title.to_string());
-            }
-            if let Some(desc) = opts.description {
-                field["description"] = Value::String(desc.to_string());
-            }
-            if let Some(min) = opts.min_length {
-                field["minLength"] = Value::Number(min.into());
-            }
-            if let Some(max) = opts.max_length {
-                field["maxLength"] = Value::Number(max.into());
-            }
-            if let Some(fmt) = &opts.format {
-                field["format"] = Value::String(fmt.as_str().to_string());
-            }
-            if let Some(default) = opts.default {
-                field["default"] = Value::String(default.to_string());
-            }
-        }
-        let schema = serde_json::json!({
-            "type": "object",
-            "properties": { "value": field },
-            "required": ["value"]
-        });
-        let result = self.elicitation(message, schema).await?;
-        if result.action != "accept" {
-            return Ok(None);
-        }
-        let value = result
-            .content
-            .and_then(|c| c.get("value").and_then(|v| v.as_str()).map(String::from));
-        Ok(value)
+    /// All UI methods route through `session.ui.*` RPCs and require host
+    /// support — check `session.capabilities().ui.elicitation` before use.
+    /// Mirrors .NET's `session.UI` group, Python's `session.ui`, and Go's
+    /// `session.UI()`.
+    pub fn ui(&self) -> SessionUi<'_> {
+        SessionUi { session: self }
     }
 
     /// Returns an error if the host doesn't support elicitation.
@@ -678,6 +562,146 @@ impl Drop for Session {
             handle.abort();
         }
         self.client.unregister_session(&self.id);
+    }
+}
+
+/// UI sub-API for a [`Session`] — elicitation, confirmation, selection,
+/// and free-form input.
+///
+/// Acquired via [`Session::ui`]. Methods route to `session.ui.*` RPCs and
+/// require host elicitation support — check
+/// `session.capabilities().ui.elicitation` before use.
+///
+/// Mirrors .NET's `session.UI` group, Python's `session.ui`, and Go's
+/// `session.UI()`.
+pub struct SessionUi<'a> {
+    session: &'a Session,
+}
+
+impl<'a> SessionUi<'a> {
+    /// Request user input via an interactive UI form (elicitation).
+    ///
+    /// Sends a JSON Schema describing form fields to the CLI host. The host
+    /// renders a form dialog and returns the user's response.
+    ///
+    /// Prefer the typed convenience methods [`confirm`](Self::confirm),
+    /// [`select`](Self::select), and [`input`](Self::input) for common cases.
+    pub async fn elicitation(
+        &self,
+        message: &str,
+        schema: Value,
+    ) -> Result<ElicitationResult, Error> {
+        self.session.assert_elicitation()?;
+        let result = self
+            .session
+            .client
+            .call(
+                "session.ui.elicitation",
+                Some(serde_json::json!({
+                    "sessionId": self.session.id,
+                    "message": message,
+                    "schema": schema,
+                })),
+            )
+            .await?;
+        let elicitation: ElicitationResult = serde_json::from_value(result)?;
+        Ok(elicitation)
+    }
+
+    /// Ask the user a yes/no confirmation question.
+    ///
+    /// Returns `true` if the user accepted and confirmed, `false` otherwise.
+    pub async fn confirm(&self, message: &str) -> Result<bool, Error> {
+        self.session.assert_elicitation()?;
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "confirmed": {
+                    "type": "boolean",
+                    "default": true,
+                }
+            },
+            "required": ["confirmed"]
+        });
+        let result = self.elicitation(message, schema).await?;
+        Ok(result.action == "accept"
+            && result
+                .content
+                .and_then(|c| c.get("confirmed").and_then(|v| v.as_bool()))
+                == Some(true))
+    }
+
+    /// Ask the user to select from a list of options.
+    ///
+    /// Returns the selected option string on accept, or `None` on decline/cancel.
+    pub async fn select(&self, message: &str, options: &[&str]) -> Result<Option<String>, Error> {
+        self.session.assert_elicitation()?;
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "selection": {
+                    "type": "string",
+                    "enum": options,
+                }
+            },
+            "required": ["selection"]
+        });
+        let result = self.elicitation(message, schema).await?;
+        if result.action != "accept" {
+            return Ok(None);
+        }
+        let selection = result.content.and_then(|c| {
+            c.get("selection")
+                .and_then(|v| v.as_str())
+                .map(String::from)
+        });
+        Ok(selection)
+    }
+
+    /// Ask the user for free-form text input.
+    ///
+    /// Returns the input string on accept, or `None` on decline/cancel.
+    /// Use [`InputOptions`] to set validation constraints and field metadata.
+    pub async fn input(
+        &self,
+        message: &str,
+        options: Option<&InputOptions<'_>>,
+    ) -> Result<Option<String>, Error> {
+        self.session.assert_elicitation()?;
+        let mut field = serde_json::json!({ "type": "string" });
+        if let Some(opts) = options {
+            if let Some(title) = opts.title {
+                field["title"] = Value::String(title.to_string());
+            }
+            if let Some(desc) = opts.description {
+                field["description"] = Value::String(desc.to_string());
+            }
+            if let Some(min) = opts.min_length {
+                field["minLength"] = Value::Number(min.into());
+            }
+            if let Some(max) = opts.max_length {
+                field["maxLength"] = Value::Number(max.into());
+            }
+            if let Some(fmt) = &opts.format {
+                field["format"] = Value::String(fmt.as_str().to_string());
+            }
+            if let Some(default) = opts.default {
+                field["default"] = Value::String(default.to_string());
+            }
+        }
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": { "value": field },
+            "required": ["value"]
+        });
+        let result = self.elicitation(message, schema).await?;
+        if result.action != "accept" {
+            return Ok(None);
+        }
+        let value = result
+            .content
+            .and_then(|c| c.get("value").and_then(|v| v.as_str()).map(String::from));
+        Ok(value)
     }
 }
 

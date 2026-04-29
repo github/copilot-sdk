@@ -1727,6 +1727,45 @@ impl From<&String> for MessageOptions {
     }
 }
 
+/// Response from [`Client::get_status`](crate::Client::get_status).
+///
+/// Mirrors Node `GetStatusResponse`, Go `GetStatusResponse`, and Python
+/// `GetStatusResponse`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GetStatusResponse {
+    /// Package version (e.g. `"1.0.0"`).
+    pub version: String,
+    /// Protocol version for SDK compatibility.
+    pub protocol_version: u32,
+}
+
+/// Response from [`Client::get_auth_status`](crate::Client::get_auth_status).
+///
+/// Mirrors Node `GetAuthStatusResponse`, Go `GetAuthStatusResponse`, and
+/// Python `GetAuthStatusResponse`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GetAuthStatusResponse {
+    /// Whether the user is authenticated.
+    pub is_authenticated: bool,
+    /// Authentication type (e.g. `"user"`, `"env"`, `"gh-cli"`, `"hmac"`,
+    /// `"api-key"`, `"token"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_type: Option<String>,
+    /// GitHub host URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    /// User login name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<String>,
+    /// Human-readable status message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_message: Option<String>,
+}
+
 /// Wrapper for session event notifications received from the CLI.
 ///
 /// The CLI sends these as JSON-RPC notifications on the `session.event` method.

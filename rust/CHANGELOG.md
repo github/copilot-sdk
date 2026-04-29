@@ -41,7 +41,8 @@ public surface.
 - `Client::list_sessions`, `get_session_metadata`, `delete_session`,
   `get_last_session_id`, `get_foreground_session_id`,
   `set_foreground_session_id`.
-- `Client::list_models`, `get_status`, `get_auth_status`, `get_quota`,
+- `Client::list_models`, `get_status` (typed `GetStatusResponse`),
+  `get_auth_status` (typed `GetAuthStatusResponse`), `get_quota`,
   `send_telemetry`.
 
 #### Sessions
@@ -60,7 +61,9 @@ public surface.
 - Plan helpers: `read_plan`, `delete_plan`.
 - Workspace helpers: `list_workspace_files`, `read_workspace_file`,
   `create_workspace_file`, `cwd`, `remote_url`.
-- UI primitives: `elicitation`, `confirm`, `select`, `input`.
+- UI primitives: `session.ui().elicitation()`, `confirm()`, `select()`,
+  `input()` — grouped under a `SessionUi` sub-API to mirror .NET / Python /
+  Go.
 - `Session::log(message, LogOptions)` with optional severity and
   ephemeral flag.
 - `Session::send_telemetry`, `start_fleet`, `abort`,
