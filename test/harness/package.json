@@ -11,13 +11,13 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@github/copilot": "^1.0.39-0",
-    "@modelcontextprotocol/sdk": "^1.26.0",
-    "@types/node": "^25.3.3",
-    "openai": "^6.17.0",
+    "@github/copilot": "^1.0.39",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/node": "^25.6.0",
+    "openai": "^6.35.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18",
-    "yaml": "^2.8.2"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5",
+    "yaml": "^2.8.3"
   }
 }

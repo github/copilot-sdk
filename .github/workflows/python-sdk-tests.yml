@@ -46,7 +46,7 @@ jobs:
         shell: bash
         working-directory: ./python
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
