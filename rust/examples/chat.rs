@@ -1,6 +1,6 @@
 //! Interactive chat with GitHub Copilot.
 //!
-//! Starts a Copilot CLI server, creates a session, and enters a read-eval-print
+//! Starts a GitHub Copilot CLI server, creates a session, and enters a read-eval-print
 //! loop where each line you type is sent to the agent. Streaming is enabled so
 //! response tokens print to stdout incrementally as they arrive.
 //!

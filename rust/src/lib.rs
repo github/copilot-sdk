@@ -12,7 +12,7 @@ pub mod hooks;
 mod jsonrpc;
 /// Permission-policy helpers that wrap an existing [`handler::SessionHandler`].
 pub mod permission;
-/// Copilot CLI binary resolution (env var, embedded, PATH search).
+/// GitHub Copilot CLI binary resolution (env var, embedded, PATH search).
 pub mod resolve;
 mod router;
 /// Session management — create, resume, send messages, and interact with the agent.
@@ -28,7 +28,7 @@ pub mod tool;
 pub mod trace_context;
 /// System message transform callbacks for customizing agent prompts.
 pub mod transforms;
-/// Protocol types shared between the SDK and the Copilot CLI.
+/// Protocol types shared between the SDK and the GitHub Copilot CLI.
 pub mod types;
 
 /// Auto-generated protocol types from Copilot JSON Schemas.
@@ -282,7 +282,7 @@ pub enum Transport {
     },
 }
 
-/// How the SDK locates the Copilot CLI binary.
+/// How the SDK locates the GitHub Copilot CLI binary.
 #[derive(Debug, Clone, Default)]
 pub enum CliProgram {
     /// Auto-resolve: `COPILOT_CLI_PATH` → embedded CLI → PATH + common locations.
@@ -346,7 +346,7 @@ pub struct ClientOptions {
     /// When set, [`Client::list_models`] returns the handler's result
     /// without making a `models.list` RPC. This is the BYOK escape hatch
     /// for environments where the model catalog is provisioned separately
-    /// from the Copilot CLI (e.g. external inference servers selected via
+    /// from the GitHub Copilot CLI (e.g. external inference servers selected via
     /// [`Transport::External`]).
     pub on_list_models: Option<Arc<dyn ListModelsHandler>>,
     /// Custom session filesystem provider configuration.
@@ -485,7 +485,7 @@ impl OtelExporterType {
     }
 }
 
-/// OpenTelemetry configuration forwarded to the spawned Copilot CLI
+/// OpenTelemetry configuration forwarded to the spawned GitHub Copilot CLI
 /// process.
 ///
 /// When [`ClientOptions::telemetry`] is `Some(...)`, the SDK sets
@@ -586,7 +586,7 @@ fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<(), Error> {
     Ok(())
 }
 
-/// Connection to a Copilot CLI server (stdio, TCP, or external).
+/// Connection to a GitHub Copilot CLI server (stdio, TCP, or external).
 ///
 /// Cheaply cloneable — cloning shares the underlying connection.
 /// The child process (if any) is killed when the last clone drops.

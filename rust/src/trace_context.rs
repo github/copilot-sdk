@@ -1,6 +1,6 @@
 //! W3C Trace Context propagation for distributed tracing.
 //!
-//! The Copilot CLI propagates [W3C Trace Context] headers (`traceparent`
+//! The GitHub Copilot CLI propagates [W3C Trace Context] headers (`traceparent`
 //! and `tracestate`) so SDK consumers can correlate spans created by the
 //! CLI with their own observability pipelines.
 //!
@@ -19,7 +19,7 @@
 
 use async_trait::async_trait;
 
-/// W3C Trace Context headers propagated to and from the Copilot CLI.
+/// W3C Trace Context headers propagated to and from the GitHub Copilot CLI.
 ///
 /// `traceparent` carries the trace and parent-span identifiers; `tracestate`
 /// carries vendor-specific extensions. Either field may be `None` when the

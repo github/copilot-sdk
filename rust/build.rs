@@ -29,7 +29,7 @@ fn main() {
 
     // Download SHA256SUMS and find the expected hash for our platform's tarball.
     let asset_name = platform.asset_name;
-    println!("cargo:warning=Bundling Copilot CLI v{version} ({asset_name})");
+    println!("cargo:warning=Bundling GitHub Copilot CLI v{version} ({asset_name})");
     // Download checksums and find the expected hash for our platform's archive.
     let checksums_url = format!("{base_url}/SHA256SUMS.txt");
     let checksums = download_with_curl(&checksums_url);
@@ -198,7 +198,7 @@ fn download_with_curl(url: &str) -> Vec<u8> {
     let output = std::process::Command::new("curl")
         .args(["-sSfL", url])
         .output()
-        .expect("curl is required to download the Copilot CLI");
+        .expect("curl is required to download the GitHub Copilot CLI");
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

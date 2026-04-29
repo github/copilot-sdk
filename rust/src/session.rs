@@ -42,7 +42,7 @@ struct IdleWaiter {
     last_assistant_message: Option<SessionEvent>,
 }
 
-/// A session on a Copilot CLI server.
+/// A session on a GitHub Copilot CLI server.
 ///
 /// Created via [`Client::create_session`] or [`Client::resume_session`].
 /// Owns an internal event loop that dispatches events to the [`SessionHandler`].

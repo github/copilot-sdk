@@ -251,7 +251,7 @@ impl DirEntry {
 /// Each method takes a path using the conventions declared in
 /// [`SessionFsConfig::conventions`] and returns the operation's result. The
 /// SDK adapts every `Result<_, FsError>` into the JSON-RPC response shape
-/// expected by the Copilot CLI.
+/// expected by the GitHub Copilot CLI.
 ///
 /// # Concurrency
 ///

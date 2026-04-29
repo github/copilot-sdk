@@ -1,7 +1,7 @@
-//! Protocol types shared between the SDK and the Copilot CLI.
+//! Protocol types shared between the SDK and the GitHub Copilot CLI.
 //!
 //! These types map directly to the JSON-RPC request/response payloads
-//! defined by the Copilot CLI protocol. They are used for session
+//! defined by the GitHub Copilot CLI protocol. They are used for session
 //! configuration, event handling, tool invocations, and model queries.
 
 use std::collections::HashMap;
@@ -711,7 +711,7 @@ pub struct SessionConfig {
     /// Defaults to `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
-    /// Skill directory paths passed through to the Copilot CLI.
+    /// Skill directory paths passed through to the GitHub Copilot CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Skill names to disable. Skills in this set will not be available
@@ -1049,7 +1049,7 @@ pub struct ResumeSessionConfig {
     /// Advertise elicitation provider capability on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
-    /// Skill directory paths passed through to the Copilot CLI on resume.
+    /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Enable session hooks on resume.

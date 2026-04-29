@@ -26,7 +26,7 @@ public surface.
 ### Added
 
 #### Client lifecycle
-- `Client::start` — spawn and manage a Copilot CLI child process.
+- `Client::start` — spawn and manage a GitHub Copilot CLI child process.
 - `Client::from_streams` — connect to a CLI server over caller-supplied
   `AsyncRead`/`AsyncWrite` (testing, custom transports).
 - `Client::stop` / `Client::force_stop` — graceful and immediate shutdown.
@@ -149,7 +149,7 @@ public surface.
 
 #### Typed RPC namespace
 - `Client::rpc()` and `Session::rpc()` accessors exposing a generated, typed
-  view over the full Copilot CLI JSON-RPC API. Sub-namespaces mirror the
+  view over the full GitHub Copilot CLI JSON-RPC API. Sub-namespaces mirror the
   schema (e.g. `client.rpc().models().list()`, `session.rpc().workspaces()
   .list_files()`, `session.rpc().agent().list()`,
   `session.rpc().tasks().list()`).

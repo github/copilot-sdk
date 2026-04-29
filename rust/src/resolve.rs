@@ -56,7 +56,7 @@ pub fn copilot_binary_with_source() -> Result<(PathBuf, BinarySource), Error> {
 
     Err(Error::BinaryNotFound {
         name: "copilot",
-        hint: "ensure the Copilot CLI is installed and on PATH, or set COPILOT_CLI_PATH. use COPILOT_CLI_NAME to override the binary name (default: copilot)",
+        hint: "ensure the GitHub Copilot CLI is installed and on PATH, or set COPILOT_CLI_PATH. use COPILOT_CLI_NAME to override the binary name (default: copilot)",
     })
 }
 

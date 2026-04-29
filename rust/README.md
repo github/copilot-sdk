@@ -1,4 +1,4 @@
-# Copilot CLI SDK for Rust
+# GitHub Copilot CLI SDK for Rust
 
 A Rust SDK for programmatic access to the GitHub Copilot CLI.
 
@@ -130,7 +130,7 @@ session.disconnect().await?;
 #### Typed RPC namespace
 
 The ergonomic helpers above are convenience wrappers over a fully-typed
-JSON-RPC namespace generated from the Copilot CLI schema. `Client::rpc()`
+JSON-RPC namespace generated from the GitHub Copilot CLI schema. `Client::rpc()`
 and `Session::rpc()` give direct access to every method on the wire,
 including ones with no helper today, with strongly-typed request and
 response structs.
