@@ -320,8 +320,7 @@ impl Session {
 
     /// Switch to a different model.
     ///
-    /// Pass `None` for `opts` if no extra configuration is needed. Mirrors
-    /// Go's `Session.SetModel(ctx, model, *SetModelOptions)`.
+    /// Pass `None` for `opts` if no extra configuration is needed.
     pub async fn set_model(&self, model: &str, opts: Option<SetModelOptions>) -> Result<(), Error> {
         let opts = opts.unwrap_or_default();
         let request = ModelSwitchToRequest {
@@ -461,7 +460,6 @@ impl Session {
     /// Write a log message to the session.
     ///
     /// Pass `None` for `opts` to use defaults (info level, persisted).
-    /// Mirrors Go's `Session.Log(ctx, message, *LogOptions)`.
     pub async fn log(
         &self,
         message: &str,
@@ -501,8 +499,6 @@ impl Session {
     ///
     /// All UI methods route through `session.ui.*` RPCs and require host
     /// support — check `session.capabilities().ui.elicitation` before use.
-    /// Mirrors .NET's `session.UI` group, Python's `session.ui`, and Go's
-    /// `session.UI()`.
     pub fn ui(&self) -> SessionUi<'_> {
         SessionUi { session: self }
     }
@@ -571,9 +567,6 @@ impl Drop for Session {
 /// Acquired via [`Session::ui`]. Methods route to `session.ui.*` RPCs and
 /// require host elicitation support — check
 /// `session.capabilities().ui.elicitation` before use.
-///
-/// Mirrors .NET's `session.UI` group, Python's `session.ui`, and Go's
-/// `session.UI()`.
 pub struct SessionUi<'a> {
     session: &'a Session,
 }

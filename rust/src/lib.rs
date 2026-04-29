@@ -347,7 +347,7 @@ pub struct ClientOptions {
     /// without making a `models.list` RPC. This is the BYOK escape hatch
     /// for environments where the model catalog is provisioned separately
     /// from the Copilot CLI (e.g. external inference servers selected via
-    /// [`Transport::External`]). Mirrors Node's `onListModels` option.
+    /// [`Transport::External`]).
     pub on_list_models: Option<Arc<dyn ListModelsHandler>>,
     /// Custom session filesystem provider configuration.
     ///
@@ -356,14 +356,13 @@ pub struct ClientOptions {
     /// the CLI. Each session created on this client must supply its own
     /// [`SessionFsProvider`] via
     /// [`SessionConfig::with_session_fs_provider`](crate::SessionConfig::with_session_fs_provider).
-    /// Mirrors Node's `sessionFs` option. See `docs/adr/0001-session-fs-provider.md`.
+    /// See `docs/adr/0001-session-fs-provider.md`.
     pub session_fs: Option<SessionFsConfig>,
     /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers (`traceparent` / `tracestate`) on outbound `session.create`,
     /// `session.resume`, and `session.send` requests.
     ///
-    /// Mirrors Node's `onGetTraceContext` callback. When [`MessageOptions`]
-    /// carries a per-turn override (set via
+    /// When [`MessageOptions`] carries a per-turn override (set via
     /// [`MessageOptions::with_trace_context`](crate::types::MessageOptions::with_trace_context)
     /// or the underlying fields), it takes precedence over this provider.
     ///
@@ -424,9 +423,6 @@ pub trait ListModelsHandler: Send + Sync + 'static {
 }
 
 /// Log verbosity for the CLI server (passed via `--log-level`).
-///
-/// Mirrors Node's `CopilotClientOptions.logLevel` literal union and the
-/// CLI's `--log-level` argument.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
@@ -467,8 +463,7 @@ impl std::fmt::Display for LogLevel {
 /// Backend exporter for the CLI's OpenTelemetry pipeline.
 ///
 /// Maps to the `COPILOT_OTEL_EXPORTER_TYPE` environment variable on the
-/// spawned CLI process. Mirrors Node's `TelemetryConfig.exporterType`
-/// literal union (`"otlp-http" | "file"`).
+/// spawned CLI process. Wire values are `"otlp-http"` and `"file"`.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]
@@ -515,9 +510,8 @@ impl OtelExporterType {
 /// developer can pin any individual variable to a different value while
 /// keeping the rest of the config managed by [`TelemetryConfig`].
 ///
-/// Mirrors Node's `TelemetryConfig`, Python's `TelemetryConfig`, and Go's
-/// `TelemetryConfig`. Marked `#[non_exhaustive]` so future CLI-side
-/// telemetry knobs can be added without breaking callers.
+/// Marked `#[non_exhaustive]` so future CLI-side telemetry knobs can be
+/// added without breaking callers.
 ///
 /// [`otlp_endpoint`]: Self::otlp_endpoint
 /// [`file_path`]: Self::file_path
@@ -747,17 +741,6 @@ impl Client {
     /// Create a Client from raw async streams (no child process).
     ///
     /// Useful for testing or connecting to a server over a custom transport.
-    ///
-    /// # No `actual_port` accessor
-    ///
-    /// Unlike Go's `Client.ActualPort`, this SDK does not expose a TCP port
-    /// for the underlying transport. Go's CLI bootstrap spawns the binary,
-    /// scrapes a port from its stderr, and then dials TCP. This SDK is
-    /// strictly stream-based: callers either let [`Client::start`] manage a
-    /// stdio child process, or hand in their own pre-connected
-    /// `AsyncRead`/`AsyncWrite` pair via [`Client::from_streams`]. In either
-    /// case the caller already has whatever transport-level state they
-    /// need.
     pub fn from_streams(
         reader: impl AsyncRead + Unpin + Send + 'static,
         writer: impl AsyncWrite + Unpin + Send + 'static,
@@ -1212,8 +1195,6 @@ impl Client {
 
     /// List persisted sessions, optionally filtered by working directory,
     /// repository, or git context.
-    ///
-    /// Mirrors Node's `Client.listSessions` and Go's `Client.ListSessions`.
     pub async fn list_sessions(
         &self,
         filter: Option<SessionListFilter>,
@@ -1229,10 +1210,9 @@ impl Client {
 
     /// Fetch metadata for a specific persisted session by ID.
     ///
-    /// Returns `Ok(None)` if no session with the given ID exists. This
-    /// mirrors Go's `Client.GetSessionMetadata` and is more efficient than
-    /// calling [`list_sessions`](Self::list_sessions) and filtering when
-    /// you only need data for a single session.
+    /// Returns `Ok(None)` if no session with the given ID exists. More
+    /// efficient than calling [`list_sessions`](Self::list_sessions) and
+    /// filtering when you only need data for a single session.
     ///
     /// # Example
     ///
@@ -1274,8 +1254,6 @@ impl Client {
     /// Useful for resuming the last conversation when the session ID was
     /// not stored. Returns `Ok(None)` if no sessions exist.
     ///
-    /// Mirrors Go's `Client.GetLastSessionID`.
-    ///
     /// # Example
     ///
     /// ```no_run
@@ -1298,8 +1276,6 @@ impl Client {
     ///
     /// Only meaningful when connected to a server running in TUI+server mode
     /// (`--ui-server`). Returns `Ok(None)` if no foreground session is set.
-    ///
-    /// Mirrors Go's `Client.GetForegroundSessionID`.
     pub async fn get_foreground_session_id(&self) -> Result<Option<SessionId>, Error> {
         let result = self
             .call("session.getForeground", Some(serde_json::json!({})))
@@ -1312,8 +1288,6 @@ impl Client {
     ///
     /// Only meaningful when connected to a server running in TUI+server mode
     /// (`--ui-server`).
-    ///
-    /// Mirrors Go's `Client.SetForegroundSessionID`.
     pub async fn set_foreground_session_id(&self, session_id: &SessionId) -> Result<(), Error> {
         self.call(
             "session.setForeground",
@@ -1490,8 +1464,6 @@ impl Client {
     /// state so dependent tasks observe a closed channel rather than a
     /// hang.
     ///
-    /// Mirrors Go's `Client.ForceStop` (`go/client.go:453`).
-    ///
     /// # Example
     ///
     /// ```no_run
@@ -1559,8 +1531,7 @@ impl Client {
 
     /// Return the current [`ConnectionState`].
     ///
-    /// Mirrors Go's `Client.State` (`go/client.go:1191`). The state advances
-    /// to [`Connected`](ConnectionState::Connected) once
+    /// The state advances to [`Connected`](ConnectionState::Connected) once
     /// [`Client::start`] / [`Client::from_streams`] returns successfully and
     /// drops to [`Disconnected`](ConnectionState::Disconnected) after
     /// [`stop`](Self::stop) or [`force_stop`](Self::force_stop).

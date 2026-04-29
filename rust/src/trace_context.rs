@@ -25,9 +25,6 @@ use async_trait::async_trait;
 /// carries vendor-specific extensions. Either field may be `None` when the
 /// caller has nothing to propagate; in that case the corresponding wire
 /// field is omitted.
-///
-/// Mirrors Node's `TraceContext` interface and Go's
-/// `MessageOptions.Traceparent` / `Tracestate` fields.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct TraceContext {

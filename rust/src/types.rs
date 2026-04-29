@@ -23,9 +23,8 @@ use crate::transforms::SystemMessageTransform;
 
 /// Lifecycle state of a [`Client`](crate::Client) connection to the CLI.
 ///
-/// Mirrors Go's `ConnectionState` (`go/types.go:14`). The state advances
-/// from `Connecting` → `Connected` during construction, transitions to
-/// `Disconnected` after [`Client::stop`](crate::Client::stop) or
+/// The state advances from `Connecting` → `Connected` during construction,
+/// transitions to `Disconnected` after [`Client::stop`](crate::Client::stop) or
 /// [`Client::force_stop`](crate::Client::force_stop), and lands in
 /// `Error` if startup fails or the underlying transport tears down
 /// unexpectedly.
@@ -45,8 +44,8 @@ pub enum ConnectionState {
 
 /// Type of [`SessionLifecycleEvent`] received via [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
 ///
-/// Mirrors Go's `SessionLifecycleEventType` (`go/types.go:961`). Values
-/// serialize as the dotted JSON strings the CLI sends (e.g. `"session.created"`).
+/// Values serialize as the dotted JSON strings the CLI sends (e.g.
+/// `"session.created"`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum SessionLifecycleEventType {
@@ -68,8 +67,6 @@ pub enum SessionLifecycleEventType {
 }
 
 /// Optional metadata attached to a [`SessionLifecycleEvent`].
-///
-/// Mirrors Go's `SessionLifecycleEventMetadata` (`go/types.go:977`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionLifecycleEventMetadata {
     /// ISO-8601 timestamp the session was created.
@@ -85,8 +82,6 @@ pub struct SessionLifecycleEventMetadata {
 
 /// A `session.lifecycle` notification dispatched to subscribers obtained via
 /// [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
-///
-/// Mirrors Go's `SessionLifecycleEvent` (`go/types.go:970`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionLifecycleEvent {
     /// The kind of lifecycle change this event represents.
@@ -340,9 +335,6 @@ fn is_false(b: &bool) -> bool {
 
 /// Context passed to a [`CommandHandler`] when a registered slash command
 /// is executed by the user.
-///
-/// Mirrors Node's `CommandContext` (`nodejs/src/types.ts:389`) and Go's
-/// `CommandContext` (`go/types.go:638`).
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct CommandContext {
@@ -361,9 +353,6 @@ pub struct CommandContext {
 /// Returning `Err(_)` causes the SDK to forward the error message back to
 /// the CLI via `session.commands.handlePendingCommand` so the TUI can
 /// surface it. Returning `Ok(())` reports success.
-///
-/// Mirrors Node's `CommandHandler` (`nodejs/src/types.ts:403`) and Go's
-/// `CommandHandler` (`go/types.go:652`).
 #[async_trait::async_trait]
 pub trait CommandHandler: Send + Sync {
     /// Called when the user invokes the command this handler is registered for.
@@ -375,9 +364,6 @@ pub trait CommandHandler: Send + Sync {
 /// When the CLI is running with a TUI, registered commands appear as
 /// `/name` for the user to invoke. Only `name` and `description` are sent
 /// over the wire — the handler is local to this SDK process.
-///
-/// Mirrors Node's `CommandDefinition` (`nodejs/src/types.ts:410`) and Go's
-/// `CommandDefinition` (`go/types.go:656`).
 #[non_exhaustive]
 #[derive(Clone)]
 pub struct CommandDefinition {
@@ -508,9 +494,7 @@ pub struct InfiniteSessionConfig {
 /// speak HTTP or Server-Sent Events.
 ///
 /// Serialized as a JSON object with a `type` discriminator (`"stdio"` |
-/// `"http"` | `"sse"`). Mirrors Node's `MCPServerConfig` union
-/// (`nodejs/src/types.ts:1078`) and Go's `MCPServerConfig` interface
-/// (`go/types.go:399`).
+/// `"http"` | `"sse"`).
 ///
 /// # Example
 ///
@@ -752,7 +736,7 @@ pub struct SessionConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
     /// Per-property overrides for model capabilities, deep-merged over
-    /// runtime defaults. Mirrors Node's `SessionConfig.modelCapabilities`.
+    /// runtime defaults.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Override the default configuration directory location. When set,
@@ -860,13 +844,12 @@ impl std::fmt::Debug for SessionConfig {
 }
 
 impl Default for SessionConfig {
-    /// Mirrors Node's `client.ts` defaults: permission and elicitation
-    /// flows are enabled by default. With Rust's trait-based handlers,
-    /// the SDK installs `DenyAllHandler` when no handler is provided, so
-    /// these flags being `Some(true)` means the wire surface advertises
-    /// the capabilities — and the default handler safely refuses
-    /// requests. Callers that want the wire surface fully disabled set
-    /// these explicitly to `Some(false)`.
+    /// Permission and elicitation flows are enabled by default. With
+    /// Rust's trait-based handlers, the SDK installs `DenyAllHandler` when
+    /// no handler is provided, so these flags being `Some(true)` means the
+    /// wire surface advertises the capabilities — and the default handler
+    /// safely refuses requests. Callers that want the wire surface fully
+    /// disabled set these explicitly to `Some(false)`.
     fn default() -> Self {
         Self {
             session_id: None,
@@ -1095,8 +1078,7 @@ pub struct ResumeSessionConfig {
     #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Force-fail resume if the session does not exist on disk, instead of
-    /// silently starting a new session. Mirrors Node's
-    /// `ResumeSessionConfig.disableResume`.
+    /// silently starting a new session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_resume: Option<bool>,
     /// Session-level event handler. See [`SessionConfig::handler`].
@@ -1419,8 +1401,8 @@ impl SetModelOptions {
 
 /// Response from the top-level `ping` RPC.
 ///
-/// Mirrors Go's `PingResponse`. The `protocol_version` field is the most
-/// commonly-inspected piece — see [`Client::verify_protocol_version`].
+/// The `protocol_version` field is the most commonly-inspected piece —
+/// see [`Client::verify_protocol_version`].
 ///
 /// [`Client::verify_protocol_version`]: crate::Client::verify_protocol_version
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1656,8 +1638,7 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
 /// Message delivery mode for [`MessageOptions::mode`].
 ///
 /// Controls how a prompt is delivered relative to in-flight session work.
-/// Mirrors Node's `MessageOptions.mode: "enqueue" | "immediate"` and Go's
-/// `MessageOptions.Mode`.
+/// Wire values: `"enqueue"` and `"immediate"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
@@ -1705,9 +1686,7 @@ pub struct MessageOptions {
     ///
     /// Controls whether the prompt is queued behind in-flight work
     /// ([`DeliveryMode::Enqueue`], default) or interrupts the session and
-    /// runs immediately ([`DeliveryMode::Immediate`]). Mirrors Node's
-    /// `MessageOptions.mode: "enqueue" | "immediate"` and Go's
-    /// `MessageOptions.Mode`.
+    /// runs immediately ([`DeliveryMode::Immediate`]).
     pub mode: Option<DeliveryMode>,
     /// Optional attachments to include with the message.
     pub attachments: Option<Vec<Attachment>>,
@@ -1715,21 +1694,19 @@ pub struct MessageOptions {
     /// `send_and_wait`. Defaults to 60 seconds when unset.
     pub wait_timeout: Option<Duration>,
     /// Custom HTTP headers to include in outbound model requests for this
-    /// turn. Mirrors Node's `MessageOptions.requestHeaders` and Go's
-    /// `MessageOptions.RequestHeaders`. When `None` or empty, no
-    /// `requestHeaders` field is sent on the wire.
+    /// turn. When `None` or empty, no `requestHeaders` field is sent on
+    /// the wire.
     pub request_headers: Option<HashMap<String, String>>,
     /// W3C Trace Context `traceparent` header for this turn.
     ///
     /// Per-turn override that takes precedence over
     /// [`ClientOptions::on_get_trace_context`](crate::ClientOptions::on_get_trace_context).
     /// When `None`, the SDK falls back to the provider (if configured)
-    /// before omitting the field. Mirrors Go's `MessageOptions.Traceparent`.
+    /// before omitting the field.
     pub traceparent: Option<String>,
     /// W3C Trace Context `tracestate` header for this turn.
     ///
     /// Per-turn override paired with [`traceparent`](Self::traceparent).
-    /// Mirrors Go's `MessageOptions.Tracestate`.
     pub tracestate: Option<String>,
 }
 
@@ -1817,9 +1794,6 @@ impl From<&String> for MessageOptions {
 }
 
 /// Response from [`Client::get_status`](crate::Client::get_status).
-///
-/// Mirrors Node `GetStatusResponse`, Go `GetStatusResponse`, and Python
-/// `GetStatusResponse`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -1831,9 +1805,6 @@ pub struct GetStatusResponse {
 }
 
 /// Response from [`Client::get_auth_status`](crate::Client::get_auth_status).
-///
-/// Mirrors Node `GetAuthStatusResponse`, Go `GetAuthStatusResponse`, and
-/// Python `GetAuthStatusResponse`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -2054,9 +2025,7 @@ pub struct ListSessionsResponse {
 
 /// Filter options for [`Client::list_sessions`](crate::Client::list_sessions).
 ///
-/// All fields are optional; unset fields don't constrain the result. Mirrors
-/// Node's `SessionListFilter` (`nodejs/src/types.ts:1592`) and Go's
-/// `SessionListFilter` (`go/types.go:937`).
+/// All fields are optional; unset fields don't constrain the result.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionListFilter {
@@ -2237,9 +2206,9 @@ pub use crate::generated::api_types::{
 
 /// Permission categories the CLI may request approval for.
 ///
-/// Mirrors the `kind` discriminator on Node's `PermissionRequest`
-/// (`nodejs/src/types.ts:754`). Marked `#[non_exhaustive]` because the CLI
-/// may add new kinds; matches must include a `_` arm.
+/// Wire values are the lower-kebab strings the CLI sends as the `kind`
+/// discriminator on a permission request. Marked `#[non_exhaustive]`
+/// because the CLI may add new kinds; matches must include a `_` arm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]

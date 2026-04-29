@@ -208,6 +208,17 @@ new dependency feature flags with `cargo tree` before committing.
 Explain **why**, never **what**. No comments that restate code. No decorative
 banners (`// ── Section ────────`).
 
+**Never compare to other SDKs in code comments or rustdoc.** Don't write
+"Mirrors Node's `Foo`", "Like Go's `Bar`", "Unlike Python's `Baz`", or include
+file/line citations into other SDKs (`nodejs/src/types.ts:1592`, `go/types.go:14`).
+The Rust SDK seeks parity with the Node, Python, Go, and .NET SDKs, and that
+fact is stated once at the top of `rust/README.md`. Intentional divergences
+live in the README's "Differences From Other SDKs" section. Repeating the
+relationship per-symbol is unscalable, drifts as the other SDKs evolve, and
+adds noise to consumer-facing rustdoc — Rust users care about the Rust API,
+not its lineage. Self-references within the Rust crate (e.g. "Mirrors
+[`from_streams`] but adds…") are fine.
+
 ## Toolchain
 
 The SDK is pinned to `rust 1.94.0` via `rust/rust-toolchain.toml`. Formatting

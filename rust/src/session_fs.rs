@@ -58,9 +58,6 @@ use crate::generated::api_types::{
 /// When set on [`ClientOptions::session_fs`](crate::ClientOptions::session_fs),
 /// the SDK calls `sessionFs.setProvider` during [`Client::start`](crate::Client::start)
 /// to tell the CLI to route per-session filesystem operations to the SDK.
-///
-/// Mirrors Node's `SessionFsConfig`, Python's `SessionFsConfig`, and Go's
-/// `SessionFsConfig`.
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct SessionFsConfig {
