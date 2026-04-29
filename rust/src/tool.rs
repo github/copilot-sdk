@@ -636,6 +636,7 @@ mod tests {
                 RequestId::new("r1"),
                 PermissionRequestData {
                     extra: serde_json::json!({}),
+                    ..Default::default()
                 },
             )
             .await;

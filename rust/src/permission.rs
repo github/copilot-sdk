@@ -117,6 +117,7 @@ mod tests {
             request_id: RequestId::new("1"),
             data: PermissionRequestData {
                 extra: serde_json::json!({"tool": "shell"}),
+                ..Default::default()
             },
         }
     }

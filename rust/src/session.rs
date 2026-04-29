@@ -886,6 +886,10 @@ fn pending_permission_result_kind(response: &HandlerResponse) -> &'static str {
     match response {
         HandlerResponse::Permission(PermissionResult::Approved) => "approve-once",
         HandlerResponse::Permission(PermissionResult::Denied) => "reject",
+        HandlerResponse::Permission(PermissionResult::NoResult) => "no-result",
+        // Fallback to "user-not-available" for UserNotAvailable, Deferred (when
+        // forced through this path), Custom (handled separately upstream), and
+        // any non-permission HandlerResponse that gets here defensively.
         _ => "user-not-available",
     }
 }
@@ -933,6 +937,10 @@ fn direct_permission_payload(response: &HandlerResponse) -> Value {
             permission_request_response(&HandlerResponse::Permission(PermissionResult::Approved)),
         )
         .expect("serializing direct permission response should succeed"),
+        HandlerResponse::Permission(PermissionResult::NoResult)
+        | HandlerResponse::Permission(PermissionResult::UserNotAvailable) => serde_json::json!({
+            "kind": pending_permission_result_kind(response),
+        }),
         _ => serde_json::to_value(permission_request_response(response))
             .expect("serializing direct permission response should succeed"),
     }
@@ -1026,9 +1034,14 @@ async fn handle_notification(
             let client = client.clone();
             let handler = handler.clone();
             let sid = session_id.clone();
-            let data = PermissionRequestData {
-                extra: notification.event.data.clone(),
-            };
+            let data: PermissionRequestData =
+                serde_json::from_value(notification.event.data.clone()).unwrap_or_else(|_| {
+                    PermissionRequestData {
+                        kind: None,
+                        tool_call_id: None,
+                        extra: notification.event.data.clone(),
+                    }
+                });
             tokio::spawn(async move {
                 let response = handler
                     .on_event(HandlerEvent::PermissionRequest {
@@ -1465,13 +1478,17 @@ async fn handle_request(
                 return;
             };
             let request_id = RequestId::new(request_id);
-            let data = PermissionRequestData {
-                extra: request
-                    .params
-                    .as_ref()
-                    .cloned()
-                    .unwrap_or(Value::Object(serde_json::Map::new())),
-            };
+            let raw_params = request
+                .params
+                .as_ref()
+                .cloned()
+                .unwrap_or(Value::Object(serde_json::Map::new()));
+            let data: PermissionRequestData =
+                serde_json::from_value(raw_params.clone()).unwrap_or(PermissionRequestData {
+                    kind: None,
+                    tool_call_id: None,
+                    extra: raw_params,
+                });
 
             let response = handler
                 .on_event(HandlerEvent::PermissionRequest {

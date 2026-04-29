@@ -127,6 +127,15 @@ pub enum PermissionResult {
     /// or `{ "kind": "reject" }` — for example, "approve and remember"
     /// with allowlist data.
     Custom(serde_json::Value),
+    /// No user is available to respond — for example, headless agents
+    /// without an interactive session. Sent as
+    /// `{ "kind": "user-not-available" }`.
+    UserNotAvailable,
+    /// The handler has no result to provide and the CLI should fall back
+    /// to its default policy. Sent as `{ "kind": "no-result" }`. Distinct
+    /// from [`Deferred`](Self::Deferred), which suppresses the reply
+    /// entirely so the handler can resolve later out-of-band.
+    NoResult,
 }
 
 /// Response to a user input request.
@@ -405,7 +414,7 @@ mod tests {
     use crate::types::{PermissionRequestData, RequestId, SessionId};
 
     fn perm_data() -> PermissionRequestData {
-        PermissionRequestData { extra: Value::Null }
+        PermissionRequestData::default()
     }
 
     // A handler that overrides only `on_permission_request` (per-method style).

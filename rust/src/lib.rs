@@ -792,12 +792,18 @@ impl Client {
         Ok(serde_json::from_value(value)?)
     }
 
-    /// List persisted sessions.
+    /// List persisted sessions, optionally filtered by working directory,
+    /// repository, or git context.
+    ///
+    /// Mirrors Node's `Client.listSessions` and Go's `Client.ListSessions`.
     pub async fn list_sessions(
         &self,
-        filter: Option<serde_json::Value>,
+        filter: Option<SessionListFilter>,
     ) -> Result<Vec<SessionMetadata>, Error> {
-        let params = filter.unwrap_or(serde_json::json!({}));
+        let params = match filter {
+            Some(f) => serde_json::to_value(f)?,
+            None => serde_json::json!({}),
+        };
         let result = self.call("session.list", Some(params)).await?;
         let response: ListSessionsResponse = serde_json::from_value(result)?;
         Ok(response.sessions)

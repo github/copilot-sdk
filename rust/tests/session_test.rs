@@ -587,6 +587,103 @@ async fn list_sessions_returns_typed_metadata() {
 }
 
 #[tokio::test]
+async fn list_sessions_serializes_typed_filter() {
+    use github_copilot_sdk::SessionListFilter;
+
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let filter = SessionListFilter {
+        repository: Some("octocat/hello".to_string()),
+        branch: Some("main".to_string()),
+        ..Default::default()
+    };
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.list_sessions(Some(filter)).await.unwrap() }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.list");
+    assert_eq!(request["params"]["repository"], "octocat/hello");
+    assert_eq!(request["params"]["branch"], "main");
+    // cwd / gitRoot are None and must be omitted from the wire payload.
+    assert!(request["params"].get("cwd").is_none());
+    assert!(request["params"].get("gitRoot").is_none());
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessions": [] },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, handle).await.unwrap().unwrap();
+}
+
+#[test]
+fn mcp_server_config_roundtrips_through_tagged_enum() {
+    use std::collections::HashMap;
+
+    use github_copilot_sdk::{McpServerConfig, McpStdioServerConfig};
+
+    let stdio = McpServerConfig::Stdio(McpStdioServerConfig {
+        command: "node".to_string(),
+        args: vec!["server.js".to_string()],
+        env: HashMap::new(),
+        cwd: None,
+        tools: vec!["*".to_string()],
+        timeout: None,
+    });
+    let json = serde_json::to_value(&stdio).unwrap();
+    assert_eq!(json["type"], "stdio");
+    assert_eq!(json["command"], "node");
+
+    // CLI may emit the legacy "local" alias; we accept it on the wire.
+    let local: McpServerConfig = serde_json::from_value(serde_json::json!({
+        "type": "local",
+        "command": "node",
+    }))
+    .unwrap();
+    assert!(matches!(local, McpServerConfig::Stdio(_)));
+
+    // SessionConfig.mcp_servers round-trips a typed map.
+    let mut servers = HashMap::new();
+    servers.insert("github".to_string(), stdio.clone());
+    let cfg_json = serde_json::to_value(&servers).unwrap();
+    assert_eq!(cfg_json["github"]["type"], "stdio");
+}
+
+#[test]
+fn permission_request_data_extracts_typed_kind() {
+    use github_copilot_sdk::{PermissionRequestData, PermissionRequestKind};
+
+    let data: PermissionRequestData = serde_json::from_value(serde_json::json!({
+        "kind": "shell",
+        "toolCallId": "t1",
+        "command": "ls",
+    }))
+    .unwrap();
+    assert_eq!(data.kind, Some(PermissionRequestKind::Shell));
+    assert_eq!(data.tool_call_id, Some("t1".to_string()));
+    assert_eq!(data.extra["command"], "ls");
+
+    let custom: PermissionRequestData = serde_json::from_value(serde_json::json!({
+        "kind": "custom-tool",
+    }))
+    .unwrap();
+    assert_eq!(custom.kind, Some(PermissionRequestKind::CustomTool));
+
+    // Unknown kinds fall through to the catch-all variant rather than failing.
+    let unknown: PermissionRequestData = serde_json::from_value(serde_json::json!({
+        "kind": "future-permission-type",
+    }))
+    .unwrap();
+    assert_eq!(unknown.kind, Some(PermissionRequestKind::Unknown));
+}
+
+#[tokio::test]
 async fn force_stop_is_idempotent_with_no_child() {
     // Stream-based clients have no child process. force_stop should be a
     // no-op and safe to call multiple times.

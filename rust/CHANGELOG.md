@@ -123,6 +123,31 @@ public surface.
   → `session.workspaces.*` regression structurally impossible. Public
   helper signatures are unchanged.
 
+#### Configuration parity
+- `SessionListFilter` — typed filter for `Client::list_sessions` covering
+  `cwd`, `git_root`, `repository`, and `branch`. Replaces the prior
+  `Option<serde_json::Value>` parameter.
+- `McpServerConfig` tagged enum (`Stdio` / `Http` / `Sse`) with
+  `McpStdioServerConfig` and `McpHttpServerConfig` payload structs.
+  `SessionConfig::mcp_servers`, `ResumeSessionConfig::mcp_servers`, and
+  `CustomAgentConfig::mcp_servers` are now `Option<HashMap<String,
+  McpServerConfig>>` instead of typeless `Value` maps. Stdio configurations
+  serialized by older callers (no explicit `type`, or `type: "local"`) are
+  accepted on the deserialize path.
+- `PermissionRequestData` gains typed `kind: Option<PermissionRequestKind>`
+  and `tool_call_id: Option<String>` fields covering the eight CLI
+  permission categories (`shell`, `write`, `read`, `url`, `mcp`,
+  `custom-tool`, `memory`, `hook`); unknown values fall through to
+  `PermissionRequestKind::Unknown` for forward compatibility. The original
+  params object is still available via the existing `extra: Value` flatten.
+- `PermissionResult` gains `UserNotAvailable` (sent as
+  `{ "kind": "user-not-available" }`) and `NoResult` (sent as
+  `{ "kind": "no-result" }`) variants for headless agents and explicit
+  fall-through-to-CLI-default responses.
+- `ResumeSessionConfig::disable_resume: Option<bool>` — force-fail resume
+  if the session does not exist on disk, instead of silently starting a
+  new session.
+
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.
 - Examples under `examples/`: `chat`, `hooks`, `tool_server`,

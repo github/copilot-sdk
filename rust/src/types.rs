@@ -355,7 +355,7 @@ pub struct CustomAgentConfig {
     pub prompt: String,
     /// MCP servers specific to this agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<HashMap<String, Value>>,
+    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// Whether the agent is available for model inference.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub infer: Option<bool>,
@@ -398,6 +398,103 @@ pub struct InfiniteSessionConfig {
     /// compaction completes. Default: 0.95.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub buffer_exhaustion_threshold: Option<f64>,
+}
+
+/// Configuration for a single MCP server.
+///
+/// MCP (Model Context Protocol) servers expose external tools to the
+/// agent. Local servers run as a subprocess over stdio; remote servers
+/// speak HTTP or Server-Sent Events.
+///
+/// Serialized as a JSON object with a `type` discriminator (`"stdio"` |
+/// `"http"` | `"sse"`). Mirrors Node's `MCPServerConfig` union
+/// (`nodejs/src/types.ts:1078`) and Go's `MCPServerConfig` interface
+/// (`go/types.go:399`).
+///
+/// # Example
+///
+/// ```
+/// # use github_copilot_sdk::types::{McpServerConfig, McpStdioServerConfig, McpHttpServerConfig};
+/// # use std::collections::HashMap;
+/// let mut servers = HashMap::new();
+/// servers.insert(
+///     "playwright".to_string(),
+///     McpServerConfig::Stdio(McpStdioServerConfig {
+///         tools: vec!["*".to_string()],
+///         command: "npx".to_string(),
+///         args: vec!["-y".to_string(), "@playwright/mcp".to_string()],
+///         ..Default::default()
+///     }),
+/// );
+/// servers.insert(
+///     "weather".to_string(),
+///     McpServerConfig::Http(McpHttpServerConfig {
+///         tools: vec!["forecast".to_string()],
+///         url: "https://example.com/mcp".to_string(),
+///         ..Default::default()
+///     }),
+/// );
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum McpServerConfig {
+    /// Local MCP server launched as a subprocess and addressed over stdio.
+    /// On the wire this serializes as `{"type": "stdio", ...}`. The CLI
+    /// also accepts `"local"` as an alias on input.
+    #[serde(alias = "local")]
+    Stdio(McpStdioServerConfig),
+    /// Remote MCP server addressed over HTTP.
+    Http(McpHttpServerConfig),
+    /// Remote MCP server addressed over Server-Sent Events.
+    Sse(McpHttpServerConfig),
+}
+
+/// Configuration for a local/stdio MCP server.
+///
+/// See [`McpServerConfig::Stdio`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpStdioServerConfig {
+    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
+    #[serde(default)]
+    pub tools: Vec<String>,
+    /// Optional timeout in milliseconds for tool calls to this server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<i64>,
+    /// Subprocess executable.
+    pub command: String,
+    /// Arguments to pass to the subprocess.
+    #[serde(default)]
+    pub args: Vec<String>,
+    /// Environment variables to set on the subprocess.
+    ///
+    /// Interpretation depends on the parent session's
+    /// `env_value_mode`: `"direct"` (default) treats values as literals;
+    /// `"indirect"` treats them as env-var names to look up at start time.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub env: HashMap<String, String>,
+    /// Working directory for the subprocess.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+}
+
+/// Configuration for a remote MCP server (HTTP or SSE).
+///
+/// See [`McpServerConfig::Http`] and [`McpServerConfig::Sse`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHttpServerConfig {
+    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
+    #[serde(default)]
+    pub tools: Vec<String>,
+    /// Optional timeout in milliseconds for tool calls to this server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<i64>,
+    /// Server URL.
+    pub url: String,
+    /// Optional HTTP headers to include on every request.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub headers: HashMap<String, String>,
 }
 
 /// Configures a custom inference provider (BYOK — Bring Your Own Key).
@@ -483,7 +580,7 @@ pub struct SessionConfig {
     pub excluded_tools: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<Value>,
+    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// How the CLI interprets env values in MCP server configs.
     /// `"direct"` = literal values; `"indirect"` = env var names to look up.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -698,7 +795,7 @@ pub struct ResumeSessionConfig {
     pub excluded_tools: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<Value>,
+    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// How the CLI interprets env values in MCP configs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env_value_mode: Option<String>,
@@ -738,6 +835,11 @@ pub struct ResumeSessionConfig {
     /// Re-supply BYOK provider configuration on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
+    /// Force-fail resume if the session does not exist on disk, instead of
+    /// silently starting a new session. Mirrors Node's
+    /// `ResumeSessionConfig.disableResume`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_resume: Option<bool>,
     /// Session-level event handler. See [`SessionConfig::handler`].
     #[serde(skip)]
     pub handler: Option<Arc<dyn SessionHandler>>,
@@ -809,6 +911,7 @@ impl ResumeSessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            disable_resume: None,
             handler: None,
             hooks_handler: None,
             transform: None,
@@ -1519,6 +1622,28 @@ pub struct ListSessionsResponse {
     pub sessions: Vec<SessionMetadata>,
 }
 
+/// Filter options for [`Client::list_sessions`](crate::Client::list_sessions).
+///
+/// All fields are optional; unset fields don't constrain the result. Mirrors
+/// Node's `SessionListFilter` (`nodejs/src/types.ts:1592`) and Go's
+/// `SessionListFilter` (`go/types.go:937`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionListFilter {
+    /// Filter by exact `cwd` match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Filter by git root path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git_root: Option<String>,
+    /// Filter by repository in `owner/repo` form.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Filter by git branch name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+}
+
 /// Response from `session.getMetadata`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1680,15 +1805,55 @@ pub use crate::generated::api_types::{
     ModelCapabilitiesSupports, ModelList, ModelPolicy,
 };
 
+/// Permission categories the CLI may request approval for.
+///
+/// Mirrors the `kind` discriminator on Node's `PermissionRequest`
+/// (`nodejs/src/types.ts:754`). Marked `#[non_exhaustive]` because the CLI
+/// may add new kinds; matches must include a `_` arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum PermissionRequestKind {
+    /// Run a shell command.
+    Shell,
+    /// Write to a file.
+    Write,
+    /// Read a file.
+    Read,
+    /// Open a URL.
+    Url,
+    /// Invoke an MCP server tool.
+    Mcp,
+    /// Invoke a client-defined custom tool.
+    CustomTool,
+    /// Update agent memory.
+    Memory,
+    /// Run a hook callback.
+    Hook,
+    /// Unrecognized kind. The original wire string is available in
+    /// [`PermissionRequestData::extra`] under the `kind` key.
+    #[serde(other)]
+    Unknown,
+}
+
 /// Data sent by the CLI for permission-related events.
 ///
 /// Used for both the `permission.request` RPC call (which expects a response)
 /// and `permission.requested` notifications (fire-and-forget). Contains the
 /// full params object. Note that `requestId` is also available as a separate
 /// field on `HandlerEvent::PermissionRequest`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestData {
+    /// The permission category being requested. `None` means the CLI did
+    /// not include a `kind` field. Use this to branch on common cases
+    /// (shell, write, etc.) without parsing [`extra`](Self::extra).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<PermissionRequestKind>,
+    /// The originating tool-call ID, if this permission request is tied
+    /// to a specific tool invocation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
     /// The full permission request params from the CLI. The shape varies by
     /// permission type and CLI version, so we preserve it as `Value`.
     #[serde(flatten)]
@@ -1896,6 +2061,7 @@ mod permission_builder_tests {
             request_id: RequestId::new("1"),
             data: PermissionRequestData {
                 extra: serde_json::json!({"tool": "shell"}),
+                ..Default::default()
             },
         }
     }
