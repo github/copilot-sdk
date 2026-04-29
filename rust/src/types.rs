@@ -2183,7 +2183,7 @@ pub struct UiCapabilities {
     pub elicitation: Option<bool>,
 }
 
-/// Options for the [`Session::input`](crate::session::Session::input) convenience method.
+/// Options for the [`SessionUi::input`](crate::session::SessionUi::input) convenience method.
 #[derive(Debug, Clone, Default)]
 pub struct InputOptions<'a> {
     /// Title label for the input field.
