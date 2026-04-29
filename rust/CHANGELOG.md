@@ -315,6 +315,19 @@ public surface.
   `lifecycle_observer`.
 - `RELEASING.md` operational runbook for maintainers.
 
+### Fixed
+- `SessionUi::elicitation` (and the `confirm` / `select` / `input`
+  convenience helpers that delegate through it) now sends the user-supplied
+  JSON Schema as `requestedSchema` on the wire, matching the
+  `session.ui.elicitation` request shape that all other SDKs ship and that
+  this crate's own generated `UIElicitationRequest` type expects. The
+  hand-authored convenience layer was sending it as `schema`, so every UI
+  helper call was effectively dead — the CLI saw a missing required
+  `requestedSchema` field. The mock-server test for elicitation
+  round-tripped through the same misnamed field, so the bug slipped past
+  unit tests; the test now asserts on `requestedSchema` and explicitly
+  rejects a stray `schema` key.
+
 ### Notes
 - Minimum supported Rust version (MSRV): 1.94.0 (pinned via
   `rust-toolchain.toml`).

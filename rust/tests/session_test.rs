@@ -1244,7 +1244,11 @@ async fn elicitation_returns_typed_result() {
     let request = server.read_request().await;
     assert_eq!(request["method"], "session.ui.elicitation");
     assert_eq!(request["params"]["message"], "Enter your name");
-    assert_eq!(request["params"]["schema"], schema);
+    assert_eq!(request["params"]["requestedSchema"], schema);
+    assert!(
+        request["params"].get("schema").is_none(),
+        "wire field is `requestedSchema`, not `schema`"
+    );
     server
         .respond(
             &request,

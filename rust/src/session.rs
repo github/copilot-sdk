@@ -593,7 +593,7 @@ impl<'a> SessionUi<'a> {
                 Some(serde_json::json!({
                     "sessionId": self.session.id,
                     "message": message,
-                    "schema": schema,
+                    "requestedSchema": schema,
                 })),
             )
             .await?;
