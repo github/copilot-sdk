@@ -1199,7 +1199,7 @@ impl Client {
         filter: Option<SessionListFilter>,
     ) -> Result<Vec<SessionMetadata>, Error> {
         let params = match filter {
-            Some(f) => serde_json::to_value(f)?,
+            Some(f) => serde_json::json!({ "filter": f }),
             None => serde_json::json!({}),
         };
         let result = self.call("session.list", Some(params)).await?;

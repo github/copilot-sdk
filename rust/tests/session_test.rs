@@ -679,11 +679,18 @@ async fn list_sessions_serializes_typed_filter() {
 
     let request = read_framed(&mut server_read).await;
     assert_eq!(request["method"], "session.list");
-    assert_eq!(request["params"]["repository"], "octocat/hello");
-    assert_eq!(request["params"]["branch"], "main");
-    // cwd / gitRoot are None and must be omitted from the wire payload.
-    assert!(request["params"].get("cwd").is_none());
-    assert!(request["params"].get("gitRoot").is_none());
+    assert_eq!(request["params"]["filter"]["repository"], "octocat/hello");
+    assert_eq!(request["params"]["filter"]["branch"], "main");
+    // cwd / gitRoot are None and must be omitted from the filter object.
+    assert!(request["params"]["filter"].get("cwd").is_none());
+    assert!(request["params"]["filter"].get("gitRoot").is_none());
+    // Regression check: filter must be wrapped under `params.filter`, not
+    // flattened onto `params` directly. All other SDKs (Node/Python/Go/.NET)
+    // wrap; flattening is silently ignored by the runtime.
+    assert!(
+        request["params"].get("repository").is_none(),
+        "wire shape is `params.filter.*`, not `params.*` — see Node/Go/Python/.NET"
+    );
 
     let id = request["id"].as_u64().unwrap();
     let response = serde_json::json!({

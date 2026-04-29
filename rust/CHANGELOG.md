@@ -341,6 +341,17 @@ public surface.
   round-tripped through the same misnamed field, so the bug slipped past
   unit tests; the test now asserts on `requestedSchema` and explicitly
   rejects a stray `schema` key.
+- `Client::list_sessions` now wraps the optional filter under `params.filter`
+  on the wire, matching the `session.list` request shape that Node, Python,
+  Go, and .NET ship. The hand-authored implementation was flattening the
+  filter fields directly onto `params`, which the runtime silently ignored
+  — so `list_sessions(Some(filter))` was functionally equivalent to
+  `list_sessions(None)` in 0.0.x. Same class of bug as the elicitation
+  wire fix above: the existing mock-server test asserted on the flat shape
+  it observed rather than the schema's wrapped shape, so the bug
+  round-tripped through both ends. The test now asserts the wrapped path
+  (`params.filter.repository`) and explicitly rejects the flattened
+  fallback (`params.repository`).
 
 ### Notes
 - Minimum supported Rust version (MSRV): 1.94.0 (pinned via
