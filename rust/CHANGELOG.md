@@ -161,3 +161,15 @@ public surface.
   so the concept doesn't apply. See `Client::from_streams` rustdoc.
 - `cargo semver-checks` runs in `continue-on-error` mode for 0.1.0; will
   flip to blocking once 0.1.0 is published and serves as the baseline.
+- `infinite_sessions: Option<InfiniteSessionConfig>` is wired on both
+  `SessionConfig` and `ResumeSessionConfig` and follows the same
+  default-omit-on-the-wire semantics as Node/Go: when `None`, the field
+  is skipped and the CLI applies its own default. No behavioral
+  divergence from the other SDKs.
+- `Client::stop` returns `Result<(), Error>` and currently kills the CLI
+  child process on the first failure rather than aggregating shutdown
+  errors across active sessions (Node returns `Error[]`). The Rust
+  `Client` does not yet hold strong/weak handles to its `Session`s — the
+  router only tracks per-session channel senders — so there is nothing
+  to iterate disconnect-then-kill across. Aggregation will land alongside
+  a Client-level session registry; tracked as Bucket B.
