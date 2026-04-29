@@ -565,7 +565,31 @@ internal sealed partial class JsonRpc : IDisposable
             return null;
         }
 
-        return JsonSerializer.SerializeToElement(args, _serializerOptions.GetTypeInfo(typeof(object?[])));
+        // Source-generated JsonSerializerOptions do not provide metadata for object[],
+        // so build the JSON array manually, serializing each element with a TypeInfo
+        // looked up by its runtime type from the merged resolver.
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartArray();
+            foreach (var arg in args)
+            {
+                if (arg is null)
+                {
+                    writer.WriteNullValue();
+                }
+                else
+                {
+                    var typeInfo = _serializerOptions.GetTypeInfo(arg.GetType());
+                    JsonSerializer.Serialize(writer, arg, typeInfo);
+                }
+            }
+
+            writer.WriteEndArray();
+        }
+
+        using var doc = JsonDocument.Parse(buffer.WrittenMemory);
+        return doc.RootElement.Clone();
     }
 
     private async Task SendResultResponseAsync(JsonElement id, object? result, CancellationToken cancellationToken)
@@ -618,7 +642,7 @@ internal sealed partial class JsonRpc : IDisposable
         }
     }
 
-    private sealed class PendingRequest(): TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+    private sealed class PendingRequest() : TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private sealed class MethodRegistration
     {
