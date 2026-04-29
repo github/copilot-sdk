@@ -1,5 +1,5 @@
 [package]
-name = "copilot-sdk"
+name = "github-copilot-sdk"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.94.0"
@@ -8,7 +8,7 @@ keywords = ["copilot", "github", "ai", "json-rpc", "sdk"]
 categories = ["api-bindings", "development-tools"]
 repository = "https://github.com/github/copilot-sdk"
 homepage = "https://github.com/github/copilot-sdk"
-documentation = "https://docs.rs/copilot-sdk"
+documentation = "https://docs.rs/github-copilot-sdk"
 readme = "README.md"
 license = "MIT"
 exclude = [
@@ -22,7 +22,7 @@ exclude = [
 ]
 
 [lib]
-name = "copilot"
+name = "github_copilot_sdk"
 
 [features]
 default = []

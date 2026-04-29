@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)]
 
-use copilot::Client;
+use github_copilot_sdk::Client;
 use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt, duplex};
 
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
@@ -34,7 +34,7 @@ async fn read_framed(reader: &mut (impl tokio::io::AsyncRead + Unpin)) -> serde_
 /// Verify protocol version against a fake server that responds with `result`.
 async fn verify_with_result(
     result: serde_json::Value,
-) -> (Result<(), copilot::Error>, Option<u32>) {
+) -> (Result<(), github_copilot_sdk::Error>, Option<u32>) {
     let (client_write, server_read) = duplex(8192);
     let (server_write, client_read) = duplex(8192);
     let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
@@ -77,7 +77,10 @@ async fn rejected_when_version_out_of_range() {
     let err = res.unwrap_err();
     assert!(matches!(
         err,
-        copilot::Error::Protocol(copilot::ProtocolError::VersionMismatch { server: 1, .. })
+        github_copilot_sdk::Error::Protocol(github_copilot_sdk::ProtocolError::VersionMismatch {
+            server: 1,
+            ..
+        })
     ));
     assert_eq!(version, None);
 }

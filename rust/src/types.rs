@@ -1265,8 +1265,8 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
 /// so:
 ///
 /// ```no_run
-/// # use copilot::session::Session;
-/// # async fn run(session: Session) -> Result<(), copilot::Error> {
+/// # use github_copilot_sdk::session::Session;
+/// # async fn run(session: Session) -> Result<(), github_copilot_sdk::Error> {
 /// session.send("hello").await?;
 /// # Ok(()) }
 /// ```
@@ -1274,9 +1274,9 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
 /// is equivalent to:
 ///
 /// ```no_run
-/// # use copilot::session::Session;
-/// # use copilot::types::MessageOptions;
-/// # async fn run(session: Session) -> Result<(), copilot::Error> {
+/// # use github_copilot_sdk::session::Session;
+/// # use github_copilot_sdk::types::MessageOptions;
+/// # async fn run(session: Session) -> Result<(), github_copilot_sdk::Error> {
 /// session.send(MessageOptions::new("hello")).await?;
 /// # Ok(()) }
 /// ```
@@ -1445,7 +1445,7 @@ impl ToolInvocation {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # use copilot::{Error, types::ToolInvocation, ToolResult};
+    /// # use github_copilot_sdk::{Error, types::ToolInvocation, ToolResult};
     /// # use serde::Deserialize;
     /// # #[derive(Deserialize)] struct MyParams { city: String }
     /// # async fn example(inv: ToolInvocation) -> Result<ToolResult, Error> {

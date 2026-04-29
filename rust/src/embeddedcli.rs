@@ -34,7 +34,7 @@ pub fn bundled_version() -> Option<&'static str> {
 /// Returns the path to the installed CLI binary, lazily extracting on first call.
 ///
 /// When the SDK was built with `COPILOT_CLI_VERSION` set, this extracts the
-/// embedded binary to `~/.cache/copilot-sdk-{version}/copilot` (or
+/// embedded binary to `~/.cache/github-copilot-sdk-{version}/copilot` (or
 /// `copilot.exe` on Windows), verifies the SHA-256 hash, and returns the
 /// path. Subsequent calls return the cached result.
 ///
@@ -76,9 +76,9 @@ fn install(
     // but keep the binary named `copilot` — the CLI checks argv[0]
     // for this exact name.
     let install_dir = if version.is_empty() {
-        cache.join("copilot-sdk")
+        cache.join("github-copilot-sdk")
     } else {
-        cache.join(format!("copilot-sdk-{}", sanitize_version(version)))
+        cache.join(format!("github-copilot-sdk-{}", sanitize_version(version)))
     };
     fs::create_dir_all(&install_dir).map_err(EmbeddedCliError::CreateDir)?;
 

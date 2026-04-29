@@ -19,25 +19,25 @@
 //! event; they do not block the producer.
 //!
 //! ```sh
-//! cargo run -p copilot-sdk --example lifecycle_observer
+//! cargo run -p github-copilot-sdk --example lifecycle_observer
 //! ```
 //!
-//! [`Client::subscribe_lifecycle`]: copilot::Client::subscribe_lifecycle
-//! [`Session::subscribe`]: copilot::session::Session::subscribe
-//! [`Client::state`]: copilot::Client::state
-//! [`Client::get_session_metadata`]: copilot::Client::get_session_metadata
-//! [`Client::force_stop`]: copilot::Client::force_stop
+//! [`Client::subscribe_lifecycle`]: github_copilot_sdk::Client::subscribe_lifecycle
+//! [`Session::subscribe`]: github_copilot_sdk::session::Session::subscribe
+//! [`Client::state`]: github_copilot_sdk::Client::state
+//! [`Client::get_session_metadata`]: github_copilot_sdk::Client::get_session_metadata
+//! [`Client::force_stop`]: github_copilot_sdk::Client::force_stop
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use copilot::handler::ApproveAllHandler;
-use copilot::types::{MessageOptions, SessionConfig, SessionLifecycleEventType};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::types::{MessageOptions, SessionConfig, SessionLifecycleEventType};
+use github_copilot_sdk::{Client, ClientOptions};
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
+async fn main() -> Result<(), github_copilot_sdk::Error> {
     let client = Client::start(ClientOptions::default()).await?;
     println!("[client] state: {:?}", client.state());
 

@@ -30,7 +30,7 @@ use crate::types::{
 /// # Example
 ///
 /// ```rust
-/// use copilot::tool::{schema_for, JsonSchema};
+/// use github_copilot_sdk::tool::{schema_for, JsonSchema};
 ///
 /// #[derive(JsonSchema)]
 /// struct Params {
@@ -66,8 +66,8 @@ pub fn schema_for<T: schemars::JsonSchema>() -> serde_json::Value {
 /// # Example
 ///
 /// ```rust
-/// use copilot::tool::tool_parameters;
-/// use copilot::Tool;
+/// use github_copilot_sdk::tool::tool_parameters;
+/// use github_copilot_sdk::Tool;
 ///
 /// let tool = Tool {
 ///     name: "ping".to_string(),
@@ -99,8 +99,8 @@ pub fn try_tool_parameters(
 /// # Example
 ///
 /// ```rust,ignore
-/// use copilot::tool::{schema_for, tool_parameters, JsonSchema, ToolHandler};
-/// use copilot::{Error, Tool, ToolInvocation, ToolResult};
+/// use github_copilot_sdk::tool::{schema_for, tool_parameters, JsonSchema, ToolHandler};
+/// use github_copilot_sdk::{Error, Tool, ToolInvocation, ToolResult};
 /// use serde::Deserialize;
 /// use async_trait::async_trait;
 ///
@@ -163,9 +163,9 @@ pub trait ToolHandler: Send + Sync {
 /// # Example
 ///
 /// ```rust,no_run
-/// use copilot::tool::{define_tool, JsonSchema};
-/// use copilot::types::ToolInvocation;
-/// use copilot::{Error, ToolResult};
+/// use github_copilot_sdk::tool::{define_tool, JsonSchema};
+/// use github_copilot_sdk::types::ToolInvocation;
+/// use github_copilot_sdk::{Error, ToolResult};
 /// use serde::Deserialize;
 ///
 /// #[derive(Deserialize, JsonSchema)]
@@ -262,8 +262,8 @@ where
 ///
 /// ```rust,no_run
 /// use std::sync::Arc;
-/// use copilot::handler::ApproveAllHandler;
-/// use copilot::tool::ToolHandlerRouter;
+/// use github_copilot_sdk::handler::ApproveAllHandler;
+/// use github_copilot_sdk::tool::ToolHandlerRouter;
 ///
 /// let router = ToolHandlerRouter::new(
 ///     vec![/* Box::new(MyTool), ... */],

@@ -1,6 +1,6 @@
-# Releasing `copilot-sdk`
+# Releasing `github-copilot-sdk`
 
-This document describes how to cut a release of the `copilot-sdk` Rust crate
+This document describes how to cut a release of the `github-copilot-sdk` Rust crate
 and publish it to [crates.io]. It is the operational counterpart to the
 workflow files under `../.github/workflows/rust-*.yml` (which run the actual
 mechanics).
@@ -8,7 +8,7 @@ mechanics).
 If you are adding code to the SDK, you do not need to read this. This is for
 maintainers cutting a release.
 
-[crates.io]: https://crates.io/crates/copilot-sdk
+[crates.io]: https://crates.io/crates/github-copilot-sdk
 
 ---
 
@@ -85,7 +85,7 @@ Before the first 0.1.0 publish, complete this checklist exactly once:
    via the "New Crate" form. The owner account should be a service account
    (preferred) or a senior maintainer.
 2. **Generate a scoped API token.** crates.io → Account Settings → API
-   Tokens → New Token. Scope it to publish `copilot-sdk` *only* — do not
+   Tokens → New Token. Scope it to publish `github-copilot-sdk` *only* — do not
    issue an unscoped token.
 3. **Add the secret.** GitHub repo Settings → Secrets and variables →
    Actions → New repository secret named `CARGO_REGISTRY_TOKEN`, value =
@@ -116,7 +116,7 @@ Two CI checks defend the API surface:
 
 For ad-hoc public-surface inspection, `cargo public-api -sss --features
 derive,test-support` is handy — but the surface is not snapshotted in the
-repo. The rendered docs on [docs.rs](https://docs.rs/copilot-sdk) are the
+repo. The rendered docs on [docs.rs](https://docs.rs/github-copilot-sdk) are the
 canonical reference; `cargo-semver-checks` is the gate.
 
 For 0.x → 1.0, do an explicit API review pass (compare against the
@@ -165,7 +165,7 @@ cargo publish
 
 # Tag and push.
 git tag rust-v$(cargo metadata --no-deps --format-version=1 \
-  | jq -r '.packages[] | select(.name=="copilot-sdk") | .version' | head -1)
+  | jq -r '.packages[] | select(.name=="github-copilot-sdk") | .version' | head -1)
 git push origin --tags
 ```
 
@@ -180,7 +180,7 @@ If a published version contains a critical bug (security, data loss, panic
 on common input), yank it from crates.io to prevent new installs:
 
 ```sh
-cargo yank --version X.Y.Z copilot-sdk
+cargo yank --version X.Y.Z github-copilot-sdk
 ```
 
 Yanking does *not* delete the version — existing `Cargo.lock` files keep
@@ -188,5 +188,5 @@ working — but it stops new resolutions from picking it. Follow up with a
 patch release that fixes the bug, and add a note to the yanked version's
 GitHub Release explaining why.
 
-Reverse with `cargo yank --undo --version X.Y.Z copilot-sdk` if the yank
+Reverse with `cargo yank --undo --version X.Y.Z github-copilot-sdk` if the yank
 was a mistake.

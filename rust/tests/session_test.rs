@@ -6,12 +6,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use copilot::Client;
-use copilot::handler::{
+use github_copilot_sdk::Client;
+use github_copilot_sdk::handler::{
     ApproveAllHandler, ExitPlanModeResult, HandlerEvent, HandlerResponse, PermissionResult,
     SessionHandler, UserInputResponse,
 };
-use copilot::types::{
+use github_copilot_sdk::types::{
     MessageOptions, ServerTelemetryEvent, SessionConfig, SessionId, SessionTelemetryEvent,
     ToolResult,
 };
@@ -129,14 +129,14 @@ impl FakeServer {
 
 async fn create_session_pair(
     handler: Arc<dyn SessionHandler>,
-) -> (copilot::session::Session, FakeServer) {
+) -> (github_copilot_sdk::session::Session, FakeServer) {
     create_session_pair_with_capabilities(handler, serde_json::json!(null)).await
 }
 
 async fn create_session_pair_with_capabilities(
     handler: Arc<dyn SessionHandler>,
     capabilities: Value,
-) -> (copilot::session::Session, FakeServer) {
+) -> (github_copilot_sdk::session::Session, FakeServer) {
     let (client, server_read, server_write) = make_client();
     let session_id = format!("test-session-{}", rand_id());
 
@@ -591,25 +591,40 @@ async fn force_stop_is_idempotent_with_no_child() {
     // Stream-based clients have no child process. force_stop should be a
     // no-op and safe to call multiple times.
     let (client, _server_read, _server_write) = make_client();
-    assert_eq!(client.state(), copilot::ConnectionState::Connected);
+    assert_eq!(
+        client.state(),
+        github_copilot_sdk::ConnectionState::Connected
+    );
     client.force_stop();
-    assert_eq!(client.state(), copilot::ConnectionState::Disconnected);
+    assert_eq!(
+        client.state(),
+        github_copilot_sdk::ConnectionState::Disconnected
+    );
     client.force_stop();
-    assert_eq!(client.state(), copilot::ConnectionState::Disconnected);
+    assert_eq!(
+        client.state(),
+        github_copilot_sdk::ConnectionState::Disconnected
+    );
     assert!(client.pid().is_none());
 }
 
 #[tokio::test]
 async fn stop_transitions_state_to_disconnected() {
     let (client, _server_read, _server_write) = make_client();
-    assert_eq!(client.state(), copilot::ConnectionState::Connected);
+    assert_eq!(
+        client.state(),
+        github_copilot_sdk::ConnectionState::Connected
+    );
     client.stop().await.expect("stop should succeed");
-    assert_eq!(client.state(), copilot::ConnectionState::Disconnected);
+    assert_eq!(
+        client.state(),
+        github_copilot_sdk::ConnectionState::Disconnected
+    );
 }
 
 #[tokio::test]
 async fn lifecycle_subscribe_yields_events_with_filter() {
-    use copilot::{SessionLifecycleEventMetadata, SessionLifecycleEventType as Type};
+    use github_copilot_sdk::{SessionLifecycleEventMetadata, SessionLifecycleEventType as Type};
 
     let (client, _server_read, mut server_write) = make_client();
 
@@ -1459,7 +1474,7 @@ async fn send_and_wait_returns_error_on_session_error() {
         .unwrap()
         .unwrap_err();
     assert!(
-        matches!(err, copilot::Error::Session(copilot::SessionError::AgentError(ref msg)) if msg.contains("something went wrong"))
+        matches!(err, github_copilot_sdk::Error::Session(github_copilot_sdk::SessionError::AgentError(ref msg)) if msg.contains("something went wrong"))
     );
 }
 
@@ -1489,13 +1504,13 @@ async fn send_and_wait_times_out() {
         .unwrap_err();
     assert!(matches!(
         err,
-        copilot::Error::Session(copilot::SessionError::Timeout(_))
+        github_copilot_sdk::Error::Session(github_copilot_sdk::SessionError::Timeout(_))
     ));
 }
 
 #[tokio::test]
 async fn elicitation_requested_dispatches_to_handler_and_responds() {
-    use copilot::types::ElicitationResult;
+    use github_copilot_sdk::types::ElicitationResult;
 
     struct ElicitHandler;
     #[async_trait]
@@ -1721,20 +1736,24 @@ async fn elicitation_methods_fail_without_capability() {
         .unwrap_err();
     assert!(matches!(
         err,
-        copilot::Error::Session(copilot::SessionError::ElicitationNotSupported)
+        github_copilot_sdk::Error::Session(
+            github_copilot_sdk::SessionError::ElicitationNotSupported
+        )
     ));
 
     let err = session.confirm("ok?").await.unwrap_err();
     assert!(matches!(
         err,
-        copilot::Error::Session(copilot::SessionError::ElicitationNotSupported)
+        github_copilot_sdk::Error::Session(
+            github_copilot_sdk::SessionError::ElicitationNotSupported
+        )
     ));
 }
 
 async fn create_session_pair_with_hooks(
     handler: Arc<dyn SessionHandler>,
-    hooks: Arc<dyn copilot::hooks::SessionHooks>,
-) -> (copilot::session::Session, FakeServer) {
+    hooks: Arc<dyn github_copilot_sdk::hooks::SessionHooks>,
+) -> (github_copilot_sdk::session::Session, FakeServer) {
     let (client, server_read, server_write) = make_client();
     let session_id = format!("test-session-{}", rand_id());
 
@@ -1779,7 +1798,7 @@ async fn create_session_pair_with_hooks(
 
 #[tokio::test]
 async fn hooks_invoke_dispatches_to_session_hooks() {
-    use copilot::hooks::{HookEvent, HookOutput, PreToolUseOutput, SessionHooks};
+    use github_copilot_sdk::hooks::{HookEvent, HookOutput, PreToolUseOutput, SessionHooks};
 
     struct PolicyHooks;
     #[async_trait]
@@ -1834,7 +1853,7 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
 
 #[tokio::test]
 async fn hooks_invoke_returns_empty_for_unregistered_hook() {
-    use copilot::hooks::SessionHooks;
+    use github_copilot_sdk::hooks::SessionHooks;
 
     struct EmptyHooks;
     #[async_trait]
@@ -1866,8 +1885,8 @@ async fn hooks_invoke_returns_empty_for_unregistered_hook() {
 
 async fn create_session_pair_with_transforms(
     handler: Arc<dyn SessionHandler>,
-    transforms: Arc<dyn copilot::transforms::SystemMessageTransform>,
-) -> (copilot::session::Session, FakeServer) {
+    transforms: Arc<dyn github_copilot_sdk::transforms::SystemMessageTransform>,
+) -> (github_copilot_sdk::session::Session, FakeServer) {
     let (client, server_read, server_write) = make_client();
     let session_id = format!("test-session-{}", rand_id());
 
@@ -1912,7 +1931,7 @@ async fn create_session_pair_with_transforms(
 
 #[tokio::test]
 async fn system_message_transform_dispatches_to_transform() {
-    use copilot::transforms::{SystemMessageTransform, TransformContext};
+    use github_copilot_sdk::transforms::{SystemMessageTransform, TransformContext};
 
     struct AppendTransform;
     #[async_trait]
@@ -1957,7 +1976,7 @@ async fn system_message_transform_dispatches_to_transform() {
 
 #[tokio::test]
 async fn system_message_transform_returns_error_for_missing_sections() {
-    use copilot::transforms::{SystemMessageTransform, TransformContext};
+    use github_copilot_sdk::transforms::{SystemMessageTransform, TransformContext};
 
     struct DummyTransform;
     #[async_trait]

@@ -1,5 +1,5 @@
 [workspace]
-# release-plz config for the Rust copilot-sdk crate.
+# release-plz config for the Rust github-copilot-sdk crate.
 #
 # The crate lives in the `rust/` subdirectory of the monorepo, so
 # invoke release-plz from this directory (via the release-plz workflows
@@ -13,7 +13,7 @@
 #      tag.
 #
 # Publishing requires a `CARGO_REGISTRY_TOKEN` repository secret scoped
-# to the `copilot-sdk` crate owner account. See
+# to the `github-copilot-sdk` crate owner account. See
 # `.github/workflows/rust-publish-release.yml` for the setup checklist.
 #
 # Reference: https://release-plz.dev/docs/config
@@ -26,7 +26,7 @@ git_tag_name = "rust-v{{ version }}"
 git_release_name = "rust-v{{ version }}"
 
 [[package]]
-name = "copilot-sdk"
+name = "github-copilot-sdk"
 changelog_path = "CHANGELOG.md"
 # Mark pre-1.0 publishes as prereleases on the GitHub release page so
 # consumers don't pick them up as "stable" by default. Maintainers

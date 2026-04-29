@@ -7,7 +7,7 @@
 //! Requires the `derive` feature for typed parameter schemas:
 //!
 //! ```sh
-//! cargo run -p copilot-sdk --example tool_server --features derive
+//! cargo run -p github-copilot-sdk --example tool_server --features derive
 //! ```
 
 // Gate the entire example behind the `derive` feature so it compiles
@@ -16,7 +16,7 @@
 #[cfg(not(feature = "derive"))]
 fn main() {
     eprintln!("This example requires the `derive` feature:");
-    eprintln!("  cargo run -p copilot-sdk --example tool_server --features derive");
+    eprintln!("  cargo run -p github-copilot-sdk --example tool_server --features derive");
     std::process::exit(1);
 }
 
@@ -28,13 +28,15 @@ use std::time::Duration;
 #[cfg(feature = "derive")]
 use async_trait::async_trait;
 #[cfg(feature = "derive")]
-use copilot::handler::ApproveAllHandler;
+use github_copilot_sdk::handler::ApproveAllHandler;
 #[cfg(feature = "derive")]
-use copilot::tool::{JsonSchema, ToolHandler, ToolHandlerRouter, schema_for, tool_parameters};
+use github_copilot_sdk::tool::{
+    JsonSchema, ToolHandler, ToolHandlerRouter, schema_for, tool_parameters,
+};
 #[cfg(feature = "derive")]
-use copilot::types::{MessageOptions, SessionConfig, Tool, ToolInvocation, ToolResult};
+use github_copilot_sdk::types::{MessageOptions, SessionConfig, Tool, ToolInvocation, ToolResult};
 #[cfg(feature = "derive")]
-use copilot::{Client, ClientOptions, Error};
+use github_copilot_sdk::{Client, ClientOptions, Error};
 #[cfg(feature = "derive")]
 use serde::Deserialize;
 
@@ -148,7 +150,7 @@ impl ToolHandler for RollDiceTool {
 
 #[cfg(feature = "derive")]
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
+async fn main() -> Result<(), github_copilot_sdk::Error> {
     let router = ToolHandlerRouter::new(
         vec![Box::new(GetWeatherTool), Box::new(RollDiceTool)],
         Arc::new(ApproveAllHandler),

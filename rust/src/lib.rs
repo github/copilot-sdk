@@ -813,8 +813,8 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example(client: &copilot::Client) -> Result<(), copilot::Error> {
-    /// use copilot::types::SessionId;
+    /// # async fn example(client: &github_copilot_sdk::Client) -> Result<(), github_copilot_sdk::Error> {
+    /// use github_copilot_sdk::types::SessionId;
     /// if let Some(metadata) = client.get_session_metadata(&SessionId::new("session-123")).await? {
     ///     println!("Session started at: {}", metadata.start_time);
     /// }
@@ -855,7 +855,7 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example(client: &copilot::Client) -> Result<(), copilot::Error> {
+    /// # async fn example(client: &github_copilot_sdk::Client) -> Result<(), github_copilot_sdk::Error> {
     /// if let Some(last_id) = client.get_last_session_id().await? {
     ///     println!("Last session: {last_id}");
     /// }
@@ -1003,7 +1003,7 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example(client: copilot::Client) {
+    /// # async fn example(client: github_copilot_sdk::Client) {
     /// // Try graceful shutdown first; fall back to force_stop if hung.
     /// match tokio::time::timeout(
     ///     std::time::Duration::from_secs(5),
@@ -1052,7 +1052,7 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example(client: copilot::Client) {
+    /// # async fn example(client: github_copilot_sdk::Client) {
     /// let mut events = client.subscribe_lifecycle();
     /// tokio::spawn(async move {
     ///     while let Ok(event) = events.recv().await {

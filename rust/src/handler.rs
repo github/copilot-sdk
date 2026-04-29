@@ -209,8 +209,8 @@ impl Default for ExitPlanModeResult {
 ///
 /// ```no_run
 /// use async_trait::async_trait;
-/// use copilot::handler::{PermissionResult, SessionHandler};
-/// use copilot::types::{PermissionRequestData, RequestId, SessionId};
+/// use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+/// use github_copilot_sdk::types::{PermissionRequestData, RequestId, SessionId};
 ///
 /// struct ApproveReadsOnly;
 ///

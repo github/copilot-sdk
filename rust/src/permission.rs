@@ -15,9 +15,9 @@
 //!
 //! ```rust,no_run
 //! # use std::sync::Arc;
-//! # use copilot::handler::ApproveAllHandler;
-//! # use copilot::permission;
-//! # use copilot::tool::ToolHandlerRouter;
+//! # use github_copilot_sdk::handler::ApproveAllHandler;
+//! # use github_copilot_sdk::permission;
+//! # use github_copilot_sdk::tool::ToolHandlerRouter;
 //! let router = ToolHandlerRouter::new(vec![], Arc::new(ApproveAllHandler));
 //! // Inherit the router's tool dispatch but auto-approve all permission prompts:
 //! let handler = permission::approve_all(Arc::new(router));
@@ -54,8 +54,8 @@ pub fn deny_all(inner: Arc<dyn SessionHandler>) -> Arc<dyn SessionHandler> {
 ///
 /// ```rust,no_run
 /// # use std::sync::Arc;
-/// # use copilot::handler::ApproveAllHandler;
-/// # use copilot::permission;
+/// # use github_copilot_sdk::handler::ApproveAllHandler;
+/// # use github_copilot_sdk::permission;
 /// let inner = Arc::new(ApproveAllHandler);
 /// let handler = permission::approve_if(inner, |data| {
 ///     // Inspect data.extra (the raw JSON payload) for custom policy.

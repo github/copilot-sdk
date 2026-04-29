@@ -5,7 +5,7 @@
 //! response tokens print to stdout incrementally as they arrive.
 //!
 //! ```sh
-//! cargo run -p copilot-sdk --example chat
+//! cargo run -p github-copilot-sdk --example chat
 //! ```
 
 use std::io::{self, BufRead, Write};
@@ -13,11 +13,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use copilot::handler::{
+use github_copilot_sdk::handler::{
     HandlerEvent, HandlerResponse, PermissionResult, SessionHandler, UserInputResponse,
 };
-use copilot::types::{MessageOptions, SessionConfig, SessionEvent};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::types::{MessageOptions, SessionConfig, SessionEvent};
+use github_copilot_sdk::{Client, ClientOptions};
 
 /// Handler that prints assistant message deltas as they stream in
 /// and auto-approves permissions.
@@ -87,7 +87,7 @@ fn read_line() -> Option<String> {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
+async fn main() -> Result<(), github_copilot_sdk::Error> {
     let client = Client::start(ClientOptions::default()).await?;
 
     let config = SessionConfig {

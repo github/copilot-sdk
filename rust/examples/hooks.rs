@@ -5,20 +5,20 @@
 //! for audit purposes.
 //!
 //! ```sh
-//! cargo run -p copilot-sdk --example hooks
+//! cargo run -p github-copilot-sdk --example hooks
 //! ```
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use copilot::handler::ApproveAllHandler;
-use copilot::hooks::{
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::hooks::{
     HookEvent, HookOutput, PostToolUseOutput, PreToolUseOutput, SessionEndOutput, SessionHooks,
     SessionStartOutput,
 };
-use copilot::types::{MessageOptions, SessionConfig};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::types::{MessageOptions, SessionConfig};
+use github_copilot_sdk::{Client, ClientOptions};
 
 /// Hooks implementation that logs lifecycle events to stdout.
 struct AuditHooks;
@@ -98,7 +98,7 @@ impl SessionHooks for AuditHooks {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
+async fn main() -> Result<(), github_copilot_sdk::Error> {
     let client = Client::start(ClientOptions::default()).await?;
 
     let config = SessionConfig {

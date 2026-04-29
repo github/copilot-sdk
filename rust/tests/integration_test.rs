@@ -2,8 +2,8 @@
 
 use std::time::Instant;
 
-use copilot::resolve::copilot_binary_with_source;
-use copilot::{Client, ClientOptions, SDK_PROTOCOL_VERSION};
+use github_copilot_sdk::resolve::copilot_binary_with_source;
+use github_copilot_sdk::{Client, ClientOptions, SDK_PROTOCOL_VERSION};
 
 fn default_options() -> ClientOptions {
     ClientOptions {
@@ -52,7 +52,7 @@ async fn force_stop_kills_real_child() {
 /// Measures the latency of individual CLI operations that contribute to
 /// session creation time. Run with:
 ///
-///   cargo test -p copilot-sdk --test integration_test -- --ignored --nocapture
+///   cargo test -p github-copilot-sdk --test integration_test -- --ignored --nocapture
 #[tokio::test]
 #[ignore]
 async fn cli_operation_latency() {

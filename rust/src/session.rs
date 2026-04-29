@@ -123,7 +123,7 @@ impl Session {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example(session: copilot::session::Session) {
+    /// # async fn example(session: github_copilot_sdk::session::Session) {
     /// let mut events = session.subscribe();
     /// tokio::spawn(async move {
     ///     while let Ok(event) = events.recv().await {

@@ -89,30 +89,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "copilot-sdk"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "dirs",
- "flate2",
- "parking_lot",
- "regex",
- "schemars",
- "serde",
- "serde_json",
- "serial_test",
- "sha2",
- "tar",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tracing",
- "zip",
- "zstd",
-]
-
-[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -345,6 +321,30 @@ dependencies = [
  "r-efi 6.0.0",
  "wasip2",
  "wasip3",
+]
+
+[[package]]
+name = "github-copilot-sdk"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "dirs",
+ "flate2",
+ "parking_lot",
+ "regex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sha2",
+ "tar",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "zip",
+ "zstd",
 ]
 
 [[package]]

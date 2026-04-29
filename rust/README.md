@@ -10,10 +10,10 @@ See [github/copilot-sdk](https://github.com/github/copilot-sdk) for the equivale
 
 ```rust,no_run
 use std::sync::Arc;
-use copilot::{Client, ClientOptions, SessionConfig};
-use copilot::handler::ApproveAllHandler;
+use github_copilot_sdk::{Client, ClientOptions, SessionConfig};
+use github_copilot_sdk::handler::ApproveAllHandler;
 
-# async fn example() -> Result<(), copilot::Error> {
+# async fn example() -> Result<(), github_copilot_sdk::Error> {
 let client = Client::start(ClientOptions::default()).await?;
 let session = client.create_session(
     SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)),
@@ -30,9 +30,9 @@ client.stop().await?;
 ```text
 Your Application
        ↓
-  copilot::Client  (manages CLI process lifecycle)
+  github_copilot_sdk::Client  (manages CLI process lifecycle)
        ↓
-  copilot::Session (per-session event loop + handler dispatch)
+  github_copilot_sdk::Session (per-session event loop + handler dispatch)
        ↓ JSON-RPC over stdio or TCP
   copilot --server --stdio
 ```
@@ -76,14 +76,14 @@ client.stop().await?;
 | `extra_args` | `Vec<String>` | Extra CLI flags |
 | `transport` | `Transport` | `Stdio` (default), `Tcp { port }`, or `External { host, port }` |
 
-With the default `CliProgram::Resolve`, `Client::start()` automatically resolves the binary via `copilot::resolve::copilot_binary()` — checking `COPILOT_CLI_PATH`, the [embedded CLI](#embedded-cli), and then the system PATH. Use `CliProgram::Path(path)` to skip resolution.
+With the default `CliProgram::Resolve`, `Client::start()` automatically resolves the binary via `github_copilot_sdk::resolve::copilot_binary()` — checking `COPILOT_CLI_PATH`, the [embedded CLI](#embedded-cli), and then the system PATH. Use `CliProgram::Path(path)` to skip resolution.
 
 ### Session
 
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches events to the `SessionHandler`.
 
 ```rust,ignore
-use copilot::MessageOptions;
+use github_copilot_sdk::MessageOptions;
 
 // Simple send — &str / String convert into MessageOptions automatically.
 // Returns the assigned message ID for correlation with later events.
@@ -146,7 +146,7 @@ let tasks = session.rpc().tasks().list().await?.tasks;
 let forked = client
     .rpc()
     .sessions()
-    .fork(copilot::generated::api_types::SessionsForkRequest {
+    .fork(github_copilot_sdk::generated::api_types::SessionsForkRequest {
         session_id: "session-id".to_string(),
         from_message_id: None,
     })
@@ -165,8 +165,8 @@ Implement this trait to control how a session responds to CLI events. Two styles
 
 ```rust,ignore
 use async_trait::async_trait;
-use copilot::handler::{PermissionResult, SessionHandler};
-use copilot::types::{PermissionRequestData, RequestId, SessionId};
+use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+use github_copilot_sdk::types::{PermissionRequestData, RequestId, SessionId};
 
 struct MyHandler;
 
@@ -185,7 +185,7 @@ impl SessionHandler for MyHandler {
         }
     }
 
-    async fn on_session_event(&self, sid: SessionId, event: copilot::types::SessionEvent) {
+    async fn on_session_event(&self, sid: SessionId, event: github_copilot_sdk::types::SessionEvent) {
         println!("[{sid}] {}", event.event_type);
     }
 }
@@ -194,7 +194,7 @@ impl SessionHandler for MyHandler {
 **2. Single `on_event` method.** Override `on_event` directly and `match` on `HandlerEvent` — useful for logging middleware, custom routing, or when you want one exhaustive dispatch point.
 
 ```rust,ignore
-use copilot::handler::*;
+use github_copilot_sdk::handler::*;
 use async_trait::async_trait;
 
 #[async_trait]
@@ -247,7 +247,7 @@ Hooks intercept CLI behavior at lifecycle points — tool use, prompt submission
 
 ```rust,ignore
 use std::sync::Arc;
-use copilot::hooks::*;
+use github_copilot_sdk::hooks::*;
 use async_trait::async_trait;
 
 struct MyHooks;
@@ -294,7 +294,7 @@ let session = client
 Transforms customize system message sections during session creation. The SDK injects `action: "transform"` entries for each section ID your transform handles.
 
 ```rust,ignore
-use copilot::transforms::*;
+use github_copilot_sdk::transforms::*;
 use async_trait::async_trait;
 
 struct MyTransform;
@@ -330,11 +330,11 @@ Define client-side tools as named types with `ToolHandler`, then route them with
 
 ```rust,ignore
 use std::sync::Arc;
-use copilot::handler::ApproveAllHandler;
-use copilot::tool::{
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::tool::{
     schema_for, tool_parameters, JsonSchema, ToolHandler, ToolHandlerRouter,
 };
-use copilot::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
+use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
 use serde::Deserialize;
 use async_trait::async_trait;
 
@@ -385,8 +385,8 @@ Tools are named types (not closures) — visible in stack traces and navigable v
 For trivial tools that don't need a named type, [`define_tool`](crate::tool::define_tool) collapses the definition to a single expression:
 
 ```rust,ignore
-use copilot::tool::{define_tool, JsonSchema, ToolHandlerRouter};
-use copilot::ToolResult;
+use github_copilot_sdk::tool::{define_tool, JsonSchema, ToolHandlerRouter};
+use github_copilot_sdk::ToolResult;
 use serde::Deserialize;
 
 #[derive(Deserialize, JsonSchema)]
@@ -431,7 +431,7 @@ let session = client
 For composing a policy onto a handler outside the builder chain (e.g. when wrapping a `ToolHandlerRouter` you've built elsewhere), the `permission` module exposes the same primitives as free functions:
 
 ```rust,ignore
-use copilot::permission;
+use github_copilot_sdk::permission;
 
 let router = ToolHandlerRouter::new(tools, Arc::new(MyHandler));
 let handler = permission::approve_all(Arc::new(router));
@@ -459,7 +459,7 @@ For fire-and-forget messaging where you need to block until the agent finishes:
 
 ```rust,ignore
 use std::time::Duration;
-use copilot::MessageOptions;
+use github_copilot_sdk::MessageOptions;
 
 // Sends a message and blocks until session.idle or session.error
 session
@@ -476,7 +476,7 @@ Default timeout is 60 seconds. Only one `send_and_wait` can be active per sessio
 **`SessionId`** — a newtype wrapper around `String` that prevents accidentally passing workspace IDs or request IDs where session IDs are expected. Transparent serialization (`#[serde(transparent)]`), zero-cost `Deref<Target=str>`, and ergonomic comparisons with `&str` and `String`.
 
 ```rust,ignore
-use copilot::SessionId;
+use github_copilot_sdk::SessionId;
 
 let id = SessionId::new("sess-abc123");
 assert_eq!(id, "sess-abc123");           // compare with &str
@@ -532,7 +532,7 @@ COPILOT_CLI_VERSION=1.0.15 cargo build
 
 1. **Build time:** The SDK's `build.rs` detects `COPILOT_CLI_VERSION`, downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), verifies the archive's SHA-256 against the release's `SHA256SUMS.txt`, extracts the `copilot` binary, compresses it with zstd, and embeds via `include_bytes!()`. No extra steps or tools needed — just the env var.
 
-2. **Runtime:** On the first call to `copilot::resolve::copilot_binary()`, the embedded binary is lazily extracted to `~/.cache/copilot-sdk-{version}/copilot` (or `copilot.exe` on Windows), SHA-256 verified, and cached. Subsequent calls return the cached path.
+2. **Runtime:** On the first call to `github_copilot_sdk::resolve::copilot_binary()`, the embedded binary is lazily extracted to `~/.cache/github-copilot-sdk-{version}/copilot` (or `copilot.exe` on Windows), SHA-256 verified, and cached. Subsequent calls return the cached path.
 
 3. **Dev builds:** Without the env var, `build.rs` does nothing. The binary is resolved from PATH as usual — zero friction.
 
@@ -562,14 +562,14 @@ No features are enabled by default — the bare SDK resolves the CLI from `COPIL
 # published, use a path or git dependency instead.
 
 # Minimal — resolve CLI from PATH
-copilot-sdk = "0.1"
+github-copilot-sdk = "0.1"
 
 # Ship a pinned CLI version in your binary
-copilot-sdk = { version = "0.1", features = ["embedded-cli"] }
+github-copilot-sdk = { version = "0.1", features = ["embedded-cli"] }
 
 # Derive JSON Schema for tool parameters
-copilot-sdk = { version = "0.1", features = ["derive"] }
+github-copilot-sdk = { version = "0.1", features = ["derive"] }
 
 # Both
-copilot-sdk = { version = "0.1", features = ["embedded-cli", "derive"] }
+github-copilot-sdk = { version = "0.1", features = ["embedded-cli", "derive"] }
 ```

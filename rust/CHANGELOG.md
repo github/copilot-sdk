@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the `copilot-sdk` crate will be documented in this file.
+All notable changes to the `github-copilot-sdk` crate will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -20,7 +20,7 @@ tool/permission/elicitation helpers, and runtime session management.
 
 This is a **technical preview**. The crate is pre-1.0 and the public API may
 change in breaking ways before 1.0. The rendered docs on
-[docs.rs](https://docs.rs/copilot-sdk) are the canonical reference for the
+[docs.rs](https://docs.rs/github-copilot-sdk) are the canonical reference for the
 public surface.
 
 ### Added
@@ -98,10 +98,10 @@ public surface.
   unwrapping a `HandlerResponse` from `on_event`. The default `on_event`
   still routes correctly through the per-event methods, so legacy
   callers are unaffected.
-- Hooks API for instrumenting send/receive flows (`copilot::hooks`).
+- Hooks API for instrumenting send/receive flows (`github_copilot_sdk::hooks`).
 
 #### Types
-- Newtype `SessionId`, plus generated RPC types under `copilot::generated`.
+- Newtype `SessionId`, plus generated RPC types under `github_copilot_sdk::generated`.
 - `LogLevel`, `LogOptions`, `SetModelOptions`, `PingResponse`,
   `SessionLifecycleEvent`, `SessionLifecycleEventType`, `ConnectionState`,
   `SessionTelemetryEvent`, `ServerTelemetryEvent`, `SystemMessageConfig`,

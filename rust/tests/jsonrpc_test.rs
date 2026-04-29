@@ -1,7 +1,7 @@
 #![cfg(feature = "test-support")]
 #![allow(clippy::unwrap_used)]
 
-use copilot::test_support::{JsonRpcClient, JsonRpcNotification, JsonRpcRequest};
+use github_copilot_sdk::test_support::{JsonRpcClient, JsonRpcNotification, JsonRpcRequest};
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::sync::{broadcast, mpsc};
 
