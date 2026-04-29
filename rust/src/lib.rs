@@ -17,6 +17,8 @@ pub mod resolve;
 mod router;
 /// Session management — create, resume, send messages, and interact with the agent.
 pub mod session;
+/// Event subscription handles returned by `subscribe()` methods.
+pub mod subscription;
 /// Typed tool definition framework and dispatch router.
 pub mod tool;
 /// System message transform callbacks for customizing agent prompts.
@@ -55,6 +57,7 @@ pub use types::*;
 
 mod sdk_protocol_version;
 pub use sdk_protocol_version::{SDK_PROTOCOL_VERSION, get_sdk_protocol_version};
+pub use subscription::{EventSubscription, Lagged, LifecycleSubscription, RecvError};
 
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 2;
@@ -1019,21 +1022,26 @@ impl Client {
         *self.inner.state.lock() = ConnectionState::Disconnected;
     }
 
-    /// Subscribe to session lifecycle events.
+    /// Subscribe to lifecycle events.
     ///
-    /// Returns a [`tokio::sync::broadcast::Receiver`] that
-    /// yields every [`SessionLifecycleEvent`] sent by the CLI. Drop the
-    /// receiver to unsubscribe.
+    /// Returns a [`LifecycleSubscription`] that yields every
+    /// [`SessionLifecycleEvent`] sent by the CLI. Drop the value to
+    /// unsubscribe; there is no separate cancel handle.
     ///
-    /// Each receiver maintains its own queue. If a consumer cannot keep up,
-    /// the oldest events are dropped and `recv` returns
-    /// [`RecvError::Lagged`](tokio::sync::broadcast::error::RecvError::Lagged)
-    /// with the count of skipped events; consumers should match on it and
-    /// continue. Slow consumers do not block the producer.
+    /// The returned handle implements both an inherent
+    /// [`recv`](LifecycleSubscription::recv) method and [`Stream`](tokio_stream::Stream),
+    /// so callers can use a `while let` loop or any combinator from
+    /// `tokio_stream::StreamExt` / `futures::StreamExt`.
     ///
-    /// To filter by event type, match on `event.event_type` in the consumer
-    /// task. There is no built-in typed filter — `match` is more flexible and
-    /// keeps the API surface small.
+    /// Each subscriber maintains its own queue. If a consumer cannot keep
+    /// up, the oldest events are dropped and `recv` returns
+    /// [`RecvError::Lagged`] with the count of skipped events; consumers
+    /// should match on it and continue. Slow consumers do not block the
+    /// producer.
+    ///
+    /// To filter by event type, match on `event.event_type` in the
+    /// consumer task. There is no built-in typed filter — `match` is more
+    /// flexible and keeps the API surface small.
     ///
     /// # Example
     ///
@@ -1047,8 +1055,8 @@ impl Client {
     /// });
     /// # }
     /// ```
-    pub fn subscribe_lifecycle(&self) -> broadcast::Receiver<SessionLifecycleEvent> {
-        self.inner.lifecycle_tx.subscribe()
+    pub fn subscribe_lifecycle(&self) -> LifecycleSubscription {
+        LifecycleSubscription::new(self.inner.lifecycle_tx.subscribe())
     }
 
     /// Return the current [`ConnectionState`].

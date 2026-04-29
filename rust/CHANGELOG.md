@@ -32,11 +32,10 @@ public surface.
 - `Client::stop` / `Client::force_stop` — graceful and immediate shutdown.
 - `Client::state` returning `ConnectionState` (`Connecting`, `Connected`,
   `Disconnecting`, `Disconnected`).
-- `Client::subscribe_lifecycle` returning a
-  `tokio::sync::broadcast::Receiver<SessionLifecycleEvent>` for runtime
-  observation of created / destroyed / foreground / background events.
-  Drop the receiver to unsubscribe; filter by matching on `event.event_type`
-  in the consumer.
+- `Client::subscribe_lifecycle` returning a `LifecycleSubscription` for
+  runtime observation of created / destroyed / foreground / background
+  events. Implements `tokio_stream::Stream` and offers an inherent
+  `recv()`; drop the value to unsubscribe.
 - `Client::ping(message)` returning typed `PingResponse` and
   `Client::verify_protocol_version` for handshake validation.
 - `Client::list_sessions`, `get_session_metadata`, `delete_session`,
@@ -52,9 +51,9 @@ public surface.
 - `Session::send` returning the assigned message ID for
   correlation with later events.
 - `Session::send_and_wait` for synchronous prompt → final-event flows.
-- `Session::subscribe` returning a
-  `tokio::sync::broadcast::Receiver<SessionEvent>` for observe-only access
-  to the session's event stream. Drop the receiver to unsubscribe.
+- `Session::subscribe` returning an `EventSubscription` for observe-only
+  access to the session's event stream. Implements `tokio_stream::Stream`
+  and offers an inherent `recv()`; drop the value to unsubscribe.
 - Mode + model controls: `get_mode` / `set_mode`, `get_model` /
   `set_model(model, SetModelOptions)` with `reasoning_effort` and
   `model_capabilities` overrides.

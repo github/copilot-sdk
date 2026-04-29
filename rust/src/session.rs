@@ -94,9 +94,10 @@ impl Session {
 
     /// Subscribe to events for this session.
     ///
-    /// Returns a [`broadcast::Receiver`](tokio::sync::broadcast::Receiver) that
-    /// yields every [`SessionEvent`] dispatched on this session's event loop.
-    /// Drop the receiver to unsubscribe.
+    /// Returns an [`EventSubscription`](crate::subscription::EventSubscription)
+    /// that yields every [`SessionEvent`] dispatched on this session's
+    /// event loop. Drop the value to unsubscribe; there is no separate
+    /// cancel handle.
     ///
     /// **Observe-only.** Subscribers receive a clone of every
     /// [`SessionEvent`] but cannot influence permission decisions, tool
@@ -105,11 +106,17 @@ impl Session {
     /// the responsibility of the [`SessionHandler`] passed via
     /// [`SessionConfig::handler`](crate::types::SessionConfig::handler).
     ///
-    /// Each receiver maintains its own queue. If a consumer cannot keep up,
-    /// the oldest events are dropped and `recv` returns
-    /// [`RecvError::Lagged`](tokio::sync::broadcast::error::RecvError::Lagged)
-    /// with the count of skipped events. Slow consumers do not block the
-    /// session's event loop.
+    /// The returned handle implements both an inherent
+    /// [`recv`](crate::subscription::EventSubscription::recv) method and
+    /// [`Stream`](tokio_stream::Stream), so callers can use a `while let`
+    /// loop or any combinator from `tokio_stream::StreamExt` /
+    /// `futures::StreamExt`.
+    ///
+    /// Each subscriber maintains its own queue. If a consumer cannot keep
+    /// up, the oldest events are dropped and `recv` returns
+    /// [`RecvError::Lagged`](crate::subscription::RecvError::Lagged)
+    /// reporting the count of skipped events. Slow consumers do not block
+    /// the session's event loop.
     ///
     /// # Example
     ///
@@ -123,8 +130,8 @@ impl Session {
     /// });
     /// # }
     /// ```
-    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<SessionEvent> {
-        self.event_tx.subscribe()
+    pub fn subscribe(&self) -> crate::subscription::EventSubscription {
+        crate::subscription::EventSubscription::new(self.event_tx.subscribe())
     }
 
     /// The underlying Client (for advanced use cases).

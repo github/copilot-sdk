@@ -44,6 +44,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", "time", "macros"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 tracing = "0.1"
 dirs = "5"
 parking_lot = "0.12"

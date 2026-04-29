@@ -479,6 +479,7 @@ if err.is_transport_failure() {
 |---|---|
 | `lib.rs` | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error` |
 | `session.rs` | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session` |
+| `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
 | `handler.rs` | `SessionHandler` trait, `HandlerEvent`/`HandlerResponse` enums, `ApproveAllHandler` |
 | `hooks.rs` | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs |
 | `transforms.rs` | `SystemMessageTransform` trait, section-level system message customization |
