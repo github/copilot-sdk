@@ -5,7 +5,6 @@
 using GitHub.Copilot.SDK.Rpc;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using StreamJsonRpc;
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Nodes;

@@ -37,7 +37,6 @@
         <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
-        <PackageReference Include="StreamJsonRpc" PrivateAssets="compile" />
         <PackageReference Include="System.Text.Json" />
     </ItemGroup>
 

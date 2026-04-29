@@ -16,7 +16,6 @@ src/build/GitHub.Copilot.SDK.props
 *.sln.docstates
 
 # IDE
-.vs/
 .vscode/
 *.swp
 *~

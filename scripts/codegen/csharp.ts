@@ -840,7 +840,13 @@ function resolvedResultTypeName(method: RpcMethod): string {
     return resultTypeName(method);
 }
 
-/** Returns the Task<T> or Task string for a method's result type. */
+/** Returns the ValueTask<T> or ValueTask string for an incoming-handler's result type. */
+function handlerTaskType(method: RpcMethod): string {
+    const schema = getMethodResultSchema(method);
+    return !isVoidSchema(schema) ? `ValueTask<${resolvedResultTypeName(method)}>` : "ValueTask";
+}
+
+/** Returns the Task<T> or Task string for an outgoing-call wrapper's result type. */
 function resultTaskType(method: RpcMethod): string {
     const schema = getMethodResultSchema(method);
     return !isVoidSchema(schema) ? `Task<${resolvedResultTypeName(method)}>` : "Task";
@@ -1465,7 +1471,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
     lines.push("");
 
     lines.push(`/// <summary>Registers client session API handlers on a JSON-RPC connection.</summary>`);
-    lines.push(`public static class ClientSessionApiRegistration`);
+    lines.push(`internal static class ClientSessionApiRegistration`);
     lines.push(`{`);
     lines.push(`    /// <summary>`);
     lines.push(`    /// Registers handlers for server-to-client session API calls.`);
@@ -1482,11 +1488,10 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             const hasParams = !!effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0;
             const resultSchema = getMethodResultSchema(method);
             const paramsClass = paramsTypeName(method);
-            const taskType = resultTaskType(method);
-            const registrationVar = `register${typeToClassName(method.rpcMethod)}Method`;
+            const taskType = handlerTaskType(method);
 
             if (hasParams) {
-                lines.push(`        var ${registrationVar} = (Func<${paramsClass}, CancellationToken, ${taskType}>)(async (request, cancellationToken) =>`);
+                lines.push(`        rpc.SetLocalRpcMethod("${method.rpcMethod}", (Func<${paramsClass}, CancellationToken, ${taskType}>)(async (request, cancellationToken) =>`);
                 lines.push(`        {`);
                 lines.push(`            var handler = getHandlers(request.SessionId).${handlerProperty};`);
                 lines.push(`            if (handler is null) throw new InvalidOperationException($"No ${groupName} handler registered for session: {request.SessionId}");`);
@@ -1495,13 +1500,9 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
                 } else {
                     lines.push(`            await handler.${handlerMethod}(request, cancellationToken);`);
                 }
-                lines.push(`        });`);
-                lines.push(`        rpc.AddLocalRpcMethod(${registrationVar}.Method, ${registrationVar}.Target!, new JsonRpcMethodAttribute("${method.rpcMethod}")`);
-                lines.push(`        {`);
-                lines.push(`            UseSingleObjectParameterDeserialization = true`);
-                lines.push(`        });`);
+                lines.push(`        }), singleObjectParam: true);`);
             } else {
-                lines.push(`        rpc.AddLocalRpcMethod("${method.rpcMethod}", (Func<CancellationToken, ${taskType}>)(_ =>`);
+                lines.push(`        rpc.SetLocalRpcMethod("${method.rpcMethod}", (Func<CancellationToken, ${taskType}>)(_ =>`);
                 lines.push(`            throw new InvalidOperationException("No params provided for ${method.rpcMethod}")));`);
             }
         }
@@ -1544,7 +1545,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using StreamJsonRpc;
 
 namespace GitHub.Copilot.SDK.Rpc;
 
