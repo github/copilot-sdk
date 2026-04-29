@@ -1405,6 +1405,12 @@ impl Client {
     }
 
     /// Fetch account-level quota snapshots (request-based usage).
+    ///
+    /// **Rust-only as of 0.1.0.** This method has no equivalent in the Node,
+    /// Python, Go, or .NET SDKs at the time of this release; the underlying
+    /// `account.getQuota` JSON-RPC endpoint is exposed only by the Rust SDK.
+    /// See the "Rust-only API" section of the crate README for the full list
+    /// of surface that diverges from the other SDKs.
     pub async fn get_quota(&self) -> Result<generated::api_types::AccountGetQuotaResult, Error> {
         self.rpc().account().get_quota().await
     }

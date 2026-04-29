@@ -25,7 +25,8 @@
 //! the schema's `{ ..., error: Option<SessionFsError> }` payload, mapping
 //! [`FsError::NotFound`] to the wire's `ENOENT` and everything else to
 //! `UNKNOWN`. A [`From<std::io::Error>`] conversion is provided so handlers
-//! backed by [`tokio::fs`] can propagate `io::Error` with `?`.
+//! backed by [`tokio::fs`](https://docs.rs/tokio/latest/tokio/fs/index.html)
+//! can propagate `io::Error` with `?`.
 //!
 //! # Example
 //!

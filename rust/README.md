@@ -507,7 +507,10 @@ if err.is_transport_failure() {
 
 The Rust SDK aligns closely with the Node, Python, and Go SDKs but diverges
 in a few places where Rust idiom or the type system gives a clearly better
-shape. The notable case today:
+shape, and exposes a small additional surface where the language affords
+ergonomics the dynamically-typed SDKs don't.
+
+### Shape divergence
 
 - **`SessionFsProvider` registration is direct, not factory-closure.** Where
   Node/Python/Go accept a closure that the runtime calls on each
@@ -545,6 +548,44 @@ let session = client
 
 See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
 in-memory provider implementation.
+
+### Rust-only API
+
+A handful of conveniences exist only on the Rust SDK as of 0.1.0. These
+are surface areas where Rust idiom (newtypes, enums, trait objects)
+gives a clearly nicer shape than Node/Python/Go currently expose. Rust
+gets to be Rust here — cross-SDK parity for these is a post-release
+conversation, not a release blocker. None of these are deprecated and
+none of them are scheduled for removal.
+
+- **`Client::get_quota`** — fetch account-level request quota snapshots.
+  The underlying `account.getQuota` JSON-RPC endpoint is exposed only by
+  the Rust SDK in this release.
+- **First-class `Session` convenience methods** — `set_mode` / `get_mode`,
+  `set_name` / `get_name`, `read_plan` / `update_plan` / `delete_plan`,
+  `start_fleet`, `list_workspace_files` / `read_workspace_file` /
+  `create_workspace_file`. The other SDKs require the consumer to drive
+  the typed JSON-RPC namespace directly for these.
+- **Typed newtypes** — `SessionId` and `RequestId` are `#[serde(transparent)]`
+  newtypes around `String`, so the type system distinguishes a session
+  identifier from an arbitrary `String` at compile time. Node/Python/Go
+  use bare strings.
+- **Permission policy builders** — `permission::approve_all`,
+  `permission::deny_all`, and `permission::approve_if(handler, predicate)`
+  in `crate::permission` provide composable, no-handler-needed permission
+  shortcuts that wrap an existing `SessionHandler`. Other SDKs require a
+  full handler implementation for these patterns.
+- **`Client::from_streams`** — connect to a CLI server over arbitrary
+  caller-supplied `AsyncRead` / `AsyncWrite`. Useful for testing,
+  in-process embedding, or custom transports. Other SDKs are spawn-only
+  or fixed-stdio.
+- **`enum Transport { Stdio, Tcp, External }`** — explicit, exhaustive
+  transport selector on `ClientOptions::transport`. Node/Python/Go rely
+  on conditional config field combinations instead.
+- **Split `prefix_args` / `extra_args`** on `ClientOptions` — separate
+  arg vectors for "prepend before subcommand" vs "append after the
+  built-in flags", giving precise control over CLI invocation order
+  without string-splicing.
 
 ## Layout
 
