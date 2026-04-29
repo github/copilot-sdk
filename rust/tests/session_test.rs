@@ -12,8 +12,8 @@ use github_copilot_sdk::handler::{
     SessionHandler, UserInputResponse,
 };
 use github_copilot_sdk::types::{
-    CommandContext, CommandDefinition, CommandHandler, MessageOptions, ServerTelemetryEvent,
-    SessionConfig, SessionId, SessionTelemetryEvent, ToolResult,
+    CommandContext, CommandDefinition, CommandHandler, DeliveryMode, MessageOptions,
+    ServerTelemetryEvent, SessionConfig, SessionId, SessionTelemetryEvent, ToolResult,
 };
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
@@ -287,7 +287,7 @@ async fn send_injects_session_id() {
         let session = session.clone();
         async move {
             session
-                .send(MessageOptions::new("hello").with_mode("agent"))
+                .send(MessageOptions::new("hello").with_mode(DeliveryMode::Immediate))
                 .await
         }
     });
@@ -296,7 +296,7 @@ async fn send_injects_session_id() {
     assert_eq!(request["method"], "session.send");
     assert_eq!(request["params"]["sessionId"], server.session_id);
     assert_eq!(request["params"]["prompt"], "hello");
-    assert_eq!(request["params"]["mode"], "agent");
+    assert_eq!(request["params"]["mode"], "immediate");
 
     server.respond(&request, serde_json::json!({})).await;
     timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();

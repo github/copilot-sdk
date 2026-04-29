@@ -127,6 +127,15 @@ public surface.
   helper signatures are unchanged.
 
 #### Configuration parity
+- `MessageOptions::mode` is now typed `Option<DeliveryMode>` (was
+  `Option<String>`). `DeliveryMode` is `#[non_exhaustive]` and serializes
+  to the wire strings `"enqueue"` (default) and `"immediate"`. The prior
+  rustdoc incorrectly described this field as a permission mode; the
+  field controls how the prompt is delivered relative to in-flight work.
+  `MessageOptions::with_mode` now takes `DeliveryMode` directly. Callers
+  that previously passed `"agent"` or `"autopilot"` were already silently
+  no-ops at the CLI level — switch to a `DeliveryMode` variant or omit
+  the field entirely.
 - `SessionListFilter` — typed filter for `Client::list_sessions` covering
   `cwd`, `git_root`, `repository`, and `branch`. Replaces the prior
   `Option<serde_json::Value>` parameter.

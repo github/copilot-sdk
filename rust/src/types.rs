@@ -1589,6 +1589,21 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
     }
 }
 
+/// Message delivery mode for [`MessageOptions::mode`].
+///
+/// Controls how a prompt is delivered relative to in-flight session work.
+/// Mirrors Node's `MessageOptions.mode: "enqueue" | "immediate"` and Go's
+/// `MessageOptions.Mode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum DeliveryMode {
+    /// Queue the prompt behind any in-flight work (default).
+    Enqueue,
+    /// Interrupt the session and run the prompt immediately.
+    Immediate,
+}
+
 /// Options for sending a user message to the agent.
 ///
 /// Used by both [`Session::send`](crate::session::Session::send) and
@@ -1622,8 +1637,14 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
 pub struct MessageOptions {
     /// The user prompt to send.
     pub prompt: String,
-    /// Optional permission mode for this turn (e.g. `"agent"`, `"autopilot"`).
-    pub mode: Option<String>,
+    /// Optional message delivery mode for this turn.
+    ///
+    /// Controls whether the prompt is queued behind in-flight work
+    /// ([`DeliveryMode::Enqueue`], default) or interrupts the session and
+    /// runs immediately ([`DeliveryMode::Immediate`]). Mirrors Node's
+    /// `MessageOptions.mode: "enqueue" | "immediate"` and Go's
+    /// `MessageOptions.Mode`.
+    pub mode: Option<DeliveryMode>,
     /// Optional attachments to include with the message.
     pub attachments: Option<Vec<Attachment>>,
     /// Maximum time to wait for the session to go idle. Honored only by
@@ -1662,9 +1683,13 @@ impl MessageOptions {
         }
     }
 
-    /// Set the permission mode (e.g. `"agent"`, `"autopilot"`).
-    pub fn with_mode(mut self, mode: impl Into<String>) -> Self {
-        self.mode = Some(mode.into());
+    /// Set the message delivery mode for this turn.
+    ///
+    /// Pass [`DeliveryMode::Immediate`] to interrupt the session and run
+    /// the prompt now; the default ([`DeliveryMode::Enqueue`]) queues the
+    /// prompt behind in-flight work.
+    pub fn with_mode(mut self, mode: DeliveryMode) -> Self {
+        self.mode = Some(mode);
         self
     }
 
@@ -2242,8 +2267,22 @@ mod tests {
 
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, GitHubReferenceType, ensure_attachment_display_names,
+        ConnectionState, DeliveryMode, GitHubReferenceType, ensure_attachment_display_names,
     };
+
+    #[test]
+    fn delivery_mode_serializes_to_kebab_case_strings() {
+        assert_eq!(
+            serde_json::to_string(&DeliveryMode::Enqueue).unwrap(),
+            "\"enqueue\""
+        );
+        assert_eq!(
+            serde_json::to_string(&DeliveryMode::Immediate).unwrap(),
+            "\"immediate\""
+        );
+        let parsed: DeliveryMode = serde_json::from_str("\"immediate\"").unwrap();
+        assert_eq!(parsed, DeliveryMode::Immediate);
+    }
 
     #[test]
     fn connection_state_error_serializes_to_match_go() {

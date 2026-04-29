@@ -199,7 +199,7 @@ impl Session {
             "prompt": opts.prompt,
         });
         if let Some(m) = opts.mode {
-            params["mode"] = Value::String(m);
+            params["mode"] = serde_json::to_value(m)?;
         }
         if let Some(mut a) = opts.attachments {
             ensure_attachment_display_names(&mut a);
