@@ -303,6 +303,77 @@ async fn send_injects_session_id() {
 }
 
 #[tokio::test]
+async fn send_serializes_request_headers() {
+    use std::collections::HashMap;
+
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            let mut headers = HashMap::new();
+            headers.insert("X-Custom-Tag".to_string(), "value-1".to_string());
+            headers.insert("Authorization".to_string(), "Bearer abc".to_string());
+            session
+                .send(MessageOptions::new("hi").with_request_headers(headers))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["prompt"], "hi");
+    let headers = request["params"]["requestHeaders"]
+        .as_object()
+        .expect("requestHeaders should be an object");
+    assert_eq!(headers["X-Custom-Tag"], "value-1");
+    assert_eq!(headers["Authorization"], "Bearer abc");
+    assert_eq!(headers.len(), 2);
+
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_omits_request_headers_when_unset_or_empty() {
+    use std::collections::HashMap;
+
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("plain")).await }
+    });
+    let request = server.read_request().await;
+    assert!(
+        request["params"].get("requestHeaders").is_none(),
+        "requestHeaders should be omitted when unset, got: {}",
+        request["params"]
+    );
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(MessageOptions::new("plain").with_request_headers(HashMap::new()))
+                .await
+        }
+    });
+    let request = server.read_request().await;
+    assert!(
+        request["params"].get("requestHeaders").is_none(),
+        "requestHeaders should be omitted for empty map, got: {}",
+        request["params"]
+    );
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn session_rpc_methods_send_correct_method_names() {
     let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
     let session = Arc::new(session);

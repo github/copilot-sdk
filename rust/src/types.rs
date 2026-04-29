@@ -1466,6 +1466,11 @@ pub struct MessageOptions {
     /// Maximum time to wait for the session to go idle. Honored only by
     /// `send_and_wait`. Defaults to 60 seconds when unset.
     pub wait_timeout: Option<Duration>,
+    /// Custom HTTP headers to include in outbound model requests for this
+    /// turn. Mirrors Node's `MessageOptions.requestHeaders` and Go's
+    /// `MessageOptions.RequestHeaders`. When `None` or empty, no
+    /// `requestHeaders` field is sent on the wire.
+    pub request_headers: Option<HashMap<String, String>>,
 }
 
 impl MessageOptions {
@@ -1476,6 +1481,7 @@ impl MessageOptions {
             mode: None,
             attachments: None,
             wait_timeout: None,
+            request_headers: None,
         }
     }
 
@@ -1494,6 +1500,12 @@ impl MessageOptions {
     /// Override the default 60-second wait timeout for `send_and_wait`.
     pub fn with_wait_timeout(mut self, timeout: Duration) -> Self {
         self.wait_timeout = Some(timeout);
+        self
+    }
+
+    /// Set custom HTTP headers for outbound model requests for this turn.
+    pub fn with_request_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.request_headers = Some(headers);
         self
     }
 }

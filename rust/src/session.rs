@@ -202,6 +202,11 @@ impl Session {
             ensure_attachment_display_names(&mut a);
             params["attachments"] = serde_json::to_value(a)?;
         }
+        if let Some(headers) = opts.request_headers
+            && !headers.is_empty()
+        {
+            params["requestHeaders"] = serde_json::to_value(headers)?;
+        }
         let result = self.client.call("session.send", Some(params)).await?;
         let message_id = result
             .get("messageId")

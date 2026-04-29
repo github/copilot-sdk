@@ -201,6 +201,13 @@ public surface.
     `ClientOptions` switched from `#[derive(Debug)]` to a manual `Debug`
     impl that prints the handler as `<set>` / `None` (same precedent as
     `SessionConfig::handler` and `github_token`).
+- `MessageOptions` gains `request_headers: Option<HashMap<String, String>>`
+  with a corresponding [`MessageOptions::with_request_headers`] builder
+  method, matching Node's `MessageOptions.requestHeaders` and Go's
+  `MessageOptions.RequestHeaders`. Custom HTTP headers are forwarded to
+  the CLI via the `requestHeaders` field on `session.send`. The field is
+  omitted from the wire when `None` or empty (matches Node's
+  `omitempty` semantics).
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.
