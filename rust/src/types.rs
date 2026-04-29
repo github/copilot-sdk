@@ -554,6 +554,9 @@ pub struct AzureProviderOptions {
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionConfig {
+    /// Custom session ID. When unset, the CLI generates one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -638,6 +641,30 @@ pub struct SessionConfig {
     /// routing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
+    /// Per-property overrides for model capabilities, deep-merged over
+    /// runtime defaults. Mirrors Node's `SessionConfig.modelCapabilities`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Override the default configuration directory location. When set,
+    /// the session uses this directory for storing config and state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_dir: Option<PathBuf>,
+    /// Working directory for the session. Tool operations resolve
+    /// relative paths against this directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<PathBuf>,
+    /// Per-session GitHub token. Distinct from
+    /// [`ClientOptions::github_token`](crate::ClientOptions::github_token),
+    /// which authenticates the CLI process itself; this token determines
+    /// the GitHub identity used for content exclusion, model routing, and
+    /// quota checks for *this session*.
+    #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
+    pub github_token: Option<String>,
+    /// Forward sub-agent streaming events to this connection. When false,
+    /// only non-streaming sub-agent events and `subagent.*` lifecycle events
+    /// are delivered. Defaults to true on the CLI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_sub_agent_streaming_events: Option<bool>,
     /// Session-level event handler. The default is
     /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
     /// requests are denied; other events are no-ops. Use
@@ -660,6 +687,7 @@ pub struct SessionConfig {
 impl std::fmt::Debug for SessionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SessionConfig")
+            .field("session_id", &self.session_id)
             .field("model", &self.model)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
@@ -684,6 +712,17 @@ impl std::fmt::Debug for SessionConfig {
             .field("agent", &self.agent)
             .field("infinite_sessions", &self.infinite_sessions)
             .field("provider", &self.provider)
+            .field("model_capabilities", &self.model_capabilities)
+            .field("config_dir", &self.config_dir)
+            .field("working_directory", &self.working_directory)
+            .field(
+                "github_token",
+                &self.github_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "include_sub_agent_streaming_events",
+                &self.include_sub_agent_streaming_events,
+            )
             .field("handler", &self.handler.as_ref().map(|_| "<set>"))
             .field(
                 "hooks_handler",
@@ -835,6 +874,22 @@ pub struct ResumeSessionConfig {
     /// Re-supply BYOK provider configuration on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
+    /// Per-property model capability overrides on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Override the default configuration directory location on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_dir: Option<PathBuf>,
+    /// Per-session working directory on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<PathBuf>,
+    /// Per-session GitHub token on resume. See
+    /// [`SessionConfig::github_token`].
+    #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
+    pub github_token: Option<String>,
+    /// Forward sub-agent streaming events to this connection on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_sub_agent_streaming_events: Option<bool>,
     /// Force-fail resume if the session does not exist on disk, instead of
     /// silently starting a new session. Mirrors Node's
     /// `ResumeSessionConfig.disableResume`.
@@ -874,6 +929,17 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("agent", &self.agent)
             .field("infinite_sessions", &self.infinite_sessions)
             .field("provider", &self.provider)
+            .field("model_capabilities", &self.model_capabilities)
+            .field("config_dir", &self.config_dir)
+            .field("working_directory", &self.working_directory)
+            .field(
+                "github_token",
+                &self.github_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "include_sub_agent_streaming_events",
+                &self.include_sub_agent_streaming_events,
+            )
             .field("handler", &self.handler.as_ref().map(|_| "<set>"))
             .field(
                 "hooks_handler",
@@ -911,6 +977,11 @@ impl ResumeSessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            model_capabilities: None,
+            config_dir: None,
+            working_directory: None,
+            github_token: None,
+            include_sub_agent_streaming_events: None,
             disable_resume: None,
             handler: None,
             hooks_handler: None,

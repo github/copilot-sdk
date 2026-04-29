@@ -157,6 +157,26 @@ public surface.
 - `ResumeSessionConfig::disable_resume: Option<bool>` — force-fail resume
   if the session does not exist on disk, instead of silently starting a
   new session.
+- `SessionConfig` and `ResumeSessionConfig` gain six configuration knobs
+  matching the Node SDK shape (Bucket B.1):
+  - `session_id: Option<SessionId>` (SessionConfig only — required on
+    resume, where it remains `SessionId`) — supply a custom session ID
+    instead of letting the CLI generate one.
+  - `working_directory: Option<PathBuf>` — per-session cwd override,
+    independent of [`ClientOptions::cwd`](crate::ClientOptions::cwd).
+  - `config_dir: Option<PathBuf>` — override the default configuration
+    directory location for this session.
+  - `model_capabilities: Option<ModelCapabilitiesOverride>` — per-property
+    overrides for model capabilities, deep-merged over runtime defaults.
+    The same type was previously available only on
+    `SetModelOptions::model_capabilities`.
+  - `github_token: Option<String>` — per-session GitHub token. Distinct
+    from [`ClientOptions::github_token`], which authenticates the CLI
+    process; this token determines the GitHub identity used for content
+    exclusion, model routing, and quota checks for this session. The
+    field is redacted from the `Debug` output.
+  - `include_sub_agent_streaming_events: Option<bool>` — forward streaming
+    delta events from sub-agents to this connection (Node default: true).
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.

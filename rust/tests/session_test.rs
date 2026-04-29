@@ -2331,3 +2331,57 @@ async fn client_stop_aggregates_session_destroy_errors() {
     let msg = errors.to_string();
     assert!(msg.contains("session gone"), "unexpected message: {msg}");
 }
+
+#[test]
+fn session_config_serializes_bucket_b_fields() {
+    use std::path::PathBuf;
+
+    use github_copilot_sdk::{SessionConfig, SessionId};
+
+    let cfg = SessionConfig {
+        session_id: Some(SessionId::from("custom-id")),
+        config_dir: Some(PathBuf::from("/tmp/cfg")),
+        working_directory: Some(PathBuf::from("/tmp/work")),
+        github_token: Some("ghs_secret".to_string()),
+        include_sub_agent_streaming_events: Some(false),
+        ..SessionConfig::default()
+    };
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert_eq!(json["sessionId"], "custom-id");
+    assert_eq!(json["configDir"], "/tmp/cfg");
+    assert_eq!(json["workingDirectory"], "/tmp/work");
+    assert_eq!(json["gitHubToken"], "ghs_secret");
+    assert_eq!(json["includeSubAgentStreamingEvents"], false);
+
+    // Debug never leaks the token.
+    let debug = format!("{cfg:?}");
+    assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
+    assert!(debug.contains("<redacted>"), "missing redaction: {debug}");
+
+    // Unset fields are omitted on the wire.
+    let empty = serde_json::to_value(SessionConfig::default()).unwrap();
+    assert!(empty.get("sessionId").is_none());
+    assert!(empty.get("gitHubToken").is_none());
+}
+
+#[test]
+fn resume_session_config_serializes_bucket_b_fields() {
+    use std::path::PathBuf;
+
+    use github_copilot_sdk::{ResumeSessionConfig, SessionId};
+
+    let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
+    cfg.working_directory = Some(PathBuf::from("/tmp/work"));
+    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.github_token = Some("ghs_secret".to_string());
+    cfg.include_sub_agent_streaming_events = Some(true);
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert_eq!(json["sessionId"], "sess-1");
+    assert_eq!(json["workingDirectory"], "/tmp/work");
+    assert_eq!(json["configDir"], "/tmp/cfg");
+    assert_eq!(json["gitHubToken"], "ghs_secret");
+    assert_eq!(json["includeSubAgentStreamingEvents"], true);
+
+    let debug = format!("{cfg:?}");
+    assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
+}
