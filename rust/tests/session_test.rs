@@ -349,7 +349,13 @@ async fn session_rpc_methods_send_correct_method_names() {
         if let Some(key) = extra_param_key {
             assert!(!request["params"][key].is_null(), "missing param {key}");
         }
-        server.respond(&request, serde_json::json!({})).await;
+        let response = match expected_method {
+            "session.log" => {
+                serde_json::json!({ "eventId": "00000000-0000-0000-0000-000000000000" })
+            }
+            _ => serde_json::json!({}),
+        };
+        server.respond(&request, response).await;
         timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     }
 }
@@ -2051,4 +2057,60 @@ async fn create_workspace_file_uses_plural_method_name_and_forwards_payload() {
     server.respond(&request, serde_json::json!({})).await;
 
     timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn rpc_namespace_session_agent_list_dispatches_correctly() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let s = session.clone();
+    let handle = tokio::spawn(async move { s.rpc().agent().list().await });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.agent.list");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    server
+        .respond(&request, serde_json::json!({ "agents": [] }))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.agents.is_empty());
+}
+
+#[tokio::test]
+async fn rpc_namespace_session_tasks_list_dispatches_correctly() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let s = session.clone();
+    let handle = tokio::spawn(async move { s.rpc().tasks().list().await });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.tasks.list");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    server
+        .respond(&request, serde_json::json!({ "tasks": [] }))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.tasks.is_empty());
+}
+
+#[tokio::test]
+async fn rpc_namespace_client_models_list_dispatches_correctly() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let client = session.client().clone();
+    let handle = tokio::spawn(async move { client.rpc().models().list().await });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "models.list");
+    server
+        .respond(&request, serde_json::json!({ "models": [] }))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.models.is_empty());
 }

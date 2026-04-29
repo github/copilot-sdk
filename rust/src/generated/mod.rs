@@ -5,6 +5,7 @@
 #![allow(rustdoc::bare_urls)]
 
 pub mod api_types;
+pub mod rpc;
 pub mod session_events;
 
 // Re-export session event types at the module root — no conflicts with

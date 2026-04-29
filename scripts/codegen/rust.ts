@@ -957,6 +957,317 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	return out.join("\n");
 }
 
+// ── Typed RPC namespace generation ──────────────────────────────────────────
+
+interface NamespaceNode {
+	name: string;
+	typeName: string;
+	methods: RpcMethod[];
+	children: Map<string, NamespaceNode>;
+}
+
+function newNamespaceNode(name: string, typeName: string): NamespaceNode {
+	return { name, typeName, methods: [], children: new Map() };
+}
+
+/**
+ * Build a namespace tree from a list of methods. `groupOf(method)` returns the
+ * dotted group path (e.g. "mcp.config" for "mcp.config.list" / "workspaces"
+ * for "workspaces.listFiles"); the last segment of `rpcMethod` is the leaf
+ * method name.
+ */
+function buildNamespaceTree(
+	rootTypeName: string,
+	methods: RpcMethod[],
+	stripPrefix: string,
+): NamespaceNode {
+	const root = newNamespaceNode("", rootTypeName);
+	for (const method of methods) {
+		const trimmed = stripPrefix && method.rpcMethod.startsWith(stripPrefix)
+			? method.rpcMethod.slice(stripPrefix.length)
+			: method.rpcMethod;
+		const segments = trimmed.split(".");
+		const groupSegments = segments.slice(0, -1);
+		let node = root;
+		for (const seg of groupSegments) {
+			let child = node.children.get(seg);
+			if (!child) {
+				const childTypeName = `${node.typeName}${toPascalCase(seg)}`;
+				child = newNamespaceNode(seg, childTypeName);
+				node.children.set(seg, child);
+			}
+			node = child;
+		}
+		node.methods.push(method);
+	}
+	return root;
+}
+
+/**
+ * Determine if a method has typed params. Returns `{ hasParams, typeName }`.
+ * Handles `$ref`-based, title-bearing, and inline params uniformly:
+ *
+ *   - Resolves `$ref` to its definition.
+ *   - For session methods, ignores `sessionId` (the namespace injects it).
+ *   - Returns `hasParams=false` when the resolved property set (after the
+ *     sessionId filter for session methods) is empty.
+ *   - The type name comes from `$ref` (preferred), then the resolved
+ *     definition's `title`, then the inline params `title`.
+ */
+function getMethodParamsInfo(
+	method: RpcMethod,
+	defCollections: DefinitionCollections,
+	isSession: boolean,
+): { hasParams: boolean; typeName: string | null } {
+	if (!method.params) return { hasParams: false, typeName: null };
+	const inline = method.params as JSONSchema7 & { $ref?: string };
+	const resolved = resolveSchema(inline, defCollections);
+	if (!resolved) return { hasParams: false, typeName: null };
+
+	let typeName: string | null = null;
+	if (typeof inline.$ref === "string") {
+		typeName = refTypeName(inline.$ref, defCollections);
+	} else if (typeof resolved.title === "string") {
+		typeName = resolved.title;
+	} else if (typeof inline.title === "string") {
+		typeName = inline.title;
+	}
+
+	const allProps = Object.keys(resolved.properties || {});
+	const props = isSession
+		? allProps.filter((p) => p !== "sessionId")
+		: allProps;
+	if (props.length === 0) return { hasParams: false, typeName: null };
+	if (!typeName) return { hasParams: false, typeName: null };
+	return { hasParams: true, typeName };
+}
+
+function rpcMethodConstName(method: RpcMethod): string {
+	return method.rpcMethod.replace(/\./g, "_").toUpperCase();
+}
+
+function emitNamespaceStruct(
+	out: string[],
+	node: NamespaceNode,
+	holderType: string,
+	holderField: string,
+	isSession: boolean,
+	defCollections: DefinitionCollections,
+	docPrefix: string,
+): void {
+	const lifetimes = "<'a>";
+	out.push(`/// ${docPrefix}`);
+	out.push(`#[derive(Clone, Copy)]`);
+	out.push(`pub struct ${node.typeName}${lifetimes} {`);
+	out.push(`    pub(crate) ${holderField}: &'a ${holderType},`);
+	out.push(`}`);
+	out.push("");
+
+	out.push(`impl${lifetimes} ${node.typeName}${lifetimes} {`);
+
+	// Sub-namespace accessors
+	const childNames = Array.from(node.children.keys()).sort();
+	for (const childName of childNames) {
+		const child = node.children.get(childName)!;
+		const accessor = toSnakeCase(childName);
+		const desc = isSession
+			? `\`session.${accessorPath(node, childName, isSession)}.*\``
+			: `\`${accessorPath(node, childName, isSession)}.*\``;
+		out.push(`    /// ${desc} sub-namespace.`);
+		out.push(
+			`    pub fn ${accessor}(&self) -> ${child.typeName}<'a> {`,
+		);
+		out.push(`        ${child.typeName} { ${holderField}: self.${holderField} }`);
+		out.push(`    }`);
+		out.push("");
+	}
+
+	// Leaf methods
+	for (const method of node.methods) {
+		emitNamespaceMethod(out, method, holderField, isSession, defCollections);
+	}
+
+	out.push(`}`);
+	out.push("");
+
+	// Recursively emit child structs
+	for (const childName of childNames) {
+		const child = node.children.get(childName)!;
+		const childDoc = isSession
+			? `\`session.${accessorPath(node, childName, isSession)}.*\` RPCs.`
+			: `\`${accessorPath(node, childName, isSession)}.*\` RPCs.`;
+		emitNamespaceStruct(
+			out,
+			child,
+			holderType,
+			holderField,
+			isSession,
+			defCollections,
+			childDoc,
+		);
+	}
+}
+
+function accessorPath(parent: NamespaceNode, child: string, _isSession: boolean): string {
+	// Build wire-style dotted path from the namespace tree's "name" chain plus child.
+	// `parent.name === ""` for root; we accumulate by retrieving parent name only.
+	// (We don't track full ancestry here; this is just for doc strings — we
+	// fall back to the child name alone when at the root.)
+	if (!parent.name) return child;
+	return `${parent.name}.${child}`;
+}
+
+function getResultTypeName(
+	method: RpcMethod,
+	defCollections: DefinitionCollections,
+): string | null {
+	const result = method.result as (JSONSchema7 & { $ref?: string }) | null;
+	if (!result || isVoidSchema(result)) return null;
+	if (typeof result.$ref === "string") {
+		return refTypeName(result.$ref, defCollections);
+	}
+	if (typeof result.title === "string") return result.title;
+	return `${toPascalCase(method.rpcMethod)}Result`;
+}
+
+function emitNamespaceMethod(
+	out: string[],
+	method: RpcMethod,
+	holderField: string,
+	isSession: boolean,
+	defCollections: DefinitionCollections,
+): void {
+	const wireMethod = method.rpcMethod;
+	const constName = rpcMethodConstName(method);
+	const lastSegment = wireMethod.split(".").pop()!;
+	const fnName = toSnakeCase(lastSegment);
+
+	const paramsInfo = getMethodParamsInfo(method, defCollections, isSession);
+	const hasParams = paramsInfo.hasParams;
+	const paramsTypeName = paramsInfo.typeName;
+
+	const resultTypeName = getResultTypeName(method, defCollections);
+	const returnType = resultTypeName ? resultTypeName : "()";
+	const resultIsVoid = resultTypeName === null;
+
+	const docs: string[] = [];
+	docs.push(`    /// Wire method: \`${wireMethod}\`.`);
+	if (method.deprecated) docs.push(`    #[deprecated]`);
+	const stability = method.stability;
+	if (stability && stability !== "stable") {
+		docs.push(`    /// Stability: \`${stability}\`.`);
+	}
+
+	const paramArg = hasParams ? `, params: ${paramsTypeName}` : "";
+
+	out.push(...docs);
+	out.push(
+		`    pub async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
+	);
+
+	// Build the params Value sent over the wire.
+	if (isSession) {
+		if (hasParams) {
+			out.push(`        let mut wire_params = serde_json::to_value(params)?;`);
+			out.push(
+				`        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());`,
+			);
+		} else {
+			out.push(
+				`        let wire_params = serde_json::json!({ "sessionId": self.session.id() });`,
+			);
+		}
+		out.push(
+			`        let _value = self.session.client().call(rpc_methods::${constName}, Some(wire_params)).await?;`,
+		);
+	} else {
+		if (hasParams) {
+			out.push(`        let wire_params = serde_json::to_value(params)?;`);
+		} else {
+			out.push(`        let wire_params = serde_json::json!({});`);
+		}
+		out.push(
+			`        let _value = self.client.call(rpc_methods::${constName}, Some(wire_params)).await?;`,
+		);
+	}
+
+	if (resultIsVoid) {
+		out.push(`        Ok(())`);
+	} else {
+		out.push(`        Ok(serde_json::from_value(_value)?)`);
+	}
+	out.push(`    }`);
+	out.push("");
+}
+
+function generateRpcCode(apiSchema: ApiSchema): string {
+	const defCollections = collectDefinitionCollections(
+		apiSchema as unknown as Record<string, unknown>,
+	);
+
+	const serverMethods = apiSchema.server
+		? collectRpcMethods(apiSchema.server as Record<string, unknown>)
+		: [];
+	const sessionMethods = apiSchema.session
+		? collectRpcMethods(apiSchema.session as Record<string, unknown>)
+		: [];
+
+	const clientRoot = buildNamespaceTree("ClientRpc", serverMethods, "");
+	const sessionRoot = buildNamespaceTree(
+		"SessionRpc",
+		sessionMethods,
+		"session.",
+	);
+
+	const out: string[] = [];
+	out.push(
+		"//! Auto-generated typed JSON-RPC namespace — do not edit manually.",
+	);
+	out.push("//!");
+	out.push(
+		"//! Generated from `api.schema.json` by `scripts/codegen/rust.ts`. The",
+	);
+	out.push(
+		"//! [`ClientRpc`] and [`SessionRpc`] view structs let callers reach every",
+	);
+	out.push(
+		"//! protocol method through a typed namespace tree, so wire method names",
+	);
+	out.push(
+		"//! and request/response shapes live in exactly one place — this file.",
+	);
+	out.push("");
+	out.push("#![allow(missing_docs)]");
+	out.push("#![allow(clippy::too_many_arguments)]");
+	out.push("");
+	out.push("use super::api_types::*;");
+	out.push("use super::api_types::rpc_methods;");
+	out.push("use crate::session::Session;");
+	out.push("use crate::{Client, Error};");
+	out.push("");
+
+	emitNamespaceStruct(
+		out,
+		clientRoot,
+		"Client",
+		"client",
+		false,
+		defCollections,
+		"Typed view over the [`Client`]'s server-level RPC namespace.",
+	);
+	emitNamespaceStruct(
+		out,
+		sessionRoot,
+		"Session",
+		"session",
+		true,
+		defCollections,
+		"Typed view over a [`Session`]'s RPC namespace.",
+	);
+
+	return out.join("\n");
+}
+
 // ── mod.rs generation ───────────────────────────────────────────────────────
 
 function generateModRs(): string {
@@ -970,6 +1281,7 @@ function generateModRs(): string {
 	lines.push("#![allow(rustdoc::bare_urls)]");
 	lines.push("");
 	lines.push("pub mod api_types;");
+	lines.push("pub mod rpc;");
 	lines.push("pub mod session_events;");
 	lines.push("");
 	lines.push(
@@ -1038,6 +1350,13 @@ async function generate(): Promise<void> {
 	const apiTypesPath = path.join(GENERATED_DIR, "api_types.rs");
 	await fs.writeFile(apiTypesPath, apiTypesCode, "utf-8");
 	await rustfmt(apiTypesPath);
+
+	// Generate typed RPC namespace
+	console.log("Generating rpc.rs...");
+	const rpcCode = generateRpcCode(apiSchema);
+	const rpcPath = path.join(GENERATED_DIR, "rpc.rs");
+	await fs.writeFile(rpcPath, rpcCode, "utf-8");
+	await rustfmt(rpcPath);
 
 	// Generate mod.rs
 	console.log("Generating mod.rs...");

@@ -9,8 +9,10 @@ use tokio::task::JoinHandle;
 use tracing::{Instrument, warn};
 
 use crate::generated::api_types::{
-    PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionApproveOnceKind,
-    PermissionDecisionReject, PermissionDecisionRejectKind, rpc_methods,
+    LogRequest, ModeSetRequest, ModelSwitchToRequest, NameSetRequest, PermissionDecision,
+    PermissionDecisionApproveOnce, PermissionDecisionApproveOnceKind, PermissionDecisionReject,
+    PermissionDecisionRejectKind, PlanUpdateRequest, SessionMode, WorkspacesCreateFileRequest,
+    WorkspacesReadFileRequest,
 };
 use crate::generated::session_events::{
     ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData, SessionEventType,
@@ -139,6 +141,20 @@ impl Session {
         &self.client
     }
 
+    /// Typed RPC namespace for this session.
+    ///
+    /// Every protocol method lives here under its schema-aligned path —
+    /// e.g. `session.rpc().workspaces().list_files()`. Wire method names
+    /// and request/response types are generated from the protocol schema,
+    /// so the typed namespace can't drift from the wire contract.
+    ///
+    /// The hand-authored helpers on [`Session`] delegate to this namespace
+    /// and remain the recommended entry point for everyday use; reach for
+    /// `rpc()` when you want a method without a hand-written wrapper.
+    pub fn rpc(&self) -> crate::generated::rpc::SessionRpc<'_> {
+        crate::generated::rpc::SessionRpc { session: self }
+    }
+
     /// Stop the internal event loop. Called automatically on [`destroy`](Self::destroy).
     pub async fn stop_event_loop(&self) {
         let handle = self.event_loop.lock().await.take();
@@ -197,13 +213,10 @@ impl Session {
 
     /// Enable or disable session-wide auto-approval for tool permission requests.
     pub async fn set_approve_all_permissions(&self, enabled: bool) -> Result<(), Error> {
-        self.client
-            .call(
-                "session.permissions.setApproveAll",
-                Some(serde_json::json!({
-                    "sessionId": self.id,
-                    "enabled": enabled,
-                })),
+        self.rpc()
+            .permissions()
+            .set_approve_all(
+                crate::generated::api_types::PermissionsSetApproveAllRequest { enabled },
             )
             .await?;
         Ok(())
@@ -297,105 +310,52 @@ impl Session {
         model: &str,
         opts: Option<SetModelOptions>,
     ) -> Result<Option<String>, Error> {
-        let mut params = serde_json::json!({
-            "sessionId": self.id,
-            "modelId": model,
-        });
-        if let Some(opts) = opts {
-            if let Some(effort) = opts.reasoning_effort {
-                params["reasoningEffort"] = Value::String(effort);
-            }
-            if let Some(caps) = opts.model_capabilities {
-                params["modelCapabilities"] = serde_json::to_value(caps)?;
-            }
-        }
-        let result = self
-            .client
-            .call("session.model.switchTo", Some(params))
-            .await?;
-        Ok(result
-            .get("modelId")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()))
+        let opts = opts.unwrap_or_default();
+        let request = ModelSwitchToRequest {
+            model_id: model.to_string(),
+            reasoning_effort: opts.reasoning_effort,
+            model_capabilities: opts.model_capabilities,
+        };
+        Ok(self.rpc().model().switch_to(request).await?.model_id)
     }
 
     /// Get the current model.
     pub async fn get_model(&self) -> Result<Option<String>, Error> {
-        let result = self
-            .client
-            .call(
-                "session.model.getCurrent",
-                Some(serde_json::json!({ "sessionId": self.id })),
-            )
-            .await?;
-        Ok(result
-            .get("modelId")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()))
+        Ok(self.rpc().model().get_current().await?.model_id)
     }
 
     /// Set the session mode (e.g. "interactive", "plan", "autopilot").
     pub async fn set_mode(&self, mode: &str) -> Result<String, Error> {
-        let result = self
-            .client
-            .call(
-                "session.mode.set",
-                Some(serde_json::json!({
-                    "sessionId": self.id,
-                    "mode": mode,
-                })),
-            )
+        let parsed: SessionMode = serde_json::from_value(Value::String(mode.to_string()))?;
+        self.rpc()
+            .mode()
+            .set(ModeSetRequest { mode: parsed })
             .await?;
-        Ok(result
-            .get("mode")
-            .and_then(|v| v.as_str())
-            .unwrap_or(mode)
-            .to_string())
+        Ok(mode.to_string())
     }
 
     /// Get the current session mode.
     pub async fn get_mode(&self) -> Result<String, Error> {
-        let result = self
-            .client
-            .call(
-                "session.mode.get",
-                Some(serde_json::json!({ "sessionId": self.id })),
-            )
-            .await?;
-        Ok(result
-            .get("mode")
-            .and_then(|v| v.as_str())
+        let mode = self.rpc().mode().get().await?;
+        Ok(serde_json::to_value(mode)?
+            .as_str()
             .unwrap_or("interactive")
             .to_string())
     }
 
     /// Get the current session name.
     pub async fn get_name(&self) -> Result<Option<String>, Error> {
-        let result = self
-            .client
-            .call(
-                "session.name.get",
-                Some(serde_json::json!({ "sessionId": self.id })),
-            )
-            .await?;
-        Ok(result
-            .get("name")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()))
+        Ok(self.rpc().name().get().await?.name)
     }
 
     /// Set the current session name.
     pub async fn set_name(&self, name: &str) -> Result<(), Error> {
-        self.client
-            .call(
-                "session.name.set",
-                Some(serde_json::json!({
-                    "sessionId": self.id,
-                    "name": name,
-                })),
-            )
-            .await?;
-        Ok(())
+        self.rpc()
+            .name()
+            .set(NameSetRequest {
+                name: name.to_string(),
+            })
+            .await
     }
 
     /// Disconnect this session from the CLI.
@@ -437,102 +397,51 @@ impl Session {
 
     /// List files in the session workspace.
     pub async fn list_workspace_files(&self) -> Result<Vec<String>, Error> {
-        let result = self
-            .client
-            .call(
-                rpc_methods::SESSION_WORKSPACES_LISTFILES,
-                Some(serde_json::json!({ "sessionId": self.id })),
-            )
-            .await?;
-        let files = result
-            .get("files")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok(files)
+        Ok(self.rpc().workspaces().list_files().await?.files)
     }
 
     /// Read a file from the session workspace.
     pub async fn read_workspace_file(&self, path: &Path) -> Result<String, Error> {
-        let result = self
-            .client
-            .call(
-                rpc_methods::SESSION_WORKSPACES_READFILE,
-                Some(serde_json::json!({
-                    "sessionId": self.id,
-                    "path": path.to_string_lossy(),
-                })),
-            )
-            .await?;
-        Ok(result
-            .get("content")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string())
+        Ok(self
+            .rpc()
+            .workspaces()
+            .read_file(WorkspacesReadFileRequest {
+                path: path.to_string_lossy().into_owned(),
+            })
+            .await?
+            .content)
     }
 
     /// Create a file in the session workspace.
     pub async fn create_workspace_file(&self, path: &Path, content: &str) -> Result<(), Error> {
-        self.client
-            .call(
-                rpc_methods::SESSION_WORKSPACES_CREATEFILE,
-                Some(serde_json::json!({
-                    "sessionId": self.id,
-                    "path": path.to_string_lossy(),
-                    "content": content,
-                })),
-            )
-            .await?;
-        Ok(())
+        self.rpc()
+            .workspaces()
+            .create_file(WorkspacesCreateFileRequest {
+                path: path.to_string_lossy().into_owned(),
+                content: content.to_string(),
+            })
+            .await
     }
 
     /// Read the session plan.
     pub async fn read_plan(&self) -> Result<(bool, Option<String>), Error> {
-        let result = self
-            .client
-            .call(
-                "session.plan.read",
-                Some(serde_json::json!({ "sessionId": self.id })),
-            )
-            .await?;
-        let exists = result
-            .get("exists")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let content = result
-            .get("content")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        Ok((exists, content))
+        let r = self.rpc().plan().read().await?;
+        Ok((r.exists, r.content))
     }
 
     /// Update the session plan.
     pub async fn update_plan(&self, content: &str) -> Result<(), Error> {
-        self.client
-            .call(
-                "session.plan.update",
-                Some(serde_json::json!({
-                    "sessionId": self.id,
-                    "content": content,
-                })),
-            )
-            .await?;
-        Ok(())
+        self.rpc()
+            .plan()
+            .update(PlanUpdateRequest {
+                content: content.to_string(),
+            })
+            .await
     }
 
     /// Delete the session plan.
     pub async fn delete_plan(&self) -> Result<(), Error> {
-        self.client
-            .call(
-                "session.plan.delete",
-                Some(serde_json::json!({ "sessionId": self.id })),
-            )
-            .await?;
-        Ok(())
+        self.rpc().plan().delete().await
     }
 
     /// Write a log message to the session.
@@ -545,17 +454,17 @@ impl Session {
         opts: Option<crate::types::LogOptions>,
     ) -> Result<(), Error> {
         let opts = opts.unwrap_or_default();
-        let mut params = serde_json::json!({
-            "sessionId": self.id,
-            "message": message,
-        });
-        if let Some(level) = opts.level {
-            params["level"] = serde_json::to_value(level)?;
-        }
-        if let Some(ephemeral) = opts.ephemeral {
-            params["ephemeral"] = Value::Bool(ephemeral);
-        }
-        self.client.call("session.log", Some(params)).await?;
+        let level = match opts.level {
+            Some(level) => Some(serde_json::from_value(serde_json::to_value(level)?)?),
+            None => None,
+        };
+        let request = LogRequest {
+            message: message.to_string(),
+            level,
+            ephemeral: opts.ephemeral,
+            url: None,
+        };
+        self.rpc().log(request).await?;
         Ok(())
     }
 
@@ -714,18 +623,14 @@ impl Session {
 
     /// Start a fleet of sub-agents.
     pub async fn start_fleet(&self, prompt: Option<&str>) -> Result<bool, Error> {
-        let mut params = serde_json::json!({ "sessionId": self.id });
-        if let Some(p) = prompt {
-            params["prompt"] = Value::String(p.to_string());
-        }
-        let result = self
-            .client
-            .call("session.fleet.start", Some(params))
-            .await?;
-        Ok(result
-            .get("started")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false))
+        Ok(self
+            .rpc()
+            .fleet()
+            .start(crate::generated::api_types::FleetStartRequest {
+                prompt: prompt.map(|s| s.to_string()),
+            })
+            .await?
+            .started)
     }
 
     /// Generic RPC forwarder — auto-injects sessionId into params.

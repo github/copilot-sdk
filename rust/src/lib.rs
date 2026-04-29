@@ -633,6 +633,20 @@ impl Client {
         &self.inner.cwd
     }
 
+    /// Typed RPC namespace for server-level methods.
+    ///
+    /// Every protocol method lives here under its schema-aligned path —
+    /// e.g. `client.rpc().models().list()`. Wire method names and request/
+    /// response types are generated from the protocol schema, so the typed
+    /// namespace can't drift from the wire contract.
+    ///
+    /// The hand-authored helpers on [`Client`] delegate to this namespace
+    /// and remain the recommended entry point for everyday use; reach for
+    /// `rpc()` when you want a method without a hand-written wrapper.
+    pub fn rpc(&self) -> crate::generated::rpc::ClientRpc<'_> {
+        crate::generated::rpc::ClientRpc { client: self }
+    }
+
     /// Send a JSON-RPC request and wait for the response.
     pub(crate) async fn send_request(
         &self,
@@ -772,7 +786,9 @@ impl Client {
             Some(m) => serde_json::json!({ "message": m }),
             None => serde_json::json!({}),
         };
-        let value = self.call("ping", Some(params)).await?;
+        let value = self
+            .call(generated::api_types::rpc_methods::PING, Some(params))
+            .await?;
         Ok(serde_json::from_value(value)?)
     }
 
@@ -896,11 +912,7 @@ impl Client {
 
     /// List available models.
     pub async fn list_models(&self) -> Result<Vec<Model>, Error> {
-        let result = self
-            .call("models.list", Some(serde_json::json!({})))
-            .await?;
-        let response: ModelList = serde_json::from_value(result)?;
-        Ok(response.models)
+        Ok(self.rpc().models().list().await?.models)
     }
 
     /// Send a top-level telemetry event via `sendTelemetry`.
@@ -955,13 +967,7 @@ impl Client {
 
     /// Fetch account-level quota snapshots (request-based usage).
     pub async fn get_quota(&self) -> Result<generated::api_types::AccountGetQuotaResult, Error> {
-        let result = self
-            .call(
-                generated::api_types::rpc_methods::ACCOUNT_GETQUOTA,
-                Some(serde_json::json!({})),
-            )
-            .await?;
-        Ok(serde_json::from_value(result)?)
+        self.rpc().account().get_quota().await
     }
 
     /// Return the OS process ID of the CLI child process, if one was spawned.

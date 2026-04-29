@@ -127,6 +127,36 @@ session.start_fleet(Some("Implement the auth module")).await?;
 session.disconnect().await?;
 ```
 
+#### Typed RPC namespace
+
+The ergonomic helpers above are convenience wrappers over a fully-typed
+JSON-RPC namespace generated from the Copilot CLI schema. `Client::rpc()`
+and `Session::rpc()` give direct access to every method on the wire,
+including ones with no helper today, with strongly-typed request and
+response structs.
+
+```rust,ignore
+// Methods with helpers — wire strings live in one generated place.
+let files = session.rpc().workspaces().list_files().await?.files;
+let models = client.rpc().models().list().await?.models;
+
+// Methods with no helper — full schema-typed access.
+let agents = session.rpc().agent().list().await?.agents;
+let tasks = session.rpc().tasks().list().await?.tasks;
+let forked = client
+    .rpc()
+    .sessions()
+    .fork(copilot::generated::api_types::SessionsForkRequest {
+        session_id: "session-id".to_string(),
+        from_message_id: None,
+    })
+    .await?;
+```
+
+New RPCs land in the namespace immediately as the schema regenerates;
+helpers are added on top only when an ergonomic story is worth the
+maintenance.
+
 ### SessionHandler
 
 Implement this trait to control how a session responds to CLI events. Two styles are supported:

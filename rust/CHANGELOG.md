@@ -110,6 +110,19 @@ public surface.
 - Strongly-typed `Error` and `ProtocolError` with `is_transport_failure`
   classifier and `error_codes` constants.
 
+#### Typed RPC namespace
+- `Client::rpc()` and `Session::rpc()` accessors exposing a generated, typed
+  view over the full Copilot CLI JSON-RPC API. Sub-namespaces mirror the
+  schema (e.g. `client.rpc().models().list()`, `session.rpc().workspaces()
+  .list_files()`, `session.rpc().agent().list()`,
+  `session.rpc().tasks().list()`).
+- All hand-authored helpers (`list_workspace_files`, `read_plan`, `set_mode`,
+  `list_models`, `get_quota`, etc.) are now thin one-line delegations over
+  this namespace. Wire-method strings exist in exactly one place
+  (`generated/rpc.rs`), making typo bugs like the `session.workspace.*`
+  → `session.workspaces.*` regression structurally impossible. Public
+  helper signatures are unchanged.
+
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.
 - Examples under `examples/`: `chat`, `hooks`, `tool_server`,
