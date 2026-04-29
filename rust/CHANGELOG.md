@@ -116,6 +116,26 @@ public surface.
   Node, Python, Go, and .NET observe the request as a raw JSON-RPC
   callback today; parity ports for those SDKs are post-release follow-up
   work.
+- New session-event fields surfaced by the `@github/copilot ^1.0.39`
+  schema bump:
+  - `SessionErrorData.eligible_for_auto_switch: Option<bool>` — set on
+    `errorType: "rate_limit"` to signal the runtime will follow with an
+    `auto_mode_switch.requested` event. UI clients can suppress
+    duplicate rendering of the rate-limit error when they show their
+    own auto-mode-switch prompt.
+  - `SessionErrorData.error_code: Option<String>` — fine-grained
+    upstream provider error code (e.g.
+    `"user_weekly_rate_limited"`, `"integration_rate_limited"`).
+  - `SessionModelChangeData.cause: Option<String>` —
+    `"rate_limit_auto_switch"` for changes triggered by the
+    auto-mode-switch recovery path. Lets UI render contextual copy.
+  - `AutoModeSwitchRequestedData.retry_after_seconds: Option<f64>` —
+    seconds until the rate limit resets, when known. Clients can
+    render a humanized reset time alongside the prompt. (The request-
+    callback path's `retry_after_seconds` parameter on
+    [`SessionHandler::on_auto_mode_switch`](crate::handler::SessionHandler::on_auto_mode_switch)
+    uses `Option<u64>` for HTTP `Retry-After` `delta-seconds`
+    semantics.)
 
 #### Types
 - Newtype `SessionId`, plus generated RPC types under `github_copilot_sdk::generated`.
