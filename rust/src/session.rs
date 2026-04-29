@@ -23,6 +23,7 @@ use crate::handler::{
     UserInputResponse,
 };
 use crate::hooks::SessionHooks;
+use crate::session_fs::SessionFsProvider;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
@@ -700,6 +701,10 @@ impl Client {
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
         let command_handlers = build_command_handler_map(config.commands.as_deref());
+        let session_fs_provider = config.session_fs_provider.take();
+        if self.inner.session_fs_configured && session_fs_provider.is_none() {
+            return Err(Error::Session(SessionError::SessionFsProviderRequired));
+        }
 
         if hooks.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
@@ -726,6 +731,7 @@ impl Client {
             hooks,
             transforms,
             command_handlers,
+            session_fs_provider,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
@@ -763,6 +769,10 @@ impl Client {
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
         let command_handlers = build_command_handler_map(config.commands.as_deref());
+        let session_fs_provider = config.session_fs_provider.take();
+        if self.inner.session_fs_configured && session_fs_provider.is_none() {
+            return Err(Error::Session(SessionError::SessionFsProviderRequired));
+        }
 
         if hooks.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
@@ -819,6 +829,7 @@ impl Client {
             hooks,
             transforms,
             command_handlers,
+            session_fs_provider,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
@@ -861,6 +872,7 @@ fn spawn_event_loop(
     hooks: Option<Arc<dyn SessionHooks>>,
     transforms: Option<Arc<dyn SystemMessageTransform>>,
     command_handlers: Arc<CommandHandlerMap>,
+    session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<Mutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
@@ -883,7 +895,7 @@ fn spawn_event_loop(
                     }
                     Some(request) = requests.recv() => {
                         handle_request(
-                            &session_id, &client, &handler, hooks.as_deref(), transforms.as_deref(), request,
+                            &session_id, &client, &handler, hooks.as_deref(), transforms.as_deref(), session_fs_provider.as_ref(), request,
                         ).await;
                     }
                     else => break,
@@ -1346,9 +1358,15 @@ async fn handle_request(
     handler: &Arc<dyn SessionHandler>,
     hooks: Option<&dyn SessionHooks>,
     transforms: Option<&dyn SystemMessageTransform>,
+    session_fs_provider: Option<&Arc<dyn SessionFsProvider>>,
     request: crate::JsonRpcRequest,
 ) {
     let sid = session_id.clone();
+
+    if request.method.starts_with("sessionFs.") {
+        crate::session_fs_dispatch::dispatch(client, session_fs_provider, request).await;
+        return;
+    }
 
     match request.method.as_str() {
         "hooks.invoke" => {

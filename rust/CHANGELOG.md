@@ -223,6 +223,24 @@ public surface.
   `CommandContext` and `CommandDefinition` are `#[non_exhaustive]` so
   forward-compatible fields (e.g. aliases, completion providers) can land
   without breaking callers.
+- Custom session filesystem: new [`SessionFsProvider`] async trait,
+  [`SessionFsConfig`], [`FsError`], [`FileInfo`], [`DirEntry`],
+  [`DirEntryKind`], and [`SessionFsConventions`] in `crate::session_fs`
+  (also re-exported from `crate::types`). When [`ClientOptions::session_fs`]
+  is set, [`Client::start`] calls `sessionFs.setProvider` on the CLI to
+  delegate per-session filesystem operations to a provider supplied via
+  [`SessionConfig::with_session_fs_provider`] /
+  [`ResumeSessionConfig::with_session_fs_provider`]. Inbound `sessionFs.*`
+  requests dispatch to the provider; `FsError::NotFound` maps to the wire
+  `ENOENT` code and other `FsError` values map to `UNKNOWN`.
+  `From<std::io::Error>` is provided so handlers backed by `std::fs` /
+  `tokio::fs` can propagate errors with `?`. All trait methods have
+  default implementations returning `Err(FsError::Other("not supported"))`,
+  so providers only override the methods they need and forward-compatible
+  schema additions land without breaking existing implementations.
+  Diverges from Node/Python/Go's factory-closure pattern in favor of
+  direct `Arc<dyn SessionFsProvider>` registration — see
+  `docs/adr/0001-session-fs-provider.md` for the rationale.
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.

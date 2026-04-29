@@ -503,6 +503,49 @@ if err.is_transport_failure() {
 }
 ```
 
+## Differences From Other SDKs
+
+The Rust SDK aligns closely with the Node, Python, and Go SDKs but diverges
+in a few places where Rust idiom or the type system gives a clearly better
+shape. The notable case today:
+
+- **`SessionFsProvider` registration is direct, not factory-closure.** Where
+  Node/Python/Go accept a closure that the runtime calls on each
+  session-create to build a fresh provider, the Rust SDK takes
+  `Arc<dyn SessionFsProvider>` directly via
+  [`SessionConfig::with_session_fs_provider`]. The factory pattern doesn't
+  cleanly express in Rust at the session-config call site — there is no
+  `Session` value to thread in, and the SDK already prefers traits over
+  boxed closures for handler-shaped APIs (`SessionHandler`, `SessionHooks`,
+  `ToolHandler`). See
+  [`docs/adr/0001-session-fs-provider.md`](docs/adr/0001-session-fs-provider.md)
+  for the full design rationale, including the rejected factory variant
+  and a forward-compat escape hatch.
+
+```rust,ignore
+use std::sync::Arc;
+use github_copilot_sdk::session_fs::{SessionFsConfig, SessionFsConventions};
+
+let mut options = ClientOptions::default();
+options.session_fs = Some(SessionFsConfig::new(
+    "/workspace",
+    "/workspace/.copilot",
+    SessionFsConventions::Posix,
+));
+let client = Client::start(options).await?;
+
+let session = client
+    .create_session(
+        SessionConfig::default()
+            .with_handler(Arc::new(ApproveAllHandler))
+            .with_session_fs_provider(Arc::new(MyProvider::new())),
+    )
+    .await?;
+```
+
+See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
+in-memory provider implementation.
+
 ## Layout
 
 | File | Description |

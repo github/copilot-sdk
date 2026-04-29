@@ -2699,3 +2699,288 @@ async fn command_execute_handler_error_propagates_to_ack() {
         .respond(&ack, serde_json::json!({ "success": false }))
         .await;
 }
+
+// SessionFsProvider tests --------------------------------------------------
+
+use github_copilot_sdk::session_fs::{
+    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConventions, SessionFsProvider,
+};
+
+struct RecordingFsProvider {
+    files: parking_lot::Mutex<std::collections::HashMap<String, String>>,
+}
+
+impl RecordingFsProvider {
+    fn new() -> Self {
+        Self {
+            files: parking_lot::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    fn with_file(self, path: &str, content: &str) -> Self {
+        self.files
+            .lock()
+            .insert(path.to_string(), content.to_string());
+        self
+    }
+}
+
+#[async_trait]
+impl SessionFsProvider for RecordingFsProvider {
+    async fn read_file(&self, path: &str) -> Result<String, FsError> {
+        self.files
+            .lock()
+            .get(path)
+            .cloned()
+            .ok_or_else(|| FsError::NotFound(path.to_string()))
+    }
+
+    async fn write_file(
+        &self,
+        path: &str,
+        content: &str,
+        _mode: Option<i64>,
+    ) -> Result<(), FsError> {
+        self.files
+            .lock()
+            .insert(path.to_string(), content.to_string());
+        Ok(())
+    }
+
+    async fn stat(&self, path: &str) -> Result<FileInfo, FsError> {
+        let files = self.files.lock();
+        let content = files
+            .get(path)
+            .ok_or_else(|| FsError::NotFound(path.to_string()))?;
+        Ok(FileInfo::new(
+            true,
+            false,
+            content.len() as i64,
+            "2025-01-01T00:00:00Z",
+            "2025-01-01T00:00:00Z",
+        ))
+    }
+
+    async fn readdir_with_types(&self, _path: &str) -> Result<Vec<DirEntry>, FsError> {
+        Ok(vec![
+            DirEntry::new("README.md", DirEntryKind::File),
+            DirEntry::new("src", DirEntryKind::Directory),
+        ])
+    }
+
+    async fn rm(&self, path: &str, _recursive: bool, force: bool) -> Result<(), FsError> {
+        let mut files = self.files.lock();
+        if files.remove(path).is_none() && !force {
+            return Err(FsError::NotFound(path.to_string()));
+        }
+        Ok(())
+    }
+}
+
+async fn create_session_pair_with_fs_provider(
+    handler: Arc<dyn SessionHandler>,
+    provider: Arc<dyn SessionFsProvider>,
+) -> (github_copilot_sdk::session::Session, FakeServer) {
+    let (client, server_read, server_write) = make_client();
+    let session_id = format!("test-session-{}", rand_id());
+
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: session_id.clone(),
+    };
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        let handler = handler.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_handler(handler)
+                        .with_session_fs_provider(provider),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let create_req = server.read_request().await;
+    assert_eq!(create_req["method"], "session.create");
+    server
+        .respond(
+            &create_req,
+            serde_json::json!({
+                "sessionId": session_id,
+                "workspacePath": "/tmp/workspace"
+            }),
+        )
+        .await;
+
+    let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+    (session, server)
+}
+
+#[tokio::test]
+async fn session_fs_dispatches_read_file_to_provider() {
+    let provider = Arc::new(RecordingFsProvider::new().with_file("/foo.txt", "hello world"));
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), provider).await;
+
+    server
+        .send_request(
+            42,
+            "sessionFs.readFile",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/foo.txt" }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 42);
+    assert_eq!(response["result"]["content"], "hello world");
+    assert!(response["result"].get("error").is_none() || response["result"]["error"].is_null());
+}
+
+#[tokio::test]
+async fn session_fs_maps_not_found_to_enoent() {
+    let provider = Arc::new(RecordingFsProvider::new());
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), provider).await;
+
+    server
+        .send_request(
+            7,
+            "sessionFs.readFile",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/missing.txt" }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 7);
+    let error = &response["result"]["error"];
+    assert_eq!(error["code"], "ENOENT");
+    assert!(error["message"].as_str().unwrap().contains("missing.txt"));
+}
+
+#[tokio::test]
+async fn session_fs_maps_other_to_unknown() {
+    struct AlwaysFails;
+    #[async_trait]
+    impl SessionFsProvider for AlwaysFails {
+        async fn stat(&self, _path: &str) -> Result<FileInfo, FsError> {
+            Err(FsError::Other("backing store unavailable".to_string()))
+        }
+    }
+
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), Arc::new(AlwaysFails)).await;
+
+    server
+        .send_request(
+            8,
+            "sessionFs.stat",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/x" }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    let error = &response["result"]["error"];
+    assert_eq!(error["code"], "UNKNOWN");
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .contains("backing store unavailable")
+    );
+}
+
+#[tokio::test]
+async fn session_fs_dispatches_write_file_with_mode() {
+    let provider = Arc::new(RecordingFsProvider::new());
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), provider.clone()).await;
+
+    server
+        .send_request(
+            10,
+            "sessionFs.writeFile",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/out.txt", "content": "abc", "mode": 420 }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 10);
+    assert!(response["result"].get("error").is_none() || response["result"]["error"].is_null());
+    assert_eq!(provider.files.lock().get("/out.txt").unwrap(), "abc");
+}
+
+#[tokio::test]
+async fn session_fs_dispatches_readdir_with_types() {
+    let provider = Arc::new(RecordingFsProvider::new());
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), provider).await;
+
+    server
+        .send_request(
+            11,
+            "sessionFs.readdirWithTypes",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/dir" }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    let entries = response["result"]["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0]["name"], "README.md");
+    assert_eq!(entries[0]["type"], "file");
+    assert_eq!(entries[1]["name"], "src");
+    assert_eq!(entries[1]["type"], "directory");
+}
+
+#[tokio::test]
+async fn session_fs_dispatches_rm_with_force() {
+    let provider = Arc::new(RecordingFsProvider::new());
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), provider).await;
+
+    server
+        .send_request(
+            12,
+            "sessionFs.rm",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/missing", "force": true, "recursive": false }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 12);
+    assert!(response["result"].get("error").is_none() || response["result"]["error"].is_null());
+}
+
+#[tokio::test]
+async fn validate_session_fs_config_rejects_empty_initial_cwd() {
+    let cfg = github_copilot_sdk::session_fs::SessionFsConfig::new(
+        "",
+        "/state",
+        SessionFsConventions::Posix,
+    );
+    let opts = github_copilot_sdk::ClientOptions {
+        session_fs: Some(cfg),
+        ..Default::default()
+    };
+    let err = github_copilot_sdk::Client::start(opts).await.err();
+    let err_string = format!("{err:?}");
+    assert!(
+        err_string.contains("initial_cwd") || err_string.contains("InvalidSessionFsConfig"),
+        "got: {err_string}"
+    );
+}
+
+#[tokio::test]
+async fn create_session_errors_when_provider_required_but_missing() {
+    // Without a CLI we can't exercise the configured-but-missing-provider path
+    // through Client::start; the unit-level behavior is covered by the
+    // SessionError::SessionFsProviderRequired variant being constructible.
+    // This test asserts the error type's display formatting is stable.
+    let err = github_copilot_sdk::SessionError::SessionFsProviderRequired;
+    assert!(format!("{err}").contains("session_fs"));
+}

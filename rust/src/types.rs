@@ -14,6 +14,10 @@ use serde_json::Value;
 
 use crate::handler::SessionHandler;
 use crate::hooks::SessionHooks;
+pub use crate::session_fs::{
+    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConfig, SessionFsConventions,
+    SessionFsProvider,
+};
 use crate::transforms::SystemMessageTransform;
 
 /// Lifecycle state of a [`Client`](crate::Client) connection to the CLI.
@@ -762,6 +766,12 @@ pub struct SessionConfig {
     /// associated [`CommandHandler`] is called when executed.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Custom session filesystem provider for this session. Required when
+    /// the [`Client`](crate::Client) was started with
+    /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
+    /// See [`SessionFsProvider`] and `docs/adr/0001-session-fs-provider.md`.
+    #[serde(skip)]
+    pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Session-level event handler. The default is
     /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
     /// requests are denied; other events are no-ops. Use
@@ -821,6 +831,10 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field(
+                "session_fs_provider",
+                &self.session_fs_provider.as_ref().map(|_| "<set>"),
+            )
             .field("handler", &self.handler.as_ref().map(|_| "<set>"))
             .field(
                 "hooks_handler",
@@ -844,6 +858,14 @@ impl SessionConfig {
     /// config. See [`CommandDefinition`].
     pub fn with_commands(mut self, commands: Vec<CommandDefinition>) -> Self {
         self.commands = Some(commands);
+        self
+    }
+
+    /// Install a [`SessionFsProvider`] backing the session's filesystem.
+    /// Required when the [`Client`](crate::Client) was started with
+    /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
+    pub fn with_session_fs_provider(mut self, provider: Arc<dyn SessionFsProvider>) -> Self {
+        self.session_fs_provider = Some(provider);
         self
     }
 
@@ -1002,6 +1024,12 @@ pub struct ResumeSessionConfig {
     /// so the resume payload re-supplies the registration.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Custom session filesystem provider. Required on resume when the
+    /// [`Client`](crate::Client) was started with
+    /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
+    /// See [`SessionConfig::session_fs_provider`].
+    #[serde(skip)]
+    pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Force-fail resume if the session does not exist on disk, instead of
     /// silently starting a new session. Mirrors Node's
     /// `ResumeSessionConfig.disableResume`.
@@ -1053,6 +1081,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field(
+                "session_fs_provider",
+                &self.session_fs_provider.as_ref().map(|_| "<set>"),
+            )
             .field("handler", &self.handler.as_ref().map(|_| "<set>"))
             .field(
                 "hooks_handler",
@@ -1096,6 +1128,7 @@ impl ResumeSessionConfig {
             github_token: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            session_fs_provider: None,
             disable_resume: None,
             handler: None,
             hooks_handler: None,
@@ -1127,6 +1160,13 @@ impl ResumeSessionConfig {
     /// server-side, so the resume payload re-supplies the registration.
     pub fn with_commands(mut self, commands: Vec<CommandDefinition>) -> Self {
         self.commands = Some(commands);
+        self
+    }
+
+    /// Install a [`SessionFsProvider`] backing the resumed session's
+    /// filesystem. See [`SessionConfig::with_session_fs_provider`].
+    pub fn with_session_fs_provider(mut self, provider: Arc<dyn SessionFsProvider>) -> Self {
+        self.session_fs_provider = Some(provider);
         self
     }
 

@@ -17,6 +17,9 @@ pub mod resolve;
 mod router;
 /// Session management — create, resume, send messages, and interact with the agent.
 pub mod session;
+/// Custom session filesystem provider (virtualizable filesystem layer).
+pub mod session_fs;
+mod session_fs_dispatch;
 /// Event subscription handles returned by `subscribe()` methods.
 pub mod subscription;
 /// Typed tool definition framework and dispatch router.
@@ -239,6 +242,21 @@ pub enum SessionError {
         "elicitation not supported by host — check session.capabilities().ui.elicitation first"
     )]
     ElicitationNotSupported,
+
+    /// The client was started with [`ClientOptions::session_fs`] but this
+    /// session was created without a [`SessionFsProvider`]. Set one via
+    /// [`SessionConfig::with_session_fs_provider`] (or
+    /// [`ResumeSessionConfig::with_session_fs_provider`]).
+    #[error(
+        "session was created on a client with session_fs configured but no SessionFsProvider was supplied"
+    )]
+    SessionFsProviderRequired,
+
+    /// [`ClientOptions::session_fs`] was provided with empty or invalid
+    /// fields. All of `initial_cwd` and `session_state_path` must be
+    /// non-empty.
+    #[error("invalid SessionFsConfig: {0}")]
+    InvalidSessionFsConfig(String),
 }
 
 /// How the SDK communicates with the CLI server.
@@ -328,6 +346,15 @@ pub struct ClientOptions {
     /// from the Copilot CLI (e.g. external inference servers selected via
     /// [`Transport::External`]). Mirrors Node's `onListModels` option.
     pub on_list_models: Option<Arc<dyn ListModelsHandler>>,
+    /// Custom session filesystem provider configuration.
+    ///
+    /// When set, the SDK calls `sessionFs.setProvider` during
+    /// [`Client::start`] to register a virtualizable filesystem layer with
+    /// the CLI. Each session created on this client must supply its own
+    /// [`SessionFsProvider`] via
+    /// [`SessionConfig::with_session_fs_provider`](crate::SessionConfig::with_session_fs_provider).
+    /// Mirrors Node's `sessionFs` option. See `docs/adr/0001-session-fs-provider.md`.
+    pub session_fs: Option<SessionFsConfig>,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -354,6 +381,7 @@ impl std::fmt::Debug for ClientOptions {
                 "on_list_models",
                 &self.on_list_models.as_ref().map(|_| "<set>"),
             )
+            .field("session_fs", &self.session_fs)
             .finish()
     }
 }
@@ -428,8 +456,24 @@ impl Default for ClientOptions {
             log_level: None,
             session_idle_timeout_seconds: None,
             on_list_models: None,
+            session_fs: None,
         }
     }
+}
+
+/// Validate a [`SessionFsConfig`] before sending `sessionFs.setProvider`.
+fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<(), Error> {
+    if cfg.initial_cwd.trim().is_empty() {
+        return Err(Error::Session(SessionError::InvalidSessionFsConfig(
+            "initial_cwd must not be empty".to_string(),
+        )));
+    }
+    if cfg.session_state_path.trim().is_empty() {
+        return Err(Error::Session(SessionError::InvalidSessionFsConfig(
+            "session_state_path must not be empty".to_string(),
+        )));
+    }
+    Ok(())
 }
 
 /// Connection to a Copilot CLI server (stdio, TCP, or external).
@@ -462,6 +506,7 @@ struct ClientInner {
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
     on_list_models: Option<Arc<dyn ListModelsHandler>>,
+    session_fs_configured: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -489,7 +534,14 @@ impl Client {
     ///
     /// After establishing the connection, calls [`verify_protocol_version`](Self::verify_protocol_version)
     /// to ensure the CLI server speaks a compatible protocol version.
+    /// When [`ClientOptions::session_fs`] is set, also calls
+    /// `sessionFs.setProvider` to register the SDK as the filesystem
+    /// backend.
     pub async fn start(options: ClientOptions) -> Result<Self, Error> {
+        if let Some(cfg) = &options.session_fs {
+            validate_session_fs_config(cfg)?;
+        }
+        let session_fs_config = options.session_fs.clone();
         let program = match &options.program {
             CliProgram::Path(path) => {
                 info!(path = %path.display(), "using explicit copilot CLI path");
@@ -520,7 +572,14 @@ impl Client {
                 info!(host = %host, port = %port, "connecting to external CLI server");
                 let stream = TcpStream::connect((host.as_str(), port)).await?;
                 let (reader, writer) = tokio::io::split(stream);
-                Self::from_transport(reader, writer, None, options.cwd, options.on_list_models)?
+                Self::from_transport(
+                    reader,
+                    writer,
+                    None,
+                    options.cwd,
+                    options.on_list_models,
+                    session_fs_config.is_some(),
+                )?
             }
             Transport::Tcp { port } => {
                 let (mut child, actual_port) = Self::spawn_tcp(&program, &options, port).await?;
@@ -533,6 +592,7 @@ impl Client {
                     Some(child),
                     options.cwd,
                     options.on_list_models,
+                    session_fs_config.is_some(),
                 )?
             }
             Transport::Stdio => {
@@ -546,11 +606,20 @@ impl Client {
                     Some(child),
                     options.cwd,
                     options.on_list_models,
+                    session_fs_config.is_some(),
                 )?
             }
         };
 
         client.verify_protocol_version().await?;
+        if let Some(cfg) = session_fs_config {
+            let request = crate::generated::api_types::SessionFsSetProviderRequest {
+                conventions: cfg.conventions.into_wire(),
+                initial_cwd: cfg.initial_cwd,
+                session_state_path: cfg.session_state_path,
+            };
+            client.rpc().session_fs().set_provider(request).await?;
+        }
         Ok(client)
     }
 
@@ -573,7 +642,7 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None)
+        Self::from_transport(reader, writer, None, cwd, None, false)
     }
 
     fn from_transport(
@@ -582,6 +651,7 @@ impl Client {
         child: Option<Child>,
         cwd: PathBuf,
         on_list_models: Option<Arc<dyn ListModelsHandler>>,
+        session_fs_configured: bool,
     ) -> Result<Self, Error> {
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
         let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
@@ -608,6 +678,7 @@ impl Client {
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
                 on_list_models,
+                session_fs_configured,
             }),
         };
         client.spawn_lifecycle_dispatcher();
@@ -1542,6 +1613,7 @@ mod tests {
             state: parking_lot::Mutex::new(ConnectionState::Connected),
             lifecycle_tx: broadcast::channel(16).0,
             on_list_models: Some(handler),
+            session_fs_configured: false,
         };
         let client = Client {
             inner: Arc::new(inner),

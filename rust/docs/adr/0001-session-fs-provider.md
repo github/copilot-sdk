@@ -1,6 +1,6 @@
 # ADR 0001: SessionFsProvider trait and plumbing
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-04-29
 - **Deciders:** @tclem and Rust SDK working group
 - **Phase:** Public release § 4.2 (last-mile parity gap before 1.0)
