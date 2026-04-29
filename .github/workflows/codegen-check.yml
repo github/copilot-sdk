@@ -42,6 +42,17 @@ jobs:
           toolchain: "1.94.0"
           components: rustfmt
 
+      # Nightly rustfmt for unstable format options (group_imports,
+      # imports_granularity, reorder_impl_items) — pinned in
+      # `rust/.rustfmt.nightly.toml`. The Rust generator emits unconsolidated
+      # imports under stable rustfmt; nightly fmt consolidates them to match
+      # the canonical committed form.
+      - name: Install nightly rustfmt
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
+          components: rustfmt
+
       - name: Install nodejs SDK dependencies
         working-directory: ./nodejs
         run: npm ci
@@ -53,6 +64,10 @@ jobs:
       - name: Run codegen
         working-directory: ./scripts/codegen
         run: npm run generate
+
+      - name: Apply nightly rustfmt to generated Rust output
+        working-directory: ./rust
+        run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
 
       - name: Check for uncommitted changes
         run: |

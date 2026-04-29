@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
-use copilot::handler::ApproveAllHandler;
-use copilot::tool::{ToolHandlerRouter, define_tool};
-use copilot::types::{CustomAgentConfig, DefaultAgentConfig, SessionConfig, ToolResult};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::tool::{ToolHandlerRouter, define_tool};
+use github_copilot_sdk::types::{CustomAgentConfig, DefaultAgentConfig, SessionConfig, ToolResult};
+use github_copilot_sdk::{Client, ClientOptions};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -18,12 +18,10 @@ struct AnalyzeParams {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
     let analyze_codebase = define_tool(
         "analyze-codebase",
@@ -39,33 +37,31 @@ async fn main() -> Result<(), copilot::Error> {
     let router = ToolHandlerRouter::new(vec![analyze_codebase], Arc::new(ApproveAllHandler));
     let tools = router.tools();
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        tools: Some(tools),
-        default_agent: Some(DefaultAgentConfig {
-            excluded_tools: Some(vec!["analyze-codebase".to_string()]),
-        }),
-        custom_agents: Some(vec![CustomAgentConfig {
-            name: "researcher".to_string(),
-            display_name: Some("Research Agent".to_string()),
-            description: Some(
-                "A research agent that can only read and search files, not modify them"
-                    .to_string(),
-            ),
-            tools: Some(vec![
-                "grep".to_string(),
-                "glob".to_string(),
-                "view".to_string(),
-                "analyze-codebase".to_string(),
-            ]),
-            prompt: "You are a research assistant. You can search and read files but cannot modify \
-                     anything. When asked about your capabilities, list the tools you have access to."
-                .to_string(),
-            ..Default::default()
-        }]),
-        ..Default::default()
-    }
-    .with_handler(Arc::new(router));
+    let mut researcher = CustomAgentConfig::default();
+    researcher.name = "researcher".to_string();
+    researcher.display_name = Some("Research Agent".to_string());
+    researcher.description = Some(
+        "A research agent that can only read and search files, not modify them".to_string(),
+    );
+    researcher.tools = Some(vec![
+        "grep".to_string(),
+        "glob".to_string(),
+        "view".to_string(),
+        "analyze-codebase".to_string(),
+    ]);
+    researcher.prompt =
+        "You are a research assistant. You can search and read files but cannot modify \
+                  anything. When asked about your capabilities, list the tools you have access to."
+            .to_string();
+
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    config.tools = Some(tools);
+    config.default_agent = Some(DefaultAgentConfig {
+        excluded_tools: Some(vec!["analyze-codebase".to_string()]),
+    });
+    config.custom_agents = Some(vec![researcher]);
+    let config = config.with_handler(Arc::new(router));
 
     let session = client.create_session(config).await?;
 

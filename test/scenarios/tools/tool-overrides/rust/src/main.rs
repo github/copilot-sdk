@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
-use copilot::handler::ApproveAllHandler;
-use copilot::tool::{ToolHandlerRouter, define_tool};
-use copilot::types::{SessionConfig, ToolResult};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::tool::{ToolHandlerRouter, define_tool};
+use github_copilot_sdk::types::{SessionConfig, ToolResult};
+use github_copilot_sdk::{Client, ClientOptions};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -18,12 +18,10 @@ struct GrepParams {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
     let grep_tool = define_tool(
         "grep",
@@ -41,12 +39,10 @@ async fn main() -> Result<(), copilot::Error> {
         }
     }
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        tools: Some(tools),
-        ..Default::default()
-    }
-    .with_handler(Arc::new(router));
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    config.tools = Some(tools);
+    let config = config.with_handler(Arc::new(router));
 
     let session = client.create_session(config).await?;
 

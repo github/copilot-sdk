@@ -2,32 +2,28 @@
 
 use std::sync::Arc;
 
-use copilot::handler::ApproveAllHandler;
-use copilot::types::{SessionConfig, SystemMessageConfig};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::types::{SessionConfig, SystemMessageConfig};
+use github_copilot_sdk::{Client, ClientOptions};
 
 const PIRATE_PROMPT: &str = "You are a pirate. Always respond in pirate speak. Say 'Arrr!' \
 in every response. Use nautical terms and pirate slang throughout.";
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        system_message: Some(SystemMessageConfig {
-            mode: Some("replace".to_string()),
-            content: Some(PIRATE_PROMPT.to_string()),
-            ..Default::default()
-        }),
-        available_tools: Some(Vec::new()),
-        ..Default::default()
-    }
-    .with_handler(Arc::new(ApproveAllHandler));
+    let mut sysmsg = SystemMessageConfig::default();
+    sysmsg.mode = Some("replace".to_string());
+    sysmsg.content = Some(PIRATE_PROMPT.to_string());
+
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    config.system_message = Some(sysmsg);
+    config.available_tools = Some(Vec::new());
+    let config = config.with_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 

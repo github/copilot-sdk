@@ -4,10 +4,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use copilot::handler::{PermissionResult, SessionHandler, UserInputResponse};
-use copilot::hooks::{HookContext, PreToolUseInput, PreToolUseOutput, SessionHooks};
-use copilot::types::{PermissionRequestData, RequestId, SessionConfig, SessionId};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::{PermissionResult, SessionHandler, UserInputResponse};
+use github_copilot_sdk::hooks::{HookContext, PreToolUseInput, PreToolUseOutput, SessionHooks};
+use github_copilot_sdk::types::{PermissionRequestData, RequestId, SessionConfig, SessionId};
+use github_copilot_sdk::{Client, ClientOptions};
 use tokio::sync::Mutex;
 
 struct InputResponder {
@@ -52,33 +52,29 @@ impl SessionHooks for AllowAllHooks {
         _input: PreToolUseInput,
         _ctx: HookContext,
     ) -> Option<PreToolUseOutput> {
-        Some(PreToolUseOutput {
-            permission_decision: Some("allow".to_string()),
-            ..Default::default()
-        })
+        let mut out = PreToolUseOutput::default();
+        out.permission_decision = Some("allow".to_string());
+        Some(out)
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
     let input_log = Arc::new(Mutex::new(Vec::<String>::new()));
     let handler = Arc::new(InputResponder {
         log: input_log.clone(),
     });
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        request_user_input: Some(true),
-        ..Default::default()
-    }
-    .with_handler(handler)
-    .with_hooks(Arc::new(AllowAllHooks));
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    config.request_user_input = Some(true);
+    let config = config
+        .with_handler(handler)
+        .with_hooks(Arc::new(AllowAllHooks));
 
     let session = client.create_session(config).await?;
 

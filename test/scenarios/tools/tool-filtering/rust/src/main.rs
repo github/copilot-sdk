@@ -3,36 +3,32 @@
 
 use std::sync::Arc;
 
-use copilot::handler::ApproveAllHandler;
-use copilot::types::{SessionConfig, SystemMessageConfig};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::types::{SessionConfig, SystemMessageConfig};
+use github_copilot_sdk::{Client, ClientOptions};
 
 const SYSTEM_PROMPT: &str = "You are a helpful assistant. You have access to a limited set \
 of tools. When asked about your tools, list exactly which tools you have available.";
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        system_message: Some(SystemMessageConfig {
-            mode: Some("replace".to_string()),
-            content: Some(SYSTEM_PROMPT.to_string()),
-            ..Default::default()
-        }),
-        available_tools: Some(vec![
-            "grep".to_string(),
-            "glob".to_string(),
-            "view".to_string(),
-        ]),
-        ..Default::default()
-    }
-    .with_handler(Arc::new(ApproveAllHandler));
+    let mut sysmsg = SystemMessageConfig::default();
+    sysmsg.mode = Some("replace".to_string());
+    sysmsg.content = Some(SYSTEM_PROMPT.to_string());
+
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    config.system_message = Some(sysmsg);
+    config.available_tools = Some(vec![
+        "grep".to_string(),
+        "glob".to_string(),
+        "view".to_string(),
+    ]);
+    let config = config.with_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 

@@ -5,10 +5,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use copilot::handler::ApproveAllHandler;
-use copilot::hooks::{HookContext, PreToolUseInput, PreToolUseOutput, SessionHooks};
-use copilot::types::SessionConfig;
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::hooks::{HookContext, PreToolUseInput, PreToolUseOutput, SessionHooks};
+use github_copilot_sdk::types::SessionConfig;
+use github_copilot_sdk::{Client, ClientOptions};
 
 struct AllowAllHooks;
 
@@ -19,33 +19,29 @@ impl SessionHooks for AllowAllHooks {
         _input: PreToolUseInput,
         _ctx: HookContext,
     ) -> Option<PreToolUseOutput> {
-        Some(PreToolUseOutput {
-            permission_decision: Some("allow".to_string()),
-            ..Default::default()
-        })
+        let mut out = PreToolUseOutput::default();
+        out.permission_decision = Some("allow".to_string());
+        Some(out)
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
     // CARGO_MANIFEST_DIR resolves to .../tools/skills/rust at compile time.
     let skills_dir: PathBuf = [env!("CARGO_MANIFEST_DIR"), "..", "sample-skills"]
         .iter()
         .collect();
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        skill_directories: Some(vec![skills_dir]),
-        ..Default::default()
-    }
-    .with_handler(Arc::new(ApproveAllHandler))
-    .with_hooks(Arc::new(AllowAllHooks));
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    config.skill_directories = Some(vec![skills_dir]);
+    let config = config
+        .with_handler(Arc::new(ApproveAllHandler))
+        .with_hooks(Arc::new(AllowAllHooks));
 
     let session = client.create_session(config).await?;
 

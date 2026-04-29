@@ -4,14 +4,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use copilot::handler::ApproveAllHandler;
-use copilot::hooks::{
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::hooks::{
     ErrorOccurredInput, ErrorOccurredOutput, HookContext, PostToolUseInput, PostToolUseOutput,
     PreToolUseInput, PreToolUseOutput, SessionEndInput, SessionEndOutput, SessionHooks,
     SessionStartInput, SessionStartOutput, UserPromptSubmittedInput, UserPromptSubmittedOutput,
 };
-use copilot::types::SessionConfig;
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::types::SessionConfig;
+use github_copilot_sdk::{Client, ClientOptions};
 use tokio::sync::Mutex;
 
 struct HookLogger {
@@ -51,10 +51,9 @@ impl SessionHooks for HookLogger {
     ) -> Option<PreToolUseOutput> {
         self.append(format!("onPreToolUse:{}", input.tool_name))
             .await;
-        Some(PreToolUseOutput {
-            permission_decision: Some("allow".to_string()),
-            ..Default::default()
-        })
+        let mut out = PreToolUseOutput::default();
+        out.permission_decision = Some("allow".to_string());
+        Some(out)
     }
 
     async fn on_post_tool_use(
@@ -73,10 +72,9 @@ impl SessionHooks for HookLogger {
         _ctx: HookContext,
     ) -> Option<UserPromptSubmittedOutput> {
         self.append("onUserPromptSubmitted".to_string()).await;
-        Some(UserPromptSubmittedOutput {
-            modified_prompt: Some(input.prompt),
-            ..Default::default()
-        })
+        let mut out = UserPromptSubmittedOutput::default();
+        out.modified_prompt = Some(input.prompt);
+        Some(out)
     }
 
     async fn on_error_occurred(
@@ -91,24 +89,21 @@ impl SessionHooks for HookLogger {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
     let hook_log = Arc::new(Mutex::new(Vec::<String>::new()));
     let hooks = Arc::new(HookLogger {
         log: hook_log.clone(),
     });
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        ..Default::default()
-    }
-    .with_handler(Arc::new(ApproveAllHandler))
-    .with_hooks(hooks);
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    let config = config
+        .with_handler(Arc::new(ApproveAllHandler))
+        .with_hooks(hooks);
 
     let session = client.create_session(config).await?;
 

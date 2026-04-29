@@ -107,6 +107,6 @@ jobs:
         continue-on-error: true
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
-          package: copilot-sdk
+          package: github-copilot-sdk
           manifest-path: rust/Cargo.toml
 

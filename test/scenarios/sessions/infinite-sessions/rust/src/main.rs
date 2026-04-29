@@ -3,36 +3,32 @@
 
 use std::sync::Arc;
 
-use copilot::handler::ApproveAllHandler;
-use copilot::types::{InfiniteSessionConfig, SessionConfig, SystemMessageConfig};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::types::{InfiniteSessionConfig, SessionConfig, SystemMessageConfig};
+use github_copilot_sdk::{Client, ClientOptions};
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        available_tools: Some(Vec::new()),
-        system_message: Some(SystemMessageConfig {
-            mode: Some("replace".to_string()),
-            content: Some(
-                "You are a helpful assistant. Answer concisely in one sentence.".to_string(),
-            ),
-            ..Default::default()
-        }),
-        infinite_sessions: Some(InfiniteSessionConfig {
-            enabled: Some(true),
-            background_compaction_threshold: Some(0.80),
-            buffer_exhaustion_threshold: Some(0.95),
-        }),
-        ..Default::default()
-    }
-    .with_handler(Arc::new(ApproveAllHandler));
+    let mut sysmsg = SystemMessageConfig::default();
+    sysmsg.mode = Some("replace".to_string());
+    sysmsg.content =
+        Some("You are a helpful assistant. Answer concisely in one sentence.".to_string());
+
+    let mut infinite = InfiniteSessionConfig::default();
+    infinite.enabled = Some(true);
+    infinite.background_compaction_threshold = Some(0.80);
+    infinite.buffer_exhaustion_threshold = Some(0.95);
+
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    config.available_tools = Some(Vec::new());
+    config.system_message = Some(sysmsg);
+    config.infinite_sessions = Some(infinite);
+    let config = config.with_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 

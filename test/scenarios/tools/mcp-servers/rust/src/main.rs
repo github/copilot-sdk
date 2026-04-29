@@ -2,49 +2,50 @@
 //! the CLI via `SessionConfig::mcp_servers`. Build-only when
 //! `MCP_SERVER_CMD` is unset.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use copilot::handler::ApproveAllHandler;
-use copilot::types::{SessionConfig, SystemMessageConfig};
-use copilot::{Client, ClientOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::types::{
+    McpServerConfig, McpStdioServerConfig, SessionConfig, SystemMessageConfig,
+};
+use github_copilot_sdk::{Client, ClientOptions};
 
 #[tokio::main]
-async fn main() -> Result<(), copilot::Error> {
-    let client = Client::start(ClientOptions {
-        github_token: std::env::var("GITHUB_TOKEN").ok(),
-        ..Default::default()
-    })
-    .await?;
+async fn main() -> Result<(), github_copilot_sdk::Error> {
+    let mut opts = ClientOptions::default();
+    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
+    let client = Client::start(opts).await?;
 
     let mcp_cmd = std::env::var("MCP_SERVER_CMD").ok();
     let mcp_args_env = std::env::var("MCP_SERVER_ARGS").ok();
     let mcp_servers = mcp_cmd.as_ref().map(|cmd| {
-        let args: Vec<&str> = mcp_args_env
+        let args: Vec<String> = mcp_args_env
             .as_deref()
-            .map(|s| s.split(' ').collect())
+            .map(|s| s.split(' ').map(str::to_string).collect())
             .unwrap_or_default();
-        serde_json::json!({
-            "example": {
-                "type": "stdio",
-                "command": cmd,
-                "args": args,
-                "tools": ["*"],
-            }
-        })
+        let stdio = McpStdioServerConfig {
+            tools: vec!["*".to_string()],
+            command: cmd.clone(),
+            args,
+            ..Default::default()
+        };
+        let mut map = HashMap::new();
+        map.insert("example".to_string(), McpServerConfig::Stdio(stdio));
+        map
     });
 
-    let config = SessionConfig {
-        model: Some("claude-haiku-4.5".to_string()),
-        system_message: Some(SystemMessageConfig {
-            mode: Some("replace".to_string()),
-            content: Some("You are a helpful assistant. Answer questions concisely.".to_string()),
-            ..Default::default()
-        }),
-        available_tools: Some(Vec::new()),
-        mcp_servers,
-        ..Default::default()
-    }
-    .with_handler(Arc::new(ApproveAllHandler));
+    let mut sysmsg = SystemMessageConfig::default();
+    sysmsg.mode = Some("replace".to_string());
+    sysmsg.content =
+        Some("You are a helpful assistant. Answer questions concisely.".to_string());
+
+    let mut config = SessionConfig::default();
+    config.model = Some("claude-haiku-4.5".to_string());
+    config.system_message = Some(sysmsg);
+    config.available_tools = Some(Vec::new());
+    config.mcp_servers = mcp_servers;
+    let config = config.with_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 

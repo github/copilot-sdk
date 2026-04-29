@@ -5,6 +5,6 @@ edition = "2024"
 publish = false
 
 [dependencies]
-copilot-sdk = { path = "../../../../../rust" }
+github-copilot-sdk = { path = "../../../../../rust" }
 async-trait = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
