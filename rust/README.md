@@ -520,10 +520,7 @@ ergonomics the dynamically-typed SDKs don't.
   cleanly express in Rust at the session-config call site — there is no
   `Session` value to thread in, and the SDK already prefers traits over
   boxed closures for handler-shaped APIs (`SessionHandler`, `SessionHooks`,
-  `ToolHandler`). See
-  [`docs/adr/0001-session-fs-provider.md`](docs/adr/0001-session-fs-provider.md)
-  for the full design rationale, including the rejected factory variant
-  and a forward-compat escape hatch.
+  `ToolHandler`).
 
 ```rust,ignore
 use std::sync::Arc;

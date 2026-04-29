@@ -356,7 +356,6 @@ pub struct ClientOptions {
     /// the CLI. Each session created on this client must supply its own
     /// [`SessionFsProvider`] via
     /// [`SessionConfig::with_session_fs_provider`](crate::SessionConfig::with_session_fs_provider).
-    /// See `docs/adr/0001-session-fs-provider.md`.
     pub session_fs: Option<SessionFsConfig>,
     /// Optional [`TraceContextProvider`] used to inject W3C Trace Context
     /// headers (`traceparent` / `tracestate`) on outbound `session.create`,

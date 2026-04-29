@@ -5,11 +5,6 @@
 //! sessions, projecting files into virtual storage, or applying permission
 //! policies before bytes are read or written.
 //!
-//! See `docs/adr/0001-session-fs-provider.md` for the design rationale,
-//! including why this SDK uses direct `Arc<dyn SessionFsProvider>`
-//! registration rather than the factory-closure pattern used by the Node,
-//! Python, and Go SDKs.
-//!
 //! ```sh
 //! cargo run -p github-copilot-sdk --example session_fs
 //! ```

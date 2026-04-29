@@ -767,7 +767,7 @@ pub struct SessionConfig {
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
-    /// See [`SessionFsProvider`] and `docs/adr/0001-session-fs-provider.md`.
+    /// See [`SessionFsProvider`].
     #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Session-level event handler. The default is

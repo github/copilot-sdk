@@ -6,11 +6,6 @@
 //! applications sandbox sessions, project files into in-memory or remote
 //! storage, and apply permission policies before bytes move.
 //!
-//! See `rust/docs/adr/0001-session-fs-provider.md` for the full design
-//! rationale, including why this SDK uses direct `Arc<dyn SessionFsProvider>`
-//! registration rather than the factory-closure pattern used by Node, Python,
-//! and Go.
-//!
 //! # Concurrency
 //!
 //! Each inbound `sessionFs.*` request is dispatched on its own spawned task,

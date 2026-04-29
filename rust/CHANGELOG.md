@@ -274,8 +274,7 @@ public surface.
   so providers only override the methods they need and forward-compatible
   schema additions land without breaking existing implementations.
   Diverges from Node/Python/Go's factory-closure pattern in favor of
-  direct `Arc<dyn SessionFsProvider>` registration — see
-  `docs/adr/0001-session-fs-provider.md` for the rationale.
+  direct `Arc<dyn SessionFsProvider>` registration.
 - W3C Trace Context propagation: new [`TraceContext`] struct and
   [`TraceContextProvider`] async trait in `crate::trace_context` (also
   re-exported from `crate::types`). Hybrid shape combines Node's
