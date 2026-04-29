@@ -59,6 +59,15 @@ impl SessionRouter {
         self.sessions.lock().remove(session_id.as_str());
     }
 
+    /// Snapshot every currently-registered session ID.
+    ///
+    /// Used by [`Client::stop`](crate::Client::stop) to iterate active
+    /// sessions for cooperative shutdown without holding the router lock
+    /// across `.await`.
+    pub(crate) fn session_ids(&self) -> Vec<SessionId> {
+        self.sessions.lock().keys().cloned().collect()
+    }
+
     /// Drop all registered session channels.
     ///
     /// Used by [`Client::force_stop`](crate::Client::force_stop) to release

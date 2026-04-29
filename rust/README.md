@@ -20,7 +20,7 @@ let session = client.create_session(
 ).await?;
 let _message_id = session.send("Hello!").await?;
 session.disconnect().await?;
-client.stop().await?;
+client.stop().await.ok();
 # Ok(())
 # }
 ```

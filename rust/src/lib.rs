@@ -113,6 +113,55 @@ impl Error {
     }
 }
 
+/// Aggregate of errors collected during [`Client::stop`].
+///
+/// `Client::stop` performs cooperative shutdown across every active
+/// session before killing the CLI child process. Errors from any
+/// per-session `session.destroy` RPC and from the terminal child-kill
+/// step are collected here rather than short-circuiting on the first
+/// failure, so callers see the full picture of what went wrong during
+/// teardown.
+///
+/// Implements [`std::error::Error`] and forwards to `Display` for the
+/// first error, with a count suffix when there are more.
+#[derive(Debug)]
+pub struct StopErrors(Vec<Error>);
+
+impl StopErrors {
+    /// Borrow the collected errors as a slice, in the order they
+    /// occurred (per-session destroys first, then child-kill last).
+    pub fn errors(&self) -> &[Error] {
+        &self.0
+    }
+
+    /// Consume the aggregate and return the underlying error vector.
+    pub fn into_errors(self) -> Vec<Error> {
+        self.0
+    }
+}
+
+impl std::fmt::Display for StopErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0.as_slice() {
+            [] => write!(f, "stop completed with no errors"),
+            [only] => write!(f, "stop failed: {only}"),
+            [first, rest @ ..] => write!(
+                f,
+                "stop failed with {n} errors; first: {first}",
+                n = 1 + rest.len(),
+            ),
+        }
+    }
+}
+
+impl std::error::Error for StopErrors {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.0
+            .first()
+            .map(|e| e as &(dyn std::error::Error + 'static))
+    }
+}
+
 /// Specific protocol-level errors in the JSON-RPC transport or CLI lifecycle.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -981,18 +1030,61 @@ impl Client {
         self.inner.child.lock().as_ref().and_then(|c| c.id())
     }
 
-    /// Stop the CLI process.
-    pub async fn stop(&self) -> Result<(), Error> {
+    /// Cooperatively shut down the client and the CLI child process.
+    ///
+    /// Walks every still-registered session and sends `session.destroy`
+    /// for each one, then kills the CLI child. Errors from per-session
+    /// destroys and the final child-kill are collected into
+    /// [`StopErrors`] rather than short-circuiting on the first failure
+    /// — so callers see the full picture of teardown.
+    ///
+    /// If you have already called [`Session::disconnect`] on every
+    /// session this client created, the per-session destroy step is a
+    /// no-op (the router map is empty); only the child-kill remains.
+    ///
+    /// [`Session::disconnect`]: crate::session::Session::disconnect
+    pub async fn stop(&self) -> Result<(), StopErrors> {
         let pid = self.pid();
         info!(pid = ?pid, "stopping CLI process");
-        let Some(mut child) = self.inner.child.lock().take() else {
-            *self.inner.state.lock() = ConnectionState::Disconnected;
-            return Ok(());
-        };
-        child.kill().await?;
+        let mut errors: Vec<Error> = Vec::new();
+
+        // Snapshot the registered session IDs without holding the router
+        // lock across the destroy RPCs.
+        for session_id in self.inner.router.session_ids() {
+            match self
+                .call(
+                    "session.destroy",
+                    Some(serde_json::json!({ "sessionId": session_id })),
+                )
+                .await
+            {
+                Ok(_) => {}
+                Err(e) => {
+                    warn!(
+                        session_id = %session_id,
+                        error = %e,
+                        "session.destroy failed during Client::stop",
+                    );
+                    errors.push(e);
+                }
+            }
+            self.inner.router.unregister(&session_id);
+        }
+
+        let child = self.inner.child.lock().take();
         *self.inner.state.lock() = ConnectionState::Disconnected;
-        info!(pid = ?pid, "CLI process stopped");
-        Ok(())
+        if let Some(mut child) = child
+            && let Err(e) = child.kill().await
+        {
+            errors.push(Error::Io(e));
+        }
+
+        info!(pid = ?pid, errors = errors.len(), "CLI process stopped");
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(StopErrors(errors))
+        }
     }
 
     /// Forcibly stop the CLI process without waiting for it to exit.

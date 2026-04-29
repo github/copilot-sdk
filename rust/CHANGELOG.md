@@ -144,6 +144,16 @@ public surface.
   `{ "kind": "user-not-available" }`) and `NoResult` (sent as
   `{ "kind": "no-result" }`) variants for headless agents and explicit
   fall-through-to-CLI-default responses.
+- `Client::stop` cooperatively shuts down active sessions before killing
+  the CLI child: walks every session still registered with the client,
+  sends `session.destroy` for each, then kills the child. Errors from
+  per-session destroys and the terminal child-kill are collected into a
+  new `StopErrors` aggregate (`Result<(), StopErrors>`) instead of
+  short-circuiting on the first failure, mirroring the Node SDK's
+  `Error[]` return shape. `StopErrors` implements `std::error::Error`
+  and exposes `errors()` / `into_errors()` for inspection. Callers that
+  previously used `client.stop().await?` should switch to
+  `client.stop().await.ok();` (best-effort) or match on the aggregate.
 - `ResumeSessionConfig::disable_resume: Option<bool>` — force-fail resume
   if the session does not exist on disk, instead of silently starting a
   new session.
@@ -166,10 +176,8 @@ public surface.
   default-omit-on-the-wire semantics as Node/Go: when `None`, the field
   is skipped and the CLI applies its own default. No behavioral
   divergence from the other SDKs.
-- `Client::stop` returns `Result<(), Error>` and currently kills the CLI
-  child process on the first failure rather than aggregating shutdown
-  errors across active sessions (Node returns `Error[]`). The Rust
-  `Client` does not yet hold strong/weak handles to its `Session`s — the
-  router only tracks per-session channel senders — so there is nothing
-  to iterate disconnect-then-kill across. Aggregation will land alongside
-  a Client-level session registry; tracked as Bucket B.
+- `Client::stop` returns `Result<(), StopErrors>` and now cooperatively
+  shuts down each active session via `session.destroy` before killing
+  the CLI child, aggregating all per-session and child-kill errors into
+  the returned `StopErrors`. See the entry under "Configuration parity"
+  above for the migration note.

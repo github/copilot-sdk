@@ -2230,3 +2230,104 @@ async fn rpc_namespace_client_models_list_dispatches_correctly() {
     let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     assert!(result.models.is_empty());
 }
+
+#[tokio::test]
+async fn client_stop_sends_session_destroy_for_each_active_session() {
+    // One client, two registered sessions. Client::stop must send
+    // session.destroy for each before returning Ok.
+    let (client, server_read, server_write) = make_client();
+    let session_id_a = format!("test-session-{}", rand_id());
+    let session_id_b = format!("test-session-{}", rand_id());
+
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: session_id_a.clone(),
+    };
+
+    // Spawn both create_session calls.
+    let create_a = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
+                .await
+                .unwrap()
+        }
+    });
+    let create_a_req = server.read_request().await;
+    assert_eq!(create_a_req["method"], "session.create");
+    server
+        .respond(
+            &create_a_req,
+            serde_json::json!({ "sessionId": session_id_a, "workspacePath": "/tmp/ws-a" }),
+        )
+        .await;
+    let _session_a = timeout(TIMEOUT, create_a).await.unwrap();
+
+    let create_b = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
+                .await
+                .unwrap()
+        }
+    });
+    let create_b_req = server.read_request().await;
+    assert_eq!(create_b_req["method"], "session.create");
+    server
+        .respond(
+            &create_b_req,
+            serde_json::json!({ "sessionId": session_id_b, "workspacePath": "/tmp/ws-b" }),
+        )
+        .await;
+    let _session_b = timeout(TIMEOUT, create_b).await.unwrap();
+
+    // Drive Client::stop and respond to each destroy in turn.
+    let stop_handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.stop().await }
+    });
+
+    let mut destroyed = Vec::new();
+    for _ in 0..2 {
+        let req = server.read_request().await;
+        assert_eq!(req["method"], "session.destroy");
+        destroyed.push(req["params"]["sessionId"].as_str().unwrap().to_string());
+        server.respond(&req, serde_json::json!(null)).await;
+    }
+    destroyed.sort();
+    let mut expected = [session_id_a.clone(), session_id_b.clone()];
+    expected.sort();
+    assert_eq!(destroyed, expected);
+
+    let stop_result = timeout(TIMEOUT, stop_handle).await.unwrap().unwrap();
+    assert!(stop_result.is_ok(), "stop returned errors: {stop_result:?}");
+}
+
+#[tokio::test]
+async fn client_stop_aggregates_session_destroy_errors() {
+    // session.destroy fails on the wire — Client::stop returns
+    // StopErrors carrying the failure rather than short-circuiting.
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let client = session.client().clone();
+
+    let stop_handle = tokio::spawn(async move { client.stop().await });
+
+    let req = server.read_request().await;
+    assert_eq!(req["method"], "session.destroy");
+    let id = req["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": { "code": -32000, "message": "session gone" },
+    });
+    write_framed(&mut server.write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let stop_result = timeout(TIMEOUT, stop_handle).await.unwrap().unwrap();
+    let errors = stop_result.expect_err("expected aggregated errors");
+    assert_eq!(errors.errors().len(), 1);
+    let msg = errors.to_string();
+    assert!(msg.contains("session gone"), "unexpected message: {msg}");
+}
