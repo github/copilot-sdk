@@ -483,21 +483,23 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentListResult_with_items() {
-        var item = new AgentInfo("name1", "Name One", "Desc 1");
+        var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1");
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
         assertEquals("Name One", result.agents().get(0).displayName());
         assertEquals("Desc 1", result.agents().get(0).description());
+        assertEquals("/path/to/agent1", result.agents().get(0).path());
     }
 
     @Test
     void sessionAgentGetCurrentResult_nested() {
-        var agent = new AgentInfo("agent-1", "Agent One", "Does things");
+        var agent = new AgentInfo("agent-1", "Agent One", "Does things", null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
         assertEquals("Does things", result.agent().description());
+        assertNull(result.agent().path());
     }
 
     @Test
@@ -508,7 +510,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentReloadResult_with_items() {
-        var item = new AgentInfo("a", "A", "Desc");
+        var item = new AgentInfo("a", "A", "Desc", "/path/to/a");
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -516,7 +518,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentSelectResult_nested() {
-        var agent = new AgentInfo("selected", "Selected", "The selected agent");
+        var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected");
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
     }
