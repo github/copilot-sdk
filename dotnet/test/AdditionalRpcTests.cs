@@ -100,6 +100,22 @@ public class AdditionalRpcTests(E2ETestFixture fixture, ITestOutputHelper output
 
         var metrics = await session.Rpc.Usage.GetMetricsAsync();
         Assert.True(metrics.SessionStartTime > 0);
+        Assert.True(metrics.TotalNanoAiu is null or >= 0);
+        if (metrics.TokenDetails is not null)
+        {
+            Assert.All(metrics.TokenDetails.Values, detail => Assert.True(detail.TokenCount >= 0));
+        }
+
+        Assert.All(
+            metrics.ModelMetrics.Values,
+            modelMetric =>
+            {
+                Assert.True(modelMetric.TotalNanoAiu is null or >= 0);
+                if (modelMetric.TokenDetails is not null)
+                {
+                    Assert.All(modelMetric.TokenDetails.Values, detail => Assert.True(detail.TokenCount >= 0));
+                }
+            });
 
         try
         {
@@ -127,7 +143,7 @@ public class AdditionalRpcTests(E2ETestFixture fixture, ITestOutputHelper output
         var tool = await session.Rpc.Tools.HandlePendingToolCallAsync(
             requestId: "missing-tool-request",
             result: "tool result");
-        Assert.True(tool.Success);
+        Assert.False(tool.Success);
 
         var command = await session.Rpc.Commands.HandlePendingCommandAsync(
             requestId: "missing-command-request",
@@ -142,6 +158,11 @@ public class AdditionalRpcTests(E2ETestFixture fixture, ITestOutputHelper output
         var permission = await session.Rpc.Permissions.HandlePendingPermissionRequestAsync(
             requestId: "missing-permission-request",
             result: new PermissionDecisionReject { Feedback = "not approved" });
-        Assert.True(permission.Success);
+        Assert.False(permission.Success);
+
+        var permanentPermission = await session.Rpc.Permissions.HandlePendingPermissionRequestAsync(
+            requestId: "missing-permanent-permission-request",
+            result: new PermissionDecisionApprovePermanently { Domain = "example.com" });
+        Assert.False(permanentPermission.Success);
     }
 }

@@ -246,12 +246,17 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains("2", answer!.Data.Content ?? string.Empty);
 
         using var newClient = Ctx.CreateClient();
-        var session2 = await newClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+        var session2 = await newClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            ContinuePendingWork = true,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
         Assert.Equal(sessionId, session2.SessionId);
 
         var messages = await session2.GetMessagesAsync();
         Assert.Contains(messages, m => m is UserMessageEvent);
-        Assert.Contains(messages, m => m is SessionResumeEvent);
+        var resumeEvent = Assert.Single(messages.OfType<SessionResumeEvent>());
+        Assert.True(resumeEvent.Data.ContinuePendingWork);
 
         // Can continue the conversation statefully
         var answer2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });

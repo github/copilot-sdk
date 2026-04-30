@@ -98,6 +98,11 @@ public class SessionEventSerializationTests
                         ["gpt-5.4"] = new ShutdownModelMetric
                         {
                             Requests = new ShutdownModelMetricRequests { Count = 1, Cost = 1 },
+                            TokenDetails = new Dictionary<string, ShutdownModelMetricTokenDetail>
+                            {
+                                ["input"] = new ShutdownModelMetricTokenDetail { TokenCount = 10 },
+                            },
+                            TotalNanoAiu = 123,
                             Usage = new ShutdownModelMetricUsage
                             {
                                 InputTokens = 10,
@@ -108,9 +113,34 @@ public class SessionEventSerializationTests
                         },
                     },
                     CurrentModel = "gpt-5.4",
+                    TokenDetails = new Dictionary<string, ShutdownTokenDetail>
+                    {
+                        ["input"] = new ShutdownTokenDetail { TokenCount = 10 },
+                    },
+                    TotalNanoAiu = 123,
                 },
             },
             "session.shutdown"
+        },
+        {
+            new SystemNotificationEvent
+            {
+                Id = Guid.Parse("99999999-9999-9999-9999-999999999999"),
+                Timestamp = DateTimeOffset.Parse("2026-03-15T21:26:53.987Z"),
+                ParentId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                Data = new SystemNotificationData
+                {
+                    Content = "<system_notification>Instruction discovered</system_notification>",
+                    Kind = new SystemNotificationInstructionDiscovered
+                    {
+                        Description = "AGENTS.md from src/",
+                        SourcePath = "src/AGENTS.md",
+                        TriggerFile = "src/Program.cs",
+                        TriggerTool = "view",
+                    },
+                },
+            },
+            "system.notification"
         }
     };
 
@@ -171,6 +201,42 @@ public class SessionEventSerializationTests
                         .GetProperty("requests")
                         .GetProperty("count")
                         .GetInt32());
+                Assert.Equal(
+                    123,
+                    root.GetProperty("data")
+                        .GetProperty("totalNanoAiu")
+                        .GetInt32());
+                Assert.Equal(
+                    10,
+                    root.GetProperty("data")
+                        .GetProperty("tokenDetails")
+                        .GetProperty("input")
+                        .GetProperty("tokenCount")
+                        .GetInt32());
+                Assert.Equal(
+                    10,
+                    root.GetProperty("data")
+                        .GetProperty("modelMetrics")
+                        .GetProperty("gpt-5.4")
+                        .GetProperty("tokenDetails")
+                        .GetProperty("input")
+                        .GetProperty("tokenCount")
+                        .GetInt32());
+                break;
+
+            case "system.notification":
+                Assert.Equal(
+                    "instruction_discovered",
+                    root.GetProperty("data")
+                        .GetProperty("kind")
+                        .GetProperty("type")
+                        .GetString());
+                Assert.Equal(
+                    "src/AGENTS.md",
+                    root.GetProperty("data")
+                        .GetProperty("kind")
+                        .GetProperty("sourcePath")
+                        .GetString());
                 break;
         }
     }

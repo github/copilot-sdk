@@ -148,7 +148,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             .GetProperty("requests")
             .EnumerateArray()
             .Single(request => request.GetProperty("method").GetString() == "session.create")
-            .GetProperty("params")[0];
+            .GetProperty("params");
         Assert.True(createRequest.GetProperty("enableConfigDiscovery").GetBoolean());
         Assert.False(createRequest.GetProperty("includeSubAgentStreamingEvents").GetBoolean());
 
@@ -256,7 +256,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
           }
 
           if (message.method === "session.create") {
-            const sessionId = message.params?.[0]?.sessionId ?? "fake-session";
+            const sessionId = message.params?.sessionId ?? message.params?.[0]?.sessionId ?? "fake-session";
             writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
             return;
           }
