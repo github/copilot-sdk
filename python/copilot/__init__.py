@@ -4,6 +4,13 @@ Copilot SDK - Python Client for GitHub Copilot CLI
 JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("github-copilot-sdk")
+except PackageNotFoundError:
+    __version__ = "0.3.0"
+
 from .client import (
     CopilotClient,
     ExternalServerConfig,
@@ -35,8 +42,6 @@ from .session_fs_provider import (
     create_session_fs_adapter,
 )
 from .tools import convert_mcp_call_tool_result, define_tool
-
-__version__ = "0.1.0"
 
 __all__ = [
     "CommandContext",
