@@ -769,7 +769,6 @@ internal sealed partial class JsonRpc : IDisposable
         // must emit `result: null` for void-returning handlers — overriding the
         // context-level WhenWritingNull policy.
         [JsonPropertyName("result")]
-        [JsonInclude]
         [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
         public JsonElement? Result { get; set; }
     }
