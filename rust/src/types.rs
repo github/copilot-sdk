@@ -1074,6 +1074,220 @@ impl SessionConfig {
         self.handler = Some(crate::permission::approve_if(inner, predicate));
         self
     }
+
+    /// Set a custom session ID (when unset, the CLI generates one).
+    pub fn with_session_id(mut self, id: impl Into<SessionId>) -> Self {
+        self.session_id = Some(id.into());
+        self
+    }
+
+    /// Set the model identifier (e.g. `"claude-sonnet-4"`).
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
+
+    /// Set the application name sent as `User-Agent` context.
+    pub fn with_client_name(mut self, name: impl Into<String>) -> Self {
+        self.client_name = Some(name.into());
+        self
+    }
+
+    /// Set the reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
+    pub fn with_reasoning_effort(mut self, effort: impl Into<String>) -> Self {
+        self.reasoning_effort = Some(effort.into());
+        self
+    }
+
+    /// Enable streaming token deltas via `assistant.message_delta` events.
+    pub fn with_streaming(mut self, streaming: bool) -> Self {
+        self.streaming = Some(streaming);
+        self
+    }
+
+    /// Set a custom system message configuration.
+    pub fn with_system_message(mut self, system_message: SystemMessageConfig) -> Self {
+        self.system_message = Some(system_message);
+        self
+    }
+
+    /// Set the client-defined tools to expose to the agent.
+    pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
+        self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Set the allowlist of built-in tool names the agent may use.
+    pub fn with_available_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.available_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the blocklist of built-in tool names the agent must not use.
+    pub fn with_excluded_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.excluded_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set MCP server configurations passed through to the CLI.
+    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+        self.mcp_servers = Some(servers);
+        self
+    }
+
+    /// Set how the CLI interprets env values in MCP server configs
+    /// (`"direct"` literal vs `"indirect"` env var name lookup).
+    pub fn with_env_value_mode(mut self, mode: impl Into<String>) -> Self {
+        self.env_value_mode = Some(mode.into());
+        self
+    }
+
+    /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
+    pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
+        self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::default`].
+    pub fn with_request_user_input(mut self, enable: bool) -> Self {
+        self.request_user_input = Some(enable);
+        self
+    }
+
+    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_permission(mut self, enable: bool) -> Self {
+        self.request_permission = Some(enable);
+        self
+    }
+
+    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
+        self.request_exit_plan_mode = Some(enable);
+        self
+    }
+
+    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
+        self.request_auto_mode_switch = Some(enable);
+        self
+    }
+
+    /// Advertise elicitation provider capability. Defaults to `Some(true)`.
+    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
+        self.request_elicitation = Some(enable);
+        self
+    }
+
+    /// Set skill directory paths passed through to the CLI.
+    pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the names of skills to disable (overrides skill discovery).
+    pub fn with_disabled_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the names of MCP servers to disable.
+    pub fn with_disabled_mcp_servers<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_mcp_servers = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the custom agents (sub-agents) configured for this session.
+    pub fn with_custom_agents<I: IntoIterator<Item = CustomAgentConfig>>(
+        mut self,
+        agents: I,
+    ) -> Self {
+        self.custom_agents = Some(agents.into_iter().collect());
+        self
+    }
+
+    /// Configure the built-in default agent.
+    pub fn with_default_agent(mut self, agent: DefaultAgentConfig) -> Self {
+        self.default_agent = Some(agent);
+        self
+    }
+
+    /// Activate a named custom agent on session start. Must match the
+    /// `name` of one of the agents in [`Self::custom_agents`].
+    pub fn with_agent(mut self, name: impl Into<String>) -> Self {
+        self.agent = Some(name.into());
+        self
+    }
+
+    /// Configure infinite sessions (persistent workspace + automatic
+    /// context-window compaction).
+    pub fn with_infinite_sessions(mut self, config: InfiniteSessionConfig) -> Self {
+        self.infinite_sessions = Some(config);
+        self
+    }
+
+    /// Configure a custom model provider (BYOK).
+    pub fn with_provider(mut self, provider: ProviderConfig) -> Self {
+        self.provider = Some(provider);
+        self
+    }
+
+    /// Set per-property overrides for model capabilities.
+    pub fn with_model_capabilities(
+        mut self,
+        capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
+    ) -> Self {
+        self.model_capabilities = Some(capabilities);
+        self
+    }
+
+    /// Override the default configuration directory location.
+    pub fn with_config_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.config_dir = Some(dir.into());
+        self
+    }
+
+    /// Set the per-session working directory. Tool operations resolve
+    /// relative paths against this directory.
+    pub fn with_working_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.working_directory = Some(dir.into());
+        self
+    }
+
+    /// Set the per-session GitHub token. Distinct from
+    /// [`ClientOptions::github_token`](crate::ClientOptions::github_token);
+    /// this token determines the GitHub identity used for content exclusion,
+    /// model routing, and quota checks for this session only.
+    pub fn with_github_token(mut self, token: impl Into<String>) -> Self {
+        self.github_token = Some(token.into());
+        self
+    }
+
+    /// Forward sub-agent streaming events to this connection. Defaults
+    /// to true on the CLI when unset.
+    pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
+        self.include_sub_agent_streaming_events = Some(include);
+        self
+    }
 }
 
 /// Configuration for resuming an existing session via the `session.resume` RPC.
@@ -1351,6 +1565,175 @@ impl ResumeSessionConfig {
             .take()
             .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
         self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self
+    }
+
+    /// Set the application name sent as `User-Agent` context.
+    pub fn with_client_name(mut self, name: impl Into<String>) -> Self {
+        self.client_name = Some(name.into());
+        self
+    }
+
+    /// Enable streaming token deltas via `assistant.message_delta` events.
+    pub fn with_streaming(mut self, streaming: bool) -> Self {
+        self.streaming = Some(streaming);
+        self
+    }
+
+    /// Re-supply the system message so the agent retains workspace context
+    /// across CLI process restarts.
+    pub fn with_system_message(mut self, system_message: SystemMessageConfig) -> Self {
+        self.system_message = Some(system_message);
+        self
+    }
+
+    /// Re-supply client-defined tools on resume.
+    pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
+        self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Set the blocklist of built-in tool names the agent must not use.
+    pub fn with_excluded_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.excluded_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Re-supply MCP server configurations on resume.
+    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+        self.mcp_servers = Some(servers);
+        self
+    }
+
+    /// Set how the CLI interprets env values in MCP configs (`"direct"` /
+    /// `"indirect"`).
+    pub fn with_env_value_mode(mut self, mode: impl Into<String>) -> Self {
+        self.env_value_mode = Some(mode.into());
+        self
+    }
+
+    /// Enable or disable CLI config discovery on resume.
+    pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
+        self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::new`].
+    pub fn with_request_user_input(mut self, enable: bool) -> Self {
+        self.request_user_input = Some(enable);
+        self
+    }
+
+    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_permission(mut self, enable: bool) -> Self {
+        self.request_permission = Some(enable);
+        self
+    }
+
+    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
+        self.request_exit_plan_mode = Some(enable);
+        self
+    }
+
+    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
+        self.request_auto_mode_switch = Some(enable);
+        self
+    }
+
+    /// Advertise elicitation provider capability on resume. Defaults to `Some(true)`.
+    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
+        self.request_elicitation = Some(enable);
+        self
+    }
+
+    /// Set skill directory paths passed through to the CLI on resume.
+    pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Re-supply custom agents on resume.
+    pub fn with_custom_agents<I: IntoIterator<Item = CustomAgentConfig>>(
+        mut self,
+        agents: I,
+    ) -> Self {
+        self.custom_agents = Some(agents.into_iter().collect());
+        self
+    }
+
+    /// Configure the built-in default agent on resume.
+    pub fn with_default_agent(mut self, agent: DefaultAgentConfig) -> Self {
+        self.default_agent = Some(agent);
+        self
+    }
+
+    /// Activate a named custom agent on resume.
+    pub fn with_agent(mut self, name: impl Into<String>) -> Self {
+        self.agent = Some(name.into());
+        self
+    }
+
+    /// Re-supply infinite session configuration on resume.
+    pub fn with_infinite_sessions(mut self, config: InfiniteSessionConfig) -> Self {
+        self.infinite_sessions = Some(config);
+        self
+    }
+
+    /// Re-supply BYOK provider configuration on resume.
+    pub fn with_provider(mut self, provider: ProviderConfig) -> Self {
+        self.provider = Some(provider);
+        self
+    }
+
+    /// Set per-property model capability overrides on resume.
+    pub fn with_model_capabilities(
+        mut self,
+        capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
+    ) -> Self {
+        self.model_capabilities = Some(capabilities);
+        self
+    }
+
+    /// Override the default configuration directory location on resume.
+    pub fn with_config_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.config_dir = Some(dir.into());
+        self
+    }
+
+    /// Set the per-session working directory on resume.
+    pub fn with_working_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.working_directory = Some(dir.into());
+        self
+    }
+
+    /// Set the per-session GitHub token on resume. See
+    /// [`SessionConfig::github_token`] for distinction from the
+    /// client-level token.
+    pub fn with_github_token(mut self, token: impl Into<String>) -> Self {
+        self.github_token = Some(token.into());
+        self
+    }
+
+    /// Forward sub-agent streaming events to this connection on resume.
+    pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
+        self.include_sub_agent_streaming_events = Some(include);
+        self
+    }
+
+    /// Force-fail resume if the session does not exist on disk, instead
+    /// of silently starting a new session.
+    pub fn with_disable_resume(mut self, disable: bool) -> Self {
+        self.disable_resume = Some(disable);
         self
     }
 }
@@ -2450,6 +2833,112 @@ mod tests {
         assert_eq!(cfg.request_exit_plan_mode, Some(true));
         assert_eq!(cfg.request_auto_mode_switch, Some(true));
         assert_eq!(cfg.request_elicitation, Some(true));
+    }
+
+    #[test]
+    fn session_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let cfg = SessionConfig::default()
+            .with_session_id(SessionId::from("sess-1"))
+            .with_model("claude-sonnet-4")
+            .with_client_name("test-app")
+            .with_reasoning_effort("medium")
+            .with_streaming(true)
+            .with_tools([Tool::new("greet")])
+            .with_available_tools(["bash", "view"])
+            .with_excluded_tools(["dangerous"])
+            .with_mcp_servers(HashMap::new())
+            .with_env_value_mode("direct")
+            .with_enable_config_discovery(true)
+            .with_request_user_input(false)
+            .with_skill_directories([PathBuf::from("/tmp/skills")])
+            .with_disabled_skills(["broken-skill"])
+            .with_disabled_mcp_servers(["broken-server"])
+            .with_agent("researcher")
+            .with_config_dir(PathBuf::from("/tmp/config"))
+            .with_working_directory(PathBuf::from("/tmp/work"))
+            .with_github_token("ghp_test")
+            .with_include_sub_agent_streaming_events(false);
+
+        assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
+        assert_eq!(cfg.model.as_deref(), Some("claude-sonnet-4"));
+        assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
+        assert_eq!(cfg.reasoning_effort.as_deref(), Some("medium"));
+        assert_eq!(cfg.streaming, Some(true));
+        assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
+        assert_eq!(
+            cfg.available_tools.as_deref(),
+            Some(&["bash".to_string(), "view".to_string()][..])
+        );
+        assert_eq!(
+            cfg.excluded_tools.as_deref(),
+            Some(&["dangerous".to_string()][..])
+        );
+        assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.env_value_mode.as_deref(), Some("direct"));
+        assert_eq!(cfg.enable_config_discovery, Some(true));
+        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
+        assert_eq!(cfg.request_permission, Some(true)); // default preserved
+        assert_eq!(
+            cfg.skill_directories.as_deref(),
+            Some(&[PathBuf::from("/tmp/skills")][..])
+        );
+        assert_eq!(
+            cfg.disabled_skills.as_deref(),
+            Some(&["broken-skill".to_string()][..])
+        );
+        assert_eq!(cfg.agent.as_deref(), Some("researcher"));
+        assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
+        assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
+        assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
+    }
+
+    #[test]
+    fn resume_session_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .with_client_name("test-app")
+            .with_streaming(true)
+            .with_tools([Tool::new("greet")])
+            .with_excluded_tools(["dangerous"])
+            .with_mcp_servers(HashMap::new())
+            .with_env_value_mode("indirect")
+            .with_enable_config_discovery(true)
+            .with_request_user_input(false)
+            .with_skill_directories([PathBuf::from("/tmp/skills")])
+            .with_agent("researcher")
+            .with_config_dir(PathBuf::from("/tmp/config"))
+            .with_working_directory(PathBuf::from("/tmp/work"))
+            .with_github_token("ghp_test")
+            .with_include_sub_agent_streaming_events(true)
+            .with_disable_resume(true);
+
+        assert_eq!(cfg.session_id.as_str(), "sess-2");
+        assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
+        assert_eq!(cfg.streaming, Some(true));
+        assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
+        assert_eq!(
+            cfg.excluded_tools.as_deref(),
+            Some(&["dangerous".to_string()][..])
+        );
+        assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.env_value_mode.as_deref(), Some("indirect"));
+        assert_eq!(cfg.enable_config_discovery, Some(true));
+        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
+        assert_eq!(cfg.request_permission, Some(true)); // default preserved
+        assert_eq!(
+            cfg.skill_directories.as_deref(),
+            Some(&[PathBuf::from("/tmp/skills")][..])
+        );
+        assert_eq!(cfg.agent.as_deref(), Some("researcher"));
+        assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
+        assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
+        assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
+        assert_eq!(cfg.disable_resume, Some(true));
     }
 
     #[test]

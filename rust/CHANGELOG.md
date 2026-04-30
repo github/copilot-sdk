@@ -370,6 +370,17 @@ public surface.
   builder shape replaces the per-consumer `make_tool(name, desc,
   params)` helper that consumers were writing to smooth over the
   mut-let pattern.
+- Per-field `with_*` builder methods on `SessionConfig` and
+  `ResumeSessionConfig` covering every public scalar, vector, and
+  optional-struct field (~30 new methods on each). Mirrors the
+  `ClientOptions` / `Tool` shape; existing closure-installing
+  chains (`with_handler`, `with_hooks`, `with_transform`,
+  `with_commands`, `with_session_fs_provider`,
+  `approve_all_permissions`, etc.) continue to work unchanged. The
+  primary win: external session-construction sites collapse from
+  `let mut cfg = ResumeSessionConfig::new(id); cfg.client_name =
+  Some("...".into()); cfg.streaming = Some(true); ...` (10-15
+  lines per site) to a single fluent chain.
 
 ### Fixed
 - `SessionUi::elicitation` (and the `confirm` / `select` / `input`
