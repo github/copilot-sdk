@@ -38,7 +38,9 @@ public final class AutoModeSwitchRequestedEvent extends SessionEvent {
         /** Unique identifier for this request; used to respond via session.respondToAutoModeSwitch() */
         @JsonProperty("requestId") String requestId,
         /** The rate limit error code that triggered this request */
-        @JsonProperty("errorCode") String errorCode
+        @JsonProperty("errorCode") String errorCode,
+        /** Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt. */
+        @JsonProperty("retryAfterSeconds") Double retryAfterSeconds
     ) {
     }
 }

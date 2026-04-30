@@ -42,7 +42,9 @@ public final class SessionModelChangeEvent extends SessionEvent {
         /** Reasoning effort level before the model change, if applicable */
         @JsonProperty("previousReasoningEffort") String previousReasoningEffort,
         /** Reasoning effort level after the model change, if applicable */
-        @JsonProperty("reasoningEffort") String reasoningEffort
+        @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy. */
+        @JsonProperty("cause") String cause
     ) {
     }
 }

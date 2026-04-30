@@ -12,17 +12,18 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
+/**
+ * Request parameters for the {@code session.tasks.cancel} RPC method.
+ *
+ * @since 1.0.0
+ */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record AgentInfo(
-    /** Unique identifier of the custom agent */
-    @JsonProperty("name") String name,
-    /** Human-readable display name */
-    @JsonProperty("displayName") String displayName,
-    /** Description of the agent's purpose */
-    @JsonProperty("description") String description,
-    /** Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path. */
-    @JsonProperty("path") String path
+public record SessionTasksCancelParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Task identifier */
+    @JsonProperty("id") String id
 ) {
 }

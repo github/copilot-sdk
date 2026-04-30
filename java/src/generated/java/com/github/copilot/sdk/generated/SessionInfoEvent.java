@@ -40,7 +40,9 @@ public final class SessionInfoEvent extends SessionEvent {
         /** Human-readable informational message for display in the timeline */
         @JsonProperty("message") String message,
         /** Optional URL associated with this message that the user can open in a browser */
-        @JsonProperty("url") String url
+        @JsonProperty("url") String url,
+        /** Optional actionable tip displayed with this message */
+        @JsonProperty("tip") String tip
     ) {
     }
 }

@@ -46,6 +46,8 @@ public final class SessionRpc {
     public final SessionFleetApi fleet;
     /** API methods for the {@code agent} namespace. */
     public final SessionAgentApi agent;
+    /** API methods for the {@code tasks} namespace. */
+    public final SessionTasksApi tasks;
     /** API methods for the {@code skills} namespace. */
     public final SessionSkillsApi skills;
     /** API methods for the {@code mcp} namespace. */
@@ -87,6 +89,7 @@ public final class SessionRpc {
         this.instructions = new SessionInstructionsApi(caller, sessionId);
         this.fleet = new SessionFleetApi(caller, sessionId);
         this.agent = new SessionAgentApi(caller, sessionId);
+        this.tasks = new SessionTasksApi(caller, sessionId);
         this.skills = new SessionSkillsApi(caller, sessionId);
         this.mcp = new SessionMcpApi(caller, sessionId);
         this.plugins = new SessionPluginsApi(caller, sessionId);
