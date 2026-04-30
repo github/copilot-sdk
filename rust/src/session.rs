@@ -17,7 +17,7 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
-    SessionEventType, UserInputRequestedData,
+    SessionEventType,
 };
 use crate::handler::{
     AutoModeSwitchResponse, ExitPlanModeResult, HandlerEvent, HandlerResponse, PermissionResult,
@@ -1306,47 +1306,12 @@ async fn handle_notification(
             });
         }
         SessionEventType::UserInputRequested => {
-            let user_input_data: UserInputRequestedData =
-                match serde_json::from_value(notification.event.data.clone()) {
-                    Ok(d) => d,
-                    Err(e) => {
-                        warn!(error = %e, "failed to deserialize user_input.requested");
-                        return;
-                    }
-                };
-            let client = client.clone();
-            let handler = handler.clone();
-            let sid = session_id.clone();
-            tokio::spawn(async move {
-                let response = handler
-                    .on_event(HandlerEvent::UserInput {
-                        session_id: sid.clone(),
-                        question: user_input_data.question,
-                        choices: (!user_input_data.choices.is_empty())
-                            .then_some(user_input_data.choices),
-                        allow_freeform: user_input_data.allow_freeform,
-                    })
-                    .await;
-                let result = match response {
-                    HandlerResponse::UserInput(Some(UserInputResponse {
-                        answer,
-                        was_freeform,
-                    })) => serde_json::json!({
-                        "sessionId": sid,
-                        "requestId": user_input_data.request_id,
-                        "answer": answer,
-                        "wasFreeform": was_freeform,
-                    }),
-                    _ => serde_json::json!({
-                        "sessionId": sid,
-                        "requestId": user_input_data.request_id,
-                        "noResponse": true,
-                    }),
-                };
-                let _ = client
-                    .call("session.respondToUserInput", Some(result))
-                    .await;
-            });
+            // Notification-only signal for observers (UI, telemetry).
+            // The CLI follows up with a `userInput.request` JSON-RPC call
+            // that drives `HandlerEvent::UserInput` dispatch — handling
+            // the notification here too would double-fire the handler
+            // and produce duplicate prompts on the consumer side. See
+            // github/github-app#4249.
         }
         SessionEventType::ElicitationRequested => {
             let Some(request_id) = extract_request_id(&notification.event.data) else {

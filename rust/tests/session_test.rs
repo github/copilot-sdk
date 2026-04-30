@@ -1386,32 +1386,38 @@ async fn user_input_request_dispatches_to_handler() {
 }
 
 #[tokio::test]
-async fn user_input_requested_event_dispatches_to_handler_and_responds() {
-    struct InputHandler;
+async fn user_input_requested_notification_does_not_double_dispatch() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    // Regression for github/github-app#4249. The CLI sends BOTH a
+    // `user_input.requested` notification (for observers) AND a
+    // `userInput.request` JSON-RPC call (the actual prompt) for every
+    // user-input prompt. Only the JSON-RPC path should reach the
+    // handler — dispatching from the notification too produced
+    // duplicate ask_user widgets on the consumer side.
+
+    struct CountingHandler {
+        invocations: Arc<AtomicUsize>,
+    }
     #[async_trait]
-    impl SessionHandler for InputHandler {
+    impl SessionHandler for CountingHandler {
         async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
-            match event {
-                HandlerEvent::UserInput {
-                    question,
-                    choices,
-                    allow_freeform,
-                    ..
-                } => {
-                    assert_eq!(question, "Allow shell access?");
-                    assert_eq!(choices, Some(vec!["Yes".to_string(), "No".to_string()]));
-                    assert_eq!(allow_freeform, Some(false));
-                    HandlerResponse::UserInput(Some(UserInputResponse {
-                        answer: "Yes".to_string(),
-                        was_freeform: false,
-                    }))
-                }
-                _ => HandlerResponse::Ok,
+            if let HandlerEvent::UserInput { .. } = event {
+                self.invocations.fetch_add(1, Ordering::SeqCst);
+                return HandlerResponse::UserInput(Some(UserInputResponse {
+                    answer: "ok".to_string(),
+                    was_freeform: true,
+                }));
             }
+            HandlerResponse::Ok
         }
     }
 
-    let (_session, mut server) = create_session_pair(Arc::new(InputHandler)).await;
+    let invocations = Arc::new(AtomicUsize::new(0));
+    let handler = Arc::new(CountingHandler {
+        invocations: invocations.clone(),
+    });
+    let (_session, mut server) = create_session_pair(handler).await;
+
     server
         .send_event(
             "user_input.requested",
@@ -1424,12 +1430,35 @@ async fn user_input_requested_event_dispatches_to_handler_and_responds() {
         )
         .await;
 
-    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
-    assert_eq!(request["method"], "session.respondToUserInput");
-    assert_eq!(request["params"]["sessionId"], server.session_id);
-    assert_eq!(request["params"]["requestId"], "ui-1");
-    assert_eq!(request["params"]["answer"], "Yes");
-    assert_eq!(request["params"]["wasFreeform"], false);
+    // Give the SDK a beat to (incorrectly) auto-dispatch if the
+    // regression returned. Nothing should arrive on the wire.
+    let respond_observed = timeout(Duration::from_millis(150), server.read_request()).await;
+    assert!(
+        respond_observed.is_err(),
+        "notification triggered unexpected wire activity: {respond_observed:?}",
+    );
+    assert_eq!(
+        invocations.load(Ordering::SeqCst),
+        0,
+        "notification path must not invoke the user-input handler",
+    );
+
+    // Now drive the JSON-RPC path and confirm the handler still runs once.
+    server
+        .send_request(
+            301,
+            "userInput.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "question": "Pick a color",
+                "allowFreeform": true,
+            }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 301);
+    assert_eq!(response["result"]["answer"], "ok");
+    assert_eq!(invocations.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

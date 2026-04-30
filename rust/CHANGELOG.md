@@ -416,6 +416,14 @@ public surface.
   fail fast as before.
 
 ### Fixed
+- `Session::user_input` no longer double-dispatches when the CLI sends
+  both a `user_input.requested` notification (for observers) and a
+  `userInput.request` JSON-RPC call (the actual prompt) for the same
+  prompt. The notification path is now a no-op; the JSON-RPC path
+  remains authoritative. Matches Python / Go / .NET / Node SDK
+  behavior, all of which only register the JSON-RPC handler. Fixes
+  github/github-app#4249, where consumers saw duplicate `ask_user`
+  and `exit_plan` widgets on every prompt.
 - `SessionUi::elicitation` (and the `confirm` / `select` / `input`
   convenience helpers that delegate through it) now sends the user-supplied
   JSON Schema as `requestedSchema` on the wire, matching the
