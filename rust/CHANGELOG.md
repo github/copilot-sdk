@@ -391,9 +391,12 @@ public surface.
   `ProviderConfig::new(base_url)` plus `with_provider_type`,
   `with_wire_api`, `with_api_key`, `with_bearer_token`,
   `with_azure`, `with_headers`; `SystemMessageConfig::new()` plus
-  `with_mode`, `with_content`, `with_sections`. `TraceContext`
-  also gains a symmetric `new()` + `with_traceparent` pair
-  alongside the existing `from_traceparent` shorthand.
+  `with_mode`, `with_content`, `with_sections`;
+  `TelemetryConfig::new()` plus `with_otlp_endpoint`,
+  `with_file_path`, `with_exporter_type`, `with_source_name`,
+  `with_capture_content`. `TraceContext` also gains a symmetric
+  `new()` + `with_traceparent` pair alongside the existing
+  `from_traceparent` shorthand.
 - Documented the direct-field-assignment escape hatch on
   `SessionConfig` and `ResumeSessionConfig` for callers forwarding
   `Option<T>` values from upstream code (matches the

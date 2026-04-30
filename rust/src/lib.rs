@@ -538,6 +538,46 @@ pub struct TelemetryConfig {
 }
 
 impl TelemetryConfig {
+    /// Construct an empty [`TelemetryConfig`]; all fields default to
+    /// unset (`is_empty()` returns `true`).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the OTLP HTTP endpoint URL for trace/metric export.
+    pub fn with_otlp_endpoint(mut self, endpoint: impl Into<String>) -> Self {
+        self.otlp_endpoint = Some(endpoint.into());
+        self
+    }
+
+    /// Set the file path for JSON-lines trace output.
+    pub fn with_file_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.file_path = Some(path.into());
+        self
+    }
+
+    /// Set the exporter backend type.
+    pub fn with_exporter_type(mut self, exporter_type: OtelExporterType) -> Self {
+        self.exporter_type = Some(exporter_type);
+        self
+    }
+
+    /// Set the instrumentation scope name. Useful for distinguishing
+    /// this embedder's traces from other Copilot-CLI consumers
+    /// exporting to the same backend.
+    pub fn with_source_name(mut self, source_name: impl Into<String>) -> Self {
+        self.source_name = Some(source_name.into());
+        self
+    }
+
+    /// Opt in or out of GenAI message content capture on emitted spans.
+    /// `true` opts in; `false` opts out. Leaving this unset preserves
+    /// the CLI default (typically off).
+    pub fn with_capture_content(mut self, capture: bool) -> Self {
+        self.capture_content = Some(capture);
+        self
+    }
+
     /// Returns `true` if all fields are unset. Used by [`Client::start`]
     /// to decide whether to set `COPILOT_OTEL_ENABLED`.
     pub fn is_empty(&self) -> bool {
@@ -1856,6 +1896,27 @@ mod tests {
             .get_envs()
             .find(|(k, _)| *k == std::ffi::OsStr::new(key))
             .and_then(|(_, v)| v)
+    }
+
+    #[test]
+    fn telemetry_config_builder_composes() {
+        let cfg = TelemetryConfig::new()
+            .with_otlp_endpoint("http://collector:4318")
+            .with_file_path(PathBuf::from("/var/log/copilot.jsonl"))
+            .with_exporter_type(OtelExporterType::OtlpHttp)
+            .with_source_name("my-app")
+            .with_capture_content(true);
+
+        assert_eq!(cfg.otlp_endpoint.as_deref(), Some("http://collector:4318"));
+        assert_eq!(
+            cfg.file_path.as_deref(),
+            Some(Path::new("/var/log/copilot.jsonl")),
+        );
+        assert_eq!(cfg.exporter_type, Some(OtelExporterType::OtlpHttp));
+        assert_eq!(cfg.source_name.as_deref(), Some("my-app"));
+        assert_eq!(cfg.capture_content, Some(true));
+        assert!(!cfg.is_empty());
+        assert!(TelemetryConfig::new().is_empty());
     }
 
     #[test]
