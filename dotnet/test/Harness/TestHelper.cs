@@ -6,13 +6,19 @@ namespace GitHub.Copilot.SDK.Test.Harness;
 
 public static class TestHelper
 {
+    // Default tolerates CLI / replay-proxy cold start on Windows GitHub Actions
+    // runners, where the first test in a fixture can take ~60s before the first
+    // assistant message arrives. Subsequent tests in the same fixture typically
+    // complete in well under a second.
+    private static readonly TimeSpan DefaultEventTimeout = TimeSpan.FromSeconds(120);
+
     public static async Task<AssistantMessageEvent?> GetFinalAssistantMessageAsync(
         CopilotSession session,
         TimeSpan? timeout = null,
         bool alreadyIdle = false)
     {
         var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
         // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
         // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
@@ -111,7 +117,7 @@ public static class TestHelper
         TimeSpan? timeout = null) where T : SessionEvent
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
         using var subscription = session.On(evt =>
         {
