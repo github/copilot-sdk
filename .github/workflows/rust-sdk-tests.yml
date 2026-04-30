@@ -110,3 +110,61 @@ jobs:
           package: github-copilot-sdk
           manifest-path: rust/Cargo.toml
 
+  # Validates the `embedded-cli` build path on all three supported
+  # platforms. This is the only place `build.rs` actually runs (the
+  # default `cargo test` job above has `COPILOT_CLI_VERSION` unset, so
+  # `build.rs` returns immediately). Catches regressions in the
+  # download / verify / extract / embed pipeline before they ship to
+  # crates.io and before bundling consumers (e.g. github-app's
+  # bundled-CLI release pipeline) hit them downstream.
+  bundle:
+    name: "Rust SDK Bundled CLI Build"
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+          key: bundled-cli
+
+      - name: Read pinned @github/copilot CLI version
+        id: cli-version
+        working-directory: ./nodejs
+        run: |
+          version=$(node -p "require('./package.json').dependencies['@github/copilot'].replace(/^[\^~]/, '')")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Pinned CLI version: $version"
+
+      # Cache the downloaded archive across runs so we don't refetch
+      # ~130 MB on every CI invocation. Keyed by OS + CLI version; on
+      # cache miss the bundle job exercises the full ureq download +
+      # SHA-256 + retry path, which is exactly the regression surface
+      # we want validated.
+      - name: Cache bundled CLI tarball
+        uses: actions/cache@v4
+        with:
+          path: ./rust/.bundled-cli-cache
+          key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
+
+      - name: cargo build --features embedded-cli
+        env:
+          COPILOT_CLI_VERSION: ${{ steps.cli-version.outputs.version }}
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
+        run: cargo build --features embedded-cli
