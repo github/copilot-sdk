@@ -775,15 +775,18 @@ class AutoModeSwitchRequestedData:
     "Auto mode switch request notification requiring user approval"
     request_id: str
     error_code: str | None = None
+    retry_after_seconds: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AutoModeSwitchRequestedData":
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         error_code = from_union([from_none, from_str], obj.get("errorCode"))
+        retry_after_seconds = from_union([from_none, from_float], obj.get("retryAfterSeconds"))
         return AutoModeSwitchRequestedData(
             request_id=request_id,
             error_code=error_code,
+            retry_after_seconds=retry_after_seconds,
         )
 
     def to_dict(self) -> dict:
@@ -791,6 +794,8 @@ class AutoModeSwitchRequestedData:
         result["requestId"] = from_str(self.request_id)
         if self.error_code is not None:
             result["errorCode"] = from_union([from_none, from_str], self.error_code)
+        if self.retry_after_seconds is not None:
+            result["retryAfterSeconds"] = from_union([from_none, to_float], self.retry_after_seconds)
         return result
 
 
@@ -2353,6 +2358,8 @@ class SessionErrorData:
     "Error details for timeline display including message and optional diagnostic information"
     error_type: str
     message: str
+    eligible_for_auto_switch: bool | None = None
+    error_code: str | None = None
     provider_call_id: str | None = None
     stack: str | None = None
     status_code: int | None = None
@@ -2363,6 +2370,8 @@ class SessionErrorData:
         assert isinstance(obj, dict)
         error_type = from_str(obj.get("errorType"))
         message = from_str(obj.get("message"))
+        eligible_for_auto_switch = from_union([from_none, from_bool], obj.get("eligibleForAutoSwitch"))
+        error_code = from_union([from_none, from_str], obj.get("errorCode"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         stack = from_union([from_none, from_str], obj.get("stack"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
@@ -2370,6 +2379,8 @@ class SessionErrorData:
         return SessionErrorData(
             error_type=error_type,
             message=message,
+            eligible_for_auto_switch=eligible_for_auto_switch,
+            error_code=error_code,
             provider_call_id=provider_call_id,
             stack=stack,
             status_code=status_code,
@@ -2380,6 +2391,10 @@ class SessionErrorData:
         result: dict = {}
         result["errorType"] = from_str(self.error_type)
         result["message"] = from_str(self.message)
+        if self.eligible_for_auto_switch is not None:
+            result["eligibleForAutoSwitch"] = from_union([from_none, from_bool], self.eligible_for_auto_switch)
+        if self.error_code is not None:
+            result["errorCode"] = from_union([from_none, from_str], self.error_code)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
         if self.stack is not None:
@@ -2577,6 +2592,7 @@ class SessionModeChangedData:
 class SessionModelChangeData:
     "Model change details including previous and new model identifiers"
     new_model: str
+    cause: str | None = None
     previous_model: str | None = None
     previous_reasoning_effort: str | None = None
     reasoning_effort: str | None = None
@@ -2585,11 +2601,13 @@ class SessionModelChangeData:
     def from_dict(obj: Any) -> "SessionModelChangeData":
         assert isinstance(obj, dict)
         new_model = from_str(obj.get("newModel"))
+        cause = from_union([from_none, from_str], obj.get("cause"))
         previous_model = from_union([from_none, from_str], obj.get("previousModel"))
         previous_reasoning_effort = from_union([from_none, from_str], obj.get("previousReasoningEffort"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         return SessionModelChangeData(
             new_model=new_model,
+            cause=cause,
             previous_model=previous_model,
             previous_reasoning_effort=previous_reasoning_effort,
             reasoning_effort=reasoning_effort,
@@ -2598,6 +2616,8 @@ class SessionModelChangeData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["newModel"] = from_str(self.new_model)
+        if self.cause is not None:
+            result["cause"] = from_union([from_none, from_str], self.cause)
         if self.previous_model is not None:
             result["previousModel"] = from_union([from_none, from_str], self.previous_model)
         if self.previous_reasoning_effort is not None:

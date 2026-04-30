@@ -472,6 +472,14 @@ export interface ErrorEvent {
  */
 export interface ErrorData {
   /**
+   * Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
+   */
+  eligibleForAutoSwitch?: boolean;
+  /**
+   * Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).
+   */
+  errorCode?: string;
+  /**
    * Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query")
    */
   errorType: string;
@@ -670,6 +678,10 @@ export interface ModelChangeEvent {
  * Model change details including previous and new model identifiers
  */
 export interface ModelChangeData {
+  /**
+   * Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+   */
+  cause?: string;
   /**
    * Newly selected model identifier
    */
@@ -4331,6 +4343,10 @@ export interface AutoModeSwitchRequestedData {
    * Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
    */
   requestId: string;
+  /**
+   * Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.
+   */
+  retryAfterSeconds?: number;
 }
 export interface AutoModeSwitchCompletedEvent {
   /**
