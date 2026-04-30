@@ -2061,6 +2061,8 @@ type UserMessageAttachmentSelectionDetailsStart struct {
 type McpOauthRequiredStaticClientConfig struct {
 	// OAuth client ID for the server
 	ClientID string `json:"clientId"`
+	// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
+	GrantType *string `json:"grantType,omitempty"`
 	// Whether this is a public OAuth client
 	PublicClient *bool `json:"publicClient,omitempty"`
 }

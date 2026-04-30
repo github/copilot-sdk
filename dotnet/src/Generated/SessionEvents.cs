@@ -4643,6 +4643,11 @@ public partial class McpOauthRequiredStaticClientConfig
     [JsonPropertyName("clientId")]
     public required string ClientId { get; set; }
 
+    /// <summary>Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("grantType")]
+    public string? GrantType { get; set; }
+
     /// <summary>Whether this is a public OAuth client.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("publicClient")]
