@@ -4325,6 +4325,10 @@ export interface McpOauthRequiredStaticClientConfig {
    */
   clientId: string;
   /**
+   * Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
+   */
+  grantType?: "client_credentials";
+  /**
    * Whether this is a public OAuth client
    */
   publicClient?: boolean;
