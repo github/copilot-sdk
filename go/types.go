@@ -30,6 +30,11 @@ type ClientOptions struct {
 	// UseStdio controls whether to use stdio transport instead of TCP.
 	// Default: nil (use default = true, i.e. stdio). Use Bool(false) to explicitly select TCP.
 	UseStdio *bool
+	// TCPConnectionToken is the token sent in the `connect` handshake when using TCP transport.
+	// Only meaningful in TCP mode. When the SDK spawns its own CLI in TCP mode and this is
+	// empty, an auto-generated UUID is used so the loopback listener is safe by default.
+	// Combining this with UseStdio=true is rejected (stdio is pre-authenticated by transport).
+	TCPConnectionToken string
 	// CLIUrl is the URL of an existing Copilot CLI server to connect to over TCP
 	// Format: "host:port", "http://host:port", or just "port" (defaults to localhost)
 	// Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"

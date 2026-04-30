@@ -10,7 +10,8 @@ import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Multi-client broadcast", async () => {
     // Use TCP mode so a second client can connect to the same CLI process
-    const ctx = await createSdkTestContext({ useStdio: false });
+    const tcpConnectionToken = "multi-client-test-token";
+    const ctx = await createSdkTestContext({ useStdio: false, copilotClientOptions: { tcpConnectionToken } });
     const client1 = ctx.copilotClient;
 
     // Trigger connection so we can read the port
@@ -18,7 +19,7 @@ describe("Multi-client broadcast", async () => {
     await initSession.disconnect();
 
     const actualPort = (client1 as unknown as { actualPort: number }).actualPort;
-    let client2 = new CopilotClient({ cliUrl: `localhost:${actualPort}` });
+    let client2 = new CopilotClient({ cliUrl: `localhost:${actualPort}`, tcpConnectionToken });
 
     afterAll(async () => {
         await client2.stop();
@@ -297,7 +298,7 @@ describe("Multi-client broadcast", async () => {
         process.removeListener("unhandledRejection", suppressDisposed);
 
         // Recreate client2 for cleanup in afterAll (but don't rejoin the session)
-        client2 = new CopilotClient({ cliUrl: `localhost:${actualPort}` });
+        client2 = new CopilotClient({ cliUrl: `localhost:${actualPort}`, tcpConnectionToken });
 
         // Now only stable_tool should be available
         const afterResponse = await session1.sendAndWait({
