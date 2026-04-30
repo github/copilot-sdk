@@ -528,6 +528,67 @@ pub struct CustomAgentConfig {
     pub skills: Option<Vec<String>>,
 }
 
+impl CustomAgentConfig {
+    /// Construct a custom agent configuration with the required `name`
+    /// and `prompt` fields populated.
+    ///
+    /// All other fields default to unset; use the `with_*` chain to
+    /// customize them. Fields are also `pub` if direct assignment is
+    /// preferred for `Option<T>` pass-through.
+    pub fn new(name: impl Into<String>, prompt: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            prompt: prompt.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the display name shown in the CLI's agent-selection UI.
+    pub fn with_display_name(mut self, display_name: impl Into<String>) -> Self {
+        self.display_name = Some(display_name.into());
+        self
+    }
+
+    /// Set the description of what the agent does.
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Restrict the agent to a specific tool allowlist. When unset, the
+    /// agent inherits the parent session's tool set.
+    pub fn with_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Configure agent-specific MCP servers.
+    pub fn with_mcp_servers(mut self, mcp_servers: HashMap<String, McpServerConfig>) -> Self {
+        self.mcp_servers = Some(mcp_servers);
+        self
+    }
+
+    /// Whether the agent participates in model inference.
+    pub fn with_infer(mut self, infer: bool) -> Self {
+        self.infer = Some(infer);
+        self
+    }
+
+    /// Set the skills preloaded into the agent's context at startup.
+    pub fn with_skills<I, S>(mut self, skills: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.skills = Some(skills.into_iter().map(Into::into).collect());
+        self
+    }
+}
+
 /// Configures the default (built-in) agent that handles turns when no
 /// custom agent is selected.
 ///
@@ -563,6 +624,35 @@ pub struct InfiniteSessionConfig {
     /// compaction completes. Default: 0.95.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub buffer_exhaustion_threshold: Option<f64>,
+}
+
+impl InfiniteSessionConfig {
+    /// Construct an empty [`InfiniteSessionConfig`]; all fields default to
+    /// unset (the CLI applies its own defaults).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Toggle infinite sessions on or off. Defaults to `true` on the CLI
+    /// when unset.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+
+    /// Set the context utilization (0.0–1.0) at which background
+    /// compaction starts.
+    pub fn with_background_compaction_threshold(mut self, threshold: f64) -> Self {
+        self.background_compaction_threshold = Some(threshold);
+        self
+    }
+
+    /// Set the context utilization (0.0–1.0) at which the session blocks
+    /// until compaction completes.
+    pub fn with_buffer_exhaustion_threshold(mut self, threshold: f64) -> Self {
+        self.buffer_exhaustion_threshold = Some(threshold);
+        self
+    }
 }
 
 /// Configuration for a single MCP server.
@@ -696,6 +786,54 @@ pub struct ProviderConfig {
     pub headers: Option<HashMap<String, String>>,
 }
 
+impl ProviderConfig {
+    /// Construct a [`ProviderConfig`] with the required `base_url` set;
+    /// all other fields default to unset.
+    pub fn new(base_url: impl Into<String>) -> Self {
+        Self {
+            base_url: base_url.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the provider type (`"openai"`, `"azure"`, or `"anthropic"`).
+    pub fn with_provider_type(mut self, provider_type: impl Into<String>) -> Self {
+        self.provider_type = Some(provider_type.into());
+        self
+    }
+
+    /// Set the API format (`"completions"` or `"responses"`; openai/azure only).
+    pub fn with_wire_api(mut self, wire_api: impl Into<String>) -> Self {
+        self.wire_api = Some(wire_api.into());
+        self
+    }
+
+    /// Set the API key. Optional for local providers like Ollama.
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.api_key = Some(api_key.into());
+        self
+    }
+
+    /// Set the bearer token used to populate the `Authorization` header.
+    /// Takes precedence over `api_key` when both are set.
+    pub fn with_bearer_token(mut self, bearer_token: impl Into<String>) -> Self {
+        self.bearer_token = Some(bearer_token.into());
+        self
+    }
+
+    /// Set Azure-specific options.
+    pub fn with_azure(mut self, azure: AzureProviderOptions) -> Self {
+        self.azure = Some(azure);
+        self
+    }
+
+    /// Set the custom HTTP headers attached to outbound provider requests.
+    pub fn with_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.headers = Some(headers);
+        self
+    }
+}
+
 /// Azure-specific provider options.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -708,6 +846,41 @@ pub struct AzureProviderOptions {
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
+///
+/// # Construction
+///
+/// Two equivalent shapes are supported:
+///
+/// 1. **Chained builder** (preferred for compile-time-known values):
+///
+///    ```
+///    # use github_copilot_sdk::types::SessionConfig;
+///    let cfg = SessionConfig::default()
+///        .with_client_name("my-app")
+///        .with_streaming(true)
+///        .with_enable_config_discovery(true);
+///    ```
+///
+/// 2. **Direct field assignment** (preferred when forwarding `Option<T>`
+///    from upstream code, since `with_<field>` setters take the inner
+///    `T`, not `Option<T>`):
+///
+///    ```
+///    # use github_copilot_sdk::types::SessionConfig;
+///    # let upstream_model: Option<String> = None;
+///    # let upstream_system_message: Option<github_copilot_sdk::types::SystemMessageConfig> = None;
+///    let mut cfg = SessionConfig::default()
+///        .with_client_name("my-app")
+///        .with_streaming(true);
+///    cfg.model = upstream_model;
+///    cfg.system_message = upstream_system_message;
+///    ```
+///
+///    Mixing the two is fine: chain the fields you know at compile time,
+///    then assign the `Option<T>` pass-through fields directly. All
+///    fields on this struct are `pub`. This pattern matches the
+///    `http::request::Parts` / `hyper::Body::Builder` convention in the
+///    wider Rust ecosystem.
 ///
 /// # Field naming across SDKs
 ///
@@ -1292,7 +1465,9 @@ impl SessionConfig {
 
 /// Configuration for resuming an existing session via the `session.resume` RPC.
 ///
-/// See [`SessionConfig`] for the note on snake_case vs. camelCase field naming.
+/// See [`SessionConfig`] for the construction patterns (chained `with_*`
+/// builder vs. direct field assignment for `Option<T>` pass-through) and
+/// the note on snake_case vs. camelCase field naming.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -1756,6 +1931,34 @@ pub struct SystemMessageConfig {
     /// Section-level overrides (used with `mode: "customize"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sections: Option<HashMap<String, SectionOverride>>,
+}
+
+impl SystemMessageConfig {
+    /// Construct an empty [`SystemMessageConfig`]; all fields default to
+    /// unset.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the application mode: `"append"` (default), `"replace"`, or
+    /// `"customize"`.
+    pub fn with_mode(mut self, mode: impl Into<String>) -> Self {
+        self.mode = Some(mode.into());
+        self
+    }
+
+    /// Set the system message content (used by `"append"` and `"replace"`
+    /// modes).
+    pub fn with_content(mut self, content: impl Into<String>) -> Self {
+        self.content = Some(content.into());
+        self
+    }
+
+    /// Set the section-level overrides (used with `mode: "customize"`).
+    pub fn with_sections(mut self, sections: HashMap<String, SectionOverride>) -> Self {
+        self.sections = Some(sections);
+        self
+    }
 }
 
 /// An override operation for a single system prompt section.
@@ -2783,8 +2986,9 @@ mod tests {
 
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, DeliveryMode, GitHubReferenceType, ResumeSessionConfig, SessionConfig,
-        SessionId, Tool, ensure_attachment_display_names,
+        ConnectionState, CustomAgentConfig, DeliveryMode, GitHubReferenceType,
+        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionId,
+        SystemMessageConfig, Tool, ensure_attachment_display_names,
     };
 
     #[test]
@@ -2939,6 +3143,91 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
         assert_eq!(cfg.disable_resume, Some(true));
+    }
+
+    #[test]
+    fn custom_agent_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let cfg = CustomAgentConfig::new("researcher", "You are a research assistant.")
+            .with_display_name("Research Assistant")
+            .with_description("Investigates technical questions.")
+            .with_tools(["bash", "view"])
+            .with_mcp_servers(HashMap::new())
+            .with_infer(true)
+            .with_skills(["rust-coding-skill"]);
+
+        assert_eq!(cfg.name, "researcher");
+        assert_eq!(cfg.prompt, "You are a research assistant.");
+        assert_eq!(cfg.display_name.as_deref(), Some("Research Assistant"));
+        assert_eq!(
+            cfg.description.as_deref(),
+            Some("Investigates technical questions.")
+        );
+        assert_eq!(
+            cfg.tools.as_deref(),
+            Some(&["bash".to_string(), "view".to_string()][..])
+        );
+        assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.infer, Some(true));
+        assert_eq!(
+            cfg.skills.as_deref(),
+            Some(&["rust-coding-skill".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn infinite_session_config_builder_composes() {
+        let cfg = InfiniteSessionConfig::new()
+            .with_enabled(true)
+            .with_background_compaction_threshold(0.75)
+            .with_buffer_exhaustion_threshold(0.92);
+
+        assert_eq!(cfg.enabled, Some(true));
+        assert_eq!(cfg.background_compaction_threshold, Some(0.75));
+        assert_eq!(cfg.buffer_exhaustion_threshold, Some(0.92));
+    }
+
+    #[test]
+    fn provider_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let mut headers = HashMap::new();
+        headers.insert("X-Custom".to_string(), "value".to_string());
+
+        let cfg = ProviderConfig::new("https://api.example.com")
+            .with_provider_type("openai")
+            .with_wire_api("completions")
+            .with_api_key("sk-test")
+            .with_bearer_token("bearer-test")
+            .with_headers(headers);
+
+        assert_eq!(cfg.base_url, "https://api.example.com");
+        assert_eq!(cfg.provider_type.as_deref(), Some("openai"));
+        assert_eq!(cfg.wire_api.as_deref(), Some("completions"));
+        assert_eq!(cfg.api_key.as_deref(), Some("sk-test"));
+        assert_eq!(cfg.bearer_token.as_deref(), Some("bearer-test"));
+        assert_eq!(
+            cfg.headers
+                .as_ref()
+                .and_then(|h| h.get("X-Custom"))
+                .map(String::as_str),
+            Some("value"),
+        );
+    }
+
+    #[test]
+    fn system_message_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let cfg = SystemMessageConfig::new()
+            .with_mode("replace")
+            .with_content("Custom system message.")
+            .with_sections(HashMap::new());
+
+        assert_eq!(cfg.mode.as_deref(), Some("replace"));
+        assert_eq!(cfg.content.as_deref(), Some("Custom system message."));
+        assert!(cfg.sections.is_some());
     }
 
     #[test]

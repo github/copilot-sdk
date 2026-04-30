@@ -381,6 +381,25 @@ public surface.
   `let mut cfg = ResumeSessionConfig::new(id); cfg.client_name =
   Some("...".into()); cfg.streaming = Some(true); ...` (10-15
   lines per site) to a single fluent chain.
+- Round out builder coverage on the remaining consumer-facing
+  config structs: `CustomAgentConfig::new(name, prompt)` plus
+  `with_display_name`, `with_description`, `with_tools`,
+  `with_mcp_servers`, `with_infer`, `with_skills`;
+  `InfiniteSessionConfig::new()` plus `with_enabled`,
+  `with_background_compaction_threshold`,
+  `with_buffer_exhaustion_threshold`;
+  `ProviderConfig::new(base_url)` plus `with_provider_type`,
+  `with_wire_api`, `with_api_key`, `with_bearer_token`,
+  `with_azure`, `with_headers`; `SystemMessageConfig::new()` plus
+  `with_mode`, `with_content`, `with_sections`. `TraceContext`
+  also gains a symmetric `new()` + `with_traceparent` pair
+  alongside the existing `from_traceparent` shorthand.
+- Documented the direct-field-assignment escape hatch on
+  `SessionConfig` and `ResumeSessionConfig` for callers forwarding
+  `Option<T>` values from upstream code (matches the
+  `http::request::Parts` / `hyper::Body::Builder` convention; per-
+  field `with_*_opt` setters intentionally omitted to keep the
+  primary API surface small).
 
 ### Fixed
 - `SessionUi::elicitation` (and the `confirm` / `select` / `input`

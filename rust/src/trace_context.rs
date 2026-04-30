@@ -35,13 +35,26 @@ pub struct TraceContext {
 }
 
 impl TraceContext {
+    /// Construct an empty [`TraceContext`]; both fields default to unset
+    /// (the SDK skips trace-context injection on the wire).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Construct a [`TraceContext`] from a `traceparent` header value, with
     /// no `tracestate`.
+    ///
+    /// Equivalent to `TraceContext::new().with_traceparent(value)`; kept
+    /// for ergonomics in the common single-header case.
     pub fn from_traceparent(traceparent: impl Into<String>) -> Self {
-        Self {
-            traceparent: Some(traceparent.into()),
-            tracestate: None,
-        }
+        Self::new().with_traceparent(traceparent)
+    }
+
+    /// Set or replace the `traceparent` header value, returning `self` for
+    /// chaining.
+    pub fn with_traceparent(mut self, traceparent: impl Into<String>) -> Self {
+        self.traceparent = Some(traceparent.into());
+        self
     }
 
     /// Set or replace the `tracestate` header value, returning `self` for
@@ -85,5 +98,35 @@ pub(crate) fn inject_trace_context(params: &mut serde_json::Value, ctx: &TraceCo
     }
     if let Some(ts) = &ctx.tracestate {
         params["tracestate"] = serde_json::Value::String(ts.clone());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TraceContext;
+
+    #[test]
+    fn new_yields_empty_context() {
+        let ctx = TraceContext::new();
+        assert!(ctx.is_empty());
+        assert!(ctx.traceparent.is_none());
+        assert!(ctx.tracestate.is_none());
+    }
+
+    #[test]
+    fn builder_composes_traceparent_and_tracestate() {
+        let ctx = TraceContext::new()
+            .with_traceparent("00-trace-span-01")
+            .with_tracestate("vendor=key");
+        assert_eq!(ctx.traceparent.as_deref(), Some("00-trace-span-01"));
+        assert_eq!(ctx.tracestate.as_deref(), Some("vendor=key"));
+        assert!(!ctx.is_empty());
+    }
+
+    #[test]
+    fn from_traceparent_matches_builder() {
+        let direct = TraceContext::from_traceparent("00-trace-span-01");
+        let chained = TraceContext::new().with_traceparent("00-trace-span-01");
+        assert_eq!(direct, chained);
     }
 }
