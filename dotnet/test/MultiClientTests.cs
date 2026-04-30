@@ -21,10 +21,15 @@ public class MultiClientTestFixture : IAsyncLifetime
     public E2ETestContext Ctx { get; private set; } = null!;
     public CopilotClient Client1 { get; private set; } = null!;
 
+    public const string SharedToken = "multi-client-shared-token";
+
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        Client1 = Ctx.CreateClient(useStdio: false);
+        Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
+        {
+            TcpConnectionToken = SharedToken,
+        });
     }
 
     public async Task DisposeAsync()
@@ -78,6 +83,7 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         _client2 = new CopilotClient(new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
+            TcpConnectionToken = MultiClientTestFixture.SharedToken,
         });
     }
 
@@ -336,6 +342,7 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         _client2 = new CopilotClient(new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
+            TcpConnectionToken = MultiClientTestFixture.SharedToken,
         });
 
         // Now only stable_tool should be available

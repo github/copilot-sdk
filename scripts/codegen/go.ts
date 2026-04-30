@@ -13,6 +13,7 @@ import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "
 import { promisify } from "util";
 import {
     cloneSchemaForCodegen,
+    filterNodeByVisibility,
     fixNullableRequiredRefsInApiSchema,
     getApiSchemaPath,
     getRpcSchemaTypeName,
@@ -25,6 +26,7 @@ import {
     getNullableInner,
     isRpcMethod,
     postProcessSchema,
+    stripBooleanLiterals,
     writeGeneratedFile,
     collectDefinitionCollections,
     resolveObjectSchema,
@@ -1084,7 +1086,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const singleSchema: JSONSchema7 = {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
-        definitions: allDefinitions as Record<string, JSONSchema7>,
+        definitions: stripBooleanLiterals(allDefinitions) as Record<string, JSONSchema7>,
         properties: Object.fromEntries(
             Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
         ),
@@ -1160,6 +1162,21 @@ async function generateRpc(schemaPath?: string): Promise<void> {
             `// Deprecated: ${typeName} is deprecated and will be removed in a future version.\n$1`
         );
     }
+
+    // Annotate internal data types (driven by the JSON Schema definition's
+    // `visibility: "internal"` flag, set via `.asInternal()` on the Zod source).
+    const internalTypeNames = new Set<string>();
+    for (const [name, def] of Object.entries(allDefinitions)) {
+        if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+            internalTypeNames.add(name);
+        }
+    }
+    for (const typeName of internalTypeNames) {
+        qtCode = qtCode.replace(
+            new RegExp(`^(type ${typeName} struct)`, "m"),
+            `// Internal: ${typeName} is an internal SDK API and is not part of the public surface.\n$1`
+        );
+    }
     // Remove trailing blank lines from quicktype output before appending
     qtCode = qtCode.replace(/\n+$/, "");
     // Replace interface{} with any (quicktype emits the pre-1.18 form)
@@ -1195,12 +1212,18 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     // Emit ServerRpc
     if (schema.server) {
-        emitRpcWrapper(lines, schema.server, false, resolveType, fieldNames);
+        const publicNode = filterNodeByVisibility(schema.server, "public");
+        if (publicNode) emitRpcWrapper(lines, publicNode, false, resolveType, fieldNames, "");
+        const internalNode = filterNodeByVisibility(schema.server, "internal");
+        if (internalNode) emitRpcWrapper(lines, internalNode, false, resolveType, fieldNames, "Internal");
     }
 
     // Emit SessionRpc
     if (schema.session) {
-        emitRpcWrapper(lines, schema.session, true, resolveType, fieldNames);
+        const publicNode = filterNodeByVisibility(schema.session, "public");
+        if (publicNode) emitRpcWrapper(lines, publicNode, true, resolveType, fieldNames, "");
+        const internalNode = filterNodeByVisibility(schema.session, "internal");
+        if (internalNode) emitRpcWrapper(lines, internalNode, true, resolveType, fieldNames, "Internal");
     }
 
     if (schema.clientSession) {
@@ -1256,13 +1279,17 @@ function emitApiGroup(
     }
 }
 
-function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>): void {
+function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, classPrefix: string = ""): void {
     const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
     const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
 
-    const wrapperName = isSession ? "SessionRpc" : "ServerRpc";
+    const wrapperName = classPrefix + (isSession ? "SessionRpc" : "ServerRpc");
     const apiSuffix = "Api";
-    const serviceName = isSession ? "sessionApi" : "serverApi";
+    // Lowercase the prefix so the unexported service struct stays unexported in Go.
+    const prefixLower = classPrefix ? classPrefix.charAt(0).toLowerCase() + classPrefix.slice(1) : "";
+    const serviceName = prefixLower
+        ? prefixLower + (isSession ? "SessionApi" : "ServerApi")
+        : (isSession ? "sessionApi" : "serverApi");
 
     // Emit the common service struct (unexported, shared by all API groups via type cast)
     lines.push(`type ${serviceName} struct {`);
@@ -1273,7 +1300,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
     // Emit API types for groups
     for (const [groupName, groupNode] of groups) {
-        const prefix = isSession ? "" : "Server";
+        const prefix = classPrefix + (isSession ? "" : "Server");
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
         const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
@@ -1287,12 +1314,14 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     const pad = (name: string) => name.padEnd(maxFieldLen);
 
     // Emit wrapper struct
-    lines.push(`// ${wrapperName} provides typed ${isSession ? "session" : "server"}-scoped RPC methods.`);
+    lines.push(classPrefix === "Internal"
+        ? `// ${wrapperName} provides internal SDK ${isSession ? "session" : "server"}-scoped RPC methods (handshake helpers etc.). Not part of the public API.`
+        : `// ${wrapperName} provides typed ${isSession ? "session" : "server"}-scoped RPC methods.`);
     lines.push(`type ${wrapperName} struct {`);
     lines.push(`\t${pad("common")} ${serviceName} // Reuse a single struct instead of allocating one for each service on the heap.`);
     lines.push(``);
     for (const [groupName] of groups) {
-        const prefix = isSession ? "" : "Server";
+        const prefix = classPrefix + (isSession ? "" : "Server");
         lines.push(`\t${pad(toPascalCase(groupName))} *${prefix}${toPascalCase(groupName)}${apiSuffix}`);
     }
     lines.push(`}`);
@@ -1314,7 +1343,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         lines.push(`\tr.common = ${serviceName}{client: client}`);
     }
     for (const [groupName] of groups) {
-        const prefix = isSession ? "" : "Server";
+        const prefix = classPrefix + (isSession ? "" : "Server");
         lines.push(`\tr.${toPascalCase(groupName)} = (*${prefix}${toPascalCase(groupName)}${apiSuffix})(&r.common)`);
     }
     lines.push(`\treturn r`);
@@ -1346,6 +1375,9 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     }
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`// Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`);
+    }
+    if (method.visibility === "internal") {
+        lines.push(`// Internal: ${methodName} is part of the SDK's internal handshake/plumbing; external callers should not use it.`);
     }
     const sig = hasParams
         ? `func (a *${receiver}) ${methodName}(ctx context.Context, params *${paramsType}) (*${resultType}, error)`

@@ -46,6 +46,30 @@ internal sealed class PingRequest
     public string? Message { get; set; }
 }
 
+/// <summary>RPC data type for Connect operations.</summary>
+internal sealed class ConnectResult
+{
+    /// <summary>Always true on success.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+
+    /// <summary>Server protocol version number.</summary>
+    [JsonPropertyName("protocolVersion")]
+    public long ProtocolVersion { get; set; }
+
+    /// <summary>Server package version.</summary>
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for Connect operations.</summary>
+internal sealed class ConnectRequest
+{
+    /// <summary>Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+}
+
 /// <summary>Billing information.</summary>
 public sealed class ModelBilling
 {
@@ -3067,6 +3091,13 @@ public sealed class ServerRpc
         return await CopilotClient.InvokeRpcAsync<PingResult>(_rpc, "ping", [request], cancellationToken);
     }
 
+    /// <summary>Calls "connect".</summary>
+    internal async Task<ConnectResult> ConnectAsync(string? token = null, CancellationToken cancellationToken = default)
+    {
+        var request = new ConnectRequest { Token = token };
+        return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
+    }
+
     /// <summary>Models APIs.</summary>
     public ServerModelsApi Models { get; }
 
@@ -4242,6 +4273,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PermissionsSetApproveAllResult))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResult))]
+[JsonSerializable(typeof(ConnectRequest))]
+[JsonSerializable(typeof(ConnectResult))]
 [JsonSerializable(typeof(PlanReadResult))]
 [JsonSerializable(typeof(PlanUpdateRequest))]
 [JsonSerializable(typeof(Plugin))]

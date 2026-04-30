@@ -26,6 +26,8 @@ type RPCTypes struct {
 	AuthInfoType                                            AuthInfoType                                            `json:"AuthInfoType"`
 	CommandsHandlePendingCommandRequest                     CommandsHandlePendingCommandRequest                     `json:"CommandsHandlePendingCommandRequest"`
 	CommandsHandlePendingCommandResult                      CommandsHandlePendingCommandResult                      `json:"CommandsHandlePendingCommandResult"`
+	ConnectRequest                                          ConnectRequest                                          `json:"ConnectRequest"`
+	ConnectResult                                           ConnectResult                                           `json:"ConnectResult"`
 	CurrentModel                                            CurrentModel                                            `json:"CurrentModel"`
 	DiscoveredMCPServer                                     DiscoveredMCPServer                                     `json:"DiscoveredMcpServer"`
 	DiscoveredMCPServerSource                               MCPServerSource                                         `json:"DiscoveredMcpServerSource"`
@@ -329,6 +331,22 @@ type CommandsHandlePendingCommandRequest struct {
 type CommandsHandlePendingCommandResult struct {
 	// Whether the command was handled successfully
 	Success bool `json:"success"`
+}
+
+// Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
+type ConnectRequest struct {
+	// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
+	Token *string `json:"token,omitempty"`
+}
+
+// Internal: ConnectResult is an internal SDK API and is not part of the public surface.
+type ConnectResult struct {
+	// Always true on success
+	Ok bool `json:"ok"`
+	// Server protocol version number
+	ProtocolVersion int64 `json:"protocolVersion"`
+	// Server package version
+	Version string `json:"version"`
 }
 
 type CurrentModel struct {
@@ -2449,6 +2467,35 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r.Skills = (*ServerSkillsApi)(&r.common)
 	r.SessionFs = (*ServerSessionFsApi)(&r.common)
 	r.Sessions = (*ServerSessionsApi)(&r.common)
+	return r
+}
+
+type internalServerApi struct {
+	client *jsonrpc2.Client
+}
+
+// InternalServerRpc provides internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API.
+type InternalServerRpc struct {
+	common internalServerApi // Reuse a single struct instead of allocating one for each service on the heap.
+
+}
+
+// Internal: Connect is part of the SDK's internal handshake/plumbing; external callers should not use it.
+func (a *InternalServerRpc) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
+	raw, err := a.common.client.Request("connect", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func NewInternalServerRpc(client *jsonrpc2.Client) *InternalServerRpc {
+	r := &InternalServerRpc{}
+	r.common = internalServerApi{client: client}
 	return r
 }
 
