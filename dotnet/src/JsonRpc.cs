@@ -168,12 +168,17 @@ internal sealed partial class JsonRpc : IDisposable
         bool wrote = Utf8.TryWrite(headerBuf, $"Content-Length: {json.Length}\r\n\r\n", out int headerLen);
         Debug.Assert(wrote && headerLen > 0);
 
+        // Cancellation only applies to *waiting* for the write lock. Once we hold the lock
+        // and start writing a framed message, we must finish it — cancelling between the
+        // header and the body (or mid-body) would leave the peer waiting for N body bytes
+        // that never arrive, desynchronizing the LSP-style stream for every subsequent
+        // message on this connection.
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _sendStream.WriteAsync(headerBuf.AsMemory(0, headerLen), cancellationToken).ConfigureAwait(false);
-            await _sendStream.WriteAsync(json, cancellationToken).ConfigureAwait(false);
-            await _sendStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await _sendStream.WriteAsync(headerBuf.AsMemory(0, headerLen), CancellationToken.None).ConfigureAwait(false);
+            await _sendStream.WriteAsync(json, CancellationToken.None).ConfigureAwait(false);
+            await _sendStream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
         }
         finally
         {
