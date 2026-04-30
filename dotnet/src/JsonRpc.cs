@@ -524,11 +524,32 @@ internal sealed partial class JsonRpc : IDisposable
                 }
             }
         }
+        else if (paramsProp.ValueKind == JsonValueKind.Object)
+        {
+            // Named parameters. The CLI sends notifications/requests as a JSON object whose
+            // property names match the handler's parameter names (camelCased per web defaults).
+            // Look up each parameter by name; missing optional parameters fall back to defaults.
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (parameters[i].ParameterType == typeof(CancellationToken))
+                {
+                    invokeArgs[i] = cancellationToken;
+                }
+                else if (parameters[i].Name is { } paramName &&
+                         TryGetPropertyCaseInsensitive(paramsProp, paramName, out var valueProp))
+                {
+                    invokeArgs[i] = valueProp.Deserialize(_serializerOptions.GetTypeInfo(parameters[i].ParameterType));
+                }
+                else
+                {
+                    invokeArgs[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
+                }
+            }
+        }
         else
         {
-            // No current handler is parameterless, so missing/null `params` and named-params
-            // (object-without-singleObjectParam) are both protocol violations. Surface them
-            // as invalid-params errors rather than silently filling defaults.
+            // Missing/null `params` for a handler with required positional parameters is a
+            // protocol violation. Surface it as an error rather than silently filling defaults.
             throw new InvalidOperationException(
                 $"Unsupported JSON-RPC params shape '{paramsProp.ValueKind}' for handler with positional parameters.");
         }
@@ -556,11 +577,50 @@ internal sealed partial class JsonRpc : IDisposable
         return result;
     }
 
+    private static bool TryGetPropertyCaseInsensitive(JsonElement obj, string name, out JsonElement value)
+    {
+        // Fast path: exact match. The CLI uses camelCase property names that match the
+        // C# parameter names exactly, so this should hit in the common case.
+        if (obj.TryGetProperty(name, out value))
+        {
+            return true;
+        }
+
+        foreach (var prop in obj.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = prop.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
     private JsonElement? SerializeArgs(object?[]? args)
     {
         if (args is null || args.Length == 0)
         {
             return null;
+        }
+
+        // The Copilot CLI uses vscode-jsonrpc-style request handlers, which expect
+        // `params` to be the single request object (not wrapped in a positional array).
+        // The other SDKs (Node, Python, Go) all send single-object params, and every
+        // generated call site here passes exactly one request object. For the rare
+        // multi-arg case, fall back to a positional array.
+        if (args.Length == 1)
+        {
+            var arg = args[0];
+            if (arg is null)
+            {
+                return null;
+            }
+
+            var typeInfo = _serializerOptions.GetTypeInfo(arg.GetType());
+            return JsonSerializer.SerializeToElement(arg, typeInfo);
         }
 
         // Source-generated JsonSerializerOptions do not provide metadata for object[],
@@ -594,10 +654,21 @@ internal sealed partial class JsonRpc : IDisposable
     {
         try
         {
+            // Convert the result to a JsonElement using the runtime type, looked up via
+            // the merged resolver. Source-gen serialization of an `object`-typed property
+            // would otherwise have no way to find metadata for the actual response type
+            // (e.g. SystemMessageTransformRpcResponse, SessionFsReadFileResult, ...).
+            JsonElement? resultElement = null;
+            if (result is not null)
+            {
+                var typeInfo = _serializerOptions.GetTypeInfo(result.GetType());
+                resultElement = JsonSerializer.SerializeToElement(result, typeInfo);
+            }
+
             await SendMessageAsync(new JsonRpcResponse
             {
                 Id = id,
-                Result = result,
+                Result = resultElement,
             }, JsonRpcWireContext.Default.JsonRpcResponse, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
@@ -693,7 +764,7 @@ internal sealed partial class JsonRpc : IDisposable
         public JsonElement Id { get; set; }
 
         [JsonPropertyName("result")]
-        public object? Result { get; set; }
+        public JsonElement? Result { get; set; }
     }
 
     private sealed class JsonRpcErrorResponse
