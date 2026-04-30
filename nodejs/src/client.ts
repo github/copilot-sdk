@@ -20,7 +20,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
+    ErrorCodes,
     MessageConnection,
+    ResponseError,
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
@@ -221,6 +223,7 @@ export class CopilotClient {
             | "telemetry"
             | "onGetTraceContext"
             | "sessionFs"
+            | "tcpConnectionToken"
         >
     > & {
         cliPath?: string;
@@ -231,6 +234,8 @@ export class CopilotClient {
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
+    /** Token sent in `connect`; auto-generated when the SDK spawns its own CLI in TCP mode. */
+    private effectiveConnectionToken?: string;
     private onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
     private onGetTraceContext?: TraceContextProvider;
     private modelsCache: ModelInfo[] | null = null;
@@ -299,6 +304,23 @@ export class CopilotClient {
                 "gitHubToken and useLoggedInUser cannot be used with cliUrl (external server manages its own auth)"
             );
         }
+
+        if (options.tcpConnectionToken !== undefined) {
+            if (
+                typeof options.tcpConnectionToken !== "string" ||
+                options.tcpConnectionToken.length === 0
+            ) {
+                throw new Error("tcpConnectionToken must be a non-empty string");
+            }
+            if (options.useStdio === true) {
+                throw new Error("tcpConnectionToken cannot be used with useStdio: true");
+            }
+        }
+
+        const willUseStdio = options.cliUrl ? false : (options.useStdio ?? true);
+        const sdkSpawnsCli = !willUseStdio && !options.cliUrl && !options.isChildProcess;
+        this.effectiveConnectionToken =
+            options.tcpConnectionToken ?? (sdkSpawnsCli ? randomUUID() : undefined);
 
         if (options.sessionFs) {
             this.validateSessionFsConfig(options.sessionFs);
@@ -1063,21 +1085,37 @@ export class CopilotClient {
     }
 
     /**
-     * Verify that the server's protocol version is within the supported range
-     * and store the negotiated version.
+     * Send the `connect` handshake (carrying the optional token) and verify the
+     * server's protocol version. Falls back to `ping` against legacy servers
+     * that don't implement `connect`.
      */
     private async verifyProtocolVersion(): Promise<void> {
-        const maxVersion = getSdkProtocolVersion();
-
-        // Race ping against process exit to detect early CLI failures
-        let pingResult: Awaited<ReturnType<typeof this.ping>>;
-        if (this.processExitPromise) {
-            pingResult = await Promise.race([this.ping(), this.processExitPromise]);
-        } else {
-            pingResult = await this.ping();
+        if (!this.connection) {
+            throw new Error("Client not connected");
         }
+        const maxVersion = getSdkProtocolVersion();
+        const raceAgainstExit = <T>(p: Promise<T>): Promise<T> =>
+            this.processExitPromise ? Promise.race([p, this.processExitPromise]) : p;
 
-        const serverVersion = pingResult.protocolVersion;
+        let serverVersion: number | undefined;
+        try {
+            const result = await raceAgainstExit(
+                this.connection.sendRequest("connect", {
+                    token: this.effectiveConnectionToken,
+                }) as Promise<{
+                    protocolVersion: number;
+                }>
+            );
+            serverVersion = result.protocolVersion;
+        } catch (err) {
+            if (err instanceof ResponseError && err.code === ErrorCodes.MethodNotFound) {
+                // Legacy server without `connect`; fall back to `ping`. A token, if any,
+                // is silently dropped — the legacy server can't enforce one.
+                serverVersion = (await raceAgainstExit(this.ping())).protocolVersion;
+            } else {
+                throw err;
+            }
+        }
 
         if (serverVersion === undefined) {
             throw new Error(
@@ -1434,6 +1472,10 @@ export class CopilotClient {
             // Set auth token in environment if provided
             if (this.options.gitHubToken) {
                 envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
+            }
+
+            if (this.effectiveConnectionToken) {
+                envWithoutNodeDebug.COPILOT_CONNECTION_TOKEN = this.effectiveConnectionToken;
             }
 
             if (!this.options.cliPath) {
