@@ -1886,6 +1886,143 @@ async fn send_and_wait_drop_clears_waiter() {
     assert_eq!(result.unwrap(), "msg-after-abort");
 }
 
+/// Cancel-safety regression: `Session::stop_event_loop` must NOT abort
+/// the event-loop task mid-handler. An in-flight handler (here a slow
+/// `userInput.request` callback) must run to completion before the loop
+/// exits — the CLI receives the response on the wire before the session
+/// tears down.
+///
+/// Closes RFD-400 review finding #3.
+#[tokio::test]
+async fn stop_event_loop_completes_in_flight_handler() {
+    struct SlowHandler;
+    #[async_trait]
+    impl SessionHandler for SlowHandler {
+        async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
+            match event {
+                HandlerEvent::UserInput { .. } => {
+                    // Sleep so stop_event_loop has a chance to fire while
+                    // the handler is mid-flight. The loop must wait for
+                    // this to return rather than abort it.
+                    tokio::time::sleep(Duration::from_millis(150)).await;
+                    HandlerResponse::UserInput(Some(UserInputResponse {
+                        answer: "completed".to_string(),
+                        was_freeform: false,
+                    }))
+                }
+                _ => HandlerResponse::Ok,
+            }
+        }
+    }
+
+    let (session, mut server) = create_session_pair(Arc::new(SlowHandler)).await;
+    let session = Arc::new(session);
+
+    server
+        .send_request(
+            900,
+            "userInput.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "question": "slow",
+                "choices": null,
+                "allowFreeform": true,
+            }),
+        )
+        .await;
+
+    // Give the loop a moment to dispatch into the handler.
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    // Now request shutdown. The loop is parked in handle_request awaiting
+    // the slow handler. `notify_one()` buffers the signal until the loop
+    // re-enters its select, which can only happen after the handler
+    // returns and the response is sent on the wire.
+    let stop_handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.stop_event_loop().await }
+    });
+
+    // Verify the handler's response lands on the wire BEFORE the loop
+    // exits — i.e. stop_event_loop did not abort mid-handler.
+    let response = timeout(Duration::from_secs(2), server.read_response())
+        .await
+        .unwrap();
+    assert_eq!(response["id"], 900);
+    assert_eq!(response["result"]["answer"], "completed");
+
+    // stop_event_loop completes after the handler returns and the loop
+    // observes the buffered shutdown signal on its next select iteration.
+    timeout(Duration::from_secs(2), stop_handle)
+        .await
+        .unwrap()
+        .unwrap();
+}
+
+/// Cancel-safety regression: dropping a Session does NOT abort the event
+/// loop mid-handler. The loop sees the buffered shutdown signal on its
+/// next select iteration and exits cleanly. This is the Drop equivalent
+/// of stop_event_loop_completes_in_flight_handler; closes RFD-400 review
+/// finding #3 for the implicit-drop path that used to call
+/// `JoinHandle::abort()`.
+#[tokio::test]
+async fn drop_session_does_not_abort_handler() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let handler_completed = Arc::new(AtomicBool::new(false));
+
+    struct CompletionHandler {
+        completed: Arc<AtomicBool>,
+    }
+    #[async_trait]
+    impl SessionHandler for CompletionHandler {
+        async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
+            match event {
+                HandlerEvent::UserInput { .. } => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    self.completed.store(true, Ordering::SeqCst);
+                    HandlerResponse::UserInput(Some(UserInputResponse {
+                        answer: "done".to_string(),
+                        was_freeform: false,
+                    }))
+                }
+                _ => HandlerResponse::Ok,
+            }
+        }
+    }
+
+    let (session, mut server) = create_session_pair(Arc::new(CompletionHandler {
+        completed: handler_completed.clone(),
+    }))
+    .await;
+
+    server
+        .send_request(
+            901,
+            "userInput.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "question": "drop-test",
+                "choices": null,
+                "allowFreeform": true,
+            }),
+        )
+        .await;
+
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    drop(session);
+
+    let response = timeout(Duration::from_secs(2), server.read_response())
+        .await
+        .unwrap();
+    assert_eq!(response["id"], 901);
+    assert_eq!(response["result"]["answer"], "done");
+    assert!(
+        handler_completed.load(Ordering::SeqCst),
+        "handler must run to completion despite Session being dropped"
+    );
+}
+
 #[tokio::test]
 async fn elicitation_requested_dispatches_to_handler_and_responds() {
     use github_copilot_sdk::types::ElicitationResult;

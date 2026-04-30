@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use parking_lot::Mutex as ParkingLotMutex;
 use serde_json::Value;
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::{Notify, oneshot};
 use tokio::task::JoinHandle;
 use tracing::{Instrument, warn};
 
@@ -81,7 +81,20 @@ pub struct Session {
     workspace_path: Option<PathBuf>,
     remote_url: Option<String>,
     client: Client,
-    event_loop: Mutex<Option<JoinHandle<()>>>,
+    /// Handle to the spawned event-loop task. Sync `parking_lot::Mutex`
+    /// because the lock is never held across an `.await` and the `Drop`
+    /// impl needs to take the handle synchronously without `try_lock`
+    /// fallibility.
+    event_loop: ParkingLotMutex<Option<JoinHandle<()>>>,
+    /// Cooperative shutdown signal for the event loop. The loop selects
+    /// on `shutdown.notified()` alongside its inbound channels;
+    /// [`Session::stop_event_loop`] and [`Drop`] both call `notify_one()`
+    /// (which buffers a single signal so it is not lost while the loop
+    /// is inside an awaiting branch) to ask the loop to exit between
+    /// iterations rather than `JoinHandle::abort` (which can land at any
+    /// await point and leave the session in mid-protocol state). See
+    /// RFD-400 review finding #3.
+    shutdown: Arc<Notify>,
     /// Only populated while a `send_and_wait` call is in flight.
     ///
     /// Sync `parking_lot::Mutex` because the lock is never held across an
@@ -186,10 +199,16 @@ impl Session {
     }
 
     /// Stop the internal event loop. Called automatically on [`destroy`](Self::destroy).
+    ///
+    /// Cooperative: signals shutdown via the session's `Notify` and awaits
+    /// the loop's natural exit rather than aborting the task. Any in-flight
+    /// handler (permission callback, tool call, elicitation response)
+    /// completes before the loop exits, so the CLI never sees a
+    /// half-handled request. See RFD-400 review finding #3.
     pub async fn stop_event_loop(&self) {
-        let handle = self.event_loop.lock().await.take();
+        self.shutdown.notify_one();
+        let handle = self.event_loop.lock().take();
         if let Some(handle) = handle {
-            handle.abort();
             let _ = handle.await;
         }
         // Fail any pending send_and_wait so it returns immediately.
@@ -582,14 +601,17 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
-        let handle = self
-            .event_loop
-            .try_lock()
-            .ok()
-            .and_then(|mut guard| guard.take());
-        if let Some(handle) = handle {
-            handle.abort();
-        }
+        // Cooperative shutdown: notify the event loop to exit between
+        // iterations. The loop will see the signal on its next select
+        // poll and break cleanly without interrupting an in-flight
+        // handler. We do NOT abort the JoinHandle — that would land at
+        // any await point in the loop body, potentially leaving the CLI
+        // with an unanswered request id. RFD-400 review finding #3.
+        //
+        // The handle itself is left in `event_loop` to be reaped by the
+        // tokio runtime when it next polls; we intentionally don't await
+        // it here because Drop is sync.
+        self.shutdown.notify_one();
         self.client.unregister_session(&self.id);
     }
 }
@@ -785,6 +807,7 @@ impl Client {
         let channels = self.register_session(&session_id);
 
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let shutdown = Arc::new(Notify::new());
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             session_id.clone(),
@@ -798,6 +821,7 @@ impl Client {
             idle_waiter.clone(),
             capabilities.clone(),
             event_tx.clone(),
+            shutdown.clone(),
         );
 
         Ok(Session {
@@ -806,7 +830,8 @@ impl Client {
             workspace_path: create_result.workspace_path,
             remote_url: create_result.remote_url,
             client: self.clone(),
-            event_loop: Mutex::new(Some(event_loop)),
+            event_loop: ParkingLotMutex::new(Some(event_loop)),
+            shutdown,
             idle_waiter,
             capabilities,
             event_tx,
@@ -885,6 +910,7 @@ impl Client {
         let channels = self.register_session(&cli_session_id);
 
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let shutdown = Arc::new(Notify::new());
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             cli_session_id.clone(),
@@ -898,6 +924,7 @@ impl Client {
             idle_waiter.clone(),
             capabilities.clone(),
             event_tx.clone(),
+            shutdown.clone(),
         );
 
         Ok(Session {
@@ -906,7 +933,8 @@ impl Client {
             workspace_path: None,
             remote_url,
             client: self.clone(),
-            event_loop: Mutex::new(Some(event_loop)),
+            event_loop: ParkingLotMutex::new(Some(event_loop)),
+            shutdown,
             idle_waiter,
             capabilities,
             event_tx,
@@ -941,6 +969,7 @@ fn spawn_event_loop(
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+    shutdown: Arc<Notify>,
 ) -> JoinHandle<()> {
     let crate::router::SessionChannels {
         mut notifications,
@@ -951,7 +980,18 @@ fn spawn_event_loop(
     tokio::spawn(
         async move {
             loop {
+                // `mpsc::UnboundedReceiver::recv` and `Notify::notified()`
+                // are both cancel-safe per RFD 400. The selected branch's
+                // `await`'d handler is *not* mid-cancelled by the select
+                // — once a branch fires it runs to completion within the
+                // loop's iteration. Spawned child tasks inside
+                // `handle_notification` (permission/tool/elicitation
+                // callbacks) intentionally outlive the parent loop and
+                // own their own cleanup; this is RFD 400's "spawn
+                // background tasks to perform cancel-unsafe operations"
+                // pattern and is correct as-is.
                 tokio::select! {
+                    _ = shutdown.notified() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
                             &session_id, &client, &handler, &command_handlers, notification, &idle_waiter, &capabilities, &event_tx,
@@ -965,7 +1005,8 @@ fn spawn_event_loop(
                     else => break,
                 }
             }
-            // Channels closed — fail any pending send_and_wait.
+            // Channels closed or shutdown signaled — fail any pending
+            // send_and_wait so the caller observes a clean error.
             if let Some(waiter) = idle_waiter.lock().take() {
                 let _ = waiter
                     .tx
