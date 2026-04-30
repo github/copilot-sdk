@@ -168,7 +168,7 @@ These are passed as keyword arguments to `create_session()`:
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI
-- `system_message` (SystemMessageConfig): System message configuration
+- `system_message` (SystemMessageConfig): System message configuration. See [System Message Customization](#system-message-customization) section.
 - `streaming` (bool): Enable streaming delta events
 - `provider` (ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `infinite_sessions` (InfiniteSessionConfig): Automatic context compaction configuration
@@ -507,6 +507,87 @@ async with await client.create_session(
 > - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## System Message Customization
+
+Control the system prompt using `system_message` in session config:
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    system_message={
+        "mode": "append",
+        "content": """
+<workflow_rules>
+- Always check for security vulnerabilities
+- Suggest performance improvements when applicable
+</workflow_rules>
+""",
+    },
+) as session:
+    ...
+```
+
+### Customize Mode
+
+Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    system_message={
+        "mode": "customize",
+        "sections": {
+            "tone": {"action": "replace", "content": "Respond in a warm, professional tone. Be thorough in explanations."},
+            "code_change_rules": {"action": "remove"},
+            "guidelines": {"action": "append", "content": "\n* Always cite data sources"},
+        },
+        "content": "Focus on financial analysis and reporting.",
+    },
+) as session:
+    ...
+```
+
+Available section IDs: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"last_instructions"`.
+
+Each section override supports four string actions: `"replace"`, `"remove"`, `"append"`, and `"prepend"`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `"remove"` overrides are silently ignored.
+
+You can also pass a transform callback as the `action` instead of a string. The callback receives the current section content and returns the new content (sync or async):
+
+```python
+def redact_paths(content: str) -> str:
+    return content.replace("/home/user", "/***")
+
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    system_message={
+        "mode": "customize",
+        "sections": {
+            "environment_context": {"action": redact_paths},
+        },
+    },
+) as session:
+    ...
+```
+
+### Replace Mode
+
+For full control (removes all SDK guardrails including security restrictions), use `mode: "replace"`:
+
+```python
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    system_message={
+        "mode": "replace",
+        "content": "You are a helpful assistant.",
+    },
+) as session:
+    ...
+```
 
 ## Telemetry
 
