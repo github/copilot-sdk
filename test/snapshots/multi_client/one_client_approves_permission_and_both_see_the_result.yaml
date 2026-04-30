@@ -5,46 +5,20 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Create a file called hello.txt containing the text 'hello world'
+        content: Run 'node --version' and tell me the result
       - role: assistant
-        content: I'll create the hello.txt file with the text 'hello world'.
+        content: I'll check the Node.js version for you.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Creating hello.txt file"}'
+              arguments: '{"intent":"Checking Node.js version"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
-              name: create
-              arguments: '{"file_text":"hello world","path":"${workdir}/hello.txt"}'
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: Create a file called hello.txt containing the text 'hello world'
-      - role: assistant
-        content: I'll create the hello.txt file with the text 'hello world'.
-        tool_calls:
-          - id: toolcall_0
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Creating hello.txt file"}'
-          - id: toolcall_1
-            type: function
-            function:
-              name: create
-              arguments: '{"file_text":"hello world","path":"${workdir}/hello.txt"}'
-      - role: tool
-        tool_call_id: toolcall_0
-        content: Intent logged
-      - role: tool
-        tool_call_id: toolcall_1
-        content: Created file ${workdir}/hello.txt with 11 characters
-      - role: assistant
-        content: Done! I've created the file `hello.txt` containing the text 'hello world'.
+              name: ${shell}
+              arguments: '{"command":"node --version","description":"Check Node.js version"}'

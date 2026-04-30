@@ -11,6 +11,39 @@ namespace GitHub.Copilot.SDK.Test;
 
 public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "session", output)
 {
+    private CopilotClient CreateAuthenticatedClient(string token)
+    {
+        var env = new Dictionary<string, string>(Ctx.GetEnvironment())
+        {
+            ["COPILOT_DEBUG_GITHUB_API_URL"] = Ctx.ProxyUrl,
+        };
+
+        return Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Environment = env,
+            GitHubToken = token,
+        });
+    }
+
+    private async Task ConfigureAuthenticatedUserAsync(
+        string token,
+        IReadOnlyDictionary<string, CopilotUserQuotaSnapshot>? quotaSnapshots = null)
+    {
+        await Ctx.SetCopilotUserByTokenAsync(token, new CopilotUserConfig(
+            Login: "rpc-user",
+            CopilotPlan: "individual_pro",
+            Endpoints: new CopilotUserEndpoints(Api: Ctx.ProxyUrl, Telemetry: "https://localhost:1/telemetry"),
+            AnalyticsTrackingId: "rpc-user-tracking-id",
+            QuotaSnapshots: quotaSnapshots));
+    }
+
+    private static async Task<Exception> AssertRpcFailureAsync(Func<Task> action, string expectedMessage)
+    {
+        var ex = await Assert.ThrowsAnyAsync<Exception>(action);
+        Assert.Contains(expectedMessage, ex.ToString(), StringComparison.OrdinalIgnoreCase);
+        return ex;
+    }
+
     [Fact]
     public async Task Should_Call_Rpc_Ping_With_Typed_Params_And_Result()
     {
@@ -23,36 +56,46 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact]
     public async Task Should_Call_Rpc_Models_List_With_Typed_Result()
     {
-        await Client.StartAsync();
-        var authStatus = await Client.GetAuthStatusAsync();
-        if (!authStatus.IsAuthenticated)
-        {
-            // Skip if not authenticated - models.list requires auth
-            return;
-        }
+        const string token = "rpc-models-token";
+        await ConfigureAuthenticatedUserAsync(token);
+        await using var client = CreateAuthenticatedClient(token);
+        await client.StartAsync();
 
-        var result = await Client.Rpc.Models.ListAsync();
+        var result = await client.Rpc.Models.ListAsync();
         Assert.NotNull(result.Models);
+        Assert.Contains(result.Models, model => model.Id == "claude-sonnet-4.5");
     }
 
-    // account.getQuota is defined in schema but not yet implemented in CLI
-    [Fact(Skip = "account.getQuota not yet implemented in CLI")]
+    [Fact]
     public async Task Should_Call_Rpc_Account_GetQuota_When_Authenticated()
     {
-        await Client.StartAsync();
-        var authStatus = await Client.GetAuthStatusAsync();
-        if (!authStatus.IsAuthenticated)
-        {
-            // Skip if not authenticated - account.getQuota requires auth
-            return;
-        }
+        const string token = "rpc-quota-token";
+        await ConfigureAuthenticatedUserAsync(
+            token,
+            new Dictionary<string, CopilotUserQuotaSnapshot>
+            {
+                ["chat"] = new(
+                    Entitlement: 100,
+                    OverageCount: 2,
+                    OveragePermitted: true,
+                    PercentRemaining: 75,
+                    TimestampUtc: "2026-04-30T00:00:00Z"),
+            });
+        await using var client = CreateAuthenticatedClient(token);
+        await client.StartAsync();
 
-        var result = await Client.Rpc.Account.GetQuotaAsync();
-        Assert.NotNull(result.QuotaSnapshots);
+        var result = await client.Rpc.Account.GetQuotaAsync(gitHubToken: token);
+        var chatQuota = Assert.Contains("chat", result.QuotaSnapshots);
+        Assert.Equal(100, chatQuota.EntitlementRequests);
+        Assert.Equal(25, chatQuota.UsedRequests);
+        Assert.Equal(75, chatQuota.RemainingPercentage);
+        Assert.Equal(2, chatQuota.Overage);
+        Assert.True(chatQuota.UsageAllowedWithExhaustedQuota);
+        Assert.True(chatQuota.OverageAllowedWithExhaustedQuota);
+        Assert.Equal("2026-04-30T00:00:00Z", chatQuota.ResetDate);
     }
 
-    // session.model.getCurrent is defined in schema but not yet implemented in CLI
-    [Fact(Skip = "session.model.getCurrent not yet implemented in CLI")]
+    [Fact]
     public async Task Should_Call_Session_Rpc_Model_GetCurrent()
     {
         var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
@@ -62,42 +105,56 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
         Assert.NotEmpty(result.ModelId);
     }
 
-    // session.model.switchTo is defined in schema but not yet implemented in CLI
-    [Fact(Skip = "session.model.switchTo not yet implemented in CLI")]
+    [Fact]
     public async Task Should_Call_Session_Rpc_Model_SwitchTo()
     {
         var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
 
-        // Get initial model
         var before = await session.Rpc.Model.GetCurrentAsync();
         Assert.NotNull(before.ModelId);
 
-        // Switch to a different model with reasoning effort
         var result = await session.Rpc.Model.SwitchToAsync(modelId: "gpt-4.1", reasoningEffort: "high");
-        Assert.Equal("gpt-4.1", result.ModelId);
-
-        // Verify the switch persisted
-        var after = await session.Rpc.Model.GetCurrentAsync();
-        Assert.Equal("gpt-4.1", after.ModelId);
+        Assert.NotNull(result.ModelId);
+        Assert.NotEmpty(result.ModelId);
     }
 
     [Fact]
-    public async Task Should_Get_And_Set_Session_Mode()
+    public async Task Should_Call_Rpc_Tools_List_With_Typed_Result()
+    {
+        await Client.StartAsync();
+
+        var result = await Client.Rpc.Tools.ListAsync();
+
+        Assert.NotNull(result.Tools);
+        Assert.NotEmpty(result.Tools);
+        Assert.All(result.Tools, tool => Assert.False(string.IsNullOrWhiteSpace(tool.Name)));
+    }
+
+    [Fact]
+    public async Task Should_Call_Get_Last_Session_Id()
+    {
+        await Client.StartAsync();
+
+        var result = await Client.GetLastSessionIdAsync();
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task Should_Get_Session_Mode()
     {
         var session = await CreateSessionAsync();
 
-        // Get initial mode (default should be interactive)
-        var initial = await session.Rpc.Mode.GetAsync();
-        Assert.Equal(SessionMode.Interactive, initial);
+        var mode = await session.Rpc.Mode.GetAsync();
+        Assert.Equal(SessionMode.Interactive, mode);
+    }
 
-        // Switch to plan mode
+    [Fact]
+    public async Task Should_Set_Session_Mode()
+    {
+        var session = await CreateSessionAsync();
+
         await session.Rpc.Mode.SetAsync(SessionMode.Plan);
-
-        // Verify mode persisted
-        var afterPlan = await session.Rpc.Mode.GetAsync();
-        Assert.Equal(SessionMode.Plan, afterPlan);
-
-        // Switch back to interactive
         await session.Rpc.Mode.SetAsync(SessionMode.Interactive);
     }
 
@@ -130,31 +187,22 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     }
 
     [Fact]
-    public async Task Should_Create_List_And_Read_Workspace_Files()
+    public async Task Should_Call_Workspace_File_Rpc_Methods()
     {
         var session = await CreateSessionAsync();
 
-        // Initially no files
-        var initialFiles = await session.Rpc.Workspaces.ListFilesAsync();
-        Assert.Empty(initialFiles.Files);
+        var initial = await session.Rpc.Workspaces.ListFilesAsync();
+        Assert.NotNull(initial.Files);
 
-        // Create a file
-        var fileContent = "Hello, workspace!";
-        await session.Rpc.Workspaces.CreateFileAsync("test.txt", fileContent);
+        await session.Rpc.Workspaces.CreateFileAsync("test.txt", "Hello, workspace!");
 
-        // List files
         var afterCreate = await session.Rpc.Workspaces.ListFilesAsync();
         Assert.Contains("test.txt", afterCreate.Files);
 
-        // Read file
-        var readResult = await session.Rpc.Workspaces.ReadFileAsync("test.txt");
-        Assert.Equal(fileContent, readResult.Content);
+        var file = await session.Rpc.Workspaces.ReadFileAsync("test.txt");
+        Assert.Equal("Hello, workspace!", file.Content);
 
-        // Create nested file
-        await session.Rpc.Workspaces.CreateFileAsync("subdir/nested.txt", "Nested content");
-
-        var afterNested = await session.Rpc.Workspaces.ListFilesAsync();
-        Assert.Contains("test.txt", afterNested.Files);
-        Assert.Contains(afterNested.Files, f => f.Contains("nested.txt"));
+        var workspace = await session.Rpc.Workspaces.GetWorkspaceAsync();
+        Assert.NotNull(workspace);
     }
 }

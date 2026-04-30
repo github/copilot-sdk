@@ -1,0 +1,66 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Read the attached file and reply with its contents.
+
+
+
+          <tagged_files>
+          * ${workdir}/attached-file.txt (line 1 of 1 lines)
+          </tagged_files>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading attached file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/attached-file.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Read the attached file and reply with its contents.
+
+
+
+          <tagged_files>
+          * ${workdir}/attached-file.txt (line 1 of 1 lines)
+          </tagged_files>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading attached file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/attached-file.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: 1. FILE_ATTACHMENT_SENTINEL
+      - role: assistant
+        content: |-
+          The attached file contains:
+
+          ```
+          FILE_ATTACHMENT_SENTINEL
+          ```

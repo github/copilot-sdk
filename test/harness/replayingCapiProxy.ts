@@ -209,7 +209,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           );
           const parsedExchanges = await Promise.all(
             chatCompletionExchanges.map((e) =>
-              parseHttpExchange(e.request.body, e.response?.body),
+              parseHttpExchange(e.request.body, e.response?.body, e.request.headers),
             ),
           );
           options.onResponseStart(200, {});
@@ -767,10 +767,11 @@ function isPrefix(
 async function parseHttpExchange(
   requestBody: string,
   responseBody: string | undefined,
+  requestHeaders?: Record<string, string | string[] | undefined>,
 ): Promise<ParsedHttpExchange> {
   const request = JSON.parse(requestBody) as ChatCompletionCreateParamsBase;
   const response = await parseOpenAIResponse(responseBody);
-  return { request, response };
+  return { request, response, requestHeaders };
 }
 
 // Converts a single HTTP exchange (request + response) into a normalized conversation
@@ -1180,11 +1181,23 @@ export type CopilotUserResponse = {
     telemetry?: string;
   };
   analytics_tracking_id?: string;
+  quota_snapshots?: Record<
+    string,
+    {
+      entitlement?: number;
+      overage_count?: number;
+      overage_permitted?: boolean;
+      percent_remaining?: number;
+      timestamp_utc?: string;
+      unlimited?: boolean;
+    }
+  >;
 };
 
 export type ParsedHttpExchange = {
   request: ChatCompletionCreateParamsBase;
   response: ChatCompletion | undefined;
+  requestHeaders?: Record<string, string | string[] | undefined>;
 };
 
 // We want to be able to reuse the proxy across multiple tests, so it needs to be reconfigurable

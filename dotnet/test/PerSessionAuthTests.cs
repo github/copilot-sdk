@@ -55,10 +55,9 @@ public class PerSessionAuthTests(E2ETestFixture fixture, ITestOutputHelper outpu
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        var authStatus = await session.Rpc.Auth.GetStatusAsync();
-
-        Assert.True(authStatus.IsAuthenticated);
-        Assert.Equal("alice", authStatus.Login);
+        var status = await session.Rpc.Auth.GetStatusAsync();
+        Assert.True(status.IsAuthenticated);
+        Assert.Equal("alice", status.Login);
     }
 
     [Fact]
@@ -79,11 +78,10 @@ public class PerSessionAuthTests(E2ETestFixture fixture, ITestOutputHelper outpu
         });
 
         var statusA = await sessionA.Rpc.Auth.GetStatusAsync();
-        var statusB = await sessionB.Rpc.Auth.GetStatusAsync();
-
         Assert.True(statusA.IsAuthenticated);
         Assert.Equal("alice", statusA.Login);
 
+        var statusB = await sessionB.Rpc.Auth.GetStatusAsync();
         Assert.True(statusB.IsAuthenticated);
         Assert.Equal("bob", statusB.Login);
     }
@@ -96,12 +94,9 @@ public class PerSessionAuthTests(E2ETestFixture fixture, ITestOutputHelper outpu
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        var authStatus = await session.Rpc.Auth.GetStatusAsync();
-
-        // Without a per-session token, there is no per-session identity.
-        // In CI the process-level fake token may still authenticate globally,
-        // so we check Login rather than IsAuthenticated.
-        Assert.Null(authStatus.Login);
+        var status = await session.Rpc.Auth.GetStatusAsync();
+        Assert.False(status.IsAuthenticated);
+        Assert.Null(status.Login);
     }
 
     [Fact]
@@ -109,15 +104,11 @@ public class PerSessionAuthTests(E2ETestFixture fixture, ITestOutputHelper outpu
     {
         await SetupCopilotUsersAsync();
 
-        var ex = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => AuthClient.CreateSessionAsync(new SessionConfig
         {
-            await using var session = await AuthClient.CreateSessionAsync(new SessionConfig
-            {
-                GitHubToken = "invalid-token",
-                OnPermissionRequest = PermissionHandler.ApproveAll,
-            });
-        });
-
-        Assert.NotNull(ex);
+            GitHubToken = "invalid-token",
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        }));
+        Assert.Contains("401 Unauthorized", ex.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 }

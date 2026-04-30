@@ -1,0 +1,193 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: >-
+          You are now in fleet mode. Dispatch sub-agents (via the task tool) in parallel to do the work.
+
+
+          **Getting Started**
+
+          1. Check for existing todos: `SELECT id, title, status FROM todos WHERE status != 'done'`
+
+          2. If todos exist, dispatch them in parallel (respecting dependencies)
+
+          3. If no todos exist, help decompose the work into todos first. Try to structure todos to minimize
+          dependencies and maximize parallel execution.
+
+
+          **Parallel Execution**
+
+          - Dispatch independent todos simultaneously
+
+          - Never dispatch just a single background subagent. Prefer one sync subagent, or better, prefer to efficiently
+          dispatch multiple background subagents in the same turn.
+
+          - Only serialize todos with true dependencies (check todo_deps)
+
+          - Query ready todos: `SELECT * FROM todos WHERE status = 'pending' AND id NOT IN (SELECT todo_id FROM
+          todo_deps td JOIN todos t ON td.depends_on = t.id WHERE t.status != 'done')`
+
+
+          **Sub-Agent Instructions**
+
+          When dispatching a sub-agent, include these instructions in your prompt:
+
+          1. Update the todo status when finished:
+             - Success: `UPDATE todos SET status = 'done' WHERE id = '<todo-id>'`
+             - Blocked: `UPDATE todos SET status = 'blocked' WHERE id = '<todo-id>'`
+          2. Always return a response summarizing:
+             - What was completed
+             - Whether the todo is fully done or needs more work
+             - Any blockers or questions that need resolution
+
+          **Coordination**
+
+          - After sub-agents return, check todo status in SQL (source of truth)
+
+          - If status is still 'in_progress', the sub-agent may have failed to update - investigate
+
+          - Use the sub-agent's response to understand context, but trust SQL for status
+
+
+          **After Sub-Agents Complete**
+
+          - Check the work done by sub-agents and validate the original request is fully satisfied
+
+          - Ensure the work done by sub-agents (both implementation and testing) is sensible, robust, and handles edge
+          cases, not just the happy path
+
+          - If the original request is not fully satisfied, decompose remaining work into new todos and dispatch more
+          sub-agents as needed
+
+
+          Now proceed with the user's request using fleet mode.
+
+
+          User request: Start fleet mode for this test session.
+      - role: assistant
+        content: I'll start fleet mode by first checking for existing todos in the database.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Initializing fleet mode"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Check for existing todos\",\"query\":\"SELECT id, title, status FROM todos WHERE status
+                != 'done'\"}"
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: >-
+          You are now in fleet mode. Dispatch sub-agents (via the task tool) in parallel to do the work.
+
+
+          **Getting Started**
+
+          1. Check for existing todos: `SELECT id, title, status FROM todos WHERE status != 'done'`
+
+          2. If todos exist, dispatch them in parallel (respecting dependencies)
+
+          3. If no todos exist, help decompose the work into todos first. Try to structure todos to minimize
+          dependencies and maximize parallel execution.
+
+
+          **Parallel Execution**
+
+          - Dispatch independent todos simultaneously
+
+          - Never dispatch just a single background subagent. Prefer one sync subagent, or better, prefer to efficiently
+          dispatch multiple background subagents in the same turn.
+
+          - Only serialize todos with true dependencies (check todo_deps)
+
+          - Query ready todos: `SELECT * FROM todos WHERE status = 'pending' AND id NOT IN (SELECT todo_id FROM
+          todo_deps td JOIN todos t ON td.depends_on = t.id WHERE t.status != 'done')`
+
+
+          **Sub-Agent Instructions**
+
+          When dispatching a sub-agent, include these instructions in your prompt:
+
+          1. Update the todo status when finished:
+             - Success: `UPDATE todos SET status = 'done' WHERE id = '<todo-id>'`
+             - Blocked: `UPDATE todos SET status = 'blocked' WHERE id = '<todo-id>'`
+          2. Always return a response summarizing:
+             - What was completed
+             - Whether the todo is fully done or needs more work
+             - Any blockers or questions that need resolution
+
+          **Coordination**
+
+          - After sub-agents return, check todo status in SQL (source of truth)
+
+          - If status is still 'in_progress', the sub-agent may have failed to update - investigate
+
+          - Use the sub-agent's response to understand context, but trust SQL for status
+
+
+          **After Sub-Agents Complete**
+
+          - Check the work done by sub-agents and validate the original request is fully satisfied
+
+          - Ensure the work done by sub-agents (both implementation and testing) is sensible, robust, and handles edge
+          cases, not just the happy path
+
+          - If the original request is not fully satisfied, decompose remaining work into new todos and dispatch more
+          sub-agents as needed
+
+
+          Now proceed with the user's request using fleet mode.
+
+
+          User request: Start fleet mode for this test session.
+      - role: assistant
+        content: I'll start fleet mode by first checking for existing todos in the database.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Initializing fleet mode"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Check for existing todos\",\"query\":\"SELECT id, title, status FROM todos WHERE status
+                != 'done'\"}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Query returned 0 rows.
+      - role: assistant
+        content: |-
+          Fleet mode initialized! No existing todos found in the database. 
+
+          **What would you like to accomplish?**
+
+          Please provide a task or objective, and I'll:
+          1. Decompose it into parallelizable todos with minimal dependencies
+          2. Store them in the SQL database
+          3. Dispatch multiple sub-agents simultaneously to execute them
+
+          For example, you could ask me to:
+          - Build a specific feature or application
+          - Analyze or refactor a codebase
+          - Set up a development environment
+          - Create multiple components or modules
+          - Run tests and fix issues across multiple files
+
+          What task should I prepare for fleet execution?

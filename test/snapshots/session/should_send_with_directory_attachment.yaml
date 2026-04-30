@@ -1,0 +1,67 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          List the attached directory.
+
+
+
+          <tagged_files>
+          * ${workdir}/attached-directory (1 items)
+          </tagged_files>
+      - role: assistant
+        content: I'll list the contents of the attached directory for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Listing directory contents"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/attached-directory"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          List the attached directory.
+
+
+
+          <tagged_files>
+          * ${workdir}/attached-directory (1 items)
+          </tagged_files>
+      - role: assistant
+        content: I'll list the contents of the attached directory for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Listing directory contents"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/attached-directory"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: readme.txt
+      - role: assistant
+        content: |-
+          The attached directory contains a single file: **readme.txt**
+
+          Would you like me to view its contents?

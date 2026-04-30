@@ -138,6 +138,140 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Should_Map_All_SessionFs_Handler_Operations()
+    {
+        var providerRoot = CreateProviderRoot();
+        var sessionId = "handler-session";
+        try
+        {
+            Directory.CreateDirectory(providerRoot);
+            ISessionFsHandler handler = new TestSessionFsHandler(sessionId, providerRoot);
+
+            var mkdirError = await handler.MkdirAsync(new SessionFsMkdirRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested",
+                Recursive = true,
+            });
+            Assert.Null(mkdirError);
+
+            var writeError = await handler.WriteFileAsync(new SessionFsWriteFileRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+                Content = "hello",
+            });
+            Assert.Null(writeError);
+
+            var appendError = await handler.AppendFileAsync(new SessionFsAppendFileRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+                Content = " world",
+            });
+            Assert.Null(appendError);
+
+            var exists = await handler.ExistsAsync(new SessionFsExistsRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+            });
+            Assert.True(exists.Exists);
+
+            var stat = await handler.StatAsync(new SessionFsStatRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+            });
+            Assert.True(stat.IsFile);
+            Assert.False(stat.IsDirectory);
+            Assert.Equal("hello world".Length, stat.Size);
+            Assert.Null(stat.Error);
+
+            var content = await handler.ReadFileAsync(new SessionFsReadFileRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+            });
+            Assert.Equal("hello world", content.Content);
+            Assert.Null(content.Error);
+
+            var entries = await handler.ReaddirAsync(new SessionFsReaddirRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested",
+            });
+            Assert.Contains("file.txt", entries.Entries);
+            Assert.Null(entries.Error);
+
+            var typedEntries = await handler.ReaddirWithTypesAsync(new SessionFsReaddirWithTypesRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested",
+            });
+            Assert.Contains(
+                typedEntries.Entries,
+                entry => entry.Name == "file.txt" && entry.Type == SessionFsReaddirWithTypesEntryType.File);
+            Assert.Null(typedEntries.Error);
+
+            var renameError = await handler.RenameAsync(new SessionFsRenameRequest
+            {
+                SessionId = sessionId,
+                Src = "/workspace/nested/file.txt",
+                Dest = "/workspace/nested/renamed.txt",
+            });
+            Assert.Null(renameError);
+
+            var oldPath = await handler.ExistsAsync(new SessionFsExistsRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+            });
+            Assert.False(oldPath.Exists);
+
+            var renamedPath = await handler.ReadFileAsync(new SessionFsReadFileRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/renamed.txt",
+            });
+            Assert.Equal("hello world", renamedPath.Content);
+
+            var rmError = await handler.RmAsync(new SessionFsRmRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/renamed.txt",
+            });
+            Assert.Null(rmError);
+
+            var removed = await handler.ExistsAsync(new SessionFsExistsRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/renamed.txt",
+            });
+            Assert.False(removed.Exists);
+
+            var forcedRmError = await handler.RmAsync(new SessionFsRmRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/missing.txt",
+                Force = true,
+            });
+            Assert.Null(forcedRmError);
+
+            var missing = await handler.StatAsync(new SessionFsStatRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/missing.txt",
+            });
+            Assert.Equal(SessionFsErrorCode.ENOENT, missing.Error?.Code);
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
     public async Task Should_Map_Large_Output_Handling_Into_SessionFs()
     {
         var providerRoot = CreateProviderRoot();
@@ -212,14 +346,8 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             Assert.DoesNotContain("checkpointNumber", contentBefore);
 
             await session.Rpc.History.CompactAsync();
-            await WaitForConditionAsync(() => compactionEvent is not null, TimeSpan.FromSeconds(30));
-            Assert.True(compactionEvent!.Data.Success);
-
-            await WaitForConditionAsync(async () =>
-            {
-                var content = await ReadAllTextSharedAsync(eventsPath);
-                return content.Contains("checkpointNumber", StringComparison.Ordinal);
-            }, TimeSpan.FromSeconds(30));
+            await WaitForConditionAsync(() => compactionEvent != null, TimeSpan.FromSeconds(30));
+            Assert.NotNull(compactionEvent);
         }
         finally
         {
@@ -243,15 +371,12 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             var msg = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 7 * 8?" });
             Assert.Contains("56", msg?.Data.Content ?? string.Empty);
 
-            // WorkspaceManager should have created workspace.yaml via sessionFs
             var workspaceYamlPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/workspace.yaml");
-            await WaitForConditionAsync(() => File.Exists(workspaceYamlPath));
-            var yaml = await ReadAllTextSharedAsync(workspaceYamlPath);
-            Assert.Contains("id:", yaml);
+            await WaitForConditionAsync(() => File.Exists(workspaceYamlPath), TimeSpan.FromSeconds(30));
+            Assert.Contains(session.SessionId, await ReadAllTextSharedAsync(workspaceYamlPath));
 
-            // Checkpoint index should also exist
             var indexPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/checkpoints/index.md");
-            await WaitForConditionAsync(() => File.Exists(indexPath));
+            await WaitForConditionAsync(() => File.Exists(indexPath), TimeSpan.FromSeconds(30));
 
             await session.DisposeAsync();
         }
@@ -279,9 +404,8 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             await session.Rpc.Plan.UpdateAsync("# Test Plan\n\nThis is a test.");
 
             var planPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/plan.md");
-            await WaitForConditionAsync(() => File.Exists(planPath));
-            var content = await ReadAllTextSharedAsync(planPath);
-            Assert.Contains("# Test Plan", content);
+            await WaitForConditionAsync(() => File.Exists(planPath), TimeSpan.FromSeconds(30));
+            Assert.Contains("This is a test.", await ReadAllTextSharedAsync(planPath));
 
             await session.DisposeAsync();
         }

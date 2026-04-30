@@ -163,6 +163,7 @@ public sealed partial class CapiProxy : IAsyncDisposable
     [JsonSerializable(typeof(ConfigureRequest))]
     [JsonSerializable(typeof(List<ParsedHttpExchange>))]
     [JsonSerializable(typeof(CopilotUserByTokenRequest))]
+    [JsonSerializable(typeof(Dictionary<string, CopilotUserQuotaSnapshot>))]
     private partial class CapiProxyJsonContext : JsonSerializerContext;
 }
 
@@ -170,13 +171,37 @@ public record CopilotUserByTokenRequest(string Token, CopilotUserConfig Response
 
 public record CopilotUserConfig(
     string Login,
+    [property: JsonPropertyName("copilot_plan")]
     string CopilotPlan,
     CopilotUserEndpoints Endpoints,
-    string AnalyticsTrackingId);
+    [property: JsonPropertyName("analytics_tracking_id")]
+    string AnalyticsTrackingId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [property: JsonPropertyName("quota_snapshots")]
+    IReadOnlyDictionary<string, CopilotUserQuotaSnapshot>? QuotaSnapshots = null);
 
 public record CopilotUserEndpoints(string Api, string Telemetry);
 
-public record ParsedHttpExchange(ChatCompletionRequest Request, ChatCompletionResponse? Response);
+public record CopilotUserQuotaSnapshot(
+    [property: JsonPropertyName("entitlement")]
+    int Entitlement,
+    [property: JsonPropertyName("overage_count")]
+    int OverageCount,
+    [property: JsonPropertyName("overage_permitted")]
+    bool OveragePermitted,
+    [property: JsonPropertyName("percent_remaining")]
+    double PercentRemaining,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [property: JsonPropertyName("timestamp_utc")]
+    string? TimestampUtc = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [property: JsonPropertyName("unlimited")]
+    bool? Unlimited = null);
+
+public record ParsedHttpExchange(
+    ChatCompletionRequest Request,
+    ChatCompletionResponse? Response,
+    Dictionary<string, JsonElement>? RequestHeaders);
 
 public record ChatCompletionRequest(
     string Model,

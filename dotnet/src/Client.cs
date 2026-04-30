@@ -1775,6 +1775,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
     [JsonSerializable(typeof(PermissionRequestResult))]
+    [JsonSerializable(typeof(PermissionRequestResultKind))]
     [JsonSerializable(typeof(PermissionRequestResponseV2))]
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]

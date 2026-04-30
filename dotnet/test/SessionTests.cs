@@ -183,7 +183,6 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
         await TestHelper.GetFinalAssistantMessageAsync(session);
 
-        // The real assertion: verify the runtime excluded the tool from the CAPI request
         var traffic = await Ctx.GetExchangesAsync();
         Assert.NotEmpty(traffic);
 
@@ -417,11 +416,12 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains("assistant.message", events);
     }
 
-    // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
-    [Fact(Skip = "Needs test harness CAPI proxy support")]
+    [Fact]
     public async Task Should_List_Sessions_With_Context()
     {
         var session = await CreateSessionAsync();
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say OK." });
+        await Task.Delay(200);
 
         var sessions = await Client.ListSessionsAsync();
         Assert.NotEmpty(sessions);
@@ -657,6 +657,172 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         });
 
         await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Send_With_File_Attachment()
+    {
+        var filePath = Path.Join(Ctx.WorkDir, "attached-file.txt");
+        await File.WriteAllTextAsync(filePath, "FILE_ATTACHMENT_SENTINEL");
+
+        var session = await CreateSessionAsync();
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Read the attached file and reply with its contents.",
+            Attachments =
+            [
+                new UserMessageAttachmentFile
+                {
+                    DisplayName = "attached-file.txt",
+                    Path = filePath,
+                    LineRange = new UserMessageAttachmentFileLineRange { Start = 1, End = 1 },
+                },
+            ],
+        });
+
+        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var attachment = Assert.IsType<UserMessageAttachmentFile>(Assert.Single(userMessage.Data.Attachments!));
+        Assert.Equal("attached-file.txt", attachment.DisplayName);
+        Assert.Equal(filePath, attachment.Path);
+        Assert.Equal(1, attachment.LineRange!.Start);
+        Assert.Equal(1, attachment.LineRange.End);
+    }
+
+    [Fact]
+    public async Task Should_Send_With_Directory_Attachment()
+    {
+        var directoryPath = Path.Join(Ctx.WorkDir, "attached-directory");
+        Directory.CreateDirectory(directoryPath);
+        await File.WriteAllTextAsync(Path.Join(directoryPath, "readme.txt"), "DIRECTORY_ATTACHMENT_SENTINEL");
+
+        var session = await CreateSessionAsync();
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "List the attached directory.",
+            Attachments =
+            [
+                new UserMessageAttachmentDirectory
+                {
+                    DisplayName = "attached-directory",
+                    Path = directoryPath,
+                },
+            ],
+        });
+
+        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var attachment = Assert.IsType<UserMessageAttachmentDirectory>(Assert.Single(userMessage.Data.Attachments!));
+        Assert.Equal("attached-directory", attachment.DisplayName);
+        Assert.Equal(directoryPath, attachment.Path);
+    }
+
+    [Fact]
+    public async Task Should_Send_With_Selection_Attachment()
+    {
+        var filePath = Path.Join(Ctx.WorkDir, "selected-file.cs");
+        await File.WriteAllTextAsync(filePath, "class C { string Value = \"SELECTION_SENTINEL\"; }");
+
+        var session = await CreateSessionAsync();
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Summarize the selected code.",
+            Attachments =
+            [
+                new UserMessageAttachmentSelection
+                {
+                    DisplayName = "selected-file.cs",
+                    FilePath = filePath,
+                    Text = "string Value = \"SELECTION_SENTINEL\";",
+                    Selection = new UserMessageAttachmentSelectionDetails
+                    {
+                        Start = new UserMessageAttachmentSelectionDetailsStart { Line = 1, Character = 10 },
+                        End = new UserMessageAttachmentSelectionDetailsEnd { Line = 1, Character = 45 },
+                    },
+                },
+            ],
+        });
+
+        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var attachment = Assert.IsType<UserMessageAttachmentSelection>(Assert.Single(userMessage.Data.Attachments!));
+        Assert.Equal("selected-file.cs", attachment.DisplayName);
+        Assert.Equal(filePath, attachment.FilePath);
+        Assert.Equal("string Value = \"SELECTION_SENTINEL\";", attachment.Text);
+        Assert.Equal(1, attachment.Selection.Start.Line);
+        Assert.Equal(10, attachment.Selection.Start.Character);
+        Assert.Equal(1, attachment.Selection.End.Line);
+        Assert.Equal(45, attachment.Selection.End.Character);
+    }
+
+    [Fact]
+    public async Task Should_Send_With_Github_Reference_Attachment()
+    {
+        var session = await CreateSessionAsync();
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Summarize the referenced issue.",
+            Attachments =
+            [
+                new UserMessageAttachmentGithubReference
+                {
+                    Number = 1234,
+                    ReferenceType = UserMessageAttachmentGithubReferenceType.Issue,
+                    State = "open",
+                    Title = "Add E2E attachment coverage",
+                    Url = "https://github.com/github/copilot-sdk/issues/1234",
+                },
+            ],
+        });
+
+        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var attachment = Assert.IsType<UserMessageAttachmentGithubReference>(Assert.Single(userMessage.Data.Attachments!));
+        Assert.Equal(1234, attachment.Number);
+        Assert.Equal(UserMessageAttachmentGithubReferenceType.Issue, attachment.ReferenceType);
+        Assert.Equal("open", attachment.State);
+        Assert.Equal("Add E2E attachment coverage", attachment.Title);
+        Assert.Equal("https://github.com/github/copilot-sdk/issues/1234", attachment.Url);
+    }
+
+    [Fact]
+    public async Task Should_Send_With_Mode_Property()
+    {
+        var session = await CreateSessionAsync();
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Say mode ok.",
+            Mode = "plan",
+        });
+
+        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        Assert.Equal("Say mode ok.", userMessage.Data.Content);
+        // The current runtime accepts the per-message mode option but does not echo it on user.message.
+        Assert.Null(userMessage.Data.AgentMode);
+    }
+
+    [Fact]
+    public async Task Should_Send_With_Custom_RequestHeaders()
+    {
+        var session = await CreateSessionAsync();
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "What is 1+1?",
+            RequestHeaders = new Dictionary<string, string>
+            {
+                ["x-copilot-sdk-test-header"] = "csharp-request-headers",
+            },
+        });
+
+        var exchanges = await Ctx.GetExchangesAsync();
+        Assert.NotEmpty(exchanges);
+        var headers = exchanges.Last().RequestHeaders ?? [];
+        Assert.Contains(
+            headers,
+            pair => string.Equals(pair.Key, "x-copilot-sdk-test-header", StringComparison.OrdinalIgnoreCase) &&
+                    pair.Value.ToString().Contains("csharp-request-headers", StringComparison.Ordinal));
     }
 
     private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)

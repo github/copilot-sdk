@@ -48,6 +48,21 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         return skillsDir;
     }
 
+    private static void CreateSkill(string skillsDir, string name, string description, string body)
+    {
+        var skillSubdir = Path.Join(skillsDir, name);
+        Directory.CreateDirectory(skillSubdir);
+
+        var skillContent = $@"---
+name: {name}
+description: {description}
+---
+
+{body}
+".ReplaceLineEndings("\n");
+        File.WriteAllText(Path.Join(skillSubdir, "SKILL.md"), skillContent);
+    }
+
     [Fact]
     public async Task Should_Load_And_Apply_Skill_From_SkillDirectories()
     {
@@ -85,6 +100,41 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         Assert.DoesNotContain(SkillMarker, message!.Data.Content);
 
         await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Control_Ambient_Project_Skills_With_EnableConfigDiscovery()
+    {
+        var projectDir = Path.Join(_workDir, $"config-discovery-{Guid.NewGuid():N}");
+        var projectSkillsDir = Path.Join(projectDir, ".github", "skills");
+        var skillName = $"ambient-skill-{Guid.NewGuid():N}".Substring(0, 32);
+        Directory.CreateDirectory(projectSkillsDir);
+        CreateSkill(
+            projectSkillsDir,
+            skillName,
+            "A project skill discovered from .github/skills",
+            "Use the exact phrase AMBIENT_DISCOVERY_SKILL when this skill is active.");
+
+        var disabledSession = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = projectDir,
+            EnableConfigDiscovery = false,
+        });
+        var disabledSkills = await disabledSession.Rpc.Skills.ListAsync();
+        Assert.DoesNotContain(disabledSkills.Skills, skill => string.Equals(skill.Name, skillName, StringComparison.Ordinal));
+        await disabledSession.DisposeAsync();
+
+        var enabledSession = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = projectDir,
+            EnableConfigDiscovery = true,
+        });
+        var enabledSkills = await enabledSession.Rpc.Skills.ListAsync();
+        var discoveredSkill = Assert.Single(enabledSkills.Skills, skill => string.Equals(skill.Name, skillName, StringComparison.Ordinal));
+        Assert.True(discoveredSkill.Enabled);
+        Assert.Equal("project", discoveredSkill.Source);
+        Assert.EndsWith(Path.Join(skillName, "SKILL.md"), discoveredSkill.Path);
+        await enabledSession.DisposeAsync();
     }
 
     [Fact]

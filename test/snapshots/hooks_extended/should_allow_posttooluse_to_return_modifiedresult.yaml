@@ -1,0 +1,47 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call the report_intent tool with intent 'Testing post hook', then reply done.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing post hook"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call the report_intent tool with intent 'Testing post hook', then reply done.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing post hook"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Tool 'view' does not exist. Available tools that can be called are report_intent.
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: assistant
+        content: Done.

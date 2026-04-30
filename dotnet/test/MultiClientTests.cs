@@ -170,21 +170,22 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         var client1Events = new ConcurrentBag<SessionEvent>();
         var client2Events = new ConcurrentBag<SessionEvent>();
 
-        // Wait for PermissionCompletedEvent on client2 which may arrive slightly after session1 goes idle
+        // Wait for PermissionCompletedEvent on both clients.
+        var client1PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session1);
         var client2PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session2);
 
         using var sub1 = session1.On(evt => client1Events.Add(evt));
         using var sub2 = session2.On(evt => client2Events.Add(evt));
 
-        var response = await session1.SendAndWaitAsync(new MessageOptions
+        await session1.SendAsync(new MessageOptions
         {
-            Prompt = "Create a file called hello.txt containing the text 'hello world'",
+            Prompt = "Run 'node --version' and tell me the result",
         });
 
-        Assert.NotNull(response);
-        Assert.NotEmpty(client1PermissionRequests);
+        await Task.WhenAll(client1PermissionCompleted, client2PermissionCompleted).WaitAsync(TimeSpan.FromSeconds(30));
+        await session1.AbortAsync();
 
-        await client2PermissionCompleted;
+        Assert.NotEmpty(client1PermissionRequests);
 
         Assert.Contains(client1Events, e => e is PermissionRequestedEvent);
         Assert.Contains(client2Events, e => e is PermissionRequestedEvent);
