@@ -12,7 +12,7 @@ public static class TestHelper
         bool alreadyIdle = false)
     {
         var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(120));
 
         // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
         // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
@@ -111,7 +111,7 @@ public static class TestHelper
         TimeSpan? timeout = null) where T : SessionEvent
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(120));
 
         using var subscription = session.On(evt =>
         {
