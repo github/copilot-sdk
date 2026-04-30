@@ -97,4 +97,41 @@ public class ForwardCompatibilityTests
 
         Assert.Equal("unknown", evt.Type);
     }
+
+        [Fact]
+    public void FromJson_WithAgentId_DeserializesAgentId()
+    {
+        var json = """
+        {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "timestamp": "2026-06-15T10:30:00Z",
+            "parentId": null,
+            "agentId": "sub-agent-42",
+            "type": "future.feature_from_server",
+            "data": {}
+        }
+        """;
+
+        var result = SessionEvent.FromJson(json);
+
+        Assert.Equal("sub-agent-42", result.AgentId);
+    }
+
+    [Fact]
+    public void FromJson_WithoutAgentId_AgentIdIsNull()
+    {
+        var json = """
+        {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "timestamp": "2026-06-15T10:30:00Z",
+            "parentId": null,
+            "type": "future.feature_from_server",
+            "data": {}
+        }
+        """;
+
+        var result = SessionEvent.FromJson(json);
+
+        Assert.Null(result.AgentId);
+    }
 }
