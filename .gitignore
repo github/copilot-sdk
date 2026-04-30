@@ -2,3 +2,6 @@
 # Documentation validation output
 docs/.validation/
 .DS_Store
+
+# Visual Studio
+.vs/
