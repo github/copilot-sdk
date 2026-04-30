@@ -705,7 +705,7 @@ internal sealed partial class JsonRpc : IDisposable
                     CancelRequestParamsContext.Default.CancelRequestParams),
             }, JsonRpcWireContext.Default.JsonRpcNotification, CancellationToken.None).ConfigureAwait(false);
         }
-        catch
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
             // Best effort — connection may already be gone
         }
