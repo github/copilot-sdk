@@ -744,18 +744,15 @@ public final class CopilotClient implements AutoCloseable {
      *             if the operation fails
      */
     public CompletableFuture<Void> setForegroundSessionId(String sessionId) {
-        return ensureConnected()
-                .thenCompose(
-                        connection -> connection.rpc
-                                .invoke("session.setForeground", Map.of("sessionId", sessionId),
-                                        com.github.copilot.sdk.json.SetForegroundSessionResponse.class)
-                                .thenAccept(response -> {
-                                    if (!response.success()) {
-                                        throw new RuntimeException(response.error() != null
-                                                ? response.error()
-                                                : "Failed to set foreground session");
-                                    }
-                                }));
+        return ensureConnected().thenCompose(connection -> connection.rpc
+                .invoke("session.setForeground", new com.github.copilot.sdk.json.SetForegroundSessionRequest(sessionId),
+                        com.github.copilot.sdk.json.SetForegroundSessionResponse.class)
+                .thenAccept(response -> {
+                    if (!response.success()) {
+                        throw new RuntimeException(
+                                response.error() != null ? response.error() : "Failed to set foreground session");
+                    }
+                }));
     }
 
     /**

@@ -249,6 +249,7 @@ public class E2ETestContext implements AutoCloseable {
     public Map<String, String> getEnvironment() {
         Map<String, String> env = new HashMap<>(System.getenv());
         env.put("COPILOT_API_URL", proxyUrl);
+        env.put("COPILOT_HOME", homeDir.toString());
         env.put("XDG_CONFIG_HOME", homeDir.toString());
         env.put("XDG_STATE_HOME", homeDir.toString());
         return env;

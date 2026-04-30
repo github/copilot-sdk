@@ -18,6 +18,7 @@ import com.github.copilot.sdk.json.PostToolUseHookOutput;
 import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookOutput;
 import com.github.copilot.sdk.json.SectionOverride;
+import com.github.copilot.sdk.json.SetForegroundSessionRequest;
 import com.github.copilot.sdk.json.SetForegroundSessionResponse;
 import com.github.copilot.sdk.json.ToolBinaryResult;
 import com.github.copilot.sdk.json.ToolResultObject;
@@ -84,6 +85,14 @@ class DataObjectCoverageTest {
         var response = new GetForegroundSessionResponse("session-123", "/home/user/project");
         assertEquals("session-123", response.sessionId());
         assertEquals("/home/user/project", response.workspacePath());
+    }
+
+    // ===== SetForegroundSessionRequest record =====
+
+    @Test
+    void setForegroundSessionRequestRecord() {
+        var request = new SetForegroundSessionRequest("session-123");
+        assertEquals("session-123", request.sessionId());
     }
 
     // ===== SetForegroundSessionResponse record =====
