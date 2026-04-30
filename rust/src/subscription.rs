@@ -95,6 +95,14 @@ macro_rules! define_subscription {
             /// - `Err(`[`RecvError::Lagged`]`)` if the subscriber fell behind;
             ///   call `recv` again to continue from the next live event.
             /// - `Err(`[`RecvError::Closed`]`)` once the producer is gone.
+            ///
+            /// # Cancel safety
+            ///
+            /// **Cancel-safe.** Wraps a `tokio::sync::broadcast::Receiver`
+            /// via `BroadcastStream`; both are cancel-safe by design.
+            /// Dropping the future before completion is harmless — events
+            /// already buffered for this subscriber remain available on
+            /// the next `recv` call.
             pub async fn recv(&mut self) -> Result<$item, RecvError> {
                 match self.inner.next().await {
                     Some(Ok(event)) => Ok(event),

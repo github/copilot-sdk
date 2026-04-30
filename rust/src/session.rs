@@ -232,6 +232,17 @@ impl Session {
     ///
     /// Returns an error if a [`send_and_wait`](Self::send_and_wait) call is
     /// currently in flight, since the plain send would race with the waiter.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** The underlying `session.send` RPC is dispatched
+    /// through the writer-actor (see [`Client::call`](crate::Client::call)),
+    /// so dropping this future after the actor has committed to writing
+    /// will not produce a partial frame on the wire. If the caller's
+    /// future is dropped between "frame enqueued" and "response received",
+    /// the message has already landed on the wire — the agent will process
+    /// it and emit events normally; the caller just won't see the returned
+    /// message ID.
     pub async fn send(&self, opts: impl Into<MessageOptions>) -> Result<String, Error> {
         if self.idle_waiter.lock().is_some() {
             return Err(Error::Session(SessionError::SendWhileWaiting));
@@ -360,6 +371,12 @@ impl Session {
     }
 
     /// Abort the current agent turn.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** Single `session.abort` RPC; the underlying
+    /// [`Client::call`](crate::Client::call) is cancel-safe via the
+    /// writer-actor.
     pub async fn abort(&self) -> Result<(), Error> {
         self.client
             .call(

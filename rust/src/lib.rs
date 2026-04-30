@@ -1061,6 +1061,20 @@ impl Client {
     /// This is the primary method for session-level RPC calls. It wraps
     /// the internal send/receive cycle with error checking so callers
     /// don't need to inspect the response manually.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** The frame is committed to the wire via the
+    /// writer-actor task before the future yields; cancelling the await
+    /// (via `tokio::time::timeout`, `select!`, or dropped JoinHandle)
+    /// drops the response oneshot but does not desync the transport.
+    /// The pending-requests entry is cleaned up by an RAII guard.
+    /// However, the call's *side effect* on the CLI may still occur —
+    /// the CLI receives the request and processes it; the caller just
+    /// won't see the response. For idempotent methods this is fine; for
+    /// non-idempotent methods (e.g. `session.create`) the caller should
+    /// avoid wrapping the call in a timeout shorter than the expected
+    /// CLI processing window.
     pub async fn call(
         &self,
         method: &str,
@@ -1410,6 +1424,18 @@ impl Client {
     /// no-op (the router map is empty); only the child-kill remains.
     ///
     /// [`Session::disconnect`]: crate::session::Session::disconnect
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-unsafe but recoverable.** The body sequentially destroys
+    /// every registered session (each via [`Client::call`](Self::call),
+    /// individually cancel-safe) before killing the child. Cancelling
+    /// `stop()` mid-loop leaves some sessions still in the router map
+    /// and the child still running. Recovery: call [`force_stop`](Self::force_stop)
+    /// (sync, kills the child unconditionally and clears router state)
+    /// or call `stop()` again with a fresh future. The documented
+    /// `tokio::time::timeout(..., client.stop())` pattern in the example
+    /// below uses `force_stop` as the fallback for exactly this case.
     pub async fn stop(&self) -> Result<(), StopErrors> {
         let pid = self.pid();
         info!(pid = ?pid, "stopping CLI process");
@@ -1462,6 +1488,12 @@ impl Client {
     /// reaper completion and immediately drops all per-session router
     /// state so dependent tasks observe a closed channel rather than a
     /// hang.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Synchronous and infallible by construction.** Not async; cannot
+    /// be cancelled. Designed as the recovery path when [`stop`](Self::stop)
+    /// is wrapped in a timeout that elapses.
     ///
     /// # Example
     ///
