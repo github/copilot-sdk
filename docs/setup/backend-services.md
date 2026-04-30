@@ -67,15 +67,21 @@ copilot --headless
 # Output: Listening on http://localhost:52431
 ```
 
+By default the headless server only accepts connections from loopback (`127.0.0.1`). To accept connections from other hosts — for example from another machine on your network — bind to a non-loopback address with `--host`:
+
+```bash
+copilot --headless --host 0.0.0.0 --port 4321
+```
+
 For production, run it as a system service or in a container:
 
 ```bash
-# Docker
+# Docker — must bind to 0.0.0.0 so the container's published port is reachable
 docker run -d --name copilot-cli \
     -p 4321:4321 \
     -e COPILOT_GITHUB_TOKEN="$TOKEN" \
     ghcr.io/github/copilot-cli:latest \
-    --headless --port 4321
+    --headless --host 0.0.0.0 --port 4321
 
 # systemd
 [Service]
@@ -415,7 +421,7 @@ version: "3.8"
 services:
   copilot-cli:
     image: ghcr.io/github/copilot-cli:latest
-    command: ["--headless", "--port", "4321"]
+    command: ["--headless", "--host", "0.0.0.0", "--port", "4321"]
     environment:
       - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN}
     ports:

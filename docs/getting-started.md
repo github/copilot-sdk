@@ -1599,6 +1599,15 @@ copilot --headless --port 4321
 
 If you don't specify a port, the CLI will choose a random available port.
 
+By default the headless server only accepts connections from loopback (`127.0.0.1`), so the SDK must run on the same machine. To accept connections from other hosts (for example when running the CLI in a container or on a separate server), bind to a non-loopback address with `--host`:
+
+```bash
+# Listen on all interfaces
+copilot --headless --host 0.0.0.0 --port 4321
+```
+
+> **Warning:** Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. Pair it with network controls (firewall, private network, reverse proxy) and authentication appropriate for your environment.
+
 ### Connecting the SDK to the External Server
 
 Once the CLI is running in server mode, configure your SDK client to connect to it using the "cli url" option:
