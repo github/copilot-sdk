@@ -977,6 +977,16 @@ function emitRpcClass(
         resolveObjectSchema(schema, rpcDefinitions) ??
         resolveSchema(schema, rpcDefinitions) ??
         schema;
+    // Visibility is driven by the JSON Schema definition itself (set via
+    // `.asInternal()` on the originating Zod schema). The runtime schema
+    // generator enforces that no public method references an internal type,
+    // so it's safe to upgrade callers' default to internal here.
+    if (
+        (schema as Record<string, unknown>).visibility === "internal" ||
+        (effectiveSchema as Record<string, unknown>).visibility === "internal"
+    ) {
+        visibility = "internal";
+    }
     const schemaKey = stableStringify(effectiveSchema);
     const existingSchema = emittedRpcClassSchemas.get(className);
     if (existingSchema) {
@@ -1163,13 +1173,15 @@ function emitServerInstanceMethod(
     groupDeprecated: boolean
 ): void {
     const methodName = toPascalCase(name);
+    const isInternal = method.visibility === "internal";
+    const methodVisibility = isInternal ? "internal" : "public";
     const resultSchema = getMethodResultSchema(method);
     let resultClassName = !isVoidSchema(resultSchema) ? resultTypeName(method) : "";
     if (!isVoidSchema(resultSchema) && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
     if (isObjectSchema(resultSchema)) {
-        const resultClass = emitRpcClass(resultClassName, resultSchema!, "public", classes);
+        const resultClass = emitRpcClass(resultClassName, resultSchema!, methodVisibility, classes);
         if (resultClass) classes.push(resultClass);
     } else if (!isVoidSchema(resultSchema)) {
         resultClassName = emitNonObjectResultType(resultClassName, resultSchema!, classes);
@@ -1221,7 +1233,7 @@ function emitServerInstanceMethod(
     sigParams.push("CancellationToken cancellationToken = default");
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
-    lines.push(`${indent}public async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
+    lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`);
     if (requestClassName && bodyAssignments.length > 0) {
         lines.push(`${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
@@ -1269,13 +1281,15 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
 
 function emitSessionMethod(key: string, method: RpcMethod, lines: string[], classes: string[], indent: string, groupExperimental: boolean, groupDeprecated: boolean): void {
     const methodName = toPascalCase(key);
+    const isInternal = method.visibility === "internal";
+    const methodVisibility = isInternal ? "internal" : "public";
     const resultSchema = getMethodResultSchema(method);
     let resultClassName = !isVoidSchema(resultSchema) ? resultTypeName(method) : "";
     if (!isVoidSchema(resultSchema) && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
     if (isObjectSchema(resultSchema)) {
-        const resultClass = emitRpcClass(resultClassName, resultSchema!, "public", classes);
+        const resultClass = emitRpcClass(resultClassName, resultSchema!, methodVisibility, classes);
         if (resultClass) classes.push(resultClass);
     } else if (!isVoidSchema(resultSchema)) {
         resultClassName = emitNonObjectResultType(resultClassName, resultSchema!, classes);
@@ -1321,7 +1335,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     sigParams.push("CancellationToken cancellationToken = default");
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
-    lines.push(`${indent}public async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
+    lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`, `${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
     if (!isVoidSchema(resultSchema)) {
         lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);

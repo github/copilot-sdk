@@ -333,11 +333,13 @@ type CommandsHandlePendingCommandResult struct {
 	Success bool `json:"success"`
 }
 
+// Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
 	// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
 	Token *string `json:"token,omitempty"`
 }
 
+// Internal: ConnectResult is an internal SDK API and is not part of the public surface.
 type ConnectResult struct {
 	// Always true on success
 	Ok bool `json:"ok"`
@@ -2455,7 +2457,31 @@ func (a *ServerRpc) Ping(ctx context.Context, params *PingRequest) (*PingResult,
 	return &result, nil
 }
 
-func (a *ServerRpc) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
+func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
+	r := &ServerRpc{}
+	r.common = serverApi{client: client}
+	r.Models = (*ServerModelsApi)(&r.common)
+	r.Tools = (*ServerToolsApi)(&r.common)
+	r.Account = (*ServerAccountApi)(&r.common)
+	r.Mcp = (*ServerMcpApi)(&r.common)
+	r.Skills = (*ServerSkillsApi)(&r.common)
+	r.SessionFs = (*ServerSessionFsApi)(&r.common)
+	r.Sessions = (*ServerSessionsApi)(&r.common)
+	return r
+}
+
+type internalServerApi struct {
+	client *jsonrpc2.Client
+}
+
+// InternalServerRpc provides internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API.
+type InternalServerRpc struct {
+	common internalServerApi // Reuse a single struct instead of allocating one for each service on the heap.
+
+}
+
+// Internal: Connect is part of the SDK's internal handshake/plumbing; external callers should not use it.
+func (a *InternalServerRpc) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
 	raw, err := a.common.client.Request("connect", params)
 	if err != nil {
 		return nil, err
@@ -2467,16 +2493,9 @@ func (a *ServerRpc) Connect(ctx context.Context, params *ConnectRequest) (*Conne
 	return &result, nil
 }
 
-func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
-	r := &ServerRpc{}
-	r.common = serverApi{client: client}
-	r.Models = (*ServerModelsApi)(&r.common)
-	r.Tools = (*ServerToolsApi)(&r.common)
-	r.Account = (*ServerAccountApi)(&r.common)
-	r.Mcp = (*ServerMcpApi)(&r.common)
-	r.Skills = (*ServerSkillsApi)(&r.common)
-	r.SessionFs = (*ServerSessionFsApi)(&r.common)
-	r.Sessions = (*ServerSessionsApi)(&r.common)
+func NewInternalServerRpc(client *jsonrpc2.Client) *InternalServerRpc {
+	r := &InternalServerRpc{}
+	r.common = internalServerApi{client: client}
 	return r
 }
 

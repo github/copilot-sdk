@@ -26,7 +26,7 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
-import { createServerRpc, registerClientSessionApiHandlers } from "./generated/rpc.js";
+import { createServerRpc, createInternalServerRpc, registerClientSessionApiHandlers } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
 import { createSessionFsAdapter } from "./sessionFsProvider.js";
@@ -246,6 +246,7 @@ export class CopilotClient {
         Set<(event: SessionLifecycleEvent) => void>
     > = new Map();
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
+    private _internalRpc: ReturnType<typeof createInternalServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
@@ -263,6 +264,20 @@ export class CopilotClient {
             this._rpc = createServerRpc(this.connection);
         }
         return this._rpc;
+    }
+
+    /**
+     * Internal RPC surface (e.g. handshake helpers). Not part of the public API.
+     * @internal
+     */
+    private get internalRpc(): ReturnType<typeof createInternalServerRpc> {
+        if (!this.connection) {
+            throw new Error("Client is not connected. Call start() first.");
+        }
+        if (!this._internalRpc) {
+            this._internalRpc = createInternalServerRpc(this.connection);
+        }
+        return this._internalRpc;
     }
 
     /**
@@ -1099,7 +1114,7 @@ export class CopilotClient {
 
         let serverVersion: number | undefined;
         try {
-            const result = await raceAgainstExit(this.rpc.connect({ token: this.effectiveConnectionToken }));
+            const result = await raceAgainstExit(this.internalRpc.connect({ token: this.effectiveConnectionToken }));
             serverVersion = result.protocolVersion;
         } catch (err) {
             if (err instanceof ResponseError && err.code === ErrorCodes.MethodNotFound) {

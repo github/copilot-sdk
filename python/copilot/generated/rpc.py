@@ -245,6 +245,7 @@ class CommandsHandlePendingCommandResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
 class ConnectRequest:
     token: str | None = None
@@ -262,6 +263,7 @@ class ConnectRequest:
             result["token"] = from_union([from_str, from_none], self.token)
         return result
 
+# Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
 class ConnectResult:
     ok: bool
@@ -5790,7 +5792,14 @@ class ServerRpc:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return PingResult.from_dict(await self._client.request("ping", params_dict, **_timeout_kwargs(timeout)))
 
+
+class InternalServerRpc:
+    """Internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API."""
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
     async def connect(self, params: ConnectRequest, *, timeout: float | None = None) -> ConnectResult:
+        """:meta private: Internal SDK API; not part of the public surface."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ConnectResult.from_dict(await self._client.request("connect", params_dict, **_timeout_kwargs(timeout)))
 

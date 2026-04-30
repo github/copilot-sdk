@@ -248,6 +248,7 @@ export interface RpcMethod {
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
     stability?: string;
+    visibility?: string;
     deprecated?: boolean;
 }
 
@@ -404,6 +405,33 @@ export function isNodeFullyDeprecated(node: Record<string, unknown>): boolean {
         }
     })(node);
     return methods.length > 0 && methods.every(m => m.deprecated === true);
+}
+
+/**
+ * Returns a filtered copy of an API tree containing only methods whose visibility
+ * matches `keep`. Sub-groups that end up empty are pruned. Returns null if nothing
+ * survives the filter.
+ *
+ * `"public"` keeps methods without `visibility === "internal"`.
+ * `"internal"` keeps methods with `visibility === "internal"`.
+ */
+export function filterNodeByVisibility(
+    node: Record<string, unknown>,
+    keep: "public" | "internal",
+): Record<string, unknown> | null {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+        if (isRpcMethod(value)) {
+            const isInternal = (value as RpcMethod).visibility === "internal";
+            if (keep === "public" && isInternal) continue;
+            if (keep === "internal" && !isInternal) continue;
+            result[key] = value;
+        } else if (typeof value === "object" && value !== null) {
+            const sub = filterNodeByVisibility(value as Record<string, unknown>, keep);
+            if (sub) result[key] = sub;
+        }
+    }
+    return Object.keys(result).length === 0 ? null : result;
 }
 
 /** Returns true when a JSON Schema node is marked as deprecated. */

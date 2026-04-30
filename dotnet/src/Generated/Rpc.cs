@@ -48,7 +48,7 @@ internal sealed class PingRequest
 }
 
 /// <summary>RPC data type for Connect operations.</summary>
-public sealed class ConnectResult
+internal sealed class ConnectResult
 {
     /// <summary>Always true on success.</summary>
     [JsonPropertyName("ok")]
@@ -3093,7 +3093,7 @@ public sealed class ServerRpc
     }
 
     /// <summary>Calls "connect".</summary>
-    public async Task<ConnectResult> ConnectAsync(string? token = null, CancellationToken cancellationToken = default)
+    internal async Task<ConnectResult> ConnectAsync(string? token = null, CancellationToken cancellationToken = default)
     {
         var request = new ConnectRequest { Token = token };
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);

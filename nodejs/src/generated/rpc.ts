@@ -1125,6 +1125,7 @@ export interface PingResult {
   protocolVersion: number;
 }
 
+/** @internal */
 export interface ConnectRequest {
   /**
    * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
@@ -1132,6 +1133,7 @@ export interface ConnectRequest {
   token?: string;
 }
 
+/** @internal */
 export interface ConnectResult {
   /**
    * Always true on success
@@ -2213,8 +2215,6 @@ export function createServerRpc(connection: MessageConnection) {
     return {
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
-        connect: async (params: ConnectRequest): Promise<ConnectResult> =>
-            connection.sendRequest("connect", params),
         models: {
             list: async (params?: ModelsListRequest): Promise<ModelList> =>
                 connection.sendRequest("models.list", params),
@@ -2262,6 +2262,18 @@ export function createServerRpc(connection: MessageConnection) {
             fork: async (params: SessionsForkRequest): Promise<SessionsForkResult> =>
                 connection.sendRequest("sessions.fork", params),
         },
+    };
+}
+
+/**
+ * Create typed server-scoped RPC methods that are part of the SDK's internal
+ * surface (e.g. handshake helpers). Not exported on the public client API.
+ * @internal
+ */
+export function createInternalServerRpc(connection: MessageConnection) {
+    return {
+        connect: async (params: ConnectRequest): Promise<ConnectResult> =>
+            connection.sendRequest("connect", params),
     };
 }
 
