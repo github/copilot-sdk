@@ -119,6 +119,11 @@ public partial class SessionEvent
     [JsonPropertyName("ephemeral")]
     public bool? Ephemeral { get; set; }
 
+    /// <summary>Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
+
     /// <summary>
     /// The event type discriminator.
     /// </summary>
