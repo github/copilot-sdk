@@ -1,0 +1,170 @@
+name: "Rust SDK Tests"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'rust/**'
+      - 'test/**'
+      - 'nodejs/package.json'
+      - '.github/workflows/rust-sdk-tests.yml'
+      - '.github/actions/setup-copilot/**'
+      - '!**/*.md'
+      - '!**/LICENSE*'
+      - '!**/.gitignore'
+      - '!**/.editorconfig'
+      - '!**/*.png'
+      - '!**/*.jpg'
+      - '!**/*.jpeg'
+      - '!**/*.gif'
+      - '!**/*.svg'
+  workflow_dispatch:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: "Rust SDK Tests"
+    env:
+      POWERSHELL_UPDATECHECK: Off
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: ./.github/actions/setup-copilot
+        id: setup-copilot
+
+      # rust-toolchain.toml in rust/ pins the stable channel + components.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt, clippy
+
+      # Nightly rustfmt for unstable format options (group_imports,
+      # imports_granularity, reorder_impl_items) — pinned in
+      # `.rustfmt.nightly.toml`.
+      - name: Install nightly rustfmt
+        if: runner.os == 'Linux'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+
+      - name: cargo fmt --check (nightly)
+        if: runner.os == 'Linux'
+        run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+
+      - name: cargo clippy
+        if: runner.os == 'Linux'
+        run: cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+
+      - name: cargo doc
+        if: runner.os == 'Linux'
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --no-deps --all-features
+
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+
+      - name: cargo test
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
+        run: cargo test --features test-support
+
+      # Detects accidental public-API breakage against the crate's last
+      # published version on crates.io. Non-blocking until the crate has
+      # a first published release — once a 0.1.0 ships, flip
+      # `continue-on-error` to `false` to enforce SemVer.
+      - name: cargo semver-checks
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: github-copilot-sdk
+          manifest-path: rust/Cargo.toml
+
+  # Validates the `embedded-cli` build path on all three supported
+  # platforms. This is the only place `build.rs` actually runs (the
+  # default `cargo test` job above has `COPILOT_CLI_VERSION` unset, so
+  # `build.rs` returns immediately). Catches regressions in the
+  # download / verify / extract / embed pipeline before they ship to
+  # crates.io and before bundling consumers (e.g. github-app's
+  # bundled-CLI release pipeline) hit them downstream.
+  bundle:
+    name: "Rust SDK Bundled CLI Build"
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+          key: bundled-cli
+
+      - name: Read pinned @github/copilot CLI version
+        id: cli-version
+        working-directory: ./nodejs
+        run: |
+          version=$(node -p "require('./package.json').dependencies['@github/copilot'].replace(/^[\^~]/, '')")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Pinned CLI version: $version"
+
+      # Cache the downloaded archive across runs so we don't refetch
+      # ~130 MB on every CI invocation. Keyed by OS + CLI version; on
+      # cache miss the bundle job exercises the full ureq download +
+      # SHA-256 + retry path, which is exactly the regression surface
+      # we want validated.
+      - name: Cache bundled CLI tarball
+        uses: actions/cache@v4
+        with:
+          path: ./rust/.bundled-cli-cache
+          key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
+
+      - name: cargo build --features embedded-cli
+        env:
+          COPILOT_CLI_VERSION: ${{ steps.cli-version.outputs.version }}
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
+        run: cargo build --features embedded-cli

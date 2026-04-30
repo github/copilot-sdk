@@ -40,6 +40,22 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      # Rust generator runs `cargo fmt` on its output under stable rustfmt;
+      # nightly rustfmt is needed for unstable format options (group_imports,
+      # imports_granularity, reorder_impl_items) pinned in
+      # `rust/.rustfmt.nightly.toml`. See codegen-check.yml for the same step.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt
+
+      - name: Install nightly rustfmt
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
+          components: rustfmt
+
       - name: Update @github/copilot in nodejs
         env:
           VERSION: ${{ inputs.version }}
@@ -68,6 +84,7 @@ jobs:
         run: |
           cd nodejs && npx prettier --write "src/generated/**/*.ts"
           cd ../dotnet && dotnet format src/GitHub.Copilot.SDK.csproj
+          cd ../rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
 
       - name: Create pull request
         env:

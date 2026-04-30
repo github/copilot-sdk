@@ -1,0 +1,3499 @@
+//! Protocol types shared between the SDK and the GitHub Copilot CLI.
+//!
+//! These types map directly to the JSON-RPC request/response payloads
+//! defined by the GitHub Copilot CLI protocol. They are used for session
+//! configuration, event handling, tool invocations, and model queries.
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::handler::SessionHandler;
+use crate::hooks::SessionHooks;
+pub use crate::session_fs::{
+    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConfig, SessionFsConventions,
+    SessionFsProvider,
+};
+pub use crate::trace_context::{TraceContext, TraceContextProvider};
+use crate::transforms::SystemMessageTransform;
+
+/// Lifecycle state of a [`Client`](crate::Client) connection to the CLI.
+///
+/// The state advances from `Connecting` → `Connected` during construction,
+/// transitions to `Disconnected` after [`Client::stop`](crate::Client::stop) or
+/// [`Client::force_stop`](crate::Client::force_stop), and lands in
+/// `Error` if startup fails or the underlying transport tears down
+/// unexpectedly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum ConnectionState {
+    /// No CLI process is attached or the process has exited cleanly.
+    Disconnected,
+    /// The client is starting up (spawning the CLI, negotiating protocol).
+    Connecting,
+    /// The client is connected and ready to handle RPC traffic.
+    Connected,
+    /// Startup failed or the connection encountered an unrecoverable error.
+    Error,
+}
+
+/// Type of [`SessionLifecycleEvent`] received via [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
+///
+/// Values serialize as the dotted JSON strings the CLI sends (e.g.
+/// `"session.created"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum SessionLifecycleEventType {
+    /// A new session was created.
+    #[serde(rename = "session.created")]
+    Created,
+    /// A session was deleted.
+    #[serde(rename = "session.deleted")]
+    Deleted,
+    /// A session's metadata was updated (e.g. summary regenerated).
+    #[serde(rename = "session.updated")]
+    Updated,
+    /// A session moved into the foreground.
+    #[serde(rename = "session.foreground")]
+    Foreground,
+    /// A session moved into the background.
+    #[serde(rename = "session.background")]
+    Background,
+}
+
+/// Optional metadata attached to a [`SessionLifecycleEvent`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionLifecycleEventMetadata {
+    /// ISO-8601 timestamp the session was created.
+    #[serde(rename = "startTime")]
+    pub start_time: String,
+    /// ISO-8601 timestamp the session was last modified.
+    #[serde(rename = "modifiedTime")]
+    pub modified_time: String,
+    /// Optional generated summary of the session conversation so far.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+}
+
+/// A `session.lifecycle` notification dispatched to subscribers obtained via
+/// [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionLifecycleEvent {
+    /// The kind of lifecycle change this event represents.
+    #[serde(rename = "type")]
+    pub event_type: SessionLifecycleEventType,
+    /// Identifier of the session this event refers to.
+    #[serde(rename = "sessionId")]
+    pub session_id: SessionId,
+    /// Optional metadata describing the session at the time of the event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<SessionLifecycleEventMetadata>,
+}
+
+/// Opaque session identifier assigned by the CLI.
+///
+/// A newtype wrapper around `String` that provides type safety — prevents
+/// accidentally passing a workspace ID or request ID where a session ID
+/// is expected. Derefs to `str` for zero-friction borrowing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SessionId(String);
+
+impl SessionId {
+    /// Create a new session ID from any string-like value.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// Borrow the inner string.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Consume the wrapper, returning the inner string.
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+impl std::ops::Deref for SessionId {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for SessionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<String> for SessionId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for SessionId {
+    fn from(s: &str) -> Self {
+        Self(s.to_owned())
+    }
+}
+
+impl AsRef<str> for SessionId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<str> for SessionId {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<SessionId> for String {
+    fn from(id: SessionId) -> String {
+        id.0
+    }
+}
+
+impl PartialEq<str> for SessionId {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<String> for SessionId {
+    fn eq(&self, other: &String) -> bool {
+        &self.0 == other
+    }
+}
+
+impl PartialEq<SessionId> for String {
+    fn eq(&self, other: &SessionId) -> bool {
+        self == &other.0
+    }
+}
+
+impl PartialEq<&str> for SessionId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<&SessionId> for SessionId {
+    fn eq(&self, other: &&SessionId) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl PartialEq<SessionId> for &SessionId {
+    fn eq(&self, other: &SessionId) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// Opaque request identifier for pending CLI requests (permission, user-input, etc.).
+///
+/// A newtype wrapper around `String` that provides type safety — prevents
+/// accidentally passing a session ID or workspace ID where a request ID
+/// is expected. Derefs to `str` for zero-friction borrowing.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RequestId(String);
+
+impl RequestId {
+    /// Create a new request ID from any string-like value.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// Consume the wrapper, returning the inner string.
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+impl std::ops::Deref for RequestId {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for RequestId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<String> for RequestId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for RequestId {
+    fn from(s: &str) -> Self {
+        Self(s.to_owned())
+    }
+}
+
+impl AsRef<str> for RequestId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<str> for RequestId {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<RequestId> for String {
+    fn from(id: RequestId) -> String {
+        id.0
+    }
+}
+
+impl PartialEq<str> for RequestId {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<String> for RequestId {
+    fn eq(&self, other: &String) -> bool {
+        &self.0 == other
+    }
+}
+
+impl PartialEq<RequestId> for String {
+    fn eq(&self, other: &RequestId) -> bool {
+        self == &other.0
+    }
+}
+
+impl PartialEq<&str> for RequestId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+/// A tool that the client exposes to the Copilot agent.
+///
+/// Sent to the CLI as part of [`SessionConfig::tools`] / [`ResumeSessionConfig::tools`]
+/// at session creation/resume time. The Rust SDK hand-authors this struct
+/// (rather than using the schema-generated form) so it can carry runtime
+/// hints — `overrides_built_in_tool`, `skip_permission` — that don't appear
+/// in the wire schema but are honored by the CLI.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct Tool {
+    /// Tool identifier (e.g., `"bash"`, `"grep"`, `"str_replace_editor"`).
+    pub name: String,
+    /// Optional namespaced name for declarative filtering (e.g., `"playwright/navigate"`
+    /// for MCP tools).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespaced_name: Option<String>,
+    /// Description of what the tool does.
+    #[serde(default)]
+    pub description: String,
+    /// Optional instructions for how to use this tool effectively.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
+    /// JSON Schema for the tool's input parameters.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub parameters: HashMap<String, Value>,
+    /// When `true`, this tool replaces a built-in tool of the same name
+    /// (e.g. supplying a custom `grep` that the agent uses in place of the
+    /// CLI's built-in implementation).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub overrides_built_in_tool: bool,
+    /// When `true`, the CLI does not request permission before invoking
+    /// this tool. Use with caution — the tool is responsible for any
+    /// access control.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub skip_permission: bool,
+}
+
+#[inline]
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+impl Tool {
+    /// Construct a new [`Tool`] with the given name and otherwise default
+    /// values. The struct is `#[non_exhaustive]`, so external callers
+    /// cannot use struct-literal syntax — use this builder or
+    /// [`Default::default`] plus mut-let.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use github_copilot_sdk::types::Tool;
+    /// # use serde_json::json;
+    /// let tool = Tool::new("greet")
+    ///     .with_description("Say hello to a user")
+    ///     .with_parameters(json!({
+    ///         "type": "object",
+    ///         "properties": { "name": { "type": "string" } },
+    ///         "required": ["name"]
+    ///     }));
+    /// # let _ = tool;
+    /// ```
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Set the namespaced name for declarative filtering (e.g.
+    /// `"playwright/navigate"` for MCP tools).
+    pub fn with_namespaced_name(mut self, namespaced_name: impl Into<String>) -> Self {
+        self.namespaced_name = Some(namespaced_name.into());
+        self
+    }
+
+    /// Set the human-readable description of what the tool does.
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    /// Set optional instructions for how to use this tool effectively.
+    pub fn with_instructions(mut self, instructions: impl Into<String>) -> Self {
+        self.instructions = Some(instructions.into());
+        self
+    }
+
+    /// Set the JSON Schema for the tool's input parameters.
+    ///
+    /// Accepts anything that converts into a JSON object, including a
+    /// `serde_json::Value` produced by `json!({...})`. Non-object values
+    /// are stored as an empty parameter map; callers that need direct
+    /// control over the field can construct a `HashMap<String, Value>`
+    /// and assign it to [`Tool::parameters`] via [`Default::default`].
+    pub fn with_parameters(mut self, parameters: Value) -> Self {
+        self.parameters = parameters
+            .as_object()
+            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+            .unwrap_or_default();
+        self
+    }
+
+    /// Mark this tool as overriding a built-in tool of the same name.
+    /// E.g. supplying a custom `grep` that the agent uses in place of the
+    /// CLI's built-in implementation.
+    pub fn with_overrides_built_in_tool(mut self, overrides: bool) -> Self {
+        self.overrides_built_in_tool = overrides;
+        self
+    }
+
+    /// When `true`, the CLI will not request permission before invoking
+    /// this tool. Use with caution — the tool is responsible for any
+    /// access control.
+    pub fn with_skip_permission(mut self, skip: bool) -> Self {
+        self.skip_permission = skip;
+        self
+    }
+}
+
+/// Context passed to a [`CommandHandler`] when a registered slash command
+/// is executed by the user.
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct CommandContext {
+    /// Session ID where the command was invoked.
+    pub session_id: SessionId,
+    /// The full command text (e.g. `"/deploy production"`).
+    pub command: String,
+    /// Command name without the leading `/` (e.g. `"deploy"`).
+    pub command_name: String,
+    /// Raw argument string after the command name (e.g. `"production"`).
+    pub args: String,
+}
+
+/// Handler invoked when a registered slash command is executed.
+///
+/// Returning `Err(_)` causes the SDK to forward the error message back to
+/// the CLI via `session.commands.handlePendingCommand` so the TUI can
+/// surface it. Returning `Ok(())` reports success.
+#[async_trait::async_trait]
+pub trait CommandHandler: Send + Sync {
+    /// Called when the user invokes the command this handler is registered for.
+    async fn on_command(&self, ctx: CommandContext) -> Result<(), crate::Error>;
+}
+
+/// Definition of a slash command registered with the session.
+///
+/// When the CLI is running with a TUI, registered commands appear as
+/// `/name` for the user to invoke. Only `name` and `description` are sent
+/// over the wire — the handler is local to this SDK process.
+#[non_exhaustive]
+#[derive(Clone)]
+pub struct CommandDefinition {
+    /// Command name (without leading `/`).
+    pub name: String,
+    /// Human-readable description shown in command-completion UI.
+    pub description: Option<String>,
+    /// Handler invoked when the command is executed.
+    pub handler: Arc<dyn CommandHandler>,
+}
+
+impl CommandDefinition {
+    /// Construct a new command definition. Use [`with_description`](Self::with_description)
+    /// to add a description.
+    pub fn new(name: impl Into<String>, handler: Arc<dyn CommandHandler>) -> Self {
+        Self {
+            name: name.into(),
+            description: None,
+            handler,
+        }
+    }
+
+    /// Set the human-readable description shown in the CLI's command-completion UI.
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+}
+
+impl std::fmt::Debug for CommandDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommandDefinition")
+            .field("name", &self.name)
+            .field("description", &self.description)
+            .field("handler", &"<set>")
+            .finish()
+    }
+}
+
+impl Serialize for CommandDefinition {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let len = if self.description.is_some() { 2 } else { 1 };
+        let mut state = serializer.serialize_struct("CommandDefinition", len)?;
+        state.serialize_field("name", &self.name)?;
+        if let Some(description) = &self.description {
+            state.serialize_field("description", description)?;
+        }
+        state.end()
+    }
+}
+
+/// Configures a custom agent (sub-agent) for the session.
+///
+/// Custom agents have their own prompt, tool allowlist, and optionally
+/// their own MCP servers and skill set. The agent named in
+/// [`SessionConfig::agent`] (or the runtime default) is the active one
+/// when the session starts.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CustomAgentConfig {
+    /// Unique name of the custom agent.
+    pub name: String,
+    /// Display name for UI purposes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Description of what the agent does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// List of tool names the agent can use. `None` means all tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
+    /// Prompt content for the agent.
+    pub prompt: String,
+    /// MCP servers specific to this agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    /// Whether the agent is available for model inference.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub infer: Option<bool>,
+    /// Skill names to preload into this agent's context at startup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skills: Option<Vec<String>>,
+}
+
+impl CustomAgentConfig {
+    /// Construct a custom agent configuration with the required `name`
+    /// and `prompt` fields populated.
+    ///
+    /// All other fields default to unset; use the `with_*` chain to
+    /// customize them. Fields are also `pub` if direct assignment is
+    /// preferred for `Option<T>` pass-through.
+    pub fn new(name: impl Into<String>, prompt: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            prompt: prompt.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the display name shown in the CLI's agent-selection UI.
+    pub fn with_display_name(mut self, display_name: impl Into<String>) -> Self {
+        self.display_name = Some(display_name.into());
+        self
+    }
+
+    /// Set the description of what the agent does.
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Restrict the agent to a specific tool allowlist. When unset, the
+    /// agent inherits the parent session's tool set.
+    pub fn with_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Configure agent-specific MCP servers.
+    pub fn with_mcp_servers(mut self, mcp_servers: HashMap<String, McpServerConfig>) -> Self {
+        self.mcp_servers = Some(mcp_servers);
+        self
+    }
+
+    /// Whether the agent participates in model inference.
+    pub fn with_infer(mut self, infer: bool) -> Self {
+        self.infer = Some(infer);
+        self
+    }
+
+    /// Set the skills preloaded into the agent's context at startup.
+    pub fn with_skills<I, S>(mut self, skills: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.skills = Some(skills.into_iter().map(Into::into).collect());
+        self
+    }
+}
+
+/// Configures the default (built-in) agent that handles turns when no
+/// custom agent is selected.
+///
+/// Use [`Self::excluded_tools`] to hide tools from the default agent
+/// while keeping them available to custom sub-agents that list them in
+/// their [`CustomAgentConfig::tools`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DefaultAgentConfig {
+    /// Tool names to exclude from the default agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub excluded_tools: Option<Vec<String>>,
+}
+
+/// Configures infinite sessions: persistent workspaces with automatic
+/// context-window compaction.
+///
+/// When enabled (default), sessions automatically manage context limits
+/// through background compaction and persist state to a workspace
+/// directory.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct InfiniteSessionConfig {
+    /// Whether infinite sessions are enabled. Defaults to `true` on the CLI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// Context utilization (0.0–1.0) at which background compaction starts.
+    /// Default: 0.80.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_compaction_threshold: Option<f64>,
+    /// Context utilization (0.0–1.0) at which the session blocks until
+    /// compaction completes. Default: 0.95.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buffer_exhaustion_threshold: Option<f64>,
+}
+
+impl InfiniteSessionConfig {
+    /// Construct an empty [`InfiniteSessionConfig`]; all fields default to
+    /// unset (the CLI applies its own defaults).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Toggle infinite sessions on or off. Defaults to `true` on the CLI
+    /// when unset.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+
+    /// Set the context utilization (0.0–1.0) at which background
+    /// compaction starts.
+    pub fn with_background_compaction_threshold(mut self, threshold: f64) -> Self {
+        self.background_compaction_threshold = Some(threshold);
+        self
+    }
+
+    /// Set the context utilization (0.0–1.0) at which the session blocks
+    /// until compaction completes.
+    pub fn with_buffer_exhaustion_threshold(mut self, threshold: f64) -> Self {
+        self.buffer_exhaustion_threshold = Some(threshold);
+        self
+    }
+}
+
+/// Configuration for a single MCP server.
+///
+/// MCP (Model Context Protocol) servers expose external tools to the
+/// agent. Local servers run as a subprocess over stdio; remote servers
+/// speak HTTP or Server-Sent Events.
+///
+/// Serialized as a JSON object with a `type` discriminator (`"stdio"` |
+/// `"http"` | `"sse"`).
+///
+/// # Example
+///
+/// ```
+/// # use github_copilot_sdk::types::{McpServerConfig, McpStdioServerConfig, McpHttpServerConfig};
+/// # use std::collections::HashMap;
+/// let mut servers = HashMap::new();
+/// servers.insert(
+///     "playwright".to_string(),
+///     McpServerConfig::Stdio(McpStdioServerConfig {
+///         tools: vec!["*".to_string()],
+///         command: "npx".to_string(),
+///         args: vec!["-y".to_string(), "@playwright/mcp".to_string()],
+///         ..Default::default()
+///     }),
+/// );
+/// servers.insert(
+///     "weather".to_string(),
+///     McpServerConfig::Http(McpHttpServerConfig {
+///         tools: vec!["forecast".to_string()],
+///         url: "https://example.com/mcp".to_string(),
+///         ..Default::default()
+///     }),
+/// );
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum McpServerConfig {
+    /// Local MCP server launched as a subprocess and addressed over stdio.
+    /// On the wire this serializes as `{"type": "stdio", ...}`. The CLI
+    /// also accepts `"local"` as an alias on input.
+    #[serde(alias = "local")]
+    Stdio(McpStdioServerConfig),
+    /// Remote MCP server addressed over HTTP.
+    Http(McpHttpServerConfig),
+    /// Remote MCP server addressed over Server-Sent Events.
+    Sse(McpHttpServerConfig),
+}
+
+/// Configuration for a local/stdio MCP server.
+///
+/// See [`McpServerConfig::Stdio`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpStdioServerConfig {
+    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
+    #[serde(default)]
+    pub tools: Vec<String>,
+    /// Optional timeout in milliseconds for tool calls to this server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<i64>,
+    /// Subprocess executable.
+    pub command: String,
+    /// Arguments to pass to the subprocess.
+    #[serde(default)]
+    pub args: Vec<String>,
+    /// Environment variables to set on the subprocess.
+    ///
+    /// Interpretation depends on the parent session's
+    /// `env_value_mode`: `"direct"` (default) treats values as literals;
+    /// `"indirect"` treats them as env-var names to look up at start time.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub env: HashMap<String, String>,
+    /// Working directory for the subprocess.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+}
+
+/// Configuration for a remote MCP server (HTTP or SSE).
+///
+/// See [`McpServerConfig::Http`] and [`McpServerConfig::Sse`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHttpServerConfig {
+    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
+    #[serde(default)]
+    pub tools: Vec<String>,
+    /// Optional timeout in milliseconds for tool calls to this server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<i64>,
+    /// Server URL.
+    pub url: String,
+    /// Optional HTTP headers to include on every request.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub headers: HashMap<String, String>,
+}
+
+/// Configures a custom inference provider (BYOK — Bring Your Own Key).
+///
+/// Routes session requests through an alternative model provider
+/// (OpenAI-compatible, Azure, Anthropic, or local) instead of GitHub
+/// Copilot's default routing.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ProviderConfig {
+    /// Provider type: `"openai"`, `"azure"`, or `"anthropic"`. Defaults to
+    /// `"openai"` on the CLI.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
+    pub provider_type: Option<String>,
+    /// API format (openai/azure only): `"completions"` or `"responses"`.
+    /// Defaults to `"completions"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<String>,
+    /// API endpoint URL.
+    pub base_url: String,
+    /// API key. Optional for local providers like Ollama.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// Bearer token for authentication. Sets the `Authorization` header
+    /// directly. Use for services requiring bearer-token auth instead of
+    /// API key. Takes precedence over `api_key` when both are set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bearer_token: Option<String>,
+    /// Azure-specific options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azure: Option<AzureProviderOptions>,
+    /// Custom HTTP headers included in outbound provider requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
+}
+
+impl ProviderConfig {
+    /// Construct a [`ProviderConfig`] with the required `base_url` set;
+    /// all other fields default to unset.
+    pub fn new(base_url: impl Into<String>) -> Self {
+        Self {
+            base_url: base_url.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the provider type (`"openai"`, `"azure"`, or `"anthropic"`).
+    pub fn with_provider_type(mut self, provider_type: impl Into<String>) -> Self {
+        self.provider_type = Some(provider_type.into());
+        self
+    }
+
+    /// Set the API format (`"completions"` or `"responses"`; openai/azure only).
+    pub fn with_wire_api(mut self, wire_api: impl Into<String>) -> Self {
+        self.wire_api = Some(wire_api.into());
+        self
+    }
+
+    /// Set the API key. Optional for local providers like Ollama.
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.api_key = Some(api_key.into());
+        self
+    }
+
+    /// Set the bearer token used to populate the `Authorization` header.
+    /// Takes precedence over `api_key` when both are set.
+    pub fn with_bearer_token(mut self, bearer_token: impl Into<String>) -> Self {
+        self.bearer_token = Some(bearer_token.into());
+        self
+    }
+
+    /// Set Azure-specific options.
+    pub fn with_azure(mut self, azure: AzureProviderOptions) -> Self {
+        self.azure = Some(azure);
+        self
+    }
+
+    /// Set the custom HTTP headers attached to outbound provider requests.
+    pub fn with_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.headers = Some(headers);
+        self
+    }
+}
+
+/// Azure-specific provider options.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AzureProviderOptions {
+    /// Azure API version. Defaults to `"2024-10-21"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_version: Option<String>,
+}
+
+/// Configuration for creating a new session via the `session.create` RPC.
+///
+/// All fields are optional — the CLI applies sensible defaults.
+///
+/// # Construction
+///
+/// Two equivalent shapes are supported:
+///
+/// 1. **Chained builder** (preferred for compile-time-known values):
+///
+///    ```
+///    # use github_copilot_sdk::types::SessionConfig;
+///    let cfg = SessionConfig::default()
+///        .with_client_name("my-app")
+///        .with_streaming(true)
+///        .with_enable_config_discovery(true);
+///    ```
+///
+/// 2. **Direct field assignment** (preferred when forwarding `Option<T>`
+///    from upstream code, since `with_<field>` setters take the inner
+///    `T`, not `Option<T>`):
+///
+///    ```
+///    # use github_copilot_sdk::types::SessionConfig;
+///    # let upstream_model: Option<String> = None;
+///    # let upstream_system_message: Option<github_copilot_sdk::types::SystemMessageConfig> = None;
+///    let mut cfg = SessionConfig::default()
+///        .with_client_name("my-app")
+///        .with_streaming(true);
+///    cfg.model = upstream_model;
+///    cfg.system_message = upstream_system_message;
+///    ```
+///
+///    Mixing the two is fine: chain the fields you know at compile time,
+///    then assign the `Option<T>` pass-through fields directly. All
+///    fields on this struct are `pub`. This pattern matches the
+///    `http::request::Parts` / `hyper::Body::Builder` convention in the
+///    wider Rust ecosystem.
+///
+/// # Field naming across SDKs
+///
+/// Rust field names are snake_case (`available_tools`, `system_message`);
+/// they round-trip to the camelCase wire protocol via `#[serde(rename_all =
+/// "camelCase")]`. When porting code from the TypeScript, Go, Python, or
+/// .NET SDKs — or reading the raw JSON-RPC traces — fields appear as
+/// `availableTools`, `systemMessage`, etc.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SessionConfig {
+    /// Custom session ID. When unset, the CLI generates one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+    /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Application name sent as `User-Agent` context.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    /// Enable streaming token deltas via `assistant.message_delta` events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub streaming: Option<bool>,
+    /// Custom system message configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_message: Option<SystemMessageConfig>,
+    /// Client-defined tools to expose to the agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<Tool>>,
+    /// Allowlist of built-in tool names the agent may use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_tools: Option<Vec<String>>,
+    /// Blocklist of built-in tool names the agent must not use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_tools: Option<Vec<String>>,
+    /// MCP server configurations passed through to the CLI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    /// How the CLI interprets env values in MCP server configs.
+    /// `"direct"` = literal values; `"indirect"` = env var names to look up.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env_value_mode: Option<String>,
+    /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_config_discovery: Option<bool>,
+    /// Enable the `ask_user` tool for interactive user input. Defaults to
+    /// `Some(true)` via [`SessionConfig::default`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_user_input: Option<bool>,
+    /// Enable `permission.request` JSON-RPC calls from the CLI. Defaults
+    /// to `Some(true)` via [`SessionConfig::default`]; the default
+    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) refuses all
+    /// requests so the wire surface is safe out-of-the-box.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_permission: Option<bool>,
+    /// Enable `exitPlanMode.request` JSON-RPC calls for plan approval.
+    /// Defaults to `Some(true)` via [`SessionConfig::default`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_exit_plan_mode: Option<bool>,
+    /// Enable `autoModeSwitch.request` JSON-RPC calls. When `true`, the CLI
+    /// asks the handler whether to switch to auto model when an eligible
+    /// rate limit is hit. Defaults to `Some(true)` via
+    /// [`SessionConfig::default`]. Without this flag, the CLI surfaces the
+    /// rate-limit error directly without offering the auto-mode switch.
+    ///
+    /// Currently a Rust-only typed handler; cross-SDK parity (Node /
+    /// Python / Go / .NET) is post-release follow-up work — see
+    /// [`SessionHandler::on_auto_mode_switch`].
+    ///
+    /// [`SessionHandler::on_auto_mode_switch`]: crate::handler::SessionHandler::on_auto_mode_switch
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_auto_mode_switch: Option<bool>,
+    /// Advertise elicitation provider capability. When true, the CLI sends
+    /// `elicitation.requested` events that the handler can respond to.
+    /// Defaults to `Some(true)` via [`SessionConfig::default`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_elicitation: Option<bool>,
+    /// Skill directory paths passed through to the GitHub Copilot CLI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_directories: Option<Vec<PathBuf>>,
+    /// Skill names to disable. Skills in this set will not be available
+    /// even if found in skill directories.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_skills: Option<Vec<String>>,
+    /// MCP server names to disable. Servers in this set will not be
+    /// started or connected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_mcp_servers: Option<Vec<String>>,
+    /// Enable session hooks. When `true`, the CLI sends `hooks.invoke`
+    /// RPC requests at key lifecycle points (pre/post tool use, prompt
+    /// submission, session start/end, errors).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hooks: Option<bool>,
+    /// Custom agents (sub-agents) configured for this session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_agents: Option<Vec<CustomAgentConfig>>,
+    /// Configures the built-in default agent. Use `excluded_tools` to
+    /// hide tools from the default agent while keeping them available
+    /// to custom sub-agents that reference them in their `tools` list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_agent: Option<DefaultAgentConfig>,
+    /// Name of the custom agent to activate when the session starts.
+    /// Must match the `name` of one of the agents in [`Self::custom_agents`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    /// Configures infinite sessions: persistent workspace + automatic
+    /// context-window compaction. Enabled by default on the CLI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub infinite_sessions: Option<InfiniteSessionConfig>,
+    /// Custom model provider (BYOK). When set, the session routes
+    /// requests through this provider instead of the default Copilot
+    /// routing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<ProviderConfig>,
+    /// Per-property overrides for model capabilities, deep-merged over
+    /// runtime defaults.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Override the default configuration directory location. When set,
+    /// the session uses this directory for storing config and state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_dir: Option<PathBuf>,
+    /// Working directory for the session. Tool operations resolve
+    /// relative paths against this directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<PathBuf>,
+    /// Per-session GitHub token. Distinct from
+    /// [`ClientOptions::github_token`](crate::ClientOptions::github_token),
+    /// which authenticates the CLI process itself; this token determines
+    /// the GitHub identity used for content exclusion, model routing, and
+    /// quota checks for *this session*.
+    #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
+    pub github_token: Option<String>,
+    /// Forward sub-agent streaming events to this connection. When false,
+    /// only non-streaming sub-agent events and `subagent.*` lifecycle events
+    /// are delivered. Defaults to true on the CLI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_sub_agent_streaming_events: Option<bool>,
+    /// Slash commands registered for this session. When the CLI has a TUI,
+    /// each command appears as `/name` for the user to invoke and the
+    /// associated [`CommandHandler`] is called when executed.
+    #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
+    pub commands: Option<Vec<CommandDefinition>>,
+    /// Custom session filesystem provider for this session. Required when
+    /// the [`Client`](crate::Client) was started with
+    /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
+    /// See [`SessionFsProvider`].
+    #[serde(skip)]
+    pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    /// Session-level event handler. The default is
+    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
+    /// requests are denied; other events are no-ops. Use
+    /// [`with_handler`](Self::with_handler) to install a custom handler.
+    #[serde(skip)]
+    pub handler: Option<Arc<dyn SessionHandler>>,
+    /// Session lifecycle hook handler (pre/post tool use, session
+    /// start/end, etc.). When set, the SDK auto-enables the wire-level
+    /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
+    #[serde(skip)]
+    pub hooks_handler: Option<Arc<dyn SessionHooks>>,
+    /// System-message transform. When set, the SDK injects the matching
+    /// `action: "transform"` sections into the system message and routes
+    /// `systemMessage.transform` RPC callbacks to it during the session.
+    /// Use [`with_transform`](Self::with_transform) to install one.
+    #[serde(skip)]
+    pub transform: Option<Arc<dyn SystemMessageTransform>>,
+}
+
+impl std::fmt::Debug for SessionConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionConfig")
+            .field("session_id", &self.session_id)
+            .field("model", &self.model)
+            .field("client_name", &self.client_name)
+            .field("reasoning_effort", &self.reasoning_effort)
+            .field("streaming", &self.streaming)
+            .field("system_message", &self.system_message)
+            .field("tools", &self.tools)
+            .field("available_tools", &self.available_tools)
+            .field("excluded_tools", &self.excluded_tools)
+            .field("mcp_servers", &self.mcp_servers)
+            .field("env_value_mode", &self.env_value_mode)
+            .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("request_user_input", &self.request_user_input)
+            .field("request_permission", &self.request_permission)
+            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
+            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
+            .field("request_elicitation", &self.request_elicitation)
+            .field("skill_directories", &self.skill_directories)
+            .field("disabled_skills", &self.disabled_skills)
+            .field("disabled_mcp_servers", &self.disabled_mcp_servers)
+            .field("hooks", &self.hooks)
+            .field("custom_agents", &self.custom_agents)
+            .field("default_agent", &self.default_agent)
+            .field("agent", &self.agent)
+            .field("infinite_sessions", &self.infinite_sessions)
+            .field("provider", &self.provider)
+            .field("model_capabilities", &self.model_capabilities)
+            .field("config_dir", &self.config_dir)
+            .field("working_directory", &self.working_directory)
+            .field(
+                "github_token",
+                &self.github_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "include_sub_agent_streaming_events",
+                &self.include_sub_agent_streaming_events,
+            )
+            .field("commands", &self.commands)
+            .field(
+                "session_fs_provider",
+                &self.session_fs_provider.as_ref().map(|_| "<set>"),
+            )
+            .field("handler", &self.handler.as_ref().map(|_| "<set>"))
+            .field(
+                "hooks_handler",
+                &self.hooks_handler.as_ref().map(|_| "<set>"),
+            )
+            .field("transform", &self.transform.as_ref().map(|_| "<set>"))
+            .finish()
+    }
+}
+
+impl Default for SessionConfig {
+    /// Permission and elicitation flows are enabled by default. With
+    /// Rust's trait-based handlers, the SDK installs `DenyAllHandler` when
+    /// no handler is provided, so these flags being `Some(true)` means the
+    /// wire surface advertises the capabilities — and the default handler
+    /// safely refuses requests. Callers that want the wire surface fully
+    /// disabled set these explicitly to `Some(false)`.
+    fn default() -> Self {
+        Self {
+            session_id: None,
+            model: None,
+            client_name: None,
+            reasoning_effort: None,
+            streaming: None,
+            system_message: None,
+            tools: None,
+            available_tools: None,
+            excluded_tools: None,
+            mcp_servers: None,
+            env_value_mode: None,
+            enable_config_discovery: None,
+            request_user_input: Some(true),
+            request_permission: Some(true),
+            request_exit_plan_mode: Some(true),
+            request_auto_mode_switch: Some(true),
+            request_elicitation: Some(true),
+            skill_directories: None,
+            disabled_skills: None,
+            disabled_mcp_servers: None,
+            hooks: None,
+            custom_agents: None,
+            default_agent: None,
+            agent: None,
+            infinite_sessions: None,
+            provider: None,
+            model_capabilities: None,
+            config_dir: None,
+            working_directory: None,
+            github_token: None,
+            include_sub_agent_streaming_events: None,
+            commands: None,
+            session_fs_provider: None,
+            handler: None,
+            hooks_handler: None,
+            transform: None,
+        }
+    }
+}
+
+impl SessionConfig {
+    /// Install a custom [`SessionHandler`] for this session.
+    pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
+        self.handler = Some(handler);
+        self
+    }
+
+    /// Register slash commands for this session. Each command appears as
+    /// `/name` in the CLI's TUI; the handler is invoked when the user
+    /// executes the command. Replaces any commands previously set on this
+    /// config. See [`CommandDefinition`].
+    pub fn with_commands(mut self, commands: Vec<CommandDefinition>) -> Self {
+        self.commands = Some(commands);
+        self
+    }
+
+    /// Install a [`SessionFsProvider`] backing the session's filesystem.
+    /// Required when the [`Client`](crate::Client) was started with
+    /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
+    pub fn with_session_fs_provider(mut self, provider: Arc<dyn SessionFsProvider>) -> Self {
+        self.session_fs_provider = Some(provider);
+        self
+    }
+
+    /// Install a [`SessionHooks`] handler. Automatically enables the
+    /// wire-level `hooks` flag on session creation.
+    pub fn with_hooks(mut self, hooks: Arc<dyn SessionHooks>) -> Self {
+        self.hooks_handler = Some(hooks);
+        self
+    }
+
+    /// Install a [`SystemMessageTransform`]. The SDK injects the matching
+    /// `action: "transform"` sections into the system message and routes
+    /// `systemMessage.transform` RPC callbacks to it during the session.
+    pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
+        self.transform = Some(transform);
+        self
+    }
+
+    /// Wrap the configured handler so every permission request is
+    /// auto-approved. Forwards every non-permission event to the inner
+    /// handler unchanged.
+    ///
+    /// If no handler has been installed via [`with_handler`](Self::with_handler),
+    /// wraps a [`DenyAllHandler`](crate::handler::DenyAllHandler) — useful
+    /// when you only care about permission policy and want the trait
+    /// fallback responses for everything else.
+    ///
+    /// Order-independent: `with_handler(...).approve_all_permissions()` and
+    /// `approve_all_permissions().with_handler(...)` are NOT equivalent —
+    /// the second form discards the wrap because `with_handler` overwrites
+    /// the handler field. Always call `approve_all_permissions` *after*
+    /// `with_handler`.
+    pub fn approve_all_permissions(mut self) -> Self {
+        let inner = self
+            .handler
+            .take()
+            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+        self.handler = Some(crate::permission::approve_all(inner));
+        self
+    }
+
+    /// Wrap the configured handler so every permission request is
+    /// auto-denied. See [`approve_all_permissions`](Self::approve_all_permissions)
+    /// for ordering and default-handler semantics.
+    pub fn deny_all_permissions(mut self) -> Self {
+        let inner = self
+            .handler
+            .take()
+            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+        self.handler = Some(crate::permission::deny_all(inner));
+        self
+    }
+
+    /// Wrap the configured handler with a closure-based permission policy:
+    /// `predicate` is called for each permission request; `true` approves,
+    /// `false` denies. See
+    /// [`approve_all_permissions`](Self::approve_all_permissions) for
+    /// ordering and default-handler semantics.
+    pub fn approve_permissions_if<F>(mut self, predicate: F) -> Self
+    where
+        F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
+    {
+        let inner = self
+            .handler
+            .take()
+            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+        self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self
+    }
+
+    /// Set a custom session ID (when unset, the CLI generates one).
+    pub fn with_session_id(mut self, id: impl Into<SessionId>) -> Self {
+        self.session_id = Some(id.into());
+        self
+    }
+
+    /// Set the model identifier (e.g. `"claude-sonnet-4"`).
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
+
+    /// Set the application name sent as `User-Agent` context.
+    pub fn with_client_name(mut self, name: impl Into<String>) -> Self {
+        self.client_name = Some(name.into());
+        self
+    }
+
+    /// Set the reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
+    pub fn with_reasoning_effort(mut self, effort: impl Into<String>) -> Self {
+        self.reasoning_effort = Some(effort.into());
+        self
+    }
+
+    /// Enable streaming token deltas via `assistant.message_delta` events.
+    pub fn with_streaming(mut self, streaming: bool) -> Self {
+        self.streaming = Some(streaming);
+        self
+    }
+
+    /// Set a custom system message configuration.
+    pub fn with_system_message(mut self, system_message: SystemMessageConfig) -> Self {
+        self.system_message = Some(system_message);
+        self
+    }
+
+    /// Set the client-defined tools to expose to the agent.
+    pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
+        self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Set the allowlist of built-in tool names the agent may use.
+    pub fn with_available_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.available_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the blocklist of built-in tool names the agent must not use.
+    pub fn with_excluded_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.excluded_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set MCP server configurations passed through to the CLI.
+    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+        self.mcp_servers = Some(servers);
+        self
+    }
+
+    /// Set how the CLI interprets env values in MCP server configs
+    /// (`"direct"` literal vs `"indirect"` env var name lookup).
+    pub fn with_env_value_mode(mut self, mode: impl Into<String>) -> Self {
+        self.env_value_mode = Some(mode.into());
+        self
+    }
+
+    /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
+    pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
+        self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::default`].
+    pub fn with_request_user_input(mut self, enable: bool) -> Self {
+        self.request_user_input = Some(enable);
+        self
+    }
+
+    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_permission(mut self, enable: bool) -> Self {
+        self.request_permission = Some(enable);
+        self
+    }
+
+    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
+        self.request_exit_plan_mode = Some(enable);
+        self
+    }
+
+    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
+        self.request_auto_mode_switch = Some(enable);
+        self
+    }
+
+    /// Advertise elicitation provider capability. Defaults to `Some(true)`.
+    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
+        self.request_elicitation = Some(enable);
+        self
+    }
+
+    /// Set skill directory paths passed through to the CLI.
+    pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the names of skills to disable (overrides skill discovery).
+    pub fn with_disabled_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the names of MCP servers to disable.
+    pub fn with_disabled_mcp_servers<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_mcp_servers = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the custom agents (sub-agents) configured for this session.
+    pub fn with_custom_agents<I: IntoIterator<Item = CustomAgentConfig>>(
+        mut self,
+        agents: I,
+    ) -> Self {
+        self.custom_agents = Some(agents.into_iter().collect());
+        self
+    }
+
+    /// Configure the built-in default agent.
+    pub fn with_default_agent(mut self, agent: DefaultAgentConfig) -> Self {
+        self.default_agent = Some(agent);
+        self
+    }
+
+    /// Activate a named custom agent on session start. Must match the
+    /// `name` of one of the agents in [`Self::custom_agents`].
+    pub fn with_agent(mut self, name: impl Into<String>) -> Self {
+        self.agent = Some(name.into());
+        self
+    }
+
+    /// Configure infinite sessions (persistent workspace + automatic
+    /// context-window compaction).
+    pub fn with_infinite_sessions(mut self, config: InfiniteSessionConfig) -> Self {
+        self.infinite_sessions = Some(config);
+        self
+    }
+
+    /// Configure a custom model provider (BYOK).
+    pub fn with_provider(mut self, provider: ProviderConfig) -> Self {
+        self.provider = Some(provider);
+        self
+    }
+
+    /// Set per-property overrides for model capabilities.
+    pub fn with_model_capabilities(
+        mut self,
+        capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
+    ) -> Self {
+        self.model_capabilities = Some(capabilities);
+        self
+    }
+
+    /// Override the default configuration directory location.
+    pub fn with_config_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.config_dir = Some(dir.into());
+        self
+    }
+
+    /// Set the per-session working directory. Tool operations resolve
+    /// relative paths against this directory.
+    pub fn with_working_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.working_directory = Some(dir.into());
+        self
+    }
+
+    /// Set the per-session GitHub token. Distinct from
+    /// [`ClientOptions::github_token`](crate::ClientOptions::github_token);
+    /// this token determines the GitHub identity used for content exclusion,
+    /// model routing, and quota checks for this session only.
+    pub fn with_github_token(mut self, token: impl Into<String>) -> Self {
+        self.github_token = Some(token.into());
+        self
+    }
+
+    /// Forward sub-agent streaming events to this connection. Defaults
+    /// to true on the CLI when unset.
+    pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
+        self.include_sub_agent_streaming_events = Some(include);
+        self
+    }
+}
+
+/// Configuration for resuming an existing session via the `session.resume` RPC.
+///
+/// See [`SessionConfig`] for the construction patterns (chained `with_*`
+/// builder vs. direct field assignment for `Option<T>` pass-through) and
+/// the note on snake_case vs. camelCase field naming.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ResumeSessionConfig {
+    /// ID of the session to resume.
+    pub session_id: SessionId,
+    /// Application name sent as User-Agent context.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    /// Enable streaming token deltas.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub streaming: Option<bool>,
+    /// Re-supply the system message so the agent retains workspace context
+    /// across CLI process restarts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_message: Option<SystemMessageConfig>,
+    /// Client-defined tools to re-supply on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<Tool>>,
+    /// Blocklist of built-in tool names.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_tools: Option<Vec<String>>,
+    /// Re-supply MCP servers so they remain available after app restart.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    /// How the CLI interprets env values in MCP configs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env_value_mode: Option<String>,
+    /// Enable config discovery on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_config_discovery: Option<bool>,
+    /// Enable the ask_user tool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_user_input: Option<bool>,
+    /// Enable permission request RPCs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_permission: Option<bool>,
+    /// Enable exit-plan-mode request RPCs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_exit_plan_mode: Option<bool>,
+    /// Enable auto-mode-switch request RPCs on resume. Defaults to
+    /// `Some(true)` via [`ResumeSessionConfig::new`]. See
+    /// [`SessionConfig::request_auto_mode_switch`] for details.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_auto_mode_switch: Option<bool>,
+    /// Advertise elicitation provider capability on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_elicitation: Option<bool>,
+    /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_directories: Option<Vec<PathBuf>>,
+    /// Enable session hooks on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hooks: Option<bool>,
+    /// Custom agents to re-supply on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_agents: Option<Vec<CustomAgentConfig>>,
+    /// Configures the built-in default agent on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_agent: Option<DefaultAgentConfig>,
+    /// Name of the custom agent to activate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    /// Re-supply infinite session configuration on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub infinite_sessions: Option<InfiniteSessionConfig>,
+    /// Re-supply BYOK provider configuration on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<ProviderConfig>,
+    /// Per-property model capability overrides on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Override the default configuration directory location on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_dir: Option<PathBuf>,
+    /// Per-session working directory on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<PathBuf>,
+    /// Per-session GitHub token on resume. See
+    /// [`SessionConfig::github_token`].
+    #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
+    pub github_token: Option<String>,
+    /// Forward sub-agent streaming events to this connection on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_sub_agent_streaming_events: Option<bool>,
+    /// Slash commands registered for this session on resume. See
+    /// [`SessionConfig::commands`] — commands are not persisted server-side,
+    /// so the resume payload re-supplies the registration.
+    #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
+    pub commands: Option<Vec<CommandDefinition>>,
+    /// Custom session filesystem provider. Required on resume when the
+    /// [`Client`](crate::Client) was started with
+    /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
+    /// See [`SessionConfig::session_fs_provider`].
+    #[serde(skip)]
+    pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    /// Force-fail resume if the session does not exist on disk, instead of
+    /// silently starting a new session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_resume: Option<bool>,
+    /// Session-level event handler. See [`SessionConfig::handler`].
+    #[serde(skip)]
+    pub handler: Option<Arc<dyn SessionHandler>>,
+    /// Session hook handler. See [`SessionConfig::hooks_handler`].
+    #[serde(skip)]
+    pub hooks_handler: Option<Arc<dyn SessionHooks>>,
+    /// System-message transform. See [`SessionConfig::transform`].
+    #[serde(skip)]
+    pub transform: Option<Arc<dyn SystemMessageTransform>>,
+}
+
+impl std::fmt::Debug for ResumeSessionConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResumeSessionConfig")
+            .field("session_id", &self.session_id)
+            .field("client_name", &self.client_name)
+            .field("streaming", &self.streaming)
+            .field("system_message", &self.system_message)
+            .field("tools", &self.tools)
+            .field("excluded_tools", &self.excluded_tools)
+            .field("mcp_servers", &self.mcp_servers)
+            .field("env_value_mode", &self.env_value_mode)
+            .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("request_user_input", &self.request_user_input)
+            .field("request_permission", &self.request_permission)
+            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
+            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
+            .field("request_elicitation", &self.request_elicitation)
+            .field("skill_directories", &self.skill_directories)
+            .field("hooks", &self.hooks)
+            .field("custom_agents", &self.custom_agents)
+            .field("default_agent", &self.default_agent)
+            .field("agent", &self.agent)
+            .field("infinite_sessions", &self.infinite_sessions)
+            .field("provider", &self.provider)
+            .field("model_capabilities", &self.model_capabilities)
+            .field("config_dir", &self.config_dir)
+            .field("working_directory", &self.working_directory)
+            .field(
+                "github_token",
+                &self.github_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "include_sub_agent_streaming_events",
+                &self.include_sub_agent_streaming_events,
+            )
+            .field("commands", &self.commands)
+            .field(
+                "session_fs_provider",
+                &self.session_fs_provider.as_ref().map(|_| "<set>"),
+            )
+            .field("handler", &self.handler.as_ref().map(|_| "<set>"))
+            .field(
+                "hooks_handler",
+                &self.hooks_handler.as_ref().map(|_| "<set>"),
+            )
+            .field("transform", &self.transform.as_ref().map(|_| "<set>"))
+            .finish()
+    }
+}
+
+impl ResumeSessionConfig {
+    /// Construct a `ResumeSessionConfig` with the given session ID and all
+    /// other fields left unset. Combine with `.with_*` builders or struct
+    /// update syntax (`..ResumeSessionConfig::new(id)`) to populate the
+    /// fields you need.
+    pub fn new(session_id: SessionId) -> Self {
+        Self {
+            session_id,
+            client_name: None,
+            streaming: None,
+            system_message: None,
+            tools: None,
+            excluded_tools: None,
+            mcp_servers: None,
+            env_value_mode: None,
+            enable_config_discovery: None,
+            request_user_input: Some(true),
+            request_permission: Some(true),
+            request_exit_plan_mode: Some(true),
+            request_auto_mode_switch: Some(true),
+            request_elicitation: Some(true),
+            skill_directories: None,
+            hooks: None,
+            custom_agents: None,
+            default_agent: None,
+            agent: None,
+            infinite_sessions: None,
+            provider: None,
+            model_capabilities: None,
+            config_dir: None,
+            working_directory: None,
+            github_token: None,
+            include_sub_agent_streaming_events: None,
+            commands: None,
+            session_fs_provider: None,
+            disable_resume: None,
+            handler: None,
+            hooks_handler: None,
+            transform: None,
+        }
+    }
+
+    /// Install a custom [`SessionHandler`] for this session.
+    pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
+        self.handler = Some(handler);
+        self
+    }
+
+    /// Install a [`SessionHooks`] handler. Automatically enables the
+    /// wire-level `hooks` flag on session resumption.
+    pub fn with_hooks(mut self, hooks: Arc<dyn SessionHooks>) -> Self {
+        self.hooks_handler = Some(hooks);
+        self
+    }
+
+    /// Install a [`SystemMessageTransform`].
+    pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
+        self.transform = Some(transform);
+        self
+    }
+
+    /// Register slash commands for the resumed session. See
+    /// [`SessionConfig::with_commands`] — commands are not persisted
+    /// server-side, so the resume payload re-supplies the registration.
+    pub fn with_commands(mut self, commands: Vec<CommandDefinition>) -> Self {
+        self.commands = Some(commands);
+        self
+    }
+
+    /// Install a [`SessionFsProvider`] backing the resumed session's
+    /// filesystem. See [`SessionConfig::with_session_fs_provider`].
+    pub fn with_session_fs_provider(mut self, provider: Arc<dyn SessionFsProvider>) -> Self {
+        self.session_fs_provider = Some(provider);
+        self
+    }
+
+    /// Wrap the configured handler so every permission request is
+    /// auto-approved. See
+    /// [`SessionConfig::approve_all_permissions`] for semantics.
+    pub fn approve_all_permissions(mut self) -> Self {
+        let inner = self
+            .handler
+            .take()
+            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+        self.handler = Some(crate::permission::approve_all(inner));
+        self
+    }
+
+    /// Wrap the configured handler so every permission request is
+    /// auto-denied. See
+    /// [`SessionConfig::deny_all_permissions`] for semantics.
+    pub fn deny_all_permissions(mut self) -> Self {
+        let inner = self
+            .handler
+            .take()
+            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+        self.handler = Some(crate::permission::deny_all(inner));
+        self
+    }
+
+    /// Wrap the configured handler with a predicate-based permission policy.
+    /// See [`SessionConfig::approve_permissions_if`] for semantics.
+    pub fn approve_permissions_if<F>(mut self, predicate: F) -> Self
+    where
+        F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
+    {
+        let inner = self
+            .handler
+            .take()
+            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+        self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self
+    }
+
+    /// Set the application name sent as `User-Agent` context.
+    pub fn with_client_name(mut self, name: impl Into<String>) -> Self {
+        self.client_name = Some(name.into());
+        self
+    }
+
+    /// Enable streaming token deltas via `assistant.message_delta` events.
+    pub fn with_streaming(mut self, streaming: bool) -> Self {
+        self.streaming = Some(streaming);
+        self
+    }
+
+    /// Re-supply the system message so the agent retains workspace context
+    /// across CLI process restarts.
+    pub fn with_system_message(mut self, system_message: SystemMessageConfig) -> Self {
+        self.system_message = Some(system_message);
+        self
+    }
+
+    /// Re-supply client-defined tools on resume.
+    pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
+        self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Set the blocklist of built-in tool names the agent must not use.
+    pub fn with_excluded_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.excluded_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Re-supply MCP server configurations on resume.
+    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+        self.mcp_servers = Some(servers);
+        self
+    }
+
+    /// Set how the CLI interprets env values in MCP configs (`"direct"` /
+    /// `"indirect"`).
+    pub fn with_env_value_mode(mut self, mode: impl Into<String>) -> Self {
+        self.env_value_mode = Some(mode.into());
+        self
+    }
+
+    /// Enable or disable CLI config discovery on resume.
+    pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
+        self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::new`].
+    pub fn with_request_user_input(mut self, enable: bool) -> Self {
+        self.request_user_input = Some(enable);
+        self
+    }
+
+    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_permission(mut self, enable: bool) -> Self {
+        self.request_permission = Some(enable);
+        self
+    }
+
+    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
+        self.request_exit_plan_mode = Some(enable);
+        self
+    }
+
+    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
+    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
+        self.request_auto_mode_switch = Some(enable);
+        self
+    }
+
+    /// Advertise elicitation provider capability on resume. Defaults to `Some(true)`.
+    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
+        self.request_elicitation = Some(enable);
+        self
+    }
+
+    /// Set skill directory paths passed through to the CLI on resume.
+    pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Re-supply custom agents on resume.
+    pub fn with_custom_agents<I: IntoIterator<Item = CustomAgentConfig>>(
+        mut self,
+        agents: I,
+    ) -> Self {
+        self.custom_agents = Some(agents.into_iter().collect());
+        self
+    }
+
+    /// Configure the built-in default agent on resume.
+    pub fn with_default_agent(mut self, agent: DefaultAgentConfig) -> Self {
+        self.default_agent = Some(agent);
+        self
+    }
+
+    /// Activate a named custom agent on resume.
+    pub fn with_agent(mut self, name: impl Into<String>) -> Self {
+        self.agent = Some(name.into());
+        self
+    }
+
+    /// Re-supply infinite session configuration on resume.
+    pub fn with_infinite_sessions(mut self, config: InfiniteSessionConfig) -> Self {
+        self.infinite_sessions = Some(config);
+        self
+    }
+
+    /// Re-supply BYOK provider configuration on resume.
+    pub fn with_provider(mut self, provider: ProviderConfig) -> Self {
+        self.provider = Some(provider);
+        self
+    }
+
+    /// Set per-property model capability overrides on resume.
+    pub fn with_model_capabilities(
+        mut self,
+        capabilities: crate::generated::api_types::ModelCapabilitiesOverride,
+    ) -> Self {
+        self.model_capabilities = Some(capabilities);
+        self
+    }
+
+    /// Override the default configuration directory location on resume.
+    pub fn with_config_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.config_dir = Some(dir.into());
+        self
+    }
+
+    /// Set the per-session working directory on resume.
+    pub fn with_working_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.working_directory = Some(dir.into());
+        self
+    }
+
+    /// Set the per-session GitHub token on resume. See
+    /// [`SessionConfig::github_token`] for distinction from the
+    /// client-level token.
+    pub fn with_github_token(mut self, token: impl Into<String>) -> Self {
+        self.github_token = Some(token.into());
+        self
+    }
+
+    /// Forward sub-agent streaming events to this connection on resume.
+    pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
+        self.include_sub_agent_streaming_events = Some(include);
+        self
+    }
+
+    /// Force-fail resume if the session does not exist on disk, instead
+    /// of silently starting a new session.
+    pub fn with_disable_resume(mut self, disable: bool) -> Self {
+        self.disable_resume = Some(disable);
+        self
+    }
+}
+
+/// Controls how the system message is constructed.
+///
+/// Use `mode: "append"` (default) to add content after the built-in system
+/// message, `"replace"` to substitute it entirely, or `"customize"` for
+/// section-level overrides.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SystemMessageConfig {
+    /// How content is applied: `"append"` (default), `"replace"`, or `"customize"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    /// Content string to append or replace.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Section-level overrides (used with `mode: "customize"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sections: Option<HashMap<String, SectionOverride>>,
+}
+
+impl SystemMessageConfig {
+    /// Construct an empty [`SystemMessageConfig`]; all fields default to
+    /// unset.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the application mode: `"append"` (default), `"replace"`, or
+    /// `"customize"`.
+    pub fn with_mode(mut self, mode: impl Into<String>) -> Self {
+        self.mode = Some(mode.into());
+        self
+    }
+
+    /// Set the system message content (used by `"append"` and `"replace"`
+    /// modes).
+    pub fn with_content(mut self, content: impl Into<String>) -> Self {
+        self.content = Some(content.into());
+        self
+    }
+
+    /// Set the section-level overrides (used with `mode: "customize"`).
+    pub fn with_sections(mut self, sections: HashMap<String, SectionOverride>) -> Self {
+        self.sections = Some(sections);
+        self
+    }
+}
+
+/// An override operation for a single system prompt section.
+///
+/// Used within [`SystemMessageConfig::sections`] when `mode` is `"customize"`.
+/// The `action` field determines the operation: `"replace"`, `"remove"`,
+/// `"append"`, `"prepend"`, or `"transform"`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SectionOverride {
+    /// Override action: `"replace"`, `"remove"`, `"append"`, `"prepend"`, or `"transform"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    /// Content for the override operation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
+/// Response from `session.create`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSessionResult {
+    /// The CLI-assigned session ID.
+    pub session_id: SessionId,
+    /// Workspace directory for the session (infinite sessions).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_path: Option<PathBuf>,
+    /// Remote session URL, if the session is running remotely.
+    #[serde(default, alias = "remote_url")]
+    pub remote_url: Option<String>,
+    /// Capabilities negotiated with the CLI for this session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<SessionCapabilities>,
+}
+
+/// Parameters for the `session.sendTelemetry` RPC.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTelemetryEvent {
+    /// Telemetry event kind (for example, `"session_shutdown"`).
+    pub kind: String,
+    /// Non-restricted string properties to include with the telemetry event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub properties: Option<HashMap<String, String>>,
+    /// Restricted string properties that may contain sensitive data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restricted_properties: Option<HashMap<String, String>>,
+    /// Numeric metrics to include with the telemetry event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metrics: Option<HashMap<String, f64>>,
+}
+
+/// Severity level for [`Session::log`](crate::session::Session::log) messages.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    /// Informational message (default).
+    #[default]
+    Info,
+    /// Warning message.
+    Warning,
+    /// Error message.
+    Error,
+}
+
+/// Options for [`Session::log`](crate::session::Session::log).
+///
+/// Pass `None` to `log` for defaults (info level, persisted to the session
+/// event log on disk).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogOptions {
+    /// Log severity. `None` lets the server pick (defaults to `info`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub level: Option<LogLevel>,
+    /// When `Some(true)`, the message is transient and not persisted to the
+    /// session event log on disk. `None` lets the server pick.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ephemeral: Option<bool>,
+}
+
+impl LogOptions {
+    /// Set [`level`](Self::level).
+    pub fn with_level(mut self, level: LogLevel) -> Self {
+        self.level = Some(level);
+        self
+    }
+
+    /// Set [`ephemeral`](Self::ephemeral).
+    pub fn with_ephemeral(mut self, ephemeral: bool) -> Self {
+        self.ephemeral = Some(ephemeral);
+        self
+    }
+}
+
+/// Options for [`Session::set_model`](crate::session::Session::set_model).
+///
+/// Pass `None` to `set_model` to switch model without any overrides.
+#[derive(Debug, Clone, Default)]
+pub struct SetModelOptions {
+    /// Reasoning effort for the new model (e.g. `"low"`, `"medium"`,
+    /// `"high"`, `"xhigh"`).
+    pub reasoning_effort: Option<String>,
+    /// Override individual model capabilities resolved by the runtime. Only
+    /// fields set on the override are applied; the rest fall back to the
+    /// runtime-resolved values for the model.
+    pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+}
+
+impl SetModelOptions {
+    /// Set [`reasoning_effort`](Self::reasoning_effort).
+    pub fn with_reasoning_effort(mut self, effort: impl Into<String>) -> Self {
+        self.reasoning_effort = Some(effort.into());
+        self
+    }
+
+    /// Set [`model_capabilities`](Self::model_capabilities).
+    pub fn with_model_capabilities(
+        mut self,
+        caps: crate::generated::api_types::ModelCapabilitiesOverride,
+    ) -> Self {
+        self.model_capabilities = Some(caps);
+        self
+    }
+}
+
+/// Response from the top-level `ping` RPC.
+///
+/// The `protocol_version` field is the most commonly-inspected piece —
+/// see [`Client::verify_protocol_version`].
+///
+/// [`Client::verify_protocol_version`]: crate::Client::verify_protocol_version
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PingResponse {
+    /// The message echoed back by the CLI.
+    #[serde(default)]
+    pub message: String,
+    /// Server-side timestamp (Unix epoch milliseconds).
+    #[serde(default)]
+    pub timestamp: i64,
+    /// The protocol version negotiated by the CLI, if reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol_version: Option<u32>,
+}
+
+/// Parameters for the top-level `sendTelemetry` RPC.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerTelemetryEvent {
+    /// Telemetry event kind (for example, `"app.launched"`).
+    pub kind: String,
+    /// SDK client name. Non-allowlisted values are hashed in telemetry.
+    pub client_name: String,
+    /// Non-restricted string properties to include with the telemetry event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub properties: Option<HashMap<String, String>>,
+    /// Restricted string properties that may contain sensitive data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restricted_properties: Option<HashMap<String, String>>,
+    /// Numeric metrics to include with the telemetry event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metrics: Option<HashMap<String, f64>>,
+}
+
+/// Line range for file attachments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentLineRange {
+    /// First line (1-based).
+    pub start: u32,
+    /// Last line (inclusive).
+    pub end: u32,
+}
+
+/// Cursor position within a file selection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentSelectionPosition {
+    /// Line number (0-based).
+    pub line: u32,
+    /// Character offset (0-based).
+    pub character: u32,
+}
+
+/// Range of selected text within a file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentSelectionRange {
+    /// Start position.
+    pub start: AttachmentSelectionPosition,
+    /// End position.
+    pub end: AttachmentSelectionPosition,
+}
+
+/// Type of GitHub reference attachment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum GitHubReferenceType {
+    /// GitHub issue.
+    Issue,
+    /// GitHub pull request.
+    Pr,
+    /// GitHub discussion.
+    Discussion,
+}
+
+/// An attachment included with a user message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[non_exhaustive]
+pub enum Attachment {
+    /// A file path, optionally with a line range.
+    File {
+        /// Absolute path to the file.
+        path: PathBuf,
+        /// Label shown in the UI.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+        /// Optional line range to focus on.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        line_range: Option<AttachmentLineRange>,
+    },
+    /// A directory path.
+    Directory {
+        /// Absolute path to the directory.
+        path: PathBuf,
+        /// Label shown in the UI.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+    },
+    /// A text selection within a file.
+    Selection {
+        /// Path to the file containing the selection.
+        file_path: PathBuf,
+        /// The selected text content.
+        text: String,
+        /// Label shown in the UI.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+        /// Character range of the selection.
+        selection: AttachmentSelectionRange,
+    },
+    /// Raw binary data (e.g. an image).
+    Blob {
+        /// Base64-encoded data.
+        data: String,
+        /// MIME type of the data.
+        mime_type: String,
+        /// Label shown in the UI.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+    },
+    /// A reference to a GitHub issue, PR, or discussion.
+    #[serde(rename = "github_reference")]
+    GitHubReference {
+        /// Issue/PR/discussion number.
+        number: u64,
+        /// Title of the referenced item.
+        title: String,
+        /// Kind of reference.
+        reference_type: GitHubReferenceType,
+        /// Current state (e.g. "open", "closed").
+        state: String,
+        /// URL to the referenced item.
+        url: String,
+    },
+}
+
+impl Attachment {
+    /// Returns the display name, if set.
+    pub fn display_name(&self) -> Option<&str> {
+        match self {
+            Self::File { display_name, .. }
+            | Self::Directory { display_name, .. }
+            | Self::Selection { display_name, .. }
+            | Self::Blob { display_name, .. } => display_name.as_deref(),
+            Self::GitHubReference { .. } => None,
+        }
+    }
+
+    /// Returns a human-readable label, deriving one from the path if needed.
+    pub fn label(&self) -> Option<String> {
+        if let Some(display_name) = self
+            .display_name()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+        {
+            return Some(display_name.to_string());
+        }
+
+        match self {
+            Self::GitHubReference { number, title, .. } => Some(if title.trim().is_empty() {
+                format!("#{}", number)
+            } else {
+                title.trim().to_string()
+            }),
+            _ => self.derived_display_name(),
+        }
+    }
+
+    /// Ensure `display_name` is populated when the variant supports one.
+    pub fn ensure_display_name(&mut self) {
+        if self
+            .display_name()
+            .map(str::trim)
+            .is_some_and(|name| !name.is_empty())
+        {
+            return;
+        }
+
+        let Some(derived_display_name) = self.derived_display_name() else {
+            return;
+        };
+
+        match self {
+            Self::File { display_name, .. }
+            | Self::Directory { display_name, .. }
+            | Self::Selection { display_name, .. }
+            | Self::Blob { display_name, .. } => *display_name = Some(derived_display_name),
+            Self::GitHubReference { .. } => {}
+        }
+    }
+
+    fn derived_display_name(&self) -> Option<String> {
+        match self {
+            Self::File { path, .. } | Self::Directory { path, .. } => {
+                Some(attachment_name_from_path(path))
+            }
+            Self::Selection { file_path, .. } => Some(attachment_name_from_path(file_path)),
+            Self::Blob { .. } => Some("attachment".to_string()),
+            Self::GitHubReference { .. } => None,
+        }
+    }
+}
+
+fn attachment_name_from_path(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| {
+            let full = path.to_string_lossy();
+            if full.is_empty() {
+                "attachment".to_string()
+            } else {
+                full.into_owned()
+            }
+        })
+}
+
+/// Normalize a list of attachments so every entry has a `display_name`.
+pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
+    for attachment in attachments {
+        attachment.ensure_display_name();
+    }
+}
+
+/// Message delivery mode for [`MessageOptions::mode`].
+///
+/// Controls how a prompt is delivered relative to in-flight session work.
+/// Wire values: `"enqueue"` and `"immediate"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum DeliveryMode {
+    /// Queue the prompt behind any in-flight work (default).
+    Enqueue,
+    /// Interrupt the session and run the prompt immediately.
+    Immediate,
+}
+
+/// Options for sending a user message to the agent.
+///
+/// Used by both [`Session::send`](crate::session::Session::send) and
+/// [`Session::send_and_wait`](crate::session::Session::send_and_wait); the
+/// `wait_timeout` field is honored only by `send_and_wait` and is ignored by
+/// `send`.
+///
+/// `MessageOptions` is `#[non_exhaustive]` and constructed via [`MessageOptions::new`]
+/// plus the `with_*` chain so future fields can land without breaking callers.
+/// For the trivial case, both `&str` and `String` implement `Into<MessageOptions>`,
+/// so:
+///
+/// ```no_run
+/// # use github_copilot_sdk::session::Session;
+/// # async fn run(session: Session) -> Result<(), github_copilot_sdk::Error> {
+/// session.send("hello").await?;
+/// # Ok(()) }
+/// ```
+///
+/// is equivalent to:
+///
+/// ```no_run
+/// # use github_copilot_sdk::session::Session;
+/// # use github_copilot_sdk::types::MessageOptions;
+/// # async fn run(session: Session) -> Result<(), github_copilot_sdk::Error> {
+/// session.send(MessageOptions::new("hello")).await?;
+/// # Ok(()) }
+/// ```
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct MessageOptions {
+    /// The user prompt to send.
+    pub prompt: String,
+    /// Optional message delivery mode for this turn.
+    ///
+    /// Controls whether the prompt is queued behind in-flight work
+    /// ([`DeliveryMode::Enqueue`], default) or interrupts the session and
+    /// runs immediately ([`DeliveryMode::Immediate`]).
+    pub mode: Option<DeliveryMode>,
+    /// Optional attachments to include with the message.
+    pub attachments: Option<Vec<Attachment>>,
+    /// Maximum time to wait for the session to go idle. Honored only by
+    /// `send_and_wait`. Defaults to 60 seconds when unset.
+    pub wait_timeout: Option<Duration>,
+    /// Custom HTTP headers to include in outbound model requests for this
+    /// turn. When `None` or empty, no `requestHeaders` field is sent on
+    /// the wire.
+    pub request_headers: Option<HashMap<String, String>>,
+    /// W3C Trace Context `traceparent` header for this turn.
+    ///
+    /// Per-turn override that takes precedence over
+    /// [`ClientOptions::on_get_trace_context`](crate::ClientOptions::on_get_trace_context).
+    /// When `None`, the SDK falls back to the provider (if configured)
+    /// before omitting the field.
+    pub traceparent: Option<String>,
+    /// W3C Trace Context `tracestate` header for this turn.
+    ///
+    /// Per-turn override paired with [`traceparent`](Self::traceparent).
+    pub tracestate: Option<String>,
+}
+
+impl MessageOptions {
+    /// Build a new `MessageOptions` with just a prompt.
+    pub fn new(prompt: impl Into<String>) -> Self {
+        Self {
+            prompt: prompt.into(),
+            mode: None,
+            attachments: None,
+            wait_timeout: None,
+            request_headers: None,
+            traceparent: None,
+            tracestate: None,
+        }
+    }
+
+    /// Set the message delivery mode for this turn.
+    ///
+    /// Pass [`DeliveryMode::Immediate`] to interrupt the session and run
+    /// the prompt now; the default ([`DeliveryMode::Enqueue`]) queues the
+    /// prompt behind in-flight work.
+    pub fn with_mode(mut self, mode: DeliveryMode) -> Self {
+        self.mode = Some(mode);
+        self
+    }
+
+    /// Attach files / selections / blobs to the message.
+    pub fn with_attachments(mut self, attachments: Vec<Attachment>) -> Self {
+        self.attachments = Some(attachments);
+        self
+    }
+
+    /// Override the default 60-second wait timeout for `send_and_wait`.
+    pub fn with_wait_timeout(mut self, timeout: Duration) -> Self {
+        self.wait_timeout = Some(timeout);
+        self
+    }
+
+    /// Set custom HTTP headers for outbound model requests for this turn.
+    pub fn with_request_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.request_headers = Some(headers);
+        self
+    }
+
+    /// Set both `traceparent` and `tracestate` from a [`TraceContext`].
+    /// Either field may remain `None` if the [`TraceContext`] has no value
+    /// for it. Use [`with_traceparent`](Self::with_traceparent) or
+    /// [`with_tracestate`](Self::with_tracestate) to set them individually.
+    pub fn with_trace_context(mut self, ctx: TraceContext) -> Self {
+        self.traceparent = ctx.traceparent;
+        self.tracestate = ctx.tracestate;
+        self
+    }
+
+    /// Set the W3C `traceparent` header for this turn.
+    pub fn with_traceparent(mut self, traceparent: impl Into<String>) -> Self {
+        self.traceparent = Some(traceparent.into());
+        self
+    }
+
+    /// Set the W3C `tracestate` header for this turn.
+    pub fn with_tracestate(mut self, tracestate: impl Into<String>) -> Self {
+        self.tracestate = Some(tracestate.into());
+        self
+    }
+}
+
+impl From<&str> for MessageOptions {
+    fn from(prompt: &str) -> Self {
+        Self::new(prompt)
+    }
+}
+
+impl From<String> for MessageOptions {
+    fn from(prompt: String) -> Self {
+        Self::new(prompt)
+    }
+}
+
+impl From<&String> for MessageOptions {
+    fn from(prompt: &String) -> Self {
+        Self::new(prompt.clone())
+    }
+}
+
+/// Response from [`Client::get_status`](crate::Client::get_status).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GetStatusResponse {
+    /// Package version (e.g. `"1.0.0"`).
+    pub version: String,
+    /// Protocol version for SDK compatibility.
+    pub protocol_version: u32,
+}
+
+/// Response from [`Client::get_auth_status`](crate::Client::get_auth_status).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GetAuthStatusResponse {
+    /// Whether the user is authenticated.
+    pub is_authenticated: bool,
+    /// Authentication type (e.g. `"user"`, `"env"`, `"gh-cli"`, `"hmac"`,
+    /// `"api-key"`, `"token"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_type: Option<String>,
+    /// GitHub host URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    /// User login name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<String>,
+    /// Human-readable status message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_message: Option<String>,
+}
+
+/// Wrapper for session event notifications received from the CLI.
+///
+/// The CLI sends these as JSON-RPC notifications on the `session.event` method.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionEventNotification {
+    /// The session this event belongs to.
+    pub session_id: SessionId,
+    /// The event payload.
+    pub event: SessionEvent,
+}
+
+/// A single event in a session's timeline.
+///
+/// Events form a linked chain via `parent_id`. The `event_type` string
+/// identifies the kind (e.g. `"assistant.message_delta"`, `"session.idle"`,
+/// `"tool.execution_start"`). Event-specific payload is in `data` as
+/// untyped JSON.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionEvent {
+    /// Unique event ID (UUID v4).
+    pub id: String,
+    /// ISO 8601 timestamp.
+    pub timestamp: String,
+    /// ID of the preceding event in the chain.
+    pub parent_id: Option<String>,
+    /// Transient events that are not persisted to disk.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ephemeral: Option<bool>,
+    /// Debug timestamp: when the CLI received this event (ms since epoch).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug_cli_received_at_ms: Option<i64>,
+    /// Debug timestamp: when the event was forwarded over WebSocket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug_ws_forwarded_at_ms: Option<i64>,
+    /// Event type string (e.g. `"assistant.message"`, `"session.idle"`).
+    #[serde(rename = "type")]
+    pub event_type: String,
+    /// Event-specific data. Structure depends on `event_type`.
+    pub data: Value,
+}
+
+impl SessionEvent {
+    /// Parse the string `event_type` into a typed [`SessionEventType`](crate::generated::SessionEventType) enum.
+    ///
+    /// Returns `SessionEventType::Unknown` for unrecognized event types,
+    /// ensuring forward compatibility with newer CLI versions.
+    pub fn parsed_type(&self) -> crate::generated::SessionEventType {
+        use serde::de::IntoDeserializer;
+        let deserializer: serde::de::value::StrDeserializer<'_, serde::de::value::Error> =
+            self.event_type.as_str().into_deserializer();
+        crate::generated::SessionEventType::deserialize(deserializer)
+            .unwrap_or(crate::generated::SessionEventType::Unknown)
+    }
+
+    /// Deserialize the event `data` field into a typed struct.
+    ///
+    /// Returns `None` if deserialization fails (e.g. unknown event type
+    /// or schema mismatch). Prefer typed data accessors for specific
+    /// event types where you need strongly-typed field access.
+    pub fn typed_data<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
+        serde_json::from_value(self.data.clone()).ok()
+    }
+
+    /// `model_call` errors are transient — the CLI agent loop continues
+    /// after them and may succeed on the next turn. These should not be
+    /// treated as session-ending errors.
+    pub fn is_transient_error(&self) -> bool {
+        self.event_type == "session.error"
+            && self.data.get("errorType").and_then(|v| v.as_str()) == Some("model_call")
+    }
+}
+
+/// A request from the CLI to invoke a client-defined tool.
+///
+/// Received as a JSON-RPC request on the `tool.call` method. The client
+/// must respond with a [`ToolResultResponse`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ToolInvocation {
+    /// Session that owns this tool call.
+    pub session_id: SessionId,
+    /// Unique ID for this tool call, used to correlate the response.
+    pub tool_call_id: String,
+    /// Name of the tool being invoked.
+    pub tool_name: String,
+    /// Tool arguments as JSON.
+    pub arguments: Value,
+    /// W3C Trace Context `traceparent` header propagated from the CLI's
+    /// `execute_tool` span. Pass through to OpenTelemetry-aware code so
+    /// child spans created inside the handler are parented to the CLI
+    /// span. `None` when the CLI has no trace context for this call.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
+    /// W3C Trace Context `tracestate` paired with
+    /// [`traceparent`](Self::traceparent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tracestate: Option<String>,
+}
+
+impl ToolInvocation {
+    /// Deserialize this invocation's [`arguments`](Self::arguments) into a
+    /// strongly-typed parameter struct.
+    ///
+    /// Idiomatic way to extract typed parameters when implementing
+    /// [`ToolHandler`](crate::tool::ToolHandler) directly. Equivalent to
+    /// `serde_json::from_value(invocation.arguments.clone())` with the SDK's
+    /// error type.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use github_copilot_sdk::{Error, types::ToolInvocation, ToolResult};
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct MyParams { city: String }
+    /// # async fn example(inv: ToolInvocation) -> Result<ToolResult, Error> {
+    /// let params: MyParams = inv.params()?;
+    /// // …use `inv.session_id` / `inv.tool_call_id` alongside `params`…
+    /// # let _ = params; Ok(ToolResult::Text(String::new()))
+    /// # }
+    /// ```
+    pub fn params<P: serde::de::DeserializeOwned>(&self) -> Result<P, crate::Error> {
+        serde_json::from_value(self.arguments.clone()).map_err(crate::Error::from)
+    }
+
+    /// Returns the propagated [`TraceContext`] for this invocation, or
+    /// [`TraceContext::default()`] when the CLI sent no headers.
+    pub fn trace_context(&self) -> TraceContext {
+        TraceContext {
+            traceparent: self.traceparent.clone(),
+            tracestate: self.tracestate.clone(),
+        }
+    }
+}
+
+/// Expanded tool result with metadata for the LLM and session log.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolResultExpanded {
+    /// Result text sent back to the LLM.
+    pub text_result_for_llm: String,
+    /// `"success"` or `"failure"`.
+    pub result_type: String,
+    /// Optional log message for the session timeline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_log: Option<String>,
+    /// Error message, if the tool failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// Result of a tool invocation — either a plain text string or an expanded result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum ToolResult {
+    /// Simple text result passed directly to the LLM.
+    Text(String),
+    /// Structured result with metadata.
+    Expanded(ToolResultExpanded),
+}
+
+/// JSON-RPC response wrapper for a tool result, sent back to the CLI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolResultResponse {
+    /// The tool result payload.
+    pub result: ToolResult,
+}
+
+/// Metadata for a persisted session, returned by `session.list`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadata {
+    /// The session's unique identifier.
+    pub session_id: SessionId,
+    /// ISO 8601 timestamp when the session was created.
+    pub start_time: String,
+    /// ISO 8601 timestamp of the last modification.
+    pub modified_time: String,
+    /// Agent-generated session summary.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    /// Whether the session is running remotely.
+    pub is_remote: bool,
+}
+
+/// Response from `session.list`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListSessionsResponse {
+    /// The list of session metadata entries.
+    pub sessions: Vec<SessionMetadata>,
+}
+
+/// Filter options for [`Client::list_sessions`](crate::Client::list_sessions).
+///
+/// All fields are optional; unset fields don't constrain the result.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionListFilter {
+    /// Filter by exact `cwd` match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Filter by git root path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git_root: Option<String>,
+    /// Filter by repository in `owner/repo` form.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Filter by git branch name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+}
+
+/// Response from `session.getMetadata`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSessionMetadataResponse {
+    /// The session metadata, or `None` if the session was not found.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session: Option<SessionMetadata>,
+}
+
+/// Response from `session.getLastId`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetLastSessionIdResponse {
+    /// The most recently updated session ID, or `None` if no sessions exist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+}
+
+/// Response from `session.getForeground`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetForegroundSessionResponse {
+    /// The current foreground session ID, or `None` if no foreground session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+}
+
+/// Response from `session.getMessages`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetMessagesResponse {
+    /// Timeline events for the session.
+    pub events: Vec<SessionEvent>,
+}
+
+/// Result of an elicitation (interactive UI form) request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElicitationResult {
+    /// User's action: `"accept"`, `"decline"`, or `"cancel"`.
+    pub action: String,
+    /// Form data submitted by the user (present when action is `"accept"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<Value>,
+}
+
+/// Elicitation display mode.
+///
+/// New modes may be added by the CLI in future protocol versions; the
+/// `Unknown` variant keeps deserialization from failing on unrecognised
+/// values so the SDK can still surface the request to callers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum ElicitationMode {
+    /// Structured form input rendered by the host.
+    Form,
+    /// Browser redirect to a URL.
+    Url,
+    /// A mode not yet known to this SDK version.
+    #[serde(other)]
+    Unknown,
+}
+
+/// An incoming elicitation request from the CLI (provider side).
+///
+/// Received via `elicitation.requested` session event when the session was
+/// created with `request_elicitation: true`. The provider should render a
+/// form or dialog and return an [`ElicitationResult`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElicitationRequest {
+    /// Message describing what information is needed from the user.
+    pub message: String,
+    /// JSON Schema describing the form fields to present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_schema: Option<Value>,
+    /// Elicitation display mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ElicitationMode>,
+    /// The source that initiated the request (e.g. MCP server name).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elicitation_source: Option<String>,
+    /// URL to open in the user's browser (url mode only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// Session-level capabilities reported by the CLI after session creation.
+///
+/// Capabilities indicate which features the CLI host supports for this session.
+/// Updated at runtime via `capabilities.changed` events.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCapabilities {
+    /// UI capabilities (elicitation support, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<UiCapabilities>,
+}
+
+/// UI-specific capabilities for a session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiCapabilities {
+    /// Whether the host supports interactive elicitation dialogs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elicitation: Option<bool>,
+}
+
+/// Options for the [`SessionUi::input`](crate::session::SessionUi::input) convenience method.
+#[derive(Debug, Clone, Default)]
+pub struct InputOptions<'a> {
+    /// Title label for the input field.
+    pub title: Option<&'a str>,
+    /// Descriptive text shown below the field.
+    pub description: Option<&'a str>,
+    /// Minimum character length.
+    pub min_length: Option<u64>,
+    /// Maximum character length.
+    pub max_length: Option<u64>,
+    /// Semantic format hint.
+    pub format: Option<InputFormat>,
+    /// Default value pre-populated in the field.
+    pub default: Option<&'a str>,
+}
+
+/// Semantic format hints for text input fields.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub enum InputFormat {
+    /// Email address.
+    Email,
+    /// URI.
+    Uri,
+    /// Calendar date.
+    Date,
+    /// Date and time.
+    DateTime,
+}
+
+impl InputFormat {
+    /// Returns the JSON Schema format string for this variant.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Email => "email",
+            Self::Uri => "uri",
+            Self::Date => "date",
+            Self::DateTime => "date-time",
+        }
+    }
+}
+
+/// Re-exports of generated protocol types that are part of the SDK's
+/// public API surface. The canonical definitions live in
+/// [`crate::generated::api_types`]; they live here so the crate-root
+/// `pub use types::*` surfaces them alongside hand-written SDK types.
+pub use crate::generated::api_types::{
+    Model, ModelBilling, ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
+    ModelCapabilitiesSupports, ModelList, ModelPolicy,
+};
+
+/// Permission categories the CLI may request approval for.
+///
+/// Wire values are the lower-kebab strings the CLI sends as the `kind`
+/// discriminator on a permission request. Marked `#[non_exhaustive]`
+/// because the CLI may add new kinds; matches must include a `_` arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum PermissionRequestKind {
+    /// Run a shell command.
+    Shell,
+    /// Write to a file.
+    Write,
+    /// Read a file.
+    Read,
+    /// Open a URL.
+    Url,
+    /// Invoke an MCP server tool.
+    Mcp,
+    /// Invoke a client-defined custom tool.
+    CustomTool,
+    /// Update agent memory.
+    Memory,
+    /// Run a hook callback.
+    Hook,
+    /// Unrecognized kind. The original wire string is available in
+    /// [`PermissionRequestData::extra`] under the `kind` key.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Data sent by the CLI for permission-related events.
+///
+/// Used for both the `permission.request` RPC call (which expects a response)
+/// and `permission.requested` notifications (fire-and-forget). Contains the
+/// full params object. Note that `requestId` is also available as a separate
+/// field on `HandlerEvent::PermissionRequest`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRequestData {
+    /// The permission category being requested. `None` means the CLI did
+    /// not include a `kind` field. Use this to branch on common cases
+    /// (shell, write, etc.) without parsing [`extra`](Self::extra).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<PermissionRequestKind>,
+    /// The originating tool-call ID, if this permission request is tied
+    /// to a specific tool invocation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    /// The full permission request params from the CLI. The shape varies by
+    /// permission type and CLI version, so we preserve it as `Value`.
+    #[serde(flatten)]
+    pub extra: Value,
+}
+
+/// Data sent by the CLI with an `exitPlanMode.request` RPC call.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExitPlanModeData {
+    /// Markdown summary of the plan presented to the user.
+    #[serde(default)]
+    pub summary: String,
+    /// Full plan content (e.g. the plan.md body), if available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_content: Option<String>,
+    /// Allowed exit actions (e.g. "interactive", "autopilot", "autopilot_fleet").
+    #[serde(default)]
+    pub actions: Vec<String>,
+    /// Which action the CLI recommends, defaults to "autopilot".
+    #[serde(default = "default_recommended_action")]
+    pub recommended_action: String,
+}
+
+fn default_recommended_action() -> String {
+    "autopilot".to_string()
+}
+
+impl Default for ExitPlanModeData {
+    fn default() -> Self {
+        Self {
+            summary: String::new(),
+            plan_content: None,
+            actions: Vec::new(),
+            recommended_action: default_recommended_action(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use serde_json::json;
+
+    use super::{
+        Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
+        ConnectionState, CustomAgentConfig, DeliveryMode, GitHubReferenceType,
+        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionId,
+        SystemMessageConfig, Tool, ensure_attachment_display_names,
+    };
+
+    #[test]
+    fn tool_builder_composes() {
+        let tool = Tool::new("greet")
+            .with_description("Say hello")
+            .with_namespaced_name("hello/greet")
+            .with_instructions("Pass the user's name")
+            .with_parameters(json!({
+                "type": "object",
+                "properties": { "name": { "type": "string" } },
+                "required": ["name"]
+            }))
+            .with_overrides_built_in_tool(true)
+            .with_skip_permission(true);
+        assert_eq!(tool.name, "greet");
+        assert_eq!(tool.description, "Say hello");
+        assert_eq!(tool.namespaced_name.as_deref(), Some("hello/greet"));
+        assert_eq!(tool.instructions.as_deref(), Some("Pass the user's name"));
+        assert_eq!(tool.parameters.get("type").unwrap(), &json!("object"));
+        assert!(tool.overrides_built_in_tool);
+        assert!(tool.skip_permission);
+    }
+
+    #[test]
+    fn tool_with_parameters_handles_non_object_value() {
+        let tool = Tool::new("noop").with_parameters(json!(null));
+        assert!(tool.parameters.is_empty());
+    }
+
+    #[test]
+    fn session_config_default_enables_permission_flow_flags() {
+        let cfg = SessionConfig::default();
+        assert_eq!(cfg.request_user_input, Some(true));
+        assert_eq!(cfg.request_permission, Some(true));
+        assert_eq!(cfg.request_exit_plan_mode, Some(true));
+        assert_eq!(cfg.request_auto_mode_switch, Some(true));
+        assert_eq!(cfg.request_elicitation, Some(true));
+    }
+
+    #[test]
+    fn resume_session_config_new_enables_permission_flow_flags() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("test-id"));
+        assert_eq!(cfg.request_user_input, Some(true));
+        assert_eq!(cfg.request_permission, Some(true));
+        assert_eq!(cfg.request_exit_plan_mode, Some(true));
+        assert_eq!(cfg.request_auto_mode_switch, Some(true));
+        assert_eq!(cfg.request_elicitation, Some(true));
+    }
+
+    #[test]
+    fn session_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let cfg = SessionConfig::default()
+            .with_session_id(SessionId::from("sess-1"))
+            .with_model("claude-sonnet-4")
+            .with_client_name("test-app")
+            .with_reasoning_effort("medium")
+            .with_streaming(true)
+            .with_tools([Tool::new("greet")])
+            .with_available_tools(["bash", "view"])
+            .with_excluded_tools(["dangerous"])
+            .with_mcp_servers(HashMap::new())
+            .with_env_value_mode("direct")
+            .with_enable_config_discovery(true)
+            .with_request_user_input(false)
+            .with_skill_directories([PathBuf::from("/tmp/skills")])
+            .with_disabled_skills(["broken-skill"])
+            .with_disabled_mcp_servers(["broken-server"])
+            .with_agent("researcher")
+            .with_config_dir(PathBuf::from("/tmp/config"))
+            .with_working_directory(PathBuf::from("/tmp/work"))
+            .with_github_token("ghp_test")
+            .with_include_sub_agent_streaming_events(false);
+
+        assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
+        assert_eq!(cfg.model.as_deref(), Some("claude-sonnet-4"));
+        assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
+        assert_eq!(cfg.reasoning_effort.as_deref(), Some("medium"));
+        assert_eq!(cfg.streaming, Some(true));
+        assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
+        assert_eq!(
+            cfg.available_tools.as_deref(),
+            Some(&["bash".to_string(), "view".to_string()][..])
+        );
+        assert_eq!(
+            cfg.excluded_tools.as_deref(),
+            Some(&["dangerous".to_string()][..])
+        );
+        assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.env_value_mode.as_deref(), Some("direct"));
+        assert_eq!(cfg.enable_config_discovery, Some(true));
+        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
+        assert_eq!(cfg.request_permission, Some(true)); // default preserved
+        assert_eq!(
+            cfg.skill_directories.as_deref(),
+            Some(&[PathBuf::from("/tmp/skills")][..])
+        );
+        assert_eq!(
+            cfg.disabled_skills.as_deref(),
+            Some(&["broken-skill".to_string()][..])
+        );
+        assert_eq!(cfg.agent.as_deref(), Some("researcher"));
+        assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
+        assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
+        assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
+    }
+
+    #[test]
+    fn resume_session_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .with_client_name("test-app")
+            .with_streaming(true)
+            .with_tools([Tool::new("greet")])
+            .with_excluded_tools(["dangerous"])
+            .with_mcp_servers(HashMap::new())
+            .with_env_value_mode("indirect")
+            .with_enable_config_discovery(true)
+            .with_request_user_input(false)
+            .with_skill_directories([PathBuf::from("/tmp/skills")])
+            .with_agent("researcher")
+            .with_config_dir(PathBuf::from("/tmp/config"))
+            .with_working_directory(PathBuf::from("/tmp/work"))
+            .with_github_token("ghp_test")
+            .with_include_sub_agent_streaming_events(true)
+            .with_disable_resume(true);
+
+        assert_eq!(cfg.session_id.as_str(), "sess-2");
+        assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
+        assert_eq!(cfg.streaming, Some(true));
+        assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
+        assert_eq!(
+            cfg.excluded_tools.as_deref(),
+            Some(&["dangerous".to_string()][..])
+        );
+        assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.env_value_mode.as_deref(), Some("indirect"));
+        assert_eq!(cfg.enable_config_discovery, Some(true));
+        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
+        assert_eq!(cfg.request_permission, Some(true)); // default preserved
+        assert_eq!(
+            cfg.skill_directories.as_deref(),
+            Some(&[PathBuf::from("/tmp/skills")][..])
+        );
+        assert_eq!(cfg.agent.as_deref(), Some("researcher"));
+        assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
+        assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
+        assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
+        assert_eq!(cfg.disable_resume, Some(true));
+    }
+
+    #[test]
+    fn custom_agent_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let cfg = CustomAgentConfig::new("researcher", "You are a research assistant.")
+            .with_display_name("Research Assistant")
+            .with_description("Investigates technical questions.")
+            .with_tools(["bash", "view"])
+            .with_mcp_servers(HashMap::new())
+            .with_infer(true)
+            .with_skills(["rust-coding-skill"]);
+
+        assert_eq!(cfg.name, "researcher");
+        assert_eq!(cfg.prompt, "You are a research assistant.");
+        assert_eq!(cfg.display_name.as_deref(), Some("Research Assistant"));
+        assert_eq!(
+            cfg.description.as_deref(),
+            Some("Investigates technical questions.")
+        );
+        assert_eq!(
+            cfg.tools.as_deref(),
+            Some(&["bash".to_string(), "view".to_string()][..])
+        );
+        assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.infer, Some(true));
+        assert_eq!(
+            cfg.skills.as_deref(),
+            Some(&["rust-coding-skill".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn infinite_session_config_builder_composes() {
+        let cfg = InfiniteSessionConfig::new()
+            .with_enabled(true)
+            .with_background_compaction_threshold(0.75)
+            .with_buffer_exhaustion_threshold(0.92);
+
+        assert_eq!(cfg.enabled, Some(true));
+        assert_eq!(cfg.background_compaction_threshold, Some(0.75));
+        assert_eq!(cfg.buffer_exhaustion_threshold, Some(0.92));
+    }
+
+    #[test]
+    fn provider_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let mut headers = HashMap::new();
+        headers.insert("X-Custom".to_string(), "value".to_string());
+
+        let cfg = ProviderConfig::new("https://api.example.com")
+            .with_provider_type("openai")
+            .with_wire_api("completions")
+            .with_api_key("sk-test")
+            .with_bearer_token("bearer-test")
+            .with_headers(headers);
+
+        assert_eq!(cfg.base_url, "https://api.example.com");
+        assert_eq!(cfg.provider_type.as_deref(), Some("openai"));
+        assert_eq!(cfg.wire_api.as_deref(), Some("completions"));
+        assert_eq!(cfg.api_key.as_deref(), Some("sk-test"));
+        assert_eq!(cfg.bearer_token.as_deref(), Some("bearer-test"));
+        assert_eq!(
+            cfg.headers
+                .as_ref()
+                .and_then(|h| h.get("X-Custom"))
+                .map(String::as_str),
+            Some("value"),
+        );
+    }
+
+    #[test]
+    fn system_message_config_builder_composes() {
+        use std::collections::HashMap;
+
+        let cfg = SystemMessageConfig::new()
+            .with_mode("replace")
+            .with_content("Custom system message.")
+            .with_sections(HashMap::new());
+
+        assert_eq!(cfg.mode.as_deref(), Some("replace"));
+        assert_eq!(cfg.content.as_deref(), Some("Custom system message."));
+        assert!(cfg.sections.is_some());
+    }
+
+    #[test]
+    fn delivery_mode_serializes_to_kebab_case_strings() {
+        assert_eq!(
+            serde_json::to_string(&DeliveryMode::Enqueue).unwrap(),
+            "\"enqueue\""
+        );
+        assert_eq!(
+            serde_json::to_string(&DeliveryMode::Immediate).unwrap(),
+            "\"immediate\""
+        );
+        let parsed: DeliveryMode = serde_json::from_str("\"immediate\"").unwrap();
+        assert_eq!(parsed, DeliveryMode::Immediate);
+    }
+
+    #[test]
+    fn connection_state_error_serializes_to_match_go() {
+        let json = serde_json::to_string(&ConnectionState::Error).unwrap();
+        assert_eq!(json, "\"error\"");
+        let parsed: ConnectionState = serde_json::from_str("\"error\"").unwrap();
+        assert_eq!(parsed, ConnectionState::Error);
+    }
+
+    #[test]
+    fn connection_state_other_variants_serialize_as_lowercase() {
+        assert_eq!(
+            serde_json::to_string(&ConnectionState::Disconnected).unwrap(),
+            "\"disconnected\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ConnectionState::Connecting).unwrap(),
+            "\"connecting\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ConnectionState::Connected).unwrap(),
+            "\"connected\""
+        );
+    }
+
+    #[test]
+    fn deserializes_runtime_attachment_variants() {
+        let attachments: Vec<Attachment> = serde_json::from_value(json!([
+            {
+                "type": "file",
+                "path": "/tmp/file.rs",
+                "displayName": "file.rs",
+                "lineRange": { "start": 7, "end": 12 }
+            },
+            {
+                "type": "directory",
+                "path": "/tmp/project",
+                "displayName": "project"
+            },
+            {
+                "type": "selection",
+                "filePath": "/tmp/lib.rs",
+                "displayName": "lib.rs",
+                "text": "fn main() {}",
+                "selection": {
+                    "start": { "line": 1, "character": 2 },
+                    "end": { "line": 3, "character": 4 }
+                }
+            },
+            {
+                "type": "blob",
+                "data": "Zm9v",
+                "mimeType": "image/png",
+                "displayName": "image.png"
+            },
+            {
+                "type": "github_reference",
+                "number": 42,
+                "title": "Fix rendering",
+                "referenceType": "issue",
+                "state": "open",
+                "url": "https://github.com/example/repo/issues/42"
+            }
+        ]))
+        .expect("attachments should deserialize");
+
+        assert_eq!(attachments.len(), 5);
+        assert!(matches!(
+            &attachments[0],
+            Attachment::File {
+                path,
+                display_name,
+                line_range: Some(AttachmentLineRange { start: 7, end: 12 }),
+            } if path == &PathBuf::from("/tmp/file.rs") && display_name.as_deref() == Some("file.rs")
+        ));
+        assert!(matches!(
+            &attachments[1],
+            Attachment::Directory { path, display_name }
+                if path == &PathBuf::from("/tmp/project") && display_name.as_deref() == Some("project")
+        ));
+        assert!(matches!(
+            &attachments[2],
+            Attachment::Selection {
+                file_path,
+                display_name,
+                selection:
+                    AttachmentSelectionRange {
+                        start: AttachmentSelectionPosition { line: 1, character: 2 },
+                        end: AttachmentSelectionPosition { line: 3, character: 4 },
+                    },
+                ..
+            } if file_path == &PathBuf::from("/tmp/lib.rs") && display_name.as_deref() == Some("lib.rs")
+        ));
+        assert!(matches!(
+            &attachments[3],
+            Attachment::Blob {
+                data,
+                mime_type,
+                display_name,
+            } if data == "Zm9v" && mime_type == "image/png" && display_name.as_deref() == Some("image.png")
+        ));
+        assert!(matches!(
+            &attachments[4],
+            Attachment::GitHubReference {
+                number: 42,
+                title,
+                reference_type: GitHubReferenceType::Issue,
+                state,
+                url,
+            } if title == "Fix rendering"
+                && state == "open"
+                && url == "https://github.com/example/repo/issues/42"
+        ));
+    }
+
+    #[test]
+    fn ensures_display_names_for_variants_that_support_them() {
+        let mut attachments = vec![
+            Attachment::File {
+                path: PathBuf::from("/tmp/file.rs"),
+                display_name: None,
+                line_range: None,
+            },
+            Attachment::Selection {
+                file_path: PathBuf::from("/tmp/src/lib.rs"),
+                display_name: None,
+                text: "fn main() {}".to_string(),
+                selection: AttachmentSelectionRange {
+                    start: AttachmentSelectionPosition {
+                        line: 0,
+                        character: 0,
+                    },
+                    end: AttachmentSelectionPosition {
+                        line: 0,
+                        character: 10,
+                    },
+                },
+            },
+            Attachment::Blob {
+                data: "Zm9v".to_string(),
+                mime_type: "image/png".to_string(),
+                display_name: None,
+            },
+            Attachment::GitHubReference {
+                number: 7,
+                title: "Track regressions".to_string(),
+                reference_type: GitHubReferenceType::Issue,
+                state: "open".to_string(),
+                url: "https://example.com/issues/7".to_string(),
+            },
+        ];
+
+        ensure_attachment_display_names(&mut attachments);
+
+        assert_eq!(attachments[0].display_name(), Some("file.rs"));
+        assert_eq!(attachments[1].display_name(), Some("lib.rs"));
+        assert_eq!(attachments[2].display_name(), Some("attachment"));
+        assert_eq!(attachments[3].display_name(), None);
+        assert_eq!(
+            attachments[3].label(),
+            Some("Track regressions".to_string())
+        );
+    }
+}
+
+#[cfg(test)]
+mod permission_builder_tests {
+    use std::sync::Arc;
+
+    use crate::handler::{
+        ApproveAllHandler, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
+    };
+    use crate::types::{
+        PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
+    };
+
+    fn permission_event() -> HandlerEvent {
+        HandlerEvent::PermissionRequest {
+            session_id: SessionId::from("s1"),
+            request_id: RequestId::new("1"),
+            data: PermissionRequestData {
+                extra: serde_json::json!({"tool": "shell"}),
+                ..Default::default()
+            },
+        }
+    }
+
+    async fn dispatch(handler: &Arc<dyn SessionHandler>) -> HandlerResponse {
+        handler.on_event(permission_event()).await
+    }
+
+    #[tokio::test]
+    async fn session_config_approve_all_wraps_existing_handler() {
+        let cfg = SessionConfig::default()
+            .with_handler(Arc::new(ApproveAllHandler))
+            .approve_all_permissions();
+        let handler = cfg.handler.expect("handler should be set");
+        match dispatch(&handler).await {
+            HandlerResponse::Permission(PermissionResult::Approved) => {}
+            other => panic!("expected Approved, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn session_config_approve_all_defaults_to_deny_inner() {
+        // Without with_handler, the wrap defaults to DenyAllHandler. The
+        // approve-all wrap intercepts permission events, so they're still
+        // approved -- the inner handler is consulted only for other events.
+        let cfg = SessionConfig::default().approve_all_permissions();
+        let handler = cfg.handler.expect("handler should be set");
+        match dispatch(&handler).await {
+            HandlerResponse::Permission(PermissionResult::Approved) => {}
+            other => panic!("expected Approved, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn session_config_deny_all_denies() {
+        let cfg = SessionConfig::default()
+            .with_handler(Arc::new(ApproveAllHandler))
+            .deny_all_permissions();
+        let handler = cfg.handler.expect("handler should be set");
+        match dispatch(&handler).await {
+            HandlerResponse::Permission(PermissionResult::Denied) => {}
+            other => panic!("expected Denied, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn session_config_approve_permissions_if_consults_predicate() {
+        let cfg = SessionConfig::default()
+            .with_handler(Arc::new(ApproveAllHandler))
+            .approve_permissions_if(|data| {
+                data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+            });
+        let handler = cfg.handler.expect("handler should be set");
+        match dispatch(&handler).await {
+            HandlerResponse::Permission(PermissionResult::Denied) => {}
+            other => panic!("expected Denied for shell, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_session_config_approve_all_wraps_existing_handler() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("s1"))
+            .with_handler(Arc::new(ApproveAllHandler))
+            .approve_all_permissions();
+        let handler = cfg.handler.expect("handler should be set");
+        match dispatch(&handler).await {
+            HandlerResponse::Permission(PermissionResult::Approved) => {}
+            other => panic!("expected Approved, got {other:?}"),
+        }
+    }
+}
