@@ -739,6 +739,8 @@ namespace GitHub.Copilot.SDK;
     lines.push(`    [JsonPropertyName("parentId")]`, `    public Guid? ParentId { get; set; }`, "");
     lines.push(...xmlDocComment(baseDesc("ephemeral"), "    "));
     lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`, `    [JsonPropertyName("ephemeral")]`, `    public bool? Ephemeral { get; set; }`, "");
+    lines.push(...xmlDocComment(baseDesc("agentId"), "    "));
+    lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`, `    [JsonPropertyName("agentId")]`, `    public string? AgentId { get; set; }`, "");
     lines.push(`    /// <summary>`, `    /// The event type discriminator.`, `    /// </summary>`);
     lines.push(`    [JsonIgnore]`, `    public virtual string Type => "unknown";`, "");
     lines.push(`    /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>`);
