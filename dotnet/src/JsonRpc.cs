@@ -763,7 +763,14 @@ internal sealed partial class JsonRpc : IDisposable
         [JsonPropertyName("id")]
         public JsonElement Id { get; set; }
 
+        // JSON-RPC 2.0 requires every response to carry either `result` or `error`.
+        // vscode-jsonrpc (used by the CLI) rejects responses that have neither with
+        // "The received response has neither a result nor an error property", so we
+        // must emit `result: null` for void-returning handlers — overriding the
+        // context-level WhenWritingNull policy.
         [JsonPropertyName("result")]
+        [JsonInclude]
+        [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
         public JsonElement? Result { get; set; }
     }
 
