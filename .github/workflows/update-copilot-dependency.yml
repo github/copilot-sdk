@@ -1,11 +1,19 @@
 name: "Update @github/copilot Dependency"
 
 on:
+  schedule:
+    # Daily at 10:00 UTC — keep symmetric with github-app's scheduled
+    # CLI-version checks so the SDK regen advances in lockstep when a
+    # new @github/copilot publishes. The detect job is cheap (one
+    # `npm view` + a jq read); the heavy update job only runs when the
+    # detected version actually differs from the current pin, so the
+    # daily schedule is effectively free on no-op days.
+    - cron: "0 10 * * *"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Target version of @github/copilot (e.g. 0.0.420)'
-        required: true
+        description: 'Target version of @github/copilot (e.g. 0.0.420). Leave empty to auto-detect the latest published version.'
+        required: false
         type: string
 
 permissions:
@@ -13,19 +21,52 @@ permissions:
   pull-requests: write
 
 jobs:
-  update:
-    name: "Update @github/copilot to ${{ inputs.version }}"
+  detect:
+    name: "Detect target version"
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      should_continue: ${{ steps.resolve.outputs.should_continue }}
     steps:
-      - name: Validate version input
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve target version
+        id: resolve
         env:
-          VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
-            echo "::error::Invalid version format '$VERSION'. Expected semver (e.g. 0.0.420)."
+          if [ -n "$INPUT_VERSION" ]; then
+            TARGET="$INPUT_VERSION"
+            echo "Manual override: $TARGET"
+          else
+            TARGET=$(npm view @github/copilot version)
+            echo "Latest published @github/copilot: $TARGET"
+          fi
+          if [[ ! "$TARGET" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
+            echo "::error::Invalid version format '$TARGET'. Expected semver (e.g. 0.0.420)."
             exit 1
           fi
+          CURRENT=$(jq -r '.dependencies["@github/copilot"]' nodejs/package.json | sed 's/^[\^~]//')
+          echo "Current pinned: $CURRENT"
+          if [ "$TARGET" = "$CURRENT" ]; then
+            echo "Already on $TARGET; nothing to do."
+            echo "should_continue=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Will bump from $CURRENT to $TARGET"
+          echo "version=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "should_continue=true" >> "$GITHUB_OUTPUT"
 
+  update:
+    name: "Update @github/copilot to ${{ needs.detect.outputs.version }}"
+    needs: detect
+    if: needs.detect.outputs.should_continue == 'true'
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -58,13 +99,13 @@ jobs:
 
       - name: Update @github/copilot in nodejs
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.detect.outputs.version }}
         working-directory: ./nodejs
         run: npm install "@github/copilot@$VERSION"
 
       - name: Update @github/copilot in test harness
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.detect.outputs.version }}
         working-directory: ./test/harness
         run: npm install "@github/copilot@$VERSION"
 
@@ -89,7 +130,7 @@ jobs:
       - name: Create pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.detect.outputs.version }}
         run: |
           BRANCH="update-copilot-$VERSION"
           git config user.name "github-actions[bot]"
