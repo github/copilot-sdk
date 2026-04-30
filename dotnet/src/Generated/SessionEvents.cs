@@ -3682,6 +3682,31 @@ public partial class SystemNotificationShellDetachedCompleted : SystemNotificati
     public required string ShellId { get; set; }
 }
 
+/// <summary>The <c>instruction_discovered</c> variant of <see cref="SystemNotification"/>.</summary>
+public partial class SystemNotificationInstructionDiscovered : SystemNotification
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "instruction_discovered";
+
+    /// <summary>Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/').</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Relative path to the discovered instruction file.</summary>
+    [JsonPropertyName("sourcePath")]
+    public required string SourcePath { get; set; }
+
+    /// <summary>Path of the file access that triggered discovery.</summary>
+    [JsonPropertyName("triggerFile")]
+    public required string TriggerFile { get; set; }
+
+    /// <summary>Tool command that triggered discovery (currently always 'view').</summary>
+    [JsonPropertyName("triggerTool")]
+    public required string TriggerTool { get; set; }
+}
+
 /// <summary>Structured metadata identifying what triggered this notification.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
@@ -3692,6 +3717,7 @@ public partial class SystemNotificationShellDetachedCompleted : SystemNotificati
 [JsonDerivedType(typeof(SystemNotificationNewInboxMessage), "new_inbox_message")]
 [JsonDerivedType(typeof(SystemNotificationShellCompleted), "shell_completed")]
 [JsonDerivedType(typeof(SystemNotificationShellDetachedCompleted), "shell_detached_completed")]
+[JsonDerivedType(typeof(SystemNotificationInstructionDiscovered), "instruction_discovered")]
 public partial class SystemNotification
 {
     /// <summary>The type discriminator.</summary>
@@ -5007,6 +5033,7 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(SystemNotificationAgentIdle))]
 [JsonSerializable(typeof(SystemNotificationData))]
 [JsonSerializable(typeof(SystemNotificationEvent))]
+[JsonSerializable(typeof(SystemNotificationInstructionDiscovered))]
 [JsonSerializable(typeof(SystemNotificationNewInboxMessage))]
 [JsonSerializable(typeof(SystemNotificationShellCompleted))]
 [JsonSerializable(typeof(SystemNotificationShellDetachedCompleted))]

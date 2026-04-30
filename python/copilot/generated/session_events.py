@@ -3523,8 +3523,11 @@ class SystemNotification:
     sender_name: str | None = None
     sender_type: str | None = None
     shell_id: str | None = None
+    source_path: str | None = None
     status: SystemNotificationAgentCompletedStatus | None = None
     summary: str | None = None
+    trigger_file: str | None = None
+    trigger_tool: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SystemNotification":
@@ -3539,8 +3542,11 @@ class SystemNotification:
         sender_name = from_union([from_none, from_str], obj.get("senderName"))
         sender_type = from_union([from_none, from_str], obj.get("senderType"))
         shell_id = from_union([from_none, from_str], obj.get("shellId"))
+        source_path = from_union([from_none, from_str], obj.get("sourcePath"))
         status = from_union([from_none, lambda x: parse_enum(SystemNotificationAgentCompletedStatus, x)], obj.get("status"))
         summary = from_union([from_none, from_str], obj.get("summary"))
+        trigger_file = from_union([from_none, from_str], obj.get("triggerFile"))
+        trigger_tool = from_union([from_none, from_str], obj.get("triggerTool"))
         return SystemNotification(
             type=type,
             agent_id=agent_id,
@@ -3552,8 +3558,11 @@ class SystemNotification:
             sender_name=sender_name,
             sender_type=sender_type,
             shell_id=shell_id,
+            source_path=source_path,
             status=status,
             summary=summary,
+            trigger_file=trigger_file,
+            trigger_tool=trigger_tool,
         )
 
     def to_dict(self) -> dict:
@@ -3577,10 +3586,16 @@ class SystemNotification:
             result["senderType"] = from_union([from_none, from_str], self.sender_type)
         if self.shell_id is not None:
             result["shellId"] = from_union([from_none, from_str], self.shell_id)
+        if self.source_path is not None:
+            result["sourcePath"] = from_union([from_none, from_str], self.source_path)
         if self.status is not None:
             result["status"] = from_union([from_none, lambda x: to_enum(SystemNotificationAgentCompletedStatus, x)], self.status)
         if self.summary is not None:
             result["summary"] = from_union([from_none, from_str], self.summary)
+        if self.trigger_file is not None:
+            result["triggerFile"] = from_union([from_none, from_str], self.trigger_file)
+        if self.trigger_tool is not None:
+            result["triggerTool"] = from_union([from_none, from_str], self.trigger_tool)
         return result
 
 
@@ -4466,6 +4481,7 @@ class SystemNotificationType(Enum):
     NEW_INBOX_MESSAGE = "new_inbox_message"
     SHELL_COMPLETED = "shell_completed"
     SHELL_DETACHED_COMPLETED = "shell_detached_completed"
+    INSTRUCTION_DISCOVERED = "instruction_discovered"
 
 
 class ToolExecutionCompleteContentResourceLinkIconTheme(Enum):
