@@ -681,9 +681,16 @@ gets to be Rust here — cross-SDK parity for these is a post-release
 conversation, not a release blocker. None of these are deprecated and
 none of them are scheduled for removal.
 
-- **`Client::get_quota`** — fetch account-level request quota snapshots.
-  The underlying `account.getQuota` JSON-RPC endpoint is exposed only by
-  the Rust SDK in this release.
+- **`Client::get_quota`** — top-level convenience wrapper for fetching
+  account-level request quota snapshots. Rust-only as of 0.1.0; the other
+  SDKs do not expose a client-level shortcut. The underlying
+  `account.getQuota` JSON-RPC endpoint itself is available cross-SDK via
+  each SDK's typed `rpc()` namespace (Node
+  `client.rpc().account().getQuota()`, Python
+  `client.rpc().account.get_quota()`, Go
+  `client.Rpc().Account().GetQuota()`, .NET
+  `client.Rpc().Account().GetQuotaAsync()`), including in Rust at
+  `client.rpc().account().get_quota()`.
 - **First-class `Session` convenience methods** — `set_mode` / `get_mode`,
   `set_name` / `get_name`, `get_model`, `read_plan` / `update_plan` /
   `delete_plan`, `start_fleet`, `list_workspace_files` /
