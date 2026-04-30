@@ -14,10 +14,24 @@ public static class TestHelper
         var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
 
-        // Synchronize access to finalAssistantMessage between the subscription callback
-        // (events from the CLI read loop) and CheckExistingMessages (RPC reply thread).
+        // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
+        // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
+        // We complete only once we've observed both, regardless of which path saw which.
         var stateLock = new object();
         AssistantMessageEvent? finalAssistantMessage = null;
+        bool sawIdle = false;
+
+        void TryComplete()
+        {
+            AssistantMessageEvent? snapshot;
+            bool idle;
+            lock (stateLock)
+            {
+                snapshot = finalAssistantMessage;
+                idle = sawIdle;
+            }
+            if (snapshot != null && idle) tcs.TrySetResult(snapshot);
+        }
 
         using var subscription = session.On(evt =>
         {
@@ -25,11 +39,11 @@ public static class TestHelper
             {
                 case AssistantMessageEvent msg:
                     lock (stateLock) { finalAssistantMessage = msg; }
+                    TryComplete();
                     break;
                 case SessionIdleEvent:
-                    AssistantMessageEvent? snapshot;
-                    lock (stateLock) { snapshot = finalAssistantMessage; }
-                    if (snapshot != null) tcs.TrySetResult(snapshot);
+                    lock (stateLock) { sawIdle = true; }
+                    TryComplete();
                     break;
                 case SessionErrorEvent error:
                     tcs.TrySetException(new Exception(error.Data.Message ?? "session error"));
@@ -50,20 +64,16 @@ public static class TestHelper
             try
             {
                 var (existingFinal, existingIdle) = await GetExistingMessagesAsync(session, alreadyIdle);
-                if (existingFinal != null)
+                lock (stateLock)
                 {
-                    lock (stateLock)
+                    // Preserve a newer message captured by the subscription in the meantime.
+                    if (existingFinal != null && finalAssistantMessage == null)
                     {
-                        // Preserve a newer message captured by the subscription in the meantime.
-                        if (finalAssistantMessage == null) finalAssistantMessage = existingFinal;
+                        finalAssistantMessage = existingFinal;
                     }
+                    if (existingIdle) sawIdle = true;
                 }
-
-                // If the turn already finished before we subscribed, complete now.
-                if (existingIdle && existingFinal != null)
-                {
-                    tcs.TrySetResult(existingFinal);
-                }
+                TryComplete();
             }
             catch (Exception ex)
             {
