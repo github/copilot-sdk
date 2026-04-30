@@ -433,6 +433,30 @@ class TestSessionConfigForwarding:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_session_forwards_persistent_memory_and_github_token(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return {"sessionId": params["sessionId"]}
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                persistent_memory=True,
+                github_token="gho_session_token",
+            )
+
+            assert captured["session.create"]["persistentMemory"] is True
+            assert captured["session.create"]["gitHubToken"] == "gho_session_token"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_resume_session_forwards_client_name(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
