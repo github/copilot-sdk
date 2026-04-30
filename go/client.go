@@ -779,6 +779,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.DisableResume {
 		req.DisableResume = Bool(true)
 	}
+	if config.ContinuePendingWork {
+		req.ContinuePendingWork = Bool(true)
+	}
 	req.MCPServers = config.MCPServers
 	req.EnvValueMode = "direct"
 	req.CustomAgents = config.CustomAgents

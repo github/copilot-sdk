@@ -40,6 +40,42 @@ export type ExtensionSource = "project" | "user";
  * via the `definition` "ExtensionStatus".
  */
 export type ExtensionStatus = "running" | "disabled" | "failed" | "starting";
+/**
+ * Tool call result (string or expanded result object)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolResult".
+ */
+export type ExternalToolResult = string | ExternalToolTextResultForLlm;
+/**
+ * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContent".
+ */
+export type ExternalToolTextResultForLlmContent =
+  | ExternalToolTextResultForLlmContentText
+  | ExternalToolTextResultForLlmContentTerminal
+  | ExternalToolTextResultForLlmContentImage
+  | ExternalToolTextResultForLlmContentAudio
+  | ExternalToolTextResultForLlmContentResourceLink
+  | ExternalToolTextResultForLlmContentResource;
+/**
+ * Theme variant this icon is intended for
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentResourceLinkIconTheme".
+ */
+export type ExternalToolTextResultForLlmContentResourceLinkIconTheme = "light" | "dark";
+/**
+ * The embedded resource contents, either text or base64-encoded binary
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentResourceDetails".
+ */
+export type ExternalToolTextResultForLlmContentResourceDetails =
+  | EmbeddedTextResourceContents
+  | EmbeddedBlobResourceContents;
 
 export type FilterMapping =
   | {
@@ -113,6 +149,7 @@ export type PermissionDecision =
   | PermissionDecisionApproveOnce
   | PermissionDecisionApproveForSession
   | PermissionDecisionApproveForLocation
+  | PermissionDecisionApprovePermanently
   | PermissionDecisionReject
   | PermissionDecisionUserNotAvailable;
 /**
@@ -208,13 +245,6 @@ export type TaskShellInfoAttachmentMode = "attached" | "detached";
  * via the `definition` "TaskShellInfoExecutionMode".
  */
 export type TaskShellInfoExecutionMode = "sync" | "background";
-/**
- * Tool call result (string or expanded result object)
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ToolsHandlePendingToolCall".
- */
-export type ToolsHandlePendingToolCall = string | ToolCallResult;
 
 export type UIElicitationFieldValue = string | number | boolean | string[];
 
@@ -383,6 +413,36 @@ export interface DiscoveredMcpServer {
   enabled: boolean;
 }
 
+export interface EmbeddedBlobResourceContents {
+  /**
+   * URI identifying the resource
+   */
+  uri: string;
+  /**
+   * MIME type of the blob content
+   */
+  mimeType?: string;
+  /**
+   * Base64-encoded binary content of the resource
+   */
+  blob: string;
+}
+
+export interface EmbeddedTextResourceContents {
+  /**
+   * URI identifying the resource
+   */
+  uri: string;
+  /**
+   * MIME type of the text content
+   */
+  mimeType?: string;
+  /**
+   * Text content of the resource
+   */
+  text: string;
+}
+
 export interface Extension {
   /**
    * Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
@@ -423,6 +483,195 @@ export interface ExtensionsEnableRequest {
    */
   id: string;
 }
+/**
+ * Expanded external tool result payload
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlm".
+ */
+export interface ExternalToolTextResultForLlm {
+  /**
+   * Text result returned to the model
+   */
+  textResultForLlm: string;
+  /**
+   * Execution outcome classification. Optional for back-compat; normalized to 'success' (or 'failure' when error is present) when missing or unrecognized.
+   */
+  resultType?: string;
+  /**
+   * Optional error message for failed executions
+   */
+  error?: string;
+  /**
+   * Detailed log content for timeline display
+   */
+  sessionLog?: string;
+  /**
+   * Optional tool-specific telemetry
+   */
+  toolTelemetry?: {
+    [k: string]: unknown;
+  };
+  /**
+   * Structured content blocks from the tool
+   */
+  contents?: ExternalToolTextResultForLlmContent[];
+  [k: string]: unknown;
+}
+/**
+ * Plain text content block
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentText".
+ */
+export interface ExternalToolTextResultForLlmContentText {
+  /**
+   * Content block type discriminator
+   */
+  type: "text";
+  /**
+   * The text content
+   */
+  text: string;
+}
+/**
+ * Terminal/shell output content block with optional exit code and working directory
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentTerminal".
+ */
+export interface ExternalToolTextResultForLlmContentTerminal {
+  /**
+   * Content block type discriminator
+   */
+  type: "terminal";
+  /**
+   * Terminal/shell output text
+   */
+  text: string;
+  /**
+   * Process exit code, if the command has completed
+   */
+  exitCode?: number;
+  /**
+   * Working directory where the command was executed
+   */
+  cwd?: string;
+}
+/**
+ * Image content block with base64-encoded data
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentImage".
+ */
+export interface ExternalToolTextResultForLlmContentImage {
+  /**
+   * Content block type discriminator
+   */
+  type: "image";
+  /**
+   * Base64-encoded image data
+   */
+  data: string;
+  /**
+   * MIME type of the image (e.g., image/png, image/jpeg)
+   */
+  mimeType: string;
+}
+/**
+ * Audio content block with base64-encoded data
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentAudio".
+ */
+export interface ExternalToolTextResultForLlmContentAudio {
+  /**
+   * Content block type discriminator
+   */
+  type: "audio";
+  /**
+   * Base64-encoded audio data
+   */
+  data: string;
+  /**
+   * MIME type of the audio (e.g., audio/wav, audio/mpeg)
+   */
+  mimeType: string;
+}
+/**
+ * Resource link content block referencing an external resource
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentResourceLink".
+ */
+export interface ExternalToolTextResultForLlmContentResourceLink {
+  /**
+   * Icons associated with this resource
+   */
+  icons?: ExternalToolTextResultForLlmContentResourceLinkIcon[];
+  /**
+   * Resource name identifier
+   */
+  name: string;
+  /**
+   * Human-readable display title for the resource
+   */
+  title?: string;
+  /**
+   * URI identifying the resource
+   */
+  uri: string;
+  /**
+   * Human-readable description of the resource
+   */
+  description?: string;
+  /**
+   * MIME type of the resource content
+   */
+  mimeType?: string;
+  /**
+   * Size of the resource in bytes
+   */
+  size?: number;
+  /**
+   * Content block type discriminator
+   */
+  type: "resource_link";
+}
+/**
+ * Icon image for a resource
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentResourceLinkIcon".
+ */
+export interface ExternalToolTextResultForLlmContentResourceLinkIcon {
+  /**
+   * URL or path to the icon image
+   */
+  src: string;
+  /**
+   * MIME type of the icon image
+   */
+  mimeType?: string;
+  /**
+   * Available icon sizes (e.g., ['16x16', '32x32'])
+   */
+  sizes?: string[];
+  theme?: ExternalToolTextResultForLlmContentResourceLinkIconTheme;
+}
+/**
+ * Embedded resource content block with inline text or binary data
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmContentResource".
+ */
+export interface ExternalToolTextResultForLlmContentResource {
+  /**
+   * Content block type discriminator
+   */
+  type: "resource";
+  resource: ExternalToolTextResultForLlmContentResourceDetails;
+}
 
 /** @experimental */
 export interface FleetStartRequest {
@@ -440,7 +689,19 @@ export interface FleetStartResult {
   started: boolean;
 }
 
-export interface HandleToolCallResult {
+export interface HandlePendingToolCallRequest {
+  /**
+   * Request ID of the pending tool call
+   */
+  requestId: string;
+  result?: ExternalToolResult;
+  /**
+   * Error message if the tool call failed
+   */
+  error?: string;
+}
+
+export interface HandlePendingToolCallResult {
   /**
    * Whether the tool call result was handled successfully
    */
@@ -966,7 +1227,11 @@ export interface PermissionDecisionApproveForSession {
    * Approved and remembered for the rest of the session
    */
   kind: "approve-for-session";
-  approval: PermissionDecisionApproveForSessionApproval;
+  approval?: PermissionDecisionApproveForSessionApproval;
+  /**
+   * The URL domain to approve for this session
+   */
+  domain?: string;
 }
 
 export interface PermissionDecisionApproveForSessionApprovalCommands {
@@ -1045,6 +1310,17 @@ export interface PermissionDecisionApproveForLocationApprovalMemory {
 export interface PermissionDecisionApproveForLocationApprovalCustomTool {
   kind: "custom-tool";
   toolName: string;
+}
+
+export interface PermissionDecisionApprovePermanently {
+  /**
+   * Approved and persisted across sessions
+   */
+  kind: "approve-permanently";
+  /**
+   * The URL domain to approve permanently
+   */
+  domain: string;
 }
 
 export interface PermissionDecisionReject {
@@ -1827,44 +2103,11 @@ export interface Tool {
   instructions?: string;
 }
 
-export interface ToolCallResult {
-  /**
-   * Text result to send back to the LLM
-   */
-  textResultForLlm: string;
-  /**
-   * Type of the tool result
-   */
-  resultType?: string;
-  /**
-   * Error message if the tool call failed
-   */
-  error?: string;
-  /**
-   * Telemetry data from tool execution
-   */
-  toolTelemetry?: {
-    [k: string]: unknown;
-  };
-}
-
 export interface ToolList {
   /**
    * List of available built-in tools with metadata
    */
   tools: Tool[];
-}
-
-export interface ToolsHandlePendingToolCallRequest {
-  /**
-   * Request ID of the pending tool call
-   */
-  requestId: string;
-  result?: ToolsHandlePendingToolCall;
-  /**
-   * Error message if the tool call failed
-   */
-  error?: string;
 }
 
 export interface ToolsListRequest {
@@ -2031,6 +2274,16 @@ export interface UsageGetMetricsResult {
    */
   totalUserRequests: number;
   /**
+   * Session-wide accumulated nano-AI units cost
+   */
+  totalNanoAiu?: number;
+  /**
+   * Session-wide per-token-type accumulated token counts
+   */
+  tokenDetails?: {
+    [k: string]: UsageMetricsTokenDetail;
+  };
+  /**
    * Total time spent in model API calls (milliseconds)
    */
   totalApiDurationMs: number;
@@ -2058,6 +2311,13 @@ export interface UsageGetMetricsResult {
    */
   lastCallOutputTokens: number;
 }
+
+export interface UsageMetricsTokenDetail {
+  /**
+   * Accumulated token count for this token type
+   */
+  tokenCount: number;
+}
 /**
  * Aggregated code change metrics
  *
@@ -2082,6 +2342,16 @@ export interface UsageMetricsCodeChanges {
 export interface UsageMetricsModelMetric {
   requests: UsageMetricsModelMetricRequests;
   usage: UsageMetricsModelMetricUsage;
+  /**
+   * Accumulated nano-AI units cost for this model
+   */
+  totalNanoAiu?: number;
+  /**
+   * Token count details per type
+   */
+  tokenDetails?: {
+    [k: string]: UsageMetricsModelMetricTokenDetail;
+  };
 }
 /**
  * Request count and cost metrics for this model
@@ -2126,6 +2396,13 @@ export interface UsageMetricsModelMetricUsage {
    * Total output tokens used for reasoning
    */
   reasoningTokens?: number;
+}
+
+export interface UsageMetricsModelMetricTokenDetail {
+  /**
+   * Accumulated token count for this token type
+   */
+  tokenCount: number;
 }
 
 export interface WorkspacesCreateFileRequest {
@@ -2363,7 +2640,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.extensions.reload", { sessionId }),
         },
         tools: {
-            handlePendingToolCall: async (params: ToolsHandlePendingToolCallRequest): Promise<HandleToolCallResult> =>
+            handlePendingToolCall: async (params: HandlePendingToolCallRequest): Promise<HandlePendingToolCallResult> =>
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
         },
         commands: {

@@ -907,6 +907,7 @@ export class CopilotClient {
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
                 disableResume: config.disableResume,
+                continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
             });
 

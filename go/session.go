@@ -966,7 +966,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	defer func() {
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("tool panic: %v", r)
-			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.ToolsHandlePendingToolCallRequest{
+			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 				RequestID: requestID,
 				Error:     &errMsg,
 			})
@@ -984,7 +984,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	result, err := handler(invocation)
 	if err != nil {
 		errMsg := err.Error()
-		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.ToolsHandlePendingToolCallRequest{
+		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
 		})
@@ -1006,17 +1006,17 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		}
 	}
 
-	rpcResult := rpc.ToolsHandlePendingToolCall{
-		ToolCallResult: &rpc.ToolCallResult{
+	rpcResult := rpc.ExternalToolResult{
+		ExternalToolTextResultForLlm: &rpc.ExternalToolTextResultForLlm{
 			TextResultForLlm: textResultForLLM,
 			ToolTelemetry:    result.ToolTelemetry,
 			ResultType:       &effectiveResultType,
 		},
 	}
 	if result.Error != "" {
-		rpcResult.ToolCallResult.Error = &result.Error
+		rpcResult.ExternalToolTextResultForLlm.Error = &result.Error
 	}
-	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.ToolsHandlePendingToolCallRequest{
+	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 		RequestID: requestID,
 		Result:    &rpcResult,
 	})
