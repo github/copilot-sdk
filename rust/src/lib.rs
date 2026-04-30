@@ -571,6 +571,146 @@ impl Default for ClientOptions {
     }
 }
 
+impl ClientOptions {
+    /// Construct a new [`ClientOptions`] with default values.
+    ///
+    /// Equivalent to [`ClientOptions::default`]; provided as a documented
+    /// construction entry point for the builder chain. The struct is
+    /// `#[non_exhaustive]`, so external callers cannot use struct-literal
+    /// syntax — use this builder or [`Default::default`] plus mut-let.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use github_copilot_sdk::{ClientOptions, LogLevel};
+    /// let opts = ClientOptions::new()
+    ///     .with_log_level(LogLevel::Debug)
+    ///     .with_github_token("ghp_…");
+    /// ```
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// How to locate the CLI binary. See [`CliProgram`].
+    pub fn with_program(mut self, program: impl Into<CliProgram>) -> Self {
+        self.program = program.into();
+        self
+    }
+
+    /// Arguments prepended before `--server` (e.g. the script path for node).
+    pub fn with_prefix_args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<OsString>,
+    {
+        self.prefix_args = args.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Working directory for the CLI process.
+    pub fn with_cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
+        self.cwd = cwd.into();
+        self
+    }
+
+    /// Environment variables to set on the child process.
+    pub fn with_env<I, K, V>(mut self, env: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<OsString>,
+        V: Into<OsString>,
+    {
+        self.env = env.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
+        self
+    }
+
+    /// Environment variable names to remove from the child process.
+    pub fn with_env_remove<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<OsString>,
+    {
+        self.env_remove = names.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Extra CLI flags appended after the transport-specific arguments.
+    pub fn with_extra_args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.extra_args = args.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Transport mode used to communicate with the CLI server. See [`Transport`].
+    pub fn with_transport(mut self, transport: Transport) -> Self {
+        self.transport = transport;
+        self
+    }
+
+    /// GitHub token for authentication. The SDK passes the token to the
+    /// CLI via `--auth-token-env COPILOT_SDK_AUTH_TOKEN`.
+    pub fn with_github_token(mut self, token: impl Into<String>) -> Self {
+        self.github_token = Some(token.into());
+        self
+    }
+
+    /// Whether the CLI should fall back to the logged-in `gh` user when
+    /// no token is provided. See the field docs for default semantics.
+    pub fn with_use_logged_in_user(mut self, use_logged_in: bool) -> Self {
+        self.use_logged_in_user = Some(use_logged_in);
+        self
+    }
+
+    /// Log level passed to the CLI server via `--log-level`.
+    pub fn with_log_level(mut self, level: LogLevel) -> Self {
+        self.log_level = Some(level);
+        self
+    }
+
+    /// Server-wide idle timeout for sessions (seconds). Pass `0` to leave
+    /// sessions running indefinitely (the CLI default).
+    pub fn with_session_idle_timeout_seconds(mut self, seconds: u64) -> Self {
+        self.session_idle_timeout_seconds = Some(seconds);
+        self
+    }
+
+    /// Override [`Client::list_models`] with a caller-supplied handler.
+    /// The handler is wrapped in `Arc` internally.
+    pub fn with_list_models_handler<H>(mut self, handler: H) -> Self
+    where
+        H: ListModelsHandler + 'static,
+    {
+        self.on_list_models = Some(Arc::new(handler));
+        self
+    }
+
+    /// Custom session filesystem provider configuration.
+    pub fn with_session_fs(mut self, config: SessionFsConfig) -> Self {
+        self.session_fs = Some(config);
+        self
+    }
+
+    /// Set the [`TraceContextProvider`] used to inject W3C Trace Context
+    /// headers on outbound `session.create` / `session.resume` /
+    /// `session.send` requests. The provider is wrapped in `Arc` internally.
+    pub fn with_trace_context_provider<P>(mut self, provider: P) -> Self
+    where
+        P: TraceContextProvider + 'static,
+    {
+        self.on_get_trace_context = Some(Arc::new(provider));
+        self
+    }
+
+    /// OpenTelemetry config forwarded to the spawned CLI process.
+    pub fn with_telemetry(mut self, config: TelemetryConfig) -> Self {
+        self.telemetry = Some(config);
+        self
+    }
+}
+
 /// Validate a [`SessionFsConfig`] before sending `sessionFs.setProvider`.
 fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<(), Error> {
     if cfg.initial_cwd.trim().is_empty() {
@@ -1617,6 +1757,37 @@ mod tests {
     fn is_transport_failure_rejects_session_error() {
         let err = Error::Session(SessionError::NotFound("s1".into()));
         assert!(!err.is_transport_failure());
+    }
+
+    #[test]
+    fn client_options_builder_composes() {
+        let opts = ClientOptions::new()
+            .with_program(CliProgram::Path(PathBuf::from("/usr/local/bin/copilot")))
+            .with_prefix_args(["node"])
+            .with_cwd(PathBuf::from("/tmp"))
+            .with_env([("KEY", "value")])
+            .with_env_remove(["UNWANTED"])
+            .with_extra_args(["--quiet"])
+            .with_github_token("ghp_test")
+            .with_use_logged_in_user(false)
+            .with_log_level(LogLevel::Debug)
+            .with_session_idle_timeout_seconds(120);
+        assert!(matches!(opts.program, CliProgram::Path(_)));
+        assert_eq!(opts.prefix_args, vec![std::ffi::OsString::from("node")]);
+        assert_eq!(opts.cwd, PathBuf::from("/tmp"));
+        assert_eq!(
+            opts.env,
+            vec![(
+                std::ffi::OsString::from("KEY"),
+                std::ffi::OsString::from("value")
+            )]
+        );
+        assert_eq!(opts.env_remove, vec![std::ffi::OsString::from("UNWANTED")]);
+        assert_eq!(opts.extra_args, vec!["--quiet".to_string()]);
+        assert_eq!(opts.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(opts.use_logged_in_user, Some(false));
+        assert!(matches!(opts.log_level, Some(LogLevel::Debug)));
+        assert_eq!(opts.session_idle_timeout_seconds, Some(120));
     }
 
     #[test]

@@ -333,6 +333,84 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
+impl Tool {
+    /// Construct a new [`Tool`] with the given name and otherwise default
+    /// values. The struct is `#[non_exhaustive]`, so external callers
+    /// cannot use struct-literal syntax — use this builder or
+    /// [`Default::default`] plus mut-let.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use github_copilot_sdk::types::Tool;
+    /// # use serde_json::json;
+    /// let tool = Tool::new("greet")
+    ///     .with_description("Say hello to a user")
+    ///     .with_parameters(json!({
+    ///         "type": "object",
+    ///         "properties": { "name": { "type": "string" } },
+    ///         "required": ["name"]
+    ///     }));
+    /// # let _ = tool;
+    /// ```
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Set the namespaced name for declarative filtering (e.g.
+    /// `"playwright/navigate"` for MCP tools).
+    pub fn with_namespaced_name(mut self, namespaced_name: impl Into<String>) -> Self {
+        self.namespaced_name = Some(namespaced_name.into());
+        self
+    }
+
+    /// Set the human-readable description of what the tool does.
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    /// Set optional instructions for how to use this tool effectively.
+    pub fn with_instructions(mut self, instructions: impl Into<String>) -> Self {
+        self.instructions = Some(instructions.into());
+        self
+    }
+
+    /// Set the JSON Schema for the tool's input parameters.
+    ///
+    /// Accepts anything that converts into a JSON object, including a
+    /// `serde_json::Value` produced by `json!({...})`. Non-object values
+    /// are stored as an empty parameter map; callers that need direct
+    /// control over the field can construct a `HashMap<String, Value>`
+    /// and assign it to [`Tool::parameters`] via [`Default::default`].
+    pub fn with_parameters(mut self, parameters: Value) -> Self {
+        self.parameters = parameters
+            .as_object()
+            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+            .unwrap_or_default();
+        self
+    }
+
+    /// Mark this tool as overriding a built-in tool of the same name.
+    /// E.g. supplying a custom `grep` that the agent uses in place of the
+    /// CLI's built-in implementation.
+    pub fn with_overrides_built_in_tool(mut self, overrides: bool) -> Self {
+        self.overrides_built_in_tool = overrides;
+        self
+    }
+
+    /// When `true`, the CLI will not request permission before invoking
+    /// this tool. Use with caution — the tool is responsible for any
+    /// access control.
+    pub fn with_skip_permission(mut self, skip: bool) -> Self {
+        self.skip_permission = skip;
+        self
+    }
+}
+
 /// Context passed to a [`CommandHandler`] when a registered slash command
 /// is executed by the user.
 #[non_exhaustive]
@@ -2323,8 +2401,36 @@ mod tests {
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
         ConnectionState, DeliveryMode, GitHubReferenceType, ResumeSessionConfig, SessionConfig,
-        SessionId, ensure_attachment_display_names,
+        SessionId, Tool, ensure_attachment_display_names,
     };
+
+    #[test]
+    fn tool_builder_composes() {
+        let tool = Tool::new("greet")
+            .with_description("Say hello")
+            .with_namespaced_name("hello/greet")
+            .with_instructions("Pass the user's name")
+            .with_parameters(json!({
+                "type": "object",
+                "properties": { "name": { "type": "string" } },
+                "required": ["name"]
+            }))
+            .with_overrides_built_in_tool(true)
+            .with_skip_permission(true);
+        assert_eq!(tool.name, "greet");
+        assert_eq!(tool.description, "Say hello");
+        assert_eq!(tool.namespaced_name.as_deref(), Some("hello/greet"));
+        assert_eq!(tool.instructions.as_deref(), Some("Pass the user's name"));
+        assert_eq!(tool.parameters.get("type").unwrap(), &json!("object"));
+        assert!(tool.overrides_built_in_tool);
+        assert!(tool.skip_permission);
+    }
+
+    #[test]
+    fn tool_with_parameters_handles_non_object_value() {
+        let tool = Tool::new("noop").with_parameters(json!(null));
+        assert!(tool.parameters.is_empty());
+    }
 
     #[test]
     fn session_config_default_enables_permission_flow_flags() {

@@ -349,6 +349,28 @@ public surface.
   `lifecycle_observer`.
 - `RELEASING.md` operational runbook for maintainers.
 
+#### Builder ergonomics
+- `ClientOptions::new()` plus a chainable `with_*` builder per public
+  field (`with_program`, `with_prefix_args`, `with_cwd`, `with_env`,
+  `with_env_remove`, `with_extra_args`, `with_transport`,
+  `with_github_token`, `with_use_logged_in_user`, `with_log_level`,
+  `with_session_idle_timeout_seconds`, `with_list_models_handler`,
+  `with_session_fs`, `with_trace_context_provider`, `with_telemetry`).
+  Mirrors the existing [`MessageOptions::new`] / `with_*` shape and
+  closes the cross-crate ergonomics gap on `#[non_exhaustive]` —
+  external callers no longer need to write
+  `let mut opts = ClientOptions::default(); opts.field = ...;` for
+  every field they touch. Existing `ClientOptions::default()` and
+  mut-let-and-assign continue to work unchanged.
+- `Tool::new(name)` plus `with_namespaced_name`, `with_description`,
+  `with_instructions`, `with_parameters`, `with_overrides_built_in_tool`,
+  `with_skip_permission` for tool definitions. Same rationale —
+  `Tool` is the most-instantiated `#[non_exhaustive]` type at consumer
+  call sites (~25 sites in github-app's tool catalog), where the
+  builder shape replaces the per-consumer `make_tool(name, desc,
+  params)` helper that consumers were writing to smooth over the
+  mut-let pattern.
+
 ### Fixed
 - `SessionUi::elicitation` (and the `confirm` / `select` / `input`
   convenience helpers that delegate through it) now sends the user-supplied
