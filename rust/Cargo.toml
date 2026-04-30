@@ -64,5 +64,6 @@ zstd = "0.13"
 flate2 = "1"
 sha2 = "0.10"
 tar = "0.4"
+ureq = { version = "2", default-features = false, features = ["tls"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 zstd = "0.13"

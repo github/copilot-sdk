@@ -404,6 +404,17 @@ public surface.
   field `with_*_opt` setters intentionally omitted to keep the
   primary API surface small).
 
+#### Build infrastructure
+- `build.rs` no longer shells out to `curl` for the bundled-CLI
+  download. The `embedded-cli` feature now downloads the
+  `SHA256SUMS.txt` and platform tarball through `ureq` (rustls TLS,
+  pure-Rust, no system dependencies). Removes the implicit `curl`-
+  on-PATH requirement that previously broke the build on minimal
+  Windows / container environments. Includes bounded retries with
+  exponential backoff (1s/2s/4s) on transient failures (5xx,
+  connect/read timeouts, transport errors) — 4xx responses still
+  fail fast as before.
+
 ### Fixed
 - `SessionUi::elicitation` (and the `confirm` / `select` / `input`
   convenience helpers that delegate through it) now sends the user-supplied

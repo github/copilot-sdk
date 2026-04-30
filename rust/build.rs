@@ -1,5 +1,6 @@
 use std::io::Read;
 use std::path::Path;
+use std::time::Duration;
 
 use sha2::Digest;
 
@@ -32,7 +33,7 @@ fn main() {
     println!("cargo:warning=Bundling GitHub Copilot CLI v{version} ({asset_name})");
     // Download checksums and find the expected hash for our platform's archive.
     let checksums_url = format!("{base_url}/SHA256SUMS.txt");
-    let checksums = download_with_curl(&checksums_url);
+    let checksums = download_with_retry(&checksums_url);
     let checksums_text =
         std::str::from_utf8(&checksums).expect("checksums file is not valid UTF-8");
     let expected_hash = find_sha256_for_asset(checksums_text, asset_name);
@@ -129,9 +130,10 @@ fn target_platform() -> Option<Platform> {
     }
 }
 
-/// Read a file from the download cache, or download it with curl and save to cache.
-/// Verifies SHA-256 on every path. Evicts stale/corrupt cache entries automatically.
-/// Cache I/O failures are treated as cache misses — they never break the build.
+/// Read a file from the download cache, or download it (with retries) and save
+/// to cache. Verifies SHA-256 on every path. Evicts stale/corrupt cache entries
+/// automatically. Cache I/O failures are treated as cache misses — they never
+/// break the build.
 fn cached_download(
     url: &str,
     cache_key: &str,
@@ -163,7 +165,7 @@ fn cached_download(
         }
     }
 
-    let data = download_with_curl(url);
+    let data = download_with_retry(url);
     let actual_hash = hex_sha256(&data);
     if actual_hash != expected_hash {
         panic!(
@@ -194,18 +196,74 @@ fn cached_download(
     data
 }
 
-fn download_with_curl(url: &str) -> Vec<u8> {
-    let output = std::process::Command::new("curl")
-        .args(["-sSfL", url])
-        .output()
-        .expect("curl is required to download the GitHub Copilot CLI");
+/// Maximum number of HTTP attempts (one initial + this many retries on transient errors).
+const MAX_RETRIES: u32 = 3;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        panic!("Failed to download {url}: {stderr}");
+/// Download `url` with bounded retries on transient network errors. Backoff is
+/// exponential starting at 1s. 4xx responses fail fast; 5xx and connect/read
+/// errors are retried.
+fn download_with_retry(url: &str) -> Vec<u8> {
+    let mut attempt = 0u32;
+    loop {
+        attempt += 1;
+        match try_download(url) {
+            Ok(bytes) => return bytes,
+            Err(err) if err.transient && attempt <= MAX_RETRIES => {
+                let backoff = Duration::from_secs(1u64 << (attempt - 1));
+                println!(
+                    "cargo:warning=Transient download failure for {url} (attempt {attempt}/{}): {} — retrying in {}s",
+                    MAX_RETRIES + 1,
+                    err.message,
+                    backoff.as_secs(),
+                );
+                std::thread::sleep(backoff);
+            }
+            Err(err) => panic!("Failed to download {url}: {}", err.message),
+        }
     }
+}
 
-    output.stdout
+struct DownloadError {
+    message: String,
+    transient: bool,
+}
+
+fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(30))
+        .timeout_read(Duration::from_secs(120))
+        .build();
+
+    match agent.get(url).call() {
+        Ok(response) => {
+            let mut bytes = Vec::new();
+            response
+                .into_reader()
+                .read_to_end(&mut bytes)
+                .map_err(|e| DownloadError {
+                    message: format!("read error: {e}"),
+                    transient: true,
+                })?;
+            Ok(bytes)
+        }
+        // 5xx — server-side, treat as transient.
+        Err(ureq::Error::Status(code, response)) if (500..600).contains(&code) => {
+            Err(DownloadError {
+                message: format!("HTTP {code} {}", response.status_text()),
+                transient: true,
+            })
+        }
+        // 4xx — client-side, fail fast.
+        Err(ureq::Error::Status(code, response)) => Err(DownloadError {
+            message: format!("HTTP {code} {}", response.status_text()),
+            transient: false,
+        }),
+        // Transport-layer (DNS, connect, TLS, read timeout) — treat as transient.
+        Err(ureq::Error::Transport(t)) => Err(DownloadError {
+            message: format!("transport error: {t}"),
+            transient: true,
+        }),
+    }
 }
 
 fn find_sha256_for_asset(sums: &str, asset_name: &str) -> String {
