@@ -194,6 +194,14 @@ export interface CopilotClientOptions {
      * @default undefined (disabled)
      */
     sessionIdleTimeoutSeconds?: number;
+
+    /**
+     * Connection token for the headless CLI server (TCP only). When the SDK
+     * spawns its own CLI in TCP mode and this is omitted, a UUID is generated
+     * automatically so the loopback listener is safe by default. Rejected with
+     * `useStdio: true` (stdio is pre-authenticated by transport).
+     */
+    tcpConnectionToken?: string;
 }
 
 /**
