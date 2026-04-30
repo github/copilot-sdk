@@ -29,11 +29,12 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Literal, TypedDict, cast, overload
 
-from ._jsonrpc import JsonRpcClient, ProcessExitedError
+from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
+    ConnectRequest,
     ServerRpc,
     register_client_session_api_handlers,
 )
@@ -126,6 +127,14 @@ class SubprocessConfig:
     use_stdio: bool = True
     """Use stdio transport (``True``, default) or TCP (``False``)."""
 
+    tcp_connection_token: str | None = None
+    """Connection token for the headless CLI server (TCP only).
+
+    Only meaningful when ``use_stdio=False``. When the SDK spawns the CLI in TCP mode and
+    this is omitted, a UUID is generated automatically so the loopback listener is safe by
+    default. Combining this with ``use_stdio=True`` raises :class:`ValueError`.
+    """
+
     port: int = 0
     """TCP port for the CLI server (only when ``use_stdio=False``). 0 means random."""
 
@@ -172,6 +181,10 @@ class ExternalServerConfig:
     """Server URL. Supports ``"host:port"``, ``"http://host:port"``, or just ``"port"``."""
 
     _: KW_ONLY
+
+    tcp_connection_token: str | None = None
+    """Connection token sent in the ``connect`` handshake. Required when the server was
+    started with a token; ignored by legacy servers without ``connect`` support."""
 
     session_fs: SessionFsConfig | None = None
     """Connection-level session filesystem provider configuration."""
@@ -883,8 +896,16 @@ class CopilotClient:
         if isinstance(config, ExternalServerConfig):
             self._actual_host, actual_port = self._parse_cli_url(config.url)
             self._actual_port: int | None = actual_port
+            self._effective_connection_token: str | None = config.tcp_connection_token
         else:
             self._actual_port = None
+
+            if config.tcp_connection_token is not None and config.use_stdio:
+                raise ValueError("tcp_connection_token cannot be used with use_stdio=True")
+            if config.use_stdio:
+                self._effective_connection_token = None
+            else:
+                self._effective_connection_token = config.tcp_connection_token or uuid.uuid4().hex
 
             # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary
             effective_env = config.env if config.env is not None else os.environ
@@ -2143,11 +2164,27 @@ class CopilotClient:
                 pass  # Ignore handler errors
 
     async def _verify_protocol_version(self) -> None:
-        """Verify that the server's protocol version is within the supported range
-        and store the negotiated version."""
+        """Send the ``connect`` handshake (with the optional token) and verify
+        the server's protocol version. Falls back to ``ping`` for legacy servers
+        that don't implement ``connect``."""
+        if not self._client:
+            raise RuntimeError("Client not connected")
         max_version = get_sdk_protocol_version()
-        ping_result = await self.ping()
-        server_version = ping_result.protocolVersion
+
+        server_version: int | None
+        try:
+            connect_result = await ServerRpc(self._client).connect(
+                ConnectRequest(token=self._effective_connection_token)
+            )
+            server_version = connect_result.protocol_version
+        except JsonRpcError as err:
+            if err.code == -32601:
+                # Legacy server without `connect`; fall back to `ping`. A token, if any,
+                # is silently dropped — the legacy server can't enforce one.
+                ping_result = await self.ping()
+                server_version = ping_result.protocolVersion
+            else:
+                raise
 
         if server_version is None:
             raise RuntimeError(
@@ -2298,6 +2335,9 @@ class CopilotClient:
         # Set auth token in environment if provided
         if cfg.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = cfg.github_token
+
+        if self._effective_connection_token:
+            env["COPILOT_CONNECTION_TOKEN"] = self._effective_connection_token
 
         # Set OpenTelemetry environment variables if telemetry config is provided
         telemetry = cfg.telemetry

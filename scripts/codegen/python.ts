@@ -24,6 +24,7 @@ import {
     isNodeFullyDeprecated,
     isSchemaDeprecated,
     postProcessSchema,
+    stripBooleanLiterals,
     writeGeneratedFile,
     collectDefinitionCollections,
     hasSchemaPayload,
@@ -1652,7 +1653,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const singleSchema: Record<string, unknown> = {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
-        definitions: allDefinitions,
+        definitions: stripBooleanLiterals(allDefinitions),
         properties: Object.fromEntries(
             Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
         ),

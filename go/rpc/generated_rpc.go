@@ -26,6 +26,8 @@ type RPCTypes struct {
 	AuthInfoType                                            AuthInfoType                                            `json:"AuthInfoType"`
 	CommandsHandlePendingCommandRequest                     CommandsHandlePendingCommandRequest                     `json:"CommandsHandlePendingCommandRequest"`
 	CommandsHandlePendingCommandResult                      CommandsHandlePendingCommandResult                      `json:"CommandsHandlePendingCommandResult"`
+	ConnectRequest                                          ConnectRequest                                          `json:"ConnectRequest"`
+	ConnectResult                                           ConnectResult                                           `json:"ConnectResult"`
 	CurrentModel                                            CurrentModel                                            `json:"CurrentModel"`
 	DiscoveredMCPServer                                     DiscoveredMCPServer                                     `json:"DiscoveredMcpServer"`
 	DiscoveredMCPServerSource                               MCPServerSource                                         `json:"DiscoveredMcpServerSource"`
@@ -329,6 +331,20 @@ type CommandsHandlePendingCommandRequest struct {
 type CommandsHandlePendingCommandResult struct {
 	// Whether the command was handled successfully
 	Success bool `json:"success"`
+}
+
+type ConnectRequest struct {
+	// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
+	Token *string `json:"token,omitempty"`
+}
+
+type ConnectResult struct {
+	// Always true on success
+	Ok bool `json:"ok"`
+	// Server protocol version number
+	ProtocolVersion int64 `json:"protocolVersion"`
+	// Server package version
+	Version string `json:"version"`
 }
 
 type CurrentModel struct {
@@ -2433,6 +2449,18 @@ func (a *ServerRpc) Ping(ctx context.Context, params *PingRequest) (*PingResult,
 		return nil, err
 	}
 	var result PingResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerRpc) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
+	raw, err := a.common.client.Request("connect", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ConnectResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

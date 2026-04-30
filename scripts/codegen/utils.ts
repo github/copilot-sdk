@@ -129,6 +129,38 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
 }
 
 /**
+ * Strip boolean literal constraints (`const: true/false`, `enum: [true]`, `enum: [false]`)
+ * from a schema, recursively. quicktype's Python and Go renderers attempt to derive
+ * identifier names from enum values; deriving a name from a boolean throws inside
+ * `snakeNameStyle` (TypeError: s.codePointAt is not a function).
+ *
+ * The literal narrowing isn't expressible in Python/Go anyway, so we drop it and
+ * keep just `type: "boolean"`. TypeScript/C# codegen runs on the original schema.
+ */
+export function stripBooleanLiterals<T>(schema: T): T {
+    if (typeof schema !== "object" || schema === null) return schema;
+    if (Array.isArray(schema)) {
+        return schema.map((item) => stripBooleanLiterals(item)) as unknown as T;
+    }
+    const result: Record<string, unknown> = {};
+    const src = schema as unknown as Record<string, unknown>;
+    const isBooleanType = src.type === "boolean";
+    for (const [key, value] of Object.entries(src)) {
+        if (isBooleanType && key === "const" && typeof value === "boolean") continue;
+        if (
+            isBooleanType &&
+            key === "enum" &&
+            Array.isArray(value) &&
+            value.every((v) => typeof v === "boolean")
+        ) {
+            continue;
+        }
+        result[key] = stripBooleanLiterals(value);
+    }
+    return result as T;
+}
+
+/**
  * Normalize schema defects where a required property with a `$ref` to an object type
  * has a description explicitly mentioning "null" as a valid value.
  *

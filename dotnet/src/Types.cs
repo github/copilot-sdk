@@ -70,6 +70,7 @@ public class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
+        TcpConnectionToken = other.TcpConnectionToken;
     }
 
     /// <summary>
@@ -174,6 +175,13 @@ public class CopilotClientOptions
     /// when connecting to an external server via <see cref="CliUrl"/>.
     /// </summary>
     public int? SessionIdleTimeoutSeconds { get; set; }
+
+    /// <summary>
+    /// Connection token for the headless CLI server (TCP only). When the SDK spawns its own
+    /// CLI in TCP mode and this is omitted, a GUID is generated automatically so the loopback
+    /// listener is safe by default. Cannot be combined with <see cref="UseStdio"/> = true.
+    /// </summary>
+    public string? TcpConnectionToken { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.

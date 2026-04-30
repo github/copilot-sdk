@@ -112,7 +112,10 @@ type Client struct {
 	processErrorPtr           *error
 	osProcess                 atomic.Pointer[os.Process]
 	negotiatedProtocolVersion int
-	onListModels              func(ctx context.Context) ([]ModelInfo, error)
+	// effectiveConnectionToken is the token sent in `connect`; auto-generated when
+	// the SDK spawns its own CLI in TCP mode.
+	effectiveConnectionToken string
+	onListModels             func(ctx context.Context) ([]ModelInfo, error)
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
@@ -161,6 +164,11 @@ func NewClient(options *ClientOptions) *Client {
 		// Validate auth options with external server
 		if options.CLIUrl != "" && (options.GitHubToken != "" || options.UseLoggedInUser != nil) {
 			panic("GitHubToken and UseLoggedInUser cannot be used with CLIUrl (external server manages its own auth)")
+		}
+
+		// Validate token vs stdio
+		if options.TCPConnectionToken != "" && options.UseStdio != nil && *options.UseStdio {
+			panic("TCPConnectionToken cannot be used with UseStdio: true")
 		}
 
 		// Parse CLIUrl if provided
@@ -231,6 +239,14 @@ func NewClient(options *ClientOptions) *Client {
 		if cliPath := getEnvValue(opts.Env, "COPILOT_CLI_PATH"); cliPath != "" {
 			opts.CLIPath = cliPath
 		}
+	}
+
+	// Resolve the effective connection token: explicit value if set; else if the SDK
+	// spawns its own CLI in TCP mode, generate a UUID; otherwise empty.
+	if options != nil && options.TCPConnectionToken != "" {
+		client.effectiveConnectionToken = options.TCPConnectionToken
+	} else if !client.useStdio && !client.isExternalServer {
+		client.effectiveConnectionToken = uuid.NewString()
 	}
 
 	client.options = opts
@@ -1321,25 +1337,49 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 // minProtocolVersion is the minimum protocol version this SDK can communicate with.
 const minProtocolVersion = 2
 
-// verifyProtocolVersion verifies that the server's protocol version is within the supported range
-// and stores the negotiated version.
+// verifyProtocolVersion sends the `connect` handshake (carrying the optional token) and
+// verifies the server's protocol version. Falls back to `ping` against legacy servers
+// that don't implement `connect`.
 func (c *Client) verifyProtocolVersion(ctx context.Context) error {
+	if c.client == nil {
+		return fmt.Errorf("client not connected")
+	}
 	maxVersion := GetSdkProtocolVersion()
-	pingResult, err := c.Ping(ctx, "")
+
+	var serverVersion *int
+	tokenPtr := (*string)(nil)
+	if c.effectiveConnectionToken != "" {
+		t := c.effectiveConnectionToken
+		tokenPtr = &t
+	}
+	connectResult, err := c.RPC.Connect(ctx, &rpc.ConnectRequest{Token: tokenPtr})
 	if err != nil {
-		return err
+		var rpcErr *jsonrpc2.Error
+		if errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code {
+			// Legacy server without `connect`; fall back to `ping`. A token, if any,
+			// is silently dropped — the legacy server can't enforce one.
+			pingResult, perr := c.Ping(ctx, "")
+			if perr != nil {
+				return perr
+			}
+			serverVersion = pingResult.ProtocolVersion
+		} else {
+			return err
+		}
+	} else {
+		v := int(connectResult.ProtocolVersion)
+		serverVersion = &v
 	}
 
-	if pingResult.ProtocolVersion == nil {
+	if serverVersion == nil {
 		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server does not report a protocol version. Please update your server to ensure compatibility", minProtocolVersion, maxVersion)
 	}
 
-	serverVersion := *pingResult.ProtocolVersion
-	if serverVersion < minProtocolVersion || serverVersion > maxVersion {
-		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server reports version %d. Please update your SDK or server to ensure compatibility", minProtocolVersion, maxVersion, serverVersion)
+	if *serverVersion < minProtocolVersion || *serverVersion > maxVersion {
+		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server reports version %d. Please update your SDK or server to ensure compatibility", minProtocolVersion, maxVersion, *serverVersion)
 	}
 
-	c.negotiatedProtocolVersion = serverVersion
+	c.negotiatedProtocolVersion = *serverVersion
 	return nil
 }
 
@@ -1410,6 +1450,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	c.process.Env = c.options.Env
 	if c.options.GitHubToken != "" {
 		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GitHubToken)
+	}
+
+	if c.effectiveConnectionToken != "" {
+		c.process.Env = append(c.process.Env, "COPILOT_CONNECTION_TOKEN="+c.effectiveConnectionToken)
 	}
 
 	if c.options.Telemetry != nil {

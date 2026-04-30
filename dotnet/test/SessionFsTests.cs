@@ -94,7 +94,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         var providerRoot = CreateProviderRoot();
         try
         {
-            await using var client1 = CreateSessionFsClient(providerRoot, useStdio: false);
+            await using var client1 = CreateSessionFsClient(providerRoot, useStdio: false, tcpConnectionToken: "session-fs-shared-token");
             var createSessionFsHandler = (Func<CopilotSession, SessionFsProvider>)(s => new TestSessionFsHandler(s.SessionId, providerRoot));
 
             _ = await client1.CreateSessionAsync(new SessionConfig
@@ -113,6 +113,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
                     CliUrl = $"localhost:{port}",
                     LogLevel = "error",
                     SessionFs = SessionFsConfig,
+                    TcpConnectionToken = "session-fs-shared-token",
                 });
 
             try
@@ -291,7 +292,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         }
     }
 
-    private CopilotClient CreateSessionFsClient(string providerRoot, bool useStdio = true)
+    private CopilotClient CreateSessionFsClient(string providerRoot, bool useStdio = true, string? tcpConnectionToken = null)
     {
         Directory.CreateDirectory(providerRoot);
         return Ctx.CreateClient(
@@ -299,6 +300,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             options: new CopilotClientOptions
             {
                 SessionFs = SessionFsConfig,
+                TcpConnectionToken = tcpConnectionToken,
             });
     }
 

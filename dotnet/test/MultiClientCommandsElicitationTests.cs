@@ -18,10 +18,15 @@ public class MultiClientCommandsElicitationFixture : IAsyncLifetime
     public E2ETestContext Ctx { get; private set; } = null!;
     public CopilotClient Client1 { get; private set; } = null!;
 
+    public const string SharedToken = "multi-client-cmd-shared-token";
+
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        Client1 = Ctx.CreateClient(useStdio: false);
+        Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
+        {
+            TcpConnectionToken = SharedToken,
+        });
     }
 
     public async Task DisposeAsync()
@@ -80,6 +85,7 @@ public class MultiClientCommandsElicitationTests
         _client2 = new CopilotClient(new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
+            TcpConnectionToken = MultiClientCommandsElicitationFixture.SharedToken,
         });
     }
 
@@ -221,6 +227,7 @@ public class MultiClientCommandsElicitationTests
         _client3 = new CopilotClient(new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
+            TcpConnectionToken = MultiClientCommandsElicitationFixture.SharedToken,
         });
 
         // Client3 joins WITH elicitation handler

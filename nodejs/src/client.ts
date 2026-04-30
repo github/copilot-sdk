@@ -1099,13 +1099,7 @@ export class CopilotClient {
 
         let serverVersion: number | undefined;
         try {
-            const result = await raceAgainstExit(
-                this.connection.sendRequest("connect", {
-                    token: this.effectiveConnectionToken,
-                }) as Promise<{
-                    protocolVersion: number;
-                }>
-            );
+            const result = await raceAgainstExit(this.rpc.connect({ token: this.effectiveConnectionToken }));
             serverVersion = result.protocolVersion;
         } catch (err) {
             if (err instanceof ResponseError && err.code === ErrorCodes.MethodNotFound) {

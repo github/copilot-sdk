@@ -25,6 +25,7 @@ import {
     getNullableInner,
     isRpcMethod,
     postProcessSchema,
+    stripBooleanLiterals,
     writeGeneratedFile,
     collectDefinitionCollections,
     resolveObjectSchema,
@@ -1084,7 +1085,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const singleSchema: JSONSchema7 = {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
-        definitions: allDefinitions as Record<string, JSONSchema7>,
+        definitions: stripBooleanLiterals(allDefinitions) as Record<string, JSONSchema7>,
         properties: Object.fromEntries(
             Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
         ),

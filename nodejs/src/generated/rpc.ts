@@ -1125,6 +1125,28 @@ export interface PingResult {
   protocolVersion: number;
 }
 
+export interface ConnectRequest {
+  /**
+   * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
+   */
+  token?: string;
+}
+
+export interface ConnectResult {
+  /**
+   * Always true on success
+   */
+  ok: true;
+  /**
+   * Server protocol version number
+   */
+  protocolVersion: number;
+  /**
+   * Server package version
+   */
+  version: string;
+}
+
 export interface PlanReadResult {
   /**
    * Whether the plan file exists in the workspace
@@ -2191,6 +2213,8 @@ export function createServerRpc(connection: MessageConnection) {
     return {
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
+        connect: async (params: ConnectRequest): Promise<ConnectResult> =>
+            connection.sendRequest("connect", params),
         models: {
             list: async (params?: ModelsListRequest): Promise<ModelList> =>
                 connection.sendRequest("models.list", params),
