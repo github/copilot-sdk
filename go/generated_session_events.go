@@ -2071,10 +2071,16 @@ type SystemNotification struct {
 	SenderType *string `json:"senderType,omitempty"`
 	// Unique identifier of the shell session
 	ShellID *string `json:"shellId,omitempty"`
+	// Relative path to the discovered instruction file
+	SourcePath *string `json:"sourcePath,omitempty"`
 	// Whether the agent completed successfully or failed
 	Status *SystemNotificationAgentCompletedStatus `json:"status,omitempty"`
 	// Short summary shown before the agent decides whether to read the inbox
 	Summary *string `json:"summary,omitempty"`
+	// Path of the file access that triggered discovery
+	TriggerFile *string `json:"triggerFile,omitempty"`
+	// Tool command that triggered discovery (currently always 'view')
+	TriggerTool *string `json:"triggerTool,omitempty"`
 }
 
 // The result of the permission request
@@ -2444,6 +2450,7 @@ const (
 	SystemNotificationTypeNewInboxMessage        SystemNotificationType = "new_inbox_message"
 	SystemNotificationTypeShellCompleted         SystemNotificationType = "shell_completed"
 	SystemNotificationTypeShellDetachedCompleted SystemNotificationType = "shell_detached_completed"
+	SystemNotificationTypeInstructionDiscovered  SystemNotificationType = "instruction_discovered"
 )
 
 // Type discriminator for ToolExecutionCompleteContent.

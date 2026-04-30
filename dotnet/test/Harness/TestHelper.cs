@@ -14,17 +14,36 @@ public static class TestHelper
         var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
 
+        // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
+        // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
+        // We complete only once we've observed both, regardless of which path saw which.
+        var stateLock = new object();
         AssistantMessageEvent? finalAssistantMessage = null;
+        bool sawIdle = false;
+
+        void TryComplete()
+        {
+            AssistantMessageEvent? snapshot;
+            bool idle;
+            lock (stateLock)
+            {
+                snapshot = finalAssistantMessage;
+                idle = sawIdle;
+            }
+            if (snapshot != null && idle) tcs.TrySetResult(snapshot);
+        }
 
         using var subscription = session.On(evt =>
         {
             switch (evt)
             {
                 case AssistantMessageEvent msg:
-                    finalAssistantMessage = msg;
+                    lock (stateLock) { finalAssistantMessage = msg; }
+                    TryComplete();
                     break;
-                case SessionIdleEvent when finalAssistantMessage != null:
-                    tcs.TrySetResult(finalAssistantMessage);
+                case SessionIdleEvent:
+                    lock (stateLock) { sawIdle = true; }
+                    TryComplete();
                     break;
                 case SessionErrorEvent error:
                     tcs.TrySetException(new Exception(error.Data.Message ?? "session error"));
@@ -32,7 +51,8 @@ public static class TestHelper
             }
         });
 
-        // Check existing messages
+        // Backfill from already-delivered messages so we don't lose events that arrived
+        // between SendAsync returning and the subscription being installed.
         CheckExistingMessages();
 
         cts.Token.Register(() => tcs.TrySetException(new TimeoutException("Timeout waiting for assistant message")));
@@ -43,8 +63,17 @@ public static class TestHelper
         {
             try
             {
-                var existing = await GetExistingFinalResponseAsync(session, alreadyIdle);
-                if (existing != null) tcs.TrySetResult(existing);
+                var (existingFinal, existingIdle) = await GetExistingMessagesAsync(session, alreadyIdle);
+                lock (stateLock)
+                {
+                    // Preserve a newer message captured by the subscription in the meantime.
+                    if (existingFinal != null && finalAssistantMessage == null)
+                    {
+                        finalAssistantMessage = existingFinal;
+                    }
+                    if (existingIdle) sawIdle = true;
+                }
+                TryComplete();
             }
             catch (Exception ex)
             {
@@ -53,7 +82,7 @@ public static class TestHelper
         }
     }
 
-    private static async Task<AssistantMessageEvent?> GetExistingFinalResponseAsync(CopilotSession session, bool alreadyIdle)
+    private static async Task<(AssistantMessageEvent? Final, bool SawIdle)> GetExistingMessagesAsync(CopilotSession session, bool alreadyIdle)
     {
         var messages = (await session.GetMessagesAsync()).ToList();
 
@@ -64,15 +93,17 @@ public static class TestHelper
         if (error != null) throw new Exception(error.Data.Message ?? "session error");
 
         var idleIdx = alreadyIdle ? currentTurn.Count : currentTurn.FindIndex(m => m is SessionIdleEvent);
-        if (idleIdx == -1) return null;
+        var sawIdle = alreadyIdle || idleIdx >= 0;
 
-        for (var i = idleIdx - 1; i >= 0; i--)
+        // Find the most recent assistant message in the turn (whether idle has arrived or not).
+        var searchEnd = idleIdx >= 0 ? idleIdx : currentTurn.Count;
+        for (var i = searchEnd - 1; i >= 0; i--)
         {
             if (currentTurn[i] is AssistantMessageEvent msg)
-                return msg;
+                return (msg, sawIdle);
         }
 
-        return null;
+        return (null, sawIdle);
     }
 
     public static async Task<T> GetNextEventOfTypeAsync<T>(

@@ -156,7 +156,8 @@ export type SystemNotification =
   | SystemNotificationAgentIdle
   | SystemNotificationNewInboxMessage
   | SystemNotificationShellCompleted
-  | SystemNotificationShellDetachedCompleted;
+  | SystemNotificationShellDetachedCompleted
+  | SystemNotificationInstructionDiscovered;
 /**
  * Whether the agent completed successfully or failed
  */
@@ -3207,6 +3208,25 @@ export interface SystemNotificationShellDetachedCompleted {
    */
   shellId: string;
   type: "shell_detached_completed";
+}
+export interface SystemNotificationInstructionDiscovered {
+  /**
+   * Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/')
+   */
+  description?: string;
+  /**
+   * Relative path to the discovered instruction file
+   */
+  sourcePath: string;
+  /**
+   * Path of the file access that triggered discovery
+   */
+  triggerFile: string;
+  /**
+   * Tool command that triggered discovery (currently always 'view')
+   */
+  triggerTool: string;
+  type: "instruction_discovered";
 }
 export interface PermissionRequestedEvent {
   /**

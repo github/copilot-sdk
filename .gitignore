@@ -6,3 +6,6 @@ docs/.validation/
 # Rust scenario build artifacts
 test/scenarios/**/rust/target/
 test/scenarios/**/rust/Cargo.lock
+
+# Visual Studio
+.vs/

@@ -15,7 +15,7 @@ Run the Copilot CLI inside a Docker container with a simple proxy on the host th
 │                    │  Docker Container        │       │
 │                    │  Copilot CLI             │       │
 │                    │  --port 3000 --headless  │       │
-│                    │  --bind 0.0.0.0          │       │
+│                    │  --host 0.0.0.0          │       │
 │                    │  --auth-token-env        │       │
 │                    └────────────┬─────────────┘       │
 │                                │                     │

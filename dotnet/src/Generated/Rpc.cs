@@ -12,7 +12,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using StreamJsonRpc;
 
 namespace GitHub.Copilot.SDK.Rpc;
 
@@ -4096,7 +4095,7 @@ public sealed class ClientSessionApiHandlers
 }
 
 /// <summary>Registers client session API handlers on a JSON-RPC connection.</summary>
-public static class ClientSessionApiRegistration
+internal static class ClientSessionApiRegistration
 {
     /// <summary>
     /// Registers handlers for server-to-client session API calls.
@@ -4105,106 +4104,66 @@ public static class ClientSessionApiRegistration
     /// </summary>
     public static void RegisterClientSessionApiHandlers(JsonRpc rpc, Func<string, ClientSessionApiHandlers> getHandlers)
     {
-        var registerSessionFsReadFileMethod = (Func<SessionFsReadFileRequest, CancellationToken, Task<SessionFsReadFileResult>>)(async (request, cancellationToken) =>
+        rpc.SetLocalRpcMethod("sessionFs.readFile", (Func<SessionFsReadFileRequest, CancellationToken, ValueTask<SessionFsReadFileResult>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.ReadFileAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsReadFileMethod.Method, registerSessionFsReadFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.readFile")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsWriteFileMethod = (Func<SessionFsWriteFileRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.writeFile", (Func<SessionFsWriteFileRequest, CancellationToken, ValueTask<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.WriteFileAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsWriteFileMethod.Method, registerSessionFsWriteFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.writeFile")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsAppendFileMethod = (Func<SessionFsAppendFileRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.appendFile", (Func<SessionFsAppendFileRequest, CancellationToken, ValueTask<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.AppendFileAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsAppendFileMethod.Method, registerSessionFsAppendFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.appendFile")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsExistsMethod = (Func<SessionFsExistsRequest, CancellationToken, Task<SessionFsExistsResult>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.exists", (Func<SessionFsExistsRequest, CancellationToken, ValueTask<SessionFsExistsResult>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.ExistsAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsExistsMethod.Method, registerSessionFsExistsMethod.Target!, new JsonRpcMethodAttribute("sessionFs.exists")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsStatMethod = (Func<SessionFsStatRequest, CancellationToken, Task<SessionFsStatResult>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.stat", (Func<SessionFsStatRequest, CancellationToken, ValueTask<SessionFsStatResult>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.StatAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsStatMethod.Method, registerSessionFsStatMethod.Target!, new JsonRpcMethodAttribute("sessionFs.stat")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsMkdirMethod = (Func<SessionFsMkdirRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.mkdir", (Func<SessionFsMkdirRequest, CancellationToken, ValueTask<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.MkdirAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsMkdirMethod.Method, registerSessionFsMkdirMethod.Target!, new JsonRpcMethodAttribute("sessionFs.mkdir")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsReaddirMethod = (Func<SessionFsReaddirRequest, CancellationToken, Task<SessionFsReaddirResult>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.readdir", (Func<SessionFsReaddirRequest, CancellationToken, ValueTask<SessionFsReaddirResult>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.ReaddirAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsReaddirMethod.Method, registerSessionFsReaddirMethod.Target!, new JsonRpcMethodAttribute("sessionFs.readdir")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsReaddirWithTypesMethod = (Func<SessionFsReaddirWithTypesRequest, CancellationToken, Task<SessionFsReaddirWithTypesResult>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.readdirWithTypes", (Func<SessionFsReaddirWithTypesRequest, CancellationToken, ValueTask<SessionFsReaddirWithTypesResult>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.ReaddirWithTypesAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsReaddirWithTypesMethod.Method, registerSessionFsReaddirWithTypesMethod.Target!, new JsonRpcMethodAttribute("sessionFs.readdirWithTypes")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsRmMethod = (Func<SessionFsRmRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.rm", (Func<SessionFsRmRequest, CancellationToken, ValueTask<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.RmAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsRmMethod.Method, registerSessionFsRmMethod.Target!, new JsonRpcMethodAttribute("sessionFs.rm")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
-        var registerSessionFsRenameMethod = (Func<SessionFsRenameRequest, CancellationToken, Task<SessionFsError?>>)(async (request, cancellationToken) =>
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.rename", (Func<SessionFsRenameRequest, CancellationToken, ValueTask<SessionFsError?>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.RenameAsync(request, cancellationToken);
-        });
-        rpc.AddLocalRpcMethod(registerSessionFsRenameMethod.Method, registerSessionFsRenameMethod.Target!, new JsonRpcMethodAttribute("sessionFs.rename")
-        {
-            UseSingleObjectParameterDeserialization = true
-        });
+        }), singleObjectParam: true);
     }
 }
 
