@@ -4,6 +4,7 @@ Test context for E2E tests.
 Provides isolated directories and a replaying proxy for testing the SDK.
 """
 
+import contextlib
 import os
 import re
 import shutil
@@ -113,18 +114,16 @@ class E2ETestContext:
             await self._proxy.configure(abs_snapshot_path, self.work_dir)
 
         # Clear temp directories between tests (but leave them in place)
-        # Use ignore_errors=True to handle race conditions where files may still
-        # be written by background processes during cleanup
-        for item in Path(self.home_dir).iterdir():
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
-            else:
-                item.unlink(missing_ok=True)
-        for item in Path(self.work_dir).iterdir():
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
-            else:
-                item.unlink(missing_ok=True)
+        # Use ignore_errors=True / suppress(OSError) to handle race conditions
+        # where files (e.g., SQLite session-store.db on Windows) may still be
+        # held open by a background process during cleanup.
+        for base_dir in (self.home_dir, self.work_dir):
+            for item in Path(base_dir).iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    with contextlib.suppress(OSError):
+                        item.unlink(missing_ok=True)
 
     def get_env(self) -> dict:
         """Return environment variables configured for isolated testing."""

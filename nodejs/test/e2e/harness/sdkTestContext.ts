@@ -112,5 +112,7 @@ function getTrafficCapturePath(testContext: TestContext): string {
 }
 
 function rmDir(message: string, path: string): Promise<void> {
-    return retry(message, () => rm(path, { recursive: true, force: true }), 5, 2000);
+    // Use longer retries (30s total) to tolerate Windows holding SQLite
+    // session-store.db open briefly after the CLI subprocess exits.
+    return retry(message, () => rm(path, { recursive: true, force: true }), 30, 1000);
 }

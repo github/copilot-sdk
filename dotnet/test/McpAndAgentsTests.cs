@@ -324,7 +324,8 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
         await session.SendAsync(new MessageOptions { Prompt = "What is 7+7?" });
 
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        // Use a longer timeout to tolerate slower MCP server spawning on Windows.
+        var message = await TestHelper.GetFinalAssistantMessageAsync(session, TimeSpan.FromSeconds(120));
         Assert.NotNull(message);
         Assert.Contains("14", message!.Data.Content);
 
