@@ -194,7 +194,7 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         foreach (var evt in client1Events.OfType<PermissionCompletedEvent>()
             .Concat(client2Events.OfType<PermissionCompletedEvent>()))
         {
-            Assert.Equal(PermissionCompletedKind.Approved, evt.Data.Result.Kind);
+            Assert.IsType<PermissionResultApproved>(evt.Data.Result);
         }
 
         await session2.DisposeAsync();
@@ -246,7 +246,7 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         foreach (var evt in client1Events.OfType<PermissionCompletedEvent>()
             .Concat(client2Events.OfType<PermissionCompletedEvent>()))
         {
-            Assert.Equal(PermissionCompletedKind.DeniedInteractivelyByUser, evt.Data.Result.Kind);
+            Assert.IsType<PermissionResultDeniedInteractivelyByUser>(evt.Data.Result);
         }
 
         await session2.DisposeAsync();

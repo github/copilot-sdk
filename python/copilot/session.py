@@ -24,6 +24,8 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
+    ExternalToolTextResultForLlm,
+    HandlePendingToolCallRequest,
     LogRequest,
     ModelSwitchToRequest,
     PermissionDecision,
@@ -31,8 +33,6 @@ from .generated.rpc import (
     PermissionDecisionRequest,
     SessionLogLevel,
     SessionRpc,
-    ToolCallResult,
-    ToolsHandlePendingToolCallRequest,
     UIElicitationRequest,
     UIElicitationResponse,
     UIElicitationResponseAction,
@@ -1403,16 +1403,16 @@ class CopilotSession:
             # failures send the full structured result to preserve metadata.
             if tool_result._from_exception:
                 await self.rpc.tools.handle_pending_tool_call(
-                    ToolsHandlePendingToolCallRequest(
+                    HandlePendingToolCallRequest(
                         request_id=request_id,
                         error=tool_result.error,
                     )
                 )
             else:
                 await self.rpc.tools.handle_pending_tool_call(
-                    ToolsHandlePendingToolCallRequest(
+                    HandlePendingToolCallRequest(
                         request_id=request_id,
-                        result=ToolCallResult(
+                        result=ExternalToolTextResultForLlm(
                             text_result_for_llm=tool_result.text_result_for_llm,
                             error=tool_result.error,
                             result_type=tool_result.result_type,
@@ -1423,7 +1423,7 @@ class CopilotSession:
         except Exception as exc:
             try:
                 await self.rpc.tools.handle_pending_tool_call(
-                    ToolsHandlePendingToolCallRequest(
+                    HandlePendingToolCallRequest(
                         request_id=request_id,
                         error=str(exc),
                     )
