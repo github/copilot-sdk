@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use parking_lot::Mutex as ParkingLotMutex;
 use serde_json::Value;
 use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinHandle;
@@ -42,6 +43,27 @@ struct IdleWaiter {
     last_assistant_message: Option<SessionEvent>,
 }
 
+/// RAII guard that clears the [`Session::idle_waiter`] slot on drop. Used
+/// by [`Session::send_and_wait`] to ensure the slot doesn't leak if the
+/// caller's future is cancelled (outer `tokio::time::timeout` / `select!`
+/// / dropped JoinHandle). Synchronous clear via `parking_lot::Mutex` —
+/// no async drop needed.
+///
+/// Without this, an outer cancellation between "install waiter" and
+/// "drain channel" would leave the slot occupied, causing all subsequent
+/// `send` and `send_and_wait` calls on the session to return
+/// [`SendWhileWaiting`](SessionError::SendWhileWaiting). Closes RFD-400
+/// review finding #2.
+struct WaiterGuard {
+    slot: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
+}
+
+impl Drop for WaiterGuard {
+    fn drop(&mut self) {
+        self.slot.lock().take();
+    }
+}
+
 /// A session on a GitHub Copilot CLI server.
 ///
 /// Created via [`Client::create_session`] or [`Client::resume_session`].
@@ -61,7 +83,12 @@ pub struct Session {
     client: Client,
     event_loop: Mutex<Option<JoinHandle<()>>>,
     /// Only populated while a `send_and_wait` call is in flight.
-    idle_waiter: Arc<Mutex<Option<IdleWaiter>>>,
+    ///
+    /// Sync `parking_lot::Mutex` because the lock is never held across an
+    /// `.await`, and synchronous access lets the `WaiterGuard` RAII helper
+    /// in `send_and_wait` clear the slot from a `Drop` impl on caller-side
+    /// cancellation. See RFD-400 review (cancel-safety hardening).
+    idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     /// Capabilities negotiated with the CLI, updated on `capabilities.changed` events.
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
     /// Broadcast channel for runtime event subscribers — see [`Session::subscribe`].
@@ -166,7 +193,7 @@ impl Session {
             let _ = handle.await;
         }
         // Fail any pending send_and_wait so it returns immediately.
-        if let Some(waiter) = self.idle_waiter.lock().await.take() {
+        if let Some(waiter) = self.idle_waiter.lock().take() {
             let _ = waiter
                 .tx
                 .send(Err(Error::Session(SessionError::EventLoopClosed)));
@@ -187,7 +214,7 @@ impl Session {
     /// Returns an error if a [`send_and_wait`](Self::send_and_wait) call is
     /// currently in flight, since the plain send would race with the waiter.
     pub async fn send(&self, opts: impl Into<MessageOptions>) -> Result<String, Error> {
-        if self.idle_waiter.lock().await.is_some() {
+        if self.idle_waiter.lock().is_some() {
             return Err(Error::Session(SessionError::SendWhileWaiting));
         }
         self.send_inner(opts.into()).await
@@ -250,6 +277,14 @@ impl Session {
     /// Only one `send_and_wait` call may be active per session at a time.
     /// Calling [`send`](Self::send) while a `send_and_wait`
     /// is in flight will also return an error.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** A `WaiterGuard` clears the in-flight slot on every
+    /// exit path (success, internal failure, internal timeout, *and*
+    /// external cancellation via `tokio::time::timeout` / `select!` /
+    /// dropped JoinHandle). Subsequent `send` and `send_and_wait` calls on
+    /// this session will succeed normally — the slot is never leaked.
     pub async fn send_and_wait(
         &self,
         opts: impl Into<MessageOptions>,
@@ -259,7 +294,7 @@ impl Session {
         let (tx, rx) = oneshot::channel();
 
         {
-            let mut guard = self.idle_waiter.lock().await;
+            let mut guard = self.idle_waiter.lock();
             if guard.is_some() {
                 return Err(Error::Session(SessionError::SendWhileWaiting));
             }
@@ -269,28 +304,26 @@ impl Session {
             });
         }
 
-        let result = tokio::time::timeout(timeout_duration, async {
-            if let Err(e) = self.send_inner(opts).await {
-                self.idle_waiter.lock().await.take();
-                return Err(e);
-            }
+        // RAII: clears the idle_waiter slot on every exit path, including
+        // external cancellation (caller's outer `select!` / `timeout` /
+        // dropped future). Without this, an outer cancellation would leak
+        // the slot and brick subsequent `send`/`send_and_wait` calls.
+        let _waiter_guard = WaiterGuard {
+            slot: self.idle_waiter.clone(),
+        };
 
+        let result = tokio::time::timeout(timeout_duration, async {
+            self.send_inner(opts).await?;
             match rx.await {
                 Ok(result) => result,
-                Err(_) => {
-                    self.idle_waiter.lock().await.take();
-                    Err(Error::Session(SessionError::EventLoopClosed))
-                }
+                Err(_) => Err(Error::Session(SessionError::EventLoopClosed)),
             }
         })
         .await;
 
         match result {
             Ok(inner) => inner,
-            Err(_) => {
-                self.idle_waiter.lock().await.take();
-                Err(Error::Session(SessionError::Timeout(timeout_duration)))
-            }
+            Err(_) => Err(Error::Session(SessionError::Timeout(timeout_duration))),
         }
     }
 
@@ -751,7 +784,7 @@ impl Client {
         ));
         let channels = self.register_session(&session_id);
 
-        let idle_waiter = Arc::new(Mutex::new(None));
+        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             session_id.clone(),
@@ -851,7 +884,7 @@ impl Client {
         ));
         let channels = self.register_session(&cli_session_id);
 
-        let idle_waiter = Arc::new(Mutex::new(None));
+        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             cli_session_id.clone(),
@@ -905,7 +938,7 @@ fn spawn_event_loop(
     command_handlers: Arc<CommandHandlerMap>,
     session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     channels: crate::router::SessionChannels,
-    idle_waiter: Arc<Mutex<Option<IdleWaiter>>>,
+    idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
 ) -> JoinHandle<()> {
@@ -933,7 +966,7 @@ fn spawn_event_loop(
                 }
             }
             // Channels closed — fail any pending send_and_wait.
-            if let Some(waiter) = idle_waiter.lock().await.take() {
+            if let Some(waiter) = idle_waiter.lock().take() {
                 let _ = waiter
                     .tx
                     .send(Err(Error::Session(SessionError::EventLoopClosed)));
@@ -1022,7 +1055,7 @@ async fn handle_notification(
     handler: &Arc<dyn SessionHandler>,
     command_handlers: &Arc<CommandHandlerMap>,
     notification: SessionEventNotification,
-    idle_waiter: &Arc<Mutex<Option<IdleWaiter>>>,
+    idle_waiter: &Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
 ) {
@@ -1035,7 +1068,7 @@ async fn handle_notification(
         SessionEventType::AssistantMessage
         | SessionEventType::SessionIdle
         | SessionEventType::SessionError => {
-            let mut guard = idle_waiter.lock().await;
+            let mut guard = idle_waiter.lock();
             if let Some(waiter) = guard.as_mut() {
                 match event_type {
                     SessionEventType::AssistantMessage => {

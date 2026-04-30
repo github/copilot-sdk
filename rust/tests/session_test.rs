@@ -1773,6 +1773,119 @@ async fn send_and_wait_times_out() {
     ));
 }
 
+/// Cancel-safety regression: an outer `tokio::time::timeout` around
+/// `send_and_wait` must NOT leak the `idle_waiter` slot. After the outer
+/// timeout fires and drops the future, subsequent `send` and
+/// `send_and_wait` calls must succeed without `SendWhileWaiting`.
+///
+/// Closes RFD-400 review finding #2.
+#[tokio::test]
+async fn send_and_wait_outer_cancellation_clears_waiter() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    // First call: wrap in outer timeout much shorter than the inner
+    // wait_timeout. The outer timeout expires, dropping the
+    // send_and_wait future before the idle/error event arrives.
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            tokio::time::timeout(
+                Duration::from_millis(50),
+                session.send_and_wait(
+                    MessageOptions::new("first").with_wait_timeout(Duration::from_secs(60)),
+                ),
+            )
+            .await
+        }
+    });
+
+    let request = server.read_request().await;
+    server.respond(&request, serde_json::json!({})).await;
+
+    // Outer timeout fires → Err(Elapsed) returned, future is dropped.
+    let outer_result = timeout(Duration::from_secs(2), handle)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(outer_result.is_err(), "outer timeout should have elapsed");
+
+    // The WaiterGuard's Drop should have cleared the slot. A subsequent
+    // `send` must NOT return SendWhileWaiting.
+    let send_handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send("second").await }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["prompt"], "second");
+    server
+        .respond(
+            &request,
+            serde_json::json!({ "messageId": "msg-after-cancel" }),
+        )
+        .await;
+
+    let result = timeout(TIMEOUT, send_handle).await.unwrap().unwrap();
+    assert_eq!(result.unwrap(), "msg-after-cancel");
+}
+
+/// Cancel-safety regression: explicitly dropping the JoinHandle of an
+/// in-flight `send_and_wait` must clear the waiter slot via WaiterGuard's
+/// Drop. The next `send` must succeed.
+///
+/// Closes RFD-400 review finding #2.
+#[tokio::test]
+async fn send_and_wait_drop_clears_waiter() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    // Start a send_and_wait, let it install the waiter, then abort the
+    // task before any idle/error event arrives.
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("aborted").with_wait_timeout(Duration::from_secs(60)),
+                )
+                .await
+        }
+    });
+
+    // Drain the session.send RPC so we know the waiter is installed.
+    let request = server.read_request().await;
+    server.respond(&request, serde_json::json!({})).await;
+
+    // Now abort the in-flight send_and_wait. The WaiterGuard drops as
+    // the future unwinds, clearing the slot.
+    handle.abort();
+    let _ = handle.await;
+
+    // Give the runtime a moment to run the drop.
+    tokio::task::yield_now().await;
+
+    // Next `send` must succeed — no SendWhileWaiting.
+    let send_handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send("after-abort").await }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["prompt"], "after-abort");
+    server
+        .respond(
+            &request,
+            serde_json::json!({ "messageId": "msg-after-abort" }),
+        )
+        .await;
+
+    let result = timeout(TIMEOUT, send_handle).await.unwrap().unwrap();
+    assert_eq!(result.unwrap(), "msg-after-abort");
+}
+
 #[tokio::test]
 async fn elicitation_requested_dispatches_to_handler_and_responds() {
     use github_copilot_sdk::types::ElicitationResult;
