@@ -36,7 +36,7 @@ from .session_fs_provider import (
 )
 from .tools import convert_mcp_call_tool_result, define_tool
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "CommandContext",
