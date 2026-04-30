@@ -1865,7 +1865,7 @@ mod tests {
                 otlp_endpoint: Some("http://collector:4318".to_string()),
                 file_path: Some(PathBuf::from("/var/log/copilot.jsonl")),
                 exporter_type: Some(OtelExporterType::OtlpHttp),
-                source_name: Some("github-app".to_string()),
+                source_name: Some("my-app".to_string()),
                 capture_content: Some(true),
             }),
             ..Default::default()
@@ -1889,7 +1889,7 @@ mod tests {
         );
         assert_eq!(
             env_value(&cmd, "COPILOT_OTEL_SOURCE_NAME"),
-            Some(std::ffi::OsStr::new("github-app")),
+            Some(std::ffi::OsStr::new("my-app")),
         );
         assert_eq!(
             env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),

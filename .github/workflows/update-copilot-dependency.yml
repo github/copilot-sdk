@@ -2,12 +2,13 @@ name: "Update @github/copilot Dependency"
 
 on:
   schedule:
-    # Daily at 10:00 UTC — keep symmetric with github-app's scheduled
-    # CLI-version checks so the SDK regen advances in lockstep when a
-    # new @github/copilot publishes. The detect job is cheap (one
-    # `npm view` + a jq read); the heavy update job only runs when the
-    # detected version actually differs from the current pin, so the
-    # daily schedule is effectively free on no-op days.
+    # Daily at 10:00 UTC — picks up new @github/copilot CLI releases
+    # within ~24h of publish, keeping the SDK's pinned CLI version
+    # current so the SDK regen advances in lockstep with each upstream
+    # publish. The detect job is cheap (one `npm view` + a jq read);
+    # the heavy update job only runs when the detected version actually
+    # differs from the current pin, so the daily schedule is
+    # effectively free on no-op days.
     - cron: "0 10 * * *"
   workflow_dispatch:
     inputs:

@@ -366,7 +366,7 @@ public surface.
   `with_instructions`, `with_parameters`, `with_overrides_built_in_tool`,
   `with_skip_permission` for tool definitions. Same rationale —
   `Tool` is the most-instantiated `#[non_exhaustive]` type at consumer
-  call sites (~25 sites in github-app's tool catalog), where the
+  call sites in real-world consumer code, where the
   builder shape replaces the per-consumer `make_tool(name, desc,
   params)` helper that consumers were writing to smooth over the
   mut-let pattern.
