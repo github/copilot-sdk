@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
-use tokio::sync::{Mutex, RwLock, broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{Instrument, error, warn};
 
 use crate::{Error, ProtocolError};
@@ -147,10 +148,38 @@ impl JsonRpcResponse {
 
 const CONTENT_LENGTH_HEADER: &str = "Content-Length: ";
 
+/// One framed JSON-RPC message handed to the writer actor.
+///
+/// `frame` is the fully serialized bytes (header + body); the caller pays
+/// the serde cost synchronously before enqueueing so the actor never sees a
+/// `Result` from JSON encoding. `ack` resolves once the bytes have been
+/// fully written and flushed (or the underlying I/O reports an error). If
+/// the caller drops the `oneshot::Receiver`, the actor still completes the
+/// frame — caller cancellation cannot desync the wire.
+struct WriteCommand {
+    frame: Vec<u8>,
+    ack: oneshot::Sender<Result<(), std::io::Error>>,
+}
+
 /// Low-level JSON-RPC 2.0 client over Content-Length-framed streams.
+///
+/// # Cancel safety
+///
+/// All public methods (`write`, `send_request`) are **cancel-safe**: the
+/// actual bytes hit the wire on a dedicated background actor task, so
+/// dropping the caller's future after `await` returns `Pending` cannot
+/// produce a partial frame on the wire. Frames either land atomically or
+/// the underlying I/O fails. See `cancel-safety review` artifact for the
+/// full RFD-400 reasoning.
 pub struct JsonRpcClient {
     request_id: AtomicU64,
-    writer: Arc<Mutex<Box<dyn AsyncWrite + Unpin + Send>>>,
+    /// Sender side of the writer actor's command queue. Public methods
+    /// pre-serialize their frames and enqueue here; the background actor
+    /// drains the queue and serializes writes onto the underlying
+    /// `AsyncWrite`. Unbounded by design — RFD 400 explicitly permits this
+    /// for cancel-safety, and JSON-RPC frames are small relative to the
+    /// natural request/response back-pressure of the wire.
+    write_tx: mpsc::UnboundedSender<WriteCommand>,
     pending_requests: Arc<RwLock<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
@@ -159,18 +188,24 @@ pub struct JsonRpcClient {
 impl JsonRpcClient {
     /// Create a new client from async read/write streams.
     ///
-    /// Spawns a background reader task that dispatches incoming messages to
-    /// pending request channels, the notification broadcast, or the request
-    /// forwarding channel.
+    /// Spawns two background tasks: a reader that dispatches incoming
+    /// messages to pending request channels, the notification broadcast,
+    /// or the request-forwarding channel; and a writer actor that owns the
+    /// underlying `AsyncWrite` and serializes frames atomically.
     pub fn new(
         writer: impl AsyncWrite + Unpin + Send + 'static,
         reader: impl AsyncRead + Unpin + Send + 'static,
         notification_tx: broadcast::Sender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     ) -> Self {
+        let (write_tx, write_rx) = mpsc::unbounded_channel::<WriteCommand>();
+
+        let writer_span = tracing::error_span!("jsonrpc_write_loop");
+        tokio::spawn(Self::write_loop(writer, write_rx).instrument(writer_span));
+
         let client = Self {
             request_id: AtomicU64::new(1),
-            writer: Arc::new(Mutex::new(Box::new(writer))),
+            write_tx,
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
             notification_tx,
             request_tx,
@@ -179,7 +214,7 @@ impl JsonRpcClient {
         let pending_requests = client.pending_requests.clone();
         let notification_tx_clone = client.notification_tx.clone();
         let request_tx_clone = client.request_tx.clone();
-        let span = tracing::error_span!("jsonrpc_read_loop");
+        let reader_span = tracing::error_span!("jsonrpc_read_loop");
 
         tokio::spawn(
             async move {
@@ -191,10 +226,41 @@ impl JsonRpcClient {
                 )
                 .await;
             }
-            .instrument(span),
+            .instrument(reader_span),
         );
 
         client
+    }
+
+    /// Writer-actor task. Owns the `AsyncWrite`, drains the command queue,
+    /// and writes each frame atomically (header + body + flush) before
+    /// signaling the ack.
+    ///
+    /// Caller-side cancellation cannot interrupt a write in progress:
+    /// dropping the ack `oneshot::Receiver` does not cancel the in-flight
+    /// I/O. Once `WriteCommand` is enqueued the frame is committed to land
+    /// on the wire (or surface an `io::Error` to the ack receiver if the
+    /// transport is broken).
+    ///
+    /// Exits cleanly when all senders drop (channel closes), flushing any
+    /// final buffered bytes.
+    async fn write_loop(
+        mut writer: impl AsyncWrite + Unpin + Send + 'static,
+        mut rx: mpsc::UnboundedReceiver<WriteCommand>,
+    ) {
+        while let Some(WriteCommand { frame, ack }) = rx.recv().await {
+            let result = async {
+                writer.write_all(&frame).await?;
+                writer.flush().await?;
+                Ok::<_, std::io::Error>(())
+            }
+            .await;
+
+            // Caller may have dropped the ack receiver (e.g. their
+            // `await` was cancelled); that's fine — we still completed
+            // the write, which was the whole point.
+            let _ = ack.send(result);
+        }
     }
 
     async fn read_loop(
@@ -210,8 +276,8 @@ impl JsonRpcClient {
                 Ok(Some(message)) => match message {
                     JsonRpcMessage::Response(response) => {
                         let id = response.id;
-                        let mut pending = pending_requests.write().await;
-                        if let Some(tx) = pending.remove(&id) {
+                        let tx = pending_requests.write().remove(&id);
+                        if let Some(tx) = tx {
                             if tx.send(response).is_err() {
                                 warn!(request_id = %id, "failed to send response for request");
                             }
@@ -240,7 +306,7 @@ impl JsonRpcClient {
 
         // Drain in-flight requests so callers observe cancellation
         // instead of hanging on a oneshot receiver.
-        let mut pending = pending_requests.write().await;
+        let mut pending = pending_requests.write();
         if !pending.is_empty() {
             warn!(
                 count = pending.len(),
@@ -288,6 +354,15 @@ impl JsonRpcClient {
     }
 
     /// Send a JSON-RPC request and wait for the matching response.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** The frame is committed to the wire via the writer
+    /// actor before this future yields; cancelling the await drops the
+    /// response oneshot but does not desync the transport. The pending-
+    /// requests map is cleaned up automatically (the `PendingGuard` drop
+    /// removes the entry, and the read loop's response handling tolerates
+    /// a missing entry).
     pub async fn send_request(
         &self,
         method: &str,
@@ -297,31 +372,87 @@ impl JsonRpcClient {
         let request = JsonRpcRequest::new(id, method, params);
 
         let (tx, rx) = oneshot::channel();
-        {
-            let mut pending = self.pending_requests.write().await;
-            pending.insert(id, tx);
-        }
+        self.pending_requests.write().insert(id, tx);
 
-        if let Err(e) = self.write(&request).await {
-            self.pending_requests.write().await.remove(&id);
-            return Err(e);
-        }
+        // RAII guard that removes the pending entry if this future is
+        // dropped before the response arrives. Disarmed below before the
+        // success return so the read loop owns the cleanup on the happy
+        // path.
+        let mut guard = PendingGuard {
+            map: &self.pending_requests,
+            id,
+            armed: true,
+        };
+
+        // The PendingGuard's drop removes the entry on every error path
+        // and on cancellation; disarmed below before the success return so
+        // the read loop owns the cleanup on the happy path.
+        self.write(&request).await?;
 
         let response = rx
             .await
             .map_err(|_| Error::Protocol(ProtocolError::RequestCancelled))?;
+        guard.disarm();
         Ok(response)
     }
 
     /// Write a Content-Length-framed JSON-RPC message to the transport.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** Pre-serializes the body, enqueues it on the writer
+    /// actor's command channel, and awaits an ack. Caller cancellation
+    /// drops the ack receiver; the actor still completes the frame and
+    /// flushes. A partial frame can never appear on the wire.
     pub async fn write<T: serde::Serialize>(&self, message: &T) -> Result<(), Error> {
         let body = serde_json::to_vec(message)?;
-        let header = format!("{}{}\r\n\r\n", CONTENT_LENGTH_HEADER, body.len());
-        let mut writer = self.writer.lock().await;
-        writer.write_all(header.as_bytes()).await?;
-        writer.write_all(&body).await?;
-        writer.flush().await?;
-        Ok(())
+        let mut frame = Vec::with_capacity(CONTENT_LENGTH_HEADER.len() + 16 + body.len() + 4);
+        frame.extend_from_slice(CONTENT_LENGTH_HEADER.as_bytes());
+        frame.extend_from_slice(body.len().to_string().as_bytes());
+        frame.extend_from_slice(b"\r\n\r\n");
+        frame.extend_from_slice(&body);
+
+        let (ack_tx, ack_rx) = oneshot::channel();
+        self.write_tx
+            .send(WriteCommand { frame, ack: ack_tx })
+            .map_err(|_| {
+                Error::Io(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "writer actor has shut down",
+                ))
+            })?;
+
+        match ack_rx.await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(Error::Io(e)),
+            Err(_) => Err(Error::Io(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "writer actor dropped ack without responding",
+            ))),
+        }
+    }
+}
+
+/// RAII guard that removes a pending-request entry from the map if the
+/// owning future is dropped before the response arrives. Disarmed on the
+/// happy path so the read loop's response handling owns the cleanup.
+struct PendingGuard<'a> {
+    map: &'a RwLock<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>,
+    id: u64,
+    armed: bool,
+}
+
+impl PendingGuard<'_> {
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PendingGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.map.write().remove(&self.id);
+        }
     }
 }
 
