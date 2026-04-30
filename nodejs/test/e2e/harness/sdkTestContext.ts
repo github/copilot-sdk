@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
 import { CopilotClient, CopilotClientOptions } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
-import { retry } from "./sdkTestHelper";
+import { retry, formatError } from "./sdkTestHelper";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 
@@ -111,8 +111,17 @@ function getTrafficCapturePath(testContext: TestContext): string {
     return join(SNAPSHOTS_DIR, testFileName, `${taskNameAsFilename}.yaml`);
 }
 
-function rmDir(message: string, path: string): Promise<void> {
-    // Use longer retries (30s total) to tolerate Windows holding SQLite
-    // session-store.db open briefly after the CLI subprocess exits.
-    return retry(message, () => rm(path, { recursive: true, force: true }), 30, 1000);
+async function rmDir(message: string, path: string): Promise<void> {
+    // Use longer retries to tolerate Windows holding SQLite session-store.db
+    // open briefly after the CLI subprocess exits. If the temp dir still can't
+    // be removed (e.g. CLI background writer racing with cleanup), warn and
+    // continue rather than failing the whole test run — the OS / CI runner
+    // will reclaim the temp dir on shutdown.
+    try {
+        await retry(message, () => rm(path, { recursive: true, force: true }), 30, 1000);
+    } catch (error) {
+        console.warn(
+            `WARN: ${message} failed; leaving temp dir for OS cleanup: ${formatError(error)}`
+        );
+    }
 }

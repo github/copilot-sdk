@@ -8,6 +8,7 @@ Tests:
 """
 
 import asyncio
+import contextlib
 import os
 import shutil
 import tempfile
@@ -113,7 +114,8 @@ class ElicitationMultiClientContext:
                 if item.is_dir():
                     shutil.rmtree(item, ignore_errors=True)
                 else:
-                    item.unlink(missing_ok=True)
+                    with contextlib.suppress(OSError):
+                        item.unlink(missing_ok=True)
 
     def _get_env(self) -> dict:
         env = os.environ.copy()

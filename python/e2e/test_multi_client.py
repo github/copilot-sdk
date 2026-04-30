@@ -5,6 +5,7 @@ multiple clients are connected to the same CLI server session.
 """
 
 import asyncio
+import contextlib
 import os
 import shutil
 import tempfile
@@ -110,19 +111,17 @@ class MultiClientContext:
         if self._proxy:
             await self._proxy.configure(abs_snapshot_path, self.work_dir)
 
-        # Clear temp directories between tests
+        # Clear temp directories between tests; tolerate Windows holding the
+        # SQLite session-store.db open briefly after the CLI subprocess exits.
         from pathlib import Path
 
-        for item in Path(self.home_dir).iterdir():
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
-            else:
-                item.unlink(missing_ok=True)
-        for item in Path(self.work_dir).iterdir():
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
-            else:
-                item.unlink(missing_ok=True)
+        for base_dir in (self.home_dir, self.work_dir):
+            for item in Path(base_dir).iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    with contextlib.suppress(OSError):
+                        item.unlink(missing_ok=True)
 
     def get_env(self) -> dict:
         env = os.environ.copy()
