@@ -962,6 +962,15 @@ class ResumeSessionConfig(TypedDict, total=False):
     # When True, skips emitting the session.resume event.
     # Useful for reconnecting to a session without triggering resume-related side effects.
     disable_resume: bool
+    # When True, instructs the runtime to continue any tool calls or permission prompts
+    # that were still pending when the session was last suspended. When False (the
+    # default), the runtime treats pending work as interrupted on resume.
+    #
+    # For permission requests, the runtime re-emits ``permission.requested`` so the
+    # registered ``on_permission_request`` handler can re-prompt; for external tool
+    # calls, the consumer is expected to supply the result via the corresponding
+    # low-level RPC method.
+    continue_pending_work: bool
     # Optional event handler registered before the session.resume RPC is issued,
     # ensuring early events are delivered. See SessionConfig.on_event.
     on_event: Callable[[SessionEvent], None]

@@ -632,7 +632,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Traceparent: traceparent,
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
-                GitHubToken: config.GitHubToken);
+                GitHubToken: config.GitHubToken,
+                ContinuePendingWork: config.ContinuePendingWork);
 
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
                 connection.Rpc, "session.resume", [request], cancellationToken);
@@ -1705,7 +1706,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Traceparent = null,
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
-        string? GitHubToken = null);
+        string? GitHubToken = null,
+        bool? ContinuePendingWork = null);
 
     internal record ResumeSessionResponse(
         string SessionId,

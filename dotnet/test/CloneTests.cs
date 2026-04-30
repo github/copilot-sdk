@@ -303,4 +303,27 @@ public class CloneTests
 
         Assert.True(clone.IncludeSubAgentStreamingEvents);
     }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesContinuePendingWork()
+    {
+        var original = new ResumeSessionConfig
+        {
+            ContinuePendingWork = true,
+        };
+
+        var clone = original.Clone();
+
+        Assert.True(clone.ContinuePendingWork);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_PreservesContinuePendingWorkDefault()
+    {
+        var original = new ResumeSessionConfig();
+
+        var clone = original.Clone();
+
+        Assert.Null(clone.ContinuePendingWork);
+    }
 }
