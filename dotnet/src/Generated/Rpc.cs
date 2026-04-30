@@ -1676,16 +1676,16 @@ internal sealed class SessionExtensionsReloadRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for HandleToolCall operations.</summary>
-public sealed class HandleToolCallResult
+/// <summary>RPC data type for HandlePendingToolCall operations.</summary>
+public sealed class HandlePendingToolCallResult
 {
     /// <summary>Whether the tool call result was handled successfully.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 }
 
-/// <summary>RPC data type for ToolsHandlePendingToolCall operations.</summary>
-internal sealed class ToolsHandlePendingToolCallRequest
+/// <summary>RPC data type for HandlePendingToolCall operations.</summary>
+internal sealed class HandlePendingToolCallRequest
 {
     /// <summary>Error message if the tool call failed.</summary>
     [JsonPropertyName("error")]
@@ -1811,6 +1811,7 @@ public sealed class PermissionRequestResult
 [JsonDerivedType(typeof(PermissionDecisionApproveOnce), "approve-once")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSession), "approve-for-session")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocation), "approve-for-location")]
+[JsonDerivedType(typeof(PermissionDecisionApprovePermanently), "approve-permanently")]
 [JsonDerivedType(typeof(PermissionDecisionReject), "reject")]
 [JsonDerivedType(typeof(PermissionDecisionUserNotAvailable), "user-not-available")]
 public partial class PermissionDecision
@@ -1933,8 +1934,14 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
     public override string Kind => "approve-for-session";
 
     /// <summary>The approval to add as a session-scoped rule.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("approval")]
-    public required PermissionDecisionApproveForSessionApproval Approval { get; set; }
+    public PermissionDecisionApproveForSessionApproval? Approval { get; set; }
+
+    /// <summary>The URL domain to approve for this session.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("domain")]
+    public string? Domain { get; set; }
 }
 
 /// <summary>The approval to persist for this location.</summary>
@@ -2047,6 +2054,18 @@ public partial class PermissionDecisionApproveForLocation : PermissionDecision
     /// <summary>The location key (git root or cwd) to persist the approval to.</summary>
     [JsonPropertyName("locationKey")]
     public required string LocationKey { get; set; }
+}
+
+/// <summary>The <c>approve-permanently</c> variant of <see cref="PermissionDecision"/>.</summary>
+public partial class PermissionDecisionApprovePermanently : PermissionDecision
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "approve-permanently";
+
+    /// <summary>The URL domain to approve permanently.</summary>
+    [JsonPropertyName("domain")]
+    public required string Domain { get; set; }
 }
 
 /// <summary>The <c>reject</c> variant of <see cref="PermissionDecision"/>.</summary>
@@ -2293,6 +2312,15 @@ public sealed class UsageMetricsModelMetricRequests
     public long Count { get; set; }
 }
 
+/// <summary>RPC data type for UsageMetricsModelMetricTokenDetail operations.</summary>
+public sealed class UsageMetricsModelMetricTokenDetail
+{
+    /// <summary>Accumulated token count for this token type.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("tokenCount")]
+    public long TokenCount { get; set; }
+}
+
 /// <summary>Token usage metrics for this model.</summary>
 public sealed class UsageMetricsModelMetricUsage
 {
@@ -2329,9 +2357,27 @@ public sealed class UsageMetricsModelMetric
     [JsonPropertyName("requests")]
     public UsageMetricsModelMetricRequests Requests { get => field ??= new(); set; }
 
+    /// <summary>Token count details per type.</summary>
+    [JsonPropertyName("tokenDetails")]
+    public IDictionary<string, UsageMetricsModelMetricTokenDetail>? TokenDetails { get; set; }
+
+    /// <summary>Accumulated nano-AI units cost for this model.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("totalNanoAiu")]
+    public long? TotalNanoAiu { get; set; }
+
     /// <summary>Token usage metrics for this model.</summary>
     [JsonPropertyName("usage")]
     public UsageMetricsModelMetricUsage Usage { get => field ??= new(); set; }
+}
+
+/// <summary>RPC data type for UsageMetricsTokenDetail operations.</summary>
+public sealed class UsageMetricsTokenDetail
+{
+    /// <summary>Accumulated token count for this token type.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("tokenCount")]
+    public long TokenCount { get; set; }
 }
 
 /// <summary>RPC data type for UsageGetMetrics operations.</summary>
@@ -2364,11 +2410,20 @@ public sealed class UsageGetMetricsResult
     [JsonPropertyName("sessionStartTime")]
     public long SessionStartTime { get; set; }
 
+    /// <summary>Session-wide per-token-type accumulated token counts.</summary>
+    [JsonPropertyName("tokenDetails")]
+    public IDictionary<string, UsageMetricsTokenDetail>? TokenDetails { get; set; }
+
     /// <summary>Total time spent in model API calls (milliseconds).</summary>
     [Range(0, double.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("totalApiDurationMs")]
     public TimeSpan TotalApiDurationMs { get; set; }
+
+    /// <summary>Session-wide accumulated nano-AI units cost.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("totalNanoAiu")]
+    public long? TotalNanoAiu { get; set; }
 
     /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
     [JsonPropertyName("totalPremiumRequestCost")]
@@ -3898,10 +3953,10 @@ public sealed class ToolsApi
     }
 
     /// <summary>Calls "session.tools.handlePendingToolCall".</summary>
-    public async Task<HandleToolCallResult> HandlePendingToolCallAsync(string requestId, object? result = null, string? error = null, CancellationToken cancellationToken = default)
+    public async Task<HandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result = null, string? error = null, CancellationToken cancellationToken = default)
     {
-        var request = new ToolsHandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
-        return await CopilotClient.InvokeRpcAsync<HandleToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
+        var request = new HandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
+        return await CopilotClient.InvokeRpcAsync<HandlePendingToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
     }
 }
 
@@ -4190,7 +4245,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ExtensionsEnableRequest))]
 [JsonSerializable(typeof(FleetStartRequest))]
 [JsonSerializable(typeof(FleetStartResult))]
-[JsonSerializable(typeof(HandleToolCallResult))]
+[JsonSerializable(typeof(HandlePendingToolCallRequest))]
+[JsonSerializable(typeof(HandlePendingToolCallResult))]
 [JsonSerializable(typeof(HistoryCompactContextWindow))]
 [JsonSerializable(typeof(HistoryCompactResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]
@@ -4316,7 +4372,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(TasksStartAgentResult))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolList))]
-[JsonSerializable(typeof(ToolsHandlePendingToolCallRequest))]
 [JsonSerializable(typeof(ToolsListRequest))]
 [JsonSerializable(typeof(UIElicitationRequest))]
 [JsonSerializable(typeof(UIElicitationResponse))]
@@ -4327,7 +4382,9 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(UsageMetricsCodeChanges))]
 [JsonSerializable(typeof(UsageMetricsModelMetric))]
 [JsonSerializable(typeof(UsageMetricsModelMetricRequests))]
+[JsonSerializable(typeof(UsageMetricsModelMetricTokenDetail))]
 [JsonSerializable(typeof(UsageMetricsModelMetricUsage))]
+[JsonSerializable(typeof(UsageMetricsTokenDetail))]
 [JsonSerializable(typeof(WorkspacesCreateFileRequest))]
 [JsonSerializable(typeof(WorkspacesGetWorkspaceResult))]
 [JsonSerializable(typeof(WorkspacesGetWorkspaceResultWorkspace))]

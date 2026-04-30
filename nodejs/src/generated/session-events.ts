@@ -208,17 +208,28 @@ export type PermissionPromptRequestMemoryDirection = "upvote" | "downvote";
  */
 export type PermissionPromptRequestPathAccessKind = "read" | "shell" | "write";
 /**
- * The outcome of the permission request
+ * The result of the permission request
  */
-export type PermissionCompletedKind =
-  | "approved"
-  | "approved-for-session"
-  | "approved-for-location"
-  | "denied-by-rules"
-  | "denied-no-approval-rule-and-could-not-request-from-user"
-  | "denied-interactively-by-user"
-  | "denied-by-content-exclusion-policy"
-  | "denied-by-permission-request-hook";
+export type PermissionResult =
+  | PermissionApproved
+  | PermissionApprovedForSession
+  | PermissionApprovedForLocation
+  | PermissionCancelled
+  | PermissionDeniedByRules
+  | PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser
+  | PermissionDeniedInteractivelyByUser
+  | PermissionDeniedByContentExclusionPolicy
+  | PermissionDeniedByPermissionRequestHook;
+/**
+ * The approval to add as a session-scoped rule
+ */
+export type UserToolSessionApproval =
+  | UserToolSessionApprovalCommands
+  | UserToolSessionApprovalRead
+  | UserToolSessionApprovalWrite
+  | UserToolSessionApprovalMcp
+  | UserToolSessionApprovalMemory
+  | UserToolSessionApprovalCustomTool;
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
  */
@@ -391,6 +402,10 @@ export interface ResumeData {
   alreadyInUse?: boolean;
   context?: WorkingDirectoryContext;
   /**
+   * When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
+   */
+  continuePendingWork?: boolean;
+  /**
    * Total number of persisted events in the session at the time of resume
    */
   eventCount: number;
@@ -410,6 +425,10 @@ export interface ResumeData {
    * Model currently selected at resume time
    */
   selectedModel?: string;
+  /**
+   * True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
+   */
+  sessionWasActive?: boolean;
 }
 export interface RemoteSteerableChangedEvent {
   /**
@@ -1025,6 +1044,12 @@ export interface ShutdownData {
    */
   systemTokens?: number;
   /**
+   * Session-wide per-token-type accumulated token counts
+   */
+  tokenDetails?: {
+    [k: string]: ShutdownTokenDetail;
+  };
+  /**
    * Tool definitions token count at shutdown
    */
   toolDefinitionsTokens?: number;
@@ -1032,6 +1057,10 @@ export interface ShutdownData {
    * Cumulative time spent in API calls during the session, in milliseconds
    */
   totalApiDurationMs: number;
+  /**
+   * Session-wide accumulated nano-AI units cost
+   */
+  totalNanoAiu?: number;
   /**
    * Total number of premium API requests used during the session
    */
@@ -1056,6 +1085,16 @@ export interface ShutdownCodeChanges {
 }
 export interface ShutdownModelMetric {
   requests: ShutdownModelMetricRequests;
+  /**
+   * Token count details per type
+   */
+  tokenDetails?: {
+    [k: string]: ShutdownModelMetricTokenDetail;
+  };
+  /**
+   * Accumulated nano-AI units cost for this model
+   */
+  totalNanoAiu?: number;
   usage: ShutdownModelMetricUsage;
 }
 /**
@@ -1070,6 +1109,12 @@ export interface ShutdownModelMetricRequests {
    * Total number of API requests made to this model
    */
   count: number;
+}
+export interface ShutdownModelMetricTokenDetail {
+  /**
+   * Accumulated token count for this token type
+   */
+  tokenCount: number;
 }
 /**
  * Token usage breakdown
@@ -1095,6 +1140,12 @@ export interface ShutdownModelMetricUsage {
    * Total reasoning tokens produced across all requests to this model
    */
   reasoningTokens?: number;
+}
+export interface ShutdownTokenDetail {
+  /**
+   * Accumulated token count for this token type
+   */
+  tokenCount: number;
 }
 export interface ContextChangedEvent {
   /**
@@ -1340,7 +1391,7 @@ export interface CompactionCompleteCompactionTokensUsedCopilotUsage {
    */
   tokenDetails: CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[];
   /**
-   * Total cost in nano-AIU (AI Units) for this request
+   * Total cost in nano-AI units for this request
    */
   totalNanoAiu: number;
 }
@@ -1444,6 +1495,10 @@ export interface UserMessageData {
    * Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
    */
   nativeDocumentPathFallbackPaths?: string[];
+  /**
+   * Parent agent task ID for background telemetry correlated to this user turn
+   */
+  parentAgentTaskId?: string;
   /**
    * Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
    */
@@ -1873,6 +1928,10 @@ export interface AssistantMessageData {
    * Tool invocations requested by the assistant in this message
    */
   toolRequests?: AssistantMessageToolRequest[];
+  /**
+   * Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event
+   */
+  turnId?: string;
 }
 /**
  * A tool invocation request from the assistant
@@ -2081,7 +2140,7 @@ export interface AssistantUsageCopilotUsage {
    */
   tokenDetails: AssistantUsageCopilotUsageTokenDetail[];
   /**
-   * Total cost in nano-AIU (AI Units) for this request
+   * Total cost in nano-AI units for this request
    */
   totalNanoAiu: number;
 }
@@ -2326,6 +2385,10 @@ export interface ToolExecutionStartData {
    * Name of the tool being executed
    */
   toolName: string;
+  /**
+   * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
+   */
+  turnId?: string;
 }
 export interface ToolExecutionPartialResultEvent {
   /**
@@ -2456,6 +2519,10 @@ export interface ToolExecutionCompleteData {
   toolTelemetry?: {
     [k: string]: unknown;
   };
+  /**
+   * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
+   */
+  turnId?: string;
 }
 /**
  * Error details when the tool execution failed
@@ -3234,7 +3301,10 @@ export interface PermissionRequestedEvent {
    */
   agentId?: string;
   data: PermissionRequestedData;
-  ephemeral: true;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
    */
@@ -3763,7 +3833,10 @@ export interface PermissionCompletedEvent {
    */
   agentId?: string;
   data: PermissionCompletedData;
-  ephemeral: true;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
    */
@@ -3786,17 +3859,165 @@ export interface PermissionCompletedData {
    * Request ID of the resolved permission request; clients should dismiss any UI for this request
    */
   requestId: string;
-  result: PermissionCompletedResult;
+  result: PermissionResult;
   /**
    * Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts
    */
   toolCallId?: string;
 }
-/**
- * The result of the permission request
- */
-export interface PermissionCompletedResult {
-  kind: PermissionCompletedKind;
+export interface PermissionApproved {
+  /**
+   * The permission request was approved
+   */
+  kind: "approved";
+}
+export interface PermissionApprovedForSession {
+  approval: UserToolSessionApproval;
+  /**
+   * Approved and remembered for the rest of the session
+   */
+  kind: "approved-for-session";
+}
+export interface UserToolSessionApprovalCommands {
+  /**
+   * Command identifiers approved by the user
+   */
+  commandIdentifiers: string[];
+  /**
+   * Command approval kind
+   */
+  kind: "commands";
+}
+export interface UserToolSessionApprovalRead {
+  /**
+   * Read approval kind
+   */
+  kind: "read";
+}
+export interface UserToolSessionApprovalWrite {
+  /**
+   * Write approval kind
+   */
+  kind: "write";
+}
+export interface UserToolSessionApprovalMcp {
+  /**
+   * MCP tool approval kind
+   */
+  kind: "mcp";
+  /**
+   * MCP server name
+   */
+  serverName: string;
+  /**
+   * Optional MCP tool name, or null for all tools on the server
+   */
+  toolName: string | null;
+}
+export interface UserToolSessionApprovalMemory {
+  /**
+   * Memory approval kind
+   */
+  kind: "memory";
+}
+export interface UserToolSessionApprovalCustomTool {
+  /**
+   * Custom tool approval kind
+   */
+  kind: "custom-tool";
+  /**
+   * Custom tool name
+   */
+  toolName: string;
+}
+export interface PermissionApprovedForLocation {
+  approval: UserToolSessionApproval;
+  /**
+   * Approved and persisted for this project location
+   */
+  kind: "approved-for-location";
+  /**
+   * The location key (git root or cwd) to persist the approval to
+   */
+  locationKey: string;
+}
+export interface PermissionCancelled {
+  /**
+   * The permission request was cancelled before a response was used
+   */
+  kind: "cancelled";
+  /**
+   * Optional explanation of why the request was cancelled
+   */
+  reason?: string;
+}
+export interface PermissionDeniedByRules {
+  /**
+   * Denied because approval rules explicitly blocked it
+   */
+  kind: "denied-by-rules";
+  /**
+   * Rules that denied the request
+   */
+  rules: PermissionRule[];
+}
+export interface PermissionRule {
+  /**
+   * Optional rule argument matched against the request
+   */
+  argument: string | null;
+  /**
+   * The rule kind, such as Shell or GitHubMCP
+   */
+  kind: string;
+}
+export interface PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
+  /**
+   * Denied because no approval rule matched and user confirmation was unavailable
+   */
+  kind: "denied-no-approval-rule-and-could-not-request-from-user";
+}
+export interface PermissionDeniedInteractivelyByUser {
+  /**
+   * Optional feedback from the user explaining the denial
+   */
+  feedback?: string;
+  /**
+   * Whether to force-reject the current agent turn
+   */
+  forceReject?: boolean;
+  /**
+   * Denied by the user during an interactive prompt
+   */
+  kind: "denied-interactively-by-user";
+}
+export interface PermissionDeniedByContentExclusionPolicy {
+  /**
+   * Denied by the organization's content exclusion policy
+   */
+  kind: "denied-by-content-exclusion-policy";
+  /**
+   * Human-readable explanation of why the path was excluded
+   */
+  message: string;
+  /**
+   * File path that triggered the exclusion
+   */
+  path: string;
+}
+export interface PermissionDeniedByPermissionRequestHook {
+  /**
+   * Whether to interrupt the current agent turn
+   */
+  interrupt?: boolean;
+  /**
+   * Denied by a permission request hook registered by an extension or plugin
+   */
+  kind: "denied-by-permission-request-hook";
+  /**
+   * Optional message from the hook explaining the denial
+   */
+  message?: string;
 }
 export interface UserInputRequestedEvent {
   /**
@@ -4144,7 +4365,10 @@ export interface ExternalToolRequestedEvent {
    */
   agentId?: string;
   data: ExternalToolRequestedData;
-  ephemeral: true;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
    */
@@ -4200,7 +4424,7 @@ export interface ExternalToolCompletedEvent {
    */
   agentId?: string;
   data: ExternalToolCompletedData;
-  ephemeral: true;
+  ephemeral?: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
    */

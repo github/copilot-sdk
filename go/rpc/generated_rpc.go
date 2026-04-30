@@ -13,233 +13,248 @@ import (
 )
 
 type RPCTypes struct {
-	AccountGetQuotaRequest                                  AccountGetQuotaRequest                                  `json:"AccountGetQuotaRequest"`
-	AccountGetQuotaResult                                   AccountGetQuotaResult                                   `json:"AccountGetQuotaResult"`
-	AccountQuotaSnapshot                                    AccountQuotaSnapshot                                    `json:"AccountQuotaSnapshot"`
-	AgentDeselectResult                                     AgentDeselectResult                                     `json:"AgentDeselectResult"`
-	AgentGetCurrentResult                                   AgentGetCurrentResult                                   `json:"AgentGetCurrentResult"`
-	AgentInfo                                               AgentInfo                                               `json:"AgentInfo"`
-	AgentList                                               AgentList                                               `json:"AgentList"`
-	AgentReloadResult                                       AgentReloadResult                                       `json:"AgentReloadResult"`
-	AgentSelectRequest                                      AgentSelectRequest                                      `json:"AgentSelectRequest"`
-	AgentSelectResult                                       AgentSelectResult                                       `json:"AgentSelectResult"`
-	AuthInfoType                                            AuthInfoType                                            `json:"AuthInfoType"`
-	CommandsHandlePendingCommandRequest                     CommandsHandlePendingCommandRequest                     `json:"CommandsHandlePendingCommandRequest"`
-	CommandsHandlePendingCommandResult                      CommandsHandlePendingCommandResult                      `json:"CommandsHandlePendingCommandResult"`
-	CurrentModel                                            CurrentModel                                            `json:"CurrentModel"`
-	DiscoveredMCPServer                                     DiscoveredMCPServer                                     `json:"DiscoveredMcpServer"`
-	DiscoveredMCPServerSource                               MCPServerSource                                         `json:"DiscoveredMcpServerSource"`
-	DiscoveredMCPServerType                                 DiscoveredMCPServerType                                 `json:"DiscoveredMcpServerType"`
-	Extension                                               Extension                                               `json:"Extension"`
-	ExtensionList                                           ExtensionList                                           `json:"ExtensionList"`
-	ExtensionsDisableRequest                                ExtensionsDisableRequest                                `json:"ExtensionsDisableRequest"`
-	ExtensionsDisableResult                                 ExtensionsDisableResult                                 `json:"ExtensionsDisableResult"`
-	ExtensionsEnableRequest                                 ExtensionsEnableRequest                                 `json:"ExtensionsEnableRequest"`
-	ExtensionsEnableResult                                  ExtensionsEnableResult                                  `json:"ExtensionsEnableResult"`
-	ExtensionSource                                         ExtensionSource                                         `json:"ExtensionSource"`
-	ExtensionsReloadResult                                  ExtensionsReloadResult                                  `json:"ExtensionsReloadResult"`
-	ExtensionStatus                                         ExtensionStatus                                         `json:"ExtensionStatus"`
-	FilterMapping                                           *FilterMapping                                          `json:"FilterMapping"`
-	FilterMappingString                                     FilterMappingString                                     `json:"FilterMappingString"`
-	FilterMappingValue                                      FilterMappingString                                     `json:"FilterMappingValue"`
-	FleetStartRequest                                       FleetStartRequest                                       `json:"FleetStartRequest"`
-	FleetStartResult                                        FleetStartResult                                        `json:"FleetStartResult"`
-	HandleToolCallResult                                    HandleToolCallResult                                    `json:"HandleToolCallResult"`
-	HistoryCompactContextWindow                             HistoryCompactContextWindow                             `json:"HistoryCompactContextWindow"`
-	HistoryCompactResult                                    HistoryCompactResult                                    `json:"HistoryCompactResult"`
-	HistoryTruncateRequest                                  HistoryTruncateRequest                                  `json:"HistoryTruncateRequest"`
-	HistoryTruncateResult                                   HistoryTruncateResult                                   `json:"HistoryTruncateResult"`
-	InstructionsGetSourcesResult                            InstructionsGetSourcesResult                            `json:"InstructionsGetSourcesResult"`
-	InstructionsSources                                     InstructionsSources                                     `json:"InstructionsSources"`
-	InstructionsSourcesLocation                             InstructionsSourcesLocation                             `json:"InstructionsSourcesLocation"`
-	InstructionsSourcesType                                 InstructionsSourcesType                                 `json:"InstructionsSourcesType"`
-	LogRequest                                              LogRequest                                              `json:"LogRequest"`
-	LogResult                                               LogResult                                               `json:"LogResult"`
-	MCPConfigAddRequest                                     MCPConfigAddRequest                                     `json:"McpConfigAddRequest"`
-	MCPConfigAddResult                                      MCPConfigAddResult                                      `json:"McpConfigAddResult"`
-	MCPConfigDisableRequest                                 MCPConfigDisableRequest                                 `json:"McpConfigDisableRequest"`
-	MCPConfigDisableResult                                  MCPConfigDisableResult                                  `json:"McpConfigDisableResult"`
-	MCPConfigEnableRequest                                  MCPConfigEnableRequest                                  `json:"McpConfigEnableRequest"`
-	MCPConfigEnableResult                                   MCPConfigEnableResult                                   `json:"McpConfigEnableResult"`
-	MCPConfigList                                           MCPConfigList                                           `json:"McpConfigList"`
-	MCPConfigRemoveRequest                                  MCPConfigRemoveRequest                                  `json:"McpConfigRemoveRequest"`
-	MCPConfigRemoveResult                                   MCPConfigRemoveResult                                   `json:"McpConfigRemoveResult"`
-	MCPConfigUpdateRequest                                  MCPConfigUpdateRequest                                  `json:"McpConfigUpdateRequest"`
-	MCPConfigUpdateResult                                   MCPConfigUpdateResult                                   `json:"McpConfigUpdateResult"`
-	MCPDisableRequest                                       MCPDisableRequest                                       `json:"McpDisableRequest"`
-	MCPDisableResult                                        MCPDisableResult                                        `json:"McpDisableResult"`
-	MCPDiscoverRequest                                      MCPDiscoverRequest                                      `json:"McpDiscoverRequest"`
-	MCPDiscoverResult                                       MCPDiscoverResult                                       `json:"McpDiscoverResult"`
-	MCPEnableRequest                                        MCPEnableRequest                                        `json:"McpEnableRequest"`
-	MCPEnableResult                                         MCPEnableResult                                         `json:"McpEnableResult"`
-	MCPOauthLoginRequest                                    MCPOauthLoginRequest                                    `json:"McpOauthLoginRequest"`
-	MCPOauthLoginResult                                     MCPOauthLoginResult                                     `json:"McpOauthLoginResult"`
-	MCPReloadResult                                         MCPReloadResult                                         `json:"McpReloadResult"`
-	MCPServer                                               MCPServer                                               `json:"McpServer"`
-	MCPServerConfig                                         MCPServerConfig                                         `json:"McpServerConfig"`
-	MCPServerConfigHTTP                                     MCPServerConfigHTTP                                     `json:"McpServerConfigHttp"`
-	MCPServerConfigHTTPType                                 MCPServerConfigHTTPType                                 `json:"McpServerConfigHttpType"`
-	MCPServerConfigLocal                                    MCPServerConfigLocal                                    `json:"McpServerConfigLocal"`
-	MCPServerConfigLocalType                                MCPServerConfigLocalType                                `json:"McpServerConfigLocalType"`
-	MCPServerList                                           MCPServerList                                           `json:"McpServerList"`
-	MCPServerSource                                         MCPServerSource                                         `json:"McpServerSource"`
-	MCPServerStatus                                         MCPServerStatus                                         `json:"McpServerStatus"`
-	Model                                                   ModelElement                                            `json:"Model"`
-	ModelBilling                                            ModelBilling                                            `json:"ModelBilling"`
-	ModelCapabilities                                       ModelCapabilities                                       `json:"ModelCapabilities"`
-	ModelCapabilitiesLimits                                 ModelCapabilitiesLimits                                 `json:"ModelCapabilitiesLimits"`
-	ModelCapabilitiesLimitsVision                           ModelCapabilitiesLimitsVision                           `json:"ModelCapabilitiesLimitsVision"`
-	ModelCapabilitiesOverride                               ModelCapabilitiesOverride                               `json:"ModelCapabilitiesOverride"`
-	ModelCapabilitiesOverrideLimits                         ModelCapabilitiesOverrideLimits                         `json:"ModelCapabilitiesOverrideLimits"`
-	ModelCapabilitiesOverrideLimitsVision                   ModelCapabilitiesOverrideLimitsVision                   `json:"ModelCapabilitiesOverrideLimitsVision"`
-	ModelCapabilitiesOverrideSupports                       ModelCapabilitiesOverrideSupports                       `json:"ModelCapabilitiesOverrideSupports"`
-	ModelCapabilitiesSupports                               ModelCapabilitiesSupports                               `json:"ModelCapabilitiesSupports"`
-	ModelList                                               ModelList                                               `json:"ModelList"`
-	ModelPolicy                                             ModelPolicy                                             `json:"ModelPolicy"`
-	ModelsListRequest                                       ModelsListRequest                                       `json:"ModelsListRequest"`
-	ModelSwitchToRequest                                    ModelSwitchToRequest                                    `json:"ModelSwitchToRequest"`
-	ModelSwitchToResult                                     ModelSwitchToResult                                     `json:"ModelSwitchToResult"`
-	ModeSetRequest                                          ModeSetRequest                                          `json:"ModeSetRequest"`
-	ModeSetResult                                           ModeSetResult                                           `json:"ModeSetResult"`
-	NameGetResult                                           NameGetResult                                           `json:"NameGetResult"`
-	NameSetRequest                                          NameSetRequest                                          `json:"NameSetRequest"`
-	NameSetResult                                           NameSetResult                                           `json:"NameSetResult"`
-	PermissionDecision                                      PermissionDecision                                      `json:"PermissionDecision"`
-	PermissionDecisionApproveForLocation                    PermissionDecisionApproveForLocation                    `json:"PermissionDecisionApproveForLocation"`
-	PermissionDecisionApproveForLocationApproval            PermissionDecisionApproveForLocationApproval            `json:"PermissionDecisionApproveForLocationApproval"`
-	PermissionDecisionApproveForLocationApprovalCommands    PermissionDecisionApproveForLocationApprovalCommands    `json:"PermissionDecisionApproveForLocationApprovalCommands"`
-	PermissionDecisionApproveForLocationApprovalCustomTool  PermissionDecisionApproveForLocationApprovalCustomTool  `json:"PermissionDecisionApproveForLocationApprovalCustomTool"`
-	PermissionDecisionApproveForLocationApprovalMCP         PermissionDecisionApproveForLocationApprovalMCP         `json:"PermissionDecisionApproveForLocationApprovalMcp"`
-	PermissionDecisionApproveForLocationApprovalMCPSampling PermissionDecisionApproveForLocationApprovalMCPSampling `json:"PermissionDecisionApproveForLocationApprovalMcpSampling"`
-	PermissionDecisionApproveForLocationApprovalMemory      PermissionDecisionApproveForLocationApprovalMemory      `json:"PermissionDecisionApproveForLocationApprovalMemory"`
-	PermissionDecisionApproveForLocationApprovalRead        PermissionDecisionApproveForLocationApprovalRead        `json:"PermissionDecisionApproveForLocationApprovalRead"`
-	PermissionDecisionApproveForLocationApprovalWrite       PermissionDecisionApproveForLocationApprovalWrite       `json:"PermissionDecisionApproveForLocationApprovalWrite"`
-	PermissionDecisionApproveForSession                     PermissionDecisionApproveForSession                     `json:"PermissionDecisionApproveForSession"`
-	PermissionDecisionApproveForSessionApproval             PermissionDecisionApproveForSessionApproval             `json:"PermissionDecisionApproveForSessionApproval"`
-	PermissionDecisionApproveForSessionApprovalCommands     PermissionDecisionApproveForSessionApprovalCommands     `json:"PermissionDecisionApproveForSessionApprovalCommands"`
-	PermissionDecisionApproveForSessionApprovalCustomTool   PermissionDecisionApproveForSessionApprovalCustomTool   `json:"PermissionDecisionApproveForSessionApprovalCustomTool"`
-	PermissionDecisionApproveForSessionApprovalMCP          PermissionDecisionApproveForSessionApprovalMCP          `json:"PermissionDecisionApproveForSessionApprovalMcp"`
-	PermissionDecisionApproveForSessionApprovalMCPSampling  PermissionDecisionApproveForSessionApprovalMCPSampling  `json:"PermissionDecisionApproveForSessionApprovalMcpSampling"`
-	PermissionDecisionApproveForSessionApprovalMemory       PermissionDecisionApproveForSessionApprovalMemory       `json:"PermissionDecisionApproveForSessionApprovalMemory"`
-	PermissionDecisionApproveForSessionApprovalRead         PermissionDecisionApproveForSessionApprovalRead         `json:"PermissionDecisionApproveForSessionApprovalRead"`
-	PermissionDecisionApproveForSessionApprovalWrite        PermissionDecisionApproveForSessionApprovalWrite        `json:"PermissionDecisionApproveForSessionApprovalWrite"`
-	PermissionDecisionApproveOnce                           PermissionDecisionApproveOnce                           `json:"PermissionDecisionApproveOnce"`
-	PermissionDecisionReject                                PermissionDecisionReject                                `json:"PermissionDecisionReject"`
-	PermissionDecisionRequest                               PermissionDecisionRequest                               `json:"PermissionDecisionRequest"`
-	PermissionDecisionUserNotAvailable                      PermissionDecisionUserNotAvailable                      `json:"PermissionDecisionUserNotAvailable"`
-	PermissionRequestResult                                 PermissionRequestResult                                 `json:"PermissionRequestResult"`
-	PermissionsResetSessionApprovalsRequest                 PermissionsResetSessionApprovalsRequest                 `json:"PermissionsResetSessionApprovalsRequest"`
-	PermissionsResetSessionApprovalsResult                  PermissionsResetSessionApprovalsResult                  `json:"PermissionsResetSessionApprovalsResult"`
-	PermissionsSetApproveAllRequest                         PermissionsSetApproveAllRequest                         `json:"PermissionsSetApproveAllRequest"`
-	PermissionsSetApproveAllResult                          PermissionsSetApproveAllResult                          `json:"PermissionsSetApproveAllResult"`
-	PingRequest                                             PingRequest                                             `json:"PingRequest"`
-	PingResult                                              PingResult                                              `json:"PingResult"`
-	PlanDeleteResult                                        PlanDeleteResult                                        `json:"PlanDeleteResult"`
-	PlanReadResult                                          PlanReadResult                                          `json:"PlanReadResult"`
-	PlanUpdateRequest                                       PlanUpdateRequest                                       `json:"PlanUpdateRequest"`
-	PlanUpdateResult                                        PlanUpdateResult                                        `json:"PlanUpdateResult"`
-	Plugin                                                  PluginElement                                           `json:"Plugin"`
-	PluginList                                              PluginList                                              `json:"PluginList"`
-	ServerSkill                                             ServerSkill                                             `json:"ServerSkill"`
-	ServerSkillList                                         ServerSkillList                                         `json:"ServerSkillList"`
-	SessionAuthStatus                                       SessionAuthStatus                                       `json:"SessionAuthStatus"`
-	SessionFSAppendFileRequest                              SessionFSAppendFileRequest                              `json:"SessionFsAppendFileRequest"`
-	SessionFSError                                          SessionFSError                                          `json:"SessionFsError"`
-	SessionFSErrorCode                                      SessionFSErrorCode                                      `json:"SessionFsErrorCode"`
-	SessionFSExistsRequest                                  SessionFSExistsRequest                                  `json:"SessionFsExistsRequest"`
-	SessionFSExistsResult                                   SessionFSExistsResult                                   `json:"SessionFsExistsResult"`
-	SessionFSMkdirRequest                                   SessionFSMkdirRequest                                   `json:"SessionFsMkdirRequest"`
-	SessionFSReaddirRequest                                 SessionFSReaddirRequest                                 `json:"SessionFsReaddirRequest"`
-	SessionFSReaddirResult                                  SessionFSReaddirResult                                  `json:"SessionFsReaddirResult"`
-	SessionFSReaddirWithTypesEntry                          SessionFSReaddirWithTypesEntry                          `json:"SessionFsReaddirWithTypesEntry"`
-	SessionFSReaddirWithTypesEntryType                      SessionFSReaddirWithTypesEntryType                      `json:"SessionFsReaddirWithTypesEntryType"`
-	SessionFSReaddirWithTypesRequest                        SessionFSReaddirWithTypesRequest                        `json:"SessionFsReaddirWithTypesRequest"`
-	SessionFSReaddirWithTypesResult                         SessionFSReaddirWithTypesResult                         `json:"SessionFsReaddirWithTypesResult"`
-	SessionFSReadFileRequest                                SessionFSReadFileRequest                                `json:"SessionFsReadFileRequest"`
-	SessionFSReadFileResult                                 SessionFSReadFileResult                                 `json:"SessionFsReadFileResult"`
-	SessionFSRenameRequest                                  SessionFSRenameRequest                                  `json:"SessionFsRenameRequest"`
-	SessionFSRmRequest                                      SessionFSRmRequest                                      `json:"SessionFsRmRequest"`
-	SessionFSSetProviderConventions                         SessionFSSetProviderConventions                         `json:"SessionFsSetProviderConventions"`
-	SessionFSSetProviderRequest                             SessionFSSetProviderRequest                             `json:"SessionFsSetProviderRequest"`
-	SessionFSSetProviderResult                              SessionFSSetProviderResult                              `json:"SessionFsSetProviderResult"`
-	SessionFSStatRequest                                    SessionFSStatRequest                                    `json:"SessionFsStatRequest"`
-	SessionFSStatResult                                     SessionFSStatResult                                     `json:"SessionFsStatResult"`
-	SessionFSWriteFileRequest                               SessionFSWriteFileRequest                               `json:"SessionFsWriteFileRequest"`
-	SessionLogLevel                                         SessionLogLevel                                         `json:"SessionLogLevel"`
-	SessionMode                                             SessionMode                                             `json:"SessionMode"`
-	SessionsForkRequest                                     SessionsForkRequest                                     `json:"SessionsForkRequest"`
-	SessionsForkResult                                      SessionsForkResult                                      `json:"SessionsForkResult"`
-	ShellExecRequest                                        ShellExecRequest                                        `json:"ShellExecRequest"`
-	ShellExecResult                                         ShellExecResult                                         `json:"ShellExecResult"`
-	ShellKillRequest                                        ShellKillRequest                                        `json:"ShellKillRequest"`
-	ShellKillResult                                         ShellKillResult                                         `json:"ShellKillResult"`
-	ShellKillSignal                                         ShellKillSignal                                         `json:"ShellKillSignal"`
-	Skill                                                   Skill                                                   `json:"Skill"`
-	SkillList                                               SkillList                                               `json:"SkillList"`
-	SkillsConfigSetDisabledSkillsRequest                    SkillsConfigSetDisabledSkillsRequest                    `json:"SkillsConfigSetDisabledSkillsRequest"`
-	SkillsConfigSetDisabledSkillsResult                     SkillsConfigSetDisabledSkillsResult                     `json:"SkillsConfigSetDisabledSkillsResult"`
-	SkillsDisableRequest                                    SkillsDisableRequest                                    `json:"SkillsDisableRequest"`
-	SkillsDisableResult                                     SkillsDisableResult                                     `json:"SkillsDisableResult"`
-	SkillsDiscoverRequest                                   SkillsDiscoverRequest                                   `json:"SkillsDiscoverRequest"`
-	SkillsEnableRequest                                     SkillsEnableRequest                                     `json:"SkillsEnableRequest"`
-	SkillsEnableResult                                      SkillsEnableResult                                      `json:"SkillsEnableResult"`
-	SkillsReloadResult                                      SkillsReloadResult                                      `json:"SkillsReloadResult"`
-	TaskAgentInfo                                           TaskAgentInfo                                           `json:"TaskAgentInfo"`
-	TaskAgentInfoExecutionMode                              TaskInfoExecutionMode                                   `json:"TaskAgentInfoExecutionMode"`
-	TaskAgentInfoStatus                                     TaskInfoStatus                                          `json:"TaskAgentInfoStatus"`
-	TaskInfo                                                TaskInfo                                                `json:"TaskInfo"`
-	TaskList                                                TaskList                                                `json:"TaskList"`
-	TasksCancelRequest                                      TasksCancelRequest                                      `json:"TasksCancelRequest"`
-	TasksCancelResult                                       TasksCancelResult                                       `json:"TasksCancelResult"`
-	TaskShellInfo                                           TaskShellInfo                                           `json:"TaskShellInfo"`
-	TaskShellInfoAttachmentMode                             TaskShellInfoAttachmentMode                             `json:"TaskShellInfoAttachmentMode"`
-	TaskShellInfoExecutionMode                              TaskInfoExecutionMode                                   `json:"TaskShellInfoExecutionMode"`
-	TaskShellInfoStatus                                     TaskInfoStatus                                          `json:"TaskShellInfoStatus"`
-	TasksPromoteToBackgroundRequest                         TasksPromoteToBackgroundRequest                         `json:"TasksPromoteToBackgroundRequest"`
-	TasksPromoteToBackgroundResult                          TasksPromoteToBackgroundResult                          `json:"TasksPromoteToBackgroundResult"`
-	TasksRemoveRequest                                      TasksRemoveRequest                                      `json:"TasksRemoveRequest"`
-	TasksRemoveResult                                       TasksRemoveResult                                       `json:"TasksRemoveResult"`
-	TasksStartAgentRequest                                  TasksStartAgentRequest                                  `json:"TasksStartAgentRequest"`
-	TasksStartAgentResult                                   TasksStartAgentResult                                   `json:"TasksStartAgentResult"`
-	Tool                                                    Tool                                                    `json:"Tool"`
-	ToolCallResult                                          ToolCallResult                                          `json:"ToolCallResult"`
-	ToolList                                                ToolList                                                `json:"ToolList"`
-	ToolsHandlePendingToolCall                              *ToolsHandlePendingToolCall                             `json:"ToolsHandlePendingToolCall"`
-	ToolsHandlePendingToolCallRequest                       ToolsHandlePendingToolCallRequest                       `json:"ToolsHandlePendingToolCallRequest"`
-	ToolsListRequest                                        ToolsListRequest                                        `json:"ToolsListRequest"`
-	UIElicitationArrayAnyOfField                            UIElicitationArrayAnyOfField                            `json:"UIElicitationArrayAnyOfField"`
-	UIElicitationArrayAnyOfFieldItems                       UIElicitationArrayAnyOfFieldItems                       `json:"UIElicitationArrayAnyOfFieldItems"`
-	UIElicitationArrayAnyOfFieldItemsAnyOf                  UIElicitationArrayAnyOfFieldItemsAnyOf                  `json:"UIElicitationArrayAnyOfFieldItemsAnyOf"`
-	UIElicitationArrayEnumField                             UIElicitationArrayEnumField                             `json:"UIElicitationArrayEnumField"`
-	UIElicitationArrayEnumFieldItems                        UIElicitationArrayEnumFieldItems                        `json:"UIElicitationArrayEnumFieldItems"`
-	UIElicitationFieldValue                                 *UIElicitationFieldValue                                `json:"UIElicitationFieldValue"`
-	UIElicitationRequest                                    UIElicitationRequest                                    `json:"UIElicitationRequest"`
-	UIElicitationResponse                                   UIElicitationResponse                                   `json:"UIElicitationResponse"`
-	UIElicitationResponseAction                             UIElicitationResponseAction                             `json:"UIElicitationResponseAction"`
-	UIElicitationResponseContent                            map[string]*UIElicitationFieldValue                     `json:"UIElicitationResponseContent"`
-	UIElicitationResult                                     UIElicitationResult                                     `json:"UIElicitationResult"`
-	UIElicitationSchema                                     UIElicitationSchema                                     `json:"UIElicitationSchema"`
-	UIElicitationSchemaProperty                             UIElicitationSchemaProperty                             `json:"UIElicitationSchemaProperty"`
-	UIElicitationSchemaPropertyBoolean                      UIElicitationSchemaPropertyBoolean                      `json:"UIElicitationSchemaPropertyBoolean"`
-	UIElicitationSchemaPropertyNumber                       UIElicitationSchemaPropertyNumber                       `json:"UIElicitationSchemaPropertyNumber"`
-	UIElicitationSchemaPropertyNumberType                   UIElicitationSchemaPropertyNumberTypeEnum               `json:"UIElicitationSchemaPropertyNumberType"`
-	UIElicitationSchemaPropertyString                       UIElicitationSchemaPropertyString                       `json:"UIElicitationSchemaPropertyString"`
-	UIElicitationSchemaPropertyStringFormat                 UIElicitationSchemaPropertyStringFormat                 `json:"UIElicitationSchemaPropertyStringFormat"`
-	UIElicitationStringEnumField                            UIElicitationStringEnumField                            `json:"UIElicitationStringEnumField"`
-	UIElicitationStringOneOfField                           UIElicitationStringOneOfField                           `json:"UIElicitationStringOneOfField"`
-	UIElicitationStringOneOfFieldOneOf                      UIElicitationStringOneOfFieldOneOf                      `json:"UIElicitationStringOneOfFieldOneOf"`
-	UIHandlePendingElicitationRequest                       UIHandlePendingElicitationRequest                       `json:"UIHandlePendingElicitationRequest"`
-	UsageGetMetricsResult                                   UsageGetMetricsResult                                   `json:"UsageGetMetricsResult"`
-	UsageMetricsCodeChanges                                 UsageMetricsCodeChanges                                 `json:"UsageMetricsCodeChanges"`
-	UsageMetricsModelMetric                                 UsageMetricsModelMetric                                 `json:"UsageMetricsModelMetric"`
-	UsageMetricsModelMetricRequests                         UsageMetricsModelMetricRequests                         `json:"UsageMetricsModelMetricRequests"`
-	UsageMetricsModelMetricUsage                            UsageMetricsModelMetricUsage                            `json:"UsageMetricsModelMetricUsage"`
-	WorkspacesCreateFileRequest                             WorkspacesCreateFileRequest                             `json:"WorkspacesCreateFileRequest"`
-	WorkspacesCreateFileResult                              WorkspacesCreateFileResult                              `json:"WorkspacesCreateFileResult"`
-	WorkspacesGetWorkspaceResult                            WorkspacesGetWorkspaceResult                            `json:"WorkspacesGetWorkspaceResult"`
-	WorkspacesListFilesResult                               WorkspacesListFilesResult                               `json:"WorkspacesListFilesResult"`
-	WorkspacesReadFileRequest                               WorkspacesReadFileRequest                               `json:"WorkspacesReadFileRequest"`
-	WorkspacesReadFileResult                                WorkspacesReadFileResult                                `json:"WorkspacesReadFileResult"`
+	AccountGetQuotaRequest                                   AccountGetQuotaRequest                                   `json:"AccountGetQuotaRequest"`
+	AccountGetQuotaResult                                    AccountGetQuotaResult                                    `json:"AccountGetQuotaResult"`
+	AccountQuotaSnapshot                                     AccountQuotaSnapshot                                     `json:"AccountQuotaSnapshot"`
+	AgentDeselectResult                                      AgentDeselectResult                                      `json:"AgentDeselectResult"`
+	AgentGetCurrentResult                                    AgentGetCurrentResult                                    `json:"AgentGetCurrentResult"`
+	AgentInfo                                                AgentInfo                                                `json:"AgentInfo"`
+	AgentList                                                AgentList                                                `json:"AgentList"`
+	AgentReloadResult                                        AgentReloadResult                                        `json:"AgentReloadResult"`
+	AgentSelectRequest                                       AgentSelectRequest                                       `json:"AgentSelectRequest"`
+	AgentSelectResult                                        AgentSelectResult                                        `json:"AgentSelectResult"`
+	AuthInfoType                                             AuthInfoType                                             `json:"AuthInfoType"`
+	CommandsHandlePendingCommandRequest                      CommandsHandlePendingCommandRequest                      `json:"CommandsHandlePendingCommandRequest"`
+	CommandsHandlePendingCommandResult                       CommandsHandlePendingCommandResult                       `json:"CommandsHandlePendingCommandResult"`
+	CurrentModel                                             CurrentModel                                             `json:"CurrentModel"`
+	DiscoveredMCPServer                                      DiscoveredMCPServer                                      `json:"DiscoveredMcpServer"`
+	DiscoveredMCPServerSource                                MCPServerSource                                          `json:"DiscoveredMcpServerSource"`
+	DiscoveredMCPServerType                                  DiscoveredMCPServerType                                  `json:"DiscoveredMcpServerType"`
+	EmbeddedBlobResourceContents                             EmbeddedBlobResourceContents                             `json:"EmbeddedBlobResourceContents"`
+	EmbeddedTextResourceContents                             EmbeddedTextResourceContents                             `json:"EmbeddedTextResourceContents"`
+	Extension                                                Extension                                                `json:"Extension"`
+	ExtensionList                                            ExtensionList                                            `json:"ExtensionList"`
+	ExtensionsDisableRequest                                 ExtensionsDisableRequest                                 `json:"ExtensionsDisableRequest"`
+	ExtensionsDisableResult                                  ExtensionsDisableResult                                  `json:"ExtensionsDisableResult"`
+	ExtensionsEnableRequest                                  ExtensionsEnableRequest                                  `json:"ExtensionsEnableRequest"`
+	ExtensionsEnableResult                                   ExtensionsEnableResult                                   `json:"ExtensionsEnableResult"`
+	ExtensionSource                                          ExtensionSource                                          `json:"ExtensionSource"`
+	ExtensionsReloadResult                                   ExtensionsReloadResult                                   `json:"ExtensionsReloadResult"`
+	ExtensionStatus                                          ExtensionStatus                                          `json:"ExtensionStatus"`
+	ExternalToolResult                                       *ExternalToolResult                                      `json:"ExternalToolResult"`
+	ExternalToolTextResultForLlm                             ExternalToolTextResultForLlm                             `json:"ExternalToolTextResultForLlm"`
+	ExternalToolTextResultForLlmContent                      ExternalToolTextResultForLlmContent                      `json:"ExternalToolTextResultForLlmContent"`
+	ExternalToolTextResultForLlmContentAudio                 ExternalToolTextResultForLlmContentAudio                 `json:"ExternalToolTextResultForLlmContentAudio"`
+	ExternalToolTextResultForLlmContentImage                 ExternalToolTextResultForLlmContentImage                 `json:"ExternalToolTextResultForLlmContentImage"`
+	ExternalToolTextResultForLlmContentResource              ExternalToolTextResultForLlmContentResource              `json:"ExternalToolTextResultForLlmContentResource"`
+	ExternalToolTextResultForLlmContentResourceDetails       ExternalToolTextResultForLlmContentResourceDetails       `json:"ExternalToolTextResultForLlmContentResourceDetails"`
+	ExternalToolTextResultForLlmContentResourceLink          ExternalToolTextResultForLlmContentResourceLink          `json:"ExternalToolTextResultForLlmContentResourceLink"`
+	ExternalToolTextResultForLlmContentResourceLinkIcon      ExternalToolTextResultForLlmContentResourceLinkIcon      `json:"ExternalToolTextResultForLlmContentResourceLinkIcon"`
+	ExternalToolTextResultForLlmContentResourceLinkIconTheme ExternalToolTextResultForLlmContentResourceLinkIconTheme `json:"ExternalToolTextResultForLlmContentResourceLinkIconTheme"`
+	ExternalToolTextResultForLlmContentTerminal              ExternalToolTextResultForLlmContentTerminal              `json:"ExternalToolTextResultForLlmContentTerminal"`
+	ExternalToolTextResultForLlmContentText                  ExternalToolTextResultForLlmContentText                  `json:"ExternalToolTextResultForLlmContentText"`
+	FilterMapping                                            *FilterMapping                                           `json:"FilterMapping"`
+	FilterMappingString                                      FilterMappingString                                      `json:"FilterMappingString"`
+	FilterMappingValue                                       FilterMappingString                                      `json:"FilterMappingValue"`
+	FleetStartRequest                                        FleetStartRequest                                        `json:"FleetStartRequest"`
+	FleetStartResult                                         FleetStartResult                                         `json:"FleetStartResult"`
+	HandlePendingToolCallRequest                             HandlePendingToolCallRequest                             `json:"HandlePendingToolCallRequest"`
+	HandlePendingToolCallResult                              HandlePendingToolCallResult                              `json:"HandlePendingToolCallResult"`
+	HistoryCompactContextWindow                              HistoryCompactContextWindow                              `json:"HistoryCompactContextWindow"`
+	HistoryCompactResult                                     HistoryCompactResult                                     `json:"HistoryCompactResult"`
+	HistoryTruncateRequest                                   HistoryTruncateRequest                                   `json:"HistoryTruncateRequest"`
+	HistoryTruncateResult                                    HistoryTruncateResult                                    `json:"HistoryTruncateResult"`
+	InstructionsGetSourcesResult                             InstructionsGetSourcesResult                             `json:"InstructionsGetSourcesResult"`
+	InstructionsSources                                      InstructionsSources                                      `json:"InstructionsSources"`
+	InstructionsSourcesLocation                              InstructionsSourcesLocation                              `json:"InstructionsSourcesLocation"`
+	InstructionsSourcesType                                  InstructionsSourcesType                                  `json:"InstructionsSourcesType"`
+	LogRequest                                               LogRequest                                               `json:"LogRequest"`
+	LogResult                                                LogResult                                                `json:"LogResult"`
+	MCPConfigAddRequest                                      MCPConfigAddRequest                                      `json:"McpConfigAddRequest"`
+	MCPConfigAddResult                                       MCPConfigAddResult                                       `json:"McpConfigAddResult"`
+	MCPConfigDisableRequest                                  MCPConfigDisableRequest                                  `json:"McpConfigDisableRequest"`
+	MCPConfigDisableResult                                   MCPConfigDisableResult                                   `json:"McpConfigDisableResult"`
+	MCPConfigEnableRequest                                   MCPConfigEnableRequest                                   `json:"McpConfigEnableRequest"`
+	MCPConfigEnableResult                                    MCPConfigEnableResult                                    `json:"McpConfigEnableResult"`
+	MCPConfigList                                            MCPConfigList                                            `json:"McpConfigList"`
+	MCPConfigRemoveRequest                                   MCPConfigRemoveRequest                                   `json:"McpConfigRemoveRequest"`
+	MCPConfigRemoveResult                                    MCPConfigRemoveResult                                    `json:"McpConfigRemoveResult"`
+	MCPConfigUpdateRequest                                   MCPConfigUpdateRequest                                   `json:"McpConfigUpdateRequest"`
+	MCPConfigUpdateResult                                    MCPConfigUpdateResult                                    `json:"McpConfigUpdateResult"`
+	MCPDisableRequest                                        MCPDisableRequest                                        `json:"McpDisableRequest"`
+	MCPDisableResult                                         MCPDisableResult                                         `json:"McpDisableResult"`
+	MCPDiscoverRequest                                       MCPDiscoverRequest                                       `json:"McpDiscoverRequest"`
+	MCPDiscoverResult                                        MCPDiscoverResult                                        `json:"McpDiscoverResult"`
+	MCPEnableRequest                                         MCPEnableRequest                                         `json:"McpEnableRequest"`
+	MCPEnableResult                                          MCPEnableResult                                          `json:"McpEnableResult"`
+	MCPOauthLoginRequest                                     MCPOauthLoginRequest                                     `json:"McpOauthLoginRequest"`
+	MCPOauthLoginResult                                      MCPOauthLoginResult                                      `json:"McpOauthLoginResult"`
+	MCPReloadResult                                          MCPReloadResult                                          `json:"McpReloadResult"`
+	MCPServer                                                MCPServer                                                `json:"McpServer"`
+	MCPServerConfig                                          MCPServerConfig                                          `json:"McpServerConfig"`
+	MCPServerConfigHTTP                                      MCPServerConfigHTTP                                      `json:"McpServerConfigHttp"`
+	MCPServerConfigHTTPType                                  MCPServerConfigHTTPType                                  `json:"McpServerConfigHttpType"`
+	MCPServerConfigLocal                                     MCPServerConfigLocal                                     `json:"McpServerConfigLocal"`
+	MCPServerConfigLocalType                                 MCPServerConfigLocalType                                 `json:"McpServerConfigLocalType"`
+	MCPServerList                                            MCPServerList                                            `json:"McpServerList"`
+	MCPServerSource                                          MCPServerSource                                          `json:"McpServerSource"`
+	MCPServerStatus                                          MCPServerStatus                                          `json:"McpServerStatus"`
+	Model                                                    ModelElement                                             `json:"Model"`
+	ModelBilling                                             ModelBilling                                             `json:"ModelBilling"`
+	ModelCapabilities                                        ModelCapabilities                                        `json:"ModelCapabilities"`
+	ModelCapabilitiesLimits                                  ModelCapabilitiesLimits                                  `json:"ModelCapabilitiesLimits"`
+	ModelCapabilitiesLimitsVision                            ModelCapabilitiesLimitsVision                            `json:"ModelCapabilitiesLimitsVision"`
+	ModelCapabilitiesOverride                                ModelCapabilitiesOverride                                `json:"ModelCapabilitiesOverride"`
+	ModelCapabilitiesOverrideLimits                          ModelCapabilitiesOverrideLimits                          `json:"ModelCapabilitiesOverrideLimits"`
+	ModelCapabilitiesOverrideLimitsVision                    ModelCapabilitiesOverrideLimitsVision                    `json:"ModelCapabilitiesOverrideLimitsVision"`
+	ModelCapabilitiesOverrideSupports                        ModelCapabilitiesOverrideSupports                        `json:"ModelCapabilitiesOverrideSupports"`
+	ModelCapabilitiesSupports                                ModelCapabilitiesSupports                                `json:"ModelCapabilitiesSupports"`
+	ModelList                                                ModelList                                                `json:"ModelList"`
+	ModelPolicy                                              ModelPolicy                                              `json:"ModelPolicy"`
+	ModelsListRequest                                        ModelsListRequest                                        `json:"ModelsListRequest"`
+	ModelSwitchToRequest                                     ModelSwitchToRequest                                     `json:"ModelSwitchToRequest"`
+	ModelSwitchToResult                                      ModelSwitchToResult                                      `json:"ModelSwitchToResult"`
+	ModeSetRequest                                           ModeSetRequest                                           `json:"ModeSetRequest"`
+	ModeSetResult                                            ModeSetResult                                            `json:"ModeSetResult"`
+	NameGetResult                                            NameGetResult                                            `json:"NameGetResult"`
+	NameSetRequest                                           NameSetRequest                                           `json:"NameSetRequest"`
+	NameSetResult                                            NameSetResult                                            `json:"NameSetResult"`
+	PermissionDecision                                       PermissionDecision                                       `json:"PermissionDecision"`
+	PermissionDecisionApproveForLocation                     PermissionDecisionApproveForLocation                     `json:"PermissionDecisionApproveForLocation"`
+	PermissionDecisionApproveForLocationApproval             PermissionDecisionApproveForLocationApproval             `json:"PermissionDecisionApproveForLocationApproval"`
+	PermissionDecisionApproveForLocationApprovalCommands     PermissionDecisionApproveForLocationApprovalCommands     `json:"PermissionDecisionApproveForLocationApprovalCommands"`
+	PermissionDecisionApproveForLocationApprovalCustomTool   PermissionDecisionApproveForLocationApprovalCustomTool   `json:"PermissionDecisionApproveForLocationApprovalCustomTool"`
+	PermissionDecisionApproveForLocationApprovalMCP          PermissionDecisionApproveForLocationApprovalMCP          `json:"PermissionDecisionApproveForLocationApprovalMcp"`
+	PermissionDecisionApproveForLocationApprovalMCPSampling  PermissionDecisionApproveForLocationApprovalMCPSampling  `json:"PermissionDecisionApproveForLocationApprovalMcpSampling"`
+	PermissionDecisionApproveForLocationApprovalMemory       PermissionDecisionApproveForLocationApprovalMemory       `json:"PermissionDecisionApproveForLocationApprovalMemory"`
+	PermissionDecisionApproveForLocationApprovalRead         PermissionDecisionApproveForLocationApprovalRead         `json:"PermissionDecisionApproveForLocationApprovalRead"`
+	PermissionDecisionApproveForLocationApprovalWrite        PermissionDecisionApproveForLocationApprovalWrite        `json:"PermissionDecisionApproveForLocationApprovalWrite"`
+	PermissionDecisionApproveForSession                      PermissionDecisionApproveForSession                      `json:"PermissionDecisionApproveForSession"`
+	PermissionDecisionApproveForSessionApproval              PermissionDecisionApproveForSessionApproval              `json:"PermissionDecisionApproveForSessionApproval"`
+	PermissionDecisionApproveForSessionApprovalCommands      PermissionDecisionApproveForSessionApprovalCommands      `json:"PermissionDecisionApproveForSessionApprovalCommands"`
+	PermissionDecisionApproveForSessionApprovalCustomTool    PermissionDecisionApproveForSessionApprovalCustomTool    `json:"PermissionDecisionApproveForSessionApprovalCustomTool"`
+	PermissionDecisionApproveForSessionApprovalMCP           PermissionDecisionApproveForSessionApprovalMCP           `json:"PermissionDecisionApproveForSessionApprovalMcp"`
+	PermissionDecisionApproveForSessionApprovalMCPSampling   PermissionDecisionApproveForSessionApprovalMCPSampling   `json:"PermissionDecisionApproveForSessionApprovalMcpSampling"`
+	PermissionDecisionApproveForSessionApprovalMemory        PermissionDecisionApproveForSessionApprovalMemory        `json:"PermissionDecisionApproveForSessionApprovalMemory"`
+	PermissionDecisionApproveForSessionApprovalRead          PermissionDecisionApproveForSessionApprovalRead          `json:"PermissionDecisionApproveForSessionApprovalRead"`
+	PermissionDecisionApproveForSessionApprovalWrite         PermissionDecisionApproveForSessionApprovalWrite         `json:"PermissionDecisionApproveForSessionApprovalWrite"`
+	PermissionDecisionApproveOnce                            PermissionDecisionApproveOnce                            `json:"PermissionDecisionApproveOnce"`
+	PermissionDecisionApprovePermanently                     PermissionDecisionApprovePermanently                     `json:"PermissionDecisionApprovePermanently"`
+	PermissionDecisionReject                                 PermissionDecisionReject                                 `json:"PermissionDecisionReject"`
+	PermissionDecisionRequest                                PermissionDecisionRequest                                `json:"PermissionDecisionRequest"`
+	PermissionDecisionUserNotAvailable                       PermissionDecisionUserNotAvailable                       `json:"PermissionDecisionUserNotAvailable"`
+	PermissionRequestResult                                  PermissionRequestResult                                  `json:"PermissionRequestResult"`
+	PermissionsResetSessionApprovalsRequest                  PermissionsResetSessionApprovalsRequest                  `json:"PermissionsResetSessionApprovalsRequest"`
+	PermissionsResetSessionApprovalsResult                   PermissionsResetSessionApprovalsResult                   `json:"PermissionsResetSessionApprovalsResult"`
+	PermissionsSetApproveAllRequest                          PermissionsSetApproveAllRequest                          `json:"PermissionsSetApproveAllRequest"`
+	PermissionsSetApproveAllResult                           PermissionsSetApproveAllResult                           `json:"PermissionsSetApproveAllResult"`
+	PingRequest                                              PingRequest                                              `json:"PingRequest"`
+	PingResult                                               PingResult                                               `json:"PingResult"`
+	PlanDeleteResult                                         PlanDeleteResult                                         `json:"PlanDeleteResult"`
+	PlanReadResult                                           PlanReadResult                                           `json:"PlanReadResult"`
+	PlanUpdateRequest                                        PlanUpdateRequest                                        `json:"PlanUpdateRequest"`
+	PlanUpdateResult                                         PlanUpdateResult                                         `json:"PlanUpdateResult"`
+	Plugin                                                   PluginElement                                            `json:"Plugin"`
+	PluginList                                               PluginList                                               `json:"PluginList"`
+	ServerSkill                                              ServerSkill                                              `json:"ServerSkill"`
+	ServerSkillList                                          ServerSkillList                                          `json:"ServerSkillList"`
+	SessionAuthStatus                                        SessionAuthStatus                                        `json:"SessionAuthStatus"`
+	SessionFSAppendFileRequest                               SessionFSAppendFileRequest                               `json:"SessionFsAppendFileRequest"`
+	SessionFSError                                           SessionFSError                                           `json:"SessionFsError"`
+	SessionFSErrorCode                                       SessionFSErrorCode                                       `json:"SessionFsErrorCode"`
+	SessionFSExistsRequest                                   SessionFSExistsRequest                                   `json:"SessionFsExistsRequest"`
+	SessionFSExistsResult                                    SessionFSExistsResult                                    `json:"SessionFsExistsResult"`
+	SessionFSMkdirRequest                                    SessionFSMkdirRequest                                    `json:"SessionFsMkdirRequest"`
+	SessionFSReaddirRequest                                  SessionFSReaddirRequest                                  `json:"SessionFsReaddirRequest"`
+	SessionFSReaddirResult                                   SessionFSReaddirResult                                   `json:"SessionFsReaddirResult"`
+	SessionFSReaddirWithTypesEntry                           SessionFSReaddirWithTypesEntry                           `json:"SessionFsReaddirWithTypesEntry"`
+	SessionFSReaddirWithTypesEntryType                       SessionFSReaddirWithTypesEntryType                       `json:"SessionFsReaddirWithTypesEntryType"`
+	SessionFSReaddirWithTypesRequest                         SessionFSReaddirWithTypesRequest                         `json:"SessionFsReaddirWithTypesRequest"`
+	SessionFSReaddirWithTypesResult                          SessionFSReaddirWithTypesResult                          `json:"SessionFsReaddirWithTypesResult"`
+	SessionFSReadFileRequest                                 SessionFSReadFileRequest                                 `json:"SessionFsReadFileRequest"`
+	SessionFSReadFileResult                                  SessionFSReadFileResult                                  `json:"SessionFsReadFileResult"`
+	SessionFSRenameRequest                                   SessionFSRenameRequest                                   `json:"SessionFsRenameRequest"`
+	SessionFSRmRequest                                       SessionFSRmRequest                                       `json:"SessionFsRmRequest"`
+	SessionFSSetProviderConventions                          SessionFSSetProviderConventions                          `json:"SessionFsSetProviderConventions"`
+	SessionFSSetProviderRequest                              SessionFSSetProviderRequest                              `json:"SessionFsSetProviderRequest"`
+	SessionFSSetProviderResult                               SessionFSSetProviderResult                               `json:"SessionFsSetProviderResult"`
+	SessionFSStatRequest                                     SessionFSStatRequest                                     `json:"SessionFsStatRequest"`
+	SessionFSStatResult                                      SessionFSStatResult                                      `json:"SessionFsStatResult"`
+	SessionFSWriteFileRequest                                SessionFSWriteFileRequest                                `json:"SessionFsWriteFileRequest"`
+	SessionLogLevel                                          SessionLogLevel                                          `json:"SessionLogLevel"`
+	SessionMode                                              SessionMode                                              `json:"SessionMode"`
+	SessionsForkRequest                                      SessionsForkRequest                                      `json:"SessionsForkRequest"`
+	SessionsForkResult                                       SessionsForkResult                                       `json:"SessionsForkResult"`
+	ShellExecRequest                                         ShellExecRequest                                         `json:"ShellExecRequest"`
+	ShellExecResult                                          ShellExecResult                                          `json:"ShellExecResult"`
+	ShellKillRequest                                         ShellKillRequest                                         `json:"ShellKillRequest"`
+	ShellKillResult                                          ShellKillResult                                          `json:"ShellKillResult"`
+	ShellKillSignal                                          ShellKillSignal                                          `json:"ShellKillSignal"`
+	Skill                                                    Skill                                                    `json:"Skill"`
+	SkillList                                                SkillList                                                `json:"SkillList"`
+	SkillsConfigSetDisabledSkillsRequest                     SkillsConfigSetDisabledSkillsRequest                     `json:"SkillsConfigSetDisabledSkillsRequest"`
+	SkillsConfigSetDisabledSkillsResult                      SkillsConfigSetDisabledSkillsResult                      `json:"SkillsConfigSetDisabledSkillsResult"`
+	SkillsDisableRequest                                     SkillsDisableRequest                                     `json:"SkillsDisableRequest"`
+	SkillsDisableResult                                      SkillsDisableResult                                      `json:"SkillsDisableResult"`
+	SkillsDiscoverRequest                                    SkillsDiscoverRequest                                    `json:"SkillsDiscoverRequest"`
+	SkillsEnableRequest                                      SkillsEnableRequest                                      `json:"SkillsEnableRequest"`
+	SkillsEnableResult                                       SkillsEnableResult                                       `json:"SkillsEnableResult"`
+	SkillsReloadResult                                       SkillsReloadResult                                       `json:"SkillsReloadResult"`
+	TaskAgentInfo                                            TaskAgentInfo                                            `json:"TaskAgentInfo"`
+	TaskAgentInfoExecutionMode                               TaskInfoExecutionMode                                    `json:"TaskAgentInfoExecutionMode"`
+	TaskAgentInfoStatus                                      TaskInfoStatus                                           `json:"TaskAgentInfoStatus"`
+	TaskInfo                                                 TaskInfo                                                 `json:"TaskInfo"`
+	TaskList                                                 TaskList                                                 `json:"TaskList"`
+	TasksCancelRequest                                       TasksCancelRequest                                       `json:"TasksCancelRequest"`
+	TasksCancelResult                                        TasksCancelResult                                        `json:"TasksCancelResult"`
+	TaskShellInfo                                            TaskShellInfo                                            `json:"TaskShellInfo"`
+	TaskShellInfoAttachmentMode                              TaskShellInfoAttachmentMode                              `json:"TaskShellInfoAttachmentMode"`
+	TaskShellInfoExecutionMode                               TaskInfoExecutionMode                                    `json:"TaskShellInfoExecutionMode"`
+	TaskShellInfoStatus                                      TaskInfoStatus                                           `json:"TaskShellInfoStatus"`
+	TasksPromoteToBackgroundRequest                          TasksPromoteToBackgroundRequest                          `json:"TasksPromoteToBackgroundRequest"`
+	TasksPromoteToBackgroundResult                           TasksPromoteToBackgroundResult                           `json:"TasksPromoteToBackgroundResult"`
+	TasksRemoveRequest                                       TasksRemoveRequest                                       `json:"TasksRemoveRequest"`
+	TasksRemoveResult                                        TasksRemoveResult                                        `json:"TasksRemoveResult"`
+	TasksStartAgentRequest                                   TasksStartAgentRequest                                   `json:"TasksStartAgentRequest"`
+	TasksStartAgentResult                                    TasksStartAgentResult                                    `json:"TasksStartAgentResult"`
+	Tool                                                     Tool                                                     `json:"Tool"`
+	ToolList                                                 ToolList                                                 `json:"ToolList"`
+	ToolsListRequest                                         ToolsListRequest                                         `json:"ToolsListRequest"`
+	UIElicitationArrayAnyOfField                             UIElicitationArrayAnyOfField                             `json:"UIElicitationArrayAnyOfField"`
+	UIElicitationArrayAnyOfFieldItems                        UIElicitationArrayAnyOfFieldItems                        `json:"UIElicitationArrayAnyOfFieldItems"`
+	UIElicitationArrayAnyOfFieldItemsAnyOf                   UIElicitationArrayAnyOfFieldItemsAnyOf                   `json:"UIElicitationArrayAnyOfFieldItemsAnyOf"`
+	UIElicitationArrayEnumField                              UIElicitationArrayEnumField                              `json:"UIElicitationArrayEnumField"`
+	UIElicitationArrayEnumFieldItems                         UIElicitationArrayEnumFieldItems                         `json:"UIElicitationArrayEnumFieldItems"`
+	UIElicitationFieldValue                                  *UIElicitationFieldValue                                 `json:"UIElicitationFieldValue"`
+	UIElicitationRequest                                     UIElicitationRequest                                     `json:"UIElicitationRequest"`
+	UIElicitationResponse                                    UIElicitationResponse                                    `json:"UIElicitationResponse"`
+	UIElicitationResponseAction                              UIElicitationResponseAction                              `json:"UIElicitationResponseAction"`
+	UIElicitationResponseContent                             map[string]*UIElicitationFieldValue                      `json:"UIElicitationResponseContent"`
+	UIElicitationResult                                      UIElicitationResult                                      `json:"UIElicitationResult"`
+	UIElicitationSchema                                      UIElicitationSchema                                      `json:"UIElicitationSchema"`
+	UIElicitationSchemaProperty                              UIElicitationSchemaProperty                              `json:"UIElicitationSchemaProperty"`
+	UIElicitationSchemaPropertyBoolean                       UIElicitationSchemaPropertyBoolean                       `json:"UIElicitationSchemaPropertyBoolean"`
+	UIElicitationSchemaPropertyNumber                        UIElicitationSchemaPropertyNumber                        `json:"UIElicitationSchemaPropertyNumber"`
+	UIElicitationSchemaPropertyNumberType                    UIElicitationSchemaPropertyNumberTypeEnum                `json:"UIElicitationSchemaPropertyNumberType"`
+	UIElicitationSchemaPropertyString                        UIElicitationSchemaPropertyString                        `json:"UIElicitationSchemaPropertyString"`
+	UIElicitationSchemaPropertyStringFormat                  UIElicitationSchemaPropertyStringFormat                  `json:"UIElicitationSchemaPropertyStringFormat"`
+	UIElicitationStringEnumField                             UIElicitationStringEnumField                             `json:"UIElicitationStringEnumField"`
+	UIElicitationStringOneOfField                            UIElicitationStringOneOfField                            `json:"UIElicitationStringOneOfField"`
+	UIElicitationStringOneOfFieldOneOf                       UIElicitationStringOneOfFieldOneOf                       `json:"UIElicitationStringOneOfFieldOneOf"`
+	UIHandlePendingElicitationRequest                        UIHandlePendingElicitationRequest                        `json:"UIHandlePendingElicitationRequest"`
+	UsageGetMetricsResult                                    UsageGetMetricsResult                                    `json:"UsageGetMetricsResult"`
+	UsageMetricsCodeChanges                                  UsageMetricsCodeChanges                                  `json:"UsageMetricsCodeChanges"`
+	UsageMetricsModelMetric                                  UsageMetricsModelMetric                                  `json:"UsageMetricsModelMetric"`
+	UsageMetricsModelMetricRequests                          UsageMetricsModelMetricRequests                          `json:"UsageMetricsModelMetricRequests"`
+	UsageMetricsModelMetricTokenDetail                       UsageMetricsModelMetricTokenDetail                       `json:"UsageMetricsModelMetricTokenDetail"`
+	UsageMetricsModelMetricUsage                             UsageMetricsModelMetricUsage                             `json:"UsageMetricsModelMetricUsage"`
+	UsageMetricsTokenDetail                                  UsageMetricsTokenDetail                                  `json:"UsageMetricsTokenDetail"`
+	WorkspacesCreateFileRequest                              WorkspacesCreateFileRequest                              `json:"WorkspacesCreateFileRequest"`
+	WorkspacesCreateFileResult                               WorkspacesCreateFileResult                               `json:"WorkspacesCreateFileResult"`
+	WorkspacesGetWorkspaceResult                             WorkspacesGetWorkspaceResult                             `json:"WorkspacesGetWorkspaceResult"`
+	WorkspacesListFilesResult                                WorkspacesListFilesResult                                `json:"WorkspacesListFilesResult"`
+	WorkspacesReadFileRequest                                WorkspacesReadFileRequest                                `json:"WorkspacesReadFileRequest"`
+	WorkspacesReadFileResult                                 WorkspacesReadFileResult                                 `json:"WorkspacesReadFileResult"`
 }
 
 type AccountGetQuotaRequest struct {
@@ -347,6 +362,24 @@ type DiscoveredMCPServer struct {
 	Type *DiscoveredMCPServerType `json:"type,omitempty"`
 }
 
+type EmbeddedBlobResourceContents struct {
+	// Base64-encoded binary content of the resource
+	Blob string `json:"blob"`
+	// MIME type of the blob content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
+type EmbeddedTextResourceContents struct {
+	// MIME type of the text content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content of the resource
+	Text string `json:"text"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
 type Extension struct {
 	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
 	ID string `json:"id"`
@@ -390,6 +423,168 @@ type ExtensionsEnableResult struct {
 type ExtensionsReloadResult struct {
 }
 
+// Expanded external tool result payload
+type ExternalToolTextResultForLlm struct {
+	// Structured content blocks from the tool
+	Contents []ExternalToolTextResultForLlmContent `json:"contents,omitempty"`
+	// Optional error message for failed executions
+	Error *string `json:"error,omitempty"`
+	// Execution outcome classification. Optional for back-compat; normalized to 'success' (or
+	// 'failure' when error is present) when missing or unrecognized.
+	ResultType *string `json:"resultType,omitempty"`
+	// Detailed log content for timeline display
+	SessionLog *string `json:"sessionLog,omitempty"`
+	// Text result returned to the model
+	TextResultForLlm string `json:"textResultForLlm"`
+	// Optional tool-specific telemetry
+	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
+}
+
+// A content block within a tool result, which may be text, terminal output, image, audio,
+// or a resource
+//
+// # Plain text content block
+//
+// Terminal/shell output content block with optional exit code and working directory
+//
+// # Image content block with base64-encoded data
+//
+// # Audio content block with base64-encoded data
+//
+// # Resource link content block referencing an external resource
+//
+// Embedded resource content block with inline text or binary data
+type ExternalToolTextResultForLlmContent struct {
+	// The text content
+	//
+	// Terminal/shell output text
+	Text *string `json:"text,omitempty"`
+	// Content block type discriminator
+	Type ExternalToolTextResultForLlmContentType `json:"type"`
+	// Working directory where the command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Process exit code, if the command has completed
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Base64-encoded image data
+	//
+	// Base64-encoded audio data
+	Data *string `json:"data,omitempty"`
+	// MIME type of the image (e.g., image/png, image/jpeg)
+	//
+	// MIME type of the audio (e.g., audio/wav, audio/mpeg)
+	//
+	// MIME type of the resource content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Human-readable description of the resource
+	Description *string `json:"description,omitempty"`
+	// Icons associated with this resource
+	Icons []ExternalToolTextResultForLlmContentResourceLinkIcon `json:"icons,omitempty"`
+	// Resource name identifier
+	Name *string `json:"name,omitempty"`
+	// Size of the resource in bytes
+	Size *float64 `json:"size,omitempty"`
+	// Human-readable display title for the resource
+	Title *string `json:"title,omitempty"`
+	// URI identifying the resource
+	URI *string `json:"uri,omitempty"`
+	// The embedded resource contents, either text or base64-encoded binary
+	Resource *ExternalToolTextResultForLlmContentResourceDetails `json:"resource,omitempty"`
+}
+
+// Icon image for a resource
+type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
+	// MIME type of the icon image
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Available icon sizes (e.g., ['16x16', '32x32'])
+	Sizes []string `json:"sizes,omitempty"`
+	// URL or path to the icon image
+	Src string `json:"src"`
+	// Theme variant this icon is intended for
+	Theme *ExternalToolTextResultForLlmContentResourceLinkIconTheme `json:"theme,omitempty"`
+}
+
+// The embedded resource contents, either text or base64-encoded binary
+type ExternalToolTextResultForLlmContentResourceDetails struct {
+	// MIME type of the text content
+	//
+	// MIME type of the blob content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content of the resource
+	Text *string `json:"text,omitempty"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+	// Base64-encoded binary content of the resource
+	Blob *string `json:"blob,omitempty"`
+}
+
+// Audio content block with base64-encoded data
+type ExternalToolTextResultForLlmContentAudio struct {
+	// Base64-encoded audio data
+	Data string `json:"data"`
+	// MIME type of the audio (e.g., audio/wav, audio/mpeg)
+	MIMEType string `json:"mimeType"`
+	// Content block type discriminator
+	Type ExternalToolTextResultForLlmContentAudioType `json:"type"`
+}
+
+// Image content block with base64-encoded data
+type ExternalToolTextResultForLlmContentImage struct {
+	// Base64-encoded image data
+	Data string `json:"data"`
+	// MIME type of the image (e.g., image/png, image/jpeg)
+	MIMEType string `json:"mimeType"`
+	// Content block type discriminator
+	Type ExternalToolTextResultForLlmContentImageType `json:"type"`
+}
+
+// Embedded resource content block with inline text or binary data
+type ExternalToolTextResultForLlmContentResource struct {
+	// The embedded resource contents, either text or base64-encoded binary
+	Resource ExternalToolTextResultForLlmContentResourceDetails `json:"resource"`
+	// Content block type discriminator
+	Type ExternalToolTextResultForLlmContentResourceType `json:"type"`
+}
+
+// Resource link content block referencing an external resource
+type ExternalToolTextResultForLlmContentResourceLink struct {
+	// Human-readable description of the resource
+	Description *string `json:"description,omitempty"`
+	// Icons associated with this resource
+	Icons []ExternalToolTextResultForLlmContentResourceLinkIcon `json:"icons,omitempty"`
+	// MIME type of the resource content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Resource name identifier
+	Name string `json:"name"`
+	// Size of the resource in bytes
+	Size *float64 `json:"size,omitempty"`
+	// Human-readable display title for the resource
+	Title *string `json:"title,omitempty"`
+	// Content block type discriminator
+	Type ExternalToolTextResultForLlmContentResourceLinkType `json:"type"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
+// Terminal/shell output content block with optional exit code and working directory
+type ExternalToolTextResultForLlmContentTerminal struct {
+	// Working directory where the command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Process exit code, if the command has completed
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Terminal/shell output text
+	Text string `json:"text"`
+	// Content block type discriminator
+	Type ExternalToolTextResultForLlmContentTerminalType `json:"type"`
+}
+
+// Plain text content block
+type ExternalToolTextResultForLlmContentText struct {
+	// The text content
+	Text string `json:"text"`
+	// Content block type discriminator
+	Type ExternalToolTextResultForLlmContentTextType `json:"type"`
+}
+
 // Experimental: FleetStartRequest is part of an experimental API and may change or be removed.
 type FleetStartRequest struct {
 	// Optional user prompt to combine with fleet instructions
@@ -402,7 +597,16 @@ type FleetStartResult struct {
 	Started bool `json:"started"`
 }
 
-type HandleToolCallResult struct {
+type HandlePendingToolCallRequest struct {
+	// Error message if the tool call failed
+	Error *string `json:"error,omitempty"`
+	// Request ID of the pending tool call
+	RequestID string `json:"requestId"`
+	// Tool call result (string or expanded result object)
+	Result *ExternalToolResult `json:"result"`
+}
+
+type HandlePendingToolCallResult struct {
 	// Whether the tool call result was handled successfully
 	Success bool `json:"success"`
 }
@@ -816,6 +1020,8 @@ type PermissionDecision struct {
 	//
 	// Approved and persisted for this project location
 	//
+	// Approved and persisted across sessions
+	//
 	// Denied by the user during an interactive prompt
 	//
 	// Denied because user confirmation was unavailable
@@ -824,6 +1030,10 @@ type PermissionDecision struct {
 	//
 	// The approval to persist for this location
 	Approval *PermissionDecisionApproveForLocationApproval `json:"approval,omitempty"`
+	// The URL domain to approve for this session
+	//
+	// The URL domain to approve permanently
+	Domain *string `json:"domain,omitempty"`
 	// The location key (git root or cwd) to persist the approval to
 	LocationKey *string `json:"locationKey,omitempty"`
 	// Optional feedback from the user explaining the denial
@@ -882,7 +1092,9 @@ type PermissionDecisionApproveForLocationApprovalWrite struct {
 
 type PermissionDecisionApproveForSession struct {
 	// The approval to add as a session-scoped rule
-	Approval PermissionDecisionApproveForSessionApproval `json:"approval"`
+	Approval *PermissionDecisionApproveForSessionApproval `json:"approval,omitempty"`
+	// The URL domain to approve for this session
+	Domain *string `json:"domain,omitempty"`
 	// Approved and remembered for the rest of the session
 	Kind PermissionDecisionApproveForSessionKind `json:"kind"`
 }
@@ -931,6 +1143,13 @@ type PermissionDecisionApproveForSessionApprovalWrite struct {
 type PermissionDecisionApproveOnce struct {
 	// The permission request was approved for this one instance
 	Kind PermissionDecisionApproveOnceKind `json:"kind"`
+}
+
+type PermissionDecisionApprovePermanently struct {
+	// The URL domain to approve permanently
+	Domain string `json:"domain"`
+	// Approved and persisted across sessions
+	Kind PermissionDecisionApprovePermanentlyKind `json:"kind"`
 }
 
 type PermissionDecisionReject struct {
@@ -1521,29 +1740,9 @@ type Tool struct {
 	Parameters map[string]any `json:"parameters,omitempty"`
 }
 
-type ToolCallResult struct {
-	// Error message if the tool call failed
-	Error *string `json:"error,omitempty"`
-	// Type of the tool result
-	ResultType *string `json:"resultType,omitempty"`
-	// Text result to send back to the LLM
-	TextResultForLlm string `json:"textResultForLlm"`
-	// Telemetry data from tool execution
-	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
-}
-
 type ToolList struct {
 	// List of available built-in tools with metadata
 	Tools []Tool `json:"tools"`
-}
-
-type ToolsHandlePendingToolCallRequest struct {
-	// Error message if the tool call failed
-	Error *string `json:"error,omitempty"`
-	// Request ID of the pending tool call
-	RequestID string `json:"requestId"`
-	// Tool call result (string or expanded result object)
-	Result *ToolsHandlePendingToolCall `json:"result"`
 }
 
 type ToolsListRequest struct {
@@ -1710,8 +1909,12 @@ type UsageGetMetricsResult struct {
 	ModelMetrics map[string]UsageMetricsModelMetric `json:"modelMetrics"`
 	// Session start timestamp (epoch milliseconds)
 	SessionStartTime int64 `json:"sessionStartTime"`
+	// Session-wide per-token-type accumulated token counts
+	TokenDetails map[string]UsageMetricsTokenDetail `json:"tokenDetails,omitempty"`
 	// Total time spent in model API calls (milliseconds)
 	TotalAPIDurationMS float64 `json:"totalApiDurationMs"`
+	// Session-wide accumulated nano-AI units cost
+	TotalNanoAiu *int64 `json:"totalNanoAiu,omitempty"`
 	// Total user-initiated premium request cost across all models (may be fractional due to
 	// multipliers)
 	TotalPremiumRequestCost float64 `json:"totalPremiumRequestCost"`
@@ -1732,6 +1935,10 @@ type UsageMetricsCodeChanges struct {
 type UsageMetricsModelMetric struct {
 	// Request count and cost metrics for this model
 	Requests UsageMetricsModelMetricRequests `json:"requests"`
+	// Token count details per type
+	TokenDetails map[string]UsageMetricsModelMetricTokenDetail `json:"tokenDetails,omitempty"`
+	// Accumulated nano-AI units cost for this model
+	TotalNanoAiu *int64 `json:"totalNanoAiu,omitempty"`
 	// Token usage metrics for this model
 	Usage UsageMetricsModelMetricUsage `json:"usage"`
 }
@@ -1742,6 +1949,11 @@ type UsageMetricsModelMetricRequests struct {
 	Cost float64 `json:"cost"`
 	// Number of API requests made with this model
 	Count int64 `json:"count"`
+}
+
+type UsageMetricsModelMetricTokenDetail struct {
+	// Accumulated token count for this token type
+	TokenCount int64 `json:"tokenCount"`
 }
 
 // Token usage metrics for this model
@@ -1756,6 +1968,11 @@ type UsageMetricsModelMetricUsage struct {
 	OutputTokens int64 `json:"outputTokens"`
 	// Total output tokens used for reasoning
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
+}
+
+type UsageMetricsTokenDetail struct {
+	// Accumulated token count for this token type
+	TokenCount int64 `json:"tokenCount"`
 }
 
 type WorkspacesCreateFileRequest struct {
@@ -1862,6 +2079,61 @@ const (
 	ExtensionStatusStarting ExtensionStatus = "starting"
 )
 
+// Theme variant this icon is intended for
+type ExternalToolTextResultForLlmContentResourceLinkIconTheme string
+
+const (
+	ExternalToolTextResultForLlmContentResourceLinkIconThemeDark  ExternalToolTextResultForLlmContentResourceLinkIconTheme = "dark"
+	ExternalToolTextResultForLlmContentResourceLinkIconThemeLight ExternalToolTextResultForLlmContentResourceLinkIconTheme = "light"
+)
+
+type ExternalToolTextResultForLlmContentType string
+
+const (
+	ExternalToolTextResultForLlmContentTypeAudio        ExternalToolTextResultForLlmContentType = "audio"
+	ExternalToolTextResultForLlmContentTypeImage        ExternalToolTextResultForLlmContentType = "image"
+	ExternalToolTextResultForLlmContentTypeResource     ExternalToolTextResultForLlmContentType = "resource"
+	ExternalToolTextResultForLlmContentTypeResourceLink ExternalToolTextResultForLlmContentType = "resource_link"
+	ExternalToolTextResultForLlmContentTypeTerminal     ExternalToolTextResultForLlmContentType = "terminal"
+	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
+)
+
+type ExternalToolTextResultForLlmContentAudioType string
+
+const (
+	ExternalToolTextResultForLlmContentAudioTypeAudio ExternalToolTextResultForLlmContentAudioType = "audio"
+)
+
+type ExternalToolTextResultForLlmContentImageType string
+
+const (
+	ExternalToolTextResultForLlmContentImageTypeImage ExternalToolTextResultForLlmContentImageType = "image"
+)
+
+type ExternalToolTextResultForLlmContentResourceType string
+
+const (
+	ExternalToolTextResultForLlmContentResourceTypeResource ExternalToolTextResultForLlmContentResourceType = "resource"
+)
+
+type ExternalToolTextResultForLlmContentResourceLinkType string
+
+const (
+	ExternalToolTextResultForLlmContentResourceLinkTypeResourceLink ExternalToolTextResultForLlmContentResourceLinkType = "resource_link"
+)
+
+type ExternalToolTextResultForLlmContentTerminalType string
+
+const (
+	ExternalToolTextResultForLlmContentTerminalTypeTerminal ExternalToolTextResultForLlmContentTerminalType = "terminal"
+)
+
+type ExternalToolTextResultForLlmContentTextType string
+
+const (
+	ExternalToolTextResultForLlmContentTextTypeText ExternalToolTextResultForLlmContentTextType = "text"
+)
+
 type FilterMappingString string
 
 const (
@@ -1965,6 +2237,7 @@ const (
 	PermissionDecisionKindApproveForLocation PermissionDecisionKind = "approve-for-location"
 	PermissionDecisionKindApproveForSession  PermissionDecisionKind = "approve-for-session"
 	PermissionDecisionKindApproveOnce        PermissionDecisionKind = "approve-once"
+	PermissionDecisionKindApprovePermanently PermissionDecisionKind = "approve-permanently"
 	PermissionDecisionKindReject             PermissionDecisionKind = "reject"
 	PermissionDecisionKindUserNotAvailable   PermissionDecisionKind = "user-not-available"
 )
@@ -2027,6 +2300,12 @@ type PermissionDecisionApproveOnceKind string
 
 const (
 	PermissionDecisionApproveOnceKindApproveOnce PermissionDecisionApproveOnceKind = "approve-once"
+)
+
+type PermissionDecisionApprovePermanentlyKind string
+
+const (
+	PermissionDecisionApprovePermanentlyKindApprovePermanently PermissionDecisionApprovePermanentlyKind = "approve-permanently"
 )
 
 type PermissionDecisionRejectKind string
@@ -2197,15 +2476,15 @@ const (
 	SessionSyncLevelUser        SessionSyncLevel = "user"
 )
 
+// Tool call result (string or expanded result object)
+type ExternalToolResult struct {
+	ExternalToolTextResultForLlm *ExternalToolTextResultForLlm
+	String                       *string
+}
+
 type FilterMapping struct {
 	Enum    *FilterMappingString
 	EnumMap map[string]FilterMappingString
-}
-
-// Tool call result (string or expanded result object)
-type ToolsHandlePendingToolCall struct {
-	String         *string
-	ToolCallResult *ToolCallResult
 }
 
 type UIElicitationFieldValue struct {
@@ -3105,7 +3384,7 @@ func (a *ExtensionsApi) Reload(ctx context.Context) (*ExtensionsReloadResult, er
 
 type ToolsApi sessionApi
 
-func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *ToolsHandlePendingToolCallRequest) (*HandleToolCallResult, error) {
+func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePendingToolCallRequest) (*HandlePendingToolCallResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -3120,7 +3399,7 @@ func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *ToolsHandl
 	if err != nil {
 		return nil, err
 	}
-	var result HandleToolCallResult
+	var result HandlePendingToolCallResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

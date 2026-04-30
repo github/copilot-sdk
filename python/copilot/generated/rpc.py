@@ -280,6 +280,60 @@ class DiscoveredMCPServerType(Enum):
     SSE = "sse"
     STDIO = "stdio"
 
+@dataclass
+class EmbeddedBlobResourceContents:
+    blob: str
+    """Base64-encoded binary content of the resource"""
+
+    uri: str
+    """URI identifying the resource"""
+
+    mime_type: str | None = None
+    """MIME type of the blob content"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'EmbeddedBlobResourceContents':
+        assert isinstance(obj, dict)
+        blob = from_str(obj.get("blob"))
+        uri = from_str(obj.get("uri"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        return EmbeddedBlobResourceContents(blob, uri, mime_type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["blob"] = from_str(self.blob)
+        result["uri"] = from_str(self.uri)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
+        return result
+
+@dataclass
+class EmbeddedTextResourceContents:
+    text: str
+    """Text content of the resource"""
+
+    uri: str
+    """URI identifying the resource"""
+
+    mime_type: str | None = None
+    """MIME type of the text content"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'EmbeddedTextResourceContents':
+        assert isinstance(obj, dict)
+        text = from_str(obj.get("text"))
+        uri = from_str(obj.get("uri"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        return EmbeddedTextResourceContents(text, uri, mime_type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["text"] = from_str(self.text)
+        result["uri"] = from_str(self.uri)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
+        return result
+
 class ExtensionSource(Enum):
     """Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)"""
 
@@ -328,6 +382,76 @@ class ExtensionsEnableRequest:
         result["id"] = from_str(self.id)
         return result
 
+class ExternalToolTextResultForLlmContentResourceLinkIconTheme(Enum):
+    """Theme variant this icon is intended for"""
+
+    DARK = "dark"
+    LIGHT = "light"
+
+@dataclass
+class ExternalToolTextResultForLlmContentResourceDetails:
+    """The embedded resource contents, either text or base64-encoded binary"""
+
+    uri: str
+    """URI identifying the resource"""
+
+    mime_type: str | None = None
+    """MIME type of the text content
+
+    MIME type of the blob content
+    """
+    text: str | None = None
+    """Text content of the resource"""
+
+    blob: str | None = None
+    """Base64-encoded binary content of the resource"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResourceDetails':
+        assert isinstance(obj, dict)
+        uri = from_str(obj.get("uri"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        text = from_union([from_str, from_none], obj.get("text"))
+        blob = from_union([from_str, from_none], obj.get("blob"))
+        return ExternalToolTextResultForLlmContentResourceDetails(uri, mime_type, text, blob)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["uri"] = from_str(self.uri)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
+        if self.text is not None:
+            result["text"] = from_union([from_str, from_none], self.text)
+        if self.blob is not None:
+            result["blob"] = from_union([from_str, from_none], self.blob)
+        return result
+
+class ExternalToolTextResultForLlmContentType(Enum):
+    AUDIO = "audio"
+    IMAGE = "image"
+    RESOURCE = "resource"
+    RESOURCE_LINK = "resource_link"
+    TERMINAL = "terminal"
+    TEXT = "text"
+
+class ExternalToolTextResultForLlmContentAudioType(Enum):
+    AUDIO = "audio"
+
+class ExternalToolTextResultForLlmContentImageType(Enum):
+    IMAGE = "image"
+
+class ExternalToolTextResultForLlmContentResourceType(Enum):
+    RESOURCE = "resource"
+
+class ExternalToolTextResultForLlmContentResourceLinkType(Enum):
+    RESOURCE_LINK = "resource_link"
+
+class ExternalToolTextResultForLlmContentTerminalType(Enum):
+    TERMINAL = "terminal"
+
+class ExternalToolTextResultForLlmContentTextType(Enum):
+    TEXT = "text"
+
 class FilterMappingString(Enum):
     HIDDEN_CHARACTERS = "hidden_characters"
     MARKDOWN = "markdown"
@@ -369,15 +493,15 @@ class FleetStartResult:
         return result
 
 @dataclass
-class HandleToolCallResult:
+class HandlePendingToolCallResult:
     success: bool
     """Whether the tool call result was handled successfully"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HandleToolCallResult':
+    def from_dict(obj: Any) -> 'HandlePendingToolCallResult':
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
-        return HandleToolCallResult(success)
+        return HandlePendingToolCallResult(success)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -934,6 +1058,7 @@ class PermissionDecisionKind(Enum):
     APPROVE_FOR_LOCATION = "approve-for-location"
     APPROVE_FOR_SESSION = "approve-for-session"
     APPROVE_ONCE = "approve-once"
+    APPROVE_PERMANENTLY = "approve-permanently"
     REJECT = "reject"
     USER_NOT_AVAILABLE = "user-not-available"
 
@@ -966,6 +1091,9 @@ class PermissionDecisionApproveForSessionKind(Enum):
 
 class PermissionDecisionApproveOnceKind(Enum):
     APPROVE_ONCE = "approve-once"
+
+class PermissionDecisionApprovePermanentlyKind(Enum):
+    APPROVE_PERMANENTLY = "approve-permanently"
 
 class PermissionDecisionRejectKind(Enum):
     REJECT = "reject"
@@ -1983,40 +2111,6 @@ class Tool:
         return result
 
 @dataclass
-class ToolCallResult:
-    text_result_for_llm: str
-    """Text result to send back to the LLM"""
-
-    error: str | None = None
-    """Error message if the tool call failed"""
-
-    result_type: str | None = None
-    """Type of the tool result"""
-
-    tool_telemetry: dict[str, Any] | None = None
-    """Telemetry data from tool execution"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ToolCallResult':
-        assert isinstance(obj, dict)
-        text_result_for_llm = from_str(obj.get("textResultForLlm"))
-        error = from_union([from_str, from_none], obj.get("error"))
-        result_type = from_union([from_str, from_none], obj.get("resultType"))
-        tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
-        return ToolCallResult(text_result_for_llm, error, result_type, tool_telemetry)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["textResultForLlm"] = from_str(self.text_result_for_llm)
-        if self.error is not None:
-            result["error"] = from_union([from_str, from_none], self.error)
-        if self.result_type is not None:
-            result["resultType"] = from_union([from_str, from_none], self.result_type)
-        if self.tool_telemetry is not None:
-            result["toolTelemetry"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.tool_telemetry)
-        return result
-
-@dataclass
 class ToolsListRequest:
     model: str | None = None
     """Optional model ID — when provided, the returned tool list reflects model-specific
@@ -2177,6 +2271,22 @@ class UsageMetricsModelMetricRequests:
         return result
 
 @dataclass
+class UsageMetricsModelMetricTokenDetail:
+    token_count: int
+    """Accumulated token count for this token type"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'UsageMetricsModelMetricTokenDetail':
+        assert isinstance(obj, dict)
+        token_count = from_int(obj.get("tokenCount"))
+        return UsageMetricsModelMetricTokenDetail(token_count)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tokenCount"] = from_int(self.token_count)
+        return result
+
+@dataclass
 class UsageMetricsModelMetricUsage:
     """Token usage metrics for this model"""
 
@@ -2213,6 +2323,22 @@ class UsageMetricsModelMetricUsage:
         result["outputTokens"] = from_int(self.output_tokens)
         if self.reasoning_tokens is not None:
             result["reasoningTokens"] = from_union([from_int, from_none], self.reasoning_tokens)
+        return result
+
+@dataclass
+class UsageMetricsTokenDetail:
+    token_count: int
+    """Accumulated token count for this token type"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'UsageMetricsTokenDetail':
+        assert isinstance(obj, dict)
+        token_count = from_int(obj.get("tokenCount"))
+        return UsageMetricsTokenDetail(token_count)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tokenCount"] = from_int(self.token_count)
         return result
 
 @dataclass
@@ -2491,6 +2617,179 @@ class Extension:
         result["status"] = to_enum(ExtensionStatus, self.status)
         if self.pid is not None:
             result["pid"] = from_union([from_int, from_none], self.pid)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmContentResourceLinkIcon:
+    """Icon image for a resource"""
+
+    src: str
+    """URL or path to the icon image"""
+
+    mime_type: str | None = None
+    """MIME type of the icon image"""
+
+    sizes: list[str] | None = None
+    """Available icon sizes (e.g., ['16x16', '32x32'])"""
+
+    theme: ExternalToolTextResultForLlmContentResourceLinkIconTheme | None = None
+    """Theme variant this icon is intended for"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResourceLinkIcon':
+        assert isinstance(obj, dict)
+        src = from_str(obj.get("src"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        sizes = from_union([lambda x: from_list(from_str, x), from_none], obj.get("sizes"))
+        theme = from_union([ExternalToolTextResultForLlmContentResourceLinkIconTheme, from_none], obj.get("theme"))
+        return ExternalToolTextResultForLlmContentResourceLinkIcon(src, mime_type, sizes, theme)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["src"] = from_str(self.src)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
+        if self.sizes is not None:
+            result["sizes"] = from_union([lambda x: from_list(from_str, x), from_none], self.sizes)
+        if self.theme is not None:
+            result["theme"] = from_union([lambda x: to_enum(ExternalToolTextResultForLlmContentResourceLinkIconTheme, x), from_none], self.theme)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmContentAudio:
+    """Audio content block with base64-encoded data"""
+
+    data: str
+    """Base64-encoded audio data"""
+
+    mime_type: str
+    """MIME type of the audio (e.g., audio/wav, audio/mpeg)"""
+
+    type: ExternalToolTextResultForLlmContentAudioType
+    """Content block type discriminator"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentAudio':
+        assert isinstance(obj, dict)
+        data = from_str(obj.get("data"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = ExternalToolTextResultForLlmContentAudioType(obj.get("type"))
+        return ExternalToolTextResultForLlmContentAudio(data, mime_type, type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["data"] = from_str(self.data)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(ExternalToolTextResultForLlmContentAudioType, self.type)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmContentImage:
+    """Image content block with base64-encoded data"""
+
+    data: str
+    """Base64-encoded image data"""
+
+    mime_type: str
+    """MIME type of the image (e.g., image/png, image/jpeg)"""
+
+    type: ExternalToolTextResultForLlmContentImageType
+    """Content block type discriminator"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentImage':
+        assert isinstance(obj, dict)
+        data = from_str(obj.get("data"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = ExternalToolTextResultForLlmContentImageType(obj.get("type"))
+        return ExternalToolTextResultForLlmContentImage(data, mime_type, type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["data"] = from_str(self.data)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(ExternalToolTextResultForLlmContentImageType, self.type)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmContentResource:
+    """Embedded resource content block with inline text or binary data"""
+
+    resource: ExternalToolTextResultForLlmContentResourceDetails
+    """The embedded resource contents, either text or base64-encoded binary"""
+
+    type: ExternalToolTextResultForLlmContentResourceType
+    """Content block type discriminator"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResource':
+        assert isinstance(obj, dict)
+        resource = ExternalToolTextResultForLlmContentResourceDetails.from_dict(obj.get("resource"))
+        type = ExternalToolTextResultForLlmContentResourceType(obj.get("type"))
+        return ExternalToolTextResultForLlmContentResource(resource, type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["resource"] = to_class(ExternalToolTextResultForLlmContentResourceDetails, self.resource)
+        result["type"] = to_enum(ExternalToolTextResultForLlmContentResourceType, self.type)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmContentTerminal:
+    """Terminal/shell output content block with optional exit code and working directory"""
+
+    text: str
+    """Terminal/shell output text"""
+
+    type: ExternalToolTextResultForLlmContentTerminalType
+    """Content block type discriminator"""
+
+    cwd: str | None = None
+    """Working directory where the command was executed"""
+
+    exit_code: float | None = None
+    """Process exit code, if the command has completed"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentTerminal':
+        assert isinstance(obj, dict)
+        text = from_str(obj.get("text"))
+        type = ExternalToolTextResultForLlmContentTerminalType(obj.get("type"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        exit_code = from_union([from_float, from_none], obj.get("exitCode"))
+        return ExternalToolTextResultForLlmContentTerminal(text, type, cwd, exit_code)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["text"] = from_str(self.text)
+        result["type"] = to_enum(ExternalToolTextResultForLlmContentTerminalType, self.type)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.exit_code is not None:
+            result["exitCode"] = from_union([to_float, from_none], self.exit_code)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmContentText:
+    """Plain text content block"""
+
+    text: str
+    """The text content"""
+
+    type: ExternalToolTextResultForLlmContentTextType
+    """Content block type discriminator"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentText':
+        assert isinstance(obj, dict)
+        text = from_str(obj.get("text"))
+        type = ExternalToolTextResultForLlmContentTextType(obj.get("type"))
+        return ExternalToolTextResultForLlmContentText(text, type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["text"] = from_str(self.text)
+        result["type"] = to_enum(ExternalToolTextResultForLlmContentTextType, self.type)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -3252,6 +3551,27 @@ class PermissionDecisionApproveOnce:
         return result
 
 @dataclass
+class PermissionDecisionApprovePermanently:
+    domain: str
+    """The URL domain to approve permanently"""
+
+    kind: PermissionDecisionApprovePermanentlyKind
+    """Approved and persisted across sessions"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApprovePermanently':
+        assert isinstance(obj, dict)
+        domain = from_str(obj.get("domain"))
+        kind = PermissionDecisionApprovePermanentlyKind(obj.get("kind"))
+        return PermissionDecisionApprovePermanently(domain, kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["domain"] = from_str(self.domain)
+        result["kind"] = to_enum(PermissionDecisionApprovePermanentlyKind, self.kind)
+        return result
+
+@dataclass
 class PermissionDecisionReject:
     kind: PermissionDecisionRejectKind
     """Denied by the user during an interactive prompt"""
@@ -3526,34 +3846,6 @@ class ToolList:
         return result
 
 @dataclass
-class ToolsHandlePendingToolCallRequest:
-    request_id: str
-    """Request ID of the pending tool call"""
-
-    error: str | None = None
-    """Error message if the tool call failed"""
-
-    result: ToolCallResult | str | None = None
-    """Tool call result (string or expanded result object)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ToolsHandlePendingToolCallRequest':
-        assert isinstance(obj, dict)
-        request_id = from_str(obj.get("requestId"))
-        error = from_union([from_str, from_none], obj.get("error"))
-        result = from_union([ToolCallResult.from_dict, from_str, from_none], obj.get("result"))
-        return ToolsHandlePendingToolCallRequest(request_id, error, result)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["requestId"] = from_str(self.request_id)
-        if self.error is not None:
-            result["error"] = from_union([from_str, from_none], self.error)
-        if self.result is not None:
-            result["result"] = from_union([lambda x: to_class(ToolCallResult, x), from_str, from_none], self.result)
-        return result
-
-@dataclass
 class UIElicitationArrayAnyOfFieldItems:
     any_of: list[UIElicitationArrayAnyOfFieldItemsAnyOf]
 
@@ -3807,17 +4099,29 @@ class UsageMetricsModelMetric:
     usage: UsageMetricsModelMetricUsage
     """Token usage metrics for this model"""
 
+    token_details: dict[str, UsageMetricsModelMetricTokenDetail] | None = None
+    """Token count details per type"""
+
+    total_nano_aiu: int | None = None
+    """Accumulated nano-AI units cost for this model"""
+
     @staticmethod
     def from_dict(obj: Any) -> 'UsageMetricsModelMetric':
         assert isinstance(obj, dict)
         requests = UsageMetricsModelMetricRequests.from_dict(obj.get("requests"))
         usage = UsageMetricsModelMetricUsage.from_dict(obj.get("usage"))
-        return UsageMetricsModelMetric(requests, usage)
+        token_details = from_union([lambda x: from_dict(UsageMetricsModelMetricTokenDetail.from_dict, x), from_none], obj.get("tokenDetails"))
+        total_nano_aiu = from_union([from_int, from_none], obj.get("totalNanoAiu"))
+        return UsageMetricsModelMetric(requests, usage, token_details, total_nano_aiu)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["requests"] = to_class(UsageMetricsModelMetricRequests, self.requests)
         result["usage"] = to_class(UsageMetricsModelMetricUsage, self.usage)
+        if self.token_details is not None:
+            result["tokenDetails"] = from_union([lambda x: from_dict(lambda x: to_class(UsageMetricsModelMetricTokenDetail, x), x), from_none], self.token_details)
+        if self.total_nano_aiu is not None:
+            result["totalNanoAiu"] = from_union([from_int, from_none], self.total_nano_aiu)
         return result
 
 @dataclass
@@ -3934,6 +4238,175 @@ class ExtensionList:
     def to_dict(self) -> dict:
         result: dict = {}
         result["extensions"] = from_list(lambda x: to_class(Extension, x), self.extensions)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmContent:
+    """A content block within a tool result, which may be text, terminal output, image, audio,
+    or a resource
+
+    Plain text content block
+
+    Terminal/shell output content block with optional exit code and working directory
+
+    Image content block with base64-encoded data
+
+    Audio content block with base64-encoded data
+
+    Resource link content block referencing an external resource
+
+    Embedded resource content block with inline text or binary data
+    """
+    type: ExternalToolTextResultForLlmContentType
+    """Content block type discriminator"""
+
+    text: str | None = None
+    """The text content
+
+    Terminal/shell output text
+    """
+    cwd: str | None = None
+    """Working directory where the command was executed"""
+
+    exit_code: float | None = None
+    """Process exit code, if the command has completed"""
+
+    data: str | None = None
+    """Base64-encoded image data
+
+    Base64-encoded audio data
+    """
+    mime_type: str | None = None
+    """MIME type of the image (e.g., image/png, image/jpeg)
+
+    MIME type of the audio (e.g., audio/wav, audio/mpeg)
+
+    MIME type of the resource content
+    """
+    description: str | None = None
+    """Human-readable description of the resource"""
+
+    icons: list[ExternalToolTextResultForLlmContentResourceLinkIcon] | None = None
+    """Icons associated with this resource"""
+
+    name: str | None = None
+    """Resource name identifier"""
+
+    size: float | None = None
+    """Size of the resource in bytes"""
+
+    title: str | None = None
+    """Human-readable display title for the resource"""
+
+    uri: str | None = None
+    """URI identifying the resource"""
+
+    resource: ExternalToolTextResultForLlmContentResourceDetails | None = None
+    """The embedded resource contents, either text or base64-encoded binary"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContent':
+        assert isinstance(obj, dict)
+        type = ExternalToolTextResultForLlmContentType(obj.get("type"))
+        text = from_union([from_str, from_none], obj.get("text"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        exit_code = from_union([from_float, from_none], obj.get("exitCode"))
+        data = from_union([from_str, from_none], obj.get("data"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        icons = from_union([lambda x: from_list(ExternalToolTextResultForLlmContentResourceLinkIcon.from_dict, x), from_none], obj.get("icons"))
+        name = from_union([from_str, from_none], obj.get("name"))
+        size = from_union([from_float, from_none], obj.get("size"))
+        title = from_union([from_str, from_none], obj.get("title"))
+        uri = from_union([from_str, from_none], obj.get("uri"))
+        resource = from_union([ExternalToolTextResultForLlmContentResourceDetails.from_dict, from_none], obj.get("resource"))
+        return ExternalToolTextResultForLlmContent(type, text, cwd, exit_code, data, mime_type, description, icons, name, size, title, uri, resource)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["type"] = to_enum(ExternalToolTextResultForLlmContentType, self.type)
+        if self.text is not None:
+            result["text"] = from_union([from_str, from_none], self.text)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.exit_code is not None:
+            result["exitCode"] = from_union([to_float, from_none], self.exit_code)
+        if self.data is not None:
+            result["data"] = from_union([from_str, from_none], self.data)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.icons is not None:
+            result["icons"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmContentResourceLinkIcon, x), x), from_none], self.icons)
+        if self.name is not None:
+            result["name"] = from_union([from_str, from_none], self.name)
+        if self.size is not None:
+            result["size"] = from_union([to_float, from_none], self.size)
+        if self.title is not None:
+            result["title"] = from_union([from_str, from_none], self.title)
+        if self.uri is not None:
+            result["uri"] = from_union([from_str, from_none], self.uri)
+        if self.resource is not None:
+            result["resource"] = from_union([lambda x: to_class(ExternalToolTextResultForLlmContentResourceDetails, x), from_none], self.resource)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmContentResourceLink:
+    """Resource link content block referencing an external resource"""
+
+    name: str
+    """Resource name identifier"""
+
+    type: ExternalToolTextResultForLlmContentResourceLinkType
+    """Content block type discriminator"""
+
+    uri: str
+    """URI identifying the resource"""
+
+    description: str | None = None
+    """Human-readable description of the resource"""
+
+    icons: list[ExternalToolTextResultForLlmContentResourceLinkIcon] | None = None
+    """Icons associated with this resource"""
+
+    mime_type: str | None = None
+    """MIME type of the resource content"""
+
+    size: float | None = None
+    """Size of the resource in bytes"""
+
+    title: str | None = None
+    """Human-readable display title for the resource"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResourceLink':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        type = ExternalToolTextResultForLlmContentResourceLinkType(obj.get("type"))
+        uri = from_str(obj.get("uri"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        icons = from_union([lambda x: from_list(ExternalToolTextResultForLlmContentResourceLinkIcon.from_dict, x), from_none], obj.get("icons"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        size = from_union([from_float, from_none], obj.get("size"))
+        title = from_union([from_str, from_none], obj.get("title"))
+        return ExternalToolTextResultForLlmContentResourceLink(name, type, uri, description, icons, mime_type, size, title)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["type"] = to_enum(ExternalToolTextResultForLlmContentResourceLinkType, self.type)
+        result["uri"] = from_str(self.uri)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.icons is not None:
+            result["icons"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmContentResourceLinkIcon, x), x), from_none], self.icons)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
+        if self.size is not None:
+            result["size"] = from_union([to_float, from_none], self.size)
+        if self.title is not None:
+            result["title"] = from_union([from_str, from_none], self.title)
         return result
 
 @dataclass
@@ -4060,6 +4533,8 @@ class PermissionDecision:
 
     Approved and persisted for this project location
 
+    Approved and persisted across sessions
+
     Denied by the user during an interactive prompt
 
     Denied because user confirmation was unavailable
@@ -4068,6 +4543,11 @@ class PermissionDecision:
     """The approval to add as a session-scoped rule
 
     The approval to persist for this location
+    """
+    domain: str | None = None
+    """The URL domain to approve for this session
+
+    The URL domain to approve permanently
     """
     location_key: str | None = None
     """The location key (git root or cwd) to persist the approval to"""
@@ -4080,15 +4560,18 @@ class PermissionDecision:
         assert isinstance(obj, dict)
         kind = PermissionDecisionKind(obj.get("kind"))
         approval = from_union([PermissionDecisionApproveForIonApproval.from_dict, from_none], obj.get("approval"))
+        domain = from_union([from_str, from_none], obj.get("domain"))
         location_key = from_union([from_str, from_none], obj.get("locationKey"))
         feedback = from_union([from_str, from_none], obj.get("feedback"))
-        return PermissionDecision(kind, approval, location_key, feedback)
+        return PermissionDecision(kind, approval, domain, location_key, feedback)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = to_enum(PermissionDecisionKind, self.kind)
         if self.approval is not None:
             result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForIonApproval, x), from_none], self.approval)
+        if self.domain is not None:
+            result["domain"] = from_union([from_str, from_none], self.domain)
         if self.location_key is not None:
             result["locationKey"] = from_union([from_str, from_none], self.location_key)
         if self.feedback is not None:
@@ -4123,23 +4606,30 @@ class PermissionDecisionApproveForLocation:
 
 @dataclass
 class PermissionDecisionApproveForSession:
-    approval: PermissionDecisionApproveForSessionApproval
-    """The approval to add as a session-scoped rule"""
-
     kind: PermissionDecisionApproveForSessionKind
     """Approved and remembered for the rest of the session"""
+
+    approval: PermissionDecisionApproveForSessionApproval | None = None
+    """The approval to add as a session-scoped rule"""
+
+    domain: str | None = None
+    """The URL domain to approve for this session"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSession':
         assert isinstance(obj, dict)
-        approval = PermissionDecisionApproveForSessionApproval.from_dict(obj.get("approval"))
         kind = PermissionDecisionApproveForSessionKind(obj.get("kind"))
-        return PermissionDecisionApproveForSession(approval, kind)
+        approval = from_union([PermissionDecisionApproveForSessionApproval.from_dict, from_none], obj.get("approval"))
+        domain = from_union([from_str, from_none], obj.get("domain"))
+        return PermissionDecisionApproveForSession(kind, approval, domain)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["approval"] = to_class(PermissionDecisionApproveForSessionApproval, self.approval)
         result["kind"] = to_enum(PermissionDecisionApproveForSessionKind, self.kind)
+        if self.approval is not None:
+            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForSessionApproval, x), from_none], self.approval)
+        if self.domain is not None:
+            result["domain"] = from_union([from_str, from_none], self.domain)
         return result
 
 @dataclass
@@ -4449,6 +4939,12 @@ class UsageGetMetricsResult:
     current_model: str | None = None
     """Currently active model identifier"""
 
+    token_details: dict[str, UsageMetricsTokenDetail] | None = None
+    """Session-wide per-token-type accumulated token counts"""
+
+    total_nano_aiu: int | None = None
+    """Session-wide accumulated nano-AI units cost"""
+
     @staticmethod
     def from_dict(obj: Any) -> 'UsageGetMetricsResult':
         assert isinstance(obj, dict)
@@ -4461,7 +4957,9 @@ class UsageGetMetricsResult:
         total_premium_request_cost = from_float(obj.get("totalPremiumRequestCost"))
         total_user_requests = from_int(obj.get("totalUserRequests"))
         current_model = from_union([from_str, from_none], obj.get("currentModel"))
-        return UsageGetMetricsResult(code_changes, last_call_input_tokens, last_call_output_tokens, model_metrics, session_start_time, total_api_duration_ms, total_premium_request_cost, total_user_requests, current_model)
+        token_details = from_union([lambda x: from_dict(UsageMetricsTokenDetail.from_dict, x), from_none], obj.get("tokenDetails"))
+        total_nano_aiu = from_union([from_int, from_none], obj.get("totalNanoAiu"))
+        return UsageGetMetricsResult(code_changes, last_call_input_tokens, last_call_output_tokens, model_metrics, session_start_time, total_api_duration_ms, total_premium_request_cost, total_user_requests, current_model, token_details, total_nano_aiu)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -4475,6 +4973,10 @@ class UsageGetMetricsResult:
         result["totalUserRequests"] = from_int(self.total_user_requests)
         if self.current_model is not None:
             result["currentModel"] = from_union([from_str, from_none], self.current_model)
+        if self.token_details is not None:
+            result["tokenDetails"] = from_union([lambda x: from_dict(lambda x: to_class(UsageMetricsTokenDetail, x), x), from_none], self.token_details)
+        if self.total_nano_aiu is not None:
+            result["totalNanoAiu"] = from_union([from_int, from_none], self.total_nano_aiu)
         return result
 
 @dataclass
@@ -4491,6 +4993,55 @@ class WorkspacesGetWorkspaceResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["workspace"] = from_union([lambda x: to_class(Workspace, x), from_none], self.workspace)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlm:
+    """Expanded external tool result payload"""
+
+    text_result_for_llm: str
+    """Text result returned to the model"""
+
+    contents: list[ExternalToolTextResultForLlmContent] | None = None
+    """Structured content blocks from the tool"""
+
+    error: str | None = None
+    """Optional error message for failed executions"""
+
+    result_type: str | None = None
+    """Execution outcome classification. Optional for back-compat; normalized to 'success' (or
+    'failure' when error is present) when missing or unrecognized.
+    """
+    session_log: str | None = None
+    """Detailed log content for timeline display"""
+
+    tool_telemetry: dict[str, Any] | None = None
+    """Optional tool-specific telemetry"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlm':
+        assert isinstance(obj, dict)
+        text_result_for_llm = from_str(obj.get("textResultForLlm"))
+        contents = from_union([lambda x: from_list(ExternalToolTextResultForLlmContent.from_dict, x), from_none], obj.get("contents"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        result_type = from_union([from_str, from_none], obj.get("resultType"))
+        session_log = from_union([from_str, from_none], obj.get("sessionLog"))
+        tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
+        return ExternalToolTextResultForLlm(text_result_for_llm, contents, error, result_type, session_log, tool_telemetry)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["textResultForLlm"] = from_str(self.text_result_for_llm)
+        if self.contents is not None:
+            result["contents"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmContent, x), x), from_none], self.contents)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.result_type is not None:
+            result["resultType"] = from_union([from_str, from_none], self.result_type)
+        if self.session_log is not None:
+            result["sessionLog"] = from_union([from_str, from_none], self.session_log)
+        if self.tool_telemetry is not None:
+            result["toolTelemetry"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.tool_telemetry)
         return result
 
 @dataclass
@@ -4540,6 +5091,34 @@ class UIElicitationSchema:
         result["type"] = to_enum(UIElicitationSchemaType, self.type)
         if self.required is not None:
             result["required"] = from_union([lambda x: from_list(from_str, x), from_none], self.required)
+        return result
+
+@dataclass
+class HandlePendingToolCallRequest:
+    request_id: str
+    """Request ID of the pending tool call"""
+
+    error: str | None = None
+    """Error message if the tool call failed"""
+
+    result: ExternalToolTextResultForLlm | str | None = None
+    """Tool call result (string or expanded result object)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'HandlePendingToolCallRequest':
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        result = from_union([ExternalToolTextResultForLlm.from_dict, from_str, from_none], obj.get("result"))
+        return HandlePendingToolCallRequest(request_id, error, result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.result is not None:
+            result["result"] = from_union([lambda x: to_class(ExternalToolTextResultForLlm, x), from_str, from_none], self.result)
         return result
 
 @dataclass
@@ -4975,18 +5554,33 @@ class RPC:
     discovered_mcp_server: DiscoveredMCPServer
     discovered_mcp_server_source: MCPServerSource
     discovered_mcp_server_type: DiscoveredMCPServerType
+    embedded_blob_resource_contents: EmbeddedBlobResourceContents
+    embedded_text_resource_contents: EmbeddedTextResourceContents
     extension: Extension
     extension_list: ExtensionList
     extensions_disable_request: ExtensionsDisableRequest
     extensions_enable_request: ExtensionsEnableRequest
     extension_source: ExtensionSource
     extension_status: ExtensionStatus
+    external_tool_result: ExternalToolTextResultForLlm | str
+    external_tool_text_result_for_llm: ExternalToolTextResultForLlm
+    external_tool_text_result_for_llm_content: ExternalToolTextResultForLlmContent
+    external_tool_text_result_for_llm_content_audio: ExternalToolTextResultForLlmContentAudio
+    external_tool_text_result_for_llm_content_image: ExternalToolTextResultForLlmContentImage
+    external_tool_text_result_for_llm_content_resource: ExternalToolTextResultForLlmContentResource
+    external_tool_text_result_for_llm_content_resource_details: ExternalToolTextResultForLlmContentResourceDetails
+    external_tool_text_result_for_llm_content_resource_link: ExternalToolTextResultForLlmContentResourceLink
+    external_tool_text_result_for_llm_content_resource_link_icon: ExternalToolTextResultForLlmContentResourceLinkIcon
+    external_tool_text_result_for_llm_content_resource_link_icon_theme: ExternalToolTextResultForLlmContentResourceLinkIconTheme
+    external_tool_text_result_for_llm_content_terminal: ExternalToolTextResultForLlmContentTerminal
+    external_tool_text_result_for_llm_content_text: ExternalToolTextResultForLlmContentText
     filter_mapping: dict[str, FilterMappingString] | FilterMappingString
     filter_mapping_string: FilterMappingString
     filter_mapping_value: FilterMappingString
     fleet_start_request: FleetStartRequest
     fleet_start_result: FleetStartResult
-    handle_tool_call_result: HandleToolCallResult
+    handle_pending_tool_call_request: HandlePendingToolCallRequest
+    handle_pending_tool_call_result: HandlePendingToolCallResult
     history_compact_context_window: HistoryCompactContextWindow
     history_compact_result: HistoryCompactResult
     history_truncate_request: HistoryTruncateRequest
@@ -5056,6 +5650,7 @@ class RPC:
     permission_decision_approve_for_session_approval_read: PermissionDecisionApproveForSessionApprovalRead
     permission_decision_approve_for_session_approval_write: PermissionDecisionApproveForSessionApprovalWrite
     permission_decision_approve_once: PermissionDecisionApproveOnce
+    permission_decision_approve_permanently: PermissionDecisionApprovePermanently
     permission_decision_reject: PermissionDecisionReject
     permission_decision_request: PermissionDecisionRequest
     permission_decision_user_not_available: PermissionDecisionUserNotAvailable
@@ -5128,10 +5723,7 @@ class RPC:
     tasks_start_agent_request: TasksStartAgentRequest
     tasks_start_agent_result: TasksStartAgentResult
     tool: Tool
-    tool_call_result: ToolCallResult
     tool_list: ToolList
-    tools_handle_pending_tool_call: ToolCallResult | str
-    tools_handle_pending_tool_call_request: ToolsHandlePendingToolCallRequest
     tools_list_request: ToolsListRequest
     ui_elicitation_array_any_of_field: UIElicitationArrayAnyOfField
     ui_elicitation_array_any_of_field_items: UIElicitationArrayAnyOfFieldItems
@@ -5159,7 +5751,9 @@ class RPC:
     usage_metrics_code_changes: UsageMetricsCodeChanges
     usage_metrics_model_metric: UsageMetricsModelMetric
     usage_metrics_model_metric_requests: UsageMetricsModelMetricRequests
+    usage_metrics_model_metric_token_detail: UsageMetricsModelMetricTokenDetail
     usage_metrics_model_metric_usage: UsageMetricsModelMetricUsage
+    usage_metrics_token_detail: UsageMetricsTokenDetail
     workspaces_create_file_request: WorkspacesCreateFileRequest
     workspaces_get_workspace_result: WorkspacesGetWorkspaceResult
     workspaces_list_files_result: WorkspacesListFilesResult
@@ -5185,18 +5779,33 @@ class RPC:
         discovered_mcp_server = DiscoveredMCPServer.from_dict(obj.get("DiscoveredMcpServer"))
         discovered_mcp_server_source = MCPServerSource(obj.get("DiscoveredMcpServerSource"))
         discovered_mcp_server_type = DiscoveredMCPServerType(obj.get("DiscoveredMcpServerType"))
+        embedded_blob_resource_contents = EmbeddedBlobResourceContents.from_dict(obj.get("EmbeddedBlobResourceContents"))
+        embedded_text_resource_contents = EmbeddedTextResourceContents.from_dict(obj.get("EmbeddedTextResourceContents"))
         extension = Extension.from_dict(obj.get("Extension"))
         extension_list = ExtensionList.from_dict(obj.get("ExtensionList"))
         extensions_disable_request = ExtensionsDisableRequest.from_dict(obj.get("ExtensionsDisableRequest"))
         extensions_enable_request = ExtensionsEnableRequest.from_dict(obj.get("ExtensionsEnableRequest"))
         extension_source = ExtensionSource(obj.get("ExtensionSource"))
         extension_status = ExtensionStatus(obj.get("ExtensionStatus"))
+        external_tool_result = from_union([ExternalToolTextResultForLlm.from_dict, from_str], obj.get("ExternalToolResult"))
+        external_tool_text_result_for_llm = ExternalToolTextResultForLlm.from_dict(obj.get("ExternalToolTextResultForLlm"))
+        external_tool_text_result_for_llm_content = ExternalToolTextResultForLlmContent.from_dict(obj.get("ExternalToolTextResultForLlmContent"))
+        external_tool_text_result_for_llm_content_audio = ExternalToolTextResultForLlmContentAudio.from_dict(obj.get("ExternalToolTextResultForLlmContentAudio"))
+        external_tool_text_result_for_llm_content_image = ExternalToolTextResultForLlmContentImage.from_dict(obj.get("ExternalToolTextResultForLlmContentImage"))
+        external_tool_text_result_for_llm_content_resource = ExternalToolTextResultForLlmContentResource.from_dict(obj.get("ExternalToolTextResultForLlmContentResource"))
+        external_tool_text_result_for_llm_content_resource_details = ExternalToolTextResultForLlmContentResourceDetails.from_dict(obj.get("ExternalToolTextResultForLlmContentResourceDetails"))
+        external_tool_text_result_for_llm_content_resource_link = ExternalToolTextResultForLlmContentResourceLink.from_dict(obj.get("ExternalToolTextResultForLlmContentResourceLink"))
+        external_tool_text_result_for_llm_content_resource_link_icon = ExternalToolTextResultForLlmContentResourceLinkIcon.from_dict(obj.get("ExternalToolTextResultForLlmContentResourceLinkIcon"))
+        external_tool_text_result_for_llm_content_resource_link_icon_theme = ExternalToolTextResultForLlmContentResourceLinkIconTheme(obj.get("ExternalToolTextResultForLlmContentResourceLinkIconTheme"))
+        external_tool_text_result_for_llm_content_terminal = ExternalToolTextResultForLlmContentTerminal.from_dict(obj.get("ExternalToolTextResultForLlmContentTerminal"))
+        external_tool_text_result_for_llm_content_text = ExternalToolTextResultForLlmContentText.from_dict(obj.get("ExternalToolTextResultForLlmContentText"))
         filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString], obj.get("FilterMapping"))
         filter_mapping_string = FilterMappingString(obj.get("FilterMappingString"))
         filter_mapping_value = FilterMappingString(obj.get("FilterMappingValue"))
         fleet_start_request = FleetStartRequest.from_dict(obj.get("FleetStartRequest"))
         fleet_start_result = FleetStartResult.from_dict(obj.get("FleetStartResult"))
-        handle_tool_call_result = HandleToolCallResult.from_dict(obj.get("HandleToolCallResult"))
+        handle_pending_tool_call_request = HandlePendingToolCallRequest.from_dict(obj.get("HandlePendingToolCallRequest"))
+        handle_pending_tool_call_result = HandlePendingToolCallResult.from_dict(obj.get("HandlePendingToolCallResult"))
         history_compact_context_window = HistoryCompactContextWindow.from_dict(obj.get("HistoryCompactContextWindow"))
         history_compact_result = HistoryCompactResult.from_dict(obj.get("HistoryCompactResult"))
         history_truncate_request = HistoryTruncateRequest.from_dict(obj.get("HistoryTruncateRequest"))
@@ -5266,6 +5875,7 @@ class RPC:
         permission_decision_approve_for_session_approval_read = PermissionDecisionApproveForSessionApprovalRead.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalRead"))
         permission_decision_approve_for_session_approval_write = PermissionDecisionApproveForSessionApprovalWrite.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalWrite"))
         permission_decision_approve_once = PermissionDecisionApproveOnce.from_dict(obj.get("PermissionDecisionApproveOnce"))
+        permission_decision_approve_permanently = PermissionDecisionApprovePermanently.from_dict(obj.get("PermissionDecisionApprovePermanently"))
         permission_decision_reject = PermissionDecisionReject.from_dict(obj.get("PermissionDecisionReject"))
         permission_decision_request = PermissionDecisionRequest.from_dict(obj.get("PermissionDecisionRequest"))
         permission_decision_user_not_available = PermissionDecisionUserNotAvailable.from_dict(obj.get("PermissionDecisionUserNotAvailable"))
@@ -5338,10 +5948,7 @@ class RPC:
         tasks_start_agent_request = TasksStartAgentRequest.from_dict(obj.get("TasksStartAgentRequest"))
         tasks_start_agent_result = TasksStartAgentResult.from_dict(obj.get("TasksStartAgentResult"))
         tool = Tool.from_dict(obj.get("Tool"))
-        tool_call_result = ToolCallResult.from_dict(obj.get("ToolCallResult"))
         tool_list = ToolList.from_dict(obj.get("ToolList"))
-        tools_handle_pending_tool_call = from_union([ToolCallResult.from_dict, from_str], obj.get("ToolsHandlePendingToolCall"))
-        tools_handle_pending_tool_call_request = ToolsHandlePendingToolCallRequest.from_dict(obj.get("ToolsHandlePendingToolCallRequest"))
         tools_list_request = ToolsListRequest.from_dict(obj.get("ToolsListRequest"))
         ui_elicitation_array_any_of_field = UIElicitationArrayAnyOfField.from_dict(obj.get("UIElicitationArrayAnyOfField"))
         ui_elicitation_array_any_of_field_items = UIElicitationArrayAnyOfFieldItems.from_dict(obj.get("UIElicitationArrayAnyOfFieldItems"))
@@ -5369,13 +5976,15 @@ class RPC:
         usage_metrics_code_changes = UsageMetricsCodeChanges.from_dict(obj.get("UsageMetricsCodeChanges"))
         usage_metrics_model_metric = UsageMetricsModelMetric.from_dict(obj.get("UsageMetricsModelMetric"))
         usage_metrics_model_metric_requests = UsageMetricsModelMetricRequests.from_dict(obj.get("UsageMetricsModelMetricRequests"))
+        usage_metrics_model_metric_token_detail = UsageMetricsModelMetricTokenDetail.from_dict(obj.get("UsageMetricsModelMetricTokenDetail"))
         usage_metrics_model_metric_usage = UsageMetricsModelMetricUsage.from_dict(obj.get("UsageMetricsModelMetricUsage"))
+        usage_metrics_token_detail = UsageMetricsTokenDetail.from_dict(obj.get("UsageMetricsTokenDetail"))
         workspaces_create_file_request = WorkspacesCreateFileRequest.from_dict(obj.get("WorkspacesCreateFileRequest"))
         workspaces_get_workspace_result = WorkspacesGetWorkspaceResult.from_dict(obj.get("WorkspacesGetWorkspaceResult"))
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_call_result, tool_list, tools_handle_pending_tool_call, tools_handle_pending_tool_call_request, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_usage, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, embedded_blob_resource_contents, embedded_text_resource_contents, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -5395,18 +6004,33 @@ class RPC:
         result["DiscoveredMcpServer"] = to_class(DiscoveredMCPServer, self.discovered_mcp_server)
         result["DiscoveredMcpServerSource"] = to_enum(MCPServerSource, self.discovered_mcp_server_source)
         result["DiscoveredMcpServerType"] = to_enum(DiscoveredMCPServerType, self.discovered_mcp_server_type)
+        result["EmbeddedBlobResourceContents"] = to_class(EmbeddedBlobResourceContents, self.embedded_blob_resource_contents)
+        result["EmbeddedTextResourceContents"] = to_class(EmbeddedTextResourceContents, self.embedded_text_resource_contents)
         result["Extension"] = to_class(Extension, self.extension)
         result["ExtensionList"] = to_class(ExtensionList, self.extension_list)
         result["ExtensionsDisableRequest"] = to_class(ExtensionsDisableRequest, self.extensions_disable_request)
         result["ExtensionsEnableRequest"] = to_class(ExtensionsEnableRequest, self.extensions_enable_request)
         result["ExtensionSource"] = to_enum(ExtensionSource, self.extension_source)
         result["ExtensionStatus"] = to_enum(ExtensionStatus, self.extension_status)
+        result["ExternalToolResult"] = from_union([lambda x: to_class(ExternalToolTextResultForLlm, x), from_str], self.external_tool_result)
+        result["ExternalToolTextResultForLlm"] = to_class(ExternalToolTextResultForLlm, self.external_tool_text_result_for_llm)
+        result["ExternalToolTextResultForLlmContent"] = to_class(ExternalToolTextResultForLlmContent, self.external_tool_text_result_for_llm_content)
+        result["ExternalToolTextResultForLlmContentAudio"] = to_class(ExternalToolTextResultForLlmContentAudio, self.external_tool_text_result_for_llm_content_audio)
+        result["ExternalToolTextResultForLlmContentImage"] = to_class(ExternalToolTextResultForLlmContentImage, self.external_tool_text_result_for_llm_content_image)
+        result["ExternalToolTextResultForLlmContentResource"] = to_class(ExternalToolTextResultForLlmContentResource, self.external_tool_text_result_for_llm_content_resource)
+        result["ExternalToolTextResultForLlmContentResourceDetails"] = to_class(ExternalToolTextResultForLlmContentResourceDetails, self.external_tool_text_result_for_llm_content_resource_details)
+        result["ExternalToolTextResultForLlmContentResourceLink"] = to_class(ExternalToolTextResultForLlmContentResourceLink, self.external_tool_text_result_for_llm_content_resource_link)
+        result["ExternalToolTextResultForLlmContentResourceLinkIcon"] = to_class(ExternalToolTextResultForLlmContentResourceLinkIcon, self.external_tool_text_result_for_llm_content_resource_link_icon)
+        result["ExternalToolTextResultForLlmContentResourceLinkIconTheme"] = to_enum(ExternalToolTextResultForLlmContentResourceLinkIconTheme, self.external_tool_text_result_for_llm_content_resource_link_icon_theme)
+        result["ExternalToolTextResultForLlmContentTerminal"] = to_class(ExternalToolTextResultForLlmContentTerminal, self.external_tool_text_result_for_llm_content_terminal)
+        result["ExternalToolTextResultForLlmContentText"] = to_class(ExternalToolTextResultForLlmContentText, self.external_tool_text_result_for_llm_content_text)
         result["FilterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x)], self.filter_mapping)
         result["FilterMappingString"] = to_enum(FilterMappingString, self.filter_mapping_string)
         result["FilterMappingValue"] = to_enum(FilterMappingString, self.filter_mapping_value)
         result["FleetStartRequest"] = to_class(FleetStartRequest, self.fleet_start_request)
         result["FleetStartResult"] = to_class(FleetStartResult, self.fleet_start_result)
-        result["HandleToolCallResult"] = to_class(HandleToolCallResult, self.handle_tool_call_result)
+        result["HandlePendingToolCallRequest"] = to_class(HandlePendingToolCallRequest, self.handle_pending_tool_call_request)
+        result["HandlePendingToolCallResult"] = to_class(HandlePendingToolCallResult, self.handle_pending_tool_call_result)
         result["HistoryCompactContextWindow"] = to_class(HistoryCompactContextWindow, self.history_compact_context_window)
         result["HistoryCompactResult"] = to_class(HistoryCompactResult, self.history_compact_result)
         result["HistoryTruncateRequest"] = to_class(HistoryTruncateRequest, self.history_truncate_request)
@@ -5476,6 +6100,7 @@ class RPC:
         result["PermissionDecisionApproveForSessionApprovalRead"] = to_class(PermissionDecisionApproveForSessionApprovalRead, self.permission_decision_approve_for_session_approval_read)
         result["PermissionDecisionApproveForSessionApprovalWrite"] = to_class(PermissionDecisionApproveForSessionApprovalWrite, self.permission_decision_approve_for_session_approval_write)
         result["PermissionDecisionApproveOnce"] = to_class(PermissionDecisionApproveOnce, self.permission_decision_approve_once)
+        result["PermissionDecisionApprovePermanently"] = to_class(PermissionDecisionApprovePermanently, self.permission_decision_approve_permanently)
         result["PermissionDecisionReject"] = to_class(PermissionDecisionReject, self.permission_decision_reject)
         result["PermissionDecisionRequest"] = to_class(PermissionDecisionRequest, self.permission_decision_request)
         result["PermissionDecisionUserNotAvailable"] = to_class(PermissionDecisionUserNotAvailable, self.permission_decision_user_not_available)
@@ -5548,10 +6173,7 @@ class RPC:
         result["TasksStartAgentRequest"] = to_class(TasksStartAgentRequest, self.tasks_start_agent_request)
         result["TasksStartAgentResult"] = to_class(TasksStartAgentResult, self.tasks_start_agent_result)
         result["Tool"] = to_class(Tool, self.tool)
-        result["ToolCallResult"] = to_class(ToolCallResult, self.tool_call_result)
         result["ToolList"] = to_class(ToolList, self.tool_list)
-        result["ToolsHandlePendingToolCall"] = from_union([lambda x: to_class(ToolCallResult, x), from_str], self.tools_handle_pending_tool_call)
-        result["ToolsHandlePendingToolCallRequest"] = to_class(ToolsHandlePendingToolCallRequest, self.tools_handle_pending_tool_call_request)
         result["ToolsListRequest"] = to_class(ToolsListRequest, self.tools_list_request)
         result["UIElicitationArrayAnyOfField"] = to_class(UIElicitationArrayAnyOfField, self.ui_elicitation_array_any_of_field)
         result["UIElicitationArrayAnyOfFieldItems"] = to_class(UIElicitationArrayAnyOfFieldItems, self.ui_elicitation_array_any_of_field_items)
@@ -5579,7 +6201,9 @@ class RPC:
         result["UsageMetricsCodeChanges"] = to_class(UsageMetricsCodeChanges, self.usage_metrics_code_changes)
         result["UsageMetricsModelMetric"] = to_class(UsageMetricsModelMetric, self.usage_metrics_model_metric)
         result["UsageMetricsModelMetricRequests"] = to_class(UsageMetricsModelMetricRequests, self.usage_metrics_model_metric_requests)
+        result["UsageMetricsModelMetricTokenDetail"] = to_class(UsageMetricsModelMetricTokenDetail, self.usage_metrics_model_metric_token_detail)
         result["UsageMetricsModelMetricUsage"] = to_class(UsageMetricsModelMetricUsage, self.usage_metrics_model_metric_usage)
+        result["UsageMetricsTokenDetail"] = to_class(UsageMetricsTokenDetail, self.usage_metrics_token_detail)
         result["WorkspacesCreateFileRequest"] = to_class(WorkspacesCreateFileRequest, self.workspaces_create_file_request)
         result["WorkspacesGetWorkspaceResult"] = to_class(WorkspacesGetWorkspaceResult, self.workspaces_get_workspace_result)
         result["WorkspacesListFilesResult"] = to_class(WorkspacesListFilesResult, self.workspaces_list_files_result)
@@ -6004,10 +6628,10 @@ class ToolsApi:
         self._client = client
         self._session_id = session_id
 
-    async def handle_pending_tool_call(self, params: ToolsHandlePendingToolCallRequest, *, timeout: float | None = None) -> HandleToolCallResult:
+    async def handle_pending_tool_call(self, params: HandlePendingToolCallRequest, *, timeout: float | None = None) -> HandlePendingToolCallResult:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return HandleToolCallResult.from_dict(await self._client.request("session.tools.handlePendingToolCall", params_dict, **_timeout_kwargs(timeout)))
+        return HandlePendingToolCallResult.from_dict(await self._client.request("session.tools.handlePendingToolCall", params_dict, **_timeout_kwargs(timeout)))
 
 
 class CommandsApi:
