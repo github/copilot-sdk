@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
@@ -39,11 +40,52 @@ public sealed class E2ETestContext : IAsyncDisposable
         Directory.CreateDirectory(homeDir);
         Directory.CreateDirectory(workDir);
 
+        // Resolve symlinks (e.g., macOS /var -> /private/var) so paths
+        // match what spawned subprocesses see when they resolve their cwd.
+        homeDir = ResolveSymlinks(homeDir);
+        workDir = ResolveSymlinks(workDir);
+
         var proxy = new CapiProxy();
         var proxyUrl = await proxy.StartAsync();
 
         return new E2ETestContext(homeDir, workDir, proxyUrl, proxy, repoRoot);
     }
+
+    private static string ResolveSymlinks(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return Path.GetFullPath(path);
+        }
+
+        IntPtr resolved = IntPtr.Zero;
+        try
+        {
+            resolved = NativeRealpath(path, IntPtr.Zero);
+            if (resolved == IntPtr.Zero)
+            {
+                return Path.GetFullPath(path);
+            }
+            return Marshal.PtrToStringAnsi(resolved) ?? Path.GetFullPath(path);
+        }
+        catch
+        {
+            return Path.GetFullPath(path);
+        }
+        finally
+        {
+            if (resolved != IntPtr.Zero)
+            {
+                NativeFree(resolved);
+            }
+        }
+    }
+
+    [DllImport("libc", EntryPoint = "realpath", CharSet = CharSet.Ansi, BestFitMapping = false, ThrowOnUnmappableChar = true)]
+    private static extern IntPtr NativeRealpath([MarshalAs(UnmanagedType.LPStr)] string path, IntPtr resolved);
+
+    [DllImport("libc", EntryPoint = "free")]
+    private static extern void NativeFree(IntPtr ptr);
 
     private static string FindRepoRoot()
     {

@@ -82,9 +82,7 @@ describe("Commands", async () => {
 
         const session2 = await client1.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
-            commands: [
-                { name: "deploy", description: "Deploy", handler: async () => {} },
-            ],
+            commands: [{ name: "deploy", description: "Deploy", handler: async () => {} }],
         });
 
         expect(session2).toBeDefined();

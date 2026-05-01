@@ -100,8 +100,9 @@ class TestPerSessionAuth:
         auth_status = await session.rpc.auth.get_status()
         # Without a per-session token, there is no per-session identity.
         # In CI the process-level fake token may still authenticate globally,
-        # so we check login rather than is_authenticated.
-        assert auth_status.login is None
+        # so we check login rather than is_authenticated. On some platforms
+        # the absence of a login may surface as None, on others as an empty string.
+        assert not auth_status.login
 
         await session.disconnect()
 

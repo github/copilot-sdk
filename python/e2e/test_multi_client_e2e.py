@@ -41,8 +41,8 @@ class MultiClientContext:
         from .testharness.context import get_cli_path_for_tests
 
         self.cli_path = get_cli_path_for_tests()
-        self.home_dir = tempfile.mkdtemp(prefix="copilot-multi-config-")
-        self.work_dir = tempfile.mkdtemp(prefix="copilot-multi-work-")
+        self.home_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-multi-config-"))
+        self.work_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-multi-work-"))
 
         self._proxy = CapiProxy()
         self.proxy_url = await self._proxy.start()

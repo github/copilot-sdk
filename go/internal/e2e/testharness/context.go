@@ -59,11 +59,19 @@ func NewTestContext(t *testing.T) *TestContext {
 	if err != nil {
 		t.Fatalf("Failed to create temp home dir: %v", err)
 	}
+	if resolved, err := filepath.EvalSymlinks(homeDir); err == nil {
+		homeDir = resolved
+	}
 
 	workDir, err := os.MkdirTemp("", "copilot-test-work-")
 	if err != nil {
 		os.RemoveAll(homeDir)
 		t.Fatalf("Failed to create temp work dir: %v", err)
+	}
+	// Resolve symlinks (e.g., macOS /var -> /private/var) so paths
+	// match what spawned subprocesses see when they resolve their cwd.
+	if resolved, err := filepath.EvalSymlinks(workDir); err == nil {
+		workDir = resolved
 	}
 
 	proxy := NewCapiProxy()

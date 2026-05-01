@@ -44,8 +44,8 @@ class CommandsMultiClientContext:
 
     async def setup(self):
         self.cli_path = get_cli_path_for_tests()
-        self.home_dir = tempfile.mkdtemp(prefix="copilot-cmd-config-")
-        self.work_dir = tempfile.mkdtemp(prefix="copilot-cmd-work-")
+        self.home_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-cmd-config-"))
+        self.work_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-cmd-work-"))
 
         self._proxy = CapiProxy()
         self.proxy_url = await self._proxy.start()

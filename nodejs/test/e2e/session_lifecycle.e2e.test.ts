@@ -11,7 +11,10 @@ import { createSdkTestContext } from "./harness/sdkTestContext";
  * `setTimeout` waits for "session flushed to disk" so fast machines exit immediately
  * and slow CI machines still get up to `timeoutMs` before the test fails.
  */
-async function waitFor(predicate: () => Promise<boolean> | boolean, timeoutMs = 10_000): Promise<void> {
+async function waitFor(
+    predicate: () => Promise<boolean> | boolean,
+    timeoutMs = 10_000
+): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
         if (await predicate()) return;

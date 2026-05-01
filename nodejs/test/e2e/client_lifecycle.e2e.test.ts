@@ -72,7 +72,10 @@ describe("Client Lifecycle", async () => {
 
             // Poll for the session-specific event rather than a hard 500ms wait.
             const deadline = Date.now() + 10_000;
-            while (Date.now() < deadline && !events.some((e) => e.sessionId === session.sessionId)) {
+            while (
+                Date.now() < deadline &&
+                !events.some((e) => e.sessionId === session.sessionId)
+            ) {
                 await new Promise((r) => setTimeout(r, 50));
             }
 

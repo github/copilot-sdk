@@ -6,7 +6,7 @@ Mirrors the Node.js client.test.ts tests for these features.
 """
 
 import asyncio
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 
@@ -35,6 +35,7 @@ async def _wait_for(predicate: Callable[[], bool], timeout: float = 2.0) -> None
         if asyncio.get_event_loop().time() >= deadline:
             raise AssertionError(f"Condition not met within {timeout}s")
         await asyncio.sleep(0.005)
+
 
 # ============================================================================
 # Commands

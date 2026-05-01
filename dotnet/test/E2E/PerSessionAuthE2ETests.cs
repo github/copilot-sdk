@@ -97,8 +97,10 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         });
 
         var status = await session.Rpc.Auth.GetStatusAsync();
-        Assert.False(status.IsAuthenticated);
-        Assert.Null(status.Login);
+        // Without a per-session GitHub token, there is no per-session identity.
+        // In CI the process-level fake token may still authenticate globally,
+        // so we check Login rather than IsAuthenticated.
+        Assert.True(string.IsNullOrEmpty(status.Login), $"Expected no per-session login without token, got {status.Login}");
     }
 
     [Fact]

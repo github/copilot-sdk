@@ -55,8 +55,8 @@ class E2ETestContext:
         """Set up the test context with a shared client."""
         self.cli_path = get_cli_path_for_tests()
 
-        self.home_dir = tempfile.mkdtemp(prefix="copilot-test-config-")
-        self.work_dir = tempfile.mkdtemp(prefix="copilot-test-work-")
+        self.home_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-test-config-"))
+        self.work_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-test-work-"))
 
         self._proxy = CapiProxy()
         self.proxy_url = await self._proxy.start()

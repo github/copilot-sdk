@@ -146,7 +146,7 @@ class TestHooks:
         # Strengthen: verify the actual deny behavior — the protected file was NOT
         # modified by the runtime even though the LLM tried to edit it. The
         # pre-tool-use hook denial blocks tool execution before it can mutate state.
-        with open(os.path.join(ctx.work_dir, "protected.txt"), "r") as f:
+        with open(os.path.join(ctx.work_dir, "protected.txt")) as f:
             actual_content = f.read()
         assert actual_content == original_content, (
             f"protected.txt should be unchanged after deny; got: {actual_content!r}"

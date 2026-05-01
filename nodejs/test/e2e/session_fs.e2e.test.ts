@@ -242,18 +242,14 @@ describe("Session Fs Adapter", () => {
             async readdir(path: string): Promise<string[]> {
                 return (await provider.readdir(path)) as string[];
             },
-            async readdirWithTypes(
-                path: string
-            ): Promise<SessionFsReaddirWithTypesEntry[]> {
+            async readdirWithTypes(path: string): Promise<SessionFsReaddirWithTypesEntry[]> {
                 const names = (await provider.readdir(path)) as string[];
                 return Promise.all(
                     names.map(async (name) => {
                         const st = await provider.stat(`${path}/${name}`);
                         return {
                             name,
-                            type: st.isDirectory()
-                                ? ("directory" as const)
-                                : ("file" as const),
+                            type: st.isDirectory() ? ("directory" as const) : ("file" as const),
                         };
                     })
                 );
@@ -310,9 +306,7 @@ describe("Session Fs Adapter", () => {
         expect(entries.entries).toContain("file.txt");
         expect(entries.error).toBeUndefined();
 
-        const typedEntries = await handler.readdirWithTypes(
-            params({ path: "/workspace/nested" })
-        );
+        const typedEntries = await handler.readdirWithTypes(params({ path: "/workspace/nested" }));
         expect(typedEntries.entries).toContainEqual({ name: "file.txt", type: "file" });
         expect(typedEntries.error).toBeUndefined();
 
@@ -328,30 +322,20 @@ describe("Session Fs Adapter", () => {
         const oldPath = await handler.exists(params({ path: "/workspace/nested/file.txt" }));
         expect(oldPath.exists).toBe(false);
 
-        const renamed = await handler.readFile(
-            params({ path: "/workspace/nested/renamed.txt" })
-        );
+        const renamed = await handler.readFile(params({ path: "/workspace/nested/renamed.txt" }));
         expect(renamed.content).toBe("hello world");
 
-        expect(
-            await handler.rm(params({ path: "/workspace/nested/renamed.txt" }))
-        ).toBeUndefined();
+        expect(await handler.rm(params({ path: "/workspace/nested/renamed.txt" }))).toBeUndefined();
 
-        const removed = await handler.exists(
-            params({ path: "/workspace/nested/renamed.txt" })
-        );
+        const removed = await handler.exists(params({ path: "/workspace/nested/renamed.txt" }));
         expect(removed.exists).toBe(false);
 
         // Forced removal of a missing file should not error.
         expect(
-            await handler.rm(
-                params({ path: "/workspace/nested/missing.txt", force: true })
-            )
+            await handler.rm(params({ path: "/workspace/nested/missing.txt", force: true }))
         ).toBeUndefined();
 
-        const missing = await handler.stat(
-            params({ path: "/workspace/nested/missing.txt" })
-        );
+        const missing = await handler.stat(params({ path: "/workspace/nested/missing.txt" }));
         expect(missing.error?.code).toBe("ENOENT");
     });
 
@@ -421,13 +405,9 @@ describe("Session Fs Adapter", () => {
         assertEnoent((await handler.stat({ path: "missing.txt" } as never)).error);
         assertEnoent(await handler.mkdir({ path: "missing-dir" } as never));
         assertEnoent((await handler.readdir({ path: "missing-dir" } as never)).error);
-        assertEnoent(
-            (await handler.readdirWithTypes({ path: "missing-dir" } as never)).error
-        );
+        assertEnoent((await handler.readdirWithTypes({ path: "missing-dir" } as never)).error);
         assertEnoent(await handler.rm({ path: "missing.txt" } as never));
-        assertEnoent(
-            await handler.rename({ src: "missing.txt", dest: "dest.txt" } as never)
-        );
+        assertEnoent(await handler.rename({ src: "missing.txt", dest: "dest.txt" } as never));
 
         // Non-ENOENT errors map to UNKNOWN.
         const unknown: SessionFsProvider = {

@@ -51,8 +51,8 @@ class ElicitationMultiClientContext:
 
     async def setup(self):
         self.cli_path = get_cli_path_for_tests()
-        self.home_dir = tempfile.mkdtemp(prefix="copilot-elicit-config-")
-        self.work_dir = tempfile.mkdtemp(prefix="copilot-elicit-work-")
+        self.home_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-elicit-config-"))
+        self.work_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-elicit-work-"))
 
         self._proxy = CapiProxy()
         self.proxy_url = await self._proxy.start()
