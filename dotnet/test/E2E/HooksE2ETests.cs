@@ -165,7 +165,7 @@ public class HooksE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E
         // Strengthen: verify the actual deny behavior — the protected file was NOT
         // modified by the runtime even though the LLM tried to edit it. The pre-tool-use
         // hook denial blocks tool execution before it can mutate state.
-        var actualContent = await File.ReadAllTextAsync(Path.Combine(Ctx.WorkDir, "protected.txt"));
+        var actualContent = await File.ReadAllTextAsync(Path.Join(Ctx.WorkDir, "protected.txt"));
         Assert.Equal(originalContent, actualContent);
     }
 }

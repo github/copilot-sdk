@@ -81,7 +81,7 @@ public sealed class E2ETestContext : IAsyncDisposable
             var resolved = root;
             foreach (var component in components)
             {
-                resolved = Path.Combine(resolved, component);
+                resolved = Path.Join(resolved, component);
                 try
                 {
                     var info = new DirectoryInfo(resolved);
