@@ -245,6 +245,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantMessageStart:
+		var d AssistantMessageStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantMessageDelta:
 		var d AssistantMessageDeltaData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -591,6 +597,7 @@ const (
 	SessionEventTypeAssistantReasoningDelta       SessionEventType = "assistant.reasoning_delta"
 	SessionEventTypeAssistantStreamingDelta       SessionEventType = "assistant.streaming_delta"
 	SessionEventTypeAssistantMessage              SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageStart         SessionEventType = "assistant.message_start"
 	SessionEventTypeAssistantMessageDelta         SessionEventType = "assistant.message_delta"
 	SessionEventTypeAssistantTurnEnd              SessionEventType = "assistant.turn_end"
 	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
@@ -1424,6 +1431,16 @@ type AssistantMessageDeltaData struct {
 }
 
 func (*AssistantMessageDeltaData) sessionEventData() {}
+
+// Streaming assistant message start metadata
+type AssistantMessageStartData struct {
+	// Message ID this start event belongs to, matching subsequent deltas and assistant.message
+	MessageID string `json:"messageId"`
+	// Generation phase this message belongs to for phased-output models
+	Phase *string `json:"phase,omitempty"`
+}
+
+func (*AssistantMessageStartData) sessionEventData() {}
 
 // Streaming reasoning delta for incremental extended thinking updates
 type AssistantReasoningDeltaData struct {
