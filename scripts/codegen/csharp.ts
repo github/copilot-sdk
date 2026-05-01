@@ -731,19 +731,6 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     return lines.join("\n");
 }
 
-function isCSharpValueType(csharpType: string): boolean {
-    const type = csharpType.endsWith("?") ? csharpType.slice(0, -1) : csharpType;
-    if (["bool", "long", "double", "Guid", "DateTimeOffset", "TimeSpan", "JsonElement"].includes(type)) {
-        return true;
-    }
-
-    for (const { enumName } of generatedEnums.values()) {
-        if (enumName === type) return true;
-    }
-
-    return false;
-}
-
 function emitSessionEventEnvelopeProperty(
     property: EventEnvelopeProperty,
     knownTypes: Map<string, string>,
@@ -768,12 +755,7 @@ function emitSessionEventEnvelopeProperty(
     if (isDurationProperty(property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
     if (!property.required) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
     lines.push(`    [JsonPropertyName("${property.name}")]`);
-
-    const initializer =
-        property.required && !csharpType.endsWith("?") && !isCSharpValueType(csharpType)
-            ? " = default!;"
-            : "";
-    lines.push(`    public ${csharpType} ${csharpName} { get; set; }${initializer}`, "");
+    lines.push(`    public ${csharpType} ${csharpName} { get; set; }`, "");
 
     return lines;
 }
