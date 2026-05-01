@@ -16,14 +16,17 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
 
         var events = new List<SessionEvent>();
-        session.On(evt => events.Add(evt));
+        session.On(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Count from 1 to 5, separated by commas." });
 
-        var types = events.Select(e => e.Type).ToList();
+        List<SessionEvent> snapshot;
+        lock (events) { snapshot = [.. events]; }
+
+        var types = snapshot.Select(e => e.Type).ToList();
 
         // Should have streaming deltas before the final message
-        var deltaEvents = events.OfType<AssistantMessageDeltaEvent>().ToList();
+        var deltaEvents = snapshot.OfType<AssistantMessageDeltaEvent>().ToList();
         Assert.NotEmpty(deltaEvents);
 
         // Deltas should have content
@@ -49,17 +52,20 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var session = await CreateSessionAsync(new SessionConfig { Streaming = false });
 
         var events = new List<SessionEvent>();
-        session.On(evt => events.Add(evt));
+        session.On(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say 'hello world'." });
 
-        var deltaEvents = events.OfType<AssistantMessageDeltaEvent>().ToList();
+        List<SessionEvent> snapshot;
+        lock (events) { snapshot = [.. events]; }
+
+        var deltaEvents = snapshot.OfType<AssistantMessageDeltaEvent>().ToList();
 
         // No deltas when streaming is off
         Assert.Empty(deltaEvents);
 
         // But should still have a final assistant.message
-        var assistantEvents = events.OfType<AssistantMessageEvent>().ToList();
+        var assistantEvents = snapshot.OfType<AssistantMessageEvent>().ToList();
         Assert.NotEmpty(assistantEvents);
 
         await session.DisposeAsync();
@@ -78,14 +84,17 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
             new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll, Streaming = true });
 
         var events = new List<SessionEvent>();
-        session2.On(evt => events.Add(evt));
+        session2.On(evt => { lock (events) { events.Add(evt); } });
 
         var answer = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
         Assert.NotNull(answer);
         Assert.Contains("18", answer!.Data.Content ?? string.Empty);
 
+        List<SessionEvent> snapshot;
+        lock (events) { snapshot = [.. events]; }
+
         // Should have streaming deltas before the final message
-        var deltaEvents = events.OfType<AssistantMessageDeltaEvent>().ToList();
+        var deltaEvents = snapshot.OfType<AssistantMessageDeltaEvent>().ToList();
         Assert.NotEmpty(deltaEvents);
 
         // Deltas should have content
