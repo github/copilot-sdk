@@ -36,6 +36,7 @@ from .generated.rpc import (
     ClientSessionApiHandlers,
     ConnectRequest,
     ServerRpc,
+    _InternalServerRpc,
     register_client_session_api_handlers,
 )
 from .generated.session_events import (
@@ -2207,7 +2208,7 @@ class CopilotClient:
 
         server_version: int | None
         try:
-            connect_result = await ServerRpc(self._client).connect(
+            connect_result = await _InternalServerRpc(self._client).connect(
                 ConnectRequest(token=self._effective_connection_token)
             )
             server_version = connect_result.protocol_version

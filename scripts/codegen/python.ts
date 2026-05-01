@@ -1861,13 +1861,13 @@ def _patch_model_capabilities(data: dict) -> dict:
         const publicNode = filterNodeByVisibility(schema.server, "public");
         if (publicNode) emitRpcWrapper(lines, publicNode, false, resolveType, "");
         const internalNode = filterNodeByVisibility(schema.server, "internal");
-        if (internalNode) emitRpcWrapper(lines, internalNode, false, resolveType, "Internal");
+        if (internalNode) emitRpcWrapper(lines, internalNode, false, resolveType, "_Internal");
     }
     if (schema.session) {
         const publicNode = filterNodeByVisibility(schema.session, "public");
         if (publicNode) emitRpcWrapper(lines, publicNode, true, resolveType, "");
         const internalNode = filterNodeByVisibility(schema.session, "internal");
-        if (internalNode) emitRpcWrapper(lines, internalNode, true, resolveType, "Internal");
+        if (internalNode) emitRpcWrapper(lines, internalNode, true, resolveType, "_Internal");
     }
     if (schema.clientSession) {
         emitClientSessionApiRegistration(lines, schema.clientSession, resolveType);
@@ -1962,7 +1962,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     // Emit wrapper class
     if (isSession) {
         lines.push(`class ${wrapperName}:`);
-        lines.push(classPrefix === "Internal"
+        lines.push(classPrefix === "_Internal"
             ? `    """Internal SDK session-scoped RPC methods. Not part of the public API."""`
             : `    """Typed session-scoped RPC methods."""`);
         lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str):`);
@@ -1974,7 +1974,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         }
     } else {
         lines.push(`class ${wrapperName}:`);
-        lines.push(classPrefix === "Internal"
+        lines.push(classPrefix === "_Internal"
             ? `    """Internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API."""`
             : `    """Typed server-scoped RPC methods."""`);
         lines.push(`    def __init__(self, client: "JsonRpcClient"):`);

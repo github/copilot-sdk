@@ -121,6 +121,10 @@ type Client struct {
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
 	RPC *rpc.ServerRpc
+
+	// internalRPC provides SDK-internal RPC methods (handshake helpers etc.).
+	// Lowercase = not exported; external callers cannot reach it.
+	internalRPC *rpc.InternalServerRpc
 }
 
 // NewClient creates a new Copilot CLI client with the given options.
@@ -442,6 +446,7 @@ func (c *Client) Stop() error {
 	}
 
 	c.RPC = nil
+	c.internalRPC = nil
 	return errors.Join(errs...)
 }
 
@@ -513,6 +518,7 @@ func (c *Client) ForceStop() {
 	}
 
 	c.RPC = nil
+	c.internalRPC = nil
 }
 
 func (c *Client) ensureConnected(ctx context.Context) error {
@@ -1362,7 +1368,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		t := c.effectiveConnectionToken
 		tokenPtr = &t
 	}
-	connectResult, err := c.RPC.Connect(ctx, &rpc.ConnectRequest{Token: tokenPtr})
+	connectResult, err := c.internalRPC.Connect(ctx, &rpc.ConnectRequest{Token: tokenPtr})
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
 		if errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code {
@@ -1521,6 +1527,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			}()
 		})
 		c.RPC = rpc.NewServerRpc(c.client)
+		c.internalRPC = rpc.NewInternalServerRpc(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()
 
@@ -1646,6 +1653,7 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 		}()
 	})
 	c.RPC = rpc.NewServerRpc(c.client)
+	c.internalRPC = rpc.NewInternalServerRpc(c.client)
 	c.setupNotificationHandler()
 	c.client.Start()
 

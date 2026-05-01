@@ -6432,7 +6432,7 @@ class ServerRpc:
         return PingResult.from_dict(await self._client.request("ping", params_dict, **_timeout_kwargs(timeout)))
 
 
-class InternalServerRpc:
+class _InternalServerRpc:
     """Internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API."""
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
