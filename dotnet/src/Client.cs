@@ -1148,7 +1148,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 connection.Rpc, "connect", [new ConnectRequest { Token = _effectiveConnectionToken }], connection.StderrBuffer, cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
-        catch (RemoteInvocationException ex) when (ex.ErrorCode == (int)JsonRpcErrorCode.MethodNotFound)
+        catch (RemoteRpcException ex) when (ex.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode)
         {
             // Legacy server without `connect`; fall back to `ping`. A token, if any,
             // is silently dropped — the legacy server can't enforce one.

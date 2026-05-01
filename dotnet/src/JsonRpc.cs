@@ -831,5 +831,8 @@ internal sealed class ConnectionLostException() : IOException("The JSON-RPC conn
 /// </summary>
 internal sealed class RemoteRpcException(string message, int errorCode, Exception? innerException = null) : Exception(message, innerException)
 {
+    /// <summary>JSON-RPC 2.0 reserved error code: requested method does not exist.</summary>
+    public const int MethodNotFoundErrorCode = -32601;
+
     public int ErrorCode { get; } = errorCode;
 }
