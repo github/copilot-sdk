@@ -395,6 +395,30 @@ export interface CommandsHandlePendingCommandResult {
   success: boolean;
 }
 
+/** @internal */
+export interface ConnectRequest {
+  /**
+   * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
+   */
+  token?: string;
+}
+
+/** @internal */
+export interface ConnectResult {
+  /**
+   * Always true on success
+   */
+  ok: true;
+  /**
+   * Server protocol version number
+   */
+  protocolVersion: number;
+  /**
+   * Server package version
+   */
+  version: string;
+}
+
 export interface CurrentModel {
   /**
    * Currently active model identifier
@@ -1402,30 +1426,6 @@ export interface PingResult {
    * Server protocol version number
    */
   protocolVersion: number;
-}
-
-/** @internal */
-export interface ConnectRequest {
-  /**
-   * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
-   */
-  token?: string;
-}
-
-/** @internal */
-export interface ConnectResult {
-  /**
-   * Always true on success
-   */
-  ok: true;
-  /**
-   * Server protocol version number
-   */
-  protocolVersion: number;
-  /**
-   * Server package version
-   */
-  version: string;
 }
 
 export interface PlanReadResult {
