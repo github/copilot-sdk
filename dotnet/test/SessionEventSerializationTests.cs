@@ -18,6 +18,7 @@ public class SessionEventSerializationTests
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 Timestamp = DateTimeOffset.Parse("2026-03-15T21:26:02.642Z"),
                 ParentId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                AgentId = "agent-1",
                 Data = new AssistantMessageData
                 {
                     MessageId = "msg-1",
@@ -134,6 +135,7 @@ public class SessionEventSerializationTests
         switch (expectedType)
         {
             case "assistant.message":
+                Assert.Equal("agent-1", root.GetProperty("agentId").GetString());
                 Assert.Equal(
                     "README.md",
                     root.GetProperty("data")

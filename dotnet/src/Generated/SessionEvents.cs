@@ -103,22 +103,27 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(UserMessageEvent), "user.message")]
 public partial class SessionEvent
 {
-    /// <summary>Unique event identifier (UUID v4), generated when the event is emitted.</summary>
-    [JsonPropertyName("id")]
-    public Guid Id { get; set; }
-
-    /// <summary>ISO 8601 timestamp when the event was created.</summary>
-    [JsonPropertyName("timestamp")]
-    public DateTimeOffset Timestamp { get; set; }
-
-    /// <summary>ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.</summary>
-    [JsonPropertyName("parentId")]
-    public Guid? ParentId { get; set; }
+    /// <summary>Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
 
     /// <summary>When true, the event is transient and not persisted to the session event log on disk.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ephemeral")]
     public bool? Ephemeral { get; set; }
+
+    /// <summary>Unique event identifier (UUID v4), generated when the event is emitted.</summary>
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; }
+
+    /// <summary>ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.</summary>
+    [JsonPropertyName("parentId")]
+    public Guid? ParentId { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the event was created.</summary>
+    [JsonPropertyName("timestamp")]
+    public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
     /// The event type discriminator.

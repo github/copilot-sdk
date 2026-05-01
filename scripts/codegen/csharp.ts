@@ -317,6 +317,12 @@ interface EventVariant {
     dataDescription?: string;
 }
 
+interface EventEnvelopeProperty {
+    name: string;
+    schema: JSONSchema7;
+    required: boolean;
+}
+
 let generatedEnums = new Map<string, { enumName: string; values: string[] }>();
 
 /** Schema definitions available during session event generation (for $ref resolution). */
@@ -343,26 +349,16 @@ function getOrCreateEnum(parentClassName: string, propName: string, values: stri
 
 function extractEventVariants(schema: JSONSchema7): EventVariant[] {
     const definitionCollections = collectDefinitionCollections(schema as Record<string, unknown>);
-    const sessionEvent =
-        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
-        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
-    if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
-
-    return sessionEvent.anyOf
+    return getSessionEventVariantSchemas(schema, definitionCollections)
         .map((variant) => {
-            const resolvedVariant =
-                resolveObjectSchema(variant as JSONSchema7, definitionCollections) ??
-                resolveSchema(variant as JSONSchema7, definitionCollections) ??
-                (variant as JSONSchema7);
-            if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) throw new Error("Invalid variant");
-            const typeSchema = resolvedVariant.properties.type as JSONSchema7;
+            const typeSchema = variant.properties!.type as JSONSchema7;
             const typeName = typeSchema?.const as string;
             if (!typeName) throw new Error("Variant must have type.const");
             const baseName = typeToClassName(typeName);
             const dataSchema =
-                resolveObjectSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
-                resolveSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
-                (resolvedVariant.properties.data as JSONSchema7);
+                resolveObjectSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
+                resolveSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
+                (variant.properties!.data as JSONSchema7);
             return {
                 typeName,
                 className: `${baseName}Event`,
@@ -371,6 +367,63 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
                 dataDescription: dataSchema?.description,
             };
         });
+}
+
+function getSessionEventVariantSchemas(
+    schema: JSONSchema7,
+    definitionCollections: DefinitionCollections = collectDefinitionCollections(schema as Record<string, unknown>)
+): JSONSchema7[] {
+    const sessionEvent =
+        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
+        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
+    if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
+
+    return sessionEvent.anyOf.map((variant) => {
+        const resolvedVariant =
+            resolveObjectSchema(variant as JSONSchema7, definitionCollections) ??
+            resolveSchema(variant as JSONSchema7, definitionCollections) ??
+            (variant as JSONSchema7);
+        if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) throw new Error("Invalid variant");
+        return resolvedVariant;
+    });
+}
+
+function getSharedEventEnvelopeProperties(schema: JSONSchema7): EventEnvelopeProperty[] {
+    const variants = getSessionEventVariantSchemas(schema, sessionDefinitions);
+    const firstVariant = variants[0];
+    const firstProperties = firstVariant.properties ?? {};
+
+    return Object.entries(firstProperties)
+        .filter(([name]) => name !== "type" && name !== "data")
+        .map(([name]) => {
+            const propertySchemas = variants
+                .map((variant) => variant.properties?.[name])
+                .filter((propSchema): propSchema is JSONSchema7 => typeof propSchema === "object" && propSchema !== null);
+
+            if (propertySchemas.length !== variants.length) return undefined;
+
+            return {
+                name,
+                schema: selectEnvelopePropertySchema(propertySchemas),
+                required: variants.every((variant) => (variant.required ?? []).includes(name)),
+            };
+        })
+        .filter((property): property is EventEnvelopeProperty => property !== undefined);
+}
+
+function selectEnvelopePropertySchema(propertySchemas: JSONSchema7[]): JSONSchema7 {
+    // Some variants further constrain a shared envelope property, e.g. ephemeral const true.
+    // Generate the base property from the least restrictive schema that has useful metadata.
+    return (
+        propertySchemas.find((schema) => !isConstOrEnumSchema(schema) && schema.description) ??
+        propertySchemas.find((schema) => !isConstOrEnumSchema(schema)) ??
+        propertySchemas.find((schema) => schema.description) ??
+        propertySchemas[0]
+    );
+}
+
+function isConstOrEnumSchema(schema: JSONSchema7): boolean {
+    return "const" in schema || (Array.isArray(schema.enum) && schema.enum.length > 0);
 }
 
 /**
@@ -678,6 +731,53 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     return lines.join("\n");
 }
 
+function isCSharpValueType(csharpType: string): boolean {
+    const type = csharpType.endsWith("?") ? csharpType.slice(0, -1) : csharpType;
+    if (["bool", "long", "double", "Guid", "DateTimeOffset", "TimeSpan", "JsonElement"].includes(type)) {
+        return true;
+    }
+
+    for (const { enumName } of generatedEnums.values()) {
+        if (enumName === type) return true;
+    }
+
+    return false;
+}
+
+function emitSessionEventEnvelopeProperty(
+    property: EventEnvelopeProperty,
+    knownTypes: Map<string, string>,
+    nestedClasses: Map<string, string>,
+    enumOutput: string[]
+): string[] {
+    const csharpName = toPascalCase(property.name);
+    const csharpType = resolveSessionPropertyType(
+        property.schema,
+        "SessionEvent",
+        csharpName,
+        property.required,
+        knownTypes,
+        nestedClasses,
+        enumOutput
+    );
+    const lines: string[] = [];
+
+    lines.push(...xmlDocPropertyComment(property.schema.description, property.name, "    "));
+    lines.push(...emitDataAnnotations(property.schema, "    "));
+    if (isSchemaDeprecated(property.schema)) lines.push(`    [Obsolete("This member is deprecated and will be removed in a future version.")]`);
+    if (isDurationProperty(property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+    if (!property.required) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+    lines.push(`    [JsonPropertyName("${property.name}")]`);
+
+    const initializer =
+        property.required && !csharpType.endsWith("?") && !isCSharpValueType(csharpType)
+            ? " = default!;"
+            : "";
+    lines.push(`    public ${csharpType} ${csharpName} { get; set; }${initializer}`, "");
+
+    return lines;
+}
+
 function generateSessionEventsCode(schema: JSONSchema7): string {
     generatedEnums.clear();
     sessionDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
@@ -685,23 +785,7 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
     const knownTypes = new Map<string, string>();
     const nestedClasses = new Map<string, string>();
     const enumOutput: string[] = [];
-
-    // Extract descriptions for base class properties from the first variant
-    const sessionEventDefinition =
-        resolveSchema({ $ref: "#/definitions/SessionEvent" }, sessionDefinitions) ??
-        resolveSchema({ $ref: "#/$defs/SessionEvent" }, sessionDefinitions);
-    const firstVariant =
-        typeof sessionEventDefinition === "object" ? (sessionEventDefinition.anyOf?.[0] as JSONSchema7 | undefined) : undefined;
-    const resolvedFirstVariant =
-        resolveObjectSchema(firstVariant, sessionDefinitions) ??
-        resolveSchema(firstVariant, sessionDefinitions) ??
-        firstVariant;
-    const baseProps =
-        typeof resolvedFirstVariant === "object" && resolvedFirstVariant?.properties ? resolvedFirstVariant.properties : {};
-    const baseDesc = (name: string) => {
-        const prop = baseProps[name];
-        return typeof prop === "object" ? (prop as JSONSchema7).description : undefined;
-    };
+    const envelopeProperties = getSharedEventEnvelopeProperties(schema);
 
     const lines: string[] = [];
     lines.push(`${COPYRIGHT}
@@ -731,14 +815,9 @@ namespace GitHub.Copilot.SDK;
         lines.push(`[JsonDerivedType(typeof(${variant.className}), "${variant.typeName}")]`);
     }
     lines.push(`public partial class SessionEvent`, `{`);
-    lines.push(...xmlDocComment(baseDesc("id"), "    "));
-    lines.push(`    [JsonPropertyName("id")]`, `    public Guid Id { get; set; }`, "");
-    lines.push(...xmlDocComment(baseDesc("timestamp"), "    "));
-    lines.push(`    [JsonPropertyName("timestamp")]`, `    public DateTimeOffset Timestamp { get; set; }`, "");
-    lines.push(...xmlDocComment(baseDesc("parentId"), "    "));
-    lines.push(`    [JsonPropertyName("parentId")]`, `    public Guid? ParentId { get; set; }`, "");
-    lines.push(...xmlDocComment(baseDesc("ephemeral"), "    "));
-    lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`, `    [JsonPropertyName("ephemeral")]`, `    public bool? Ephemeral { get; set; }`, "");
+    for (const property of envelopeProperties) {
+        lines.push(...emitSessionEventEnvelopeProperty(property, knownTypes, nestedClasses, enumOutput));
+    }
     lines.push(`    /// <summary>`, `    /// The event type discriminator.`, `    /// </summary>`);
     lines.push(`    [JsonIgnore]`, `    public virtual string Type => "unknown";`, "");
     lines.push(`    /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>`);
