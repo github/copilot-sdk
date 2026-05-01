@@ -20,6 +20,7 @@ public class ForwardCompatibilityTests
             "id": "00000000-0000-0000-0000-000000000001",
             "timestamp": "2026-01-01T00:00:00Z",
             "parentId": null,
+            "agentId": "agent-1",
             "type": "user.message",
             "data": {
                 "content": "Hello"
@@ -31,6 +32,7 @@ public class ForwardCompatibilityTests
 
         Assert.IsType<UserMessageEvent>(result);
         Assert.Equal("user.message", result.Type);
+        Assert.Equal("agent-1", result.AgentId);
     }
 
     [Fact]
@@ -41,6 +43,7 @@ public class ForwardCompatibilityTests
             "id": "12345678-1234-1234-1234-123456789abc",
             "timestamp": "2026-06-15T10:30:00Z",
             "parentId": "abcdefab-abcd-abcd-abcd-abcdefabcdef",
+            "agentId": "future-agent",
             "type": "future.feature_from_server",
             "data": { "key": "value" }
         }
@@ -50,6 +53,7 @@ public class ForwardCompatibilityTests
 
         Assert.IsType<SessionEvent>(result);
         Assert.Equal("unknown", result.Type);
+        Assert.Equal("future-agent", result.AgentId);
     }
 
     [Fact]

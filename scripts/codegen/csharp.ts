@@ -31,10 +31,13 @@ import {
     isObjectSchema,
     isVoidSchema,
     getNullableInner,
+    getSessionEventVariantSchemas,
+    getSharedSessionEventEnvelopeProperties,
     REPO_ROOT,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
+    type SessionEventEnvelopeProperty,
 } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
@@ -343,26 +346,16 @@ function getOrCreateEnum(parentClassName: string, propName: string, values: stri
 
 function extractEventVariants(schema: JSONSchema7): EventVariant[] {
     const definitionCollections = collectDefinitionCollections(schema as Record<string, unknown>);
-    const sessionEvent =
-        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
-        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
-    if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
-
-    return sessionEvent.anyOf
+    return getSessionEventVariantSchemas(schema, definitionCollections)
         .map((variant) => {
-            const resolvedVariant =
-                resolveObjectSchema(variant as JSONSchema7, definitionCollections) ??
-                resolveSchema(variant as JSONSchema7, definitionCollections) ??
-                (variant as JSONSchema7);
-            if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) throw new Error("Invalid variant");
-            const typeSchema = resolvedVariant.properties.type as JSONSchema7;
+            const typeSchema = variant.properties!.type as JSONSchema7;
             const typeName = typeSchema?.const as string;
             if (!typeName) throw new Error("Variant must have type.const");
             const baseName = typeToClassName(typeName);
             const dataSchema =
-                resolveObjectSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
-                resolveSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
-                (resolvedVariant.properties.data as JSONSchema7);
+                resolveObjectSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
+                resolveSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
+                (variant.properties!.data as JSONSchema7);
             return {
                 typeName,
                 className: `${baseName}Event`,
@@ -678,6 +671,35 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     return lines.join("\n");
 }
 
+function emitSessionEventEnvelopeProperty(
+    property: SessionEventEnvelopeProperty,
+    knownTypes: Map<string, string>,
+    nestedClasses: Map<string, string>,
+    enumOutput: string[]
+): string[] {
+    const csharpName = toPascalCase(property.name);
+    const csharpType = resolveSessionPropertyType(
+        property.schema,
+        "SessionEvent",
+        csharpName,
+        property.required,
+        knownTypes,
+        nestedClasses,
+        enumOutput
+    );
+    const lines: string[] = [];
+
+    lines.push(...xmlDocPropertyComment(property.schema.description, property.name, "    "));
+    lines.push(...emitDataAnnotations(property.schema, "    "));
+    if (isSchemaDeprecated(property.schema)) lines.push(`    [Obsolete("This member is deprecated and will be removed in a future version.")]`);
+    if (isDurationProperty(property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+    if (!property.required) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+    lines.push(`    [JsonPropertyName("${property.name}")]`);
+    lines.push(`    public ${csharpType} ${csharpName} { get; set; }`, "");
+
+    return lines;
+}
+
 function generateSessionEventsCode(schema: JSONSchema7): string {
     generatedEnums.clear();
     sessionDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
@@ -685,23 +707,7 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
     const knownTypes = new Map<string, string>();
     const nestedClasses = new Map<string, string>();
     const enumOutput: string[] = [];
-
-    // Extract descriptions for base class properties from the first variant
-    const sessionEventDefinition =
-        resolveSchema({ $ref: "#/definitions/SessionEvent" }, sessionDefinitions) ??
-        resolveSchema({ $ref: "#/$defs/SessionEvent" }, sessionDefinitions);
-    const firstVariant =
-        typeof sessionEventDefinition === "object" ? (sessionEventDefinition.anyOf?.[0] as JSONSchema7 | undefined) : undefined;
-    const resolvedFirstVariant =
-        resolveObjectSchema(firstVariant, sessionDefinitions) ??
-        resolveSchema(firstVariant, sessionDefinitions) ??
-        firstVariant;
-    const baseProps =
-        typeof resolvedFirstVariant === "object" && resolvedFirstVariant?.properties ? resolvedFirstVariant.properties : {};
-    const baseDesc = (name: string) => {
-        const prop = baseProps[name];
-        return typeof prop === "object" ? (prop as JSONSchema7).description : undefined;
-    };
+    const envelopeProperties = getSharedSessionEventEnvelopeProperties(schema, sessionDefinitions);
 
     const lines: string[] = [];
     lines.push(`${COPYRIGHT}
@@ -731,14 +737,9 @@ namespace GitHub.Copilot.SDK;
         lines.push(`[JsonDerivedType(typeof(${variant.className}), "${variant.typeName}")]`);
     }
     lines.push(`public partial class SessionEvent`, `{`);
-    lines.push(...xmlDocComment(baseDesc("id"), "    "));
-    lines.push(`    [JsonPropertyName("id")]`, `    public Guid Id { get; set; }`, "");
-    lines.push(...xmlDocComment(baseDesc("timestamp"), "    "));
-    lines.push(`    [JsonPropertyName("timestamp")]`, `    public DateTimeOffset Timestamp { get; set; }`, "");
-    lines.push(...xmlDocComment(baseDesc("parentId"), "    "));
-    lines.push(`    [JsonPropertyName("parentId")]`, `    public Guid? ParentId { get; set; }`, "");
-    lines.push(...xmlDocComment(baseDesc("ephemeral"), "    "));
-    lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`, `    [JsonPropertyName("ephemeral")]`, `    public bool? Ephemeral { get; set; }`, "");
+    for (const property of envelopeProperties) {
+        lines.push(...emitSessionEventEnvelopeProperty(property, knownTypes, nestedClasses, enumOutput));
+    }
     lines.push(`    /// <summary>`, `    /// The event type discriminator.`, `    /// </summary>`);
     lines.push(`    [JsonIgnore]`, `    public virtual string Type => "unknown";`, "");
     lines.push(`    /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>`);

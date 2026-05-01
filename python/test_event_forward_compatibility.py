@@ -24,6 +24,7 @@ from copilot.generated.session_events import (
     UserMessageAgentMode,
     UserMessageAttachmentGithubReferenceType,
     session_event_from_dict,
+    session_event_to_dict,
 )
 
 
@@ -46,6 +47,39 @@ class TestEventForwardCompatibility:
 
         event = session_event_from_dict(unknown_event)
         assert event.type == SessionEventType.UNKNOWN, f"Expected UNKNOWN, got {event.type}"
+
+    def test_known_event_preserves_top_level_agent_id(self):
+        """Known events should preserve the top-level sub-agent envelope ID."""
+        known_event = {
+            "id": str(uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "parentId": None,
+            "agentId": "agent-1",
+            "type": "user.message",
+            "data": {"content": "Hello"},
+        }
+
+        event = session_event_from_dict(known_event)
+        assert event.agent_id == "agent-1"
+        assert session_event_to_dict(event)["agentId"] == "agent-1"
+
+    def test_unknown_event_preserves_top_level_agent_id(self):
+        """Unknown events should preserve the top-level sub-agent envelope ID."""
+        unknown_event = {
+            "id": str(uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "parentId": None,
+            "agentId": "future-agent",
+            "type": "session.future_feature_from_server",
+            "data": {"key": "value"},
+        }
+
+        event = session_event_from_dict(unknown_event)
+        assert event.type == SessionEventType.UNKNOWN
+        assert event.agent_id == "future-agent"
+        serialized = session_event_to_dict(event)
+        assert serialized["agentId"] == "future-agent"
+        assert serialized["type"] == "session.future_feature_from_server"
 
     def test_malformed_uuid_raises_error(self):
         """Malformed UUIDs should raise ValueError for visibility, not be suppressed."""

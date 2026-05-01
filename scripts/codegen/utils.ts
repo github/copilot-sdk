@@ -29,6 +29,12 @@ export interface DefinitionCollections {
     $defs?: Record<string, JSONSchema7Definition>;
 }
 
+export interface SessionEventEnvelopeProperty {
+    name: string;
+    schema: JSONSchema7;
+    required: boolean;
+}
+
 export interface JSONSchema7WithDefs extends JSONSchema7, DefinitionCollections {}
 
 export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T & {
@@ -495,6 +501,66 @@ export function resolveObjectSchema(
     }
 
     return resolved;
+}
+
+export function getSessionEventVariantSchemas(
+    schema: JSONSchema7,
+    definitionCollections: DefinitionCollections = collectDefinitionCollections(schema as Record<string, unknown>)
+): JSONSchema7[] {
+    const sessionEvent =
+        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
+        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
+    if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
+
+    return (sessionEvent.anyOf as JSONSchema7[]).map((variant) => {
+        const resolvedVariant =
+            resolveObjectSchema(variant, definitionCollections) ??
+            resolveSchema(variant, definitionCollections) ??
+            variant;
+        if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) throw new Error("Invalid event variant");
+        return resolvedVariant;
+    });
+}
+
+export function getSharedSessionEventEnvelopeProperties(
+    schema: JSONSchema7,
+    definitionCollections: DefinitionCollections = collectDefinitionCollections(schema as Record<string, unknown>)
+): SessionEventEnvelopeProperty[] {
+    const variants = getSessionEventVariantSchemas(schema, definitionCollections);
+    const firstVariant = variants[0];
+    const firstProperties = firstVariant.properties ?? {};
+
+    return Object.entries(firstProperties)
+        .filter(([name]) => name !== "type" && name !== "data")
+        .map(([name]) => {
+            const propertySchemas = variants
+                .map((variant) => variant.properties?.[name])
+                .filter((propSchema): propSchema is JSONSchema7 => typeof propSchema === "object" && propSchema !== null);
+
+            if (propertySchemas.length !== variants.length) return undefined;
+
+            return {
+                name,
+                schema: selectSessionEventEnvelopePropertySchema(propertySchemas),
+                required: variants.every((variant) => (variant.required ?? []).includes(name)),
+            };
+        })
+        .filter((property): property is SessionEventEnvelopeProperty => property !== undefined);
+}
+
+function selectSessionEventEnvelopePropertySchema(propertySchemas: JSONSchema7[]): JSONSchema7 {
+    // Some variants further constrain a shared envelope property, e.g. ephemeral const true.
+    // Generate the base property from the least restrictive schema that has useful metadata.
+    return (
+        propertySchemas.find((schema) => !isConstOrEnumSchema(schema) && schema.description) ??
+        propertySchemas.find((schema) => !isConstOrEnumSchema(schema)) ??
+        propertySchemas.find((schema) => schema.description) ??
+        propertySchemas[0]
+    );
+}
+
+function isConstOrEnumSchema(schema: JSONSchema7): boolean {
+    return "const" in schema || (Array.isArray(schema.enum) && schema.enum.length > 0);
 }
 
 export function hasSchemaPayload(schema: JSONSchema7 | null | undefined): boolean {

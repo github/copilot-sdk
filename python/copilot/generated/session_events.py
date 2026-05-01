@@ -4773,6 +4773,7 @@ class SessionEvent:
     id: UUID
     timestamp: datetime
     type: SessionEventType
+    agent_id: str | None = None
     ephemeral: bool | None = None
     parent_id: UUID | None = None
     raw_type: str | None = None
@@ -4782,10 +4783,11 @@ class SessionEvent:
         assert isinstance(obj, dict)
         raw_type = from_str(obj.get("type"))
         event_type = SessionEventType(raw_type)
-        event_id = from_uuid(obj.get("id"))
-        timestamp = from_datetime(obj.get("timestamp"))
-        ephemeral = from_union([from_bool, from_none], obj.get("ephemeral"))
+        agent_id = from_union([from_none, from_str], obj.get("agentId"))
+        ephemeral = from_union([from_none, from_bool], obj.get("ephemeral"))
+        id = from_uuid(obj.get("id"))
         parent_id = from_union([from_none, from_uuid], obj.get("parentId"))
+        timestamp = from_datetime(obj.get("timestamp"))
         data_obj = obj.get("data")
         match event_type:
             case SessionEventType.SESSION_START: data = SessionStartData.from_dict(data_obj)
@@ -4869,9 +4871,10 @@ class SessionEvent:
             case _: data = RawSessionEventData.from_dict(data_obj)
         return SessionEvent(
             data=data,
-            id=event_id,
+            id=id,
             timestamp=timestamp,
             type=event_type,
+            agent_id=agent_id,
             ephemeral=ephemeral,
             parent_id=parent_id,
             raw_type=raw_type if event_type == SessionEventType.UNKNOWN else None,
@@ -4883,8 +4886,10 @@ class SessionEvent:
         result["id"] = to_uuid(self.id)
         result["timestamp"] = to_datetime(self.timestamp)
         result["type"] = self.raw_type if self.type == SessionEventType.UNKNOWN and self.raw_type is not None else to_enum(SessionEventType, self.type)
+        if self.agent_id is not None:
+            result["agentId"] = from_union([from_none, from_str], self.agent_id)
         if self.ephemeral is not None:
-            result["ephemeral"] = from_bool(self.ephemeral)
+            result["ephemeral"] = from_union([from_none, from_bool], self.ephemeral)
         result["parentId"] = from_union([from_none, to_uuid], self.parent_id)
         return result
 

@@ -25,14 +25,16 @@ func (r RawSessionEventData) MarshalJSON() ([]byte, error) { return r.Raw, nil }
 
 // SessionEvent represents a single session event with a typed data payload.
 type SessionEvent struct {
-	// Unique event identifier (UUID v4), generated when the event is emitted.
-	ID string `json:"id"`
-	// ISO 8601 timestamp when the event was created.
-	Timestamp time.Time `json:"timestamp"`
-	// ID of the preceding event in the session. Null for the first event.
-	ParentID *string `json:"parentId"`
-	// When true, the event is transient and not persisted.
+	// Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+	AgentID *string `json:"agentId,omitempty"`
+	// When true, the event is transient and not persisted to the session event log on disk
 	Ephemeral *bool `json:"ephemeral,omitempty"`
+	// Unique event identifier (UUID v4), generated when the event is emitted
+	ID string `json:"id"`
+	// ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+	ParentID *string `json:"parentId"`
+	// ISO 8601 timestamp when the event was created
+	Timestamp time.Time `json:"timestamp"`
 	// The event type discriminator.
 	Type SessionEventType `json:"type"`
 	// Typed event payload. Use a type switch to access per-event fields.
@@ -53,10 +55,11 @@ func (r *SessionEvent) Marshal() ([]byte, error) {
 
 func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	type rawEvent struct {
-		ID        string           `json:"id"`
-		Timestamp time.Time        `json:"timestamp"`
-		ParentID  *string          `json:"parentId"`
+		AgentID   *string          `json:"agentId,omitempty"`
 		Ephemeral *bool            `json:"ephemeral,omitempty"`
+		ID        string           `json:"id"`
+		ParentID  *string          `json:"parentId"`
+		Timestamp time.Time        `json:"timestamp"`
 		Type      SessionEventType `json:"type"`
 		Data      json.RawMessage  `json:"data"`
 	}
@@ -64,10 +67,11 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	e.ID = raw.ID
-	e.Timestamp = raw.Timestamp
-	e.ParentID = raw.ParentID
+	e.AgentID = raw.AgentID
 	e.Ephemeral = raw.Ephemeral
+	e.ID = raw.ID
+	e.ParentID = raw.ParentID
+	e.Timestamp = raw.Timestamp
 	e.Type = raw.Type
 
 	switch raw.Type {
@@ -547,18 +551,20 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 
 func (e SessionEvent) MarshalJSON() ([]byte, error) {
 	type rawEvent struct {
-		ID        string           `json:"id"`
-		Timestamp time.Time        `json:"timestamp"`
-		ParentID  *string          `json:"parentId"`
+		AgentID   *string          `json:"agentId,omitempty"`
 		Ephemeral *bool            `json:"ephemeral,omitempty"`
+		ID        string           `json:"id"`
+		ParentID  *string          `json:"parentId"`
+		Timestamp time.Time        `json:"timestamp"`
 		Type      SessionEventType `json:"type"`
 		Data      any              `json:"data"`
 	}
 	return json.Marshal(rawEvent{
-		ID:        e.ID,
-		Timestamp: e.Timestamp,
-		ParentID:  e.ParentID,
+		AgentID:   e.AgentID,
 		Ephemeral: e.Ephemeral,
+		ID:        e.ID,
+		ParentID:  e.ParentID,
+		Timestamp: e.Timestamp,
 		Type:      e.Type,
 		Data:      e.Data,
 	})
