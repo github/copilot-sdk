@@ -102,7 +102,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         return env!;
     }
 
-    public CopilotClient CreateClient(bool useStdio = true, CopilotClientOptions? options = null)
+    public CopilotClient CreateClient(bool useStdio = true, CopilotClientOptions? options = null, bool autoInjectGitHubToken = true)
     {
         options ??= new CopilotClientOptions();
 
@@ -116,7 +116,8 @@ public sealed class E2ETestContext : IAsyncDisposable
             options.CliPath ??= GetCliPath(_repoRoot);
         }
 
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"))
+        if (autoInjectGitHubToken
+            && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"))
             && string.IsNullOrEmpty(options.GitHubToken)
             && string.IsNullOrEmpty(options.CliUrl))
         {

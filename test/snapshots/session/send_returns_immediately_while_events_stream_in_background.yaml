@@ -48,4 +48,4 @@ conversations:
           done
           <exited with exit code 0>
       - role: assistant
-        content: Command completed successfully. The output is "done".
+        content: The command completed successfully, waiting 2 seconds before echoing "done".

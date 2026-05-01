@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say FORK_SOURCE_ALPHA exactly.
+      - role: assistant
+        content: FORK_SOURCE_ALPHA
+      - role: user
+        content: Now say FORK_CHILD_BETA exactly.
+      - role: assistant
+        content: FORK_CHILD_BETA

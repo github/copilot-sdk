@@ -1570,6 +1570,7 @@ internal static class Diagnostics
         lines.push(`    JsonSerializerDefaults.Web,`);
         lines.push(`    AllowOutOfOrderMetadataProperties = true,`);
         lines.push(`    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`);
+        for (const t of ["bool", "double", "int", "long", "string"]) lines.push(`[JsonSerializable(typeof(${t}))]`);
         for (const t of typeNames) lines.push(`[JsonSerializable(typeof(${t}))]`);
         lines.push(`internal partial class RpcJsonContext : JsonSerializerContext;`);
     }

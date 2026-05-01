@@ -103,8 +103,9 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 		t.Fatal("Failed to get caller information")
 	}
 
-	// Extract test file name: ask_user_test.go -> ask_user
+	// Extract test file name: ask_user_test.go -> ask_user, ask_user_e2e_test.go -> ask_user
 	testFile := strings.TrimSuffix(filepath.Base(callerFile), "_test.go")
+	testFile = strings.TrimSuffix(testFile, "_e2e")
 
 	// Extract and sanitize the subtest name from t.Name()
 	// t.Name() returns "TestAskUser/should_handle_freeform_user_input_response"

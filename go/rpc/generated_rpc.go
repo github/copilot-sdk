@@ -296,7 +296,7 @@ type AgentDeselectResult struct {
 // Experimental: AgentGetCurrentResult is part of an experimental API and may change or be removed.
 type AgentGetCurrentResult struct {
 	// Currently selected custom agent, or null if using the default agent
-	Agent *AgentInfo `json:"agent"`
+	Agent *AgentInfo `json:"agent,omitempty"`
 }
 
 // The newly selected custom agent
@@ -605,7 +605,7 @@ type HandlePendingToolCallRequest struct {
 	// Request ID of the pending tool call
 	RequestID string `json:"requestId"`
 	// Tool call result (string or expanded result object)
-	Result *ExternalToolResult `json:"result"`
+	Result *ExternalToolResult `json:"result,omitempty"`
 }
 
 type HandlePendingToolCallResult struct {
@@ -707,7 +707,7 @@ type MCPServerConfig struct {
 	Command         *string           `json:"command,omitempty"`
 	Cwd             *string           `json:"cwd,omitempty"`
 	Env             map[string]string `json:"env,omitempty"`
-	FilterMapping   *FilterMapping    `json:"filterMapping"`
+	FilterMapping   *FilterMapping    `json:"filterMapping,omitempty"`
 	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
@@ -836,7 +836,7 @@ type MCPServer struct {
 }
 
 type MCPServerConfigHTTP struct {
-	FilterMapping     *FilterMapping                     `json:"filterMapping"`
+	FilterMapping     *FilterMapping                     `json:"filterMapping,omitempty"`
 	Headers           map[string]string                  `json:"headers,omitempty"`
 	IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
 	OauthClientID     *string                            `json:"oauthClientId,omitempty"`
@@ -856,7 +856,7 @@ type MCPServerConfigLocal struct {
 	Command         string            `json:"command"`
 	Cwd             *string           `json:"cwd,omitempty"`
 	Env             map[string]string `json:"env,omitempty"`
-	FilterMapping   *FilterMapping    `json:"filterMapping"`
+	FilterMapping   *FilterMapping    `json:"filterMapping,omitempty"`
 	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
@@ -1058,7 +1058,7 @@ type PermissionDecisionApproveForLocationApproval struct {
 	CommandIdentifiers []string     `json:"commandIdentifiers,omitempty"`
 	Kind               ApprovalKind `json:"kind"`
 	ServerName         *string      `json:"serverName,omitempty"`
-	ToolName           *string      `json:"toolName"`
+	ToolName           *string      `json:"toolName,omitempty"`
 }
 
 type PermissionDecisionApproveForLocationApprovalCommands struct {
@@ -1108,7 +1108,7 @@ type PermissionDecisionApproveForSessionApproval struct {
 	CommandIdentifiers []string     `json:"commandIdentifiers,omitempty"`
 	Kind               ApprovalKind `json:"kind"`
 	ServerName         *string      `json:"serverName,omitempty"`
-	ToolName           *string      `json:"toolName"`
+	ToolName           *string      `json:"toolName,omitempty"`
 }
 
 type PermissionDecisionApproveForSessionApprovalCommands struct {
@@ -1810,7 +1810,7 @@ type UIElicitationSchema struct {
 }
 
 type UIElicitationSchemaProperty struct {
-	Default     *UIElicitationFieldValue                 `json:"default"`
+	Default     *UIElicitationFieldValue                 `json:"default,omitempty"`
 	Description *string                                  `json:"description,omitempty"`
 	Enum        []string                                 `json:"enum,omitempty"`
 	EnumNames   []string                                 `json:"enumNames,omitempty"`
