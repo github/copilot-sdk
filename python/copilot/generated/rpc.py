@@ -6763,6 +6763,9 @@ class SessionRpc:
         self.history = HistoryApi(client, session_id)
         self.usage = UsageApi(client, session_id)
 
+    async def suspend(self, *, timeout: float | None = None) -> None:
+        await self._client.request("session.suspend", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
+
     async def log(self, params: LogRequest, *, timeout: float | None = None) -> LogResult:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id

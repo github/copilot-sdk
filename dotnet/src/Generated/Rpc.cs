@@ -483,6 +483,14 @@ internal sealed class SessionsForkRequest
     public string? ToEventId { get; set; }
 }
 
+/// <summary>RPC data type for SessionSuspend operations.</summary>
+internal sealed class SessionSuspendRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>RPC data type for Log operations.</summary>
 public sealed class LogResult
 {
@@ -3445,6 +3453,13 @@ public sealed class SessionRpc
     /// <summary>Usage APIs.</summary>
     public UsageApi Usage { get; }
 
+    /// <summary>Calls "session.suspend".</summary>
+    public async Task SuspendAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionSuspendRequest { SessionId = _sessionId };
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.suspend", [request], cancellationToken);
+    }
+
     /// <summary>Calls "session.log".</summary>
     public async Task<LogResult> LogAsync(string message, SessionLogLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
@@ -4344,6 +4359,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionPluginsListRequest))]
 [JsonSerializable(typeof(SessionSkillsListRequest))]
 [JsonSerializable(typeof(SessionSkillsReloadRequest))]
+[JsonSerializable(typeof(SessionSuspendRequest))]
 [JsonSerializable(typeof(SessionTasksListRequest))]
 [JsonSerializable(typeof(SessionUsageGetMetricsRequest))]
 [JsonSerializable(typeof(SessionWorkspacesGetWorkspaceRequest))]

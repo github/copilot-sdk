@@ -201,6 +201,7 @@ type RPCTypes struct {
 	SkillsEnableRequest                                      SkillsEnableRequest                                      `json:"SkillsEnableRequest"`
 	SkillsEnableResult                                       SkillsEnableResult                                       `json:"SkillsEnableResult"`
 	SkillsReloadResult                                       SkillsReloadResult                                       `json:"SkillsReloadResult"`
+	SuspendResult                                            SuspendResult                                            `json:"SuspendResult"`
 	TaskAgentInfo                                            TaskAgentInfo                                            `json:"TaskAgentInfo"`
 	TaskAgentInfoExecutionMode                               TaskInfoExecutionMode                                    `json:"TaskAgentInfoExecutionMode"`
 	TaskAgentInfoStatus                                      TaskInfoStatus                                           `json:"TaskAgentInfoStatus"`
@@ -1541,6 +1542,9 @@ type SkillsEnableResult struct {
 
 // Experimental: SkillsReloadResult is part of an experimental API and may change or be removed.
 type SkillsReloadResult struct {
+}
+
+type SuspendResult struct {
 }
 
 type TaskAgentInfo struct {
@@ -3637,6 +3641,19 @@ type SessionRpc struct {
 	Shell        *ShellApi
 	History      *HistoryApi
 	Usage        *UsageApi
+}
+
+func (a *SessionRpc) Suspend(ctx context.Context) (*SuspendResult, error) {
+	req := map[string]any{"sessionId": a.common.sessionID}
+	raw, err := a.common.client.Request("session.suspend", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SuspendResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, error) {

@@ -33,6 +33,7 @@ export type SessionEvent =
   | AssistantReasoningDeltaEvent
   | AssistantStreamingDeltaEvent
   | AssistantMessageEvent
+  | AssistantMessageStartEvent
   | AssistantMessageDeltaEvent
   | AssistantTurnEndEvent
   | AssistantUsageEvent
@@ -1964,6 +1965,40 @@ export interface AssistantMessageToolRequest {
    */
   toolTitle?: string;
   type?: AssistantMessageToolRequestType;
+}
+export interface AssistantMessageStartEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AssistantMessageStartData;
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "assistant.message_start";
+}
+/**
+ * Streaming assistant message start metadata
+ */
+export interface AssistantMessageStartData {
+  /**
+   * Message ID this start event belongs to, matching subsequent deltas and assistant.message
+   */
+  messageId: string;
+  /**
+   * Generation phase this message belongs to for phased-output models
+   */
+  phase?: string;
 }
 export interface AssistantMessageDeltaEvent {
   /**

@@ -2524,6 +2524,8 @@ export function createServerRpc(connection: MessageConnection) {
 /** Create typed session-scoped RPC methods. */
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
+        suspend: async (): Promise<void> =>
+            connection.sendRequest("session.suspend", { sessionId }),
         auth: {
             getStatus: async (): Promise<SessionAuthStatus> =>
                 connection.sendRequest("session.auth.getStatus", { sessionId }),
