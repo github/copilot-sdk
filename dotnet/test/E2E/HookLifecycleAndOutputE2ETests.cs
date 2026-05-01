@@ -109,7 +109,6 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
     [Fact]
     public async Task Should_Invoke_OnErrorOccurred_Hook_When_Error_Occurs()
     {
-        var errorInputs = new List<ErrorOccurredHookInput>();
         CopilotSession? session = null;
         session = await CreateSessionAsync(new SessionConfig
         {
@@ -117,7 +116,6 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
             {
                 OnErrorOccurred = (input, invocation) =>
                 {
-                    errorInputs.Add(input);
                     Assert.Equal(session!.SessionId, invocation.SessionId);
                     Assert.True(input.Timestamp > 0);
                     Assert.False(string.IsNullOrEmpty(input.Cwd));

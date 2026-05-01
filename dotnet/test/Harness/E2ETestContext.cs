@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
@@ -51,6 +50,14 @@ public sealed class E2ETestContext : IAsyncDisposable
         return new E2ETestContext(homeDir, workDir, proxyUrl, proxy, repoRoot);
     }
 
+    /// <summary>
+    /// Returns a canonical path with symlinks resolved in every directory
+    /// component. .NET has no built-in equivalent of POSIX <c>realpath</c>
+    /// that walks all parents, so we walk the components ourselves and use
+    /// <see cref="DirectoryInfo.ResolveLinkTarget(bool)"/> on each one.
+    /// On Windows, where the test temp paths don't traverse symlinks,
+    /// <see cref="Path.GetFullPath(string)"/> is sufficient.
+    /// </summary>
     private static string ResolveSymlinks(string path)
     {
         if (OperatingSystem.IsWindows())
@@ -58,34 +65,52 @@ public sealed class E2ETestContext : IAsyncDisposable
             return Path.GetFullPath(path);
         }
 
-        IntPtr resolved = IntPtr.Zero;
         try
         {
-            resolved = NativeRealpath(path, IntPtr.Zero);
-            if (resolved == IntPtr.Zero)
+            var fullPath = Path.GetFullPath(path);
+            var root = Path.GetPathRoot(fullPath);
+            if (string.IsNullOrEmpty(root))
             {
-                return Path.GetFullPath(path);
+                return fullPath;
             }
-            return Marshal.PtrToStringAnsi(resolved) ?? Path.GetFullPath(path);
+
+            var components = fullPath
+                .Substring(root.Length)
+                .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+
+            var resolved = root;
+            foreach (var component in components)
+            {
+                resolved = Path.Combine(resolved, component);
+                try
+                {
+                    var info = new DirectoryInfo(resolved);
+                    if (info.Exists && info.LinkTarget != null)
+                    {
+                        var target = info.ResolveLinkTarget(returnFinalTarget: true);
+                        if (target != null && !string.IsNullOrEmpty(target.FullName))
+                        {
+                            resolved = target.FullName;
+                        }
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Component we can't inspect; keep what we have and continue.
+                }
+            }
+
+            return resolved;
         }
-        catch
+        catch (Exception ex) when (ex is IOException
+            or UnauthorizedAccessException
+            or ArgumentException
+            or NotSupportedException
+            or PathTooLongException)
         {
             return Path.GetFullPath(path);
         }
-        finally
-        {
-            if (resolved != IntPtr.Zero)
-            {
-                NativeFree(resolved);
-            }
-        }
     }
-
-    [DllImport("libc", EntryPoint = "realpath", CharSet = CharSet.Ansi, BestFitMapping = false, ThrowOnUnmappableChar = true)]
-    private static extern IntPtr NativeRealpath([MarshalAs(UnmanagedType.LPStr)] string path, IntPtr resolved);
-
-    [DllImport("libc", EntryPoint = "free")]
-    private static extern void NativeFree(IntPtr ptr);
 
     private static string FindRepoRoot()
     {

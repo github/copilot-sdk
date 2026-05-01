@@ -43,7 +43,7 @@ def _conversation_messages(events) -> list[tuple[str, str]]:
 
 async def _assert_implemented_failure(awaitable, method: str) -> None:
     with pytest.raises(Exception) as excinfo:
-        await awaitable
+        _result = await awaitable
     assert f"Unhandled method {method}".lower() not in str(excinfo.value).lower()
 
 

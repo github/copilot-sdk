@@ -71,7 +71,7 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         Assert.Contains(
             messages.OfType<ToolExecutionCompleteEvent>(),
             message => message.Data.Success &&
-                message.Data.Result?.Content.Contains(marker, StringComparison.Ordinal) == true);
+                (message.Data.Result?.Content?.Contains(marker, StringComparison.Ordinal) ?? false));
         Assert.Contains(
             messages.OfType<AssistantMessageEvent>(),
             message => (message.Data.Content ?? string.Empty).Contains("fleet task", StringComparison.OrdinalIgnoreCase));

@@ -104,6 +104,9 @@ class TestRpcServer:
             try:
                 await client.stop()
             except ExceptionGroup:
+                # Intentional: shutting down the per-test client can race the
+                # CLI's own teardown and surface as an aggregated cancellation
+                # error from anyio. We don't want it to fail the test.
                 pass
 
     async def test_should_call_rpc_account_get_quota_when_authenticated(
@@ -140,6 +143,9 @@ class TestRpcServer:
             try:
                 await client.stop()
             except ExceptionGroup:
+                # Intentional: shutting down the per-test client can race the
+                # CLI's own teardown and surface as an aggregated cancellation
+                # error from anyio. We don't want it to fail the test.
                 pass
 
     async def test_should_call_rpc_tools_list_with_typed_result(self, ctx: E2ETestContext):

@@ -858,7 +858,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             await session.DisposeAsync();
         }
-        catch
+        catch (Exception)
         {
             // disconnect may fail since the provider is fake
         }
@@ -887,7 +887,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             await session.DisposeAsync();
         }
-        catch
+        catch (Exception)
         {
             // disconnect may fail since the provider is fake
         }
@@ -915,7 +915,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             await session2.DisposeAsync();
         }
-        catch
+        catch (Exception)
         {
             // disconnect may fail since the provider is fake
         }

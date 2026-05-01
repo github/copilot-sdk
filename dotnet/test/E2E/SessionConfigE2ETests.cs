@@ -289,7 +289,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         {
             await session.DisposeAsync();
         }
-        catch
+        catch (Exception)
         {
             // disconnect may fail since the provider is fake
         }
