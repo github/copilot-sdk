@@ -32,9 +32,12 @@ import {
     withSharedDefinitions,
     refTypeName,
     resolveRef,
+    getSessionEventVariantSchemas,
+    getSharedSessionEventEnvelopeProperties,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
+    type SessionEventEnvelopeProperty,
 } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
@@ -305,6 +308,13 @@ interface GoEventVariant {
     dataDescription?: string;
 }
 
+interface GoEventEnvelopeProperty extends SessionEventEnvelopeProperty {
+    fieldName: string;
+    typeName: string;
+    jsonTag: string;
+    description?: string;
+}
+
 interface GoCodegenCtx {
     structs: string[];
     enums: string[];
@@ -315,25 +325,15 @@ interface GoCodegenCtx {
 
 function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
     const definitionCollections = collectDefinitionCollections(schema as Record<string, unknown>);
-    const sessionEvent =
-        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
-        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
-    if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
-
-    return (sessionEvent.anyOf as JSONSchema7[])
+    return getSessionEventVariantSchemas(schema, definitionCollections)
         .map((variant) => {
-            const resolvedVariant =
-                resolveObjectSchema(variant as JSONSchema7, definitionCollections) ??
-                resolveSchema(variant as JSONSchema7, definitionCollections) ??
-                (variant as JSONSchema7);
-            if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) throw new Error("Invalid variant");
-            const typeSchema = resolvedVariant.properties.type as JSONSchema7;
+            const typeSchema = variant.properties!.type as JSONSchema7;
             const typeName = typeSchema?.const as string;
             if (!typeName) throw new Error("Variant must have type.const");
             const dataSchema =
-                resolveObjectSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
-                resolveSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
-                ((resolvedVariant.properties.data as JSONSchema7) || {});
+                resolveObjectSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
+                resolveSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
+                ((variant.properties!.data as JSONSchema7) || {});
             return {
                 typeName,
                 dataClassName: `${toPascalCase(typeName)}Data`,
@@ -341,6 +341,36 @@ function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
                 dataDescription: dataSchema.description,
             };
         });
+}
+
+function getGoSharedEventEnvelopeProperties(schema: JSONSchema7, ctx: GoCodegenCtx): GoEventEnvelopeProperty[] {
+    return getSharedSessionEventEnvelopeProperties(schema, ctx.definitions)
+        .map((property) => {
+            const { name, schema, required } = property;
+            const typeName = resolveGoPropertyType(schema, "SessionEvent", name, required && !getNullableInner(schema), ctx);
+            const omit = required ? "" : ",omitempty";
+
+            return {
+                name,
+                schema,
+                required,
+                fieldName: toGoFieldName(name),
+                typeName,
+                jsonTag: `json:"${name}${omit}"`,
+                description: schema.description,
+            };
+        });
+}
+
+function emitGoEnvelopeStructField(property: GoEventEnvelopeProperty, includeComment: boolean): string[] {
+    const lines: string[] = [];
+    if (includeComment && property.description) {
+        for (const line of property.description.split(/\r?\n/)) {
+            lines.push(`\t// ${line}`);
+        }
+    }
+    lines.push(`\t${property.fieldName} ${property.typeName} \`${property.jsonTag}\``);
+    return lines;
 }
 
 /**
@@ -736,6 +766,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
         generatedNames: new Set(),
         definitions: collectDefinitionCollections(schema as Record<string, unknown>),
     };
+    const envelopeProperties = getGoSharedEventEnvelopeProperties(schema, ctx);
 
     // Generate per-event data structs
     const dataStructs: string[] = [];
@@ -834,15 +865,9 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     // SessionEvent struct
     out.push(`// SessionEvent represents a single session event with a typed data payload.`);
     out.push(`type SessionEvent struct {`);
-    out.push(`\t// Unique event identifier (UUID v4), generated when the event is emitted.`);
-    out.push(`\tID string \`json:"id"\``);
-    out.push(`\t// ISO 8601 timestamp when the event was created.`);
-    out.push(`\tTimestamp time.Time \`json:"timestamp"\``);
-    // parentId: string or null
-    out.push(`\t// ID of the preceding event in the session. Null for the first event.`);
-    out.push(`\tParentID *string \`json:"parentId"\``);
-    out.push(`\t// When true, the event is transient and not persisted.`);
-    out.push(`\tEphemeral *bool \`json:"ephemeral,omitempty"\``);
+    for (const property of envelopeProperties) {
+        out.push(...emitGoEnvelopeStructField(property, true));
+    }
     out.push(`\t// The event type discriminator.`);
     out.push(`\tType SessionEventType \`json:"type"\``);
     out.push(`\t// Typed event payload. Use a type switch to access per-event fields.`);
@@ -869,10 +894,11 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     // Custom UnmarshalJSON
     out.push(`func (e *SessionEvent) UnmarshalJSON(data []byte) error {`);
     out.push(`\ttype rawEvent struct {`);
-    out.push(`\t\tID        string           \`json:"id"\``);
-    out.push(`\t\tTimestamp time.Time        \`json:"timestamp"\``);
-    out.push(`\t\tParentID  *string          \`json:"parentId"\``);
-    out.push(`\t\tEphemeral *bool            \`json:"ephemeral,omitempty"\``);
+    for (const property of envelopeProperties) {
+        for (const line of emitGoEnvelopeStructField(property, false)) {
+            out.push(`\t${line}`);
+        }
+    }
     out.push(`\t\tType      SessionEventType \`json:"type"\``);
     out.push(`\t\tData      json.RawMessage  \`json:"data"\``);
     out.push(`\t}`);
@@ -880,10 +906,9 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     out.push(`\tif err := json.Unmarshal(data, &raw); err != nil {`);
     out.push(`\t\treturn err`);
     out.push(`\t}`);
-    out.push(`\te.ID = raw.ID`);
-    out.push(`\te.Timestamp = raw.Timestamp`);
-    out.push(`\te.ParentID = raw.ParentID`);
-    out.push(`\te.Ephemeral = raw.Ephemeral`);
+    for (const property of envelopeProperties) {
+        out.push(`\te.${property.fieldName} = raw.${property.fieldName}`);
+    }
     out.push(`\te.Type = raw.Type`);
     out.push(``);
     out.push(`\tswitch raw.Type {`);
@@ -915,18 +940,18 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     // Custom MarshalJSON
     out.push(`func (e SessionEvent) MarshalJSON() ([]byte, error) {`);
     out.push(`\ttype rawEvent struct {`);
-    out.push(`\t\tID        string           \`json:"id"\``);
-    out.push(`\t\tTimestamp time.Time        \`json:"timestamp"\``);
-    out.push(`\t\tParentID  *string          \`json:"parentId"\``);
-    out.push(`\t\tEphemeral *bool            \`json:"ephemeral,omitempty"\``);
+    for (const property of envelopeProperties) {
+        for (const line of emitGoEnvelopeStructField(property, false)) {
+            out.push(`\t${line}`);
+        }
+    }
     out.push(`\t\tType      SessionEventType \`json:"type"\``);
     out.push(`\t\tData      any              \`json:"data"\``);
     out.push(`\t}`);
     out.push(`\treturn json.Marshal(rawEvent{`);
-    out.push(`\t\tID:        e.ID,`);
-    out.push(`\t\tTimestamp: e.Timestamp,`);
-    out.push(`\t\tParentID:  e.ParentID,`);
-    out.push(`\t\tEphemeral: e.Ephemeral,`);
+    for (const property of envelopeProperties) {
+        out.push(`\t\t${property.fieldName}: e.${property.fieldName},`);
+    }
     out.push(`\t\tType:      e.Type,`);
     out.push(`\t\tData:      e.Data,`);
     out.push(`\t})`);

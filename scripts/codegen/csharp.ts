@@ -31,10 +31,13 @@ import {
     isObjectSchema,
     isVoidSchema,
     getNullableInner,
+    getSessionEventVariantSchemas,
+    getSharedSessionEventEnvelopeProperties,
     REPO_ROOT,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
+    type SessionEventEnvelopeProperty,
 } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
@@ -317,12 +320,6 @@ interface EventVariant {
     dataDescription?: string;
 }
 
-interface EventEnvelopeProperty {
-    name: string;
-    schema: JSONSchema7;
-    required: boolean;
-}
-
 let generatedEnums = new Map<string, { enumName: string; values: string[] }>();
 
 /** Schema definitions available during session event generation (for $ref resolution). */
@@ -367,63 +364,6 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
                 dataDescription: dataSchema?.description,
             };
         });
-}
-
-function getSessionEventVariantSchemas(
-    schema: JSONSchema7,
-    definitionCollections: DefinitionCollections = collectDefinitionCollections(schema as Record<string, unknown>)
-): JSONSchema7[] {
-    const sessionEvent =
-        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
-        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
-    if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
-
-    return sessionEvent.anyOf.map((variant) => {
-        const resolvedVariant =
-            resolveObjectSchema(variant as JSONSchema7, definitionCollections) ??
-            resolveSchema(variant as JSONSchema7, definitionCollections) ??
-            (variant as JSONSchema7);
-        if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) throw new Error("Invalid variant");
-        return resolvedVariant;
-    });
-}
-
-function getSharedEventEnvelopeProperties(schema: JSONSchema7): EventEnvelopeProperty[] {
-    const variants = getSessionEventVariantSchemas(schema, sessionDefinitions);
-    const firstVariant = variants[0];
-    const firstProperties = firstVariant.properties ?? {};
-
-    return Object.entries(firstProperties)
-        .filter(([name]) => name !== "type" && name !== "data")
-        .map(([name]) => {
-            const propertySchemas = variants
-                .map((variant) => variant.properties?.[name])
-                .filter((propSchema): propSchema is JSONSchema7 => typeof propSchema === "object" && propSchema !== null);
-
-            if (propertySchemas.length !== variants.length) return undefined;
-
-            return {
-                name,
-                schema: selectEnvelopePropertySchema(propertySchemas),
-                required: variants.every((variant) => (variant.required ?? []).includes(name)),
-            };
-        })
-        .filter((property): property is EventEnvelopeProperty => property !== undefined);
-}
-
-function selectEnvelopePropertySchema(propertySchemas: JSONSchema7[]): JSONSchema7 {
-    // Some variants further constrain a shared envelope property, e.g. ephemeral const true.
-    // Generate the base property from the least restrictive schema that has useful metadata.
-    return (
-        propertySchemas.find((schema) => !isConstOrEnumSchema(schema) && schema.description) ??
-        propertySchemas.find((schema) => !isConstOrEnumSchema(schema)) ??
-        propertySchemas.find((schema) => schema.description) ??
-        propertySchemas[0]
-    );
-}
-
-function isConstOrEnumSchema(schema: JSONSchema7): boolean {
-    return "const" in schema || (Array.isArray(schema.enum) && schema.enum.length > 0);
 }
 
 /**
@@ -732,7 +672,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
 }
 
 function emitSessionEventEnvelopeProperty(
-    property: EventEnvelopeProperty,
+    property: SessionEventEnvelopeProperty,
     knownTypes: Map<string, string>,
     nestedClasses: Map<string, string>,
     enumOutput: string[]
@@ -767,7 +707,7 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
     const knownTypes = new Map<string, string>();
     const nestedClasses = new Map<string, string>();
     const enumOutput: string[] = [];
-    const envelopeProperties = getSharedEventEnvelopeProperties(schema);
+    const envelopeProperties = getSharedSessionEventEnvelopeProperties(schema, sessionDefinitions);
 
     const lines: string[] = [];
     lines.push(`${COPYRIGHT}
