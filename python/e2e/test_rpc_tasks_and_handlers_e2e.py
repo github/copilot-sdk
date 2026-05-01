@@ -32,7 +32,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 async def _assert_implemented_failure(awaitable, method: str) -> None:
     with pytest.raises(Exception) as excinfo:
-        _result = await awaitable
+        _ = await awaitable
     assert f"Unhandled method {method}".lower() not in str(excinfo.value).lower()
 
 

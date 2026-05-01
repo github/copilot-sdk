@@ -61,7 +61,7 @@ def _assert_skill(skills, skill_name: str, *, enabled: bool):
 
 async def _assert_failure(awaitable, expected: str) -> None:
     with pytest.raises(Exception) as excinfo:
-        _result = await awaitable
+        _ = await awaitable
     assert expected.lower() in str(excinfo.value).lower()
 
 

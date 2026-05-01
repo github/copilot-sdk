@@ -159,7 +159,7 @@ class TestPendingWorkResume:
                 await session1.send(
                     "Use resume_permission_tool with value 'alpha', then reply with the result."
                 )
-                _captured_permission_request = await captured_request
+                _ = await captured_request
                 permission_event = await permission_event_task
 
                 # Force-stop the suspended client without releasing the in-flight
