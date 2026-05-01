@@ -123,6 +123,8 @@ export type McpServerConfigLocalType = "local" | "stdio";
  * via the `definition` "McpServerConfigHttpType".
  */
 export type McpServerConfigHttpType = "http" | "sse";
+
+export type McpServerConfigHttpOauthGrantType = "authorization_code" | "client_credentials";
 /**
  * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
  *
@@ -878,6 +880,7 @@ export interface McpServerConfigHttp {
   };
   oauthClientId?: string;
   oauthPublicClient?: boolean;
+  oauthGrantType?: McpServerConfigHttpOauthGrantType;
 }
 
 export interface McpConfigDisableRequest {

@@ -93,6 +93,7 @@ type RPCTypes struct {
 	MCPServer                                                MCPServer                                                `json:"McpServer"`
 	MCPServerConfig                                          MCPServerConfig                                          `json:"McpServerConfig"`
 	MCPServerConfigHTTP                                      MCPServerConfigHTTP                                      `json:"McpServerConfigHttp"`
+	MCPServerConfigHTTPOauthGrantType                        MCPServerConfigHTTPOauthGrantType                        `json:"McpServerConfigHttpOauthGrantType"`
 	MCPServerConfigHTTPType                                  MCPServerConfigHTTPType                                  `json:"McpServerConfigHttpType"`
 	MCPServerConfigLocal                                     MCPServerConfigLocal                                     `json:"McpServerConfigLocal"`
 	MCPServerConfigLocalType                                 MCPServerConfigLocalType                                 `json:"McpServerConfigLocalType"`
@@ -712,11 +713,12 @@ type MCPServerConfig struct {
 	// Tools to include. Defaults to all tools if not specified.
 	Tools []string `json:"tools,omitempty"`
 	// Remote transport type. Defaults to "http" when omitted.
-	Type              *MCPServerConfigType `json:"type,omitempty"`
-	Headers           map[string]string    `json:"headers,omitempty"`
-	OauthClientID     *string              `json:"oauthClientId,omitempty"`
-	OauthPublicClient *bool                `json:"oauthPublicClient,omitempty"`
-	URL               *string              `json:"url,omitempty"`
+	Type              *MCPServerConfigType               `json:"type,omitempty"`
+	Headers           map[string]string                  `json:"headers,omitempty"`
+	OauthClientID     *string                            `json:"oauthClientId,omitempty"`
+	OauthGrantType    *MCPServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
+	OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
+	URL               *string                            `json:"url,omitempty"`
 }
 
 type MCPConfigAddResult struct {
@@ -833,11 +835,12 @@ type MCPServer struct {
 }
 
 type MCPServerConfigHTTP struct {
-	FilterMapping     *FilterMapping    `json:"filterMapping"`
-	Headers           map[string]string `json:"headers,omitempty"`
-	IsDefaultServer   *bool             `json:"isDefaultServer,omitempty"`
-	OauthClientID     *string           `json:"oauthClientId,omitempty"`
-	OauthPublicClient *bool             `json:"oauthPublicClient,omitempty"`
+	FilterMapping     *FilterMapping                     `json:"filterMapping"`
+	Headers           map[string]string                  `json:"headers,omitempty"`
+	IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
+	OauthClientID     *string                            `json:"oauthClientId,omitempty"`
+	OauthGrantType    *MCPServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
+	OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
@@ -2171,6 +2174,13 @@ const (
 	SessionLogLevelError   SessionLogLevel = "error"
 	SessionLogLevelInfo    SessionLogLevel = "info"
 	SessionLogLevelWarning SessionLogLevel = "warning"
+)
+
+type MCPServerConfigHTTPOauthGrantType string
+
+const (
+	MCPServerConfigHTTPOauthGrantTypeAuthorizationCode MCPServerConfigHTTPOauthGrantType = "authorization_code"
+	MCPServerConfigHTTPOauthGrantTypeClientCredentials MCPServerConfigHTTPOauthGrantType = "client_credentials"
 )
 
 // Remote transport type. Defaults to "http" when omitted.
