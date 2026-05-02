@@ -52,9 +52,3 @@
 - Unit tests: `nodejs/test`, `python/*`, `go/*`, `dotnet/test`, `rust/tests`
 - E2E tests: `*/e2e/` folders that use the shared replay proxy and `test/snapshots/`
 - Generated types: update schema in `@github/copilot` then run `cd nodejs && npm run generate:session-types` and commit generated files in `src/generated` or language generated location.
-
-## Skills 🛠️
-
-Repo-scoped skills live under `.github/skills/<skill-name>/` and are auto-discovered by Copilot. Load the relevant skill before editing the matching file types.
-
-- **`rust-coding-skill`** (`.github/skills/rust-coding-skill/SKILL.md`) — load before editing any `*.rs` file in `rust/`. Covers error handling, async/concurrency, tracing, codegen workflow, and Rust SDK-specific trait patterns.
