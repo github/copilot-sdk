@@ -60,41 +60,55 @@ needed.
 
 ## Traits and conversions
 
-Plain functions on a type beat traits for navigability — IDE "Go to definition"
-on an inherent method jumps directly to the implementation, while a trait method
-hops to the trait declaration first. Use that as the default.
+Plain functions on a type beat traits for navigability. Use them as the default.
 
-There are four intentional exceptions where the SDK exposes a trait because it
-*is* an extension point — code paths consumers must be able to plug behaviour
-into:
+**Trait-based extension points are different.** When a consumer must plug behaviour into the SDK, prefer one trait with one default-impl method per event over per-event `Box<dyn Fn>` callback fields. This is what `tower_lsp::LanguageServer`, `rmcp::ServerHandler`, and `notify::EventHandler` do — the dominant idiom in async Rust for "wire-protocol handler" traits. Callback fields fight `Send + Sync + 'static`, fragment consumer state across closures, and skip exhaustiveness checks.
 
-- **`SessionHandler`** (`rust/src/handler.rs`) — single `on_event()` dispatches
-  CLI events. Notification-triggered events (`permission.requested`,
-  `external_tool.requested`, `elicitation.requested`) are dispatched on spawned
-  tasks, so implementations must be safe for concurrent invocation. Use
-  `ApproveAllHandler` in tests and examples.
-- **`SessionHooks`** (`rust/src/hooks.rs`) — optional lifecycle callbacks. The
-  SDK auto-enables hooks (`config.hooks = Some(true)`) when an impl is supplied
-  to `create_session` / `resume_session`.
-- **`SystemMessageTransform`** (`rust/src/system_message.rs`) — declare
-  `section_ids()` and return content from `transform_section()`.
-- **`ToolHandler`** (`rust/src/tool.rs`) — client-side tool implementations.
-  Dispatch by name via `ToolHandlerRouter`.
+The four extension-point traits in this crate:
 
-Don't add new traits without a clear extension story. In particular, don't
-implement `From`/`Into` for SDK-internal conversions: they can't take extra
-parameters, can't return `Result`, and hide which conversion is happening at
-call sites. Prefer named methods like `to_info(&self)` or
-`MyType::from_record(record, ctx)`.
+- **`SessionHandler`** (`rust/src/handler.rs`) — per-event methods (`on_permission_request`, `on_user_input`, `on_external_tool`, `on_elicitation`, `on_exit_plan_mode`, `on_auto_mode_switch`, `on_session_event`) each with a default impl. The dispatcher `on_event(HandlerEvent)` is itself a default method that fans out to them; override per-event methods in normal use, override `on_event` only when you want a single exhaustive match. Concurrent invocations are possible (notification-triggered events run on spawned tasks), so `Send + Sync + 'static` is required on the trait.
+- **`SessionHooks`** (`rust/src/hooks.rs`) — optional lifecycle callbacks. The SDK auto-enables hooks when an impl is supplied to `create_session` / `resume_session`.
+- **`SystemMessageTransform`** (`rust/src/system_message.rs`) — declare `section_ids()` and return content from `transform_section()`.
+- **`ToolHandler`** (`rust/src/tool.rs`) — client-side tool implementations, dispatched by name via `ToolHandlerRouter`.
 
-Trivial field re-shaping ("flatten this struct into that one") is best inlined
-at the call site. A free-standing `map_x_to_y(x) -> Y` adds a hop without
-adding clarity.
+`ApproveAllHandler` is the standard test handler for `SessionHandler`.
 
-Closures should stay short — under ~10 lines is a good rule. Long anonymous
-closures show up as opaque frames in stack traces. Extract them to named
-functions when they grow. Visitor patterns are a closure-fest in disguise;
-expose an `iter()` method instead and let the consumer drive the traversal.
+**Don't add traits without a clear extension story.** Don't implement `From`/`Into` for SDK-internal conversions: they can't take extra parameters, can't return `Result`, and hide which conversion is happening at call sites. Prefer named methods like `to_info(&self)` or `MyType::from_record(record, ctx)`.
+
+Trivial field re-shaping is best inlined. Closures should stay short (under ~10 lines); extract to named functions when they grow. Visitor patterns are a closure-fest — expose `iter()` and let the consumer drive.
+
+## Concurrency primitives
+
+**Channels, not callback closures, for event flow.** Closures fight `Send + Sync + 'static` and don't compose with `select!`. Channel choice by semantics:
+
+| Use case | Primitive |
+|---|---|
+| One producer → one consumer with backpressure | `tokio::sync::mpsc` (cap 1) or `tokio::sync::oneshot` for single value |
+| Many producers → one consumer | `tokio::sync::mpsc` |
+| One producer → many consumers, every event delivered (pub/sub) | `tokio::sync::broadcast` |
+| One producer → many consumers, only the latest value matters | `tokio::sync::watch` |
+
+For the **public** API, prefer returning `impl Stream<Item = Event>` (wrap a `broadcast::Receiver` in `tokio_stream::wrappers::BroadcastStream`). `Stream` composes with `select!`, `take`, `map`, `filter`, `timeout`. See `EventSubscription` and `LifecycleSubscription`.
+
+**Cancellation: drop is the primitive; `tokio_util::sync::CancellationToken` for SDK-internal task coordination.**
+
+- **Caller-owned futures** (`send_message`, subscription streams): drop / `select!` / `tokio::time::timeout`. Don't accept a token parameter — it duplicates what `select!` already provides. Document cancel-safety on every `.await` in the hot path.
+- **SDK-internal tasks** (event loops, subprocess readers, anything `tokio::spawn`ed by the SDK): use `CancellationToken` stored on the long-lived handle. `Drop` calls `cancel()`. `Session::cancellation_token()` exposes a child token so callers can bind external work to the session lifetime.
+
+Refs: [`CancellationToken`][ctoken] · [`tonic` example][tonic-cancel] · [withoutboats: async clean-up][wb-cleanup] · [Cybernetist: cancellation patterns][cybernetist].
+
+[ctoken]: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
+[tonic-cancel]: https://github.com/hyperium/tonic/blob/master/examples/src/cancellation/server.rs
+[wb-cleanup]: https://without.boats/blog/asynchronous-clean-up/
+[cybernetist]: https://cybernetist.com/2024/04/19/rust-tokio-task-cancellation-patterns/
+
+## Optional fields and serde
+
+Use `Option<T>` for optional fields, not nullable references or sentinel values. Defaults come from `Default` impls. Pair with `#[non_exhaustive]` on public config structs and a builder so adding fields stays non-breaking.
+
+For required builder fields: prefer `build() -> Result<Self, BuildError>` over typestate unless required-field count is tiny (1-2).
+
+JSON: `#[serde(rename_all = "camelCase")]` at the type level, per-field `#[serde(rename = "…")]` for outliers, `#[serde(skip_serializing_if = "Option::is_none")]` for output, `#[serde(default)]` for input tolerance. Reach for `serde_with` only for non-trivial transforms (durations, base64, numeric-as-string keys).
 
 ## Tracing — `#[tracing::instrument]` is banned
 
@@ -127,111 +141,7 @@ interpolated into the message string.
 
 ## Idioms that don't port from other languages
 
-When porting code from the Node, Python, Go, .NET, or any other SDK,
-four idioms reliably translate poorly into idiomatic Rust. Each has
-specific guidance:
-
-### Event subscription: channels (and `Stream`), not callbacks
-
-Other SDKs expose callback registration:
-
-- Node / Python: `client.on('event', handler)` / `add_listener`
-- C#: `event` declarations and `+= handler`, or `IObservable<T>`
-- Go: `for ev := range ch { ... }` (closer to Rust already)
-
-Rust's async ecosystem prefers explicit channels over callback closures
-because closures fight `Send + Sync + 'static` and don't compose with
-`select!`/`StreamExt`. Pick the channel type by semantics:
-
-| Use case | Primitive |
-|---|---|
-| One producer → one consumer with backpressure | `tokio::sync::mpsc` (cap 1) or `tokio::sync::oneshot` for single value |
-| Many producers → one consumer (work queue, command bus) | `tokio::sync::mpsc` |
-| One producer → many consumers, every event delivered (pub/sub) | `tokio::sync::broadcast` |
-| One producer → many consumers, only the **latest** value matters (current state) | `tokio::sync::watch` |
-
-For the **public** API, prefer returning `impl Stream<Item = Event>`
-(typically by wrapping a `broadcast::Receiver` in
-`tokio_stream::wrappers::BroadcastStream`). `Stream` is the canonical
-"observable" shape in Rust — it composes with `select!`, `take`, `map`,
-`filter`, `timeout`, etc. Internally use a channel; externally consider
-exposing a `Stream`. This is what `tonic`, `reqwest::Response::bytes_stream`,
-and `sqlx::query::fetch` expose. See `EventSubscription` and
-`LifecycleSubscription` for the canonical examples in this crate.
-
-`Fn`-callback registration (`on_event(handler)`) is not an outright
-anti-pattern — `notify` (the FS watcher) and `bevy` use it idiomatically
-for non-async / domain-specific contexts — but for an async SDK exposing
-events to user code, channels + `Stream` is the canonical shape.
-
-### Cancellation: drop is the primitive; `CancellationToken` for SDK-internal coordination
-
-Cancellation does NOT plumb through every call site like Go's
-`context.Context` or .NET's `CancellationToken`. Two distinct cases,
-both idiomatic:
-
-**1. Caller-owned futures (`send_message`, `send_and_wait`, subscription streams).**
-Drop the future / `select!` it out / wrap in `tokio::time::timeout`.
-The caller already has full lifecycle control via the value's lifetime;
-adding a token parameter just duplicates what `select!`/`timeout`/drop
-already provide. This is what `reqwest`, `sqlx`, the `aws-sdk-*` crates,
-and `tonic`'s client side do. **Don't accept a token here.**
-
-Document cancel-safety on every `.await` in the SDK's hot path the way
-[`tokio` itself does](https://docs.rs/tokio/latest/tokio/macro.select.html#cancellation-safety):
-state explicitly which operations are safe to cancel mid-flight and
-which are not.
-
-**2. SDK-internal task coordination (event loops, subprocess readers,
-spawned background tasks).** Use [`tokio_util::sync::CancellationToken`].
-This is the canonical Rust analog to Go's `ctx.Done()` and .NET's
-`CancellationToken`, but scoped to where it actually belongs: tasks the
-caller doesn't own. `tonic` uses it to propagate client-disconnect into
-spawned server handlers; `tokio-graceful-shutdown` builds a whole
-hierarchical-shutdown framework on it. The token's parent/child tree
-maps cleanly onto session/request scoping.
-
-In this SDK, `Session.shutdown: CancellationToken` ties the event loop
-and any spawned helpers to the session's lifetime. `Drop for Session`
-calls `cancel()`. Power users can call
-`Session::cancellation_token() -> CancellationToken` to get a child
-token and bind their own work to the session lifetime via `select!`.
-Cancelling the child does NOT cancel the parent — child cancellation is
-isolated by design.
-
-**Citations**: [`tokio_util::sync::CancellationToken` docs][ctoken]
-([`tonic` cancellation example][tonic-cancel]),
-[withoutboats: "Asynchronous clean-up"][wb-cleanup],
-[Cybernetist: "Rust tokio task cancellation patterns"][cybernetist].
-
-[ctoken]: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
-[tonic-cancel]: https://github.com/hyperium/tonic/blob/master/examples/src/cancellation/server.rs
-[wb-cleanup]: https://without.boats/blog/asynchronous-clean-up/
-[cybernetist]: https://cybernetist.com/2024/04/19/rust-tokio-task-cancellation-patterns/
-
-### Optional fields: `Option<T>`, not nullable pointers or zero values
-
-`Option<T>`, not nullable references or "empty string means missing"
-sentinels. Defaults come from `Default` impls, not from constructors
-that accept zero values. Pair with `#[non_exhaustive]` on public config
-structs and a builder so adding fields stays non-breaking — this is the
-AWS SDK convention. If the SDK has *required* builder fields and you
-want compile-time enforcement of `.build()` validity, prefer
-`build() -> Result<Self, BuildError>` over typestate unless the
-required-field count is tiny (1-2). Typestate is overkill for plain
-optional fields.
-
-### serde JSON: container `rename_all` plus per-field overrides
-
-JSON tag attributes become `#[serde(rename_all = "camelCase")]` at the
-type level, with per-field `#[serde(rename = "…")]` overrides for
-outliers. For optional output fields use
-`#[serde(skip_serializing_if = "Option::is_none")]` to omit unset
-values from the wire (the JSON-RPC convention this SDK follows
-matches LSP's). Use `#[serde(default)]` for forward/backward-compatible
-input. `serde_with` is the right escape hatch for non-trivial transforms
-(durations, base64, numeric-as-string keys); reach for it as needed,
-not by default.
+When porting from Node, Python, Go, or .NET: see the **Concurrency primitives** and **Traits and conversions** sections above. The two patterns that most reliably translate poorly are (1) per-event `Box<dyn Fn>` callback fields — use a trait with default-impl methods (the `tower_lsp::LanguageServer` / `rmcp::ServerHandler` / `notify::EventHandler` shape) — and (2) plumbing `context.Context` / `CancellationToken` through every call site — drop-cancel for caller-owned futures, `tokio_util::sync::CancellationToken` for SDK-internal tasks.
 
 ## Code organization
 
