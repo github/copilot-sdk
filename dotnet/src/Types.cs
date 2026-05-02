@@ -1527,6 +1527,21 @@ public class AzureOptions
 // ============================================================================
 
 /// <summary>
+/// OAuth grant type for a remote MCP server.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<McpHttpServerConfigOauthGrantType>))]
+public enum McpHttpServerConfigOauthGrantType
+{
+    /// <summary>Use the authorization code OAuth flow.</summary>
+    [JsonStringEnumMemberName("authorization_code")]
+    AuthorizationCode,
+
+    /// <summary>Use the client credentials OAuth flow.</summary>
+    [JsonStringEnumMemberName("client_credentials")]
+    ClientCredentials
+}
+
+/// <summary>
 /// Abstract base class for MCP server configurations.
 /// </summary>
 [JsonPolymorphic(
@@ -1611,6 +1626,24 @@ public sealed class McpHttpServerConfig : McpServerConfig
     /// </summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string>? Headers { get; set; }
+
+    /// <summary>
+    /// Optional OAuth client ID for the remote server.
+    /// </summary>
+    [JsonPropertyName("oauthClientId")]
+    public string? OauthClientId { get; set; }
+
+    /// <summary>
+    /// Whether this is a public OAuth client.
+    /// </summary>
+    [JsonPropertyName("oauthPublicClient")]
+    public bool? OauthPublicClient { get; set; }
+
+    /// <summary>
+    /// Optional OAuth grant type for the remote server.
+    /// </summary>
+    [JsonPropertyName("oauthGrantType")]
+    public McpHttpServerConfigOauthGrantType? OauthGrantType { get; set; }
 }
 
 // ============================================================================
@@ -2005,6 +2038,7 @@ public class ResumeSessionConfig
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         DisableResume = other.DisableResume;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        ContinuePendingWork = other.ContinuePendingWork;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -2139,6 +2173,20 @@ public class ResumeSessionConfig
     /// Default: false (resume event is emitted).
     /// </summary>
     public bool DisableResume { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, instructs the runtime to continue any tool calls
+    /// or permission prompts that were still pending when the session was last suspended.
+    /// When <see langword="false"/> (the default), the runtime treats pending work as
+    /// interrupted on resume.
+    /// <para>
+    /// For permission requests, the runtime re-emits <c>permission.requested</c> so the
+    /// registered <see cref="OnPermissionRequest"/> handler can re-prompt; for external
+    /// tool calls, the consumer is expected to supply the result via the corresponding
+    /// low-level RPC method.
+    /// </para>
+    /// </summary>
+    public bool? ContinuePendingWork { get; set; }
 
     /// <summary>
     /// Enable streaming of assistant message and reasoning chunks.
@@ -2739,6 +2787,7 @@ public class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ModelSupports))]
 [JsonSerializable(typeof(ModelVisionLimits))]
 [JsonSerializable(typeof(PermissionRequestResult))]
+[JsonSerializable(typeof(PermissionRequestResultKind))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]

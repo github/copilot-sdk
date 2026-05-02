@@ -59,11 +59,19 @@ func NewTestContext(t *testing.T) *TestContext {
 	if err != nil {
 		t.Fatalf("Failed to create temp home dir: %v", err)
 	}
+	if resolved, err := filepath.EvalSymlinks(homeDir); err == nil {
+		homeDir = resolved
+	}
 
 	workDir, err := os.MkdirTemp("", "copilot-test-work-")
 	if err != nil {
 		os.RemoveAll(homeDir)
 		t.Fatalf("Failed to create temp work dir: %v", err)
+	}
+	// Resolve symlinks (e.g., macOS /var -> /private/var) so paths
+	// match what spawned subprocesses see when they resolve their cwd.
+	if resolved, err := filepath.EvalSymlinks(workDir); err == nil {
+		workDir = resolved
 	}
 
 	proxy := NewCapiProxy()
@@ -103,8 +111,9 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 		t.Fatal("Failed to get caller information")
 	}
 
-	// Extract test file name: ask_user_test.go -> ask_user
+	// Extract test file name: ask_user_test.go -> ask_user, ask_user_e2e_test.go -> ask_user
 	testFile := strings.TrimSuffix(filepath.Base(callerFile), "_test.go")
+	testFile = strings.TrimSuffix(testFile, "_e2e")
 
 	// Extract and sanitize the subtest name from t.Name()
 	// t.Name() returns "TestAskUser/should_handle_freeform_user_input_response"

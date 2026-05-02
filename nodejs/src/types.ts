@@ -1421,6 +1421,18 @@ export type ResumeSessionConfig = Pick<
      * @default false
      */
     disableResume?: boolean;
+    /**
+     * When true, the runtime continues any tool calls or permission prompts that were
+     * still pending when the session was last suspended. When false (the default), the
+     * runtime treats pending work as interrupted on resume.
+     *
+     * For permission requests, the runtime re-emits `permission.requested` so the
+     * registered `onPermissionRequest` handler can re-prompt; for external tool calls,
+     * the consumer is expected to supply the result via the corresponding low-level
+     * RPC method.
+     * @default false
+     */
+    continuePendingWork?: boolean;
 };
 
 /**

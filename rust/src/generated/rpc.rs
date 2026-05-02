@@ -476,6 +476,17 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// Wire method: `session.suspend`.
+    pub async fn suspend(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SUSPEND, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
     /// Wire method: `session.log`.
     pub async fn log(&self, params: LogRequest) -> Result<LogResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
@@ -1414,8 +1425,8 @@ impl<'a> SessionRpcTools<'a> {
     /// Wire method: `session.tools.handlePendingToolCall`.
     pub async fn handle_pending_tool_call(
         &self,
-        params: ToolsHandlePendingToolCallRequest,
-    ) -> Result<HandleToolCallResult, Error> {
+        params: HandlePendingToolCallRequest,
+    ) -> Result<HandlePendingToolCallResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self

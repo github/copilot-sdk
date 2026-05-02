@@ -166,6 +166,47 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("forwards continuePendingWork in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            continuePendingWork: true,
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.continuePendingWork).toBe(true);
+        spy.mockRestore();
+    });
+
+    it("omits continuePendingWork from session.resume payload when not specified", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.continuePendingWork).toBeUndefined();
+        spy.mockRestore();
+    });
+
     it("forwards provider headers in session.create request", async () => {
         const client = new CopilotClient();
         await client.start();

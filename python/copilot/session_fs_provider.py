@@ -20,7 +20,7 @@ import abc
 import errno
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from .generated.rpc import (
     SessionFSError,
@@ -151,7 +151,7 @@ class _SessionFsAdapter:
                 birthtime=info.birthtime,
             )
         except Exception as exc:
-            now = datetime.now(datetime.UTC)  # type: ignore[attr-defined]  # ty doesn't resolve datetime.UTC (added in 3.11)
+            now = datetime.now(UTC)
             err = _to_session_fs_error(exc)
             return SessionFSStatResult(
                 is_file=False,

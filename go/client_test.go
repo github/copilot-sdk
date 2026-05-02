@@ -881,6 +881,36 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 	})
 }
 
+func TestResumeSessionRequest_ContinuePendingWork(t *testing.T) {
+	t.Run("forwards continuePendingWork when true", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:           "s1",
+			ContinuePendingWork: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["continuePendingWork"] != true {
+			t.Errorf("Expected continuePendingWork to be true, got %v", m["continuePendingWork"])
+		}
+	})
+
+	t.Run("omits continuePendingWork when not set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["continuePendingWork"]; ok {
+			t.Error("Expected continuePendingWork to be omitted when not set")
+		}
+	})
+}
+
 func TestCreateSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 	t.Run("defaults to true when nil", func(t *testing.T) {
 		req := createSessionRequest{

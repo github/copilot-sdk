@@ -12,6 +12,16 @@ const HARNESS_SERVER_PATH = resolve(__dirname, "../../../../test/harness/server.
 export class CapiProxy {
     private proxyUrl: string | undefined;
 
+    /**
+     * Returns the URL of the running proxy. Throws if the proxy has not been started.
+     */
+    get url(): string {
+        if (!this.proxyUrl) {
+            throw new Error("CapiProxy has not been started; call start() first.");
+        }
+        return this.proxyUrl;
+    }
+
     async start(): Promise<string> {
         const serverProcess = spawn("npx", ["tsx", HARNESS_SERVER_PATH], {
             stdio: ["ignore", "pipe", "inherit"],

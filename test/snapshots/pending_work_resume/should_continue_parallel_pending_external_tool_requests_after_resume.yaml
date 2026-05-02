@@ -1,0 +1,31 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call pending_lookup_a with value 'alpha' and pending_lookup_b with value 'beta', then reply with both results.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: pending_lookup_a
+              arguments: '{"value":"alpha"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: pending_lookup_b
+              arguments: '{"value":"beta"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: PARALLEL_B_BETA
+      - role: tool
+        tool_call_id: toolcall_0
+        content: PARALLEL_A_ALPHA
+      - role: assistant
+        content: |-
+          Both lookups completed successfully:
+          - **pending_lookup_a** with 'alpha': `PARALLEL_A_ALPHA`
+          - **pending_lookup_b** with value 'beta': `PARALLEL_B_BETA`

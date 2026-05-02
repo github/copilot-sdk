@@ -67,6 +67,8 @@ pub enum SessionEventType {
     AssistantStreamingDelta,
     #[serde(rename = "assistant.message")]
     AssistantMessage,
+    #[serde(rename = "assistant.message_start")]
+    AssistantMessageStart,
     #[serde(rename = "assistant.message_delta")]
     AssistantMessageDelta,
     #[serde(rename = "assistant.turn_end")]
@@ -232,6 +234,8 @@ pub enum SessionEventData {
     AssistantStreamingDelta(AssistantStreamingDeltaData),
     #[serde(rename = "assistant.message")]
     AssistantMessage(AssistantMessageData),
+    #[serde(rename = "assistant.message_start")]
+    AssistantMessageStart(AssistantMessageStartData),
     #[serde(rename = "assistant.message_delta")]
     AssistantMessageDelta(AssistantMessageDeltaData),
     #[serde(rename = "assistant.turn_end")]
@@ -423,6 +427,9 @@ pub struct SessionResumeData {
     /// Updated working directory and git context at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
+    /// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub continue_pending_work: Option<bool>,
     /// Total number of persisted events in the session at the time of resume
     pub event_count: f64,
     /// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
@@ -436,6 +443,9 @@ pub struct SessionResumeData {
     /// Model currently selected at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
+    /// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_was_active: Option<bool>,
 }
 
 /// Notifies Mission Control that the session's remote steering capability has changed
@@ -660,6 +670,13 @@ pub struct ShutdownModelMetricRequests {
     pub count: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShutdownModelMetricTokenDetail {
+    /// Accumulated token count for this token type
+    pub token_count: f64,
+}
+
 /// Token usage breakdown
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -682,8 +699,21 @@ pub struct ShutdownModelMetricUsage {
 pub struct ShutdownModelMetric {
     /// Request count and cost metrics
     pub requests: ShutdownModelMetricRequests,
+    /// Token count details per type
+    #[serde(default)]
+    pub token_details: HashMap<String, ShutdownModelMetricTokenDetail>,
+    /// Accumulated nano-AI units cost for this model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_nano_aiu: Option<f64>,
     /// Token usage breakdown
     pub usage: ShutdownModelMetricUsage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShutdownTokenDetail {
+    /// Accumulated token count for this token type
+    pub token_count: f64,
 }
 
 /// Session termination metrics including usage statistics, code changes, and shutdown reason
@@ -713,11 +743,17 @@ pub struct SessionShutdownData {
     /// System message token count at shutdown
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_tokens: Option<f64>,
+    /// Session-wide per-token-type accumulated token counts
+    #[serde(default)]
+    pub token_details: HashMap<String, ShutdownTokenDetail>,
     /// Tool definitions token count at shutdown
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_definitions_tokens: Option<f64>,
     /// Cumulative time spent in API calls during the session, in milliseconds
     pub total_api_duration_ms: f64,
+    /// Session-wide accumulated nano-AI units cost
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_nano_aiu: Option<f64>,
     /// Total number of premium API requests used during the session
     pub total_premium_requests: f64,
 }
@@ -810,7 +846,7 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
 pub struct CompactionCompleteCompactionTokensUsedCopilotUsage {
     /// Itemized token usage breakdown
     pub token_details: Vec<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail>,
-    /// Total cost in nano-AIU (AI Units) for this request
+    /// Total cost in nano-AI units for this request
     pub total_nano_aiu: f64,
 }
 
@@ -920,6 +956,9 @@ pub struct UserMessageData {
     /// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
     #[serde(default)]
     pub native_document_path_fallback_paths: Vec<String>,
+    /// Parent agent task ID for background telemetry correlated to this user turn
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_agent_task_id: Option<String>,
     /// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
@@ -1044,6 +1083,20 @@ pub struct AssistantMessageData {
     /// Tool invocations requested by the assistant in this message
     #[serde(default)]
     pub tool_requests: Vec<AssistantMessageToolRequest>,
+    /// Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+}
+
+/// Streaming assistant message start metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantMessageStartData {
+    /// Message ID this start event belongs to, matching subsequent deltas and assistant.message
+    pub message_id: String,
+    /// Generation phase this message belongs to for phased-output models
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phase: Option<String>,
 }
 
 /// Streaming assistant message delta for incremental response updates
@@ -1088,7 +1141,7 @@ pub struct AssistantUsageCopilotUsageTokenDetail {
 pub struct AssistantUsageCopilotUsage {
     /// Itemized token usage breakdown
     pub token_details: Vec<AssistantUsageCopilotUsageTokenDetail>,
-    /// Total cost in nano-AIU (AI Units) for this request
+    /// Total cost in nano-AI units for this request
     pub total_nano_aiu: f64,
 }
 
@@ -1242,6 +1295,9 @@ pub struct ToolExecutionStartData {
     pub tool_call_id: String,
     /// Name of the tool being executed
     pub tool_name: String,
+    /// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
 }
 
 /// Streaming tool execution output for incremental result display
@@ -1319,6 +1375,9 @@ pub struct ToolExecutionCompleteData {
     /// Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
     #[serde(default)]
     pub tool_telemetry: HashMap<String, serde_json::Value>,
+    /// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
 }
 
 /// Skill invocation details including content, allowed tools, and plugin metadata
@@ -1879,12 +1938,153 @@ pub struct PermissionRequestedData {
     pub resolved_by_hook: Option<bool>,
 }
 
-/// The result of the permission request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionCompletedResult {
-    /// The outcome of the permission request
-    pub kind: PermissionCompletedKind,
+pub struct PermissionApproved {
+    /// The permission request was approved
+    pub kind: PermissionApprovedKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalCommands {
+    /// Command identifiers approved by the user
+    pub command_identifiers: Vec<String>,
+    /// Command approval kind
+    pub kind: UserToolSessionApprovalCommandsKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalRead {
+    /// Read approval kind
+    pub kind: UserToolSessionApprovalReadKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalWrite {
+    /// Write approval kind
+    pub kind: UserToolSessionApprovalWriteKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalMcp {
+    /// MCP tool approval kind
+    pub kind: UserToolSessionApprovalMcpKind,
+    /// MCP server name
+    pub server_name: String,
+    /// Optional MCP tool name, or null for all tools on the server
+    pub tool_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalMemory {
+    /// Memory approval kind
+    pub kind: UserToolSessionApprovalMemoryKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalCustomTool {
+    /// Custom tool approval kind
+    pub kind: UserToolSessionApprovalCustomToolKind,
+    /// Custom tool name
+    pub tool_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionApprovedForSession {
+    /// The approval to add as a session-scoped rule
+    pub approval: UserToolSessionApproval,
+    /// Approved and remembered for the rest of the session
+    pub kind: PermissionApprovedForSessionKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionApprovedForLocation {
+    /// The approval to persist for this location
+    pub approval: UserToolSessionApproval,
+    /// Approved and persisted for this project location
+    pub kind: PermissionApprovedForLocationKind,
+    /// The location key (git root or cwd) to persist the approval to
+    pub location_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionCancelled {
+    /// The permission request was cancelled before a response was used
+    pub kind: PermissionCancelledKind,
+    /// Optional explanation of why the request was cancelled
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRule {
+    /// Optional rule argument matched against the request
+    pub argument: Option<String>,
+    /// The rule kind, such as Shell or GitHubMCP
+    pub kind: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDeniedByRules {
+    /// Denied because approval rules explicitly blocked it
+    pub kind: PermissionDeniedByRulesKind,
+    /// Rules that denied the request
+    pub rules: Vec<PermissionRule>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
+    /// Denied because no approval rule matched and user confirmation was unavailable
+    pub kind: PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDeniedInteractivelyByUser {
+    /// Optional feedback from the user explaining the denial
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<String>,
+    /// Whether to force-reject the current agent turn
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub force_reject: Option<bool>,
+    /// Denied by the user during an interactive prompt
+    pub kind: PermissionDeniedInteractivelyByUserKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDeniedByContentExclusionPolicy {
+    /// Denied by the organization's content exclusion policy
+    pub kind: PermissionDeniedByContentExclusionPolicyKind,
+    /// Human-readable explanation of why the path was excluded
+    pub message: String,
+    /// File path that triggered the exclusion
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDeniedByPermissionRequestHook {
+    /// Whether to interrupt the current agent turn
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interrupt: Option<bool>,
+    /// Denied by a permission request hook registered by an extension or plugin
+    pub kind: PermissionDeniedByPermissionRequestHookKind,
+    /// Optional message from the hook explaining the denial
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 /// Permission request completion notification signaling UI dismissal
@@ -1894,7 +2094,7 @@ pub struct PermissionCompletedData {
     /// Request ID of the resolved permission request; clients should dismiss any UI for this request
     pub request_id: RequestId,
     /// The result of the permission request
-    pub result: PermissionCompletedResult,
+    pub result: PermissionResult,
     /// Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -2011,6 +2211,9 @@ pub struct SamplingCompletedData {
 pub struct McpOauthRequiredStaticClientConfig {
     /// OAuth client ID for the server
     pub client_id: String,
+    /// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grant_type: Option<McpOauthRequiredStaticClientConfigGrantType>,
     /// Whether this is a public OAuth client
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_client: Option<bool>,
@@ -2641,28 +2844,138 @@ pub enum PermissionPromptRequest {
     Hook(PermissionPromptRequestHook),
 }
 
-/// The outcome of the permission request
+/// The permission request was approved
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionCompletedKind {
+pub enum PermissionApprovedKind {
     #[serde(rename = "approved")]
     Approved,
+}
+
+/// Command approval kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalCommandsKind {
+    #[serde(rename = "commands")]
+    Commands,
+}
+
+/// Read approval kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalReadKind {
+    #[serde(rename = "read")]
+    Read,
+}
+
+/// Write approval kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalWriteKind {
+    #[serde(rename = "write")]
+    Write,
+}
+
+/// MCP tool approval kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalMcpKind {
+    #[serde(rename = "mcp")]
+    Mcp,
+}
+
+/// Memory approval kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalMemoryKind {
+    #[serde(rename = "memory")]
+    Memory,
+}
+
+/// Custom tool approval kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalCustomToolKind {
+    #[serde(rename = "custom-tool")]
+    CustomTool,
+}
+
+/// The approval to add as a session-scoped rule
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UserToolSessionApproval {
+    Commands(UserToolSessionApprovalCommands),
+    Read(UserToolSessionApprovalRead),
+    Write(UserToolSessionApprovalWrite),
+    Mcp(UserToolSessionApprovalMcp),
+    Memory(UserToolSessionApprovalMemory),
+    CustomTool(UserToolSessionApprovalCustomTool),
+}
+
+/// Approved and remembered for the rest of the session
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionApprovedForSessionKind {
     #[serde(rename = "approved-for-session")]
     ApprovedForSession,
+}
+
+/// Approved and persisted for this project location
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionApprovedForLocationKind {
     #[serde(rename = "approved-for-location")]
     ApprovedForLocation,
+}
+
+/// The permission request was cancelled before a response was used
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionCancelledKind {
+    #[serde(rename = "cancelled")]
+    Cancelled,
+}
+
+/// Denied because approval rules explicitly blocked it
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDeniedByRulesKind {
     #[serde(rename = "denied-by-rules")]
     DeniedByRules,
+}
+
+/// Denied because no approval rule matched and user confirmation was unavailable
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind {
     #[serde(rename = "denied-no-approval-rule-and-could-not-request-from-user")]
     DeniedNoApprovalRuleAndCouldNotRequestFromUser,
+}
+
+/// Denied by the user during an interactive prompt
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDeniedInteractivelyByUserKind {
     #[serde(rename = "denied-interactively-by-user")]
     DeniedInteractivelyByUser,
+}
+
+/// Denied by the organization's content exclusion policy
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDeniedByContentExclusionPolicyKind {
     #[serde(rename = "denied-by-content-exclusion-policy")]
     DeniedByContentExclusionPolicy,
+}
+
+/// Denied by a permission request hook registered by an extension or plugin
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDeniedByPermissionRequestHookKind {
     #[serde(rename = "denied-by-permission-request-hook")]
     DeniedByPermissionRequestHook,
-    /// Unknown variant for forward compatibility.
-    #[serde(other)]
-    Unknown,
+}
+
+/// The result of the permission request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PermissionResult {
+    Approved(PermissionApproved),
+    ApprovedForSession(PermissionApprovedForSession),
+    ApprovedForLocation(PermissionApprovedForLocation),
+    Cancelled(PermissionCancelled),
+    DeniedByRules(PermissionDeniedByRules),
+    DeniedNoApprovalRuleAndCouldNotRequestFromUser(
+        PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser,
+    ),
+    DeniedInteractivelyByUser(PermissionDeniedInteractivelyByUser),
+    DeniedByContentExclusionPolicy(PermissionDeniedByContentExclusionPolicy),
+    DeniedByPermissionRequestHook(PermissionDeniedByPermissionRequestHook),
 }
 
 /// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
@@ -2696,6 +3009,13 @@ pub enum ElicitationCompletedAction {
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,
+}
+
+/// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthRequiredStaticClientConfigGrantType {
+    #[serde(rename = "client_credentials")]
+    ClientCredentials,
 }
 
 /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured

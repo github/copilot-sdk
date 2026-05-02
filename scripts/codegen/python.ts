@@ -31,9 +31,12 @@ import {
     resolveObjectSchema,
     resolveSchema,
     withSharedDefinitions,
+    getSessionEventVariantSchemas,
+    getSharedSessionEventEnvelopeProperties,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
+    type SessionEventEnvelopeProperty,
 } from "./utils.js";
 
 // ── Utilities ───────────────────────────────────────────────────────────────
@@ -475,6 +478,13 @@ interface PyEventVariant {
     dataDescription?: string;
 }
 
+interface PyEventEnvelopeProperty extends SessionEventEnvelopeProperty {
+    jsonName: string;
+    fieldName: string;
+    hasDefault: boolean;
+    resolved: PyResolvedType;
+}
+
 interface PyResolvedType {
     annotation: string;
     fromExpr: (expr: string) => string;
@@ -621,38 +631,40 @@ function toPythonLiteral(value: unknown): string | undefined {
 
 function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
     const definitionCollections = collectDefinitionCollections(schema as Record<string, unknown>);
-    const sessionEvent =
-        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
-        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
-    if (!sessionEvent?.anyOf) {
-        throw new Error("Schema must have SessionEvent definition with anyOf");
-    }
-
-    return (sessionEvent.anyOf as JSONSchema7[])
+    return getSessionEventVariantSchemas(schema, definitionCollections)
         .map((variant) => {
-            const resolvedVariant =
-                resolveObjectSchema(variant as JSONSchema7, definitionCollections) ??
-                resolveSchema(variant as JSONSchema7, definitionCollections) ??
-                (variant as JSONSchema7);
-            if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) {
-                throw new Error("Invalid event variant");
-            }
-
-            const typeSchema = resolvedVariant.properties.type as JSONSchema7;
+            const typeSchema = variant.properties!.type as JSONSchema7;
             const typeName = typeSchema?.const as string;
             if (!typeName) {
                 throw new Error("Event variant must define type.const");
             }
 
             const dataSchema =
-                resolveObjectSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
-                resolveSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
-                ((resolvedVariant.properties.data as JSONSchema7) || {});
+                resolveObjectSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
+                resolveSchema(variant.properties!.data as JSONSchema7, definitionCollections) ??
+                ((variant.properties!.data as JSONSchema7) || {});
             return {
                 typeName,
                 dataClassName: `${toPascalCase(typeName)}Data`,
                 dataSchema,
                 dataDescription: dataSchema.description,
+            };
+        });
+}
+
+function getPySharedEventEnvelopeProperties(schema: JSONSchema7, ctx: PyCodegenCtx): PyEventEnvelopeProperty[] {
+    return getSharedSessionEventEnvelopeProperties(schema, ctx.definitions)
+        .map((property) => {
+            const { name, schema, required } = property;
+            const resolved = resolvePyPropertyType(schema, "SessionEvent", name, required, ctx);
+
+            return {
+                ...property,
+                jsonName: name,
+                fieldName: toSnakeCase(name),
+                required,
+                hasDefault: !required || resolved.annotation.includes(" | None"),
+                resolved,
             };
         });
 }
@@ -1267,6 +1279,9 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     for (const variant of variants) {
         emitPyClass(variant.dataClassName, variant.dataSchema, ctx, variant.dataDescription);
     }
+    const envelopeProperties = getPySharedEventEnvelopeProperties(schema, ctx);
+    const envelopePropertiesWithoutDefaults = envelopeProperties.filter((property) => !property.hasDefault);
+    const envelopePropertiesWithDefaults = envelopeProperties.filter((property) => property.hasDefault);
 
     const eventTypeLines: string[] = [];
     eventTypeLines.push(`class SessionEventType(Enum):`);
@@ -1507,11 +1522,13 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`@dataclass`);
     out.push(`class SessionEvent:`);
     out.push(`    data: SessionEventData`);
-    out.push(`    id: UUID`);
-    out.push(`    timestamp: datetime`);
+    for (const property of envelopePropertiesWithoutDefaults) {
+        out.push(`    ${property.fieldName}: ${property.resolved.annotation}`);
+    }
     out.push(`    type: SessionEventType`);
-    out.push(`    ephemeral: bool | None = None`);
-    out.push(`    parent_id: UUID | None = None`);
+    for (const property of envelopePropertiesWithDefaults) {
+        out.push(`    ${property.fieldName}: ${property.resolved.annotation} = None`);
+    }
     out.push(`    raw_type: str | None = None`);
     out.push(``);
     out.push(`    @staticmethod`);
@@ -1519,10 +1536,9 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`        assert isinstance(obj, dict)`);
     out.push(`        raw_type = from_str(obj.get("type"))`);
     out.push(`        event_type = SessionEventType(raw_type)`);
-    out.push(`        event_id = from_uuid(obj.get("id"))`);
-    out.push(`        timestamp = from_datetime(obj.get("timestamp"))`);
-    out.push(`        ephemeral = from_union([from_bool, from_none], obj.get("ephemeral"))`);
-    out.push(`        parent_id = from_union([from_none, from_uuid], obj.get("parentId"))`);
+    for (const property of envelopeProperties) {
+        out.push(`        ${property.fieldName} = ${property.resolved.fromExpr(`obj.get(${JSON.stringify(property.jsonName)})`)}`);
+    }
     out.push(`        data_obj = obj.get("data")`);
     out.push(`        match event_type:`);
     for (const variant of variants) {
@@ -1533,25 +1549,34 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`            case _: data = RawSessionEventData.from_dict(data_obj)`);
     out.push(`        return SessionEvent(`);
     out.push(`            data=data,`);
-    out.push(`            id=event_id,`);
-    out.push(`            timestamp=timestamp,`);
+    for (const property of envelopePropertiesWithoutDefaults) {
+        out.push(`            ${property.fieldName}=${property.fieldName},`);
+    }
     out.push(`            type=event_type,`);
-    out.push(`            ephemeral=ephemeral,`);
-    out.push(`            parent_id=parent_id,`);
+    for (const property of envelopePropertiesWithDefaults) {
+        out.push(`            ${property.fieldName}=${property.fieldName},`);
+    }
     out.push(`            raw_type=raw_type if event_type == SessionEventType.UNKNOWN else None,`);
     out.push(`        )`);
     out.push(``);
     out.push(`    def to_dict(self) -> dict:`);
     out.push(`        result: dict = {}`);
     out.push(`        result["data"] = self.data.to_dict()`);
-    out.push(`        result["id"] = to_uuid(self.id)`);
-    out.push(`        result["timestamp"] = to_datetime(self.timestamp)`);
+    for (const property of envelopePropertiesWithoutDefaults) {
+        out.push(`        result[${JSON.stringify(property.jsonName)}] = ${property.resolved.toExpr(`self.${property.fieldName}`)}`);
+    }
     out.push(
         `        result["type"] = self.raw_type if self.type == SessionEventType.UNKNOWN and self.raw_type is not None else to_enum(SessionEventType, self.type)`
     );
-    out.push(`        if self.ephemeral is not None:`);
-    out.push(`            result["ephemeral"] = from_bool(self.ephemeral)`);
-    out.push(`        result["parentId"] = from_union([from_none, to_uuid], self.parent_id)`);
+    for (const property of envelopePropertiesWithDefaults) {
+        const valueExpr = property.resolved.toExpr(`self.${property.fieldName}`);
+        if (property.required) {
+            out.push(`        result[${JSON.stringify(property.jsonName)}] = ${valueExpr}`);
+        } else {
+            out.push(`        if self.${property.fieldName} is not None:`);
+            out.push(`            result[${JSON.stringify(property.jsonName)}] = ${valueExpr}`);
+        }
+    }
     out.push(`        return result`);
     out.push(``);
     out.push(``);

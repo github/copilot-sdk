@@ -25,14 +25,16 @@ func (r RawSessionEventData) MarshalJSON() ([]byte, error) { return r.Raw, nil }
 
 // SessionEvent represents a single session event with a typed data payload.
 type SessionEvent struct {
-	// Unique event identifier (UUID v4), generated when the event is emitted.
-	ID string `json:"id"`
-	// ISO 8601 timestamp when the event was created.
-	Timestamp time.Time `json:"timestamp"`
-	// ID of the preceding event in the session. Null for the first event.
-	ParentID *string `json:"parentId"`
-	// When true, the event is transient and not persisted.
+	// Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+	AgentID *string `json:"agentId,omitempty"`
+	// When true, the event is transient and not persisted to the session event log on disk
 	Ephemeral *bool `json:"ephemeral,omitempty"`
+	// Unique event identifier (UUID v4), generated when the event is emitted
+	ID string `json:"id"`
+	// ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+	ParentID *string `json:"parentId"`
+	// ISO 8601 timestamp when the event was created
+	Timestamp time.Time `json:"timestamp"`
 	// The event type discriminator.
 	Type SessionEventType `json:"type"`
 	// Typed event payload. Use a type switch to access per-event fields.
@@ -53,10 +55,11 @@ func (r *SessionEvent) Marshal() ([]byte, error) {
 
 func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	type rawEvent struct {
-		ID        string           `json:"id"`
-		Timestamp time.Time        `json:"timestamp"`
-		ParentID  *string          `json:"parentId"`
+		AgentID   *string          `json:"agentId,omitempty"`
 		Ephemeral *bool            `json:"ephemeral,omitempty"`
+		ID        string           `json:"id"`
+		ParentID  *string          `json:"parentId"`
+		Timestamp time.Time        `json:"timestamp"`
 		Type      SessionEventType `json:"type"`
 		Data      json.RawMessage  `json:"data"`
 	}
@@ -64,10 +67,11 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	e.ID = raw.ID
-	e.Timestamp = raw.Timestamp
-	e.ParentID = raw.ParentID
+	e.AgentID = raw.AgentID
 	e.Ephemeral = raw.Ephemeral
+	e.ID = raw.ID
+	e.ParentID = raw.ParentID
+	e.Timestamp = raw.Timestamp
 	e.Type = raw.Type
 
 	switch raw.Type {
@@ -241,6 +245,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeAssistantMessage:
 		var d AssistantMessageData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantMessageStart:
+		var d AssistantMessageStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -541,18 +551,20 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 
 func (e SessionEvent) MarshalJSON() ([]byte, error) {
 	type rawEvent struct {
-		ID        string           `json:"id"`
-		Timestamp time.Time        `json:"timestamp"`
-		ParentID  *string          `json:"parentId"`
+		AgentID   *string          `json:"agentId,omitempty"`
 		Ephemeral *bool            `json:"ephemeral,omitempty"`
+		ID        string           `json:"id"`
+		ParentID  *string          `json:"parentId"`
+		Timestamp time.Time        `json:"timestamp"`
 		Type      SessionEventType `json:"type"`
 		Data      any              `json:"data"`
 	}
 	return json.Marshal(rawEvent{
-		ID:        e.ID,
-		Timestamp: e.Timestamp,
-		ParentID:  e.ParentID,
+		AgentID:   e.AgentID,
 		Ephemeral: e.Ephemeral,
+		ID:        e.ID,
+		ParentID:  e.ParentID,
+		Timestamp: e.Timestamp,
 		Type:      e.Type,
 		Data:      e.Data,
 	})
@@ -591,6 +603,7 @@ const (
 	SessionEventTypeAssistantReasoningDelta       SessionEventType = "assistant.reasoning_delta"
 	SessionEventTypeAssistantStreamingDelta       SessionEventType = "assistant.streaming_delta"
 	SessionEventTypeAssistantMessage              SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageStart         SessionEventType = "assistant.message_start"
 	SessionEventTypeAssistantMessageDelta         SessionEventType = "assistant.message_delta"
 	SessionEventTypeAssistantTurnEnd              SessionEventType = "assistant.turn_end"
 	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
@@ -694,6 +707,8 @@ type AssistantMessageData struct {
 	RequestID *string `json:"requestId,omitempty"`
 	// Tool invocations requested by the assistant in this message
 	ToolRequests []AssistantMessageToolRequest `json:"toolRequests,omitempty"`
+	// Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event
+	TurnID *string `json:"turnId,omitempty"`
 }
 
 func (*AssistantMessageData) sessionEventData() {}
@@ -1080,7 +1095,7 @@ type PermissionCompletedData struct {
 	// Request ID of the resolved permission request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
 	// The result of the permission request
-	Result PermissionCompletedResult `json:"result"`
+	Result PermissionResult `json:"result"`
 	// Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -1261,6 +1276,8 @@ type SessionResumeData struct {
 	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
 	// Updated working directory and git context at resume time
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
+	// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
+	ContinuePendingWork *bool `json:"continuePendingWork,omitempty"`
 	// Total number of persisted events in the session at the time of resume
 	EventCount float64 `json:"eventCount"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
@@ -1271,6 +1288,8 @@ type SessionResumeData struct {
 	ResumeTime time.Time `json:"resumeTime"`
 	// Model currently selected at resume time
 	SelectedModel *string `json:"selectedModel,omitempty"`
+	// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
+	SessionWasActive *bool `json:"sessionWasActive,omitempty"`
 }
 
 func (*SessionResumeData) sessionEventData() {}
@@ -1305,10 +1324,14 @@ type SessionShutdownData struct {
 	ShutdownType ShutdownType `json:"shutdownType"`
 	// System message token count at shutdown
 	SystemTokens *float64 `json:"systemTokens,omitempty"`
+	// Session-wide per-token-type accumulated token counts
+	TokenDetails map[string]ShutdownTokenDetail `json:"tokenDetails,omitempty"`
 	// Tool definitions token count at shutdown
 	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
 	// Cumulative time spent in API calls during the session, in milliseconds
 	TotalAPIDurationMs float64 `json:"totalApiDurationMs"`
+	// Session-wide accumulated nano-AI units cost
+	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Total number of premium API requests used during the session
 	TotalPremiumRequests float64 `json:"totalPremiumRequests"`
 }
@@ -1414,6 +1437,16 @@ type AssistantMessageDeltaData struct {
 }
 
 func (*AssistantMessageDeltaData) sessionEventData() {}
+
+// Streaming assistant message start metadata
+type AssistantMessageStartData struct {
+	// Message ID this start event belongs to, matching subsequent deltas and assistant.message
+	MessageID string `json:"messageId"`
+	// Generation phase this message belongs to for phased-output models
+	Phase *string `json:"phase,omitempty"`
+}
+
+func (*AssistantMessageStartData) sessionEventData() {}
 
 // Streaming reasoning delta for incremental extended thinking updates
 type AssistantReasoningDeltaData struct {
@@ -1554,6 +1587,8 @@ type ToolExecutionCompleteData struct {
 	ToolCallID string `json:"toolCallId"`
 	// Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
 	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
+	// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
+	TurnID *string `json:"turnId,omitempty"`
 }
 
 func (*ToolExecutionCompleteData) sessionEventData() {}
@@ -1583,6 +1618,8 @@ type ToolExecutionStartData struct {
 	ToolCallID string `json:"toolCallId"`
 	// Name of the tool being executed
 	ToolName string `json:"toolName"`
+	// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
+	TurnID *string `json:"turnId,omitempty"`
 }
 
 func (*ToolExecutionStartData) sessionEventData() {}
@@ -1665,6 +1702,8 @@ type UserMessageData struct {
 	InteractionID *string `json:"interactionId,omitempty"`
 	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitempty"`
+	// Parent agent task ID for background telemetry correlated to this user turn
+	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
 	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
 	Source *string `json:"source,omitempty"`
 	// Normalized document MIME types that were sent natively instead of through tagged_files XML
@@ -1995,7 +2034,7 @@ type UserMessageAttachmentFileLineRange struct {
 type AssistantUsageCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
-	// Total cost in nano-AIU (AI Units) for this request
+	// Total cost in nano-AI units for this request
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
 
@@ -2003,7 +2042,7 @@ type AssistantUsageCopilotUsage struct {
 type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
-	// Total cost in nano-AIU (AI Units) for this request
+	// Total cost in nano-AI units for this request
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
 
@@ -2045,6 +2084,8 @@ type UserMessageAttachmentSelectionDetailsStart struct {
 type McpOauthRequiredStaticClientConfig struct {
 	// OAuth client ID for the server
 	ClientID string `json:"clientId"`
+	// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
+	GrantType *string `json:"grantType,omitempty"`
 	// Whether this is a public OAuth client
 	PublicClient *bool `json:"publicClient,omitempty"`
 }
@@ -2083,10 +2124,40 @@ type SystemNotification struct {
 	TriggerTool *string `json:"triggerTool,omitempty"`
 }
 
+// The approval to add as a session-scoped rule
+type UserToolSessionApproval struct {
+	// Kind discriminator
+	Kind UserToolSessionApprovalKind `json:"kind"`
+	// Command identifiers approved by the user
+	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
+	// MCP server name
+	ServerName *string `json:"serverName,omitempty"`
+	// Optional MCP tool name, or null for all tools on the server
+	ToolName *string `json:"toolName,omitempty"`
+}
+
 // The result of the permission request
-type PermissionCompletedResult struct {
-	// The outcome of the permission request
-	Kind PermissionCompletedKind `json:"kind"`
+type PermissionResult struct {
+	// Kind discriminator
+	Kind PermissionResultKind `json:"kind"`
+	// The approval to add as a session-scoped rule
+	Approval *UserToolSessionApproval `json:"approval,omitempty"`
+	// Optional feedback from the user explaining the denial
+	Feedback *string `json:"feedback,omitempty"`
+	// Whether to force-reject the current agent turn
+	ForceReject *bool `json:"forceReject,omitempty"`
+	// Whether to interrupt the current agent turn
+	Interrupt *bool `json:"interrupt,omitempty"`
+	// The location key (git root or cwd) to persist the approval to
+	LocationKey *string `json:"locationKey,omitempty"`
+	// Human-readable explanation of why the path was excluded
+	Message *string `json:"message,omitempty"`
+	// File path that triggered the exclusion
+	Path *string `json:"path,omitempty"`
+	// Optional explanation of why the request was cancelled
+	Reason *string `json:"reason,omitempty"`
+	// Rules that denied the request
+	Rules []PermissionRule `json:"rules,omitempty"`
 }
 
 // Token usage breakdown
@@ -2258,11 +2329,32 @@ type PermissionRequestShellPossibleURL struct {
 	URL string `json:"url"`
 }
 
+type PermissionRule struct {
+	// Optional rule argument matched against the request
+	Argument *string `json:"argument"`
+	// The rule kind, such as Shell or GitHubMCP
+	Kind string `json:"kind"`
+}
+
 type ShutdownModelMetric struct {
 	// Request count and cost metrics
 	Requests ShutdownModelMetricRequests `json:"requests"`
+	// Token count details per type
+	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitempty"`
+	// Accumulated nano-AI units cost for this model
+	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Token usage breakdown
 	Usage ShutdownModelMetricUsage `json:"usage"`
+}
+
+type ShutdownModelMetricTokenDetail struct {
+	// Accumulated token count for this token type
+	TokenCount float64 `json:"tokenCount"`
+}
+
+type ShutdownTokenDetail struct {
+	// Accumulated token count for this token type
+	TokenCount float64 `json:"tokenCount"`
 }
 
 type SkillsLoadedSkill struct {
@@ -2355,6 +2447,33 @@ const (
 	PermissionRequestKindHook       PermissionRequestKind = "hook"
 )
 
+// Kind discriminator for PermissionResult.
+type PermissionResultKind string
+
+const (
+	PermissionResultKindApproved                                       PermissionResultKind = "approved"
+	PermissionResultKindApprovedForSession                             PermissionResultKind = "approved-for-session"
+	PermissionResultKindApprovedForLocation                            PermissionResultKind = "approved-for-location"
+	PermissionResultKindCancelled                                      PermissionResultKind = "cancelled"
+	PermissionResultKindDeniedByRules                                  PermissionResultKind = "denied-by-rules"
+	PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+	PermissionResultKindDeniedInteractivelyByUser                      PermissionResultKind = "denied-interactively-by-user"
+	PermissionResultKindDeniedByContentExclusionPolicy                 PermissionResultKind = "denied-by-content-exclusion-policy"
+	PermissionResultKindDeniedByPermissionRequestHook                  PermissionResultKind = "denied-by-permission-request-hook"
+)
+
+// Kind discriminator for UserToolSessionApproval.
+type UserToolSessionApprovalKind string
+
+const (
+	UserToolSessionApprovalKindCommands   UserToolSessionApprovalKind = "commands"
+	UserToolSessionApprovalKindRead       UserToolSessionApprovalKind = "read"
+	UserToolSessionApprovalKindWrite      UserToolSessionApprovalKind = "write"
+	UserToolSessionApprovalKindMcp        UserToolSessionApprovalKind = "mcp"
+	UserToolSessionApprovalKindMemory     UserToolSessionApprovalKind = "memory"
+	UserToolSessionApprovalKindCustomTool UserToolSessionApprovalKind = "custom-tool"
+)
+
 // Message role: "system" for system prompts, "developer" for developer-injected instructions
 type SystemMessageRole string
 
@@ -2391,20 +2510,6 @@ const (
 	UserMessageAgentModePlan        UserMessageAgentMode = "plan"
 	UserMessageAgentModeAutopilot   UserMessageAgentMode = "autopilot"
 	UserMessageAgentModeShell       UserMessageAgentMode = "shell"
-)
-
-// The outcome of the permission request
-type PermissionCompletedKind string
-
-const (
-	PermissionCompletedKindApproved                                       PermissionCompletedKind = "approved"
-	PermissionCompletedKindApprovedForSession                             PermissionCompletedKind = "approved-for-session"
-	PermissionCompletedKindApprovedForLocation                            PermissionCompletedKind = "approved-for-location"
-	PermissionCompletedKindDeniedByRules                                  PermissionCompletedKind = "denied-by-rules"
-	PermissionCompletedKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionCompletedKind = "denied-no-approval-rule-and-could-not-request-from-user"
-	PermissionCompletedKindDeniedInteractivelyByUser                      PermissionCompletedKind = "denied-interactively-by-user"
-	PermissionCompletedKindDeniedByContentExclusionPolicy                 PermissionCompletedKind = "denied-by-content-exclusion-policy"
-	PermissionCompletedKindDeniedByPermissionRequestHook                  PermissionCompletedKind = "denied-by-permission-request-hook"
 )
 
 // The type of operation performed on the plan file

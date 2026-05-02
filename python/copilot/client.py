@@ -1513,6 +1513,7 @@ class CopilotClient:
         on_elicitation_request: ElicitationHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
+        continue_pending_work: bool | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -1560,6 +1561,10 @@ class CopilotClient:
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
+            continue_pending_work: When True, instructs the runtime to continue any
+                tool calls or permission prompts that were still pending when the
+                session was last suspended. When False (the default), the runtime
+                treats pending work as interrupted on resume.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -1666,6 +1671,9 @@ class CopilotClient:
             payload["configDir"] = config_dir
         if enable_config_discovery is not None:
             payload["enableConfigDiscovery"] = enable_config_discovery
+
+        if continue_pending_work is not None:
+            payload["continuePendingWork"] = continue_pending_work
 
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:

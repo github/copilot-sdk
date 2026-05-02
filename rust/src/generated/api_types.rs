@@ -40,6 +40,8 @@ pub mod rpc_methods {
     pub const SESSIONFS_SETPROVIDER: &str = "sessionFs.setProvider";
     /// `sessions.fork`
     pub const SESSIONS_FORK: &str = "sessions.fork";
+    /// `session.suspend`
+    pub const SESSION_SUSPEND: &str = "session.suspend";
     /// `session.auth.getStatus`
     pub const SESSION_AUTH_GETSTATUS: &str = "session.auth.getStatus";
     /// `session.model.getCurrent`
@@ -297,6 +299,30 @@ pub struct DiscoveredMcpServer {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EmbeddedBlobResourceContents {
+    /// Base64-encoded binary content of the resource
+    pub blob: String,
+    /// MIME type of the blob content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// URI identifying the resource
+    pub uri: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbeddedTextResourceContents {
+    /// MIME type of the text content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Text content of the resource
+    pub text: String,
+    /// URI identifying the resource
+    pub uri: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Extension {
     /// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
     pub id: String,
@@ -332,6 +358,133 @@ pub struct ExtensionsEnableRequest {
     pub id: String,
 }
 
+/// Expanded external tool result payload
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlm {
+    /// Structured content blocks from the tool
+    #[serde(default)]
+    pub contents: Vec<serde_json::Value>,
+    /// Optional error message for failed executions
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Execution outcome classification. Optional for back-compat; normalized to 'success' (or 'failure' when error is present) when missing or unrecognized.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_type: Option<String>,
+    /// Detailed log content for timeline display
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_log: Option<String>,
+    /// Text result returned to the model
+    pub text_result_for_llm: String,
+    /// Optional tool-specific telemetry
+    #[serde(default)]
+    pub tool_telemetry: HashMap<String, serde_json::Value>,
+}
+
+/// Audio content block with base64-encoded data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmContentAudio {
+    /// Base64-encoded audio data
+    pub data: String,
+    /// MIME type of the audio (e.g., audio/wav, audio/mpeg)
+    pub mime_type: String,
+    /// Content block type discriminator
+    pub r#type: ExternalToolTextResultForLlmContentAudioType,
+}
+
+/// Image content block with base64-encoded data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmContentImage {
+    /// Base64-encoded image data
+    pub data: String,
+    /// MIME type of the image (e.g., image/png, image/jpeg)
+    pub mime_type: String,
+    /// Content block type discriminator
+    pub r#type: ExternalToolTextResultForLlmContentImageType,
+}
+
+/// Embedded resource content block with inline text or binary data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmContentResource {
+    /// The embedded resource contents, either text or base64-encoded binary
+    pub resource: serde_json::Value,
+    /// Content block type discriminator
+    pub r#type: ExternalToolTextResultForLlmContentResourceType,
+}
+
+/// Icon image for a resource
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmContentResourceLinkIcon {
+    /// MIME type of the icon image
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Available icon sizes (e.g., ['16x16', '32x32'])
+    #[serde(default)]
+    pub sizes: Vec<String>,
+    /// URL or path to the icon image
+    pub src: String,
+    /// Theme variant this icon is intended for
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme: Option<ExternalToolTextResultForLlmContentResourceLinkIconTheme>,
+}
+
+/// Resource link content block referencing an external resource
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmContentResourceLink {
+    /// Human-readable description of the resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Icons associated with this resource
+    #[serde(default)]
+    pub icons: Vec<ExternalToolTextResultForLlmContentResourceLinkIcon>,
+    /// MIME type of the resource content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Resource name identifier
+    pub name: String,
+    /// Size of the resource in bytes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<f64>,
+    /// Human-readable display title for the resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Content block type discriminator
+    pub r#type: ExternalToolTextResultForLlmContentResourceLinkType,
+    /// URI identifying the resource
+    pub uri: String,
+}
+
+/// Terminal/shell output content block with optional exit code and working directory
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmContentTerminal {
+    /// Working directory where the command was executed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Process exit code, if the command has completed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<f64>,
+    /// Terminal/shell output text
+    pub text: String,
+    /// Content block type discriminator
+    pub r#type: ExternalToolTextResultForLlmContentTerminalType,
+}
+
+/// Plain text content block
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmContentText {
+    /// The text content
+    pub text: String,
+    /// Content block type discriminator
+    pub r#type: ExternalToolTextResultForLlmContentTextType,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FleetStartRequest {
@@ -349,7 +502,20 @@ pub struct FleetStartResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HandleToolCallResult {
+pub struct HandlePendingToolCallRequest {
+    /// Error message if the tool call failed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Request ID of the pending tool call
+    pub request_id: RequestId,
+    /// Tool call result (string or expanded result object)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HandlePendingToolCallResult {
     /// Whether the tool call result was handled successfully
     pub success: bool,
 }
@@ -581,6 +747,8 @@ pub struct McpServerConfigHttp {
     pub is_default_server: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth_client_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oauth_grant_type: Option<McpServerConfigHttpOauthGrantType>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth_public_client: Option<bool>,
     /// Timeout in milliseconds for tool calls to this server.
@@ -950,7 +1118,11 @@ pub struct PermissionDecisionApproveForSessionApprovalCustomTool {
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDecisionApproveForSession {
     /// The approval to add as a session-scoped rule
-    pub approval: PermissionDecisionApproveForSessionApproval,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approval: Option<PermissionDecisionApproveForSessionApproval>,
+    /// The URL domain to approve for this session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub domain: Option<String>,
     /// Approved and remembered for the rest of the session
     pub kind: PermissionDecisionApproveForSessionKind,
 }
@@ -960,6 +1132,15 @@ pub struct PermissionDecisionApproveForSession {
 pub struct PermissionDecisionApproveOnce {
     /// The permission request was approved for this one instance
     pub kind: PermissionDecisionApproveOnceKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApprovePermanently {
+    /// The URL domain to approve permanently
+    pub domain: String,
+    /// Approved and persisted across sessions
+    pub kind: PermissionDecisionApprovePermanentlyKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1603,38 +1784,9 @@ pub struct Tool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ToolCallResult {
-    /// Error message if the tool call failed
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    /// Type of the tool result
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result_type: Option<String>,
-    /// Text result to send back to the LLM
-    pub text_result_for_llm: String,
-    /// Telemetry data from tool execution
-    #[serde(default)]
-    pub tool_telemetry: HashMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ToolList {
     /// List of available built-in tools with metadata
     pub tools: Vec<Tool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ToolsHandlePendingToolCallRequest {
-    /// Error message if the tool call failed
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    /// Request ID of the pending tool call
-    pub request_id: RequestId,
-    /// Tool call result (string or expanded result object)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1851,6 +2003,13 @@ pub struct UsageMetricsModelMetricRequests {
     pub count: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsModelMetricTokenDetail {
+    /// Accumulated token count for this token type
+    pub token_count: i64,
+}
+
 /// Token usage metrics for this model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1873,8 +2032,21 @@ pub struct UsageMetricsModelMetricUsage {
 pub struct UsageMetricsModelMetric {
     /// Request count and cost metrics for this model
     pub requests: UsageMetricsModelMetricRequests,
+    /// Token count details per type
+    #[serde(default)]
+    pub token_details: HashMap<String, UsageMetricsModelMetricTokenDetail>,
+    /// Accumulated nano-AI units cost for this model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_nano_aiu: Option<i64>,
     /// Token usage metrics for this model
     pub usage: UsageMetricsModelMetricUsage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsTokenDetail {
+    /// Accumulated token count for this token type
+    pub token_count: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1893,8 +2065,14 @@ pub struct UsageGetMetricsResult {
     pub model_metrics: HashMap<String, UsageMetricsModelMetric>,
     /// Session start timestamp (epoch milliseconds)
     pub session_start_time: i64,
+    /// Session-wide per-token-type accumulated token counts
+    #[serde(default)]
+    pub token_details: HashMap<String, UsageMetricsTokenDetail>,
     /// Total time spent in model API calls (milliseconds)
     pub total_api_duration_ms: f64,
+    /// Session-wide accumulated nano-AI units cost
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_nano_aiu: Option<i64>,
     /// Total user-initiated premium request cost across all models (may be fractional due to multipliers)
     pub total_premium_request_cost: f64,
     /// Raw count of user-initiated API requests
@@ -2007,6 +2185,13 @@ pub struct McpConfigListResult {
 pub struct SkillsDiscoverResult {
     /// All discovered skills across all sources
     pub skills: Vec<ServerSkill>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSuspendParams {
+    /// Target session identifier
+    pub session_id: SessionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2514,8 +2699,14 @@ pub struct SessionUsageGetMetricsResult {
     pub model_metrics: HashMap<String, UsageMetricsModelMetric>,
     /// Session start timestamp (epoch milliseconds)
     pub session_start_time: i64,
+    /// Session-wide per-token-type accumulated token counts
+    #[serde(default)]
+    pub token_details: HashMap<String, UsageMetricsTokenDetail>,
     /// Total time spent in model API calls (milliseconds)
     pub total_api_duration_ms: f64,
+    /// Session-wide accumulated nano-AI units cost
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_nano_aiu: Option<i64>,
     /// Total user-initiated premium request cost across all models (may be fractional due to multipliers)
     pub total_premium_request_cost: f64,
     /// Raw count of user-initiated API requests
@@ -2602,6 +2793,60 @@ pub enum ExtensionStatus {
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmContentAudioType {
+    #[serde(rename = "audio")]
+    Audio,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmContentImageType {
+    #[serde(rename = "image")]
+    Image,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmContentResourceType {
+    #[serde(rename = "resource")]
+    Resource,
+}
+
+/// Theme variant this icon is intended for
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmContentResourceLinkIconTheme {
+    #[serde(rename = "light")]
+    Light,
+    #[serde(rename = "dark")]
+    Dark,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmContentResourceLinkType {
+    #[serde(rename = "resource_link")]
+    ResourceLink,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmContentTerminalType {
+    #[serde(rename = "terminal")]
+    Terminal,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmContentTextType {
+    #[serde(rename = "text")]
+    Text,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2709,6 +2954,17 @@ pub enum McpServerStatus {
     Disabled,
     #[serde(rename = "not_configured")]
     NotConfigured,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerConfigHttpOauthGrantType {
+    #[serde(rename = "authorization_code")]
+    AuthorizationCode,
+    #[serde(rename = "client_credentials")]
+    ClientCredentials,
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,
@@ -2882,6 +3138,13 @@ pub enum PermissionDecisionApproveOnceKind {
     ApproveOnce,
 }
 
+/// Approved and persisted across sessions
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApprovePermanentlyKind {
+    #[serde(rename = "approve-permanently")]
+    ApprovePermanently,
+}
+
 /// Denied by the user during an interactive prompt
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionDecisionRejectKind {
@@ -2902,6 +3165,7 @@ pub enum PermissionDecision {
     ApproveOnce(PermissionDecisionApproveOnce),
     ApproveForSession(PermissionDecisionApproveForSession),
     ApproveForLocation(PermissionDecisionApproveForLocation),
+    ApprovePermanently(PermissionDecisionApprovePermanently),
     Reject(PermissionDecisionReject),
     UserNotAvailable(PermissionDecisionUserNotAvailable),
 }

@@ -804,6 +804,15 @@ type ResumeSessionConfig struct {
 	// DisableResume, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
 	DisableResume bool
+	// ContinuePendingWork, when true, instructs the runtime to continue any tool calls
+	// or permission prompts that were still pending when the session was last suspended.
+	// When false (the default), the runtime treats pending work as interrupted on resume.
+	//
+	// For permission requests, the runtime re-emits permission.requested so the
+	// registered OnPermissionRequest handler can re-prompt; for external tool calls,
+	// the consumer is expected to supply the result via the corresponding low-level
+	// RPC method.
+	ContinuePendingWork bool
 	// OnEvent is an optional event handler registered before the session.resume RPC
 	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
 	OnEvent SessionEventHandler
@@ -1050,6 +1059,7 @@ type resumeSessionRequest struct {
 	ConfigDir                      string                         `json:"configDir,omitempty"`
 	EnableConfigDiscovery          *bool                          `json:"enableConfigDiscovery,omitempty"`
 	DisableResume                  *bool                          `json:"disableResume,omitempty"`
+	ContinuePendingWork            *bool                          `json:"continuePendingWork,omitempty"`
 	Streaming                      *bool                          `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents *bool                          `json:"includeSubAgentStreamingEvents,omitempty"`
 	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`

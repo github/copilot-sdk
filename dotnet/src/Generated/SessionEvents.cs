@@ -27,6 +27,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(AssistantIntentEvent), "assistant.intent")]
 [JsonDerivedType(typeof(AssistantMessageEvent), "assistant.message")]
 [JsonDerivedType(typeof(AssistantMessageDeltaEvent), "assistant.message_delta")]
+[JsonDerivedType(typeof(AssistantMessageStartEvent), "assistant.message_start")]
 [JsonDerivedType(typeof(AssistantReasoningEvent), "assistant.reasoning")]
 [JsonDerivedType(typeof(AssistantReasoningDeltaEvent), "assistant.reasoning_delta")]
 [JsonDerivedType(typeof(AssistantStreamingDeltaEvent), "assistant.streaming_delta")]
@@ -102,22 +103,27 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(UserMessageEvent), "user.message")]
 public partial class SessionEvent
 {
-    /// <summary>Unique event identifier (UUID v4), generated when the event is emitted.</summary>
-    [JsonPropertyName("id")]
-    public Guid Id { get; set; }
-
-    /// <summary>ISO 8601 timestamp when the event was created.</summary>
-    [JsonPropertyName("timestamp")]
-    public DateTimeOffset Timestamp { get; set; }
-
-    /// <summary>ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.</summary>
-    [JsonPropertyName("parentId")]
-    public Guid? ParentId { get; set; }
+    /// <summary>Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
 
     /// <summary>When true, the event is transient and not persisted to the session event log on disk.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ephemeral")]
     public bool? Ephemeral { get; set; }
+
+    /// <summary>Unique event identifier (UUID v4), generated when the event is emitted.</summary>
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; }
+
+    /// <summary>ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.</summary>
+    [JsonPropertyName("parentId")]
+    public Guid? ParentId { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the event was created.</summary>
+    [JsonPropertyName("timestamp")]
+    public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
     /// The event type discriminator.
@@ -511,6 +517,19 @@ public partial class AssistantMessageEvent : SessionEvent
     /// <summary>The <c>assistant.message</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required AssistantMessageData Data { get; set; }
+}
+
+/// <summary>Streaming assistant message start metadata.</summary>
+/// <remarks>Represents the <c>assistant.message_start</c> event.</remarks>
+public partial class AssistantMessageStartEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "assistant.message_start";
+
+    /// <summary>The <c>assistant.message_start</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AssistantMessageStartData Data { get; set; }
 }
 
 /// <summary>Streaming assistant message delta for incremental response updates.</summary>
@@ -1192,6 +1211,11 @@ public partial class SessionResumeData
     [JsonPropertyName("context")]
     public WorkingDirectoryContext? Context { get; set; }
 
+    /// <summary>When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("continuePendingWork")]
+    public bool? ContinuePendingWork { get; set; }
+
     /// <summary>Total number of persisted events in the session at the time of resume.</summary>
     [JsonPropertyName("eventCount")]
     public required double EventCount { get; set; }
@@ -1214,6 +1238,11 @@ public partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("selectedModel")]
     public string? SelectedModel { get; set; }
+
+    /// <summary>True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sessionWasActive")]
+    public bool? SessionWasActive { get; set; }
 }
 
 /// <summary>Notifies Mission Control that the session's remote steering capability has changed.</summary>
@@ -1517,6 +1546,11 @@ public partial class SessionShutdownData
     [JsonPropertyName("systemTokens")]
     public double? SystemTokens { get; set; }
 
+    /// <summary>Session-wide per-token-type accumulated token counts.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tokenDetails")]
+    public IDictionary<string, ShutdownTokenDetail>? TokenDetails { get; set; }
+
     /// <summary>Tool definitions token count at shutdown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolDefinitionsTokens")]
@@ -1525,6 +1559,11 @@ public partial class SessionShutdownData
     /// <summary>Cumulative time spent in API calls during the session, in milliseconds.</summary>
     [JsonPropertyName("totalApiDurationMs")]
     public required double TotalApiDurationMs { get; set; }
+
+    /// <summary>Session-wide accumulated nano-AI units cost.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalNanoAiu")]
+    public double? TotalNanoAiu { get; set; }
 
     /// <summary>Total number of premium API requests used during the session.</summary>
     [JsonPropertyName("totalPremiumRequests")]
@@ -1748,6 +1787,11 @@ public partial class UserMessageData
     [JsonPropertyName("nativeDocumentPathFallbackPaths")]
     public string[]? NativeDocumentPathFallbackPaths { get; set; }
 
+    /// <summary>Parent agent task ID for background telemetry correlated to this user turn.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("parentAgentTaskId")]
+    public string? ParentAgentTaskId { get; set; }
+
     /// <summary>Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
@@ -1878,6 +1922,24 @@ public partial class AssistantMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolRequests")]
     public AssistantMessageToolRequest[]? ToolRequests { get; set; }
+
+    /// <summary>Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("turnId")]
+    public string? TurnId { get; set; }
+}
+
+/// <summary>Streaming assistant message start metadata.</summary>
+public partial class AssistantMessageStartData
+{
+    /// <summary>Message ID this start event belongs to, matching subsequent deltas and assistant.message.</summary>
+    [JsonPropertyName("messageId")]
+    public required string MessageId { get; set; }
+
+    /// <summary>Generation phase this message belongs to for phased-output models.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("phase")]
+    public string? Phase { get; set; }
 }
 
 /// <summary>Streaming assistant message delta for incremental response updates.</summary>
@@ -2094,6 +2156,11 @@ public partial class ToolExecutionStartData
     /// <summary>Name of the tool being executed.</summary>
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
+
+    /// <summary>Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("turnId")]
+    public string? TurnId { get; set; }
 }
 
 /// <summary>Streaming tool execution output for incremental result display.</summary>
@@ -2166,6 +2233,11 @@ public partial class ToolExecutionCompleteData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolTelemetry")]
     public IDictionary<string, object>? ToolTelemetry { get; set; }
+
+    /// <summary>Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("turnId")]
+    public string? TurnId { get; set; }
 }
 
 /// <summary>Skill invocation details including content, allowed tools, and plugin metadata.</summary>
@@ -2429,7 +2501,7 @@ public partial class PermissionCompletedData
 
     /// <summary>The result of the permission request.</summary>
     [JsonPropertyName("result")]
-    public required PermissionCompletedResult Result { get; set; }
+    public required PermissionResult Result { get; set; }
 
     /// <summary>Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2929,6 +3001,14 @@ public partial class ShutdownModelMetricRequests
     public required double Count { get; set; }
 }
 
+/// <summary>Nested data type for <c>ShutdownModelMetricTokenDetail</c>.</summary>
+public partial class ShutdownModelMetricTokenDetail
+{
+    /// <summary>Accumulated token count for this token type.</summary>
+    [JsonPropertyName("tokenCount")]
+    public required double TokenCount { get; set; }
+}
+
 /// <summary>Token usage breakdown.</summary>
 /// <remarks>Nested data type for <c>ShutdownModelMetricUsage</c>.</remarks>
 public partial class ShutdownModelMetricUsage
@@ -2962,9 +3042,27 @@ public partial class ShutdownModelMetric
     [JsonPropertyName("requests")]
     public required ShutdownModelMetricRequests Requests { get; set; }
 
+    /// <summary>Token count details per type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tokenDetails")]
+    public IDictionary<string, ShutdownModelMetricTokenDetail>? TokenDetails { get; set; }
+
+    /// <summary>Accumulated nano-AI units cost for this model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalNanoAiu")]
+    public double? TotalNanoAiu { get; set; }
+
     /// <summary>Token usage breakdown.</summary>
     [JsonPropertyName("usage")]
     public required ShutdownModelMetricUsage Usage { get; set; }
+}
+
+/// <summary>Nested data type for <c>ShutdownTokenDetail</c>.</summary>
+public partial class ShutdownTokenDetail
+{
+    /// <summary>Accumulated token count for this token type.</summary>
+    [JsonPropertyName("tokenCount")]
+    public required double TokenCount { get; set; }
 }
 
 /// <summary>Token usage detail for a single billing category.</summary>
@@ -2996,7 +3094,7 @@ public partial class CompactionCompleteCompactionTokensUsedCopilotUsage
     [JsonPropertyName("tokenDetails")]
     public required CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[] TokenDetails { get; set; }
 
-    /// <summary>Total cost in nano-AIU (AI Units) for this request.</summary>
+    /// <summary>Total cost in nano-AI units for this request.</summary>
     [JsonPropertyName("totalNanoAiu")]
     public required double TotalNanoAiu { get; set; }
 }
@@ -3294,7 +3392,7 @@ public partial class AssistantUsageCopilotUsage
     [JsonPropertyName("tokenDetails")]
     public required AssistantUsageCopilotUsageTokenDetail[] TokenDetails { get; set; }
 
-    /// <summary>Total cost in nano-AIU (AI Units) for this request.</summary>
+    /// <summary>Total cost in nano-AI units for this request.</summary>
     [JsonPropertyName("totalNanoAiu")]
     public required double TotalNanoAiu { get; set; }
 }
@@ -4313,14 +4411,243 @@ public partial class PermissionPromptRequest
 }
 
 
-/// <summary>The result of the permission request.</summary>
-/// <remarks>Nested data type for <c>PermissionCompletedResult</c>.</remarks>
-public partial class PermissionCompletedResult
+/// <summary>The <c>approved</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultApproved : PermissionResult
 {
-    /// <summary>The outcome of the permission request.</summary>
-    [JsonPropertyName("kind")]
-    public required PermissionCompletedKind Kind { get; set; }
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "approved";
 }
+
+/// <summary>The <c>commands</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+public partial class UserToolSessionApprovalCommands : UserToolSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "commands";
+
+    /// <summary>Command identifiers approved by the user.</summary>
+    [JsonPropertyName("commandIdentifiers")]
+    public required string[] CommandIdentifiers { get; set; }
+}
+
+/// <summary>The <c>read</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+public partial class UserToolSessionApprovalRead : UserToolSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "read";
+}
+
+/// <summary>The <c>write</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+public partial class UserToolSessionApprovalWrite : UserToolSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "write";
+}
+
+/// <summary>The <c>mcp</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+public partial class UserToolSessionApprovalMcp : UserToolSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp";
+
+    /// <summary>MCP server name.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>Optional MCP tool name, or null for all tools on the server.</summary>
+    [JsonPropertyName("toolName")]
+    public string? ToolName { get; set; }
+}
+
+/// <summary>The <c>memory</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+public partial class UserToolSessionApprovalMemory : UserToolSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "memory";
+}
+
+/// <summary>The <c>custom-tool</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+public partial class UserToolSessionApprovalCustomTool : UserToolSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "custom-tool";
+
+    /// <summary>Custom tool name.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>The approval to add as a session-scoped rule.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(UserToolSessionApprovalCommands), "commands")]
+[JsonDerivedType(typeof(UserToolSessionApprovalRead), "read")]
+[JsonDerivedType(typeof(UserToolSessionApprovalWrite), "write")]
+[JsonDerivedType(typeof(UserToolSessionApprovalMcp), "mcp")]
+[JsonDerivedType(typeof(UserToolSessionApprovalMemory), "memory")]
+[JsonDerivedType(typeof(UserToolSessionApprovalCustomTool), "custom-tool")]
+public partial class UserToolSessionApproval
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>approved-for-session</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultApprovedForSession : PermissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "approved-for-session";
+
+    /// <summary>The approval to add as a session-scoped rule.</summary>
+    [JsonPropertyName("approval")]
+    public required UserToolSessionApproval Approval { get; set; }
+}
+
+/// <summary>The <c>approved-for-location</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultApprovedForLocation : PermissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "approved-for-location";
+
+    /// <summary>The approval to persist for this location.</summary>
+    [JsonPropertyName("approval")]
+    public required UserToolSessionApproval Approval { get; set; }
+
+    /// <summary>The location key (git root or cwd) to persist the approval to.</summary>
+    [JsonPropertyName("locationKey")]
+    public required string LocationKey { get; set; }
+}
+
+/// <summary>The <c>cancelled</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultCancelled : PermissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "cancelled";
+
+    /// <summary>Optional explanation of why the request was cancelled.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+}
+
+/// <summary>Nested data type for <c>PermissionRule</c>.</summary>
+public partial class PermissionRule
+{
+    /// <summary>Optional rule argument matched against the request.</summary>
+    [JsonPropertyName("argument")]
+    public string? Argument { get; set; }
+
+    /// <summary>The rule kind, such as Shell or GitHubMCP.</summary>
+    [JsonPropertyName("kind")]
+    public required string Kind { get; set; }
+}
+
+/// <summary>The <c>denied-by-rules</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultDeniedByRules : PermissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-rules";
+
+    /// <summary>Rules that denied the request.</summary>
+    [JsonPropertyName("rules")]
+    public required PermissionRule[] Rules { get; set; }
+}
+
+/// <summary>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-no-approval-rule-and-could-not-request-from-user";
+}
+
+/// <summary>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultDeniedInteractivelyByUser : PermissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-interactively-by-user";
+
+    /// <summary>Optional feedback from the user explaining the denial.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("feedback")]
+    public string? Feedback { get; set; }
+
+    /// <summary>Whether to force-reject the current agent turn.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("forceReject")]
+    public bool? ForceReject { get; set; }
+}
+
+/// <summary>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultDeniedByContentExclusionPolicy : PermissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-content-exclusion-policy";
+
+    /// <summary>Human-readable explanation of why the path was excluded.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>File path that triggered the exclusion.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+}
+
+/// <summary>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionResult"/>.</summary>
+public partial class PermissionResultDeniedByPermissionRequestHook : PermissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "denied-by-permission-request-hook";
+
+    /// <summary>Whether to interrupt the current agent turn.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interrupt")]
+    public bool? Interrupt { get; set; }
+
+    /// <summary>Optional message from the hook explaining the denial.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
+/// <summary>The result of the permission request.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionResultApproved), "approved")]
+[JsonDerivedType(typeof(PermissionResultApprovedForSession), "approved-for-session")]
+[JsonDerivedType(typeof(PermissionResultApprovedForLocation), "approved-for-location")]
+[JsonDerivedType(typeof(PermissionResultCancelled), "cancelled")]
+[JsonDerivedType(typeof(PermissionResultDeniedByRules), "denied-by-rules")]
+[JsonDerivedType(typeof(PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromUser), "denied-no-approval-rule-and-could-not-request-from-user")]
+[JsonDerivedType(typeof(PermissionResultDeniedInteractivelyByUser), "denied-interactively-by-user")]
+[JsonDerivedType(typeof(PermissionResultDeniedByContentExclusionPolicy), "denied-by-content-exclusion-policy")]
+[JsonDerivedType(typeof(PermissionResultDeniedByPermissionRequestHook), "denied-by-permission-request-hook")]
+public partial class PermissionResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
 
 /// <summary>JSON Schema describing the form fields to present to the user (form mode only).</summary>
 /// <remarks>Nested data type for <c>ElicitationRequestedSchema</c>.</remarks>
@@ -4347,6 +4674,11 @@ public partial class McpOauthRequiredStaticClientConfig
     /// <summary>OAuth client ID for the server.</summary>
     [JsonPropertyName("clientId")]
     public required string ClientId { get; set; }
+
+    /// <summary>Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("grantType")]
+    public string? GrantType { get; set; }
 
     /// <summary>Whether this is a public OAuth client.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4707,36 +5039,6 @@ public enum PermissionPromptRequestPathAccessKind
     Write,
 }
 
-/// <summary>The outcome of the permission request.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<PermissionCompletedKind>))]
-public enum PermissionCompletedKind
-{
-    /// <summary>The <c>approved</c> variant.</summary>
-    [JsonStringEnumMemberName("approved")]
-    Approved,
-    /// <summary>The <c>approved-for-session</c> variant.</summary>
-    [JsonStringEnumMemberName("approved-for-session")]
-    ApprovedForSession,
-    /// <summary>The <c>approved-for-location</c> variant.</summary>
-    [JsonStringEnumMemberName("approved-for-location")]
-    ApprovedForLocation,
-    /// <summary>The <c>denied-by-rules</c> variant.</summary>
-    [JsonStringEnumMemberName("denied-by-rules")]
-    DeniedByRules,
-    /// <summary>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant.</summary>
-    [JsonStringEnumMemberName("denied-no-approval-rule-and-could-not-request-from-user")]
-    DeniedNoApprovalRuleAndCouldNotRequestFromUser,
-    /// <summary>The <c>denied-interactively-by-user</c> variant.</summary>
-    [JsonStringEnumMemberName("denied-interactively-by-user")]
-    DeniedInteractivelyByUser,
-    /// <summary>The <c>denied-by-content-exclusion-policy</c> variant.</summary>
-    [JsonStringEnumMemberName("denied-by-content-exclusion-policy")]
-    DeniedByContentExclusionPolicy,
-    /// <summary>The <c>denied-by-permission-request-hook</c> variant.</summary>
-    [JsonStringEnumMemberName("denied-by-permission-request-hook")]
-    DeniedByPermissionRequestHook,
-}
-
 /// <summary>Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<ElicitationRequestedMode>))]
 public enum ElicitationRequestedMode
@@ -4855,6 +5157,8 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(AssistantMessageDeltaData))]
 [JsonSerializable(typeof(AssistantMessageDeltaEvent))]
 [JsonSerializable(typeof(AssistantMessageEvent))]
+[JsonSerializable(typeof(AssistantMessageStartData))]
+[JsonSerializable(typeof(AssistantMessageStartEvent))]
 [JsonSerializable(typeof(AssistantMessageToolRequest))]
 [JsonSerializable(typeof(AssistantReasoningData))]
 [JsonSerializable(typeof(AssistantReasoningDeltaData))]
@@ -4923,7 +5227,6 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
-[JsonSerializable(typeof(PermissionCompletedResult))]
 [JsonSerializable(typeof(PermissionPromptRequest))]
 [JsonSerializable(typeof(PermissionPromptRequestCommands))]
 [JsonSerializable(typeof(PermissionPromptRequestCustomTool))]
@@ -4947,6 +5250,17 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(PermissionRequestWrite))]
 [JsonSerializable(typeof(PermissionRequestedData))]
 [JsonSerializable(typeof(PermissionRequestedEvent))]
+[JsonSerializable(typeof(PermissionResult))]
+[JsonSerializable(typeof(PermissionResultApproved))]
+[JsonSerializable(typeof(PermissionResultApprovedForLocation))]
+[JsonSerializable(typeof(PermissionResultApprovedForSession))]
+[JsonSerializable(typeof(PermissionResultCancelled))]
+[JsonSerializable(typeof(PermissionResultDeniedByContentExclusionPolicy))]
+[JsonSerializable(typeof(PermissionResultDeniedByPermissionRequestHook))]
+[JsonSerializable(typeof(PermissionResultDeniedByRules))]
+[JsonSerializable(typeof(PermissionResultDeniedInteractivelyByUser))]
+[JsonSerializable(typeof(PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromUser))]
+[JsonSerializable(typeof(PermissionRule))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
@@ -5011,7 +5325,9 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(ShutdownCodeChanges))]
 [JsonSerializable(typeof(ShutdownModelMetric))]
 [JsonSerializable(typeof(ShutdownModelMetricRequests))]
+[JsonSerializable(typeof(ShutdownModelMetricTokenDetail))]
 [JsonSerializable(typeof(ShutdownModelMetricUsage))]
+[JsonSerializable(typeof(ShutdownTokenDetail))]
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
 [JsonSerializable(typeof(SkillsLoadedSkill))]
@@ -5073,6 +5389,13 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(UserMessageAttachmentSelectionDetailsStart))]
 [JsonSerializable(typeof(UserMessageData))]
 [JsonSerializable(typeof(UserMessageEvent))]
+[JsonSerializable(typeof(UserToolSessionApproval))]
+[JsonSerializable(typeof(UserToolSessionApprovalCommands))]
+[JsonSerializable(typeof(UserToolSessionApprovalCustomTool))]
+[JsonSerializable(typeof(UserToolSessionApprovalMcp))]
+[JsonSerializable(typeof(UserToolSessionApprovalMemory))]
+[JsonSerializable(typeof(UserToolSessionApprovalRead))]
+[JsonSerializable(typeof(UserToolSessionApprovalWrite))]
 [JsonSerializable(typeof(WorkingDirectoryContext))]
 [JsonSerializable(typeof(JsonElement))]
 internal partial class SessionEventsJsonContext : JsonSerializerContext;
