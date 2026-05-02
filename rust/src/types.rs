@@ -1568,6 +1568,15 @@ pub struct ResumeSessionConfig {
     /// silently starting a new session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_resume: Option<bool>,
+    /// When `true`, instructs the runtime to continue any tool calls or
+    /// permission requests that were pending when the previous connection
+    /// was dropped. Use this together with [`Client::force_stop`] to hand
+    /// off a session from one process to another without losing in-flight
+    /// work.
+    ///
+    /// [`Client::force_stop`]: crate::Client::force_stop
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub continue_pending_work: Option<bool>,
     /// Session-level event handler. See [`SessionConfig::handler`].
     #[serde(skip)]
     pub handler: Option<Arc<dyn SessionHandler>>,
@@ -1625,6 +1634,8 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
             .field("transform", &self.transform.as_ref().map(|_| "<set>"))
+            .field("disable_resume", &self.disable_resume)
+            .field("continue_pending_work", &self.continue_pending_work)
             .finish()
     }
 }
@@ -1665,6 +1676,7 @@ impl ResumeSessionConfig {
             commands: None,
             session_fs_provider: None,
             disable_resume: None,
+            continue_pending_work: None,
             handler: None,
             hooks_handler: None,
             transform: None,
@@ -1909,6 +1921,16 @@ impl ResumeSessionConfig {
     /// of silently starting a new session.
     pub fn with_disable_resume(mut self, disable: bool) -> Self {
         self.disable_resume = Some(disable);
+        self
+    }
+
+    /// When `true`, instructs the runtime to continue any tool calls or
+    /// permission requests that were pending when the previous connection
+    /// was dropped. Use this together with
+    /// [`Client::force_stop`](crate::Client::force_stop) to hand off a
+    /// session from one process to another without losing in-flight work.
+    pub fn with_continue_pending_work(mut self, continue_pending: bool) -> Self {
+        self.continue_pending_work = Some(continue_pending);
         self
     }
 }
@@ -3123,7 +3145,8 @@ mod tests {
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
             .with_include_sub_agent_streaming_events(true)
-            .with_disable_resume(true);
+            .with_disable_resume(true)
+            .with_continue_pending_work(true);
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
@@ -3148,6 +3171,23 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
         assert_eq!(cfg.disable_resume, Some(true));
+        assert_eq!(cfg.continue_pending_work, Some(true));
+    }
+
+    /// `continue_pending_work` must serialize to wire as `continuePendingWork`
+    /// — the runtime keys off this exact field name to opt into the
+    /// pending-work-handoff pattern.
+    #[test]
+    fn resume_session_config_serializes_continue_pending_work_to_camel_case() {
+        let cfg =
+            ResumeSessionConfig::new(SessionId::from("sess-1")).with_continue_pending_work(true);
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(wire["continuePendingWork"], true);
+
+        // Unset case — skip_serializing_if must omit the field.
+        let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"));
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert!(wire.get("continuePendingWork").is_none());
     }
 
     #[test]
