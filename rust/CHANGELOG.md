@@ -71,6 +71,13 @@ public surface.
 - `Session::disconnect` (canonical) and `Session::destroy` (alias)
   preserve on-disk session state for later resume.
 - `Session::stop_event_loop` for shutting down the per-session loop.
+- `Session::cancellation_token()` returns a [`tokio_util::sync::CancellationToken`]
+  child token that fires when the session shuts down (via
+  `stop_event_loop`, `destroy`, or `Drop`). Lets external tasks bind their
+  lifetime to a session via `tokio::select!` without taking a strong
+  reference to the session. Cancelling the returned child token does not
+  shut the session down — only `stop_event_loop` (or dropping the session)
+  does.
 
 #### Handlers + helpers
 - `SessionHandler` trait with default fallback impls for each event

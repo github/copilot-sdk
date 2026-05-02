@@ -5,8 +5,9 @@ use std::time::Duration;
 
 use parking_lot::Mutex as ParkingLotMutex;
 use serde_json::Value;
-use tokio::sync::{Notify, oneshot};
+use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
 use crate::generated::api_types::{
@@ -87,14 +88,19 @@ pub struct Session {
     /// fallibility.
     event_loop: ParkingLotMutex<Option<JoinHandle<()>>>,
     /// Cooperative shutdown signal for the event loop. The loop selects
-    /// on `shutdown.notified()` alongside its inbound channels;
-    /// [`Session::stop_event_loop`] and [`Drop`] both call `notify_one()`
-    /// (which buffers a single signal so it is not lost while the loop
-    /// is inside an awaiting branch) to ask the loop to exit between
-    /// iterations rather than `JoinHandle::abort` (which can land at any
-    /// await point and leave the session in mid-protocol state). See
-    /// RFD-400 review finding #3.
-    shutdown: Arc<Notify>,
+    /// on [`shutdown.cancelled()`](CancellationToken::cancelled) alongside
+    /// its inbound channels; [`Session::stop_event_loop`] and [`Drop`]
+    /// both call [`cancel()`](CancellationToken::cancel) to ask the loop
+    /// to exit between iterations rather than aborting the task (which
+    /// can land at any await point and leave the session mid-protocol).
+    /// See RFD-400 review finding #3.
+    ///
+    /// `CancellationToken` is the canonical signalling primitive in
+    /// `tokio_util`; it is what `tonic` uses for the equivalent task-
+    /// coordination case. Advanced consumers can obtain a child token
+    /// via [`Session::cancellation_token`] to bind their own work to
+    /// the session lifetime.
+    shutdown: CancellationToken,
     /// Only populated while a `send_and_wait` call is in flight.
     ///
     /// Sync `parking_lot::Mutex` because the lock is never held across an
@@ -135,6 +141,36 @@ impl Session {
     /// via `capabilities.changed` events.
     pub fn capabilities(&self) -> SessionCapabilities {
         self.capabilities.read().clone()
+    }
+
+    /// Returns a [`CancellationToken`] that fires when this session shuts
+    /// down (via [`Session::stop_event_loop`], [`Session::destroy`], or
+    /// [`Drop`]).
+    ///
+    /// Use this to bind an external task's lifetime to the session — when
+    /// the session shuts down, awaiting [`cancelled()`](CancellationToken::cancelled)
+    /// resolves so cooperative consumers can stop cleanly.
+    ///
+    /// The returned handle is a *child* token: calling
+    /// [`cancel()`](CancellationToken::cancel) on it cancels only the
+    /// caller's child, not the session itself. To cancel the session, call
+    /// [`Session::stop_event_loop`].
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # async fn example(session: github_copilot_sdk::session::Session) {
+    /// let token = session.cancellation_token();
+    /// tokio::select! {
+    ///     _ = token.cancelled() => println!("session shut down"),
+    ///     _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {
+    ///         println!("60s elapsed, session still alive");
+    ///     }
+    /// }
+    /// # }
+    /// ```
+    pub fn cancellation_token(&self) -> CancellationToken {
+        self.shutdown.child_token()
     }
 
     /// Subscribe to events for this session.
@@ -200,13 +236,13 @@ impl Session {
 
     /// Stop the internal event loop. Called automatically on [`destroy`](Self::destroy).
     ///
-    /// Cooperative: signals shutdown via the session's `Notify` and awaits
-    /// the loop's natural exit rather than aborting the task. Any in-flight
-    /// handler (permission callback, tool call, elicitation response)
-    /// completes before the loop exits, so the CLI never sees a
+    /// Cooperative: signals shutdown via the session's [`CancellationToken`]
+    /// and awaits the loop's natural exit rather than aborting the task.
+    /// Any in-flight handler (permission callback, tool call, elicitation
+    /// response) completes before the loop exits, so the CLI never sees a
     /// half-handled request. See RFD-400 review finding #3.
     pub async fn stop_event_loop(&self) {
-        self.shutdown.notify_one();
+        self.shutdown.cancel();
         let handle = self.event_loop.lock().take();
         if let Some(handle) = handle {
             let _ = handle.await;
@@ -618,17 +654,18 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
-        // Cooperative shutdown: notify the event loop to exit between
-        // iterations. The loop will see the signal on its next select
-        // poll and break cleanly without interrupting an in-flight
-        // handler. We do NOT abort the JoinHandle — that would land at
-        // any await point in the loop body, potentially leaving the CLI
-        // with an unanswered request id. RFD-400 review finding #3.
+        // Cooperative shutdown: cancel the event loop's token to signal
+        // exit between iterations. The loop will see the cancellation on
+        // its next select poll and break cleanly without interrupting an
+        // in-flight handler. We do NOT abort the JoinHandle — that would
+        // land at any await point in the loop body, potentially leaving
+        // the CLI with an unanswered request id. RFD-400 review finding
+        // #3.
         //
         // The handle itself is left in `event_loop` to be reaped by the
         // tokio runtime when it next polls; we intentionally don't await
         // it here because Drop is sync.
-        self.shutdown.notify_one();
+        self.shutdown.cancel();
         self.client.unregister_session(&self.id);
     }
 }
@@ -824,7 +861,7 @@ impl Client {
         let channels = self.register_session(&session_id);
 
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
-        let shutdown = Arc::new(Notify::new());
+        let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             session_id.clone(),
@@ -927,7 +964,7 @@ impl Client {
         let channels = self.register_session(&cli_session_id);
 
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
-        let shutdown = Arc::new(Notify::new());
+        let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             cli_session_id.clone(),
@@ -986,7 +1023,7 @@ fn spawn_event_loop(
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
-    shutdown: Arc<Notify>,
+    shutdown: CancellationToken,
 ) -> JoinHandle<()> {
     let crate::router::SessionChannels {
         mut notifications,
@@ -997,18 +1034,18 @@ fn spawn_event_loop(
     tokio::spawn(
         async move {
             loop {
-                // `mpsc::UnboundedReceiver::recv` and `Notify::notified()`
-                // are both cancel-safe per RFD 400. The selected branch's
-                // `await`'d handler is *not* mid-cancelled by the select
-                // — once a branch fires it runs to completion within the
-                // loop's iteration. Spawned child tasks inside
-                // `handle_notification` (permission/tool/elicitation
-                // callbacks) intentionally outlive the parent loop and
-                // own their own cleanup; this is RFD 400's "spawn
-                // background tasks to perform cancel-unsafe operations"
-                // pattern and is correct as-is.
+                // `mpsc::UnboundedReceiver::recv` and
+                // `CancellationToken::cancelled` are both cancel-safe per
+                // RFD 400. The selected branch's `await`'d handler is
+                // *not* mid-cancelled by the select — once a branch fires
+                // it runs to completion within the loop's iteration.
+                // Spawned child tasks inside `handle_notification`
+                // (permission/tool/elicitation callbacks) intentionally
+                // outlive the parent loop and own their own cleanup;
+                // this is RFD 400's "spawn background tasks to perform
+                // cancel-unsafe operations" pattern and is correct as-is.
                 tokio::select! {
-                    _ = shutdown.notified() => break,
+                    _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
                             &session_id, &client, &handler, &command_handlers, notification, &idle_waiter, &capabilities, &event_tx,

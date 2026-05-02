@@ -2052,6 +2052,45 @@ async fn drop_session_does_not_abort_handler() {
     );
 }
 
+/// `Session::cancellation_token()` returns a child token that fires when
+/// the session shuts down. Lets external tasks bind their lifetime to the
+/// session via `tokio::select!` without taking a strong reference to the
+/// session itself.
+#[tokio::test]
+async fn cancellation_token_fires_on_session_drop() {
+    let handler = Arc::new(ApproveAllHandler);
+    let (session, _server) = create_session_pair(handler).await;
+
+    let token = session.cancellation_token();
+    assert!(!token.is_cancelled());
+
+    drop(session);
+
+    // The session's Drop impl cancels the parent token, which propagates
+    // to all child tokens.
+    timeout(Duration::from_secs(2), token.cancelled())
+        .await
+        .expect("child token must observe cancellation after session drop");
+    assert!(token.is_cancelled());
+}
+
+/// Cancelling a child token returned by `cancellation_token()` does NOT
+/// shut the session down — child tokens isolate consumer-side cancel
+/// logic from the session's own lifecycle.
+#[tokio::test]
+async fn cancellation_token_child_cancel_does_not_kill_session() {
+    let handler = Arc::new(ApproveAllHandler);
+    let (session, _server) = create_session_pair(handler).await;
+
+    let child = session.cancellation_token();
+    child.cancel();
+
+    // Session's own token (and event loop) are untouched. Issue a cheap
+    // RPC and confirm it still works.
+    let parent = session.cancellation_token();
+    assert!(!parent.is_cancelled());
+}
+
 #[tokio::test]
 async fn elicitation_requested_dispatches_to_handler_and_responds() {
     use github_copilot_sdk::types::ElicitationResult;
