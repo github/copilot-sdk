@@ -125,22 +125,113 @@ Log with structured fields: `info!(session_id = %id, "Session created")`.
 Static messages stay greppable; dynamic data goes in named fields, not
 interpolated into the message string.
 
-## Idioms that don't port from Go or Node
+## Idioms that don't port from other languages
 
-The most common pitfall when adapting code from the Node and Go SDKs is the
-event subscription pattern. Those SDKs expose `client.on(handler)` callback
-registration; the Rust SDK uses typed channels (`tokio::sync::broadcast` for
-fan-out, `tokio::sync::mpsc` for single-consumer streams). Don't try to
-recreate observer-style callbacks — drop the consumer onto a channel and let
-each subscriber `.recv()` on its own task. See `Session::events_subscribe()` for
-the canonical example.
+When porting code from the Node, Python, Go, .NET, or any other SDK,
+four idioms reliably translate poorly into idiomatic Rust. Each has
+specific guidance:
 
-Similarly, contexts and cancellation in Go/Node map to dropping a future or
-calling `JoinHandle::abort()` — there is no `ctx.Done()` analogue to plumb
-through every call site. Optional fields use `Option<T>`, not nullable
-pointers; defaults come from `Default` impls, not constructors that accept
-zero values. JSON tag attributes become `#[serde(rename_all = "camelCase")]` at
-the type level plus `#[serde(rename = "…")]` on the occasional outlier.
+### Event subscription: channels (and `Stream`), not callbacks
+
+Other SDKs expose callback registration:
+
+- Node / Python: `client.on('event', handler)` / `add_listener`
+- C#: `event` declarations and `+= handler`, or `IObservable<T>`
+- Go: `for ev := range ch { ... }` (closer to Rust already)
+
+Rust's async ecosystem prefers explicit channels over callback closures
+because closures fight `Send + Sync + 'static` and don't compose with
+`select!`/`StreamExt`. Pick the channel type by semantics:
+
+| Use case | Primitive |
+|---|---|
+| One producer → one consumer with backpressure | `tokio::sync::mpsc` (cap 1) or `tokio::sync::oneshot` for single value |
+| Many producers → one consumer (work queue, command bus) | `tokio::sync::mpsc` |
+| One producer → many consumers, every event delivered (pub/sub) | `tokio::sync::broadcast` |
+| One producer → many consumers, only the **latest** value matters (current state) | `tokio::sync::watch` |
+
+For the **public** API, prefer returning `impl Stream<Item = Event>`
+(typically by wrapping a `broadcast::Receiver` in
+`tokio_stream::wrappers::BroadcastStream`). `Stream` is the canonical
+"observable" shape in Rust — it composes with `select!`, `take`, `map`,
+`filter`, `timeout`, etc. Internally use a channel; externally consider
+exposing a `Stream`. This is what `tonic`, `reqwest::Response::bytes_stream`,
+and `sqlx::query::fetch` expose. See `EventSubscription` and
+`LifecycleSubscription` for the canonical examples in this crate.
+
+`Fn`-callback registration (`on_event(handler)`) is not an outright
+anti-pattern — `notify` (the FS watcher) and `bevy` use it idiomatically
+for non-async / domain-specific contexts — but for an async SDK exposing
+events to user code, channels + `Stream` is the canonical shape.
+
+### Cancellation: drop is the primitive; `CancellationToken` for SDK-internal coordination
+
+Cancellation does NOT plumb through every call site like Go's
+`context.Context` or .NET's `CancellationToken`. Two distinct cases,
+both idiomatic:
+
+**1. Caller-owned futures (`send_message`, `send_and_wait`, subscription streams).**
+Drop the future / `select!` it out / wrap in `tokio::time::timeout`.
+The caller already has full lifecycle control via the value's lifetime;
+adding a token parameter just duplicates what `select!`/`timeout`/drop
+already provide. This is what `reqwest`, `sqlx`, the `aws-sdk-*` crates,
+and `tonic`'s client side do. **Don't accept a token here.**
+
+Document cancel-safety on every `.await` in the SDK's hot path the way
+[`tokio` itself does](https://docs.rs/tokio/latest/tokio/macro.select.html#cancellation-safety):
+state explicitly which operations are safe to cancel mid-flight and
+which are not.
+
+**2. SDK-internal task coordination (event loops, subprocess readers,
+spawned background tasks).** Use [`tokio_util::sync::CancellationToken`].
+This is the canonical Rust analog to Go's `ctx.Done()` and .NET's
+`CancellationToken`, but scoped to where it actually belongs: tasks the
+caller doesn't own. `tonic` uses it to propagate client-disconnect into
+spawned server handlers; `tokio-graceful-shutdown` builds a whole
+hierarchical-shutdown framework on it. The token's parent/child tree
+maps cleanly onto session/request scoping.
+
+In this SDK, `Session.shutdown: CancellationToken` ties the event loop
+and any spawned helpers to the session's lifetime. `Drop for Session`
+calls `cancel()`. Power users can call
+`Session::cancellation_token() -> CancellationToken` to get a child
+token and bind their own work to the session lifetime via `select!`.
+Cancelling the child does NOT cancel the parent — child cancellation is
+isolated by design.
+
+**Citations**: [`tokio_util::sync::CancellationToken` docs][ctoken]
+([`tonic` cancellation example][tonic-cancel]),
+[withoutboats: "Asynchronous clean-up"][wb-cleanup],
+[Cybernetist: "Rust tokio task cancellation patterns"][cybernetist].
+
+[ctoken]: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
+[tonic-cancel]: https://github.com/hyperium/tonic/blob/master/examples/src/cancellation/server.rs
+[wb-cleanup]: https://without.boats/blog/asynchronous-clean-up/
+[cybernetist]: https://cybernetist.com/2024/04/19/rust-tokio-task-cancellation-patterns/
+
+### Optional fields: `Option<T>`, not nullable pointers or zero values
+
+`Option<T>`, not nullable references or "empty string means missing"
+sentinels. Defaults come from `Default` impls, not from constructors
+that accept zero values. Pair with `#[non_exhaustive]` on public config
+structs and a builder so adding fields stays non-breaking — this is the
+AWS SDK convention. If the SDK has *required* builder fields and you
+want compile-time enforcement of `.build()` validity, prefer
+`build() -> Result<Self, BuildError>` over typestate unless the
+required-field count is tiny (1-2). Typestate is overkill for plain
+optional fields.
+
+### serde JSON: container `rename_all` plus per-field overrides
+
+JSON tag attributes become `#[serde(rename_all = "camelCase")]` at the
+type level, with per-field `#[serde(rename = "…")]` overrides for
+outliers. For optional output fields use
+`#[serde(skip_serializing_if = "Option::is_none")]` to omit unset
+values from the wire (the JSON-RPC convention this SDK follows
+matches LSP's). Use `#[serde(default)]` for forward/backward-compatible
+input. `serde_with` is the right escape hatch for non-trivial transforms
+(durations, base64, numeric-as-string keys); reach for it as needed,
+not by default.
 
 ## Code organization
 
