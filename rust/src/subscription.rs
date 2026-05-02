@@ -166,6 +166,7 @@ mod tests {
             timestamp: "2025-01-01T00:00:00Z".into(),
             parent_id: None,
             ephemeral: None,
+            agent_id: None,
             debug_cli_received_at_ms: None,
             debug_ws_forwarded_at_ms: None,
             event_type: "noop".into(),

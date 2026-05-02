@@ -423,6 +423,14 @@ public surface.
   fail fast as before.
 
 ### Fixed
+- `SessionEvent` and `TypedSessionEvent` now expose the `agentId`
+  envelope field added to `session-events.schema.json` upstream
+  (`f8cf846`, "Derive session event envelopes from schema"). Sub-agent
+  events were silently dropping the attribution at the deserialization
+  boundary; consumers had no way to distinguish events emitted by the
+  root agent from events emitted by a sub-agent. Other SDKs (Node,
+  Python, Go, .NET) all carry this field. Round-trip parity test added
+  in `types::tests::session_event_round_trips_agent_id_on_envelope`.
 - `Session::user_input` no longer double-dispatches when the CLI sends
   both a `user_input.requested` notification (for observers) and a
   `userInput.request` JSON-RPC call (the actual prompt) for the same

@@ -747,12 +747,12 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	typedEventLines.push("/// A session event with typed data payload.");
 	typedEventLines.push("///");
 	typedEventLines.push(
-		"/// The common event fields (id, timestamp, parentId, ephemeral) are",
+		"/// The common event fields (id, timestamp, parentId, ephemeral, agentId)",
 	);
 	typedEventLines.push(
-		"/// available directly. The event-specific data is in the `payload` field",
+		"/// are available directly. The event-specific data is in the `payload`",
 	);
-	typedEventLines.push("/// as a [`SessionEventData`] enum.");
+	typedEventLines.push("/// field as a [`SessionEventData`] enum.");
 	typedEventLines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
 	typedEventLines.push(`#[serde(rename_all = "camelCase")]`);
 	typedEventLines.push("pub struct TypedSessionEvent {");
@@ -770,6 +770,14 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	);
 	typedEventLines.push(`    #[serde(skip_serializing_if = "Option::is_none")]`);
 	typedEventLines.push("    pub ephemeral: Option<bool>,");
+	typedEventLines.push(
+		"    /// Sub-agent instance identifier. Absent for events from the root /",
+	);
+	typedEventLines.push(
+		"    /// main agent and session-level events.",
+	);
+	typedEventLines.push(`    #[serde(skip_serializing_if = "Option::is_none")]`);
+	typedEventLines.push("    pub agent_id: Option<String>,");
 	typedEventLines.push(
 		"    /// The typed event payload (discriminated by event type).",
 	);

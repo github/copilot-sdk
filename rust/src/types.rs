@@ -2542,6 +2542,10 @@ pub struct SessionEvent {
     /// Transient events that are not persisted to disk.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ephemeral: Option<bool>,
+    /// Sub-agent instance identifier. Absent for events emitted by the
+    /// root/main agent and for session-level events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
     /// Debug timestamp: when the CLI received this event (ms since epoch).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub debug_cli_received_at_ms: Option<i64>,
@@ -2987,9 +2991,10 @@ mod tests {
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
         ConnectionState, CustomAgentConfig, DeliveryMode, GitHubReferenceType,
-        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionId,
-        SystemMessageConfig, Tool, ensure_attachment_display_names,
+        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent,
+        SessionId, SystemMessageConfig, Tool, ensure_attachment_display_names,
     };
+    use crate::generated::session_events::TypedSessionEvent;
 
     #[test]
     fn tool_builder_composes() {
@@ -3250,6 +3255,62 @@ mod tests {
         assert_eq!(json, "\"error\"");
         let parsed: ConnectionState = serde_json::from_str("\"error\"").unwrap();
         assert_eq!(parsed, ConnectionState::Error);
+    }
+
+    /// `agentId` is the sub-agent attribution field added in copilot-sdk
+    /// commit f8cf846 ("Derive session event envelopes from schema").
+    /// Every other SDK (Node, Python, Go, .NET) carries it on the event
+    /// envelope; Rust must too or sub-agent events lose attribution at
+    /// the deserialization boundary. Cross-SDK parity test.
+    #[test]
+    fn session_event_round_trips_agent_id_on_envelope() {
+        let wire = json!({
+            "id": "evt-1",
+            "timestamp": "2026-04-30T12:00:00Z",
+            "parentId": null,
+            "agentId": "sub-agent-42",
+            "type": "assistant.message",
+            "data": { "message": "hi" }
+        });
+
+        let event: SessionEvent = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(event.agent_id.as_deref(), Some("sub-agent-42"));
+
+        // Round-trip preserves the field on the wire.
+        let roundtripped = serde_json::to_value(&event).unwrap();
+        assert_eq!(roundtripped["agentId"], "sub-agent-42");
+
+        // Absent agentId remains absent (skip_serializing_if).
+        let main_agent_event: SessionEvent = serde_json::from_value(json!({
+            "id": "evt-2",
+            "timestamp": "2026-04-30T12:00:01Z",
+            "parentId": null,
+            "type": "session.idle",
+            "data": {}
+        }))
+        .unwrap();
+        assert!(main_agent_event.agent_id.is_none());
+        let roundtripped = serde_json::to_value(&main_agent_event).unwrap();
+        assert!(roundtripped.get("agentId").is_none());
+    }
+
+    /// Same parity for the typed event envelope produced by the codegen.
+    #[test]
+    fn typed_session_event_round_trips_agent_id_on_envelope() {
+        let wire = json!({
+            "id": "evt-1",
+            "timestamp": "2026-04-30T12:00:00Z",
+            "parentId": null,
+            "agentId": "sub-agent-42",
+            "type": "session.idle",
+            "data": {}
+        });
+
+        let event: TypedSessionEvent = serde_json::from_value(wire).unwrap();
+        assert_eq!(event.agent_id.as_deref(), Some("sub-agent-42"));
+
+        let roundtripped = serde_json::to_value(&event).unwrap();
+        assert_eq!(roundtripped["agentId"], "sub-agent-42");
     }
 
     #[test]

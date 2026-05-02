@@ -336,9 +336,9 @@ pub enum SessionEventData {
 
 /// A session event with typed data payload.
 ///
-/// The common event fields (id, timestamp, parentId, ephemeral) are
-/// available directly. The event-specific data is in the `payload` field
-/// as a [`SessionEventData`] enum.
+/// The common event fields (id, timestamp, parentId, ephemeral, agentId)
+/// are available directly. The event-specific data is in the `payload`
+/// field as a [`SessionEventData`] enum.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypedSessionEvent {
@@ -352,6 +352,10 @@ pub struct TypedSessionEvent {
     /// When true, the event is transient and not persisted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ephemeral: Option<bool>,
+    /// Sub-agent instance identifier. Absent for events from the root /
+    /// main agent and session-level events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
     /// The typed event payload (discriminated by event type).
     #[serde(flatten)]
     pub payload: SessionEventData,
