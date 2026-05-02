@@ -237,7 +237,14 @@ pub struct ClientRpcSessions<'a> {
 
 impl<'a> ClientRpcSessions<'a> {
     /// Wire method: `sessions.fork`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn fork(&self, params: SessionsForkRequest) -> Result<SessionsForkResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -490,7 +497,14 @@ pub struct SessionRpcAgent<'a> {
 
 impl<'a> SessionRpcAgent<'a> {
     /// Wire method: `session.agent.list`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self) -> Result<AgentList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -502,7 +516,14 @@ impl<'a> SessionRpcAgent<'a> {
     }
 
     /// Wire method: `session.agent.getCurrent`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn get_current(&self) -> Result<AgentGetCurrentResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -514,7 +535,14 @@ impl<'a> SessionRpcAgent<'a> {
     }
 
     /// Wire method: `session.agent.select`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn select(&self, params: AgentSelectRequest) -> Result<AgentSelectResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -527,7 +555,14 @@ impl<'a> SessionRpcAgent<'a> {
     }
 
     /// Wire method: `session.agent.deselect`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn deselect(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -539,7 +574,14 @@ impl<'a> SessionRpcAgent<'a> {
     }
 
     /// Wire method: `session.agent.reload`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn reload(&self) -> Result<AgentReloadResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -604,7 +646,14 @@ pub struct SessionRpcExtensions<'a> {
 
 impl<'a> SessionRpcExtensions<'a> {
     /// Wire method: `session.extensions.list`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self) -> Result<ExtensionList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -616,7 +665,14 @@ impl<'a> SessionRpcExtensions<'a> {
     }
 
     /// Wire method: `session.extensions.enable`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn enable(&self, params: ExtensionsEnableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -629,7 +685,14 @@ impl<'a> SessionRpcExtensions<'a> {
     }
 
     /// Wire method: `session.extensions.disable`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn disable(&self, params: ExtensionsDisableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -642,7 +705,14 @@ impl<'a> SessionRpcExtensions<'a> {
     }
 
     /// Wire method: `session.extensions.reload`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn reload(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -662,7 +732,14 @@ pub struct SessionRpcFleet<'a> {
 
 impl<'a> SessionRpcFleet<'a> {
     /// Wire method: `session.fleet.start`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn start(&self, params: FleetStartRequest) -> Result<FleetStartResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -683,7 +760,14 @@ pub struct SessionRpcHistory<'a> {
 
 impl<'a> SessionRpcHistory<'a> {
     /// Wire method: `session.history.compact`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn compact(&self) -> Result<HistoryCompactResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -695,7 +779,14 @@ impl<'a> SessionRpcHistory<'a> {
     }
 
     /// Wire method: `session.history.truncate`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn truncate(
         &self,
         params: HistoryTruncateRequest,
@@ -748,7 +839,14 @@ impl<'a> SessionRpcMcp<'a> {
     }
 
     /// Wire method: `session.mcp.list`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self) -> Result<McpServerList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -760,7 +858,14 @@ impl<'a> SessionRpcMcp<'a> {
     }
 
     /// Wire method: `session.mcp.enable`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn enable(&self, params: McpEnableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -773,7 +878,14 @@ impl<'a> SessionRpcMcp<'a> {
     }
 
     /// Wire method: `session.mcp.disable`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn disable(&self, params: McpDisableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -786,7 +898,14 @@ impl<'a> SessionRpcMcp<'a> {
     }
 
     /// Wire method: `session.mcp.reload`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn reload(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -806,7 +925,14 @@ pub struct SessionRpcMcpOauth<'a> {
 
 impl<'a> SessionRpcMcpOauth<'a> {
     /// Wire method: `session.mcp.oauth.login`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn login(&self, params: McpOauthLoginRequest) -> Result<McpOauthLoginResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1025,7 +1151,14 @@ pub struct SessionRpcPlugins<'a> {
 
 impl<'a> SessionRpcPlugins<'a> {
     /// Wire method: `session.plugins.list`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self) -> Result<PluginList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1077,7 +1210,14 @@ pub struct SessionRpcSkills<'a> {
 
 impl<'a> SessionRpcSkills<'a> {
     /// Wire method: `session.skills.list`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self) -> Result<SkillList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1089,7 +1229,14 @@ impl<'a> SessionRpcSkills<'a> {
     }
 
     /// Wire method: `session.skills.enable`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn enable(&self, params: SkillsEnableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1102,7 +1249,14 @@ impl<'a> SessionRpcSkills<'a> {
     }
 
     /// Wire method: `session.skills.disable`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn disable(&self, params: SkillsDisableRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1115,7 +1269,14 @@ impl<'a> SessionRpcSkills<'a> {
     }
 
     /// Wire method: `session.skills.reload`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn reload(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1135,7 +1296,14 @@ pub struct SessionRpcTasks<'a> {
 
 impl<'a> SessionRpcTasks<'a> {
     /// Wire method: `session.tasks.startAgent`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn start_agent(
         &self,
         params: TasksStartAgentRequest,
@@ -1151,7 +1319,14 @@ impl<'a> SessionRpcTasks<'a> {
     }
 
     /// Wire method: `session.tasks.list`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn list(&self) -> Result<TaskList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1163,7 +1338,14 @@ impl<'a> SessionRpcTasks<'a> {
     }
 
     /// Wire method: `session.tasks.promoteToBackground`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn promote_to_background(
         &self,
         params: TasksPromoteToBackgroundRequest,
@@ -1182,7 +1364,14 @@ impl<'a> SessionRpcTasks<'a> {
     }
 
     /// Wire method: `session.tasks.cancel`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn cancel(&self, params: TasksCancelRequest) -> Result<TasksCancelResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1195,7 +1384,14 @@ impl<'a> SessionRpcTasks<'a> {
     }
 
     /// Wire method: `session.tasks.remove`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn remove(&self, params: TasksRemoveRequest) -> Result<TasksRemoveResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1283,7 +1479,14 @@ pub struct SessionRpcUsage<'a> {
 
 impl<'a> SessionRpcUsage<'a> {
     /// Wire method: `session.usage.getMetrics`.
-    /// Stability: `experimental`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
     pub async fn get_metrics(&self) -> Result<UsageGetMetricsResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self

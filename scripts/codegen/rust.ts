@@ -1154,7 +1154,30 @@ function emitNamespaceMethod(
 	docs.push(`    /// Wire method: \`${wireMethod}\`.`);
 	if (method.deprecated) docs.push(`    #[deprecated]`);
 	const stability = method.stability;
-	if (stability && stability !== "stable") {
+	if (stability === "experimental") {
+		docs.push(`    ///`);
+		docs.push(
+			`    /// <div class="warning">`,
+		);
+		docs.push(
+			`    ///`,
+		);
+		docs.push(
+			`    /// **Experimental.** This API is part of an experimental wire-protocol surface`,
+		);
+		docs.push(
+			`    /// and may change or be removed in future SDK or CLI releases. Pin both the`,
+		);
+		docs.push(
+			`    /// SDK and CLI versions if your code depends on it.`,
+		);
+		docs.push(
+			`    ///`,
+		);
+		docs.push(
+			`    /// </div>`,
+		);
+	} else if (stability && stability !== "stable") {
 		docs.push(`    /// Stability: \`${stability}\`.`);
 	}
 
