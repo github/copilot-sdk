@@ -85,19 +85,33 @@ tokio::spawn(async move {
 on spawned tasks (see `rust/src/session.rs:973` and `:1022`). Implementations
 must be safe for concurrent invocation.
 
-### Anti-pattern — non-`Send` mutable state in the handler
+The `SessionHandler` trait declares `Send + Sync + 'static`, so the compiler
+enforces this — handlers with non-`Sync` state (e.g. `RefCell`, `Cell`,
+`Rc`) won't compile. The examples below make the rejection mechanism explicit.
+
+### Won't compile — non-`Sync` state
 
 ```rust
 struct MyHandler {
-    last_request: std::cell::RefCell<Option<String>>,  // not thread-safe
+    last_request: std::cell::RefCell<Option<String>>,  // RefCell: !Sync
+}
+
+#[async_trait]
+impl SessionHandler for MyHandler {
+//   ^^^^^^^^^^^^^^ the trait `Sync` is not implemented for `RefCell<...>`
+    async fn on_event(&self, event: HandlerEvent) -> HandlerResponse { /* ... */ }
 }
 ```
+
+The error surfaces at the `impl` site, not at use site, because the trait's
+`Send + Sync` bound makes `RefCell` ineligible for any field of any type that
+implements `SessionHandler`.
 
 ### Preferred — `parking_lot::Mutex` or atomics
 
 ```rust
 struct MyHandler {
-    last_request: parking_lot::Mutex<Option<String>>,
+    last_request: parking_lot::Mutex<Option<String>>,  // Mutex<T>: Sync if T: Send
 }
 ```
 
