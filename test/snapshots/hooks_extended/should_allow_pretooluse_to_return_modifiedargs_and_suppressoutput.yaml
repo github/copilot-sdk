@@ -1,0 +1,50 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call echo_value with value 'original', then reply with the result.
+      - role: assistant
+        content: I'll call echo_value with 'original' for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Calling echo_value"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: echo_value
+              arguments: '{"value":"original"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call echo_value with value 'original', then reply with the result.
+      - role: assistant
+        content: I'll call echo_value with 'original' for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Calling echo_value"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: echo_value
+              arguments: '{"value":"modified by hook"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: modified by hook
+      - role: assistant
+        content: 'The echo_value returned: **"modified by hook"**'

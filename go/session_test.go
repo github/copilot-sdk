@@ -407,10 +407,12 @@ func TestSession_Capabilities(t *testing.T) {
 			},
 		})
 
-		// Give the broadcast handler time to process
-		time.Sleep(50 * time.Millisecond)
-
-		caps = session.Capabilities()
+		// Capabilities are updated by handleBroadcastEvent which runs in a goroutine.
+		// Poll instead of sleep so the test is bound by event processing, not arbitrary
+		// timing — fast machines exit immediately, slow ones still get 2s.
+		caps = waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && c.UI.Elicitation
+		}, 2*time.Second)
 		if caps.UI == nil || !caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be true after capabilities.changed event")
 		}
@@ -424,13 +426,31 @@ func TestSession_Capabilities(t *testing.T) {
 			},
 		})
 
-		time.Sleep(50 * time.Millisecond)
-
-		caps = session.Capabilities()
+		caps = waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && !c.UI.Elicitation
+		}, 2*time.Second)
 		if caps.UI == nil || caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be false after second capabilities.changed event")
 		}
 	})
+}
+
+// waitForCapability polls Session.Capabilities() until predicate matches or timeout.
+// Returns the last observed capabilities. Avoids time.Sleep in tests.
+func waitForCapability(t *testing.T, session *Session, predicate func(SessionCapabilities) bool, timeout time.Duration) SessionCapabilities {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var last SessionCapabilities
+	for {
+		last = session.Capabilities()
+		if predicate(last) {
+			return last
+		}
+		if time.Now().After(deadline) {
+			return last
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func TestSession_ElicitationCapabilityGating(t *testing.T) {

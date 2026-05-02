@@ -195,6 +195,113 @@ function extractFieldNames(qtCode: string): Map<string, Map<string, string>> {
     return result;
 }
 
+/**
+ * Add `,omitempty` to JSON tags for optional fields in quicktype-generated structs.
+ *
+ * Quicktype's Go renderer emits `omitempty` for most optional fields, but it can miss
+ * some — notably fields whose type is `*Foo` where `Foo` is a `$ref` to an `anyOf` union
+ * (e.g., `FilterMapping`). When such a pointer field is left without `omitempty`, the Go
+ * struct serializes the nil pointer as `"foo": null`, which the runtime's Zod schema
+ * rejects with a validation error.
+ *
+ * This pass walks each known struct (whose schema is in `definitions`) and rewrites any
+ * `json:"propName"` tag (no comma, no modifier) to `json:"propName,omitempty"` when
+ * `propName` is not listed in the schema's `required` array.
+ */
+function addMissingOmitemptyToQuicktypeStructs(
+    qtCode: string,
+    definitions: Record<string, JSONSchema7>
+): string {
+    // Build a case-insensitive lookup from emitted Go type name → schema definition.
+    const defByLower = new Map<string, JSONSchema7>();
+    for (const [name, def] of Object.entries(definitions)) {
+        defByLower.set(name.toLowerCase(), def);
+    }
+
+    return qtCode.replace(
+        /^(type\s+(\w+)\s+struct\s*\{)([\s\S]*?)^\}/gm,
+        (match, header: string, typeName: string, body: string) => {
+            const def = defByLower.get(typeName.toLowerCase());
+            if (!def || typeof def !== "object") return match;
+
+            // Build the union of (properties, required) across the schema. For a regular
+            // object schema this is just (properties, required). For a discriminated union
+            // (anyOf with $ref variants), quicktype emits a flat struct merging all variant
+            // fields — we need to consider a property required only if it is required in
+            // every variant and present in every variant.
+            const merged = mergeSchemaPropertiesForOmitempty(def, defByLower);
+            if (!merged) return match;
+            const { properties, required } = merged;
+
+            const newBody = body.replace(
+                /(`json:")([a-zA-Z0-9_]+)("`)/g,
+                (tagMatch: string, open: string, propName: string, close: string) => {
+                    if (required.has(propName)) return tagMatch;
+                    if (!(propName in properties)) return tagMatch;
+                    return `${open}${propName},omitempty${close}`;
+                }
+            );
+            return `${header}${newBody}}`;
+        }
+    );
+}
+
+function mergeSchemaPropertiesForOmitempty(
+    def: JSONSchema7,
+    defByLower: Map<string, JSONSchema7>
+): { properties: Record<string, unknown>; required: Set<string> } | undefined {
+    if (def.properties) {
+        return {
+            properties: def.properties as Record<string, unknown>,
+            required: new Set(def.required || []),
+        };
+    }
+    if (Array.isArray(def.anyOf)) {
+        const variantSchemas: JSONSchema7[] = [];
+        for (const v of def.anyOf as JSONSchema7[]) {
+            if (typeof v !== "object" || v === null) continue;
+            if (v.$ref) {
+                const refName = v.$ref.split("/").pop();
+                if (!refName) continue;
+                const resolved = defByLower.get(refName.toLowerCase());
+                if (resolved && resolved.properties) variantSchemas.push(resolved);
+            } else if (v.properties) {
+                variantSchemas.push(v);
+            }
+        }
+        if (variantSchemas.length === 0) return undefined;
+
+        const properties: Record<string, unknown> = {};
+        const presenceCount = new Map<string, number>();
+        const requiredEverywhere = new Set<string>();
+        let firstVariant = true;
+        for (const variant of variantSchemas) {
+            const variantRequired = new Set(variant.required || []);
+            const propNames = Object.keys(variant.properties || {});
+            if (firstVariant) {
+                for (const name of variantRequired) requiredEverywhere.add(name);
+                firstVariant = false;
+            } else {
+                for (const name of [...requiredEverywhere]) {
+                    if (!variantRequired.has(name)) requiredEverywhere.delete(name);
+                }
+            }
+            for (const name of propNames) {
+                presenceCount.set(name, (presenceCount.get(name) ?? 0) + 1);
+                if (!(name in properties)) {
+                    properties[name] = (variant.properties as Record<string, unknown>)[name];
+                }
+            }
+        }
+        const required = new Set<string>();
+        for (const name of requiredEverywhere) {
+            if ((presenceCount.get(name) ?? 0) === variantSchemas.length) required.add(name);
+        }
+        return { properties, required };
+    }
+    return undefined;
+}
+
 function extractQuicktypeImports(qtCode: string): { code: string; imports: string[] } {
     const collectedImports: string[] = [];
     let code = qtCode.replace(/^import \(\n([\s\S]*?)^\)\n+/m, (_match, block: string) => {
@@ -1189,6 +1296,13 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     qtCode = qtCode.replace(/\n+$/, "");
     // Replace interface{} with any (quicktype emits the pre-1.18 form)
     qtCode = qtCode.replace(/\binterface\{\}/g, "any");
+
+    // Post-process: add ,omitempty to optional fields that quicktype emitted without it.
+    // Quicktype's Go renderer correctly emits omitempty for most optional fields, but it
+    // misses some (notably $ref-to-anyOf union types like FilterMapping). For each struct
+    // type we know from the schema, walk its fields and add omitempty if the field is not
+    // listed in `required` and the tag does not already include any modifier.
+    qtCode = addMissingOmitemptyToQuicktypeStructs(qtCode, allDefinitions);
 
     // Build method wrappers
     const lines: string[] = [];

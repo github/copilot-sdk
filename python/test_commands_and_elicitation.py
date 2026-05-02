@@ -6,6 +6,7 @@ Mirrors the Node.js client.test.ts tests for these features.
 """
 
 import asyncio
+from collections.abc import Callable
 
 import pytest
 
@@ -19,6 +20,22 @@ from copilot.session import (
     PermissionHandler,
 )
 from e2e.testharness import CLI_PATH
+
+
+async def _wait_for(predicate: Callable[[], bool], timeout: float = 2.0) -> None:
+    """Poll predicate until True or timeout. Replaces brittle ``asyncio.sleep`` waits.
+
+    Used in unit tests where we dispatch an event and need to wait for the consumer
+    coroutine to invoke a handler and (sometimes) for the handler to issue an RPC
+    that our mock captures. Polling at 5ms means fast machines exit quickly while
+    slow machines still get up to ``timeout`` seconds before the test fails.
+    """
+    deadline = asyncio.get_event_loop().time() + timeout
+    while not predicate():
+        if asyncio.get_event_loop().time() >= deadline:
+            raise AssertionError(f"Condition not met within {timeout}s")
+        await asyncio.sleep(0.005)
+
 
 # ============================================================================
 # Commands
@@ -156,8 +173,9 @@ class TestCommands:
             )
             session._dispatch_event(event)
 
-            # Wait for async handler
-            await asyncio.sleep(0.2)
+            # Wait for the consumer coroutine to invoke the handler and the handler
+            # to issue the handlePendingCommand RPC that our mock captures.
+            await _wait_for(lambda: len(handler_calls) >= 1 and len(rpc_calls) >= 1)
 
             assert len(handler_calls) == 1
             assert handler_calls[0].session_id == session.session_id
@@ -223,7 +241,7 @@ class TestCommands:
             )
             session._dispatch_event(event)
 
-            await asyncio.sleep(0.2)
+            await _wait_for(lambda: len(rpc_calls) >= 1)
 
             assert len(rpc_calls) >= 1
             assert rpc_calls[0][1]["requestId"] == "req-2"
@@ -277,7 +295,7 @@ class TestCommands:
             )
             session._dispatch_event(event)
 
-            await asyncio.sleep(0.2)
+            await _wait_for(lambda: len(rpc_calls) >= 1)
 
             assert len(rpc_calls) >= 1
             assert rpc_calls[0][1]["requestId"] == "req-3"
@@ -537,7 +555,7 @@ class TestOnElicitationContext:
             )
             session._dispatch_event(event)
 
-            await asyncio.sleep(0.2)
+            await _wait_for(lambda: len(handler_calls) >= 1 and len(rpc_calls) >= 1)
 
             assert len(handler_calls) == 1
             assert handler_calls[0]["message"] == "Pick a color"
@@ -605,7 +623,7 @@ class TestOnElicitationContext:
             )
             session._dispatch_event(event)
 
-            await asyncio.sleep(0.2)
+            await _wait_for(lambda: len(handler_calls) >= 1)
 
             assert len(handler_calls) == 1
             schema = handler_calls[0].get("requestedSchema")

@@ -1,0 +1,142 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Summarize the referenced issue.
+
+
+
+          <github_references>
+          #1234 - Add E2E attachment coverage [issue] [open] (https://github.com/github/copilot-sdk/issues/1234)
+          </github_references>
+      - role: assistant
+        content: "I'll fetch the details of issue #1234 from the GitHub repository."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Fetching GitHub issue details"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"gh issue view 1234 --repo github/copilot-sdk --json
+                title,body,labels,state,author,createdAt","description":"Fetch issue #1234 details"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Summarize the referenced issue.
+
+
+
+          <github_references>
+          #1234 - Add E2E attachment coverage [issue] [open] (https://github.com/github/copilot-sdk/issues/1234)
+          </github_references>
+      - role: assistant
+        content: "I'll fetch the details of issue #1234 from the GitHub repository."
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Fetching GitHub issue details"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"gh issue view 1234 --repo github/copilot-sdk --json
+                title,body,labels,state,author,createdAt","description":"Fetch issue #1234 details"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          ${gh_auth_required}
+          <exited with exit code 4>
+      - role: assistant
+        content: I don't have GitHub authentication configured, so I'll use the web fetch tool to access the issue directly.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: web_fetch
+              arguments: '{"max_length":10000,"url":"https://github.com/github/copilot-sdk/issues/1234"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Summarize the referenced issue.
+
+
+
+          <github_references>
+          #1234 - Add E2E attachment coverage [issue] [open] (https://github.com/github/copilot-sdk/issues/1234)
+          </github_references>
+      - role: assistant
+        content: "I'll fetch the details of issue #1234 from the GitHub repository."
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Fetching GitHub issue details"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"gh issue view 1234 --repo github/copilot-sdk --json
+                title,body,labels,state,author,createdAt","description":"Fetch issue #1234 details"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          ${gh_auth_required}
+          <exited with exit code 4>
+      - role: assistant
+        content: I don't have GitHub authentication configured, so I'll use the web fetch tool to access the issue directly.
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: web_fetch
+              arguments: '{"max_length":10000,"url":"https://github.com/github/copilot-sdk/issues/1234"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: "Failed to fetch https://github.com/github/copilot-sdk/issues/1234: Error: Failed to fetch
+          https://github.com/github/copilot-sdk/issues/1234 - status code 404"
+      - role: assistant
+        content: >-
+          Based on the GitHub reference provided, here's what I can tell you about issue #1234:
+
+
+          **Issue #1234: Add E2E attachment coverage**
+
+          - **Status:** Open
+
+          - **Repository:** github/copilot-sdk
+
+          - **Link:** https://github.com/github/copilot-sdk/issues/1234
+
+
+          The issue is about adding end-to-end (E2E) test coverage for attachment functionality in the Copilot SDK.
+          While I cannot access the full details without authentication, the title suggests this is a testing task to
+          ensure attachment features are properly covered by automated end-to-end tests.
+
+
+          Would you like me to help with implementing E2E tests for attachments, or would you like to provide more
+          context about this issue?

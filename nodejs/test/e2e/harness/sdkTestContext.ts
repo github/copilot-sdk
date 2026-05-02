@@ -106,7 +106,11 @@ function getTrafficCapturePath(testContext: TestContext): string {
     }
 
     // Convert to snake_case for cross-SDK snapshot compatibility
-    const testFileName = basename(testFilePath, suffix).replace(/-/g, "_");
+    // Strip ".e2e" suffix so renamed "xxx.e2e.test.ts" still uses snapshot folder "xxx"
+    let testFileName = basename(testFilePath, suffix).replace(/-/g, "_");
+    if (testFileName.endsWith(".e2e")) {
+        testFileName = testFileName.slice(0, -".e2e".length);
+    }
     const taskNameAsFilename = testContext.task.name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     return join(SNAPSHOTS_DIR, testFileName, `${taskNameAsFilename}.yaml`);
 }

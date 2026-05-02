@@ -2787,6 +2787,7 @@ public class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ModelSupports))]
 [JsonSerializable(typeof(ModelVisionLimits))]
 [JsonSerializable(typeof(PermissionRequestResult))]
+[JsonSerializable(typeof(PermissionRequestResultKind))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]

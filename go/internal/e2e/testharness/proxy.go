@@ -160,8 +160,9 @@ func (p *CapiProxy) GetExchanges() ([]ParsedHttpExchange, error) {
 
 // ParsedHttpExchange represents a captured HTTP exchange.
 type ParsedHttpExchange struct {
-	Request  ChatCompletionRequest   `json:"request"`
-	Response *ChatCompletionResponse `json:"response,omitempty"`
+	Request        ChatCompletionRequest      `json:"request"`
+	Response       *ChatCompletionResponse    `json:"response,omitempty"`
+	RequestHeaders map[string]json.RawMessage `json:"requestHeaders,omitempty"`
 }
 
 // ChatCompletionRequest represents an OpenAI chat completion request.

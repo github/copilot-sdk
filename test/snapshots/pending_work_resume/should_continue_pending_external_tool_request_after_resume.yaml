@@ -1,0 +1,23 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use resume_external_tool with value 'beta', then reply with the result.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: resume_external_tool
+              arguments: '{"value":"beta"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: EXTERNAL_RESUMED_BETA
+      - role: assistant
+        content: |-
+          I called `resume_external_tool` with the value 'beta' and received the result:
+
+          **EXTERNAL_RESUMED_BETA**

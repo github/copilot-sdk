@@ -54,6 +54,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   private startPromise: Promise<string> | null = null;
   private defaultToolResultNormalizers: ToolResultNormalizer[] = [
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
+    { toolName: "*", normalizer: normalizeGhAuthMessages },
   ];
 
   /**
@@ -103,8 +104,11 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     }
 
     // Since we're about to switch to a new file, write out any captured exchanges
-    // Note that the final call to stop() will also write out any remaining exchanges
-    if (this.state) {
+    // Note that the final call to stop() will also write out any remaining exchanges.
+    // In CI mode (GITHUB_ACTIONS=true) we never write — the snapshots are read-only.
+    // Otherwise tests that exercise only a subset of a multi-conversation snapshot
+    // would silently overwrite the file with that subset, breaking subsequent runs.
+    if (this.state && process.env.GITHUB_ACTIONS !== "true") {
       await writeCapturesToDisk(this.exchanges, this.state);
     }
 
@@ -129,7 +133,12 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   async stop(skipWritingCache?: boolean): Promise<void> {
     await super.stop();
 
-    if (this.state && !skipWritingCache) {
+    // In CI mode we never write — the snapshots are read-only.
+    if (
+      this.state &&
+      !skipWritingCache &&
+      process.env.GITHUB_ACTIONS !== "true"
+    ) {
       await writeCapturesToDisk(this.exchanges, this.state);
     }
   }
@@ -209,7 +218,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           );
           const parsedExchanges = await Promise.all(
             chatCompletionExchanges.map((e) =>
-              parseHttpExchange(e.request.body, e.response?.body),
+              parseHttpExchange(e.request.body, e.response?.body, e.request.headers),
             ),
           );
           options.onResponseStart(200, {});
@@ -767,10 +776,11 @@ function isPrefix(
 async function parseHttpExchange(
   requestBody: string,
   responseBody: string | undefined,
+  requestHeaders?: Record<string, string | string[] | undefined>,
 ): Promise<ParsedHttpExchange> {
   const request = JSON.parse(requestBody) as ChatCompletionCreateParamsBase;
   const response = await parseOpenAIResponse(responseBody);
-  return { request, response };
+  return { request, response, requestHeaders };
 }
 
 // Converts a single HTTP exchange (request + response) into a normalized conversation
@@ -874,6 +884,24 @@ function normalizeLargeOutputFilepaths(result: string): string {
       /(?:[A-Za-z]:)?[^\s"'`]*[\\/]session-state[\\/]temp[\\/]PLACEHOLDER-copilot-tool-output-PLACEHOLDER/g,
       "/session-state/temp/PLACEHOLDER-copilot-tool-output-PLACEHOLDER",
     );
+}
+
+// The `gh` CLI emits different "not authenticated" help text depending on the
+// environment (local dev vs. inside GitHub Actions). Normalize both forms to a
+// stable placeholder so snapshots don't drift between environments.
+function normalizeGhAuthMessages(result: string): string {
+  let normalized = result;
+  // GitHub Actions form
+  normalized = normalized.replace(
+    /gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN environment variable\. Example:\s*\n\s*env:\s*\n\s*GH_TOKEN: \$\{\{ github\.token \}\}/g,
+    "${gh_auth_required}",
+  );
+  // Local dev form
+  normalized = normalized.replace(
+    /To get started with GitHub CLI, please run:\s*gh auth login\s*\n\s*Alternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token\./g,
+    "${gh_auth_required}",
+  );
+  return normalized;
 }
 
 // Transforms a single OpenAI-style inbound response message into normalized form
@@ -1180,11 +1208,23 @@ export type CopilotUserResponse = {
     telemetry?: string;
   };
   analytics_tracking_id?: string;
+  quota_snapshots?: Record<
+    string,
+    {
+      entitlement?: number;
+      overage_count?: number;
+      overage_permitted?: boolean;
+      percent_remaining?: number;
+      timestamp_utc?: string;
+      unlimited?: boolean;
+    }
+  >;
 };
 
 export type ParsedHttpExchange = {
   request: ChatCompletionCreateParamsBase;
   response: ChatCompletion | undefined;
+  requestHeaders?: Record<string, string | string[] | undefined>;
 };
 
 // We want to be able to reuse the proxy across multiple tests, so it needs to be reconfigurable

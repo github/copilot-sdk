@@ -1,0 +1,881 @@
+import { rm } from "fs/promises";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
+import { CopilotClient, approveAll, defineTool } from "../../src/index.js";
+import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
+import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
+
+describe("Sessions", async () => {
+    const {
+        copilotClient: client,
+        openAiEndpoint,
+        homeDir,
+        workDir,
+        env,
+    } = await createSdkTestContext();
+
+    it("should create and disconnect sessions", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        const allEvents = await session.getMessages();
+        const sessionStartEvents = allEvents.filter((e) => e.type === "session.start");
+        expect(sessionStartEvents).toMatchObject([
+            {
+                type: "session.start",
+                data: { sessionId: session.sessionId, selectedModel: "claude-sonnet-4.5" },
+            },
+        ]);
+
+        await session.disconnect();
+        await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
+    });
+
+    // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
+    it.skip("should list sessions with context field", { timeout: 60000 }, async () => {
+        // Create a session — just creating it is enough for it to appear in listSessions
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Verify it has a start event (confirms session is active)
+        const messages = await session.getMessages();
+        expect(messages.length).toBeGreaterThan(0);
+
+        // List sessions and find the one we just created
+        const sessions = await client.listSessions();
+        const ourSession = sessions.find((s) => s.sessionId === session.sessionId);
+
+        expect(ourSession).toBeDefined();
+        // Context may not be populated if workspace.yaml hasn't been written yet
+        if (ourSession?.context) {
+            expect(ourSession.context.cwd).toMatch(/^(\/|[A-Za-z]:)/);
+        }
+    });
+
+    it("should get session metadata by ID", { timeout: 60000 }, async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Send a message to persist the session to disk
+        await session.sendAndWait({ prompt: "Say hello" });
+
+        // Poll until metadata is available rather than guessing a wait duration.
+        let metadata: Awaited<ReturnType<typeof client.getSessionMetadata>> | undefined;
+        const deadline = Date.now() + 10_000;
+        while (Date.now() < deadline) {
+            metadata = await client.getSessionMetadata(session.sessionId);
+            if (metadata) break;
+            await new Promise((r) => setTimeout(r, 50));
+        }
+
+        expect(metadata).toBeDefined();
+        expect(metadata!.sessionId).toBe(session.sessionId);
+        expect(metadata!.startTime).toBeInstanceOf(Date);
+        expect(metadata!.modifiedTime).toBeInstanceOf(Date);
+        expect(typeof metadata!.isRemote).toBe("boolean");
+
+        // Verify non-existent session returns undefined
+        const notFound = await client.getSessionMetadata("non-existent-session-id");
+        expect(notFound).toBeUndefined();
+    });
+
+    it("should have stateful conversation", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
+        expect(assistantMessage?.data.content).toContain("2");
+
+        const secondAssistantMessage = await session.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("4");
+    });
+
+    it("should create a session with appended systemMessage config", async () => {
+        const systemMessageSuffix = "End each response with the phrase 'Have a nice day!'";
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            systemMessage: {
+                mode: "append",
+                content: systemMessageSuffix,
+            },
+        });
+
+        const assistantMessage = await session.sendAndWait({ prompt: "What is your full name?" });
+        expect(assistantMessage?.data.content).toContain("GitHub");
+        expect(assistantMessage?.data.content).toContain("Have a nice day!");
+
+        // Also validate the underlying traffic
+        const traffic = await openAiEndpoint.getExchanges();
+        const systemMessage = getSystemMessage(traffic[0]);
+        expect(systemMessage).toContain("GitHub");
+        expect(systemMessage).toContain(systemMessageSuffix);
+    });
+
+    it("should create a session with replaced systemMessage config", async () => {
+        const testSystemMessage = "You are an assistant called Testy McTestface. Reply succinctly.";
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            systemMessage: { mode: "replace", content: testSystemMessage },
+        });
+
+        const assistantMessage = await session.sendAndWait({ prompt: "What is your full name?" });
+        expect(assistantMessage?.data.content).not.toContain("GitHub");
+        expect(assistantMessage?.data.content).toContain("Testy");
+
+        // Also validate the underlying traffic
+        const traffic = await openAiEndpoint.getExchanges();
+        const systemMessage = getSystemMessage(traffic[0]);
+        expect(systemMessage).toEqual(testSystemMessage); // Exact match
+    });
+
+    it("should create a session with customized systemMessage config", async () => {
+        const customTone = "Respond in a warm, professional tone. Be thorough in explanations.";
+        const appendedContent = "Always mention quarterly earnings.";
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            systemMessage: {
+                mode: "customize",
+                sections: {
+                    tone: { action: "replace", content: customTone },
+                    code_change_rules: { action: "remove" },
+                },
+                content: appendedContent,
+            },
+        });
+
+        const assistantMessage = await session.sendAndWait({ prompt: "Who are you?" });
+        expect(assistantMessage?.data.content).toBeDefined();
+
+        // Validate the system message sent to the model
+        const traffic = await openAiEndpoint.getExchanges();
+        const systemMessage = getSystemMessage(traffic[0]);
+        expect(systemMessage).toContain(customTone);
+        expect(systemMessage).toContain(appendedContent);
+        // The code_change_rules section should have been removed
+        expect(systemMessage).not.toContain("<code_change_instructions>");
+    });
+
+    it("should create a session with availableTools", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: ["view", "edit"],
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        // It only tells the model about the specified tools and no others
+        const traffic = await openAiEndpoint.getExchanges();
+        expect(traffic[0].request.tools).toMatchObject([
+            { function: { name: "view" } },
+            { function: { name: "edit" } },
+        ]);
+    });
+
+    it("should create a session with excludedTools", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            excludedTools: ["view"],
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        // It has other tools, but not the one we excluded
+        const traffic = await openAiEndpoint.getExchanges();
+        const functionNames = traffic[0].request.tools?.map(
+            (t) => (t as { function: { name: string } }).function.name
+        );
+        expect(functionNames).toContain("edit");
+        expect(functionNames).toContain("grep");
+        expect(functionNames).not.toContain("view");
+    });
+
+    it("should create a session with defaultAgent excludedTools", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("secret_tool", {
+                    description: "A secret tool hidden from the default agent",
+                    parameters: {
+                        type: "object",
+                        properties: { input: { type: "string" } },
+                        required: ["input"],
+                    },
+                    handler: async () => "SECRET",
+                }),
+            ],
+            defaultAgent: {
+                excludedTools: ["secret_tool"],
+            },
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        // The secret_tool should be registered with the runtime but not advertised
+        // to the default agent's underlying model call.
+        const traffic = await openAiEndpoint.getExchanges();
+        expect(traffic.length).toBeGreaterThan(0);
+        const functionNames = traffic[0].request.tools?.map(
+            (t) => (t as { function: { name: string } }).function.name
+        );
+        expect(functionNames).not.toContain("secret_tool");
+
+        await session.disconnect();
+    });
+
+    // TODO: This test shows there's a race condition inside client.ts. If createSession is called
+    // concurrently and autoStart is on, it may start multiple child processes. This needs to be fixed.
+    // Right now it manifests as being unable to delete the temp directories during afterAll even though
+    // we stopped all the clients (one or more child processes were left orphaned).
+    it.skip("should handle multiple concurrent sessions", async () => {
+        const [s1, s2, s3] = await Promise.all([
+            client.createSession({ onPermissionRequest: approveAll }),
+            client.createSession({ onPermissionRequest: approveAll }),
+            client.createSession({ onPermissionRequest: approveAll }),
+        ]);
+
+        // All sessions should have unique IDs
+        const distinctSessionIds = new Set([s1.sessionId, s2.sessionId, s3.sessionId]);
+        expect(distinctSessionIds.size).toBe(3);
+
+        // All are connected
+        for (const s of [s1, s2, s3]) {
+            expect(await s.getMessages()).toMatchObject([
+                {
+                    type: "session.start",
+                    data: { sessionId: s.sessionId },
+                },
+            ]);
+        }
+
+        // All can be disconnected
+        await Promise.all([s1.disconnect(), s2.disconnect(), s3.disconnect()]);
+        for (const s of [s1, s2, s3]) {
+            await expect(() => s.getMessages()).rejects.toThrow(/Session not found/);
+        }
+    });
+
+    it("should resume a session using the same client", async () => {
+        // Create initial session
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const sessionId = session1.sessionId;
+        const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
+        expect(answer?.data.content).toContain("2");
+
+        // Resume using the same client
+        const session2 = await client.resumeSession(sessionId, { onPermissionRequest: approveAll });
+        expect(session2.sessionId).toBe(sessionId);
+        const messages = await session2.getMessages();
+        const assistantMessages = messages.filter((m) => m.type === "assistant.message");
+        expect(assistantMessages[assistantMessages.length - 1].data.content).toContain("2");
+
+        // Can continue the conversation statefully
+        const secondAssistantMessage = await session2.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("4");
+    });
+
+    it("should resume a session using a new client", async () => {
+        // Create initial session
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const sessionId = session1.sessionId;
+        const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
+        expect(answer?.data.content).toContain("2");
+
+        // Resume using a new client
+        const newClient = new CopilotClient({
+            env,
+            gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+        });
+
+        onTestFinished(() => newClient.forceStop());
+        const session2 = await newClient.resumeSession(sessionId, {
+            onPermissionRequest: approveAll,
+        });
+        expect(session2.sessionId).toBe(sessionId);
+
+        // session.idle is ephemeral and not persisted, so use alreadyIdle
+        // to find the assistant message from the completed session.
+        const answer2 = await getFinalAssistantMessage(session2, { alreadyIdle: true });
+        expect(answer2?.data.content).toContain("2");
+
+        const messages = await session2.getMessages();
+        expect(messages).toContainEqual(expect.objectContaining({ type: "user.message" }));
+        expect(messages).toContainEqual(expect.objectContaining({ type: "session.resume" }));
+
+        // Can continue the conversation statefully
+        const secondAssistantMessage = await session2.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("4");
+    });
+
+    it("should throw error when resuming non-existent session", async () => {
+        await expect(
+            client.resumeSession("non-existent-session-id", { onPermissionRequest: approveAll })
+        ).rejects.toThrow();
+    });
+
+    it("should create session with custom tool", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                {
+                    name: "get_secret_number",
+                    description: "Gets the secret number",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            key: { type: "string", description: "Key" },
+                        },
+                        required: ["key"],
+                    },
+                    // Shows that raw JSON schemas still work - Zod is optional
+                    handler: async (args: { key: string }) => {
+                        return {
+                            textResultForLlm: args.key === "ALPHA" ? "54321" : "unknown",
+                            resultType: "success" as const,
+                        };
+                    },
+                },
+            ],
+        });
+
+        const answer = await session.sendAndWait({
+            prompt: "What is the secret number for key ALPHA?",
+        });
+        expect(answer?.data.content).toContain("54321");
+    });
+
+    it("should resume session with a custom provider", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const sessionId = session.sessionId;
+
+        // Resume the session with a provider
+        const session2 = await client.resumeSession(sessionId, {
+            onPermissionRequest: approveAll,
+            provider: {
+                type: "openai",
+                baseUrl: "https://api.openai.com/v1",
+                apiKey: "fake-key",
+            },
+        });
+
+        expect(session2.sessionId).toBe(sessionId);
+    });
+
+    it("should abort a session", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        // Set up event listeners BEFORE sending to avoid race conditions
+        const nextToolCallStart = getNextEventOfType(session, "tool.execution_start");
+        const nextSessionIdle = getNextEventOfType(session, "session.idle");
+
+        await session.send({
+            prompt: "run the shell command 'sleep 100' (note this works on both bash and PowerShell)",
+        });
+
+        // Abort once we see a tool execution start
+        await nextToolCallStart;
+        await session.abort();
+        await nextSessionIdle;
+
+        // The session should still be alive and usable after abort
+        const messages = await session.getMessages();
+        expect(messages.length).toBeGreaterThan(0);
+        expect(messages.some((m) => m.type === "abort")).toBe(true);
+
+        // We should be able to send another message
+        const answer = await session.sendAndWait({ prompt: "What is 2+2?" });
+        expect(answer?.data.content).toContain("4");
+    });
+
+    it("should receive session events", async () => {
+        // Use onEvent to capture events dispatched during session creation.
+        // session.start is emitted during the session.create RPC; if the session
+        // weren't registered in the sessions map before the RPC, it would be dropped.
+        const earlyEvents: Array<{ type: string }> = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            onEvent: (event) => {
+                earlyEvents.push(event);
+            },
+        });
+
+        expect(earlyEvents.some((e) => e.type === "session.start")).toBe(true);
+
+        const receivedEvents: Array<{ type: string }> = [];
+
+        session.on((event) => {
+            receivedEvents.push(event);
+        });
+
+        // Send a message and wait for completion
+        const assistantMessage = await session.sendAndWait({ prompt: "What is 100+200?" });
+
+        // Should have received multiple events
+        expect(receivedEvents.length).toBeGreaterThan(0);
+        expect(receivedEvents.some((e) => e.type === "user.message")).toBe(true);
+        expect(receivedEvents.some((e) => e.type === "assistant.message")).toBe(true);
+        expect(receivedEvents.some((e) => e.type === "session.idle")).toBe(true);
+
+        // Verify the assistant response contains the expected answer
+        expect(assistantMessage?.data.content).toContain("300");
+    });
+
+    it("handler exception does not halt event delivery", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        let eventCount = 0;
+        let gotIdle = false;
+        const idlePromise = new Promise<void>((resolve) => {
+            session.on((event) => {
+                eventCount++;
+                // Throw on the first event to verify the loop keeps going.
+                if (eventCount === 1) {
+                    throw new Error("boom");
+                }
+                if (event.type === "session.idle") {
+                    gotIdle = true;
+                    resolve();
+                }
+            });
+        });
+
+        await session.send({ prompt: "What is 1+1?" });
+
+        await vi.waitFor(() => expect(gotIdle).toBe(true), { timeout: 30_000 });
+        await idlePromise;
+
+        // Handler saw more than just the first (throwing) event.
+        expect(eventCount).toBeGreaterThan(1);
+
+        await session.disconnect();
+    });
+
+    it("disposeAsync from handler does not deadlock", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        let disposed = false;
+        const disposedPromise = new Promise<void>((resolve) => {
+            session.on((event) => {
+                if (event.type === "user.message") {
+                    // Call disconnect from within a handler — must not deadlock.
+                    session.disconnect().then(() => {
+                        disposed = true;
+                        resolve();
+                    });
+                }
+            });
+        });
+
+        await session.send({ prompt: "What is 1+1?" });
+
+        // If this times out, we deadlocked.
+        await vi.waitFor(() => expect(disposed).toBe(true), { timeout: 10_000 });
+        await disposedPromise;
+    });
+
+    it("should create session with custom config dir", async () => {
+        const customConfigDir = `${homeDir}/custom-config`;
+        onTestFinished(async () => {
+            await rm(customConfigDir, { recursive: true, force: true }).catch(() => {});
+        });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            configDir: customConfigDir,
+        });
+
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Session should work normally with custom config dir
+        await session.send({ prompt: "What is 1+1?" });
+        const assistantMessage = await getFinalAssistantMessage(session);
+        expect(assistantMessage.data.content).toContain("2");
+    });
+
+    it("should log messages at all levels and emit matching session events", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const events: Array<{ type: string; id?: string; data?: Record<string, unknown> }> = [];
+        session.on((event) => {
+            events.push(event as (typeof events)[number]);
+        });
+
+        await session.log("Info message");
+        await session.log("Warning message", { level: "warning" });
+        await session.log("Error message", { level: "error" });
+        await session.log("Ephemeral message", { ephemeral: true });
+
+        await vi.waitFor(
+            () => {
+                const notifications = events.filter(
+                    (e) =>
+                        e.data &&
+                        ("infoType" in e.data || "warningType" in e.data || "errorType" in e.data)
+                );
+                expect(notifications).toHaveLength(4);
+            },
+            { timeout: 10_000 }
+        );
+
+        const byMessage = (msg: string) => events.find((e) => e.data?.message === msg)!;
+        expect(byMessage("Info message").type).toBe("session.info");
+        expect(byMessage("Info message").data).toEqual({
+            infoType: "notification",
+            message: "Info message",
+        });
+
+        expect(byMessage("Warning message").type).toBe("session.warning");
+        expect(byMessage("Warning message").data).toEqual({
+            warningType: "notification",
+            message: "Warning message",
+        });
+
+        expect(byMessage("Error message").type).toBe("session.error");
+        expect(byMessage("Error message").data).toEqual({
+            errorType: "notification",
+            message: "Error message",
+        });
+
+        expect(byMessage("Ephemeral message").type).toBe("session.info");
+        expect(byMessage("Ephemeral message").data).toEqual({
+            infoType: "notification",
+            message: "Ephemeral message",
+        });
+    });
+
+    it("should send with file attachment", async () => {
+        const filePath = `${workDir}/attached-file.txt`;
+        const { writeFile } = await import("fs/promises");
+        await writeFile(filePath, "FILE_ATTACHMENT_SENTINEL");
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.sendAndWait({
+            prompt: "Read the attached file and reply with its contents.",
+            attachments: [
+                {
+                    type: "file",
+                    path: filePath,
+                    displayName: "attached-file.txt",
+                    // lineRange is not part of the public TS attachment shape, but
+                    // is forwarded to the runtime to match the C# parity test.
+                    lineRange: { start: 1, end: 1 },
+                } as unknown as NonNullable<
+                    Parameters<typeof session.send>[0]["attachments"]
+                >[number],
+            ],
+        });
+
+        const messages = await session.getMessages();
+        const userMessage = messages.filter((m) => m.type === "user.message").at(-1);
+        expect(userMessage).toBeDefined();
+        const attachments = (userMessage as unknown as { data: { attachments?: unknown[] } }).data
+            .attachments;
+        expect(attachments).toHaveLength(1);
+        const attachment = attachments![0] as {
+            type: string;
+            displayName: string;
+            path: string;
+            lineRange?: { start: number; end: number };
+        };
+        expect(attachment.type).toBe("file");
+        expect(attachment.displayName).toBe("attached-file.txt");
+        expect(attachment.path).toBe(filePath);
+        expect(attachment.lineRange).toEqual({ start: 1, end: 1 });
+
+        await session.disconnect();
+    });
+
+    it("should send with directory attachment", async () => {
+        const directoryPath = `${workDir}/attached-directory`;
+        const { writeFile, mkdir } = await import("fs/promises");
+        await mkdir(directoryPath, { recursive: true });
+        await writeFile(`${directoryPath}/readme.txt`, "DIRECTORY_ATTACHMENT_SENTINEL");
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.sendAndWait({
+            prompt: "List the attached directory.",
+            attachments: [
+                {
+                    type: "directory",
+                    path: directoryPath,
+                    displayName: "attached-directory",
+                },
+            ],
+        });
+
+        const messages = await session.getMessages();
+        const userMessage = messages.filter((m) => m.type === "user.message").at(-1);
+        expect(userMessage).toBeDefined();
+        const attachments = (userMessage as unknown as { data: { attachments?: unknown[] } }).data
+            .attachments;
+        expect(attachments).toHaveLength(1);
+        const attachment = attachments![0] as { type: string; displayName: string; path: string };
+        expect(attachment.type).toBe("directory");
+        expect(attachment.displayName).toBe("attached-directory");
+        expect(attachment.path).toBe(directoryPath);
+
+        await session.disconnect();
+    });
+
+    it("should send with selection attachment", async () => {
+        const filePath = `${workDir}/selected-file.cs`;
+        const { writeFile } = await import("fs/promises");
+        await writeFile(filePath, 'class C { string Value = "SELECTION_SENTINEL"; }');
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.sendAndWait({
+            prompt: "Summarize the selected code.",
+            attachments: [
+                {
+                    type: "selection",
+                    filePath,
+                    displayName: "selected-file.cs",
+                    text: 'string Value = "SELECTION_SENTINEL";',
+                    selection: {
+                        start: { line: 1, character: 10 },
+                        end: { line: 1, character: 45 },
+                    },
+                },
+            ],
+        });
+
+        const messages = await session.getMessages();
+        const userMessage = messages.filter((m) => m.type === "user.message").at(-1);
+        expect(userMessage).toBeDefined();
+        const attachments = (userMessage as unknown as { data: { attachments?: unknown[] } }).data
+            .attachments;
+        expect(attachments).toHaveLength(1);
+        const attachment = attachments![0] as {
+            type: string;
+            displayName: string;
+            filePath: string;
+            text: string;
+            selection: {
+                start: { line: number; character: number };
+                end: { line: number; character: number };
+            };
+        };
+        expect(attachment.type).toBe("selection");
+        expect(attachment.displayName).toBe("selected-file.cs");
+        expect(attachment.filePath).toBe(filePath);
+        expect(attachment.text).toBe('string Value = "SELECTION_SENTINEL";');
+        expect(attachment.selection.start).toEqual({ line: 1, character: 10 });
+        expect(attachment.selection.end).toEqual({ line: 1, character: 45 });
+
+        await session.disconnect();
+    });
+
+    it("should accept blob attachments", async () => {
+        const pngBase64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        const { writeFile } = await import("fs/promises");
+        await writeFile(`${workDir}/test-pixel.png`, Buffer.from(pngBase64, "base64"));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.sendAndWait({
+            prompt: "Describe this image",
+            attachments: [
+                {
+                    type: "blob",
+                    data: pngBase64,
+                    mimeType: "image/png",
+                    displayName: "test-pixel.png",
+                },
+            ],
+        });
+
+        await session.disconnect();
+    });
+
+    it("should send with github reference attachment", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.sendAndWait({
+            prompt: "Summarize the referenced issue.",
+            // GitHub reference is a valid runtime attachment type but not part of
+            // the public TS attachment shape; cast through unknown to forward it.
+            attachments: [
+                {
+                    type: "github_reference",
+                    number: 1234,
+                    referenceType: "issue",
+                    state: "open",
+                    title: "Add E2E attachment coverage",
+                    url: "https://github.com/github/copilot-sdk/issues/1234",
+                } as unknown as NonNullable<
+                    Parameters<typeof session.send>[0]["attachments"]
+                >[number],
+            ],
+        });
+
+        const messages = await session.getMessages();
+        const userMessage = messages.filter((m) => m.type === "user.message").at(-1);
+        expect(userMessage).toBeDefined();
+        const attachments = (userMessage as unknown as { data: { attachments?: unknown[] } }).data
+            .attachments;
+        expect(attachments).toHaveLength(1);
+        const attachment = attachments![0] as {
+            type: string;
+            number: number;
+            referenceType: string;
+            state: string;
+            title: string;
+            url: string;
+        };
+        expect(attachment.type).toBe("github_reference");
+        expect(attachment.number).toBe(1234);
+        expect(attachment.referenceType).toBe("issue");
+        expect(attachment.state).toBe("open");
+        expect(attachment.title).toBe("Add E2E attachment coverage");
+        expect(attachment.url).toBe("https://github.com/github/copilot-sdk/issues/1234");
+
+        await session.disconnect();
+    });
+
+    it("should send with mode property", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.sendAndWait({
+            prompt: "Say mode ok.",
+            // The runtime accepts arbitrary agent mode strings (e.g. "plan", "interactive")
+            // but the public TS type currently constrains mode to send-time values.
+            mode: "plan" as unknown as NonNullable<Parameters<typeof session.send>[0]["mode"]>,
+        });
+
+        const messages = await session.getMessages();
+        const userMessage = messages.filter((m) => m.type === "user.message").at(-1) as
+            | { data: { content: string; agentMode?: string | null } }
+            | undefined;
+        expect(userMessage).toBeDefined();
+        expect(userMessage!.data.content).toBe("Say mode ok.");
+        // The current runtime accepts the per-message mode option but does not echo it
+        // on the user.message event.
+        expect(userMessage!.data.agentMode ?? null).toBeNull();
+
+        await session.disconnect();
+    });
+
+    it("should send with custom requestHeaders", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.sendAndWait({
+            prompt: "What is 1+1?",
+            requestHeaders: {
+                "x-copilot-sdk-test-header": "ts-request-headers",
+            },
+        });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBeGreaterThan(0);
+        const headers = exchanges[exchanges.length - 1].requestHeaders ?? {};
+        const matchingKey = Object.keys(headers).find(
+            (k) => k.toLowerCase() === "x-copilot-sdk-test-header"
+        );
+        expect(matchingKey).toBeDefined();
+        const headerValue = headers[matchingKey!];
+        const headerStr = Array.isArray(headerValue) ? headerValue.join(",") : (headerValue ?? "");
+        expect(headerStr).toContain("ts-request-headers");
+
+        await session.disconnect();
+    });
+});
+
+function getSystemMessage(exchange: ParsedHttpExchange): string | undefined {
+    const systemMessage = exchange.request.messages.find((m) => m.role === "system") as
+        | { role: "system"; content: string }
+        | undefined;
+    return systemMessage?.content;
+}
+
+describe("Send Blocking Behavior", async () => {
+    // Tests for Issue #17: send() should return immediately, not block until turn completes
+    const { copilotClient: client } = await createSdkTestContext();
+
+    it("send returns immediately while events stream in background", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+        });
+
+        const events: string[] = [];
+        session.on((event) => {
+            events.push(event.type);
+        });
+
+        // Use a slow command so we can verify send() returns before completion
+        await session.send({ prompt: "Run 'sleep 2 && echo done'" });
+
+        // send() should return before turn completes (no session.idle yet)
+        expect(events).not.toContain("session.idle");
+
+        // Wait for turn to complete
+        const message = await getFinalAssistantMessage(session);
+
+        expect(message.data.content).toContain("done");
+        expect(events).toContain("session.idle");
+        expect(events).toContain("assistant.message");
+    });
+
+    it("sendAndWait blocks until session.idle and returns final assistant message", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const events: string[] = [];
+        session.on((event) => {
+            events.push(event.type);
+        });
+
+        const response = await session.sendAndWait({ prompt: "What is 2+2?" });
+
+        expect(response).toBeDefined();
+        expect(response?.type).toBe("assistant.message");
+        expect(response?.data.content).toContain("4");
+        expect(events).toContain("session.idle");
+        expect(events).toContain("assistant.message");
+    });
+
+    // This test validates client-side timeout behavior.
+    // The snapshot has no assistant response since we expect timeout before completion.
+    it("sendAndWait throws on timeout", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        // Use a slow command to ensure timeout triggers before completion
+        await expect(
+            session.sendAndWait({ prompt: "Run 'sleep 2 && echo done'" }, 100)
+        ).rejects.toThrow(/Timeout after 100ms/);
+    });
+
+    it("should set model on existing session", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        // Subscribe for the model change event before calling setModel.
+        const modelChangePromise = getNextEventOfType(session, "session.model_change");
+
+        await session.setModel("gpt-4.1");
+
+        // Verify a model_change event was emitted with the new model.
+        const event = await modelChangePromise;
+        expect(event.data.newModel).toBe("gpt-4.1");
+
+        await session.disconnect();
+    });
+
+    it("should set model with reasoningEffort", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const modelChangePromise = getNextEventOfType(session, "session.model_change");
+
+        await session.setModel("gpt-4.1", { reasoningEffort: "high" });
+
+        const event = await modelChangePromise;
+        expect(event.data.newModel).toBe("gpt-4.1");
+        expect(event.data.reasoningEffort).toBe("high");
+    });
+});

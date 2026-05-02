@@ -104,8 +104,9 @@ type Client struct {
 
 	modelsCache               []ModelInfo
 	modelsCacheMux            sync.Mutex
-	lifecycleHandlers         []SessionLifecycleHandler
-	typedLifecycleHandlers    map[SessionLifecycleEventType][]SessionLifecycleHandler
+	lifecycleHandlers         map[uint64]SessionLifecycleHandler
+	typedLifecycleHandlers    map[SessionLifecycleEventType]map[uint64]SessionLifecycleHandler
+	nextLifecycleHandlerID    uint64
 	lifecycleHandlersMux      sync.Mutex
 	startStopMux              sync.RWMutex // protects process and state during start/[force]stop
 	processDone               chan struct{}
@@ -1104,19 +1105,18 @@ func (c *Client) SetForegroundSessionID(ctx context.Context, sessionID string) e
 //	defer unsubscribe()
 func (c *Client) On(handler SessionLifecycleHandler) func() {
 	c.lifecycleHandlersMux.Lock()
-	c.lifecycleHandlers = append(c.lifecycleHandlers, handler)
+	if c.lifecycleHandlers == nil {
+		c.lifecycleHandlers = make(map[uint64]SessionLifecycleHandler)
+	}
+	c.nextLifecycleHandlerID++
+	id := c.nextLifecycleHandlerID
+	c.lifecycleHandlers[id] = handler
 	c.lifecycleHandlersMux.Unlock()
 
 	return func() {
 		c.lifecycleHandlersMux.Lock()
 		defer c.lifecycleHandlersMux.Unlock()
-		for i, h := range c.lifecycleHandlers {
-			// Compare function pointers
-			if &h == &handler {
-				c.lifecycleHandlers = append(c.lifecycleHandlers[:i], c.lifecycleHandlers[i+1:]...)
-				break
-			}
-		}
+		delete(c.lifecycleHandlers, id)
 	}
 }
 
@@ -1133,20 +1133,21 @@ func (c *Client) On(handler SessionLifecycleHandler) func() {
 func (c *Client) OnEventType(eventType SessionLifecycleEventType, handler SessionLifecycleHandler) func() {
 	c.lifecycleHandlersMux.Lock()
 	if c.typedLifecycleHandlers == nil {
-		c.typedLifecycleHandlers = make(map[SessionLifecycleEventType][]SessionLifecycleHandler)
+		c.typedLifecycleHandlers = make(map[SessionLifecycleEventType]map[uint64]SessionLifecycleHandler)
 	}
-	c.typedLifecycleHandlers[eventType] = append(c.typedLifecycleHandlers[eventType], handler)
+	if c.typedLifecycleHandlers[eventType] == nil {
+		c.typedLifecycleHandlers[eventType] = make(map[uint64]SessionLifecycleHandler)
+	}
+	c.nextLifecycleHandlerID++
+	id := c.nextLifecycleHandlerID
+	c.typedLifecycleHandlers[eventType][id] = handler
 	c.lifecycleHandlersMux.Unlock()
 
 	return func() {
 		c.lifecycleHandlersMux.Lock()
 		defer c.lifecycleHandlersMux.Unlock()
-		handlers := c.typedLifecycleHandlers[eventType]
-		for i, h := range handlers {
-			if &h == &handler {
-				c.typedLifecycleHandlers[eventType] = append(handlers[:i], handlers[i+1:]...)
-				break
-			}
+		if handlers, ok := c.typedLifecycleHandlers[eventType]; ok {
+			delete(handlers, id)
 		}
 	}
 }
@@ -1157,10 +1158,14 @@ func (c *Client) handleLifecycleEvent(event SessionLifecycleEvent) {
 	// Copy handlers to avoid holding lock during callbacks
 	typedHandlers := make([]SessionLifecycleHandler, 0)
 	if handlers, ok := c.typedLifecycleHandlers[event.Type]; ok {
-		typedHandlers = append(typedHandlers, handlers...)
+		for _, handler := range handlers {
+			typedHandlers = append(typedHandlers, handler)
+		}
 	}
-	wildcardHandlers := make([]SessionLifecycleHandler, len(c.lifecycleHandlers))
-	copy(wildcardHandlers, c.lifecycleHandlers)
+	wildcardHandlers := make([]SessionLifecycleHandler, 0, len(c.lifecycleHandlers))
+	for _, handler := range c.lifecycleHandlers {
+		wildcardHandlers = append(wildcardHandlers, handler)
+	}
 	c.lifecycleHandlersMux.Unlock()
 
 	// Dispatch to typed handlers
