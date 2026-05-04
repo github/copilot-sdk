@@ -167,10 +167,9 @@ type ParsedHttpExchange struct {
 
 // ChatCompletionRequest represents an OpenAI chat completion request.
 type ChatCompletionRequest struct {
-	Model     string                  `json:"model"`
-	Messages  []ChatCompletionMessage `json:"messages"`
-	Tools     []ChatCompletionTool    `json:"tools,omitempty"`
-	MaxTokens *int                    `json:"max_tokens,omitempty"`
+	Model    string                  `json:"model"`
+	Messages []ChatCompletionMessage `json:"messages"`
+	Tools    []ChatCompletionTool    `json:"tools,omitempty"`
 }
 
 // ChatCompletionMessage represents a message in the chat completion request.

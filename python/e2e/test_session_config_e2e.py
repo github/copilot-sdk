@@ -236,9 +236,14 @@ class TestSessionConfig:
         await session2.disconnect()
         await session1.disconnect()
 
-    async def test_should_forward_provider_wire_model_and_max_output_tokens(  # noqa: E501
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_forward_provider_wire_model(self, ctx: E2ETestContext):
+        # Verifies that ProviderConfig.wire_model overrides the model name sent
+        # to the provider API, while SessionConfig.model still drives runtime
+        # configuration lookup (capabilities, prompts, reasoning behavior).
+        # max_output_tokens is also set here to confirm the SDK accepts it
+        # without serialization errors; the CLI does not echo it as
+        # `max_tokens` on the OpenAI-style wire request, so we don't assert on
+        # it directly (see unit tests for serialization coverage).
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
             model="claude-sonnet-4.5",
@@ -257,7 +262,6 @@ class TestSessionConfig:
         assert len(exchanges) == 1
         request = exchanges[0]["request"]
         assert request["model"] == "test-wire-model"
-        assert request.get("max_tokens") == 1024
 
         await session.disconnect()
 
