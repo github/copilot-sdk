@@ -40,8 +40,10 @@ describe("Client session management", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session.sessionId;
 
-        await session.sendAndWait({ prompt: "Say DELETE_SESSION_OK exactly." });
-        await waitFor(async () => (await client.listSessions()).some((s) => s.sessionId === sessionId));
+        await session.sendAndWait({ prompt: "Say OK." });
+        await waitFor(async () =>
+            (await client.listSessions()).some((s) => s.sessionId === sessionId)
+        );
         await session.disconnect();
         await client.deleteSession(sessionId);
 
