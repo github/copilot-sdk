@@ -107,6 +107,75 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
     }
 
     [Fact]
+    public async Task Should_Not_Produce_Deltas_After_Session_Resume_With_Streaming_Disabled()
+    {
+        var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 3 + 6?" });
+        await session.DisposeAsync();
+
+        // Resume using a new client with streaming DISABLED
+        using var newClient = Ctx.CreateClient();
+        var session2 = await newClient.ResumeSessionAsync(session.SessionId,
+            new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll, Streaming = false });
+
+        var events = new List<SessionEvent>();
+        session2.On(evt => { lock (events) { events.Add(evt); } });
+
+        var answer = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
+        Assert.NotNull(answer);
+        Assert.Contains("18", answer!.Data.Content ?? string.Empty);
+
+        List<SessionEvent> snapshot;
+        lock (events) { snapshot = [.. events]; }
+
+        // No deltas when streaming is toggled off
+        var deltaEvents = snapshot.OfType<AssistantMessageDeltaEvent>().ToList();
+        Assert.Empty(deltaEvents);
+
+        // But should still have a final assistant.message
+        var assistantEvents = snapshot.OfType<AssistantMessageEvent>().ToList();
+        Assert.NotEmpty(assistantEvents);
+
+        await session2.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Emit_Streaming_Deltas_With_Reasoning_Effort_Configured()
+    {
+        // Verifies that setting ReasoningEffort alongside Streaming=true does not break
+        // the streaming pipeline — deltas still arrive and complete successfully.
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Streaming = true,
+            ReasoningEffort = "high",
+        });
+
+        var events = new List<SessionEvent>();
+        session.On(evt => { lock (events) { events.Add(evt); } });
+
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 15 * 17?" });
+
+        List<SessionEvent> snapshot;
+        lock (events) { snapshot = [.. events]; }
+
+        // With streaming + reasoning effort, we should still get content deltas
+        var deltaEvents = snapshot.OfType<AssistantMessageDeltaEvent>().ToList();
+        Assert.NotEmpty(deltaEvents);
+
+        // And a final assistant.message with the answer
+        var assistantEvents = snapshot.OfType<AssistantMessageEvent>().ToList();
+        Assert.NotEmpty(assistantEvents);
+        Assert.Contains("255", assistantEvents.Last().Data.Content ?? string.Empty);
+
+        // Verify the session was created with reasoning effort via GetMessages
+        var messages = await session.GetMessagesAsync();
+        var startEvent = Assert.Single(messages.OfType<SessionStartEvent>());
+        Assert.Equal("high", startEvent.Data.ReasoningEffort);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Emit_AssistantMessageStart_Before_Deltas_With_Matching_MessageId()
     {
         var session = await CreateSessionAsync(new SessionConfig { Streaming = true });

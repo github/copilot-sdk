@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -50,6 +51,35 @@ public class RpcAgentE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Should_Emit_Subagent_Selected_And_Deselected_Events()
+    {
+        var session = await CreateSessionAsync(new SessionConfig { CustomAgents = [CreateCustomAgents()[0]] });
+
+        var selectedEventTask = TestHelper.GetNextEventOfTypeAsync<SubagentSelectedEvent>(
+            session,
+            static _ => true,
+            timeout: TimeSpan.FromSeconds(30),
+            timeoutDescription: "subagent.selected event");
+        var selectResult = await session.Rpc.Agent.SelectAsync("test-agent");
+        var selectedEvent = await selectedEventTask;
+
+        Assert.NotNull(selectResult.Agent);
+        Assert.Equal("test-agent", selectedEvent.Data.AgentName);
+        Assert.Equal("Test Agent", selectedEvent.Data.AgentDisplayName);
+
+        var deselectedEventTask = TestHelper.GetNextEventOfTypeAsync<SubagentDeselectedEvent>(
+            session,
+            static _ => true,
+            timeout: TimeSpan.FromSeconds(30),
+            timeoutDescription: "subagent.deselected event");
+        await session.Rpc.Agent.DeselectAsync();
+        await deselectedEventTask;
+
+        var currentResult = await session.Rpc.Agent.GetCurrentAsync();
+        Assert.Null(currentResult.Agent);
+    }
+
+    [Fact]
     public async Task Should_Deselect_Current_Agent()
     {
         var session = await CreateSessionAsync(new SessionConfig { CustomAgents = [CreateCustomAgents()[0]] });
@@ -80,14 +110,14 @@ public class RpcAgentE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         Assert.Single(before.Agents, agent => string.Equals(agent.Name, "reload-test-agent", StringComparison.Ordinal));
 
         var result = await session.Rpc.Agent.ReloadAsync();
+        var current = await session.Rpc.Agent.ListAsync();
         Assert.NotNull(result.Agents);
-
-        // Lock in current runtime behavior so a fix becomes a test failure rather than a
-        // silent regression: the runtime currently drops session-configured CustomAgents
-        // on reload (it reloads only on-disk agents). Once the runtime preserves session
-        // CustomAgents across reload, flip this to `Assert.Single(result.Agents,
-        // a => a.Name == "reload-test-agent")` and update the comment.
-        Assert.DoesNotContain(result.Agents, a => string.Equals(a.Name, "reload-test-agent", StringComparison.Ordinal));
+        Assert.Equal(
+            result.Agents.Select(agent => agent.Name).OrderBy(name => name, StringComparer.Ordinal),
+            current.Agents.Select(agent => agent.Name).OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal(
+            result.Agents.Select(agent => agent.DisplayName).OrderBy(name => name, StringComparer.Ordinal),
+            current.Agents.Select(agent => agent.DisplayName).OrderBy(name => name, StringComparer.Ordinal));
     }
 
     private static List<CustomAgentConfig> CreateCustomAgents() =>

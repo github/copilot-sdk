@@ -1,0 +1,34 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'node --version'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: shell
+              arguments: '{"command":"node --version"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'shell' does not exist. Available tools that can be called are powershell, write_powershell,
+          read_powershell, stop_powershell, list_powershell, view, create, edit, web_fetch, report_intent, skill, sql,
+          read_agent, list_agents, grep, glob, task.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Checking Node.js version"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"node --version","description":"Check Node.js version"}'

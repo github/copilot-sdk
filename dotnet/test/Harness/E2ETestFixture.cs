@@ -15,16 +15,11 @@ public class E2ETestFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        Client = Ctx.CreateClient();
+        Client = Ctx.CreateClient(persistent: true);
     }
 
     public async Task DisposeAsync()
     {
-        if (Client is not null)
-        {
-            await Client.ForceStopAsync();
-        }
-
         await Ctx.DisposeAsync();
     }
 }

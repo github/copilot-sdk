@@ -46,5 +46,3 @@ conversations:
       - role: tool
         tool_call_id: toolcall_1
         content: Created file ${workdir}/hello.txt with 11 characters
-      - role: assistant
-        content: Done! I've created hello.txt with the text "hello world" in your current directory.

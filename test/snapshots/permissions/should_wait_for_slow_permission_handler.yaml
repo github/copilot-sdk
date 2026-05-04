@@ -1,0 +1,73 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo slow_handler_test'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: shell
+              arguments: '{"command":"echo slow_handler_test"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'shell' does not exist. Available tools that can be called are powershell, write_powershell,
+          read_powershell, stop_powershell, list_powershell, view, create, edit, web_fetch, report_intent, skill, sql,
+          read_agent, list_agents, grep, glob, task.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Running echo command"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: "{\"command\":\"echo slow_handler_test\",\"description\":\"Echo 'slow_handler_test' to output\"}"
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo slow_handler_test'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: shell
+              arguments: '{"command":"echo slow_handler_test"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'shell' does not exist. Available tools that can be called are powershell, write_powershell,
+          read_powershell, stop_powershell, list_powershell, view, create, edit, web_fetch, report_intent, skill, sql,
+          read_agent, list_agents, grep, glob, task.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Running echo command"}'
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: "{\"command\":\"echo slow_handler_test\",\"description\":\"Echo 'slow_handler_test' to output\"}"
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_2
+        content: |-
+          slow_handler_test
+          <exited with exit code 0>
+      - role: assistant
+        content: "Done! The command output: `slow_handler_test`"
