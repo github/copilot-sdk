@@ -45,6 +45,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		suspendedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		session1, err := suspendedClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools: []copilot.Tool{originalTool},
@@ -111,6 +112,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
@@ -189,6 +191,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		suspendedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		session1, err := suspendedClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools:               []copilot.Tool{originalTool},
@@ -226,6 +229,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
@@ -301,6 +305,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		suspendedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		session1, err := suspendedClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools:               []copilot.Tool{originalA, originalB},
@@ -345,6 +350,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
@@ -411,6 +417,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 			firstClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 				opts.CLIUrl = cliURL
 				opts.CLIPath = ""
+				opts.TCPConnectionToken = sharedTcpToken
 			})
 			defer firstClient.ForceStop()
 
@@ -438,6 +445,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
@@ -475,11 +483,20 @@ func serverCliURL(t *testing.T, server *copilot.Client) string {
 	return fmt.Sprintf("localhost:%d", port)
 }
 
+// sharedTcpToken is the connection token used by startTcpServer and any sibling
+// client that connects via the resulting CLI URL. Tests use a fixed token rather
+// than the auto-generated one because the second client is constructed without
+// access to the first client's internal state.
+const sharedTcpToken = "tcp-shared-test-token"
+
 // startTcpServer starts a TCP-mode server client and returns its CLI URL.
 // It triggers an initial connection so ActualPort is populated.
 func startTcpServer(t *testing.T, ctx *testharness.TestContext) (*copilot.Client, string) {
 	t.Helper()
-	server := ctx.NewClient(func(opts *copilot.ClientOptions) { opts.UseStdio = copilot.Bool(false) })
+	server := ctx.NewClient(func(opts *copilot.ClientOptions) {
+		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
+	})
 	t.Cleanup(func() { server.ForceStop() })
 	// Trigger connection so we can read the port. CreateSession+Disconnect is the
 	// established pattern (see multi_client_test.go).

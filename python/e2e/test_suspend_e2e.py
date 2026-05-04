@@ -37,6 +37,7 @@ def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> C
             env=ctx.get_env(),
             github_token=github_token,
             use_stdio=use_stdio,
+            tcp_connection_token="py-tcp-shared-test-token",
         )
     )
 
@@ -101,7 +102,9 @@ class TestSuspend:
             cli_url = f"localhost:{server.actual_port}"
             session_id: str
 
-            first_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            first_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             try:
                 session1 = await first_client.create_session(
                     on_permission_request=PermissionHandler.approve_all
@@ -116,7 +119,9 @@ class TestSuspend:
             finally:
                 await _safe_force_stop(first_client)
 
-            resumed_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            resumed_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             try:
                 session2 = await resumed_client.resume_session(
                     session_id,

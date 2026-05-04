@@ -40,6 +40,7 @@ def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> C
             env=ctx.get_env(),
             github_token=github_token,
             use_stdio=use_stdio,
+            tcp_connection_token="py-tcp-shared-test-token",
         )
     )
 
@@ -147,7 +148,9 @@ class TestPendingWorkResume:
             def original_tool_handler(args):
                 return f"ORIGINAL_SHOULD_NOT_RUN_{args.get('value', '')}"
 
-            suspended_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            suspended_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             session1 = await suspended_client.create_session(
                 on_permission_request=hold_permission,
                 tools=[_make_pending_tool("resume_permission_tool", original_tool_handler)],
@@ -171,7 +174,11 @@ class TestPendingWorkResume:
                     resumed_tool_invoked = True
                     return f"PERMISSION_RESUMED_{args['value'].upper()}"
 
-                resumed_client = CopilotClient(ExternalServerConfig(url=cli_url))
+                resumed_client = CopilotClient(
+                    ExternalServerConfig(
+                        url=cli_url, tcp_connection_token="py-tcp-shared-test-token"
+                    )
+                )
                 try:
                     session2 = await resumed_client.resume_session(
                         session_id,
@@ -226,7 +233,9 @@ class TestPendingWorkResume:
                     tool_started.set_result(value)
                 return await release_original
 
-            suspended_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            suspended_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             session1 = await suspended_client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 tools=[_make_pending_tool("resume_external_tool", blocking_external_tool)],
@@ -245,7 +254,11 @@ class TestPendingWorkResume:
 
                 await suspended_client.force_stop()
 
-                resumed_client = CopilotClient(ExternalServerConfig(url=cli_url))
+                resumed_client = CopilotClient(
+                    ExternalServerConfig(
+                        url=cli_url, tcp_connection_token="py-tcp-shared-test-token"
+                    )
+                )
                 try:
                     session2 = await resumed_client.resume_session(
                         session_id,
@@ -298,7 +311,9 @@ class TestPendingWorkResume:
                     tool_b_started.set_result(args["value"])
                 return await release_b
 
-            suspended_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            suspended_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             session1 = await suspended_client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 tools=[
@@ -327,7 +342,11 @@ class TestPendingWorkResume:
 
                 await suspended_client.force_stop()
 
-                resumed_client = CopilotClient(ExternalServerConfig(url=cli_url))
+                resumed_client = CopilotClient(
+                    ExternalServerConfig(
+                        url=cli_url, tcp_connection_token="py-tcp-shared-test-token"
+                    )
+                )
                 try:
                     session2 = await resumed_client.resume_session(
                         session_id,
@@ -376,7 +395,9 @@ class TestPendingWorkResume:
         try:
             cli_url = f"localhost:{server.actual_port}"
 
-            first_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            first_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             try:
                 first_session = await first_client.create_session(
                     on_permission_request=PermissionHandler.approve_all,
@@ -390,7 +411,9 @@ class TestPendingWorkResume:
             finally:
                 await _safe_force_stop(first_client)
 
-            resumed_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            resumed_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             try:
                 resumed_session = await resumed_client.resume_session(
                     session_id,

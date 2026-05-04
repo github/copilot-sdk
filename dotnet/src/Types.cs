@@ -70,6 +70,7 @@ public class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
+        TcpConnectionToken = other.TcpConnectionToken;
     }
 
     /// <summary>
@@ -90,8 +91,11 @@ public class CopilotClientOptions
     public int Port { get; set; }
     /// <summary>
     /// Whether to use stdio transport for communication with the CLI server.
+    /// Defaults to <c>true</c> when neither <see cref="CliUrl"/> nor <see cref="Port"/>
+    /// switches the client into TCP mode. Setting this to <c>true</c> is mutually
+    /// exclusive with <see cref="CliUrl"/>.
     /// </summary>
-    public bool UseStdio { get; set; } = true;
+    public bool? UseStdio { get; set; }
     /// <summary>
     /// URL of an existing CLI server to connect to instead of starting a new one.
     /// </summary>
@@ -174,6 +178,13 @@ public class CopilotClientOptions
     /// when connecting to an external server via <see cref="CliUrl"/>.
     /// </summary>
     public int? SessionIdleTimeoutSeconds { get; set; }
+
+    /// <summary>
+    /// Connection token for the headless CLI server (TCP only). When the SDK spawns its own
+    /// CLI in TCP mode and this is omitted, a GUID is generated automatically so the loopback
+    /// listener is safe by default. Cannot be combined with <see cref="UseStdio"/> = true.
+    /// </summary>
+    public string? TcpConnectionToken { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.

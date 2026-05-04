@@ -123,6 +123,7 @@ function waitForPermissionRequest(session: CopilotSession): Promise<PermissionRe
 
 describe("Pending work resume", async () => {
     const { env, workDir } = await createSdkTestContext();
+    const SHARED_TOKEN = "pending-work-resume-shared-test-token";
 
     function createTcpServer(): CopilotClient {
         const server = new CopilotClient({
@@ -130,6 +131,7 @@ describe("Pending work resume", async () => {
             env,
             cliPath: process.env.COPILOT_CLI_PATH,
             useStdio: false,
+            tcpConnectionToken: SHARED_TOKEN,
         });
         onTestFinished(async () => {
             try {
@@ -142,7 +144,7 @@ describe("Pending work resume", async () => {
     }
 
     function createConnectingClient(cliUrl: string): CopilotClient {
-        const client = new CopilotClient({ cliUrl });
+        const client = new CopilotClient({ cliUrl, tcpConnectionToken: SHARED_TOKEN });
         onTestFinished(async () => {
             try {
                 await client.forceStop();

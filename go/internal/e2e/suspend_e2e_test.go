@@ -52,6 +52,7 @@ func TestSuspendE2E(t *testing.T) {
 		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		t.Cleanup(func() { client1.ForceStop() })
 
@@ -77,6 +78,7 @@ func TestSuspendE2E(t *testing.T) {
 		client2 := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		t.Cleanup(func() { client2.ForceStop() })
 

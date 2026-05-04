@@ -338,6 +338,16 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     const experimentalTypes = new Set<string>();
     // Track which type names come from deprecated methods for JSDoc annotations.
     const deprecatedTypes = new Set<string>();
+    // Types are tagged @internal directly via `visibility: "internal"` on the JSON Schema
+    // definition (set by `.asInternal()` on the originating Zod schema). The runtime
+    // schema generator enforces that no public method references an internal type, so
+    // there's no transitive propagation to do here.
+    const internalTypes = new Set<string>();
+    for (const [name, def] of Object.entries(combinedSchema.definitions ?? {})) {
+        if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+            internalTypes.add(name);
+        }
+    }
 
     for (const method of [...allMethods, ...clientSessionMethods]) {
         const resultSchema = getMethodResultSchema(method);
@@ -425,29 +435,75 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                 `$1/** @deprecated */\n$2`
             );
         }
+        // Add @internal JSDoc annotations for types from internal methods
+        for (const intType of internalTypes) {
+            annotatedTs = annotatedTs.replace(
+                new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
+                `$1/** @internal */\n$2`
+            );
+        }
         lines.push(annotatedTs);
         lines.push("");
     }
 
     // Generate factory functions
+function hasInternalMethods(node: Record<string, unknown>): boolean {
+    for (const value of Object.values(node)) {
+        if (isRpcMethod(value)) {
+            if ((value as RpcMethod).visibility === "internal") return true;
+        } else if (typeof value === "object" && value !== null) {
+            if (hasInternalMethods(value as Record<string, unknown>)) return true;
+        }
+    }
+    return false;
+}
+
     if (schema.server) {
         lines.push(`/** Create typed server-scoped RPC methods (no session required). */`);
         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
         lines.push(`    return {`);
-        lines.push(...emitGroup(schema.server, "        ", false));
+        lines.push(...emitGroup(schema.server, "        ", false, false, false, "public"));
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
+
+        if (hasInternalMethods(schema.server)) {
+            lines.push(`/**`);
+            lines.push(` * Create typed server-scoped RPC methods that are part of the SDK's internal`);
+            lines.push(` * surface (e.g. handshake helpers). Not exported on the public client API.`);
+            lines.push(` * @internal`);
+            lines.push(` */`);
+            lines.push(`export function createInternalServerRpc(connection: MessageConnection) {`);
+            lines.push(`    return {`);
+            lines.push(...emitGroup(schema.server, "        ", false, false, false, "internal"));
+            lines.push(`    };`);
+            lines.push(`}`);
+            lines.push("");
+        }
     }
 
     if (schema.session) {
         lines.push(`/** Create typed session-scoped RPC methods. */`);
         lines.push(`export function createSessionRpc(connection: MessageConnection, sessionId: string) {`);
         lines.push(`    return {`);
-        lines.push(...emitGroup(schema.session, "        ", true));
+        lines.push(...emitGroup(schema.session, "        ", true, false, false, "public"));
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
+
+        if (hasInternalMethods(schema.session)) {
+            lines.push(`/**`);
+            lines.push(` * Create typed session-scoped RPC methods that are part of the SDK's internal`);
+            lines.push(` * surface. Not exported on the public client API.`);
+            lines.push(` * @internal`);
+            lines.push(` */`);
+            lines.push(`export function createInternalSessionRpc(connection: MessageConnection, sessionId: string) {`);
+            lines.push(`    return {`);
+            lines.push(...emitGroup(schema.session, "        ", true, false, false, "internal"));
+            lines.push(`    };`);
+            lines.push(`}`);
+            lines.push("");
+        }
     }
 
     // Generate client session API handler interfaces and registration function
@@ -459,10 +515,20 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     console.log(`  ✓ ${outPath}`);
 }
 
-function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean, parentExperimental = false, parentDeprecated = false): string[] {
+function emitGroup(
+    node: Record<string, unknown>,
+    indent: string,
+    isSession: boolean,
+    parentExperimental = false,
+    parentDeprecated = false,
+    visibilityFilter?: "public" | "internal",
+): string[] {
     const lines: string[] = [];
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
+            const isInternalMethod = (value as RpcMethod).visibility === "internal";
+            if (visibilityFilter === "public" && isInternalMethod) continue;
+            if (visibilityFilter === "internal" && !isInternalMethod) continue;
             const { rpcMethod, params } = value;
             const resultType = tsResultType(value);
             const paramsType = paramsTypeName(value);
@@ -508,6 +574,16 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
         } else if (typeof value === "object" && value !== null) {
             const groupExperimental = isNodeFullyExperimental(value as Record<string, unknown>);
             const groupDeprecated = isNodeFullyDeprecated(value as Record<string, unknown>);
+            const childLines = emitGroup(
+                value as Record<string, unknown>,
+                indent + "    ",
+                isSession,
+                groupExperimental,
+                groupDeprecated,
+                visibilityFilter,
+            );
+            // Skip the wrapper if the visibility filter dropped every method in this subtree.
+            if (childLines.length === 0) continue;
             if (groupDeprecated) {
                 lines.push(`${indent}/** @deprecated */`);
             }
@@ -515,7 +591,7 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
                 lines.push(`${indent}/** @experimental */`);
             }
             lines.push(`${indent}${key}: {`);
-            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession, groupExperimental, groupDeprecated));
+            lines.push(...childLines);
             lines.push(`${indent}},`);
         }
     }

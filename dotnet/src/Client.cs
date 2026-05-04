@@ -70,6 +70,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
+    private readonly string? _effectiveConnectionToken;
     private int? _actualPort;
     private int? _negotiatedProtocolVersion;
     private List<ModelInfo>? _modelsCache;
@@ -123,15 +124,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _options = options ?? new();
 
         // Validate mutually exclusive options
-        if (!string.IsNullOrEmpty(_options.CliUrl) && _options.CliPath != null)
+        if (!string.IsNullOrEmpty(_options.CliUrl) && (_options.UseStdio == true || _options.CliPath != null))
         {
-            throw new ArgumentException("CliUrl is mutually exclusive with CliPath");
+            throw new ArgumentException("CliUrl is mutually exclusive with UseStdio and CliPath");
         }
 
-        // When CliUrl is provided, disable UseStdio (we connect to an external server, not spawn one)
+        // When CliUrl is provided, force TCP mode (we connect to an external server, not spawn one)
         if (!string.IsNullOrEmpty(_options.CliUrl))
         {
             _options.UseStdio = false;
+        }
+        else
+        {
+            _options.UseStdio ??= true;
         }
 
         // Validate auth options with external server
@@ -139,6 +144,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
         }
+
+        if (_options.TcpConnectionToken is not null)
+        {
+            if (_options.TcpConnectionToken.Length == 0)
+            {
+                throw new ArgumentException("TcpConnectionToken must be a non-empty string");
+            }
+            if (_options.UseStdio == true)
+            {
+                throw new ArgumentException("TcpConnectionToken cannot be used with UseStdio = true");
+            }
+        }
+
+        var sdkSpawnsCli = _options.UseStdio == false && string.IsNullOrEmpty(_options.CliUrl);
+        _effectiveConnectionToken = _options.TcpConnectionToken
+            ?? (sdkSpawnsCli ? Guid.NewGuid().ToString() : null);
 
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
@@ -216,7 +237,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             else
             {
                 // Child process (stdio or TCP)
-                var (cliProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _logger, ct);
+                var (cliProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _effectiveConnectionToken, _logger, ct);
                 _actualPort = portOrNull;
                 result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
             }
@@ -1124,10 +1145,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
     {
         var maxVersion = SdkProtocolVersion.GetVersion();
-        var pingResponse = await InvokeRpcAsync<PingResponse>(
-            connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, cancellationToken);
+        int? serverVersion;
+        try
+        {
+            var connectResponse = await InvokeRpcAsync<ConnectResult>(
+                connection.Rpc, "connect", [new ConnectRequest { Token = _effectiveConnectionToken }], connection.StderrBuffer, cancellationToken);
+            serverVersion = (int)connectResponse.ProtocolVersion;
+        }
+        catch (RemoteRpcException ex) when (ex.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode)
+        {
+            // Legacy server without `connect`; fall back to `ping`. A token, if any,
+            // is silently dropped — the legacy server can't enforce one.
+            var pingResponse = await InvokeRpcAsync<PingResponse>(
+                connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, cancellationToken);
+            serverVersion = pingResponse.ProtocolVersion;
+        }
 
-        if (!pingResponse.ProtocolVersion.HasValue)
+        if (!serverVersion.HasValue)
         {
             throw new InvalidOperationException(
                 $"SDK protocol version mismatch: SDK supports versions {MinProtocolVersion}-{maxVersion}, " +
@@ -1135,19 +1169,18 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 $"Please update your server to ensure compatibility.");
         }
 
-        var serverVersion = pingResponse.ProtocolVersion.Value;
-        if (serverVersion < MinProtocolVersion || serverVersion > maxVersion)
+        if (serverVersion.Value < MinProtocolVersion || serverVersion.Value > maxVersion)
         {
             throw new InvalidOperationException(
                 $"SDK protocol version mismatch: SDK supports versions {MinProtocolVersion}-{maxVersion}, " +
-                $"but server reports version {serverVersion}. " +
+                $"but server reports version {serverVersion.Value}. " +
                 $"Please update your SDK or server to ensure compatibility.");
         }
 
-        _negotiatedProtocolVersion = serverVersion;
+        _negotiatedProtocolVersion = serverVersion.Value;
     }
 
-    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
+    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, string? connectionToken, ILogger logger, CancellationToken cancellationToken)
     {
         // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled CLI - no PATH fallback
         var envCliPath = options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue
@@ -1165,7 +1198,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         args.AddRange(["--headless", "--no-auto-update", "--log-level", options.LogLevel]);
 
-        if (options.UseStdio)
+        if (options.UseStdio == true)
         {
             args.Add("--stdio");
         }
@@ -1199,7 +1232,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             FileName = fileName,
             Arguments = string.Join(" ", processArgs.Select(ProcessArgumentEscaper.Escape)),
             UseShellExecute = false,
-            RedirectStandardInput = options.UseStdio,
+            RedirectStandardInput = options.UseStdio == true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             WorkingDirectory = options.Cwd,
@@ -1221,6 +1254,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (!string.IsNullOrEmpty(options.GitHubToken))
         {
             startInfo.Environment["COPILOT_SDK_AUTH_TOKEN"] = options.GitHubToken;
+        }
+
+        if (!string.IsNullOrEmpty(connectionToken))
+        {
+            startInfo.Environment["COPILOT_CONNECTION_TOKEN"] = connectionToken;
         }
 
         // Set telemetry environment variables if configured
@@ -1260,7 +1298,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }, cancellationToken);
 
         var detectedLocalhostTcpPort = (int?)null;
-        if (!options.UseStdio)
+        if (options.UseStdio != true)
         {
             // Wait for port announcement
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -1326,7 +1364,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Stream inputStream, outputStream;
         NetworkStream? networkStream = null;
 
-        if (_options.UseStdio)
+        if (_options.UseStdio == true)
         {
             if (cliProcess == null)
             {
