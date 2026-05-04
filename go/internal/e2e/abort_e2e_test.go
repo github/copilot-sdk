@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -86,18 +85,33 @@ func TestAbortE2E(t *testing.T) {
 			t.Error("Expected at least one assistant.message_delta event before abort")
 		}
 
-		// Session should be in a usable state after abort — send a follow-up
-		ctxTimeout, cancel := context.WithTimeout(t.Context(), 60*time.Second)
-		defer cancel()
-
-		answer, err := session.SendAndWait(ctxTimeout, copilot.MessageOptions{
-			Prompt: "Say 'abort_recovery_ok'.",
+		// Session should be usable after abort. Wait for the specific recovery
+		// message rather than racing against a late idle from the aborted turn.
+		recoveryReceived := make(chan *copilot.AssistantMessageData, 1)
+		session.On(func(event copilot.SessionEvent) {
+			if d, ok := event.Data.(*copilot.AssistantMessageData); ok {
+				if strings.Contains(strings.ToLower(d.Content), "abort_recovery_ok") {
+					select {
+					case recoveryReceived <- d:
+					default:
+					}
+				}
+			}
 		})
-		if err != nil {
-			t.Fatalf("Follow-up SendAndWait after abort failed: %v", err)
-		}
-		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(strings.ToLower(ad.Content), "abort_recovery_ok") {
-			t.Errorf("Expected follow-up response to contain 'abort_recovery_ok', got %v", answer.Data)
+
+		go func() {
+			_, _ = session.Send(t.Context(), copilot.MessageOptions{
+				Prompt: "Say 'abort_recovery_ok'.",
+			})
+		}()
+
+		select {
+		case msg := <-recoveryReceived:
+			if !strings.Contains(strings.ToLower(msg.Content), "abort_recovery_ok") {
+				t.Errorf("Expected recovery message to contain 'abort_recovery_ok', got %q", msg.Content)
+			}
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for recovery message after abort")
 		}
 	})
 
