@@ -34,10 +34,11 @@ class TestClientApi:
 
     async def test_should_report_error_when_deleting_unknown_session_id(self, ctx: E2ETestContext):
         await ctx.client.start()
+        unknown_session_id = "00000000-0000-0000-0000-000000000000"
 
         with pytest.raises(Exception) as exc_info:
-            await ctx.client.delete_session("00000000-0000-0000-0000-000000000000")
-        assert "session file not found" in str(exc_info.value).lower()
+            await ctx.client.delete_session(unknown_session_id)
+        assert f"failed to delete session {unknown_session_id}" in str(exc_info.value).lower()
 
     async def test_should_get_null_last_session_id_before_any_sessions_exist(
         self, ctx: E2ETestContext
