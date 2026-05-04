@@ -171,8 +171,9 @@ func NewClient(options *ClientOptions) *Client {
 			panic("GitHubToken and UseLoggedInUser cannot be used with CLIUrl (external server manages its own auth)")
 		}
 
-		// Validate token vs stdio
-		if options.TCPConnectionToken != "" && options.UseStdio != nil && *options.UseStdio {
+		// Validate token vs stdio. CLIUrl always implies TCP mode (it overrides UseStdio
+		// below), so only reject the token when stdio is actually going to be used.
+		if options.TCPConnectionToken != "" && options.UseStdio != nil && *options.UseStdio && options.CLIUrl == "" {
 			panic("TCPConnectionToken cannot be used with UseStdio: true")
 		}
 
