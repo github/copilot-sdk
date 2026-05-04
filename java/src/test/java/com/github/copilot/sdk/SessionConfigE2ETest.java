@@ -14,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.MessageOptions;
@@ -41,7 +40,6 @@ public class SessionConfigE2ETest {
         }
     }
 
-    @Disabled("Requires test harness update with instructionDirectories snapshots - see reference impl PR #1190")
     @Test
     void testShouldApplyInstructionDirectoriesOnCreate() throws Exception {
         ctx.configureForTest("session_config", "should_apply_instructiondirectories_on_create");
@@ -71,7 +69,6 @@ public class SessionConfigE2ETest {
         }
     }
 
-    @Disabled("Requires test harness update with instructionDirectories snapshots - see reference impl PR #1190")
     @Test
     void testShouldApplyInstructionDirectoriesOnResume() throws Exception {
         ctx.configureForTest("session_config", "should_apply_instructiondirectories_on_resume");
@@ -111,7 +108,13 @@ public class SessionConfigE2ETest {
 
     @SuppressWarnings("unchecked")
     private static String getSystemMessage(Map<String, Object> exchange) {
-        Object messagesObj = exchange.get("messages");
+        // The exchange structure is: { request: { messages: [...] }, response: ...,
+        // requestHeaders: ... }
+        Object requestObj = exchange.get("request");
+        if (!(requestObj instanceof Map<?, ?> request)) {
+            return null;
+        }
+        Object messagesObj = request.get("messages");
         if (messagesObj instanceof List<?> messages) {
             for (Object msg : messages) {
                 if (msg instanceof Map<?, ?> msgMap) {
