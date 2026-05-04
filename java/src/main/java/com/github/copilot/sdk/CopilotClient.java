@@ -83,6 +83,7 @@ public final class CopilotClient implements AutoCloseable {
     private volatile boolean disposed = false;
     private final String optionsHost;
     private final Integer optionsPort;
+    private final String effectiveConnectionToken;
     private volatile List<ModelInfo> modelsCache;
     private final Object modelsCacheLock = new Object();
 
@@ -122,6 +123,24 @@ public final class CopilotClient implements AutoCloseable {
                     "GitHubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
         }
 
+        // Validate tcpConnectionToken
+        if (this.options.getTcpConnectionToken() != null) {
+            if (this.options.getTcpConnectionToken().isEmpty()) {
+                throw new IllegalArgumentException("TcpConnectionToken must be a non-empty string");
+            }
+            if (this.options.isUseStdio()) {
+                throw new IllegalArgumentException("TcpConnectionToken cannot be used with UseStdio = true");
+            }
+        }
+
+        // Compute effective connection token: use provided, or auto-generate for
+        // SDK-spawned TCP mode, or null for stdio/external server
+        boolean sdkSpawnsCli = !this.options.isUseStdio()
+                && (this.options.getCliUrl() == null || this.options.getCliUrl().isEmpty());
+        this.effectiveConnectionToken = this.options.getTcpConnectionToken() != null
+                ? this.options.getTcpConnectionToken()
+                : (sdkSpawnsCli ? java.util.UUID.randomUUID().toString() : null);
+
         // Parse CliUrl if provided
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
             URI uri = CliServerManager.parseCliUrl(this.options.getCliUrl());
@@ -133,6 +152,7 @@ public final class CopilotClient implements AutoCloseable {
         }
 
         this.serverManager = new CliServerManager(this.options);
+        this.serverManager.setConnectionToken(this.effectiveConnectionToken);
     }
 
     /**
@@ -202,25 +222,55 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     private static final int MIN_PROTOCOL_VERSION = 2;
+    private static final int METHOD_NOT_FOUND_ERROR_CODE = -32601;
 
     private void verifyProtocolVersion(Connection connection) throws Exception {
         int expectedVersion = SdkProtocolVersion.get();
-        var params = new HashMap<String, Object>();
-        params.put("message", null);
-        PingResponse pingResponse = connection.rpc.invoke("ping", params, PingResponse.class).get(30, TimeUnit.SECONDS);
+        Integer serverVersion;
 
-        if (pingResponse.protocolVersion() == null) {
-            throw new RuntimeException("SDK protocol version mismatch: SDK expects version " + expectedVersion
-                    + ", but server does not report a protocol version. "
+        try {
+            // Try the new 'connect' RPC which supports connection tokens
+            var connectParams = new HashMap<String, Object>();
+            connectParams.put("token", effectiveConnectionToken);
+            var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
+                    TimeUnit.SECONDS);
+            serverVersion = connectResponse.protocolVersion();
+        } catch (Exception e) {
+            // Unwrap CompletionException/ExecutionException to check inner cause
+            Throwable cause = e;
+            while (cause instanceof java.util.concurrent.ExecutionException || cause instanceof CompletionException) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof JsonRpcException rpcEx && rpcEx.getCode() == METHOD_NOT_FOUND_ERROR_CODE) {
+                // Legacy server without 'connect'; fall back to 'ping'.
+                // A token, if any, is silently dropped — the legacy server can't enforce one.
+                var params = new HashMap<String, Object>();
+                params.put("message", null);
+                PingResponse pingResponse = connection.rpc.invoke("ping", params, PingResponse.class).get(30,
+                        TimeUnit.SECONDS);
+                serverVersion = pingResponse.protocolVersion();
+            } else {
+                throw e;
+            }
+        }
+
+        if (serverVersion == null) {
+            throw new RuntimeException("SDK protocol version mismatch: SDK supports versions " + MIN_PROTOCOL_VERSION
+                    + "-" + expectedVersion + ", but server does not report a protocol version. "
                     + "Please update your server to ensure compatibility.");
         }
 
-        int serverVersion = pingResponse.protocolVersion();
         if (serverVersion < MIN_PROTOCOL_VERSION || serverVersion > expectedVersion) {
-            throw new RuntimeException("SDK protocol version mismatch: SDK expects version " + expectedVersion
-                    + " (minimum " + MIN_PROTOCOL_VERSION + "), but server reports version " + serverVersion + ". "
+            throw new RuntimeException("SDK protocol version mismatch: SDK supports versions " + MIN_PROTOCOL_VERSION
+                    + "-" + expectedVersion + ", but server reports version " + serverVersion + ". "
                     + "Please update your SDK or server to ensure compatibility.");
         }
+    }
+
+    /**
+     * Internal record for the 'connect' RPC response.
+     */
+    record ConnectResult(Integer protocolVersion) {
     }
 
     /**

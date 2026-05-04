@@ -98,6 +98,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("skillDirectories")
     private List<String> skillDirectories;
 
+    @JsonProperty("instructionDirectories")
+    private List<String> instructionDirectories;
+
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
@@ -364,6 +367,18 @@ public final class ResumeSessionRequest {
     /** Sets skill directories. @param skillDirectories the directories */
     public void setSkillDirectories(List<String> skillDirectories) {
         this.skillDirectories = skillDirectories;
+    }
+
+    /** Gets instruction directories. @return the instruction directories */
+    public List<String> getInstructionDirectories() {
+        return instructionDirectories == null ? null : Collections.unmodifiableList(instructionDirectories);
+    }
+
+    /**
+     * Sets instruction directories. @param instructionDirectories the directories
+     */
+    public void setInstructionDirectories(List<String> instructionDirectories) {
+        this.instructionDirectories = instructionDirectories;
     }
 
     /** Gets disabled skills. @return the disabled skill names */

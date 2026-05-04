@@ -57,6 +57,7 @@ public class SessionConfig {
     private String agent;
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
+    private List<String> instructionDirectories;
     private List<String> disabledSkills;
     private String configDir;
     private Boolean enableConfigDiscovery;
@@ -551,6 +552,27 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the additional directories to search for custom instruction files.
+     *
+     * @return the list of instruction directory paths
+     */
+    public List<String> getInstructionDirectories() {
+        return instructionDirectories == null ? null : Collections.unmodifiableList(instructionDirectories);
+    }
+
+    /**
+     * Sets additional directories to search for custom instruction files.
+     *
+     * @param instructionDirectories
+     *            the list of instruction directory paths
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setInstructionDirectories(List<String> instructionDirectories) {
+        this.instructionDirectories = instructionDirectories;
+        return this;
+    }
+
+    /**
      * Gets the disabled skill names.
      *
      * @return the list of disabled skill names
@@ -825,6 +847,9 @@ public class SessionConfig {
         copy.agent = this.agent;
         copy.infiniteSessions = this.infiniteSessions;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.instructionDirectories = this.instructionDirectories != null
+                ? new ArrayList<>(this.instructionDirectories)
+                : null;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.configDir = this.configDir;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
