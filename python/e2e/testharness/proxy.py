@@ -5,11 +5,11 @@ This manages a child process that acts as a replaying proxy to AI endpoints.
 It spawns the shared test harness server from test/harness/server.ts.
 """
 
+import json
 import os
 import platform
 import re
 import subprocess
-import json
 from typing import Any
 
 import httpx
