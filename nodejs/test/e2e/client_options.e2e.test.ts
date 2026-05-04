@@ -25,6 +25,7 @@ function saveCapture() {
     cwd: process.cwd(),
     requests,
     env: {
+      COPILOT_HOME: process.env.COPILOT_HOME,
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
@@ -239,14 +240,17 @@ describe("Client options", async () => {
             `fake-cli-capture-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
         );
         const telemetryPath = path.join(workDir, "telemetry.jsonl");
+        const copilotHomeFromEnv = path.join(workDir, "copilot-home-from-env");
+        const copilotHomeFromOption = path.join(workDir, "copilot-home-from-option");
         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
 
         const client = new CopilotClient({
             cwd: workDir,
-            env,
+            env: { ...env, COPILOT_HOME: copilotHomeFromEnv },
             autoStart: false,
             cliPath,
             cliArgs: ["--capture-file", capturePath],
+            copilotHome: copilotHomeFromOption,
             gitHubToken: "process-option-token",
             logLevel: "debug",
             sessionIdleTimeoutSeconds: 17,
@@ -284,6 +288,7 @@ describe("Client options", async () => {
         assertArgumentValue(capture.args, "--session-idle-timeout", "17");
         expect(path.resolve(capture.cwd)).toBe(path.resolve(workDir));
 
+        expect(capture.env.COPILOT_HOME).toBe(copilotHomeFromOption);
         expect(capture.env.COPILOT_SDK_AUTH_TOKEN).toBe("process-option-token");
         expect(capture.env.COPILOT_OTEL_ENABLED).toBe("true");
         expect(capture.env.OTEL_EXPORTER_OTLP_ENDPOINT).toBe("http://127.0.0.1:4318");
