@@ -34,10 +34,11 @@ describe("Client session management", async () => {
 
     it("should report error when deleting unknown session id", async () => {
         await client.start();
+        const unknownSessionId = "00000000-0000-0000-0000-000000000000";
 
         await assertFailure(
-            () => client.deleteSession("00000000-0000-0000-0000-000000000000"),
-            "Session file not found"
+            () => client.deleteSession(unknownSessionId),
+            `Failed to delete session ${unknownSessionId}`
         );
     });
 

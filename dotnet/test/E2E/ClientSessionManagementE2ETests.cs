@@ -35,10 +35,11 @@ public class ClientSessionManagementE2ETests(E2ETestFixture fixture, ITestOutput
     public async Task Should_Report_Error_When_Deleting_Unknown_Session_Id()
     {
         await Client.StartAsync();
+        const string UnknownSessionId = "00000000-0000-0000-0000-000000000000";
 
         await AssertFailureAsync(
-            () => Client.DeleteSessionAsync("00000000-0000-0000-0000-000000000000"),
-            "Session file not found");
+            () => Client.DeleteSessionAsync(UnknownSessionId),
+            $"Failed to delete session {UnknownSessionId}");
     }
 
     [Fact]
