@@ -22,7 +22,10 @@ describe("Multi-turn Tool Usage", async () => {
         const observedTypes = types.join(", ");
 
         const userMsgIdx = types.indexOf("user.message");
-        expect(userMsgIdx, `Expected user.message in ${turnDescription}. Observed: ${observedTypes}`).toBeGreaterThanOrEqual(0);
+        expect(
+            userMsgIdx,
+            `Expected user.message in ${turnDescription}. Observed: ${observedTypes}`
+        ).toBeGreaterThanOrEqual(0);
 
         const toolStarts = turnEvents
             .map((e, i) => ({ e, i }))
@@ -31,18 +34,30 @@ describe("Multi-turn Tool Usage", async () => {
             .map((e, i) => ({ e, i }))
             .filter(({ e }) => e.type === "tool.execution_complete");
 
-        expect(toolStarts.length, `Expected tool starts in ${turnDescription}. Observed: ${observedTypes}`).toBeGreaterThan(0);
-        expect(toolCompletes.length, `Expected tool completes in ${turnDescription}. Observed: ${observedTypes}`).toBeGreaterThan(0);
+        expect(
+            toolStarts.length,
+            `Expected tool starts in ${turnDescription}. Observed: ${observedTypes}`
+        ).toBeGreaterThan(0);
+        expect(
+            toolCompletes.length,
+            `Expected tool completes in ${turnDescription}. Observed: ${observedTypes}`
+        ).toBeGreaterThan(0);
 
         const firstToolStartIdx = Math.min(...toolStarts.map(({ i }) => i));
-        expect(userMsgIdx, `Expected user.message before first tool start in ${turnDescription}. Observed: ${observedTypes}`).toBeLessThan(firstToolStartIdx);
+        expect(
+            userMsgIdx,
+            `Expected user.message before first tool start in ${turnDescription}. Observed: ${observedTypes}`
+        ).toBeLessThan(firstToolStartIdx);
 
         for (const { e: complete, i: completeIdx } of toolCompletes) {
             const matchingStart = toolStarts.find(
                 ({ e: start, i: startIdx }) =>
                     start.data.toolCallId === complete.data.toolCallId && startIdx < completeIdx
             );
-            expect(matchingStart, `Expected matching tool start for tool complete with id ${complete.data.toolCallId}`).toBeDefined();
+            expect(
+                matchingStart,
+                `Expected matching tool start for tool complete with id ${complete.data.toolCallId}`
+            ).toBeDefined();
         }
 
         const lastToolCompleteIdx = Math.max(...toolCompletes.map(({ i }) => i));
@@ -63,10 +78,22 @@ describe("Multi-turn Tool Usage", async () => {
             }
         }
 
-        expect(assistantAfterToolsIdx, `Expected assistant.message after tool completion in ${turnDescription}. Observed: ${observedTypes}`).toBeGreaterThanOrEqual(0);
-        expect(sessionIdleIdx, `Expected session.idle after assistant.message in ${turnDescription}. Observed: ${observedTypes}`).toBeGreaterThanOrEqual(0);
-        expect(lastToolCompleteIdx, `Expected final tool completion before final assistant message in ${turnDescription}. Observed: ${observedTypes}`).toBeLessThan(assistantAfterToolsIdx);
-        expect(assistantAfterToolsIdx, `Expected final assistant message before idle in ${turnDescription}. Observed: ${observedTypes}`).toBeLessThan(sessionIdleIdx);
+        expect(
+            assistantAfterToolsIdx,
+            `Expected assistant.message after tool completion in ${turnDescription}. Observed: ${observedTypes}`
+        ).toBeGreaterThanOrEqual(0);
+        expect(
+            sessionIdleIdx,
+            `Expected session.idle after assistant.message in ${turnDescription}. Observed: ${observedTypes}`
+        ).toBeGreaterThanOrEqual(0);
+        expect(
+            lastToolCompleteIdx,
+            `Expected final tool completion before final assistant message in ${turnDescription}. Observed: ${observedTypes}`
+        ).toBeLessThan(assistantAfterToolsIdx);
+        expect(
+            assistantAfterToolsIdx,
+            `Expected final assistant message before idle in ${turnDescription}. Observed: ${observedTypes}`
+        ).toBeLessThan(sessionIdleIdx);
     }
 
     it("should use tool results from previous turns", async () => {

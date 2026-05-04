@@ -167,9 +167,7 @@ describe("Event Fidelity", async () => {
             prompt: "What is 5+5? Reply with just the number.",
         });
 
-        const usageInfoEvent = [...events]
-            .reverse()
-            .find((e) => e.type === "session.usage_info");
+        const usageInfoEvent = [...events].reverse().find((e) => e.type === "session.usage_info");
         expect(usageInfoEvent).toBeDefined();
         expect(usageInfoEvent!.data.currentTokens).toBeGreaterThan(0);
         expect(usageInfoEvent!.data.messagesLength).toBeGreaterThan(0);
