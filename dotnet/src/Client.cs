@@ -1174,7 +1174,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 connection.Rpc, "connect", [new ConnectRequest { Token = _effectiveConnectionToken }], connection.StderrBuffer, cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
-        catch (RemoteRpcException ex) when (ex.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode)
+        catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
         {
             // Legacy server without `connect`; fall back to `ping`. A token, if any,
             // is silently dropped — the legacy server can't enforce one.
@@ -1200,6 +1200,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         _negotiatedProtocolVersion = serverVersion.Value;
+    }
+
+    private static bool IsUnsupportedConnectMethod(RemoteRpcException ex)
+    {
+        return ex.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode
+            || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
     }
 
     private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, string? connectionToken, ILogger logger, CancellationToken cancellationToken)

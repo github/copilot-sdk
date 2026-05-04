@@ -134,5 +134,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var evt = await deleted.Task.WaitAsync(TimeSpan.FromSeconds(15));
         Assert.Equal(SessionLifecycleEventTypes.Deleted, evt.Type);
         Assert.Equal(sessionId, evt.SessionId);
+
+        await session.DisposeAsync();
     }
 }

@@ -297,6 +297,7 @@ describe("Custom tools", async () => {
                     },
                 }),
             ],
+            availableTools: ["allowed_tool", "excluded_tool"],
             excludedTools: ["excluded_tool"],
         });
 

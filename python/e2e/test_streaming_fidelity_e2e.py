@@ -187,7 +187,7 @@ class TestStreamingFidelity:
             # Check session.start event (from get_messages) has reasoning_effort
             all_msgs = await session.get_messages()
             start_event = next((e for e in all_msgs if isinstance(e.data, SessionStartData)), None)
-            if start_event is not None and start_event.data.reasoning_effort is not None:
-                assert start_event.data.reasoning_effort == "high"
+            assert start_event is not None, "Expected session.start event"
+            assert start_event.data.reasoning_effort == "high"
         finally:
             await session.disconnect()
