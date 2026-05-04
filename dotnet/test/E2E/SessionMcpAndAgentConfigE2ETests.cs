@@ -324,7 +324,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
                 Command = "node",
                 Args =
                 [
-                    Path.Combine(testHarnessDir, "test-mcp-elicitation-server.mjs"),
+                    Path.Join(testHarnessDir, "test-mcp-elicitation-server.mjs"),
                     "--config",
                     configPath
                 ],

@@ -269,10 +269,10 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         // The bootstrap will fork the child, the import will throw, the child
         // exits with code 1, and the runtime should mark it as "failed".
         var extName = $"crashing-ext-{Guid.NewGuid():N}";
-        var extDir = Path.Combine(Ctx.HomeDir, "extensions", extName);
+        var extDir = Path.Join(Ctx.HomeDir, "extensions", extName);
         Directory.CreateDirectory(extDir);
         File.WriteAllText(
-            Path.Combine(extDir, "extension.mjs"),
+            Path.Join(extDir, "extension.mjs"),
             "throw new Error('intentional startup failure');");
 
         var extId = $"user:{extName}";
