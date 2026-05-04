@@ -25,11 +25,24 @@ type ClientOptions struct {
 	CLIArgs []string
 	// Cwd is the working directory for the CLI process (default: "" = inherit from current process)
 	Cwd string
+	// CopilotHome is the base directory for Copilot data (session state, config, etc.).
+	// Sets the COPILOT_HOME environment variable on the spawned CLI process.
+	// When empty, the CLI defaults to ~/.copilot.
+	// This does not affect where the Go SDK extracts the embedded CLI binary;
+	// use embeddedcli.Config.Dir to control that install/cache location.
+	// This option is only used when the SDK spawns the CLI process; it is ignored
+	// when connecting to an external server via CLIUrl.
+	CopilotHome string
 	// Port for TCP transport (default: 0 = random port)
 	Port int
 	// UseStdio controls whether to use stdio transport instead of TCP.
 	// Default: nil (use default = true, i.e. stdio). Use Bool(false) to explicitly select TCP.
 	UseStdio *bool
+	// TCPConnectionToken is the token sent in the `connect` handshake when using TCP transport.
+	// Only meaningful in TCP mode. When the SDK spawns its own CLI in TCP mode and this is
+	// empty, an auto-generated UUID is used so the loopback listener is safe by default.
+	// Combining this with UseStdio=true is rejected (stdio is pre-authenticated by transport).
+	TCPConnectionToken string
 	// CLIUrl is the URL of an existing Copilot CLI server to connect to over TCP
 	// Format: "host:port", "http://host:port", or just "port" (defaults to localhost)
 	// Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"
@@ -572,6 +585,8 @@ type SessionConfig struct {
 	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
+	// InstructionDirectories is a list of additional directories to search for custom instruction files
+	InstructionDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
@@ -793,6 +808,8 @@ type ResumeSessionConfig struct {
 	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
+	// InstructionDirectories is a list of additional directories to search for custom instruction files
+	InstructionDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
@@ -1018,6 +1035,7 @@ type createSessionRequest struct {
 	ConfigDir                      string                         `json:"configDir,omitempty"`
 	EnableConfigDiscovery          *bool                          `json:"enableConfigDiscovery,omitempty"`
 	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
+	InstructionDirectories         []string                       `json:"instructionDirectories,omitempty"`
 	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`
 	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
 	Commands                       []wireCommand                  `json:"commands,omitempty"`
@@ -1068,6 +1086,7 @@ type resumeSessionRequest struct {
 	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
 	Agent                          string                         `json:"agent,omitempty"`
 	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
+	InstructionDirectories         []string                       `json:"instructionDirectories,omitempty"`
 	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`
 	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
 	Commands                       []wireCommand                  `json:"commands,omitempty"`

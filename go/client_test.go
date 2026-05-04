@@ -344,6 +344,26 @@ func TestClient_AuthOptions(t *testing.T) {
 	})
 }
 
+func TestClient_CopilotHome(t *testing.T) {
+	t.Run("should accept CopilotHome option", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			CopilotHome: "/custom/copilot/home",
+		})
+
+		if client.options.CopilotHome != "/custom/copilot/home" {
+			t.Errorf("Expected CopilotHome to be '/custom/copilot/home', got %q", client.options.CopilotHome)
+		}
+	})
+
+	t.Run("should default CopilotHome to empty string", func(t *testing.T) {
+		client := NewClient(&ClientOptions{})
+
+		if client.options.CopilotHome != "" {
+			t.Errorf("Expected CopilotHome to be empty, got %q", client.options.CopilotHome)
+		}
+	})
+}
+
 func TestClient_EnvOptions(t *testing.T) {
 	t.Run("should store custom environment variables", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
@@ -528,6 +548,65 @@ func TestResumeSessionRequest_Agent(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["agent"]; ok {
 			t.Error("Expected agent to be omitted when empty")
+		}
+	})
+}
+
+func TestCreateSessionRequest_InstructionDirectories(t *testing.T) {
+	t.Run("includes instructionDirectories in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{InstructionDirectories: []string{`C:\extra-instructions`, `C:\more-instructions`}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got := m["instructionDirectories"].([]any)
+		if len(got) != 2 || got[0] != `C:\extra-instructions` || got[1] != `C:\more-instructions` {
+			t.Errorf("Expected instructionDirectories to be serialized, got %v", got)
+		}
+	})
+
+	t.Run("omits instructionDirectories from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["instructionDirectories"]; ok {
+			t.Error("Expected instructionDirectories to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_InstructionDirectories(t *testing.T) {
+	t.Run("includes instructionDirectories in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:              "s1",
+			InstructionDirectories: []string{`C:\resume-instructions`},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got := m["instructionDirectories"].([]any)
+		if len(got) != 1 || got[0] != `C:\resume-instructions` {
+			t.Errorf("Expected instructionDirectories to be serialized, got %v", got)
+		}
+	})
+
+	t.Run("omits instructionDirectories from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["instructionDirectories"]; ok {
+			t.Error("Expected instructionDirectories to be omitted when empty")
 		}
 	})
 }

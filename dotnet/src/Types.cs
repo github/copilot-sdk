@@ -59,6 +59,7 @@ public class CopilotClientOptions
         CliPath = other.CliPath;
         CliUrl = other.CliUrl;
         Cwd = other.Cwd;
+        CopilotHome = other.CopilotHome;
         Environment = other.Environment;
         GitHubToken = other.GitHubToken;
         Logger = other.Logger;
@@ -70,6 +71,7 @@ public class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
+        TcpConnectionToken = other.TcpConnectionToken;
     }
 
     /// <summary>
@@ -85,13 +87,24 @@ public class CopilotClientOptions
     /// </summary>
     public string? Cwd { get; set; }
     /// <summary>
+    /// Base directory for Copilot data (session state, config, etc.).
+    /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned CLI process.
+    /// When <see langword="null"/>, the CLI defaults to <c>~/.copilot</c>.
+    /// This option is only used when the SDK spawns the CLI process; it is ignored
+    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// </summary>
+    public string? CopilotHome { get; set; }
+    /// <summary>
     /// Port number for the CLI server when not using stdio transport.
     /// </summary>
     public int Port { get; set; }
     /// <summary>
     /// Whether to use stdio transport for communication with the CLI server.
+    /// Defaults to <c>true</c> when neither <see cref="CliUrl"/> nor <see cref="Port"/>
+    /// switches the client into TCP mode. Setting this to <c>true</c> is mutually
+    /// exclusive with <see cref="CliUrl"/>.
     /// </summary>
-    public bool UseStdio { get; set; } = true;
+    public bool? UseStdio { get; set; }
     /// <summary>
     /// URL of an existing CLI server to connect to instead of starting a new one.
     /// </summary>
@@ -174,6 +187,13 @@ public class CopilotClientOptions
     /// when connecting to an external server via <see cref="CliUrl"/>.
     /// </summary>
     public int? SessionIdleTimeoutSeconds { get; set; }
+
+    /// <summary>
+    /// Connection token for the headless CLI server (TCP only). When the SDK spawns its own
+    /// CLI in TCP mode and this is omitted, a GUID is generated automatically so the loopback
+    /// listener is safe by default. Cannot be combined with <see cref="UseStdio"/> = true.
+    /// </summary>
+    public string? TcpConnectionToken { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
@@ -1800,6 +1820,7 @@ public class SessionConfig
         GitHubToken = other.GitHubToken;
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -1959,6 +1980,11 @@ public class SessionConfig
     public IList<string>? SkillDirectories { get; set; }
 
     /// <summary>
+    /// Additional directories to search for custom instruction files.
+    /// </summary>
+    public IList<string>? InstructionDirectories { get; set; }
+
+    /// <summary>
     /// List of skill names to disable.
     /// </summary>
     public IList<string>? DisabledSkills { get; set; }
@@ -2058,6 +2084,7 @@ public class ResumeSessionConfig
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -2234,6 +2261,11 @@ public class ResumeSessionConfig
     /// Directories to load skills from.
     /// </summary>
     public IList<string>? SkillDirectories { get; set; }
+
+    /// <summary>
+    /// Additional directories to search for custom instruction files.
+    /// </summary>
+    public IList<string>? InstructionDirectories { get; set; }
 
     /// <summary>
     /// List of skill names to disable.

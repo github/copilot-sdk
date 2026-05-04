@@ -222,6 +222,29 @@ class TestSessionIdleTimeoutSeconds:
         assert client._config.session_idle_timeout_seconds is None
 
 
+class TestCopilotHome:
+    def test_accepts_copilot_home(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                copilot_home="/custom/copilot/home",
+                log_level="error",
+            )
+        )
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.copilot_home == "/custom/copilot/home"
+
+    def test_default_copilot_home_is_none(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                log_level="error",
+            )
+        )
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.copilot_home is None
+
+
 class TestOverridesBuiltInTool:
     @pytest.mark.asyncio
     async def test_overrides_built_in_tool_sent_in_tool_definition(self):
@@ -284,6 +307,64 @@ class TestOverridesBuiltInTool:
             tool_defs = captured["session.resume"]["tools"]
             assert len(tool_defs) == 1
             assert tool_defs[0]["overridesBuiltInTool"] is True
+        finally:
+            await client.force_stop()
+
+
+class TestInstructionDirectories:
+    @pytest.mark.asyncio
+    async def test_create_session_sends_instruction_directories(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                instruction_directories=["C:\\extra-instructions", "C:\\more-instructions"],
+            )
+
+            assert captured["session.create"]["instructionDirectories"] == [
+                "C:\\extra-instructions",
+                "C:\\more-instructions",
+            ]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_sends_instruction_directories(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+
+            await client.resume_session(
+                "session-id",
+                on_permission_request=PermissionHandler.approve_all,
+                instruction_directories=["C:\\resume-instructions"],
+            )
+
+            assert captured["session.resume"]["instructionDirectories"] == [
+                "C:\\resume-instructions"
+            ]
         finally:
             await client.force_stop()
 

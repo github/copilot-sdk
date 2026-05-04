@@ -59,6 +59,7 @@ class MultiClientContext:
                 env=self.get_env(),
                 use_stdio=False,
                 github_token=github_token,
+                tcp_connection_token="py-tcp-shared-test-token",
             )
         )
 
@@ -72,7 +73,11 @@ class MultiClientContext:
         actual_port = self._client1.actual_port
         assert actual_port is not None, "Client 1 should have an actual port after connecting"
 
-        self._client2 = CopilotClient(ExternalServerConfig(url=f"localhost:{actual_port}"))
+        self._client2 = CopilotClient(
+            ExternalServerConfig(
+                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            )
+        )
 
     async def teardown(self, test_failed: bool = False):
         if self._client2:
@@ -422,7 +427,11 @@ class TestMultiClientBroadcast:
 
         # Recreate client2 for future tests (but don't rejoin the session)
         actual_port = mctx.client1.actual_port
-        mctx._client2 = CopilotClient(ExternalServerConfig(url=f"localhost:{actual_port}"))
+        mctx._client2 = CopilotClient(
+            ExternalServerConfig(
+                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            )
+        )
 
         # Now only stable_tool should be available
         await session1.send(

@@ -169,7 +169,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         return env!;
     }
 
-    public CopilotClient CreateClient(bool useStdio = true, CopilotClientOptions? options = null, bool autoInjectGitHubToken = true)
+    public CopilotClient CreateClient(bool? useStdio = null, CopilotClientOptions? options = null, bool autoInjectGitHubToken = true)
     {
         options ??= new CopilotClientOptions();
 

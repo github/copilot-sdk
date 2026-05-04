@@ -15,6 +15,7 @@ func TestCommandsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
 		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 
@@ -33,7 +34,8 @@ func TestCommandsE2E(t *testing.T) {
 	}
 
 	client2 := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: fmt.Sprintf("localhost:%d", actualPort),
+		CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
+		TCPConnectionToken: sharedTcpToken,
 	})
 	t.Cleanup(func() { client2.ForceStop() })
 
@@ -509,6 +511,7 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
 		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 
@@ -558,7 +561,8 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 
 		// Client2 joins with elicitation handler — should trigger capabilities.changed
 		client2 := copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl: fmt.Sprintf("localhost:%d", actualPort),
+			CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
+			TCPConnectionToken: sharedTcpToken,
 		})
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -620,7 +624,8 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 
 		// Client3 (dedicated for this test) joins with elicitation handler
 		client3 := copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl: fmt.Sprintf("localhost:%d", actualPort),
+			CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
+			TCPConnectionToken: sharedTcpToken,
 		})
 		_, err = client3.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,

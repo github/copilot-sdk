@@ -75,6 +75,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `LogLevel` - Log level (default: "info")
 - `AutoStart` - Auto-start server (default: true)
 - `Cwd` - Working directory for the CLI process
+- `CopilotHome` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When not set, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `CliUrl`.
 - `Environment` - Environment variables to pass to the CLI process
 - `Logger` - `ILogger` instance for SDK logging
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.

@@ -29,12 +29,14 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Literal, TypedDict, cast, overload
 
-from ._jsonrpc import JsonRpcClient, ProcessExitedError
+from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
+    ConnectRequest,
     ServerRpc,
+    _InternalServerRpc,
     register_client_session_api_handlers,
 )
 from .generated.session_events import (
@@ -126,6 +128,14 @@ class SubprocessConfig:
     use_stdio: bool = True
     """Use stdio transport (``True``, default) or TCP (``False``)."""
 
+    tcp_connection_token: str | None = None
+    """Connection token for the headless CLI server (TCP only).
+
+    Only meaningful when ``use_stdio=False``. When the SDK spawns the CLI in TCP mode and
+    this is omitted, a UUID is generated automatically so the loopback listener is safe by
+    default. Combining this with ``use_stdio=True`` raises :class:`ValueError`.
+    """
+
     port: int = 0
     """TCP port for the CLI server (only when ``use_stdio=False``). 0 means random."""
 
@@ -137,6 +147,14 @@ class SubprocessConfig:
 
     github_token: str | None = None
     """GitHub token for authentication. Takes priority over other auth methods."""
+
+    copilot_home: str | None = None
+    """Base directory for Copilot data (session state, config, etc.).
+
+    Sets the ``COPILOT_HOME`` environment variable on the spawned CLI process.
+    When ``None``, the CLI defaults to ``~/.copilot``.
+    This option is only used when the SDK spawns the CLI process.
+    """
 
     use_logged_in_user: bool | None = None
     """Use the logged-in user for authentication.
@@ -172,6 +190,10 @@ class ExternalServerConfig:
     """Server URL. Supports ``"host:port"``, ``"http://host:port"``, or just ``"port"``."""
 
     _: KW_ONLY
+
+    tcp_connection_token: str | None = None
+    """Connection token sent in the ``connect`` handshake. Required when the server was
+    started with a token; ignored by legacy servers without ``connect`` support."""
 
     session_fs: SessionFsConfig | None = None
     """Connection-level session filesystem provider configuration."""
@@ -880,11 +902,24 @@ class CopilotClient:
         self._actual_host: str = "localhost"
         self._is_external_server: bool = isinstance(config, ExternalServerConfig)
 
+        if config.tcp_connection_token is not None and len(config.tcp_connection_token) == 0:
+            raise ValueError("tcp_connection_token must be a non-empty string")
+
         if isinstance(config, ExternalServerConfig):
             self._actual_host, actual_port = self._parse_cli_url(config.url)
             self._actual_port: int | None = actual_port
+            self._effective_connection_token: str | None = config.tcp_connection_token
         else:
             self._actual_port = None
+
+            if config.tcp_connection_token is not None and config.use_stdio:
+                raise ValueError("tcp_connection_token cannot be used with use_stdio=True")
+            if config.use_stdio:
+                self._effective_connection_token = None
+            elif config.tcp_connection_token is not None:
+                self._effective_connection_token = config.tcp_connection_token
+            else:
+                self._effective_connection_token = str(uuid.uuid4())
 
             # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary
             effective_env = config.env if config.env is not None else os.environ
@@ -1214,6 +1249,7 @@ class CopilotClient:
         config_dir: str | None = None,
         enable_config_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
+        instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
@@ -1238,8 +1274,15 @@ class CopilotClient:
             reasoning_effort: Reasoning effort level for the model.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
-            available_tools: Allowlist of built-in tools to enable.
-            excluded_tools: List of built-in tools to disable.
+            available_tools: Allowlist of tools to enable. When specified, only
+                these tools will be available. Applies to the full merged tool
+                catalog including built-in tools, MCP tools, and custom tools
+                registered via ``tools=``. Custom tool names must be explicitly
+                included or they will be hidden from the model. Takes precedence
+                over ``excluded_tools``.
+            excluded_tools: List of tools to disable. Applies to all tools
+                including custom tools registered via ``tools=``. Ignored if
+                ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
@@ -1265,6 +1308,8 @@ class CopilotClient:
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
             skill_directories: Directories to search for skills.
+            instruction_directories: Additional directories to search for custom
+                instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
@@ -1411,6 +1456,10 @@ class CopilotClient:
         if skill_directories:
             payload["skillDirectories"] = skill_directories
 
+        # Add instruction directories configuration if provided
+        if instruction_directories is not None:
+            payload["instructionDirectories"] = instruction_directories
+
         # Add disabled skills configuration if provided
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
@@ -1506,6 +1555,7 @@ class CopilotClient:
         config_dir: str | None = None,
         enable_config_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
+        instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
@@ -1531,8 +1581,15 @@ class CopilotClient:
             reasoning_effort: Reasoning effort level for the model.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
-            available_tools: Allowlist of built-in tools to enable.
-            excluded_tools: List of built-in tools to disable.
+            available_tools: Allowlist of tools to enable. When specified, only
+                these tools will be available. Applies to the full merged tool
+                catalog including built-in tools, MCP tools, and custom tools
+                registered via ``tools=``. Custom tool names must be explicitly
+                included or they will be hidden from the model. Takes precedence
+                over ``excluded_tools``.
+            excluded_tools: List of tools to disable. Applies to all tools
+                including custom tools registered via ``tools=``. Ignored if
+                ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
@@ -1558,6 +1615,8 @@ class CopilotClient:
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
             skill_directories: Directories to search for skills.
+            instruction_directories: Additional directories to search for custom
+                instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
@@ -1693,6 +1752,8 @@ class CopilotClient:
             payload["agent"] = agent
         if skill_directories:
             payload["skillDirectories"] = skill_directories
+        if instruction_directories is not None:
+            payload["instructionDirectories"] = instruction_directories
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
 
@@ -2151,11 +2212,27 @@ class CopilotClient:
                 pass  # Ignore handler errors
 
     async def _verify_protocol_version(self) -> None:
-        """Verify that the server's protocol version is within the supported range
-        and store the negotiated version."""
+        """Send the ``connect`` handshake (with the optional token) and verify
+        the server's protocol version. Falls back to ``ping`` for legacy servers
+        that don't implement ``connect``."""
+        if not self._client:
+            raise RuntimeError("Client not connected")
         max_version = get_sdk_protocol_version()
-        ping_result = await self.ping()
-        server_version = ping_result.protocolVersion
+
+        server_version: int | None
+        try:
+            connect_result = await _InternalServerRpc(self._client).connect(
+                ConnectRequest(token=self._effective_connection_token)
+            )
+            server_version = connect_result.protocol_version
+        except JsonRpcError as err:
+            if err.code == -32601:
+                # Legacy server without `connect`; fall back to `ping`. A token, if any,
+                # is silently dropped — the legacy server can't enforce one.
+                ping_result = await self.ping()
+                server_version = ping_result.protocolVersion
+            else:
+                raise
 
         if server_version is None:
             raise RuntimeError(
@@ -2306,6 +2383,11 @@ class CopilotClient:
         # Set auth token in environment if provided
         if cfg.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = cfg.github_token
+
+        if self._effective_connection_token:
+            env["COPILOT_CONNECTION_TOKEN"] = self._effective_connection_token
+        if cfg.copilot_home:
+            env["COPILOT_HOME"] = cfg.copilot_home
 
         # Set OpenTelemetry environment variables if telemetry config is provided
         telemetry = cfg.telemetry
