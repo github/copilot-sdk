@@ -73,14 +73,40 @@ By default the headless server only accepts connections from loopback (`127.0.0.
 copilot --headless --host 0.0.0.0 --port 4321
 ```
 
-For production, run it as a system service or in a container:
+For production, run it as a system service or in a container.
+
+> **Note:** There is no official pre-built Docker image for the Copilot CLI. You can build your own from the [GitHub releases](https://github.com/github/copilot-cli/releases):
+
+```dockerfile
+FROM debian:bookworm-slim
+ARG COPILOT_VERSION=1.0.7
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates wget \
+    && ARCH=$(dpkg --print-architecture) \
+    && case "${ARCH}" in amd64) COPILOT_ARCH="x64" ;; arm64) COPILOT_ARCH="arm64" ;; *) echo "Unsupported: ${ARCH}" && exit 1 ;; esac \
+    && wget -q "https://github.com/github/copilot-cli/releases/download/v${COPILOT_VERSION}/copilot-linux-${COPILOT_ARCH}.tar.gz" \
+    && tar -xzf "copilot-linux-${COPILOT_ARCH}.tar.gz" \
+    && mv copilot /usr/local/bin/ \
+    && rm "copilot-linux-${COPILOT_ARCH}.tar.gz" \
+    && apt-get purge -y wget && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+ENTRYPOINT ["copilot"]
+```
+
+```bash
+# Build the image
+docker build --build-arg COPILOT_VERSION=1.0.7 -t copilot-cli:latest .
+
+# For remote deployments (Kubernetes, ACI, etc.), push to your registry
+docker tag copilot-cli:latest your-registry/copilot-cli:latest
+docker push your-registry/copilot-cli:latest
+```
 
 ```bash
 # Docker — must bind to 0.0.0.0 so the container's published port is reachable
 docker run -d --name copilot-cli \
     -p 4321:4321 \
     -e COPILOT_GITHUB_TOKEN="$TOKEN" \
-    ghcr.io/github/copilot-cli:latest \
+    copilot-cli:latest \
     --headless --host 0.0.0.0 --port 4321
 
 # systemd
@@ -420,7 +446,7 @@ version: "3.8"
 
 services:
   copilot-cli:
-    image: ghcr.io/github/copilot-cli:latest
+    image: copilot-cli:latest  # See "Step 1" above for how to build this image
     command: ["--headless", "--host", "0.0.0.0", "--port", "4321"]
     environment:
       - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN}
