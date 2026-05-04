@@ -720,10 +720,13 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		var receivedEvents []copilot.SessionEvent
-		idle := make(chan bool)
+		var receivedEventsMu sync.Mutex
+		idle := make(chan bool, 1)
 
 		session.On(func(event copilot.SessionEvent) {
+			receivedEventsMu.Lock()
 			receivedEvents = append(receivedEvents, event)
+			receivedEventsMu.Unlock()
 			if event.Type == "session.idle" {
 				select {
 				case idle <- true:
@@ -746,14 +749,17 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// Should have received multiple events
-		if len(receivedEvents) == 0 {
+		receivedEventsMu.Lock()
+		eventsSnapshot := append([]copilot.SessionEvent(nil), receivedEvents...)
+		receivedEventsMu.Unlock()
+		if len(eventsSnapshot) == 0 {
 			t.Error("Expected to receive events, got none")
 		}
 
 		hasUserMessage := false
 		hasAssistantMessage := false
 		hasSessionIdle := false
-		for _, evt := range receivedEvents {
+		for _, evt := range eventsSnapshot {
 			switch evt.Type {
 			case "user.message":
 				hasUserMessage = true
@@ -1462,7 +1468,7 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		title := "Add E2E attachment coverage"
 		url := "https://github.com/github/copilot-sdk/issues/1234"
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Summarize the referenced issue.",
+			Prompt: "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
 			Attachments: []copilot.Attachment{{
 				Type:          copilot.AttachmentTypeGithubReference,
 				Number:        &number,

@@ -91,34 +91,27 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
         await session.DisposeAsync();
     }
 
-    [Fact]
-    public async Task Session_With_ElicitationHandler_Reports_Elicitation_Capability()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Should_Report_Elicitation_Capability_Based_On_Handler_Presence(bool hasHandler)
     {
-        var session = await CreateSessionAsync(new SessionConfig
+        var config = new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
+        };
+
+        if (hasHandler)
+        {
+            config.OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
                 Action = UIElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
-            }),
-        });
+            });
+        }
 
-        Assert.True(session.Capabilities.Ui?.Elicitation == true,
-            "Session with onElicitationRequest should report elicitation capability");
-        await session.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task Session_Without_ElicitationHandler_Reports_No_Capability()
-    {
-        var session = await CreateSessionAsync(new SessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
-
-        Assert.True(session.Capabilities.Ui?.Elicitation != true,
-            "Session without onElicitationRequest should not report elicitation capability");
+        var session = await CreateSessionAsync(config);
+        Assert.Equal(hasHandler, session.Capabilities.Ui?.Elicitation == true);
         await session.DisposeAsync();
     }
 

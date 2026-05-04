@@ -293,5 +293,265 @@ class TestRpcSessionState:
             await session.send_and_wait("What is 2+2?", timeout=60.0)
             result = await session.rpc.history.compact()
             assert result is not None
+            assert result.success, "Expected History.compact() to report success=True"
+            assert result.messages_removed >= 0, "messages_removed must be non-negative"
+            if result.context_window is not None:
+                assert result.context_window.messages_length >= 0
+                assert result.context_window.current_tokens >= 0
+
+            # Session must still be usable after compaction
+            name = await session.rpc.name.get()
+            assert name is not None
+        finally:
+            await session.disconnect()
+
+    async def test_should_set_and_get_each_session_mode_value(self, ctx: E2ETestContext):
+        for mode in [SessionMode.INTERACTIVE, SessionMode.PLAN, SessionMode.AUTOPILOT]:
+            session = await ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            try:
+                await session.rpc.mode.set(ModeSetRequest(mode=mode))
+                result = await session.rpc.mode.get()
+                assert result == mode, f"Expected mode {mode} but got {result}"
+            finally:
+                await session.disconnect()
+
+    async def test_should_reject_workspace_file_path_traversal(self, ctx: E2ETestContext):
+
+        for traversal_path in [
+            "../escaped.txt",
+            "../../escaped.txt",
+            "nested/../../../escaped.txt",
+        ]:
+            session = await ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            try:
+                with pytest.raises(Exception) as excinfo:
+                    await session.rpc.workspaces.create_file(
+                        WorkspacesCreateFileRequest(
+                            path=traversal_path,
+                            content="should not land outside workspace",
+                        )
+                    )
+                assert "workspace files directory" in str(excinfo.value).lower()
+
+                with pytest.raises(Exception) as excinfo2:
+                    await session.rpc.workspaces.read_file(
+                        WorkspacesReadFileRequest(path=traversal_path)
+                    )
+                assert "workspace files directory" in str(excinfo2.value).lower()
+            finally:
+                await session.disconnect()
+
+    async def test_should_create_workspace_file_with_nested_path_auto_creating_dirs(
+        self, ctx: E2ETestContext
+    ):
+        import uuid
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        try:
+            nested_path = f"nested-{uuid.uuid4().hex}/subdir/file.txt"
+            await session.rpc.workspaces.create_file(
+                WorkspacesCreateFileRequest(path=nested_path, content="nested content")
+            )
+            read = await session.rpc.workspaces.read_file(
+                WorkspacesReadFileRequest(path=nested_path)
+            )
+            assert read.content == "nested content"
+
+            listed = await session.rpc.workspaces.list_files()
+            assert any(f.endswith("file.txt") for f in listed.files)
+        finally:
+            await session.disconnect()
+
+    async def test_should_report_error_reading_nonexistent_workspace_file(
+        self, ctx: E2ETestContext
+    ):
+        import uuid
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        try:
+            with pytest.raises(Exception):
+                await session.rpc.workspaces.read_file(
+                    WorkspacesReadFileRequest(path=f"never-exists-{uuid.uuid4().hex}.txt")
+                )
+        finally:
+            await session.disconnect()
+
+    async def test_should_update_existing_workspace_file_with_update_operation(
+        self, ctx: E2ETestContext
+    ):
+        import asyncio
+        import uuid
+
+        from copilot.generated.session_events import (
+            SessionWorkspaceFileChangedData,
+            WorkspaceFileChangedOperation,
+        )
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        try:
+            path = f"reused-{uuid.uuid4().hex}.txt"
+            await session.rpc.workspaces.create_file(
+                WorkspacesCreateFileRequest(path=path, content="v1")
+            )
+
+            update_future: asyncio.Future = asyncio.get_event_loop().create_future()
+
+            def on_event(event):
+                if (
+                    isinstance(event.data, SessionWorkspaceFileChangedData)
+                    and event.data.path == path
+                    and event.data.operation == WorkspaceFileChangedOperation.UPDATE
+                    and not update_future.done()
+                ):
+                    update_future.set_result(event)
+
+            unsubscribe = session.on(on_event)
+            try:
+                await session.rpc.workspaces.create_file(
+                    WorkspacesCreateFileRequest(path=path, content="v2")
+                )
+                evt = await asyncio.wait_for(update_future, timeout=15.0)
+                assert evt.data.operation == WorkspaceFileChangedOperation.UPDATE
+
+                read = await session.rpc.workspaces.read_file(WorkspacesReadFileRequest(path=path))
+                assert read.content == "v2"
+            finally:
+                unsubscribe()
+        finally:
+            await session.disconnect()
+
+    async def test_should_reject_empty_or_whitespace_session_name(self, ctx: E2ETestContext):
+        for empty_name in ["", "   ", "\t\n  \r"]:
+            session = await ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            try:
+                with pytest.raises(Exception) as excinfo:
+                    await session.rpc.name.set(NameSetRequest(name=empty_name))
+                assert "empty" in str(excinfo.value).lower()
+            finally:
+                await session.disconnect()
+
+    async def test_should_emit_title_changed_event_each_time_name_set_is_called(
+        self, ctx: E2ETestContext
+    ):
+        import asyncio
+        import uuid
+
+        from copilot.generated.session_events import SessionTitleChangedData
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        try:
+            title_a = f"Title-A-{uuid.uuid4().hex}"
+            title_b = f"Title-B-{uuid.uuid4().hex}"
+
+            first_task: asyncio.Future = asyncio.get_event_loop().create_future()
+            second_task: asyncio.Future = asyncio.get_event_loop().create_future()
+
+            def on_event(event):
+                if isinstance(event.data, SessionTitleChangedData):
+                    if event.data.title == title_a and not first_task.done():
+                        first_task.set_result(event)
+                    elif event.data.title == title_b and not second_task.done():
+                        second_task.set_result(event)
+
+            unsubscribe = session.on(on_event)
+            try:
+                await session.rpc.name.set(NameSetRequest(name=title_a))
+                await asyncio.wait_for(first_task, timeout=15.0)
+
+                await session.rpc.name.set(NameSetRequest(name=title_b))
+                second_evt = await asyncio.wait_for(second_task, timeout=15.0)
+                assert second_evt.data.title == title_b
+            finally:
+                unsubscribe()
+        finally:
+            await session.disconnect()
+
+    async def test_should_fork_session_to_event_id_excluding_boundary_event(
+        self, ctx: E2ETestContext
+    ):
+        first_prompt = "Say FORK_BOUNDARY_FIRST exactly."
+        second_prompt = "Say FORK_BOUNDARY_SECOND exactly."
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        try:
+            await session.send_and_wait(first_prompt, timeout=60.0)
+            await session.send_and_wait(second_prompt, timeout=60.0)
+
+            source_events = await session.get_messages()
+            second_user_event = next(
+                (
+                    e
+                    for e in source_events
+                    if isinstance(e.data, UserMessageData) and e.data.content == second_prompt
+                ),
+                None,
+            )
+            assert second_user_event is not None, (
+                "Expected the second user.message in persisted history"
+            )
+            boundary_event_id = str(second_user_event.id)
+
+            fork = await ctx.client.rpc.sessions.fork(
+                SessionsForkRequest(session_id=session.session_id, to_event_id=boundary_event_id)
+            )
+            assert (fork.session_id or "").strip()
+            assert fork.session_id != session.session_id
+
+            forked_session = await ctx.client.resume_session(
+                fork.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            try:
+                forked_events = await forked_session.get_messages()
+                forked_ids = {str(e.id) for e in forked_events}
+                assert boundary_event_id not in forked_ids, (
+                    "toEventId is exclusive — boundary event must not be in forked session"
+                )
+
+                forked_conv = _conversation_messages(forked_events)
+                assert any(r == "user" and c == first_prompt for r, c in forked_conv)
+                assert not any(r == "user" and c == second_prompt for r, c in forked_conv)
+            finally:
+                await forked_session.disconnect()
+        finally:
+            await session.disconnect()
+
+    async def test_should_report_error_when_forking_session_to_unknown_event_id(
+        self, ctx: E2ETestContext
+    ):
+        import uuid
+
+        source_prompt = "Say FORK_UNKNOWN_EVENT_OK exactly."
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        try:
+            await session.send_and_wait(source_prompt, timeout=60.0)
+
+            bogus_event_id = str(uuid.uuid4())
+            with pytest.raises(Exception) as excinfo:
+                await ctx.client.rpc.sessions.fork(
+                    SessionsForkRequest(session_id=session.session_id, to_event_id=bogus_event_id)
+                )
+            text = str(excinfo.value)
+            assert f"Event {bogus_event_id} not found".lower() in text.lower()
+            assert "Unhandled method sessions.fork".lower() not in text.lower()
         finally:
             await session.disconnect()

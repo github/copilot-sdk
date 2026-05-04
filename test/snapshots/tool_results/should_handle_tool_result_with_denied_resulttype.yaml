@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use access_secret to get the API key. If access is denied, tell me it was 'access denied'.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: access_secret
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "Access denied: insufficient permissions to read secrets"
+      - role: assistant
+        content: The access to the secret was **access denied**.

@@ -4,7 +4,6 @@
 
 using System.Collections.Concurrent;
 using System.ComponentModel;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
@@ -29,16 +28,11 @@ public class MultiClientTestFixture : IAsyncLifetime
         Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
         {
             TcpConnectionToken = SharedToken,
-        });
+        }, persistent: true);
     }
 
     public async Task DisposeAsync()
     {
-        if (Client1 is not null)
-        {
-            await Client1.ForceStopAsync();
-        }
-
         await Ctx.DisposeAsync();
     }
 }
@@ -55,19 +49,12 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
     public MultiClientE2ETests(MultiClientTestFixture fixture, ITestOutputHelper output)
     {
         _fixture = fixture;
-        _testName = GetTestName(output);
-    }
-
-    private static string GetTestName(ITestOutputHelper output)
-    {
-        var type = output.GetType();
-        var testField = type.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic);
-        var test = (ITest?)testField?.GetValue(output);
-        return test?.TestCase.TestMethod.Method.Name ?? throw new InvalidOperationException("Couldn't find test name");
+        _testName = E2ETestBase.GetTestName(output);
     }
 
     public async Task InitializeAsync()
     {
+        await Ctx.CleanupAfterTestAsync();
         await Ctx.ConfigureForTestAsync("multi_client", _testName);
 
         // Trigger connection so we can read the port
@@ -80,7 +67,7 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         var port = Client1.ActualPort
             ?? throw new InvalidOperationException("Client1 is not using TCP mode; ActualPort is null");
 
-        _client2 = new CopilotClient(new CopilotClientOptions
+        _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
             TcpConnectionToken = MultiClientTestFixture.SharedToken,
@@ -89,10 +76,17 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
 
     public async Task DisposeAsync()
     {
-        if (_client2 is not null)
+        try
         {
-            await _client2.ForceStopAsync();
+            if (_client2 is not null)
+            {
+                await _client2.ForceStopAsync();
+            }
+        }
+        finally
+        {
             _client2 = null;
+            await Ctx.CleanupAfterTestAsync();
         }
     }
 
@@ -339,7 +333,7 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
 
         // Recreate client2 for cleanup
         var port = Client1.ActualPort!.Value;
-        _client2 = new CopilotClient(new CopilotClientOptions
+        _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
             TcpConnectionToken = MultiClientTestFixture.SharedToken,

@@ -2226,7 +2226,7 @@ class CopilotClient:
             )
             server_version = connect_result.protocol_version
         except JsonRpcError as err:
-            if err.code == -32601:
+            if err.code == -32601 or err.message == "Unhandled method connect":
                 # Legacy server without `connect`; fall back to `ping`. A token, if any,
                 # is silently dropped — the legacy server can't enforce one.
                 ping_result = await self.ping()

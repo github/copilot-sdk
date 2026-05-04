@@ -110,4 +110,43 @@ describe("Session Lifecycle", async () => {
         await session1.disconnect();
         await session2.disconnect();
     });
+
+    it("should isolate events between concurrent sessions", async () => {
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const session2 = await client.createSession({ onPermissionRequest: approveAll });
+
+        const events1: SessionEvent[] = [];
+        const events2: SessionEvent[] = [];
+        session1.on((event) => events1.push(event));
+        session2.on((event) => events2.push(event));
+
+        const [msg1, msg2] = await Promise.all([
+            session1.sendAndWait({
+                prompt: "Say 'session_one_response'.",
+            }),
+            session2.sendAndWait({
+                prompt: "Say 'session_two_response'.",
+            }),
+        ]);
+
+        expect(msg1?.data.content).toContain("session_one_response");
+        expect(msg2?.data.content).toContain("session_two_response");
+
+        // Session 1's events should not contain session 2's response text
+        const session1AssistantContent = events1
+            .filter((e) => e.type === "assistant.message")
+            .map((e) => e.data.content ?? "")
+            .join(" ");
+        expect(session1AssistantContent).not.toContain("session_two_response");
+
+        // Session 2's events should not contain session 1's response text
+        const session2AssistantContent = events2
+            .filter((e) => e.type === "assistant.message")
+            .map((e) => e.data.content ?? "")
+            .join(" ");
+        expect(session2AssistantContent).not.toContain("session_one_response");
+
+        await session1.disconnect();
+        await session2.disconnect();
+    });
 });

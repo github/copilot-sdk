@@ -28,12 +28,15 @@ public class SessionLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Say world" });
 
         IList<SessionMetadata>? sessions = null;
-        await WaitForAsync(async () =>
-        {
-            sessions = await Client.ListSessionsAsync();
-            var ids = sessions.Select(s => s.SessionId).ToHashSet();
-            return ids.Contains(session1.SessionId) && ids.Contains(session2.SessionId);
-        }, TimeSpan.FromSeconds(10));
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                sessions = await Client.ListSessionsAsync();
+                var ids = sessions.Select(s => s.SessionId).ToHashSet();
+                return ids.Contains(session1.SessionId) && ids.Contains(session2.SessionId);
+            },
+            timeout: TimeSpan.FromSeconds(10),
+            timeoutMessage: "Timed out waiting for both created sessions to appear in ListSessionsAsync().");
 
         Assert.NotNull(sessions);
         var sessionIds = sessions!.Select(s => s.SessionId).ToList();
@@ -54,11 +57,14 @@ public class SessionLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hi" });
 
         // Wait for the session to appear in the list
-        await WaitForAsync(async () =>
-        {
-            var before = await Client.ListSessionsAsync();
-            return before.Any(s => s.SessionId == sessionId);
-        }, TimeSpan.FromSeconds(10));
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                var before = await Client.ListSessionsAsync();
+                return before.Any(s => s.SessionId == sessionId);
+            },
+            timeout: TimeSpan.FromSeconds(10),
+            timeoutMessage: "Timed out waiting for the persisted session to appear in ListSessionsAsync().");
 
         await session.DisposeAsync();
         await Client.DeleteSessionAsync(sessionId);
@@ -115,18 +121,43 @@ public class SessionLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         await session2.DisposeAsync();
     }
 
-    /// <summary>
-    /// Polls <paramref name="condition"/> until it returns true or the timeout elapses.
-    /// </summary>
-    private static async Task WaitForAsync(Func<Task<bool>> condition, TimeSpan timeout)
+    [Fact]
+    public async Task Should_Isolate_Events_Between_Concurrent_Sessions()
     {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
+        var session1 = await CreateSessionAsync();
+        var session2 = await CreateSessionAsync();
+
+        var session1Events = new List<SessionEvent>();
+        var session2Events = new List<SessionEvent>();
+
+        session1.On(evt => { lock (session1Events) { session1Events.Add(evt); } });
+        session2.On(evt => { lock (session2Events) { session2Events.Add(evt); } });
+
+        // Send to both sessions
+        await session1.SendAndWaitAsync(new MessageOptions
         {
-            if (await condition()) return;
-            await Task.Delay(100);
-        }
-        // Final attempt — let the test assertion below catch the failure
-        await condition();
+            Prompt = "Say 'session_one_response'.",
+        });
+        await session2.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Say 'session_two_response'.",
+        });
+
+        List<SessionEvent> s1Snapshot, s2Snapshot;
+        lock (session1Events) { s1Snapshot = [.. session1Events]; }
+        lock (session2Events) { s2Snapshot = [.. session2Events]; }
+
+        // Session 1's events should contain "session_one_response" but NOT "session_two_response"
+        var s1Messages = s1Snapshot.OfType<AssistantMessageEvent>().Select(e => e.Data.Content ?? "").ToList();
+        Assert.Contains(s1Messages, m => m.Contains("session_one_response"));
+        Assert.DoesNotContain(s1Messages, m => m.Contains("session_two_response"));
+
+        // Session 2's events should contain "session_two_response" but NOT "session_one_response"
+        var s2Messages = s2Snapshot.OfType<AssistantMessageEvent>().Select(e => e.Data.Content ?? "").ToList();
+        Assert.Contains(s2Messages, m => m.Contains("session_two_response"));
+        Assert.DoesNotContain(s2Messages, m => m.Contains("session_one_response"));
+
+        await session1.DisposeAsync();
+        await session2.DisposeAsync();
     }
 }

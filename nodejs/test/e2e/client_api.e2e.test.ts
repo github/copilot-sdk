@@ -9,6 +9,15 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 describe("Client session management", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
+    async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 10_000): Promise<void> {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            if (await predicate()) return;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        throw new Error(`Condition was not met within ${timeoutMs}ms`);
+    }
+
     async function assertFailure(
         action: () => Promise<unknown>,
         expectedMessage: string
@@ -20,17 +29,27 @@ describe("Client session management", async () => {
         });
     }
 
+    it("should get null last session id before any sessions exist", async () => {
+        await client.start();
+
+        const result = await client.getLastSessionId();
+        expect(result).toBeFalsy();
+    });
+
     it("should delete session by id", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session.sessionId;
 
         await session.sendAndWait({ prompt: "Say OK." });
+        await waitFor(async () =>
+            (await client.listSessions()).some((s) => s.sessionId === sessionId)
+        );
         await session.disconnect();
         await client.deleteSession(sessionId);
 
         const metadata = await client.getSessionMetadata(sessionId);
         expect(metadata).toBeFalsy();
-    });
+    }, 60_000);
 
     it("should report error when deleting unknown session id", async () => {
         await client.start();
@@ -40,13 +59,6 @@ describe("Client session management", async () => {
             () => client.deleteSession(unknownSessionId),
             `Failed to delete session ${unknownSessionId}`
         );
-    });
-
-    it("should get null last session id before any sessions exist", async () => {
-        await client.start();
-
-        const result = await client.getLastSessionId();
-        expect(result).toBeFalsy();
     });
 
     it("should track last session id after session created", async () => {

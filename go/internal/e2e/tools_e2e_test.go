@@ -314,6 +314,132 @@ func TestToolsE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("should execute multiple custom tools in parallel single turn", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type CityParams struct {
+			City string `json:"city" jsonschema:"City name"`
+		}
+		type CountryParams struct {
+			Country string `json:"country" jsonschema:"Country name"`
+		}
+
+		cityCalled := make(chan string, 1)
+		countryCalled := make(chan string, 1)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("lookup_city", "Looks up city information",
+					func(params CityParams, inv copilot.ToolInvocation) (string, error) {
+						select {
+						case cityCalled <- params.City:
+						default:
+						}
+						return "CITY_" + strings.ToUpper(params.City), nil
+					}),
+				copilot.DefineTool("lookup_country", "Looks up country information",
+					func(params CountryParams, inv copilot.ToolInvocation) (string, error) {
+						select {
+						case countryCalled <- params.Country:
+						default:
+						}
+						return "COUNTRY_" + strings.ToUpper(params.Country), nil
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in your reply.",
+		})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		// Verify both tools were called
+		var cityArg, countryArg string
+		select {
+		case cityArg = <-cityCalled:
+		default:
+		}
+		select {
+		case countryArg = <-countryCalled:
+		default:
+		}
+
+		if cityArg == "" {
+			t.Error("lookup_city tool was not called")
+		}
+		if countryArg == "" {
+			t.Error("lookup_country tool was not called")
+		}
+
+		if answer == nil {
+			t.Error("Expected non-nil assistant message")
+		} else if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok {
+			t.Error("Expected AssistantMessageData")
+		} else {
+			if !strings.Contains(md.Content, "CITY_PARIS") {
+				t.Errorf("Expected content to contain 'CITY_PARIS', got %q", md.Content)
+			}
+			if !strings.Contains(md.Content, "COUNTRY_FRANCE") {
+				t.Errorf("Expected content to contain 'COUNTRY_FRANCE', got %q", md.Content)
+			}
+		}
+	})
+
+	t.Run("should respect availabletools and excludedtools combined", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type InputParams struct {
+			Input string `json:"input" jsonschema:"Input value"`
+		}
+
+		excludedToolCalled := false
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("allowed_tool", "An allowed tool",
+					func(params InputParams, inv copilot.ToolInvocation) (string, error) {
+						return "ALLOWED_" + strings.ToUpper(params.Input), nil
+					}),
+				copilot.DefineTool("excluded_tool", "A tool that should be excluded",
+					func(params InputParams, inv copilot.ToolInvocation) (string, error) {
+						excludedToolCalled = true
+						return "EXCLUDED_" + strings.ToUpper(params.Input), nil
+					}),
+			},
+			AvailableTools: []string{"allowed_tool", "excluded_tool"},
+			ExcludedTools:  []string{"excluded_tool"},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Use the allowed_tool with input 'test'. Do NOT use excluded_tool.",
+		})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		if answer == nil {
+			t.Error("Expected non-nil assistant message")
+		} else if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok {
+			t.Error("Expected AssistantMessageData")
+		} else if !strings.Contains(md.Content, "ALLOWED_TEST") {
+			t.Errorf("Expected content to contain 'ALLOWED_TEST', got %q", md.Content)
+		}
+
+		if excludedToolCalled {
+			t.Error("Excluded tool should not have been called")
+		}
+	})
+
 	t.Run("overrides built-in tool with custom tool", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

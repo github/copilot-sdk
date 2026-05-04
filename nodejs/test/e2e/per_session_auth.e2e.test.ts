@@ -48,7 +48,7 @@ describe("Per-session GitHub auth", async () => {
         expect(authStatus.copilotPlan).toBe("individual_pro");
 
         await session.disconnect();
-    });
+    }, 60_000);
 
     it("should isolate auth between sessions with different tokens", async () => {
         const sessionA = await client.createSession({

@@ -37,7 +37,7 @@ describe("Session tasks RPC and pending handlers", async () => {
         expect(remove.removed).toBe(false);
 
         await session.disconnect();
-    });
+    }, 60_000);
 
     it("should report implemented error for missing task agent type", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });

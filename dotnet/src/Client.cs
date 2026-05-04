@@ -373,7 +373,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             try
             {
-                if (!childProcess.HasExited) childProcess.Kill();
+                if (!childProcess.HasExited)
+                {
+                    childProcess.Kill(entireProcessTree: true);
+                    await childProcess.WaitForExitAsync();
+                }
                 childProcess.Dispose();
             }
             catch (Exception ex) { errors?.Add(ex); }
@@ -1090,7 +1094,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             if (!string.IsNullOrEmpty(stderrOutput))
             {
-                throw new IOException($"CLI process exited unexpectedly.\nstderr: {stderrOutput}", ex);
+                throw new IOException(FormatCliExitedMessage("CLI process exited unexpectedly.", stderrOutput), ex);
             }
             throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
         }
@@ -1098,6 +1102,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
         }
+    }
+
+    private static string FormatCliExitedMessage(string message, string stderrOutput)
+    {
+        return string.IsNullOrEmpty(stderrOutput)
+            ? message
+            : $"{message}\nstderr: {stderrOutput}";
+    }
+
+    private static IOException CreateCliExitedException(string message, StringBuilder stderrBuffer)
+    {
+        string stderrOutput;
+        lock (stderrBuffer)
+        {
+            stderrOutput = stderrBuffer.ToString().Trim();
+        }
+
+        return new IOException(FormatCliExitedMessage(message, stderrOutput));
     }
 
     private Task<Connection> EnsureConnectedAsync(CancellationToken cancellationToken)
@@ -1152,7 +1174,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 connection.Rpc, "connect", [new ConnectRequest { Token = _effectiveConnectionToken }], connection.StderrBuffer, cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
-        catch (RemoteRpcException ex) when (ex.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode)
+        catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
         {
             // Legacy server without `connect`; fall back to `ping`. A token, if any,
             // is silently dropped — the legacy server can't enforce one.
@@ -1178,6 +1200,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         _negotiatedProtocolVersion = serverVersion.Value;
+    }
+
+    private static bool IsUnsupportedConnectMethod(RemoteRpcException ex)
+    {
+        return ex.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode
+            || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
     }
 
     private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, string? connectionToken, ILogger logger, CancellationToken cancellationToken)
@@ -1282,22 +1310,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         // Capture stderr for error messages and forward to logger
         var stderrBuffer = new StringBuilder();
-        _ = Task.Run(async () =>
+        var stderrReader = Task.Run(async () =>
         {
-            while (cliProcess != null && !cliProcess.HasExited)
+            while (true)
             {
                 var line = await cliProcess.StandardError.ReadLineAsync(cancellationToken);
-                if (line != null)
+                if (line is null)
                 {
-                    lock (stderrBuffer)
-                    {
-                        stderrBuffer.AppendLine(line);
-                    }
+                    break;
+                }
 
-                    if (logger.IsEnabled(LogLevel.Debug))
-                    {
-                        logger.LogDebug("[CLI] {Line}", line);
-                    }
+                lock (stderrBuffer)
+                {
+                    stderrBuffer.AppendLine(line);
+                }
+
+                if (logger.IsEnabled(LogLevel.Debug))
+                {
+                    logger.LogDebug("[CLI] {Line}", line);
                 }
             }
         }, cancellationToken);
@@ -1311,7 +1341,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             while (!cts.Token.IsCancellationRequested)
             {
-                var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token) ?? throw new IOException("CLI process exited unexpectedly");
+                var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token);
+                if (line is null)
+                {
+                    await stderrReader;
+                    throw CreateCliExitedException("CLI process exited unexpectedly", stderrBuffer);
+                }
+
                 if (ListeningOnPortRegex().Match(line) is { Success: true } match)
                 {
                     detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);

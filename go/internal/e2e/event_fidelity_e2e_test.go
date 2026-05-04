@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -15,6 +16,265 @@ func TestEventFidelityE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
+
+	t.Run("should emit assistant usage event after model call", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		var mu sync.Mutex
+		var events []copilot.SessionEvent
+		session.On(func(event copilot.SessionEvent) {
+			mu.Lock()
+			events = append(events, event)
+			mu.Unlock()
+		})
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "What is 5+5? Reply with just the number.",
+		}); err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		snapshot := snapshotEventFidelityEvents(&mu, &events)
+
+		var usageEvent *copilot.AssistantUsageData
+		for i := len(snapshot) - 1; i >= 0; i-- {
+			if d, ok := snapshot[i].Data.(*copilot.AssistantUsageData); ok {
+				usageEvent = d
+				break
+			}
+		}
+
+		if usageEvent == nil {
+			t.Fatalf("Expected at least one assistant.usage event; events=%v", eventFidelityTypes(snapshot))
+		}
+		if usageEvent.Model == "" {
+			t.Errorf("Expected assistant.usage event to have a non-empty model field, got %#v", usageEvent)
+		}
+
+		// Verify the event itself has a valid ID and timestamp
+		for _, evt := range snapshot {
+			if evt.Type == copilot.SessionEventTypeAssistantUsage {
+				if evt.ID == "" {
+					t.Error("Expected assistant.usage event to have a non-empty ID")
+				}
+				if evt.Timestamp.IsZero() {
+					t.Error("Expected assistant.usage event to have a non-zero timestamp")
+				}
+				break
+			}
+		}
+	})
+
+	t.Run("should emit session usage info event after model call", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		var mu sync.Mutex
+		var events []copilot.SessionEvent
+		session.On(func(event copilot.SessionEvent) {
+			mu.Lock()
+			events = append(events, event)
+			mu.Unlock()
+		})
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "What is 5+5? Reply with just the number.",
+		}); err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		snapshot := snapshotEventFidelityEvents(&mu, &events)
+
+		var usageInfo *copilot.SessionUsageInfoData
+		for i := len(snapshot) - 1; i >= 0; i-- {
+			if d, ok := snapshot[i].Data.(*copilot.SessionUsageInfoData); ok {
+				usageInfo = d
+				break
+			}
+		}
+
+		if usageInfo == nil {
+			t.Fatalf("Expected at least one session.usage_info event; events=%v", eventFidelityTypes(snapshot))
+		}
+		if usageInfo.CurrentTokens <= 0 {
+			t.Errorf("Expected session.usage_info.currentTokens > 0, got %v", usageInfo.CurrentTokens)
+		}
+		if usageInfo.MessagesLength <= 0 {
+			t.Errorf("Expected session.usage_info.messagesLength > 0, got %v", usageInfo.MessagesLength)
+		}
+		if usageInfo.TokenLimit <= 0 {
+			t.Errorf("Expected session.usage_info.tokenLimit > 0, got %v", usageInfo.TokenLimit)
+		}
+	})
+
+	t.Run("should emit pending messages modified event when message queue changes", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		pendingModified := make(chan *copilot.SessionEvent, 1)
+		session.On(func(event copilot.SessionEvent) {
+			if event.Type == copilot.SessionEventTypePendingMessagesModified {
+				select {
+				case pendingModified <- &event:
+				default:
+				}
+			}
+		})
+
+		if _, err := session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "What is 9+9? Reply with just the number.",
+		}); err != nil {
+			t.Fatalf("Send failed: %v", err)
+		}
+
+		select {
+		case evt := <-pendingModified:
+			if evt == nil {
+				t.Error("Expected a non-nil pending_messages.modified event")
+			}
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for pending_messages.modified event")
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final assistant message: %v", err)
+		}
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "18") {
+			t.Errorf("Expected answer to contain '18', got %v", answer.Data)
+		}
+	})
+
+	t.Run("should preserve message order in getmessages after tool use", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		if err := os.WriteFile(filepath.Join(ctx.WorkDir, "order.txt"), []byte("ORDER_CONTENT_42"), 0644); err != nil {
+			t.Fatalf("Failed to write order.txt: %v", err)
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Read the file 'order.txt' and tell me what the number is.",
+		}); err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		messages, err := session.GetMessages(t.Context())
+		if err != nil {
+			t.Fatalf("GetMessages failed: %v", err)
+		}
+
+		types := make([]copilot.SessionEventType, 0, len(messages))
+		for _, m := range messages {
+			types = append(types, m.Type)
+		}
+
+		sessionStartIdx := -1
+		userMsgIdx := -1
+		toolStartIdx := -1
+		toolCompleteIdx := -1
+		assistantMsgIdx := -1
+
+		for i, typ := range types {
+			if typ == copilot.SessionEventTypeSessionStart && sessionStartIdx < 0 {
+				sessionStartIdx = i
+			}
+			if typ == copilot.SessionEventTypeUserMessage && userMsgIdx < 0 {
+				userMsgIdx = i
+			}
+			if typ == copilot.SessionEventTypeToolExecutionStart && toolStartIdx < 0 {
+				toolStartIdx = i
+			}
+			if typ == copilot.SessionEventTypeToolExecutionComplete && toolCompleteIdx < 0 {
+				toolCompleteIdx = i
+			}
+			if typ == copilot.SessionEventTypeAssistantMessage {
+				assistantMsgIdx = i
+			}
+		}
+
+		if sessionStartIdx < 0 {
+			t.Fatalf("Expected session.start event in GetMessages; types=%v", types)
+		}
+		if userMsgIdx < 0 {
+			t.Fatalf("Expected user.message event in GetMessages; types=%v", types)
+		}
+		if toolStartIdx < 0 {
+			t.Fatalf("Expected tool.execution_start event in GetMessages; types=%v", types)
+		}
+		if toolCompleteIdx < 0 {
+			t.Fatalf("Expected tool.execution_complete event in GetMessages; types=%v", types)
+		}
+		if assistantMsgIdx < 0 {
+			t.Fatalf("Expected assistant.message event in GetMessages; types=%v", types)
+		}
+
+		if sessionStartIdx >= userMsgIdx {
+			t.Errorf("Expected session.start (%d) before user.message (%d); types=%v", sessionStartIdx, userMsgIdx, types)
+		}
+		if userMsgIdx >= toolStartIdx {
+			t.Errorf("Expected user.message (%d) before tool.execution_start (%d); types=%v", userMsgIdx, toolStartIdx, types)
+		}
+		if toolStartIdx >= toolCompleteIdx {
+			t.Errorf("Expected tool.execution_start (%d) before tool.execution_complete (%d); types=%v", toolStartIdx, toolCompleteIdx, types)
+		}
+		if toolCompleteIdx >= assistantMsgIdx {
+			t.Errorf("Expected tool.execution_complete (%d) before final assistant.message (%d); types=%v", toolCompleteIdx, assistantMsgIdx, types)
+		}
+
+		// Verify user.message mentions the file
+		for _, msg := range messages {
+			if msg.Type == copilot.SessionEventTypeUserMessage {
+				if d, ok := msg.Data.(*copilot.UserMessageData); ok {
+					if !strings.Contains(d.Content, "order.txt") {
+						t.Errorf("Expected user.message to mention 'order.txt', got %q", d.Content)
+					}
+				}
+				break
+			}
+		}
+
+		// Verify assistant.message references the number
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Type == copilot.SessionEventTypeAssistantMessage {
+				if d, ok := messages[i].Data.(*copilot.AssistantMessageData); ok {
+					if !strings.Contains(d.Content, "42") {
+						t.Errorf("Expected assistant.message to contain '42', got %q", d.Content)
+					}
+				}
+				break
+			}
+		}
+	})
 
 	t.Run("should emit events in correct order for tool-using conversation", func(t *testing.T) {
 		ctx.ConfigureForTest(t)

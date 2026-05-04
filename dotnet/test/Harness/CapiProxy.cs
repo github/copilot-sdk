@@ -104,10 +104,11 @@ public sealed partial class CapiProxy : IAsyncDisposable
 
         if (_process is { HasExited: false })
         {
-            try { _process.Kill(); await _process.WaitForExitAsync(); }
+            try { _process.Kill(entireProcessTree: true); await _process.WaitForExitAsync(); }
             catch { /* Ignore */ }
         }
 
+        _process?.Dispose();
         _process = null;
         _startupTask = null;
     }

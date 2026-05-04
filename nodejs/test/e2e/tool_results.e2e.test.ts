@@ -7,9 +7,24 @@ import { z } from "zod";
 import type { SessionEvent, ToolResultObject } from "../../src/index.js";
 import { approveAll, defineTool } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
+import { getNextEventOfType } from "./harness/sdkTestHelper";
 
 describe("Tool Results", async () => {
     const { copilotClient: client, openAiEndpoint } = await createSdkTestContext();
+
+    async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            return await Promise.race([
+                promise,
+                new Promise<T>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms);
+                }),
+            ]);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
 
     it("should handle structured ToolResultObject from custom tool", async () => {
         const session = await client.createSession({
@@ -149,6 +164,87 @@ describe("Tool Results", async () => {
         if (completeEvent.data.toolTelemetry) {
             expect(Object.keys(completeEvent.data.toolTelemetry).length).toBeGreaterThan(0);
         }
+
+        await session.disconnect();
+    });
+
+    it("should handle tool result with rejected resulttype", async () => {
+        let toolHandlerCalled = false;
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("deploy_service", {
+                    description: "Deploys a service",
+                    parameters: z.object({}),
+                    handler: (): ToolResultObject => {
+                        toolHandlerCalled = true;
+                        return {
+                            textResultForLlm:
+                                "Deployment rejected: policy violation - production deployments require approval",
+                            resultType: "rejected",
+                        };
+                    },
+                }),
+            ],
+        });
+
+        const toolCompletePromise = getNextEventOfType(session, "tool.execution_complete");
+        const idlePromise = getNextEventOfType(session, "session.idle");
+
+        await session.send({
+            prompt: "Deploy the service using deploy_service. If it's rejected, tell me it was 'rejected by policy'.",
+        });
+
+        // Verify the rejected tool result is surfaced via tool.execution_complete.
+        const toolComplete = await withTimeout(
+            toolCompletePromise,
+            60_000,
+            "rejected tool.execution_complete"
+        );
+        expect(toolHandlerCalled).toBe(true);
+        if (toolComplete?.type === "tool.execution_complete") {
+            expect(toolComplete.data.success).toBe(false);
+            expect(toolComplete.data.error?.code).toBe("rejected");
+            expect(toolComplete.data.error?.message).toContain("Deployment rejected");
+        }
+
+        await withTimeout(idlePromise, 60_000, "session.idle after rejected tool result");
+
+        await session.disconnect();
+    });
+
+    it("should handle tool result with denied resulttype", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("access_secret", {
+                    description: "A tool that returns a denied result",
+                    parameters: z.object({}),
+                    handler: (): ToolResultObject => ({
+                        resultType: "denied",
+                        textResultForLlm: "Access denied: insufficient permissions to read secrets",
+                    }),
+                }),
+            ],
+        });
+
+        const toolCompletePromise = getNextEventOfType(session, "tool.execution_complete");
+
+        const answer = await session.sendAndWait({
+            prompt: "Use access_secret to get the API key. If access is denied, tell me it was 'access denied'.",
+        });
+
+        const toolComplete = await withTimeout(
+            toolCompletePromise,
+            60_000,
+            "denied tool.execution_complete"
+        );
+        if (toolComplete?.type === "tool.execution_complete") {
+            expect(toolComplete.data.success).toBe(false);
+            expect(toolComplete.data.error?.code).toBe("denied");
+            expect(toolComplete.data.error?.message).toContain("Access denied");
+        }
+        expect(answer?.data.content?.toLowerCase()).toContain("access denied");
 
         await session.disconnect();
     });

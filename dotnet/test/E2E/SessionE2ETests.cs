@@ -324,13 +324,12 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             },
         });
 
-        // session.start is dispatched asynchronously via the event channel;
-        // wait briefly for the consumer to deliver it.
-        var started = await Task.WhenAny(sessionStartReceived.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        Assert.Equal(sessionStartReceived.Task, started);
+        // session.start is dispatched asynchronously via the event channel.
+        await sessionStartReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Contains(earlyEvents, evt => evt is SessionStartEvent);
 
         var receivedEvents = new List<SessionEvent>();
+        var receivedEventsLock = new object();
         var idleReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var concurrentCount = 0;
         var maxConcurrent = 0;
@@ -339,15 +338,25 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             // Track concurrent handler invocations to verify serial dispatch.
             var current = Interlocked.Increment(ref concurrentCount);
-            var seenMax = Volatile.Read(ref maxConcurrent);
-            if (current > seenMax)
-                Interlocked.CompareExchange(ref maxConcurrent, current, seenMax);
+            try
+            {
+                var seenMax = Volatile.Read(ref maxConcurrent);
+                if (current > seenMax)
+                    Interlocked.CompareExchange(ref maxConcurrent, current, seenMax);
 
-            Thread.Sleep(10);
+                // Keep the handler active long enough that concurrent dispatch would
+                // overlap deterministically, without using sleep-based synchronization.
+                Thread.SpinWait(100_000);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref concurrentCount);
+            }
 
-            Interlocked.Decrement(ref concurrentCount);
-
-            receivedEvents.Add(evt);
+            lock (receivedEventsLock)
+            {
+                receivedEvents.Add(evt);
+            }
             if (evt is SessionIdleEvent)
             {
                 idleReceived.TrySetResult(true);
@@ -361,10 +370,16 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         await idleReceived.Task.WaitAsync(TimeSpan.FromSeconds(60));
 
         // Should have received multiple events (user message, assistant message, idle, etc.)
-        Assert.NotEmpty(receivedEvents);
-        Assert.Contains(receivedEvents, evt => evt is UserMessageEvent);
-        Assert.Contains(receivedEvents, evt => evt is AssistantMessageEvent);
-        Assert.Contains(receivedEvents, evt => evt is SessionIdleEvent);
+        List<SessionEvent> observedEvents;
+        lock (receivedEventsLock)
+        {
+            observedEvents = [.. receivedEvents];
+        }
+
+        Assert.NotEmpty(observedEvents);
+        Assert.Contains(observedEvents, evt => evt is UserMessageEvent);
+        Assert.Contains(observedEvents, evt => evt is AssistantMessageEvent);
+        Assert.Contains(observedEvents, evt => evt is SessionIdleEvent);
 
         // Events must be dispatched serially — never more than one handler invocation at a time.
         Assert.Equal(1, maxConcurrent);
@@ -428,12 +443,15 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say OK." });
 
         SessionMetadata? ourSession = null;
-        await WaitForAsync(async () =>
-        {
-            var sessions = await Client.ListSessionsAsync();
-            ourSession = sessions.FirstOrDefault(s => s.SessionId == session.SessionId);
-            return ourSession is not null;
-        }, TimeSpan.FromSeconds(10));
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                var sessions = await Client.ListSessionsAsync();
+                ourSession = sessions.FirstOrDefault(s => s.SessionId == session.SessionId);
+                return ourSession is not null;
+            },
+            timeout: TimeSpan.FromSeconds(10),
+            timeoutMessage: "Timed out waiting for the current session to appear in ListSessionsAsync().");
         Assert.NotNull(ourSession);
 
         var allSessions = await Client.ListSessionsAsync();
@@ -455,11 +473,14 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello" });
 
         SessionMetadata? metadata = null;
-        await WaitForAsync(async () =>
-        {
-            metadata = await Client.GetSessionMetadataAsync(session.SessionId);
-            return metadata is not null;
-        }, TimeSpan.FromSeconds(10));
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                metadata = await Client.GetSessionMetadataAsync(session.SessionId);
+                return metadata is not null;
+            },
+            timeout: TimeSpan.FromSeconds(10),
+            timeoutMessage: "Timed out waiting for GetSessionMetadataAsync() to return the persisted session.");
         Assert.NotNull(metadata);
         Assert.Equal(session.SessionId, metadata.SessionId);
         Assert.NotEqual(default, metadata.StartTime);
@@ -569,7 +590,14 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => events.Add(evt));
+        var eventsLock = new object();
+        session.On(evt =>
+        {
+            lock (eventsLock)
+            {
+                events.Add(evt);
+            }
+        });
 
         await session.LogAsync("Info message");
         await session.LogAsync("Warning message", level: SessionLogLevel.Warning);
@@ -577,26 +605,41 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         await session.LogAsync("Ephemeral message", ephemeral: true);
 
         // Poll until all 4 notification events arrive
-        await WaitForAsync(() =>
-        {
-            var notifications = events.Where(e =>
-                e is SessionInfoEvent info && info.Data.InfoType == "notification" ||
-                e is SessionWarningEvent warn && warn.Data.WarningType == "notification" ||
-                e is SessionErrorEvent err && err.Data.ErrorType == "notification"
-            ).ToList();
-            return notifications.Count >= 4;
-        }, timeout: TimeSpan.FromSeconds(10));
+        await TestHelper.WaitForConditionAsync(
+            () =>
+            {
+                List<SessionEvent> snapshot;
+                lock (eventsLock)
+                {
+                    snapshot = [.. events];
+                }
 
-        var infoEvent = events.OfType<SessionInfoEvent>().First(e => e.Data.Message == "Info message");
+                var notifications = snapshot.Where(e =>
+                    e is SessionInfoEvent info && info.Data.InfoType == "notification" ||
+                    e is SessionWarningEvent warn && warn.Data.WarningType == "notification" ||
+                    e is SessionErrorEvent err && err.Data.ErrorType == "notification"
+                ).ToList();
+                return notifications.Count >= 4;
+            },
+            timeout: TimeSpan.FromSeconds(10),
+            timeoutMessage: "Timed out waiting for all four notification log events to be observed.");
+
+        List<SessionEvent> observedEvents;
+        lock (eventsLock)
+        {
+            observedEvents = [.. events];
+        }
+
+        var infoEvent = observedEvents.OfType<SessionInfoEvent>().First(e => e.Data.Message == "Info message");
         Assert.Equal("notification", infoEvent.Data.InfoType);
 
-        var warningEvent = events.OfType<SessionWarningEvent>().First(e => e.Data.Message == "Warning message");
+        var warningEvent = observedEvents.OfType<SessionWarningEvent>().First(e => e.Data.Message == "Warning message");
         Assert.Equal("notification", warningEvent.Data.WarningType);
 
-        var errorEvent = events.OfType<SessionErrorEvent>().First(e => e.Data.Message == "Error message");
+        var errorEvent = observedEvents.OfType<SessionErrorEvent>().First(e => e.Data.Message == "Error message");
         Assert.Equal("notification", errorEvent.Data.ErrorType);
 
-        var ephemeralEvent = events.OfType<SessionInfoEvent>().First(e => e.Data.Message == "Ephemeral message");
+        var ephemeralEvent = observedEvents.OfType<SessionInfoEvent>().First(e => e.Data.Message == "Ephemeral message");
         Assert.Equal("notification", ephemeralEvent.Data.InfoType);
     }
 
@@ -776,7 +819,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         await session.SendAndWaitAsync(new MessageOptions
         {
-            Prompt = "Summarize the referenced issue.",
+            Prompt = "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
             Attachments =
             [
                 new UserMessageAttachmentGithubReference
@@ -921,37 +964,5 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         }
 
         await session.DisposeAsync();
-    }
-
-    private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)
-    {
-        using var cts = new CancellationTokenSource(timeout);
-        while (!condition())
-        {
-            try
-            {
-                await Task.Delay(100, cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                throw new TimeoutException($"Condition not met within {timeout}");
-            }
-        }
-    }
-
-    private static async Task WaitForAsync(Func<Task<bool>> condition, TimeSpan timeout)
-    {
-        using var cts = new CancellationTokenSource(timeout);
-        while (!await condition())
-        {
-            try
-            {
-                await Task.Delay(100, cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                throw new TimeoutException($"Condition not met within {timeout}");
-            }
-        }
     }
 }

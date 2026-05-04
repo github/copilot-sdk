@@ -234,4 +234,83 @@ describe("Custom tools", async () => {
         // The tool handler should NOT have been called since permission was denied
         expect(toolHandlerCalled).toBe(false);
     });
+
+    it("should execute multiple custom tools in parallel single turn", async () => {
+        let lookupCityCalled = false;
+        let lookupCountryCalled = false;
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("lookup_city", {
+                    description: "Looks up city information",
+                    parameters: z.object({ city: z.string() }),
+                    handler: ({ city }) => {
+                        lookupCityCalled = true;
+                        return `CITY_${city.toUpperCase()}`;
+                    },
+                }),
+                defineTool("lookup_country", {
+                    description: "Looks up country information",
+                    parameters: z.object({ country: z.string() }),
+                    handler: ({ country }) => {
+                        lookupCountryCalled = true;
+                        return `COUNTRY_${country.toUpperCase()}`;
+                    },
+                }),
+            ],
+        });
+
+        const answer = await session.sendAndWait({
+            prompt: "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in your reply.",
+        });
+
+        expect(lookupCityCalled).toBe(true);
+        expect(lookupCountryCalled).toBe(true);
+        expect(answer?.data.content).toContain("CITY_PARIS");
+        expect(answer?.data.content).toContain("COUNTRY_FRANCE");
+
+        await session.disconnect();
+    });
+
+    it("should respect availableTools and excludedTools combined", async () => {
+        let allowedToolCalled = false;
+        let excludedToolCalled = false;
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("allowed_tool", {
+                    description: "A tool that is allowed",
+                    parameters: z.object({ input: z.string() }),
+                    handler: ({ input }) => {
+                        allowedToolCalled = true;
+                        return `ALLOWED_${input.toUpperCase()}`;
+                    },
+                }),
+                defineTool("excluded_tool", {
+                    description: "A tool that should be excluded",
+                    parameters: z.object({}),
+                    handler: () => {
+                        excludedToolCalled = true;
+                        return "EXCLUDED_RESULT";
+                    },
+                }),
+            ],
+            availableTools: ["allowed_tool", "excluded_tool"],
+            excludedTools: ["excluded_tool"],
+        });
+
+        const answer = await session.sendAndWait({
+            prompt: "Use the allowed_tool with input 'test'. Do NOT use excluded_tool.",
+        });
+
+        // allowed_tool should have been called
+        expect(allowedToolCalled).toBe(true);
+        // excluded_tool should NOT have been called
+        expect(excludedToolCalled).toBe(false);
+        expect(answer?.data.content).toContain("ALLOWED_TEST");
+
+        await session.disconnect();
+    });
 });

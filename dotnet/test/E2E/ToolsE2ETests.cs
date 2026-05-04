@@ -310,4 +310,89 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             return input.ToUpperInvariant();
         }
     }
+
+    [Fact]
+    public async Task Should_Execute_Multiple_Custom_Tools_In_Parallel_Single_Turn()
+    {
+        var toolACalled = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolBCalled = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools =
+            [
+                AIFunctionFactory.Create(LookupCity, "lookup_city"),
+                AIFunctionFactory.Create(LookupCountry, "lookup_country"),
+            ],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in your reply."
+        });
+
+        // Both tools should have been called
+        var cityResult = await toolACalled.Task.WaitAsync(TimeSpan.FromSeconds(60));
+        var countryResult = await toolBCalled.Task.WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.Equal("Paris", cityResult);
+        Assert.Equal("France", countryResult);
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+        var content = assistantMessage!.Data.Content ?? string.Empty;
+        Assert.Contains("CITY_PARIS", content);
+        Assert.Contains("COUNTRY_FRANCE", content);
+
+        [Description("Looks up city information")]
+        string LookupCity([Description("City name")] string city)
+        {
+            toolACalled.TrySetResult(city);
+            return $"CITY_{city.ToUpperInvariant()}";
+        }
+
+        [Description("Looks up country information")]
+        string LookupCountry([Description("Country name")] string country)
+        {
+            toolBCalled.TrySetResult(country);
+            return $"COUNTRY_{country.ToUpperInvariant()}";
+        }
+    }
+
+    [Fact]
+    public async Task Should_Respect_AvailableTools_And_ExcludedTools_Combined()
+    {
+        bool excludedToolCalled = false;
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools =
+            [
+                AIFunctionFactory.Create(AllowedTool, "allowed_tool"),
+                AIFunctionFactory.Create(ExcludedTool, "excluded_tool"),
+            ],
+            AvailableTools = ["allowed_tool", "excluded_tool"],
+            ExcludedTools = ["excluded_tool"],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        var result = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Use the allowed_tool with input 'test'. Do NOT use excluded_tool.",
+        });
+
+        Assert.NotNull(result);
+        Assert.Contains("ALLOWED_TEST", result!.Data.Content ?? string.Empty);
+        Assert.False(excludedToolCalled, "Excluded tool should not have been called");
+
+        [Description("An allowed tool")]
+        string AllowedTool([Description("Input value")] string input) => $"ALLOWED_{input.ToUpperInvariant()}";
+
+        [Description("A tool that should be excluded")]
+        string ExcludedTool([Description("Input value")] string input)
+        {
+            excludedToolCalled = true;
+            return $"EXCLUDED_{input.ToUpperInvariant()}";
+        }
+    }
 }

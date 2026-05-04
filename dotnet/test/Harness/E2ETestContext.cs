@@ -19,6 +19,9 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     private readonly CapiProxy _proxy;
     private readonly string _repoRoot;
+    private readonly object _clientsLock = new();
+    private readonly List<CopilotClient> _persistentClients = [];
+    private readonly List<CopilotClient> _transientClients = [];
 
     private E2ETestContext(string homeDir, string workDir, string proxyUrl, CapiProxy proxy, string repoRoot)
     {
@@ -169,7 +172,11 @@ public sealed class E2ETestContext : IAsyncDisposable
         return env!;
     }
 
-    public CopilotClient CreateClient(bool? useStdio = null, CopilotClientOptions? options = null, bool autoInjectGitHubToken = true)
+    public CopilotClient CreateClient(
+        bool? useStdio = null,
+        CopilotClientOptions? options = null,
+        bool autoInjectGitHubToken = true,
+        bool persistent = false)
     {
         options ??= new CopilotClientOptions();
 
@@ -191,16 +198,143 @@ public sealed class E2ETestContext : IAsyncDisposable
             options.GitHubToken = "fake-token-for-e2e-tests";
         }
 
-        return new(options);
+        var client = new CopilotClient(options);
+        lock (_clientsLock)
+        {
+            if (persistent)
+            {
+                _persistentClients.Add(client);
+            }
+            else
+            {
+                _transientClients.Add(client);
+            }
+        }
+        return client;
+    }
+
+    public void UntrackClient(CopilotClient client)
+    {
+        lock (_clientsLock)
+        {
+            _persistentClients.Remove(client);
+            _transientClients.Remove(client);
+        }
+    }
+
+    public async Task CleanupAfterTestAsync()
+    {
+        // Per-test cleanup only stops clients created for a specific test.
+        // The shared persistent client and temp directories are cleaned when the fixture is disposed.
+        var errors = new List<Exception>();
+        CopilotClient[] transientClients;
+
+        lock (_clientsLock)
+        {
+            transientClients = [.. _transientClients];
+            _transientClients.Clear();
+        }
+
+        foreach (var client in transientClients)
+        {
+            try
+            {
+                await client.ForceStopAsync();
+            }
+            catch (Exception ex) when (IsTransientCleanupException(ex))
+            {
+                errors.Add(ex);
+            }
+        }
+
+        if (errors.Count == 1)
+        {
+            throw errors[0];
+        }
+        if (errors.Count > 1)
+        {
+            throw new AggregateException(errors);
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
+        var errors = new List<Exception>();
+        CopilotClient[] clients;
+
+        lock (_clientsLock)
+        {
+            clients = [.. _persistentClients.Concat(_transientClients)];
+            _persistentClients.Clear();
+            _transientClients.Clear();
+        }
+
+        foreach (var client in clients)
+        {
+            try
+            {
+                await client.ForceStopAsync();
+            }
+            catch (Exception ex) when (IsTransientCleanupException(ex))
+            {
+                errors.Add(ex);
+            }
+        }
+
         // Skip writing snapshots in CI to avoid corrupting them on test failures
         var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
-        await _proxy.StopAsync(skipWritingCache: isCI);
+        try { await _proxy.StopAsync(skipWritingCache: isCI); } catch (Exception ex) when (IsTransientCleanupException(ex)) { errors.Add(ex); }
 
-        try { if (Directory.Exists(HomeDir)) Directory.Delete(HomeDir, true); } catch { }
-        try { if (Directory.Exists(WorkDir)) Directory.Delete(WorkDir, true); } catch { }
+        try { await DeleteDirectoryAsync(HomeDir); } catch (Exception ex) when (IsTransientCleanupException(ex)) { errors.Add(ex); }
+        try { await DeleteDirectoryAsync(WorkDir); } catch (Exception ex) when (IsTransientCleanupException(ex)) { errors.Add(ex); }
+
+        if (errors.Count == 1)
+        {
+            throw errors[0];
+        }
+        if (errors.Count > 1)
+        {
+            throw new AggregateException(errors);
+        }
     }
+
+    private static async Task DeleteDirectoryAsync(string path)
+    {
+        const int maxAttempts = 40;
+        var delay = TimeSpan.FromMilliseconds(50);
+        var lastException = (Exception?)null;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            if (!Directory.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (Exception ex) when (IsTransientCleanupException(ex))
+            {
+                lastException = ex;
+                if (attempt == maxAttempts)
+                {
+                    break;
+                }
+
+                await Task.Delay(delay);
+                delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, 250));
+            }
+        }
+
+        if (Directory.Exists(path))
+        {
+            throw new IOException($"Failed to delete directory '{path}' after {maxAttempts} attempts.", lastException);
+        }
+    }
+
+    private static bool IsTransientCleanupException(Exception exception)
+        => exception is IOException or UnauthorizedAccessException;
 }

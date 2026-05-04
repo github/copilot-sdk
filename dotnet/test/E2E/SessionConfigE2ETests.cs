@@ -121,6 +121,67 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Apply_ReasoningEffort_On_Session_Create()
+    {
+        const string reasoningModelId = "custom-reasoning-model";
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Model = reasoningModelId,
+            Provider = CreateProxyProvider("create-reasoning"),
+            ReasoningEffort = "high",
+        });
+
+        var startEvent = Assert.Single((await session.GetMessagesAsync()).OfType<SessionStartEvent>());
+        Assert.Equal(reasoningModelId, startEvent.Data.SelectedModel);
+        Assert.Equal("high", startEvent.Data.ReasoningEffort);
+
+        await session.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData("low")]
+    [InlineData("medium")]
+    [InlineData("high")]
+    public async Task Should_Apply_All_ReasoningEffort_Values_On_Session_Create(string effort)
+    {
+        const string reasoningModelId = "custom-reasoning-model";
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Model = reasoningModelId,
+            Provider = CreateProxyProvider($"reasoning-{effort}"),
+            ReasoningEffort = effort,
+        });
+
+        var startEvent = Assert.Single((await session.GetMessagesAsync()).OfType<SessionStartEvent>());
+        Assert.Equal(reasoningModelId, startEvent.Data.SelectedModel);
+        Assert.Equal(effort, startEvent.Data.ReasoningEffort);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Apply_ReasoningEffort_On_Session_Resume()
+    {
+        var originalSession = await CreateSessionAsync();
+        const string reasoningModelId = "custom-reasoning-model";
+        var resumedSession = await ResumeSessionAsync(originalSession.SessionId, new ResumeSessionConfig
+        {
+            Model = reasoningModelId,
+            Provider = CreateProxyProvider("resume-reasoning"),
+            ReasoningEffort = "high",
+        });
+
+        var resumeEvent = Assert.Single((await resumedSession.GetMessagesAsync()).OfType<SessionResumeEvent>());
+        Assert.Equal(reasoningModelId, resumeEvent.Data.SelectedModel);
+        Assert.Equal("high", resumeEvent.Data.ReasoningEffort);
+
+        await resumedSession.DisposeAsync();
+        await originalSession.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Forward_ClientName_In_UserAgent()
     {
         var session = await CreateSessionAsync(new SessionConfig

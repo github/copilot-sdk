@@ -1,0 +1,22 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use slow_analysis with value 'test_abort'. Wait for the result.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: slow_analysis
+              arguments: '{"value":"test_abort"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: The execution of this tool, or a previous tool was interrupted.
+      - role: user
+        content: Say 'tool_abort_recovery_ok'.
+      - role: assistant
+        content: tool_abort_recovery_ok

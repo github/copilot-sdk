@@ -1,0 +1,22 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo slow_handler_test'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: "{\"command\":\"echo slow_handler_test\",\"description\":\"Echo 'slow_handler_test' to output\"}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          slow_handler_test
+          <exited with exit code 0>
+      - role: assistant
+        content: "Done! The command output: `slow_handler_test`"

@@ -124,6 +124,52 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await AssertFailureAsync(
             () => session.Rpc.Mcp.ReloadAsync(),
             "MCP config reload not available");
+        await AssertFailureAsync(
+            () => session.Rpc.Mcp.Oauth.LoginAsync("missing-server"),
+            "MCP host is not available");
+    }
+
+    [Fact]
+    public async Task Should_Report_Error_When_Mcp_Oauth_Server_Is_Not_Configured()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            McpServers = new Dictionary<string, McpServerConfig>
+            {
+                ["configured-stdio-server"] = new McpStdioServerConfig
+                {
+                    Command = "echo",
+                    Args = ["configured-stdio-server"],
+                    Tools = ["*"],
+                },
+            },
+        });
+
+        await AssertFailureAsync(
+            () => session.Rpc.Mcp.Oauth.LoginAsync("missing-server"),
+            "is not configured");
+    }
+
+    [Fact]
+    public async Task Should_Report_Error_When_Mcp_Oauth_Server_Is_Not_Remote()
+    {
+        const string serverName = "configured-stdio-server";
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            McpServers = new Dictionary<string, McpServerConfig>
+            {
+                [serverName] = new McpStdioServerConfig
+                {
+                    Command = "echo",
+                    Args = [serverName],
+                    Tools = ["*"],
+                },
+            },
+        });
+
+        await AssertFailureAsync(
+            () => session.Rpc.Mcp.Oauth.LoginAsync(serverName, forceReauth: true, clientName: "SDK E2E", callbackSuccessMessage: "Done"),
+            "not a remote server");
     }
 
     [Fact]

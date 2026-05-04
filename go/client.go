@@ -1387,7 +1387,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	connectResult, err := c.internalRPC.Connect(ctx, &rpc.ConnectRequest{Token: tokenPtr})
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
-		if errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code {
+		if errors.As(err, &rpcErr) && (rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code || rpcErr.Message == "Unhandled method connect") {
 			// Legacy server without `connect`; fall back to `ping`. A token, if any,
 			// is silently dropped — the legacy server can't enforce one.
 			pingResult, perr := c.Ping(ctx, "")

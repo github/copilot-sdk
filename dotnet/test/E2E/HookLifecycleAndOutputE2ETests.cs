@@ -82,6 +82,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
     public async Task Should_Invoke_OnSessionEnd_Hook_When_Session_Is_Disconnected()
     {
         var sessionEndInputs = new List<SessionEndHookInput>();
+        var sessionEndHookInvoked = new TaskCompletionSource<SessionEndHookInput>(TaskCreationOptions.RunContinuationsAsynchronously);
         CopilotSession? session = null;
         session = await CreateSessionAsync(new SessionConfig
         {
@@ -90,6 +91,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
                 OnSessionEnd = (input, invocation) =>
                 {
                     sessionEndInputs.Add(input);
+                    sessionEndHookInvoked.TrySetResult(input);
                     Assert.Equal(session!.SessionId, invocation.SessionId);
                     return Task.FromResult<SessionEndHookOutput?>(null);
                 },
@@ -100,9 +102,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
 
         await session.DisposeAsync();
 
-        // Wait briefly for the async hook to fire
-        await Task.Delay(200);
-
+        await sessionEndHookInvoked.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.NotEmpty(sessionEndInputs);
     }
 
