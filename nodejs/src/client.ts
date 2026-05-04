@@ -331,7 +331,7 @@ export class CopilotClient {
             ) {
                 throw new Error("tcpConnectionToken must be a non-empty string");
             }
-            if (options.useStdio === true && !options.cliUrl) {
+            if (options.useStdio === true) {
                 throw new Error("tcpConnectionToken cannot be used with useStdio: true");
             }
         }
