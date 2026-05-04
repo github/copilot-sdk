@@ -894,6 +894,9 @@ class CopilotClient:
         self._actual_host: str = "localhost"
         self._is_external_server: bool = isinstance(config, ExternalServerConfig)
 
+        if config.tcp_connection_token is not None and len(config.tcp_connection_token) == 0:
+            raise ValueError("tcp_connection_token must be a non-empty string")
+
         if isinstance(config, ExternalServerConfig):
             self._actual_host, actual_port = self._parse_cli_url(config.url)
             self._actual_port: int | None = actual_port
@@ -905,8 +908,10 @@ class CopilotClient:
                 raise ValueError("tcp_connection_token cannot be used with use_stdio=True")
             if config.use_stdio:
                 self._effective_connection_token = None
+            elif config.tcp_connection_token is not None:
+                self._effective_connection_token = config.tcp_connection_token
             else:
-                self._effective_connection_token = config.tcp_connection_token or uuid.uuid4().hex
+                self._effective_connection_token = str(uuid.uuid4())
 
             # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary
             effective_env = config.env if config.env is not None else os.environ

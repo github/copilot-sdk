@@ -1969,8 +1969,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         lines.push(`        self._client = client`);
         lines.push(`        self._session_id = session_id`);
         for (const [groupName] of groups) {
-            const prefix = classPrefix + (isSession ? "" : "Server");
-            lines.push(`        self.${toSnakeCase(groupName)} = ${prefix}${toPascalCase(groupName)}Api(client, session_id)`);
+            lines.push(`        self.${toSnakeCase(groupName)} = ${classPrefix}${toPascalCase(groupName)}Api(client, session_id)`);
         }
     } else {
         lines.push(`class ${wrapperName}:`);

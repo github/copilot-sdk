@@ -65,6 +65,7 @@ class ConnectionTokenContext:
             try:
                 await self._client.stop()
             except Exception:
+                # Best-effort cleanup; ignore stop errors during teardown.
                 pass
             self._client = None
         if self._proxy:
@@ -145,6 +146,8 @@ class TestConnectionToken:
             try:
                 await wrong.force_stop()
             except Exception:
+                # Best-effort cleanup; client startup is expected to fail above,
+                # so force_stop may raise if no process/session was established.
                 pass
 
     async def test_missing_token_is_rejected(self, explicit_token_ctx: ConnectionTokenContext):
@@ -160,4 +163,6 @@ class TestConnectionToken:
             try:
                 await no_token.force_stop()
             except Exception:
+                # Best-effort cleanup; client startup is expected to fail above,
+                # so force_stop may raise if no process/session was established.
                 pass

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System;
 using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 
@@ -75,7 +76,8 @@ public class ConnectionTokenTests : IClassFixture<ConnectionTokenTestFixture>
         }
         finally
         {
-            try { await wrongClient.ForceStopAsync(); } catch { }
+            // Best-effort cleanup; ignore stop errors when the client failed to start.
+            try { await wrongClient.ForceStopAsync(); } catch (Exception) { }
         }
     }
 
@@ -94,7 +96,8 @@ public class ConnectionTokenTests : IClassFixture<ConnectionTokenTestFixture>
         }
         finally
         {
-            try { await noTokenClient.ForceStopAsync(); } catch { }
+            // Best-effort cleanup; ignore stop errors when the client failed to start.
+            try { await noTokenClient.ForceStopAsync(); } catch (Exception) { }
         }
     }
 
