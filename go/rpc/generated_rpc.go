@@ -246,6 +246,7 @@ type RPCTypes struct {
 	UIElicitationStringOneOfField                            UIElicitationStringOneOfField                            `json:"UIElicitationStringOneOfField"`
 	UIElicitationStringOneOfFieldOneOf                       UIElicitationStringOneOfFieldOneOf                       `json:"UIElicitationStringOneOfFieldOneOf"`
 	UIHandlePendingElicitationRequest                        UIHandlePendingElicitationRequest                        `json:"UIHandlePendingElicitationRequest"`
+	RemoteEnableResult                                       RemoteEnableResult                                       `json:"RemoteEnableResult"`
 	UsageGetMetricsResult                                    UsageGetMetricsResult                                    `json:"UsageGetMetricsResult"`
 	UsageMetricsCodeChanges                                  UsageMetricsCodeChanges                                  `json:"UsageMetricsCodeChanges"`
 	UsageMetricsModelMetric                                  UsageMetricsModelMetric                                  `json:"UsageMetricsModelMetric"`
@@ -1945,6 +1946,13 @@ type UsageGetMetricsResult struct {
 	TotalPremiumRequestCost float64 `json:"totalPremiumRequestCost"`
 	// Raw count of user-initiated API requests
 	TotalUserRequests int64 `json:"totalUserRequests"`
+}
+
+type RemoteEnableResult struct {
+	// Mission Control frontend URL for this session
+	URL *string `json:"url,omitempty"`
+	// Whether remote steering is enabled
+	RemoteSteerable bool `json:"remoteSteerable"`
 }
 
 // Aggregated code change metrics
@@ -3663,6 +3671,27 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 	return &result, nil
 }
 
+type RemoteApi sessionApi
+
+func (a *RemoteApi) Enable(ctx context.Context) (*RemoteEnableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.remote.enable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result RemoteEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *RemoteApi) Disable(ctx context.Context) error {
+	req := map[string]any{"sessionId": a.sessionID}
+	_, err := a.client.Request("session.remote.disable", req)
+	return err
+}
+
 // SessionRpc provides typed session-scoped RPC methods.
 type SessionRpc struct {
 	common sessionApi // Reuse a single struct instead of allocating one for each service on the heap.
@@ -3688,6 +3717,7 @@ type SessionRpc struct {
 	Shell        *ShellApi
 	History      *HistoryApi
 	Usage        *UsageApi
+	Remote       *RemoteApi
 }
 
 func (a *SessionRpc) Suspend(ctx context.Context) (*SuspendResult, error) {
@@ -3752,6 +3782,7 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Shell = (*ShellApi)(&r.common)
 	r.History = (*HistoryApi)(&r.common)
 	r.Usage = (*UsageApi)(&r.common)
+	r.Remote = (*RemoteApi)(&r.common)
 	return r
 }
 

@@ -48,6 +48,7 @@ Guides for building with the SDK's capabilities.
 - [Streaming Events](./features/streaming-events.md) — real-time event reference
 - [Steering & Queueing](./features/steering-and-queueing.md) — message delivery modes
 - [Session Persistence](./features/session-persistence.md) — resume sessions across restarts
+- [Remote Sessions](./features/remote-sessions.md) — share sessions to GitHub web and mobile
 
 ### [Hooks Reference](./hooks/index.md)
 

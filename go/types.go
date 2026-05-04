@@ -90,6 +90,12 @@ type ClientOptions struct {
 	// This option is only used when the SDK spawns the CLI process; it is ignored
 	// when connecting to an external server via CLIUrl.
 	SessionIdleTimeoutSeconds int
+	// Remote enables remote session support (Mission Control integration).
+	// When true, sessions in a GitHub repository working directory are
+	// accessible from GitHub web and mobile.
+	// This option is only used when the SDK spawns the CLI process; it is ignored
+	// when connecting to an external server via CLIUrl.
+	Remote bool
 }
 
 // TelemetryConfig configures OpenTelemetry integration for the Copilot CLI process.

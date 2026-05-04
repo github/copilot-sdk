@@ -5037,6 +5037,26 @@ class UsageGetMetricsResult:
         return result
 
 @dataclass
+class RemoteEnableResult:
+    """Result of enabling remote session."""
+    remote_steerable: bool
+    url: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'RemoteEnableResult':
+        assert isinstance(obj, dict)
+        remote_steerable = from_bool(obj.get("remoteSteerable"))
+        url = from_union([from_str, from_none], obj.get("url"))
+        return RemoteEnableResult(remote_steerable, url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["remoteSteerable"] = from_bool(self.remote_steerable)
+        if self.url is not None:
+            result["url"] = from_union([from_str, from_none], self.url)
+        return result
+
+@dataclass
 class WorkspacesGetWorkspaceResult:
     workspace: Workspace | None = None
     """Current workspace metadata, or null if not available"""
@@ -6798,6 +6818,18 @@ class UsageApi:
         return UsageGetMetricsResult.from_dict(await self._client.request("session.usage.getMetrics", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
+class RemoteApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def enable(self, *, timeout: float | None = None) -> RemoteEnableResult:
+        return RemoteEnableResult.from_dict(await self._client.request("session.remote.enable", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+
+    async def disable(self, *, timeout: float | None = None) -> None:
+        await self._client.request("session.remote.disable", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
+
+
 class SessionRpc:
     """Typed session-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient", session_id: str):
@@ -6824,6 +6856,7 @@ class SessionRpc:
         self.shell = ShellApi(client, session_id)
         self.history = HistoryApi(client, session_id)
         self.usage = UsageApi(client, session_id)
+        self.remote = RemoteApi(client, session_id)
 
     async def suspend(self, *, timeout: float | None = None) -> None:
         await self._client.request("session.suspend", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))

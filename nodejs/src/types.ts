@@ -211,6 +211,16 @@ export interface CopilotClientOptions {
      * `useStdio: true` (stdio is pre-authenticated by transport).
      */
     tcpConnectionToken?: string;
+
+    /**
+     * Enable remote session support (Mission Control integration).
+     * When true, sessions in a GitHub repository working directory are
+     * accessible from GitHub web and mobile.
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link cliUrl}.
+     * @default false
+     */
+    remote?: boolean;
 }
 
 /**

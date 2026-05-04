@@ -397,6 +397,7 @@ export class CopilotClient {
             telemetry: options.telemetry,
             copilotHome: options.copilotHome,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
+            remote: options.remote ?? false,
         };
     }
 
@@ -1500,6 +1501,10 @@ export class CopilotClient {
                     "--session-idle-timeout",
                     this.options.sessionIdleTimeoutSeconds.toString()
                 );
+            }
+
+            if (this.options.remote) {
+                args.push("--remote");
             }
 
             // Suppress debug/trace output that might pollute stdout
