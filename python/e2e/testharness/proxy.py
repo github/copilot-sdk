@@ -62,10 +62,19 @@ class CapiProxy:
 
         self._proxy_url = match.group(1)
         metadata_match = re.search(r"(\{.*\})\s*$", line.strip())
-        if metadata_match:
+        if not metadata_match:
+            self._process.kill()
+            raise RuntimeError(f"Proxy startup line missing CONNECT proxy metadata: {line}")
+        try:
             metadata = json.loads(metadata_match.group(1))
-            self._connect_proxy_url = metadata.get("connectProxyUrl")
-            self._ca_file_path = metadata.get("caFilePath")
+        except json.JSONDecodeError as exc:
+            self._process.kill()
+            raise RuntimeError(f"Failed to parse proxy startup metadata: {line}") from exc
+        self._connect_proxy_url = metadata.get("connectProxyUrl")
+        self._ca_file_path = metadata.get("caFilePath")
+        if not self._connect_proxy_url or not self._ca_file_path:
+            self._process.kill()
+            raise RuntimeError(f"Proxy startup metadata missing CONNECT proxy details: {line}")
         return self._proxy_url
 
     async def stop(self, skip_writing_cache: bool = False):

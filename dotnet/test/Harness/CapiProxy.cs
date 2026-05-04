@@ -60,27 +60,41 @@ public sealed partial class CapiProxy : IAsyncDisposable
             _process.OutputDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
-                var match = Regex.Match(e.Data, @"Listening: (?<url>http://[^\s]+)(?:\s+(?<metadata>\{.*\}))?");
-                if (match.Success)
+                var match = Regex.Match(e.Data, @"Listening: (?<url>http://[^\s]+)\s+(?<metadata>\{.*\})$");
+                if (!match.Success)
                 {
-                    if (match.Groups["metadata"].Success)
+                    if (e.Data.Contains("Listening: ", StringComparison.Ordinal))
                     {
-                        try
-                        {
-                            var metadata = JsonSerializer.Deserialize(
-                                match.Groups["metadata"].Value,
-                                CapiProxyJsonContext.Default.ProxyStartupMetadata);
-                            ConnectProxyUrl = metadata?.ConnectProxyUrl;
-                            CaFilePath = metadata?.CaFilePath;
-                        }
-                        catch (Exception ex) when (ex is JsonException or NotSupportedException)
-                        {
-                            tcs.TrySetException(new InvalidOperationException($"Failed to parse proxy startup metadata: {match.Groups["metadata"].Value}", ex));
-                            return;
-                        }
+                        tcs.TrySetException(
+                            new InvalidOperationException(
+                                $"Proxy startup line missing CONNECT proxy metadata: {e.Data}"));
                     }
-                    tcs.TrySetResult(match.Groups["url"].Value);
+                    return;
                 }
+                try
+                {
+                    var metadata = JsonSerializer.Deserialize(
+                        match.Groups["metadata"].Value,
+                        CapiProxyJsonContext.Default.ProxyStartupMetadata);
+                    ConnectProxyUrl = metadata?.ConnectProxyUrl;
+                    CaFilePath = metadata?.CaFilePath;
+                }
+                catch (Exception ex) when (ex is JsonException or NotSupportedException)
+                {
+                    tcs.TrySetException(
+                        new InvalidOperationException(
+                            $"Failed to parse proxy startup metadata: {match.Groups["metadata"].Value}",
+                            ex));
+                    return;
+                }
+                if (string.IsNullOrEmpty(ConnectProxyUrl) || string.IsNullOrEmpty(CaFilePath))
+                {
+                    tcs.TrySetException(
+                        new InvalidOperationException(
+                            $"Proxy startup metadata missing CONNECT proxy details: {e.Data}"));
+                    return;
+                }
+                tcs.TrySetResult(match.Groups["url"].Value);
             };
 
             _process.ErrorDataReceived += (_, e) =>

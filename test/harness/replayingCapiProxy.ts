@@ -956,11 +956,38 @@ function normalizeGhAuthMessages(result: string): string {
     /[^\n]*Post "https:\/\/api\.github\.com\/graphql": tls: failed to verify certificate: x509: certificate signed by unknown authority\s*\n<exited with exit code 1>/g,
     "${gh_auth_required}\n<exited with exit code 4>",
   );
-  normalized = normalized.replace(
-    /[^\n]*(?:HTTP|GraphQL)[\s:]+401[^\n]*Requires authentication(?:[^\n]*\r?\n)*?<exited with exit code \d+>/g,
-    "${gh_auth_required}\n<exited with exit code 4>",
-  );
-  return normalized;
+  return normalizeGh401AuthMessages(normalized);
+}
+
+function normalizeGh401AuthMessages(result: string): string {
+  const lines = result.split(/\r?\n/);
+  const normalizedLines: string[] = [];
+  let changed = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (
+      /(?:HTTP|GraphQL)[ \t:]+401/.test(lines[i]) &&
+      lines[i].includes("Requires authentication")
+    ) {
+      let replaced = false;
+      for (let j = i + 1; j < lines.length; j++) {
+        if (/^<exited with exit code \d+>$/.test(lines[j].trim())) {
+          normalizedLines.push("${gh_auth_required}");
+          normalizedLines.push("<exited with exit code 4>");
+          i = j;
+          changed = true;
+          replaced = true;
+          break;
+        }
+      }
+      if (replaced) {
+        continue;
+      }
+    }
+    normalizedLines.push(lines[i]);
+  }
+
+  return changed ? normalizedLines.join("\n") : result;
 }
 
 // Transforms a single OpenAI-style inbound response message into normalized form

@@ -59,7 +59,7 @@ func (p *CapiProxy) Start() (string, error) {
 	// Read until the server prints "Listening: http://..."; npm/npx may emit
 	// wrapper output first on some platforms.
 	reader := bufio.NewReader(stdout)
-	re := regexp.MustCompile(`Listening: (http://[^\s]+)(?:\s+(\{.*\}))?`)
+	re := regexp.MustCompile(`Listening: (http://[^\s]+)\s+(\{.*\})$`)
 	var matches []string
 	var line string
 	for {
@@ -70,8 +70,12 @@ func (p *CapiProxy) Start() (string, error) {
 		}
 		line = strings.TrimSpace(nextLine)
 		matches = re.FindStringSubmatch(line)
-		if len(matches) >= 2 {
+		if len(matches) >= 3 {
 			break
+		}
+		if strings.Contains(line, "Listening: ") {
+			p.cmd.Process.Kill()
+			return "", fmt.Errorf("proxy startup line missing CONNECT proxy metadata: %s", line)
 		}
 		if err == io.EOF {
 			p.cmd.Process.Kill()
@@ -80,17 +84,19 @@ func (p *CapiProxy) Start() (string, error) {
 	}
 
 	p.proxyURL = matches[1]
-	if len(matches) >= 3 && matches[2] != "" {
-		var metadata struct {
-			ConnectProxyURL string `json:"connectProxyUrl"`
-			CAFilePath      string `json:"caFilePath"`
-		}
-		if err := json.Unmarshal([]byte(matches[2]), &metadata); err != nil {
-			p.cmd.Process.Kill()
-			return "", fmt.Errorf("failed to parse proxy startup metadata: %w", err)
-		}
-		p.connectProxyURL = metadata.ConnectProxyURL
-		p.caFilePath = metadata.CAFilePath
+	var metadata struct {
+		ConnectProxyURL string `json:"connectProxyUrl"`
+		CAFilePath      string `json:"caFilePath"`
+	}
+	if err := json.Unmarshal([]byte(matches[2]), &metadata); err != nil {
+		p.cmd.Process.Kill()
+		return "", fmt.Errorf("failed to parse proxy startup metadata: %w", err)
+	}
+	p.connectProxyURL = metadata.ConnectProxyURL
+	p.caFilePath = metadata.CAFilePath
+	if p.connectProxyURL == "" || p.caFilePath == "" {
+		p.cmd.Process.Kill()
+		return "", fmt.Errorf("proxy startup metadata missing CONNECT proxy details: %s", line)
 	}
 	return p.proxyURL, nil
 }
