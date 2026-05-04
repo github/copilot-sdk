@@ -15,3 +15,14 @@ conversations:
         content: Reply with TASK_AGENT_DONE exactly.
       - role: assistant
         content: TASK_AGENT_DONE
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with TASK_AGENT_READY exactly.
+      - role: assistant
+        content: TASK_AGENT_READY
+      - role: user
+        content: Reply with TASK_AGENT_DONE exactly.
+      - role: assistant
+        content: TASK_AGENT_DONE
