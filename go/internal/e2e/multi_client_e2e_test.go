@@ -18,6 +18,7 @@ func TestMultiClientE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
 		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 
@@ -36,7 +37,8 @@ func TestMultiClientE2E(t *testing.T) {
 	}
 
 	client2 := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: fmt.Sprintf("localhost:%d", actualPort),
+		CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
+		TCPConnectionToken: sharedTcpToken,
 	})
 	t.Cleanup(func() { client2.ForceStop() })
 
@@ -475,7 +477,8 @@ func TestMultiClientE2E(t *testing.T) {
 
 		// Recreate client2 for cleanup (but don't rejoin the session)
 		client2 = copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl: fmt.Sprintf("localhost:%d", actualPort),
+			CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
+			TCPConnectionToken: sharedTcpToken,
 		})
 
 		// Now only stable_tool should be available
