@@ -131,7 +131,7 @@ async fn connect_handshake_supplies_protocol_version() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3 },
+        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
@@ -175,7 +175,7 @@ async fn connect_handshake_forwards_explicit_token() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3 },
+        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
@@ -229,7 +229,7 @@ async fn connect_handshake_forwards_auto_generated_token() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3 },
+        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 

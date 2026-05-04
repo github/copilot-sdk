@@ -1531,15 +1531,13 @@ impl Client {
     /// param. Server-side, the token is required when the server was
     /// started with `COPILOT_CONNECTION_TOKEN`.
     async fn connect_handshake(&self) -> Result<Option<u32>, Error> {
-        let params = match &self.inner.effective_connection_token {
-            Some(token) => serde_json::json!({ "token": token }),
-            None => serde_json::json!({}),
-        };
-        let value = self.call("connect", Some(params)).await?;
-        Ok(value
-            .get("protocolVersion")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u32))
+        let result = self
+            .rpc()
+            .connect(crate::generated::api_types::ConnectRequest {
+                token: self.inner.effective_connection_token.clone(),
+            })
+            .await?;
+        Ok(u32::try_from(result.protocol_version).ok())
     }
 
     /// Send a `ping` RPC and return the typed [`PingResponse`].
