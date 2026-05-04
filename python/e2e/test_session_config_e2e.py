@@ -300,6 +300,65 @@ class TestSessionConfig:
         await session2.disconnect()
         await session1.disconnect()
 
+    async def test_should_apply_instruction_directories_on_create(self, ctx: E2ETestContext):
+        project_dir = os.path.join(ctx.work_dir, "instruction-create-project")
+        instruction_dir = os.path.join(ctx.work_dir, "extra-create-instructions")
+        instruction_files_dir = os.path.join(instruction_dir, ".github", "instructions")
+        sentinel = "PY_CREATE_INSTRUCTION_DIRECTORIES_SENTINEL"
+        os.makedirs(project_dir, exist_ok=True)
+        os.makedirs(instruction_files_dir, exist_ok=True)
+        with open(
+            os.path.join(instruction_files_dir, "extra.instructions.md"), "w", encoding="utf-8"
+        ) as f:
+            f.write(f"Always include {sentinel}.")
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            working_directory=project_dir,
+            instruction_directories=[instruction_dir],
+        )
+
+        await session.send_and_wait("What is 1+1?")
+
+        exchanges = await ctx.get_exchanges()
+        assert exchanges
+        assert sentinel in _get_system_message(exchanges[-1])
+
+        await session.disconnect()
+
+    async def test_should_apply_instruction_directories_on_resume(self, ctx: E2ETestContext):
+        project_dir = os.path.join(ctx.work_dir, "instruction-resume-project")
+        instruction_dir = os.path.join(ctx.work_dir, "extra-resume-instructions")
+        instruction_files_dir = os.path.join(instruction_dir, ".github", "instructions")
+        sentinel = "PY_RESUME_INSTRUCTION_DIRECTORIES_SENTINEL"
+        os.makedirs(project_dir, exist_ok=True)
+        os.makedirs(instruction_files_dir, exist_ok=True)
+        with open(
+            os.path.join(instruction_files_dir, "extra.instructions.md"), "w", encoding="utf-8"
+        ) as f:
+            f.write(f"Always include {sentinel}.")
+
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            working_directory=project_dir,
+        )
+
+        session2 = await ctx.client.resume_session(
+            session1.session_id,
+            on_permission_request=PermissionHandler.approve_all,
+            working_directory=project_dir,
+            instruction_directories=[instruction_dir],
+        )
+
+        await session2.send_and_wait("What is 1+1?")
+
+        exchanges = await ctx.get_exchanges()
+        assert exchanges
+        assert sentinel in _get_system_message(exchanges[-1])
+
+        await session2.disconnect()
+        await session1.disconnect()
+
     async def test_should_apply_availabletools_on_session_resume(self, ctx: E2ETestContext):
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,

@@ -438,6 +438,103 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("should apply instructionDirectories on create", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		projectDir := filepath.Join(ctx.WorkDir, "instruction-create-project")
+		instructionDir := filepath.Join(ctx.WorkDir, "extra-create-instructions")
+		instructionFilesDir := filepath.Join(instructionDir, ".github", "instructions")
+		const sentinel = "GO_CREATE_INSTRUCTION_DIRECTORIES_SENTINEL"
+		if err := os.MkdirAll(projectDir, 0755); err != nil {
+			t.Fatalf("MkdirAll failed: %v", err)
+		}
+		if err := os.MkdirAll(instructionFilesDir, 0755); err != nil {
+			t.Fatalf("MkdirAll failed: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(instructionFilesDir, "extra.instructions.md"), []byte("Always include "+sentinel+"."), 0644); err != nil {
+			t.Fatalf("WriteFile failed: %v", err)
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:       projectDir,
+			InstructionDirectories: []string{instructionDir},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		exchanges, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("GetExchanges failed: %v", err)
+		}
+		if len(exchanges) != 1 {
+			t.Fatalf("Expected exactly 1 exchange, got %d", len(exchanges))
+		}
+		if !strings.Contains(getSystemMessage(exchanges[0]), sentinel) {
+			t.Errorf("Expected system message to contain %q", sentinel)
+		}
+	})
+
+	t.Run("should apply instructionDirectories on resume", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		projectDir := filepath.Join(ctx.WorkDir, "instruction-resume-project")
+		instructionDir := filepath.Join(ctx.WorkDir, "extra-resume-instructions")
+		instructionFilesDir := filepath.Join(instructionDir, ".github", "instructions")
+		const sentinel = "GO_RESUME_INSTRUCTION_DIRECTORIES_SENTINEL"
+		if err := os.MkdirAll(projectDir, 0755); err != nil {
+			t.Fatalf("MkdirAll failed: %v", err)
+		}
+		if err := os.MkdirAll(instructionFilesDir, 0755); err != nil {
+			t.Fatalf("MkdirAll failed: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(instructionFilesDir, "extra.instructions.md"), []byte("Always include "+sentinel+"."), 0644); err != nil {
+			t.Fatalf("WriteFile failed: %v", err)
+		}
+
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:    projectDir,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = session1.Disconnect() })
+
+		session2, err := client.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:       projectDir,
+			InstructionDirectories: []string{instructionDir},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = session2.Disconnect() })
+
+		_, err = session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		exchanges, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("GetExchanges failed: %v", err)
+		}
+		if len(exchanges) != 1 {
+			t.Fatalf("Expected exactly 1 exchange, got %d", len(exchanges))
+		}
+		if !strings.Contains(getSystemMessage(exchanges[0]), sentinel) {
+			t.Errorf("Expected system message to contain %q", sentinel)
+		}
+	})
+
 	t.Run("should apply availableTools on session resume", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

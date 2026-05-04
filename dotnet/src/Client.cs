@@ -506,7 +506,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Traceparent: traceparent,
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
-                GitHubToken: config.GitHubToken);
+                GitHubToken: config.GitHubToken,
+                InstructionDirectories: config.InstructionDirectories);
 
             var response = await InvokeRpcAsync<CreateSessionResponse>(
                 connection.Rpc, "session.create", [request], cancellationToken);
@@ -633,7 +634,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
                 GitHubToken: config.GitHubToken,
-                ContinuePendingWork: config.ContinuePendingWork);
+                ContinuePendingWork: config.ContinuePendingWork,
+                InstructionDirectories: config.InstructionDirectories);
 
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
                 connection.Rpc, "session.resume", [request], cancellationToken);
@@ -1650,7 +1652,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Traceparent = null,
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
-        string? GitHubToken = null);
+        string? GitHubToken = null,
+        IList<string>? InstructionDirectories = null);
 
     internal record ToolDefinition(
         string Name,
@@ -1707,7 +1710,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
         string? GitHubToken = null,
-        bool? ContinuePendingWork = null);
+        bool? ContinuePendingWork = null,
+        IList<string>? InstructionDirectories = null);
 
     internal record ResumeSessionResponse(
         string SessionId,

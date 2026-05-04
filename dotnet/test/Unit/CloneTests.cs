@@ -94,6 +94,7 @@ public class CloneTests
             Agent = "agent1",
             DefaultAgent = new DefaultAgentConfig { ExcludedTools = ["hidden-tool"] },
             SkillDirectories = ["/skills"],
+            InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
         };
 
@@ -114,6 +115,7 @@ public class CloneTests
         Assert.Equal(original.Agent, clone.Agent);
         Assert.Equal(original.DefaultAgent!.ExcludedTools, clone.DefaultAgent!.ExcludedTools);
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
+        Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
     }
 
@@ -127,6 +129,7 @@ public class CloneTests
             McpServers = new Dictionary<string, McpServerConfig> { ["s1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "a1" }],
             SkillDirectories = ["/skills"],
+            InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
         };
 
@@ -138,6 +141,7 @@ public class CloneTests
         clone.McpServers!["s2"] = new McpStdioServerConfig { Command = "echo" };
         clone.CustomAgents!.Add(new CustomAgentConfig { Name = "a2" });
         clone.SkillDirectories!.Add("/more");
+        clone.InstructionDirectories!.Add("/more-instructions");
         clone.DisabledSkills!.Add("skill99");
 
         // Original is unaffected
@@ -146,6 +150,7 @@ public class CloneTests
         Assert.Single(original.McpServers!);
         Assert.Single(original.CustomAgents!);
         Assert.Single(original.SkillDirectories!);
+        Assert.Single(original.InstructionDirectories!);
         Assert.Single(original.DisabledSkills!);
     }
 
@@ -170,6 +175,7 @@ public class CloneTests
             McpServers = new Dictionary<string, McpServerConfig> { ["s1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "a1" }],
             SkillDirectories = ["/skills"],
+            InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
         };
 
@@ -181,6 +187,7 @@ public class CloneTests
         clone.McpServers!["s2"] = new McpStdioServerConfig { Command = "echo" };
         clone.CustomAgents!.Add(new CustomAgentConfig { Name = "a2" });
         clone.SkillDirectories!.Add("/more");
+        clone.InstructionDirectories!.Add("/more-instructions");
         clone.DisabledSkills!.Add("skill99");
 
         // Original is unaffected
@@ -189,6 +196,7 @@ public class CloneTests
         Assert.Single(original.McpServers!);
         Assert.Single(original.CustomAgents!);
         Assert.Single(original.SkillDirectories!);
+        Assert.Single(original.InstructionDirectories!);
         Assert.Single(original.DisabledSkills!);
     }
 
@@ -247,6 +255,7 @@ public class CloneTests
         Assert.Null(clone.McpServers);
         Assert.Null(clone.CustomAgents);
         Assert.Null(clone.SkillDirectories);
+        Assert.Null(clone.InstructionDirectories);
         Assert.Null(clone.DisabledSkills);
         Assert.Null(clone.Tools);
         Assert.Null(clone.DefaultAgent);

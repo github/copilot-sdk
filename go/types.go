@@ -572,6 +572,8 @@ type SessionConfig struct {
 	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
+	// InstructionDirectories is a list of additional directories to search for custom instruction files
+	InstructionDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
@@ -793,6 +795,8 @@ type ResumeSessionConfig struct {
 	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
+	// InstructionDirectories is a list of additional directories to search for custom instruction files
+	InstructionDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
@@ -1018,6 +1022,7 @@ type createSessionRequest struct {
 	ConfigDir                      string                         `json:"configDir,omitempty"`
 	EnableConfigDiscovery          *bool                          `json:"enableConfigDiscovery,omitempty"`
 	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
+	InstructionDirectories         []string                       `json:"instructionDirectories,omitempty"`
 	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`
 	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
 	Commands                       []wireCommand                  `json:"commands,omitempty"`
@@ -1068,6 +1073,7 @@ type resumeSessionRequest struct {
 	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
 	Agent                          string                         `json:"agent,omitempty"`
 	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
+	InstructionDirectories         []string                       `json:"instructionDirectories,omitempty"`
 	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`
 	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
 	Commands                       []wireCommand                  `json:"commands,omitempty"`
