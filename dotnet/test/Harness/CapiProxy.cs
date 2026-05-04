@@ -206,7 +206,8 @@ public record ParsedHttpExchange(
 public record ChatCompletionRequest(
     string Model,
     List<ChatCompletionMessage> Messages,
-    List<ChatCompletionTool>? Tools);
+    List<ChatCompletionTool>? Tools,
+    [property: JsonPropertyName("max_tokens")] int? MaxTokens = null);
 
 public record ChatCompletionMessage(
     string Role,

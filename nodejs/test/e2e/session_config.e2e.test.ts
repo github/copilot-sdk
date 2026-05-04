@@ -325,6 +325,52 @@ describe("Session Configuration", async () => {
         await session2.disconnect();
     });
 
+    it("should forward provider wire model and max output tokens", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+            provider: {
+                type: "openai",
+                baseUrl: openAiEndpoint.url,
+                apiKey: "test-provider-key",
+                wireModel: "test-wire-model",
+                maxOutputTokens: 1024,
+            },
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBe(1);
+        expect(exchanges[0].request.model).toBe("test-wire-model");
+        expect((exchanges[0].request as { max_tokens?: number }).max_tokens).toBe(1024);
+
+        await session.disconnect();
+    });
+
+    it("should use provider model id as wire model", async () => {
+        // ProviderConfig.modelId drives both the runtime resolved model AND the wire
+        // model when wireModel is not specified. SessionConfig.model is intentionally
+        // omitted so that modelId is the only model source.
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            provider: {
+                type: "openai",
+                baseUrl: openAiEndpoint.url,
+                apiKey: "test-provider-key",
+                modelId: "claude-sonnet-4.5",
+            },
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBe(1);
+        expect(exchanges[0].request.model).toBe("claude-sonnet-4.5");
+
+        await session.disconnect();
+    });
+
     it("should apply workingDirectory on session resume", async () => {
         const subDir = join(workDir, "resume-subproject");
         await mkdir(subDir, { recursive: true });

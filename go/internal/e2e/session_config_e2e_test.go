@@ -323,6 +323,85 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("should forward provider wire model and max output tokens", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		maxOutputTokens := 1024
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Model:               "claude-sonnet-4.5",
+			Provider: &copilot.ProviderConfig{
+				Type:            "openai",
+				BaseURL:         ctx.ProxyURL,
+				APIKey:          "test-provider-key",
+				WireModel:       "test-wire-model",
+				MaxOutputTokens: maxOutputTokens,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		exchanges, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("GetExchanges failed: %v", err)
+		}
+		if len(exchanges) != 1 {
+			t.Fatalf("Expected exactly 1 exchange, got %d", len(exchanges))
+		}
+		if exchanges[0].Request.Model != "test-wire-model" {
+			t.Errorf("Expected request model to be 'test-wire-model', got %q", exchanges[0].Request.Model)
+		}
+		if exchanges[0].Request.MaxTokens == nil || *exchanges[0].Request.MaxTokens != 1024 {
+			got := "nil"
+			if exchanges[0].Request.MaxTokens != nil {
+				got = fmt.Sprintf("%d", *exchanges[0].Request.MaxTokens)
+			}
+			t.Errorf("Expected request max_tokens to be 1024, got %s", got)
+		}
+	})
+
+	t.Run("should use provider model id as wire model", func(t *testing.T) {
+		// ProviderConfig.ModelID drives both the runtime resolved model AND the wire
+		// model when WireModel is not specified. SessionConfig.Model is intentionally
+		// omitted so that ModelID is the only model source.
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Provider: &copilot.ProviderConfig{
+				Type:    "openai",
+				BaseURL: ctx.ProxyURL,
+				APIKey:  "test-provider-key",
+				ModelID: "claude-sonnet-4.5",
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		exchanges, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("GetExchanges failed: %v", err)
+		}
+		if len(exchanges) != 1 {
+			t.Fatalf("Expected exactly 1 exchange, got %d", len(exchanges))
+		}
+		if exchanges[0].Request.Model != "claude-sonnet-4.5" {
+			t.Errorf("Expected request model to be 'claude-sonnet-4.5', got %q", exchanges[0].Request.Model)
+		}
+	})
+
 	t.Run("should use workingDirectory for tool execution", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

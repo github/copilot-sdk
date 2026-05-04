@@ -178,6 +178,56 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Forward_Provider_Wire_Model_And_Max_Output_Tokens()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Model = "claude-sonnet-4.5",
+            Provider = new ProviderConfig
+            {
+                Type = "openai",
+                BaseUrl = Ctx.ProxyUrl,
+                ApiKey = "test-provider-key",
+                WireModel = "test-wire-model",
+                MaxOutputTokens = 1024,
+            },
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        var exchange = Assert.Single(await Ctx.GetExchangesAsync());
+        Assert.Equal("test-wire-model", exchange.Request.Model);
+        Assert.Equal(1024, exchange.Request.MaxTokens);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Use_Provider_Model_Id_As_Wire_Model()
+    {
+        // ProviderConfig.ModelId drives both the runtime resolved model AND the wire model
+        // when WireModel is not specified. Here SessionConfig.Model is intentionally omitted
+        // so that ModelId is the only model source.
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Provider = new ProviderConfig
+            {
+                Type = "openai",
+                BaseUrl = Ctx.ProxyUrl,
+                ApiKey = "test-provider-key",
+                ModelId = "claude-sonnet-4.5",
+            },
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        var exchange = Assert.Single(await Ctx.GetExchangesAsync());
+        Assert.Equal("claude-sonnet-4.5", exchange.Request.Model);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Use_WorkingDirectory_For_Tool_Execution()
     {
         var subDir = Path.Join(Ctx.WorkDir, "subproject");
