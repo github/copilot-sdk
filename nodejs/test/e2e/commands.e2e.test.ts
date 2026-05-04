@@ -10,7 +10,10 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 describe("Commands", async () => {
     // Use TCP mode so a second client can connect to the same CLI process
     const tcpConnectionToken = "commands-test-token";
-    const ctx = await createSdkTestContext({ useStdio: false, copilotClientOptions: { tcpConnectionToken } });
+    const ctx = await createSdkTestContext({
+        useStdio: false,
+        copilotClientOptions: { tcpConnectionToken },
+    });
     const client1 = ctx.copilotClient;
 
     // Trigger connection so we can read the port

@@ -26,7 +26,11 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
-import { createServerRpc, createInternalServerRpc, registerClientSessionApiHandlers } from "./generated/rpc.js";
+import {
+    createServerRpc,
+    createInternalServerRpc,
+    registerClientSessionApiHandlers,
+} from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
 import { createSessionFsAdapter } from "./sessionFsProvider.js";
@@ -1117,7 +1121,9 @@ export class CopilotClient {
 
         let serverVersion: number | undefined;
         try {
-            const result = await raceAgainstExit(this.internalRpc.connect({ token: this.effectiveConnectionToken }));
+            const result = await raceAgainstExit(
+                this.internalRpc.connect({ token: this.effectiveConnectionToken })
+            );
             serverVersion = result.protocolVersion;
         } catch (err) {
             if (err instanceof ResponseError && err.code === ErrorCodes.MethodNotFound) {

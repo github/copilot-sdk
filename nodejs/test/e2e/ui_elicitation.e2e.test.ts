@@ -54,7 +54,10 @@ describe("UI Elicitation Callback", async () => {
 describe("UI Elicitation Multi-Client Capabilities", async () => {
     // Use TCP mode so a second client can connect to the same CLI process
     const tcpConnectionToken = "ui-elicitation-test-token";
-    const ctx = await createSdkTestContext({ useStdio: false, copilotClientOptions: { tcpConnectionToken } });
+    const ctx = await createSdkTestContext({
+        useStdio: false,
+        copilotClientOptions: { tcpConnectionToken },
+    });
     const client1 = ctx.copilotClient;
 
     // Trigger connection so we can read the port
@@ -135,7 +138,10 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
             });
 
             // Use a dedicated client so we can stop it without affecting shared client2
-            const client3 = new CopilotClient({ cliUrl: `localhost:${actualPort}`, tcpConnectionToken });
+            const client3 = new CopilotClient({
+                cliUrl: `localhost:${actualPort}`,
+                tcpConnectionToken,
+            });
 
             // Client3 joins WITH elicitation handler
             await client3.resumeSession(session1.sessionId, {

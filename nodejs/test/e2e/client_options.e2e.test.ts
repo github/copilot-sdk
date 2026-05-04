@@ -81,6 +81,11 @@ function handleMessage(message) {
   requests.push({ method: message.method, params: message.params });
   saveCapture();
 
+  if (message.method === "connect") {
+    writeResponse(message.id, { ok: true, protocolVersion: 3, version: "fake" });
+    return;
+  }
+
   if (message.method === "ping") {
     writeResponse(message.id, { message: "pong", protocolVersion: 3 });
     return;
