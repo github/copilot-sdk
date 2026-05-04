@@ -677,6 +677,7 @@ async function transformHttpExchanges(
   );
 
   normalizeToolCalls(dedupedExchanges, toolResultNormalizers);
+  normalizeToolResultOrder(dedupedExchanges);
   normalizeFilenames(dedupedExchanges, workDir);
   return { models: Array.from(dedupedModels), conversations: dedupedExchanges };
 }
@@ -780,6 +781,51 @@ function normalizeToolCalls(
       precedingMessages.push(msg);
     }
   }
+}
+
+function normalizeToolResultOrder(conversations: NormalizedConversation[]) {
+  for (const conv of conversations) {
+    for (let start = 0; start < conv.messages.length; ) {
+      if (conv.messages[start].role !== "tool") {
+        start++;
+        continue;
+      }
+
+      let end = start + 1;
+      while (end < conv.messages.length && conv.messages[end].role === "tool") {
+        end++;
+      }
+
+      conv.messages
+        .slice(start, end)
+        .sort(compareToolResultMessages)
+        .forEach((message, index) => {
+          conv.messages[start + index] = message;
+        });
+      start = end;
+    }
+  }
+}
+
+function compareToolResultMessages(
+  left: NormalizedMessage,
+  right: NormalizedMessage,
+) {
+  return compareToolCallIds(left.tool_call_id, right.tool_call_id);
+}
+
+function compareToolCallIds(left?: string, right?: string) {
+  const leftNumber = parseNormalizedToolCallId(left);
+  const rightNumber = parseNormalizedToolCallId(right);
+  if (leftNumber !== undefined && rightNumber !== undefined) {
+    return leftNumber - rightNumber;
+  }
+  return (left ?? "").localeCompare(right ?? "");
+}
+
+function parseNormalizedToolCallId(id?: string) {
+  const match = id?.match(/^toolcall_(\d+)$/);
+  return match ? Number(match[1]) : undefined;
 }
 
 // As we capture LLM calls, we see:
