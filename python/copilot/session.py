@@ -832,6 +832,28 @@ class ProviderConfig(TypedDict, total=False):
     bearer_token: str
     azure: AzureProviderOptions  # Azure-specific options
     headers: dict[str, str]
+    # Well-known model ID used to look up agent configuration (tools, prompts,
+    # reasoning behavior) and default token limits from the capability catalog.
+    # Useful for fine-tuned models that should inherit the configuration of a
+    # known base model.
+    # Defaults to the session's configured model (SessionConfig.model) when
+    # not explicitly set.
+    model_id: str
+    # Model identifier sent to the provider API for inference. Use this when the
+    # name your provider knows (e.g. an Azure deployment name or a custom
+    # fine-tune name) differs from the well-known model ID used for
+    # configuration lookup.
+    # Defaults to the session's configured model (SessionConfig.model) when
+    # not explicitly set.
+    wire_model: str
+    # Maximum number of tokens allowed in the prompt for a single LLM API
+    # request. Used by the runtime to trigger conversation compaction before
+    # sending a request when the prompt (system message, history, tool
+    # definitions, user message) exceeds this limit.
+    max_prompt_tokens: int
+    # Maximum number of tokens the model can generate in a single response.
+    # When hit, the model stops generating and returns a truncated response.
+    max_output_tokens: int
 
 
 class SessionConfig(TypedDict, total=False):
