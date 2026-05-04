@@ -188,6 +188,7 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
                 toolExecutionComplete.TrySetResult(toolEvt);
             }
         });
+        var idle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
 
         await session.SendAsync(new MessageOptions
         {
@@ -202,8 +203,9 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.Equal("denied", toolEvt.Data.Error?.Code);
         Assert.Contains("Access denied", toolEvt.Data.Error?.Message ?? string.Empty);
 
-        // Wait for the turn to complete
-        await TestHelper.GetFinalAssistantMessageAsync(session);
+        // A denied tool result may complete the turn without a follow-up assistant
+        // message; the stable contract is the tool result event plus session idle.
+        await idle;
 
         [Description("Accesses a secret")]
         ToolResultAIContent AccessSecret()
