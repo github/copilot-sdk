@@ -28,6 +28,8 @@ type ClientOptions struct {
 	// CopilotHome is the base directory for Copilot data (session state, config, etc.).
 	// Sets the COPILOT_HOME environment variable on the spawned CLI process.
 	// When empty, the CLI defaults to ~/.copilot.
+	// This does not affect where the Go SDK extracts the embedded CLI binary;
+	// use embeddedcli.Config.Dir to control that install/cache location.
 	// This option is only used when the SDK spawns the CLI process; it is ignored
 	// when connecting to an external server via CLIUrl.
 	CopilotHome string

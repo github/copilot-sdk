@@ -141,6 +141,9 @@ func TestClientOptionsE2E(t *testing.T) {
 			opts.AutoStart = copilot.Bool(false)
 			opts.CLIPath = cliPath
 			opts.CLIArgs = []string{"--capture-file", capturePath}
+			opts.CopilotHome = filepath.Join(ctx.WorkDir, "copilot-home-from-option")
+			opts.Env = append([]string{}, opts.Env...)
+			opts.Env = append(opts.Env, "COPILOT_HOME="+filepath.Join(ctx.WorkDir, "copilot-home-from-env"))
 			opts.GitHubToken = "process-option-token"
 			opts.LogLevel = "debug"
 			opts.SessionIdleTimeoutSeconds = 17
@@ -179,6 +182,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 
 		expectEnv := map[string]string{
+			"COPILOT_HOME":                                       filepath.Join(ctx.WorkDir, "copilot-home-from-option"),
 			"COPILOT_SDK_AUTH_TOKEN":                             "process-option-token",
 			"COPILOT_OTEL_ENABLED":                               "true",
 			"OTEL_EXPORTER_OTLP_ENDPOINT":                        "http://127.0.0.1:4318",
@@ -402,6 +406,7 @@ function saveCapture() {
     cwd: process.cwd(),
     requests,
     env: {
+      COPILOT_HOME: process.env.COPILOT_HOME,
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
