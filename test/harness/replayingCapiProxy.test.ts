@@ -762,13 +762,13 @@ describe("ReplayingCapiProxy", () => {
               },
               {
                 role: "tool",
-                tool_call_id: "toolcall_0",
-                content: "CITY_PARIS",
+                tool_call_id: "toolcall_1",
+                content: "COUNTRY_FRANCE",
               },
               {
                 role: "tool",
-                tool_call_id: "toolcall_1",
-                content: "COUNTRY_FRANCE",
+                tool_call_id: "toolcall_0",
+                content: "CITY_PARIS",
               },
               { role: "assistant", content: "Paris is in France." },
             ],

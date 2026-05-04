@@ -128,6 +128,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     if (this.state && existsSync(this.state.filePath)) {
       const content = await readFile(this.state.filePath, "utf-8");
       this.state.storedData = yaml.parse(content) as NormalizedData;
+      normalizeToolResultOrder(this.state.storedData.conversations);
     }
   }
 
