@@ -57,13 +57,25 @@ public class AbortE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var types = snapshot.Select(e => e.Type).ToList();
         Assert.Contains("assistant.message_delta", types);
 
-        // Session should be in a usable state after abort (not disposed)
-        // We can send again and get a response
-        var followUp = await session.SendAndWaitAsync(new MessageOptions
+        // Session should be usable after abort — verify by listening for the
+        // recovery message rather than racing against a late idle from the
+        // aborted streaming turn.
+        var recoveryReceived = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.On(evt =>
+        {
+            if (evt is AssistantMessageEvent msg && (msg.Data.Content?.Contains("abort_recovery_ok") == true))
+            {
+                recoveryReceived.TrySetResult(msg);
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
         {
             Prompt = "Say 'abort_recovery_ok'.",
         });
-        Assert.Contains("abort_recovery_ok", followUp?.Data.Content?.ToLowerInvariant() ?? string.Empty);
+
+        var recoveryMessage = await recoveryReceived.Task.WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.Contains("abort_recovery_ok", recoveryMessage.Data.Content?.ToLowerInvariant() ?? string.Empty);
 
         await session.DisposeAsync();
     }
