@@ -1238,8 +1238,15 @@ class CopilotClient:
             reasoning_effort: Reasoning effort level for the model.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
-            available_tools: Allowlist of built-in tools to enable.
-            excluded_tools: List of built-in tools to disable.
+            available_tools: Allowlist of tools to enable. When specified, only
+                these tools will be available. Applies to the full merged tool
+                catalog including built-in tools, MCP tools, and custom tools
+                registered via ``tools=``. Custom tool names must be explicitly
+                included or they will be hidden from the model. Takes precedence
+                over ``excluded_tools``.
+            excluded_tools: List of tools to disable. Applies to all tools
+                including custom tools registered via ``tools=``. Ignored if
+                ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
@@ -1531,8 +1538,15 @@ class CopilotClient:
             reasoning_effort: Reasoning effort level for the model.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
-            available_tools: Allowlist of built-in tools to enable.
-            excluded_tools: List of built-in tools to disable.
+            available_tools: Allowlist of tools to enable. When specified, only
+                these tools will be available. Applies to the full merged tool
+                catalog including built-in tools, MCP tools, and custom tools
+                registered via ``tools=``. Custom tool names must be explicitly
+                included or they will be hidden from the model. Takes precedence
+                over ``excluded_tools``.
+            excluded_tools: List of tools to disable. Applies to all tools
+                including custom tools registered via ``tools=``. Ignored if
+                ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
