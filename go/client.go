@@ -600,6 +600,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.DefaultAgent = config.DefaultAgent
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
+	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.GitHubToken = config.GitHubToken
@@ -789,6 +790,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.DefaultAgent = config.DefaultAgent
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
+	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.GitHubToken = config.GitHubToken

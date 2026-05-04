@@ -532,6 +532,65 @@ func TestResumeSessionRequest_Agent(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_InstructionDirectories(t *testing.T) {
+	t.Run("includes instructionDirectories in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{InstructionDirectories: []string{`C:\extra-instructions`, `C:\more-instructions`}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got := m["instructionDirectories"].([]any)
+		if len(got) != 2 || got[0] != `C:\extra-instructions` || got[1] != `C:\more-instructions` {
+			t.Errorf("Expected instructionDirectories to be serialized, got %v", got)
+		}
+	})
+
+	t.Run("omits instructionDirectories from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["instructionDirectories"]; ok {
+			t.Error("Expected instructionDirectories to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_InstructionDirectories(t *testing.T) {
+	t.Run("includes instructionDirectories in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:              "s1",
+			InstructionDirectories: []string{`C:\resume-instructions`},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got := m["instructionDirectories"].([]any)
+		if len(got) != 1 || got[0] != `C:\resume-instructions` {
+			t.Errorf("Expected instructionDirectories to be serialized, got %v", got)
+		}
+	})
+
+	t.Run("omits instructionDirectories from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["instructionDirectories"]; ok {
+			t.Error("Expected instructionDirectories to be omitted when empty")
+		}
+	})
+}
+
 func TestOverridesBuiltInTool(t *testing.T) {
 	t.Run("OverridesBuiltInTool is serialized in tool definition", func(t *testing.T) {
 		tool := Tool{

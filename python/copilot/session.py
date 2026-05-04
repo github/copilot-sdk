@@ -891,6 +891,8 @@ class SessionConfig(TypedDict, total=False):
     config_dir: str
     # Directories to load skills from
     skill_directories: list[str]
+    # Additional directories to search for custom instruction files.
+    instruction_directories: list[str]
     # List of skill names to disable
     disabled_skills: list[str]
     # Infinite session configuration for persistent workspaces and automatic compaction.
@@ -961,6 +963,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     agent: str
     # Directories to load skills from
     skill_directories: list[str]
+    # Additional directories to search for custom instruction files.
+    instruction_directories: list[str]
     # List of skill names to disable
     disabled_skills: list[str]
     # Infinite session configuration for persistent workspaces and automatic compaction.

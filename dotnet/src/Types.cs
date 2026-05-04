@@ -1800,6 +1800,7 @@ public class SessionConfig
         GitHubToken = other.GitHubToken;
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -1959,6 +1960,11 @@ public class SessionConfig
     public IList<string>? SkillDirectories { get; set; }
 
     /// <summary>
+    /// Additional directories to search for custom instruction files.
+    /// </summary>
+    public IList<string>? InstructionDirectories { get; set; }
+
+    /// <summary>
     /// List of skill names to disable.
     /// </summary>
     public IList<string>? DisabledSkills { get; set; }
@@ -2058,6 +2064,7 @@ public class ResumeSessionConfig
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -2234,6 +2241,11 @@ public class ResumeSessionConfig
     /// Directories to load skills from.
     /// </summary>
     public IList<string>? SkillDirectories { get; set; }
+
+    /// <summary>
+    /// Additional directories to search for custom instruction files.
+    /// </summary>
+    public IList<string>? InstructionDirectories { get; set; }
 
     /// <summary>
     /// List of skill names to disable.

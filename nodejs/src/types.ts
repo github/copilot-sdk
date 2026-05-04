@@ -1339,6 +1339,11 @@ export interface SessionConfig {
     skillDirectories?: string[];
 
     /**
+     * Additional directories to search for custom instruction files.
+     */
+    instructionDirectories?: string[];
+
+    /**
      * List of skill names to disable.
      */
     disabledSkills?: string[];
@@ -1409,6 +1414,7 @@ export type ResumeSessionConfig = Pick<
     | "defaultAgent"
     | "agent"
     | "skillDirectories"
+    | "instructionDirectories"
     | "disabledSkills"
     | "infiniteSessions"
     | "gitHubToken"

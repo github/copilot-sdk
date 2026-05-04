@@ -288,6 +288,64 @@ class TestOverridesBuiltInTool:
             await client.force_stop()
 
 
+class TestInstructionDirectories:
+    @pytest.mark.asyncio
+    async def test_create_session_sends_instruction_directories(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                instruction_directories=["C:\\extra-instructions", "C:\\more-instructions"],
+            )
+
+            assert captured["session.create"]["instructionDirectories"] == [
+                "C:\\extra-instructions",
+                "C:\\more-instructions",
+            ]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_sends_instruction_directories(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+
+            await client.resume_session(
+                "session-id",
+                on_permission_request=PermissionHandler.approve_all,
+                instruction_directories=["C:\\resume-instructions"],
+            )
+
+            assert captured["session.resume"]["instructionDirectories"] == [
+                "C:\\resume-instructions"
+            ]
+        finally:
+            await client.force_stop()
+
+
 class TestOnListModels:
     @pytest.mark.asyncio
     async def test_list_models_with_custom_handler(self):

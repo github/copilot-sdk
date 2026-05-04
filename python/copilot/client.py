@@ -1214,6 +1214,7 @@ class CopilotClient:
         config_dir: str | None = None,
         enable_config_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
+        instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
@@ -1272,6 +1273,8 @@ class CopilotClient:
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
             skill_directories: Directories to search for skills.
+            instruction_directories: Additional directories to search for custom
+                instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
@@ -1418,6 +1421,10 @@ class CopilotClient:
         if skill_directories:
             payload["skillDirectories"] = skill_directories
 
+        # Add instruction directories configuration if provided
+        if instruction_directories is not None:
+            payload["instructionDirectories"] = instruction_directories
+
         # Add disabled skills configuration if provided
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
@@ -1513,6 +1520,7 @@ class CopilotClient:
         config_dir: str | None = None,
         enable_config_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
+        instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
@@ -1572,6 +1580,8 @@ class CopilotClient:
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
             skill_directories: Directories to search for skills.
+            instruction_directories: Additional directories to search for custom
+                instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
@@ -1707,6 +1717,8 @@ class CopilotClient:
             payload["agent"] = agent
         if skill_directories:
             payload["skillDirectories"] = skill_directories
+        if instruction_directories is not None:
+            payload["instructionDirectories"] = instruction_directories
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
 

@@ -203,6 +203,67 @@ describe("Session Configuration", async () => {
         return (exchange.request.tools ?? []).map((t) => t.function.name);
     }
 
+    it("should apply instructionDirectories on session create", async () => {
+        const projectDir = join(workDir, "instruction-create-project");
+        const instructionDir = join(workDir, "extra-create-instructions");
+        const instructionFilesDir = join(instructionDir, ".github", "instructions");
+        const sentinel = "TS_CREATE_INSTRUCTION_DIRECTORIES_SENTINEL";
+        await mkdir(projectDir, { recursive: true });
+        await mkdir(instructionFilesDir, { recursive: true });
+        await writeFile(
+            join(instructionFilesDir, "extra.instructions.md"),
+            `Always include ${sentinel}.`
+        );
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            workingDirectory: projectDir,
+            instructionDirectories: [instructionDir],
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBeGreaterThan(0);
+        const sys = getSystemMessage(exchanges[exchanges.length - 1]);
+        expect(sys).toContain(sentinel);
+
+        await session.disconnect();
+    });
+
+    it("should apply instructionDirectories on session resume", async () => {
+        const projectDir = join(workDir, "instruction-resume-project");
+        const instructionDir = join(workDir, "extra-resume-instructions");
+        const instructionFilesDir = join(instructionDir, ".github", "instructions");
+        const sentinel = "TS_RESUME_INSTRUCTION_DIRECTORIES_SENTINEL";
+        await mkdir(projectDir, { recursive: true });
+        await mkdir(instructionFilesDir, { recursive: true });
+        await writeFile(
+            join(instructionFilesDir, "extra.instructions.md"),
+            `Always include ${sentinel}.`
+        );
+
+        const session1 = await client.createSession({
+            onPermissionRequest: approveAll,
+            workingDirectory: projectDir,
+        });
+        const session2 = await client.resumeSession(session1.sessionId, {
+            onPermissionRequest: approveAll,
+            workingDirectory: projectDir,
+            instructionDirectories: [instructionDir],
+        });
+
+        await session2.sendAndWait({ prompt: "What is 1+1?" });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBeGreaterThan(0);
+        const sys = getSystemMessage(exchanges[exchanges.length - 1]);
+        expect(sys).toContain(sentinel);
+
+        await session2.disconnect();
+        await session1.disconnect();
+    });
+
     it("should forward clientName in user-agent", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,

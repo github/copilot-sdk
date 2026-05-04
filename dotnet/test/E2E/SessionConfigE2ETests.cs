@@ -250,6 +250,65 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Apply_InstructionDirectories_On_Create()
+    {
+        var projectDir = Path.Join(Ctx.WorkDir, "instruction-create-project");
+        var instructionDir = Path.Join(Ctx.WorkDir, "extra-create-instructions");
+        var instructionFilesDir = Path.Join(instructionDir, ".github", "instructions");
+        const string sentinel = "CS_CREATE_INSTRUCTION_DIRECTORIES_SENTINEL";
+        Directory.CreateDirectory(projectDir);
+        Directory.CreateDirectory(instructionFilesDir);
+        await File.WriteAllTextAsync(
+            Path.Join(instructionFilesDir, "extra.instructions.md"),
+            $"Always include {sentinel}.");
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = projectDir,
+            InstructionDirectories = [instructionDir],
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        var exchange = Assert.Single(await Ctx.GetExchangesAsync());
+        Assert.Contains(sentinel, GetSystemMessage(exchange));
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Apply_InstructionDirectories_On_Resume()
+    {
+        var projectDir = Path.Join(Ctx.WorkDir, "instruction-resume-project");
+        var instructionDir = Path.Join(Ctx.WorkDir, "extra-resume-instructions");
+        var instructionFilesDir = Path.Join(instructionDir, ".github", "instructions");
+        const string sentinel = "CS_RESUME_INSTRUCTION_DIRECTORIES_SENTINEL";
+        Directory.CreateDirectory(projectDir);
+        Directory.CreateDirectory(instructionFilesDir);
+        await File.WriteAllTextAsync(
+            Path.Join(instructionFilesDir, "extra.instructions.md"),
+            $"Always include {sentinel}.");
+
+        var session1 = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = projectDir,
+        });
+        var session2 = await ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        {
+            WorkingDirectory = projectDir,
+            InstructionDirectories = [instructionDir],
+        });
+
+        await session2.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        var exchange = Assert.Single(await Ctx.GetExchangesAsync());
+        Assert.Contains(sentinel, GetSystemMessage(exchange));
+
+        await session2.DisposeAsync();
+        await session1.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Apply_AvailableTools_On_Session_Resume()
     {
         var session1 = await CreateSessionAsync();

@@ -82,6 +82,39 @@ public class SerializationTests
     }
 
     [Fact]
+    public void CreateSessionRequest_CanSerializeInstructionDirectories_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("InstructionDirectories", new List<string> { "C:\\extra-instructions", "C:\\more-instructions" }));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal("C:\\extra-instructions", root.GetProperty("instructionDirectories")[0].GetString());
+        Assert.Equal("C:\\more-instructions", root.GetProperty("instructionDirectories")[1].GetString());
+    }
+
+    [Fact]
+    public void ResumeSessionRequest_CanSerializeInstructionDirectories_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("InstructionDirectories", new List<string> { "C:\\resume-instructions" }));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal("C:\\resume-instructions", root.GetProperty("instructionDirectories")[0].GetString());
+    }
+
+    [Fact]
     public void McpHttpServerConfig_CanSerializeOauthOptions_WithSdkOptions()
     {
         var options = GetSerializerOptions();
