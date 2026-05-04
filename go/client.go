@@ -231,6 +231,9 @@ func NewClient(options *ClientOptions) *Client {
 		if options.Telemetry != nil {
 			opts.Telemetry = options.Telemetry
 		}
+		if options.CopilotHome != "" {
+			opts.CopilotHome = options.CopilotHome
+		}
 		opts.SessionIdleTimeoutSeconds = options.SessionIdleTimeoutSeconds
 	}
 
@@ -1470,6 +1473,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	if c.effectiveConnectionToken != "" {
 		c.process.Env = append(c.process.Env, "COPILOT_CONNECTION_TOKEN="+c.effectiveConnectionToken)
+	}
+
+	if c.options.CopilotHome != "" {
+		c.process.Env = append(c.process.Env, "COPILOT_HOME="+c.options.CopilotHome)
 	}
 
 	if c.options.Telemetry != nil {

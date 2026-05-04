@@ -133,6 +133,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `CLIPath` (string): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
 - `CLIUrl` (string): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
 - `Cwd` (string): Working directory for CLI process
+- `CopilotHome` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When empty, the CLI defaults to `~/.copilot`. Also used as the default cache directory for the embedded CLI binary. Useful in restricted environments where only specific directories are writable. Ignored when using `CLIUrl`.
 - `Port` (int): Server port for TCP mode (default: 0 for random)
 - `UseStdio` (bool): Use stdio transport instead of TCP (default: true)
 - `LogLevel` (string): Log level (default: "info")

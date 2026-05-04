@@ -228,6 +228,7 @@ export class CopilotClient {
             | "onGetTraceContext"
             | "sessionFs"
             | "tcpConnectionToken"
+            | "copilotHome"
         >
     > & {
         cliPath?: string;
@@ -235,6 +236,7 @@ export class CopilotClient {
         gitHubToken?: string;
         useLoggedInUser?: boolean;
         telemetry?: TelemetryConfig;
+        copilotHome?: string;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -381,6 +383,7 @@ export class CopilotClient {
             // Default useLoggedInUser to false when gitHubToken is provided, otherwise true
             useLoggedInUser: options.useLoggedInUser ?? (options.gitHubToken ? false : true),
             telemetry: options.telemetry,
+            copilotHome: options.copilotHome,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
         };
     }
@@ -1494,6 +1497,10 @@ export class CopilotClient {
 
             if (this.effectiveConnectionToken) {
                 envWithoutNodeDebug.COPILOT_CONNECTION_TOKEN = this.effectiveConnectionToken;
+            }
+
+            if (this.options.copilotHome) {
+                envWithoutNodeDebug.COPILOT_HOME = this.options.copilotHome;
             }
 
             if (!this.options.cliPath) {

@@ -59,6 +59,7 @@ public class CopilotClientOptions
         CliPath = other.CliPath;
         CliUrl = other.CliUrl;
         Cwd = other.Cwd;
+        CopilotHome = other.CopilotHome;
         Environment = other.Environment;
         GitHubToken = other.GitHubToken;
         Logger = other.Logger;
@@ -85,6 +86,14 @@ public class CopilotClientOptions
     /// Working directory for the CLI process.
     /// </summary>
     public string? Cwd { get; set; }
+    /// <summary>
+    /// Base directory for Copilot data (session state, config, etc.).
+    /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned CLI process.
+    /// When <see langword="null"/>, the CLI defaults to <c>~/.copilot</c>.
+    /// This option is only used when the SDK spawns the CLI process; it is ignored
+    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// </summary>
+    public string? CopilotHome { get; set; }
     /// <summary>
     /// Port number for the CLI server when not using stdio transport.
     /// </summary>
