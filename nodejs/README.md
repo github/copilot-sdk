@@ -88,6 +88,7 @@ new CopilotClient(options?: CopilotClientOptions)
 - `autoStart?: boolean` - Auto-start server (default: true)
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `gitHubToken` is provided). Cannot be used with `cliUrl`.
+- `copilotHome?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When not set, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `cliUrl`.
 - `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the CLI process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the CLI's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
 

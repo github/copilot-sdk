@@ -1261,6 +1261,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             startInfo.Environment["COPILOT_CONNECTION_TOKEN"] = connectionToken;
         }
 
+        if (!string.IsNullOrEmpty(options.CopilotHome))
+        {
+            startInfo.Environment["COPILOT_HOME"] = options.CopilotHome;
+        }
+
         // Set telemetry environment variables if configured
         if (options.Telemetry is { } telemetry)
         {

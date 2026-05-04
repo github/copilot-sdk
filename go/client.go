@@ -231,6 +231,9 @@ func NewClient(options *ClientOptions) *Client {
 		if options.Telemetry != nil {
 			opts.Telemetry = options.Telemetry
 		}
+		if options.CopilotHome != "" {
+			opts.CopilotHome = options.CopilotHome
+		}
 		opts.SessionIdleTimeoutSeconds = options.SessionIdleTimeoutSeconds
 	}
 
@@ -268,6 +271,19 @@ func getEnvValue(env []string, key string) string {
 		}
 	}
 	return ""
+}
+
+// setEnvValue returns a copy of env with all existing entries for key removed and
+// a single trailing KEY=VALUE entry added so SDK-managed values win deterministically.
+func setEnvValue(env []string, key string, value string) []string {
+	prefix := key + "="
+	filtered := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, prefix) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return append(filtered, key+"="+value)
 }
 
 // parseCliUrl parses a CLI URL into host and port components.
@@ -1462,37 +1478,40 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.process.Dir = c.options.Cwd
 	}
 
-	// Add auth token if needed.
-	c.process.Env = c.options.Env
+	c.process.Env = append([]string{}, c.options.Env...)
 	if c.options.GitHubToken != "" {
-		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GitHubToken)
+		c.process.Env = setEnvValue(c.process.Env, "COPILOT_SDK_AUTH_TOKEN", c.options.GitHubToken)
 	}
 
 	if c.effectiveConnectionToken != "" {
-		c.process.Env = append(c.process.Env, "COPILOT_CONNECTION_TOKEN="+c.effectiveConnectionToken)
+		c.process.Env = setEnvValue(c.process.Env, "COPILOT_CONNECTION_TOKEN", c.effectiveConnectionToken)
+	}
+
+	if c.options.CopilotHome != "" {
+		c.process.Env = setEnvValue(c.process.Env, "COPILOT_HOME", c.options.CopilotHome)
 	}
 
 	if c.options.Telemetry != nil {
 		t := c.options.Telemetry
-		c.process.Env = append(c.process.Env, "COPILOT_OTEL_ENABLED=true")
+		c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_ENABLED", "true")
 		if t.OTLPEndpoint != "" {
-			c.process.Env = append(c.process.Env, "OTEL_EXPORTER_OTLP_ENDPOINT="+t.OTLPEndpoint)
+			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_ENDPOINT", t.OTLPEndpoint)
 		}
 		if t.FilePath != "" {
-			c.process.Env = append(c.process.Env, "COPILOT_OTEL_FILE_EXPORTER_PATH="+t.FilePath)
+			c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_FILE_EXPORTER_PATH", t.FilePath)
 		}
 		if t.ExporterType != "" {
-			c.process.Env = append(c.process.Env, "COPILOT_OTEL_EXPORTER_TYPE="+t.ExporterType)
+			c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_EXPORTER_TYPE", t.ExporterType)
 		}
 		if t.SourceName != "" {
-			c.process.Env = append(c.process.Env, "COPILOT_OTEL_SOURCE_NAME="+t.SourceName)
+			c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_SOURCE_NAME", t.SourceName)
 		}
 		if t.CaptureContent != nil {
 			val := "false"
 			if *t.CaptureContent {
 				val = "true"
 			}
-			c.process.Env = append(c.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT="+val)
+			c.process.Env = setEnvValue(c.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", val)
 		}
 	}
 

@@ -153,6 +153,7 @@ CopilotClient(
 - `log_level` (str): Log level (default: "info")
 - `env` (dict | None): Environment variables for the CLI process
 - `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
+- `copilot_home` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `ExternalServerConfig`.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 

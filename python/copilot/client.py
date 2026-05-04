@@ -148,6 +148,14 @@ class SubprocessConfig:
     github_token: str | None = None
     """GitHub token for authentication. Takes priority over other auth methods."""
 
+    copilot_home: str | None = None
+    """Base directory for Copilot data (session state, config, etc.).
+
+    Sets the ``COPILOT_HOME`` environment variable on the spawned CLI process.
+    When ``None``, the CLI defaults to ``~/.copilot``.
+    This option is only used when the SDK spawns the CLI process.
+    """
+
     use_logged_in_user: bool | None = None
     """Use the logged-in user for authentication.
 
@@ -2378,6 +2386,8 @@ class CopilotClient:
 
         if self._effective_connection_token:
             env["COPILOT_CONNECTION_TOKEN"] = self._effective_connection_token
+        if cfg.copilot_home:
+            env["COPILOT_HOME"] = cfg.copilot_home
 
         # Set OpenTelemetry environment variables if telemetry config is provided
         telemetry = cfg.telemetry

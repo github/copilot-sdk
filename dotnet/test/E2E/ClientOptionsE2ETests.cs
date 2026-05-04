@@ -93,6 +93,10 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var cliPath = Path.Join(Ctx.WorkDir, $"fake-cli-{Guid.NewGuid():N}.js");
         var capturePath = Path.Join(Ctx.WorkDir, $"fake-cli-capture-{Guid.NewGuid():N}.json");
         var telemetryPath = Path.Join(Ctx.WorkDir, "telemetry.jsonl");
+        var copilotHomeFromEnv = Path.Join(Ctx.WorkDir, "copilot-home-from-env");
+        var copilotHomeFromOption = Path.Join(Ctx.WorkDir, "copilot-home-from-option");
+        var clientEnv = Ctx.GetEnvironment().ToDictionary(pair => pair.Key, pair => pair.Value);
+        clientEnv["COPILOT_HOME"] = copilotHomeFromEnv;
         await File.WriteAllTextAsync(cliPath, FakeStdioCliScript);
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
@@ -100,6 +104,8 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             AutoStart = false,
             CliPath = cliPath,
             CliArgs = ["--capture-file", capturePath],
+            CopilotHome = copilotHomeFromOption,
+            Environment = clientEnv,
             GitHubToken = "process-option-token",
             LogLevel = "debug",
             SessionIdleTimeoutSeconds = 17,
@@ -119,7 +125,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
         var root = capture.RootElement;
         var args = root.GetProperty("args").EnumerateArray().Select(e => e.GetString()).ToArray();
-        var env = root.GetProperty("env");
+        var capturedEnv = root.GetProperty("env");
 
         AssertArgumentValue(args, "--log-level", "debug");
         Assert.Contains("--stdio", args);
@@ -128,13 +134,14 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         AssertArgumentValue(args, "--session-idle-timeout", "17");
         Assert.Equal(Path.GetFullPath(Ctx.WorkDir), root.GetProperty("cwd").GetString());
 
-        Assert.Equal("process-option-token", env.GetProperty("COPILOT_SDK_AUTH_TOKEN").GetString());
-        Assert.Equal("true", env.GetProperty("COPILOT_OTEL_ENABLED").GetString());
-        Assert.Equal("http://127.0.0.1:4318", env.GetProperty("OTEL_EXPORTER_OTLP_ENDPOINT").GetString());
-        Assert.Equal(telemetryPath, env.GetProperty("COPILOT_OTEL_FILE_EXPORTER_PATH").GetString());
-        Assert.Equal("file", env.GetProperty("COPILOT_OTEL_EXPORTER_TYPE").GetString());
-        Assert.Equal("dotnet-sdk-e2e", env.GetProperty("COPILOT_OTEL_SOURCE_NAME").GetString());
-        Assert.Equal("true", env.GetProperty("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT").GetString());
+        Assert.Equal(copilotHomeFromOption, capturedEnv.GetProperty("COPILOT_HOME").GetString());
+        Assert.Equal("process-option-token", capturedEnv.GetProperty("COPILOT_SDK_AUTH_TOKEN").GetString());
+        Assert.Equal("true", capturedEnv.GetProperty("COPILOT_OTEL_ENABLED").GetString());
+        Assert.Equal("http://127.0.0.1:4318", capturedEnv.GetProperty("OTEL_EXPORTER_OTLP_ENDPOINT").GetString());
+        Assert.Equal(telemetryPath, capturedEnv.GetProperty("COPILOT_OTEL_FILE_EXPORTER_PATH").GetString());
+        Assert.Equal("file", capturedEnv.GetProperty("COPILOT_OTEL_EXPORTER_TYPE").GetString());
+        Assert.Equal("dotnet-sdk-e2e", capturedEnv.GetProperty("COPILOT_OTEL_SOURCE_NAME").GetString());
+        Assert.Equal("true", capturedEnv.GetProperty("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT").GetString());
 
         var session = await client.CreateSessionAsync(new SessionConfig
         {
@@ -281,6 +288,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             cwd: process.cwd(),
             requests,
             env: {
+              COPILOT_HOME: process.env.COPILOT_HOME,
               COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
               COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
               OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,

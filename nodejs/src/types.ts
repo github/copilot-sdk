@@ -72,6 +72,15 @@ export interface CopilotClientOptions {
     cwd?: string;
 
     /**
+     * Base directory for Copilot data (session state, config, etc.).
+     * Sets the COPILOT_HOME environment variable on the spawned CLI process.
+     * When not set, the CLI defaults to ~/.copilot.
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link cliUrl}.
+     */
+    copilotHome?: string;
+
+    /**
      * Port for the CLI server (TCP mode only)
      * @default 0 (random available port)
      */

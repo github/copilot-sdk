@@ -61,11 +61,12 @@ function saveCapture() {
   if (!captureFile) {
     return;
   }
-  fs.writeFileSync(captureFile, JSON.stringify({
+    fs.writeFileSync(captureFile, JSON.stringify({
     args: process.argv.slice(2),
     cwd: process.cwd(),
     requests,
     env: {
+      COPILOT_HOME: process.env.COPILOT_HOME,
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
@@ -205,6 +206,8 @@ class TestClientOptions:
         cli_path = os.path.join(ctx.work_dir, "fake-cli.js")
         capture_path = os.path.join(ctx.work_dir, "fake-cli-capture.json")
         telemetry_path = os.path.join(ctx.work_dir, "telemetry.jsonl")
+        copilot_home_from_env = os.path.join(ctx.work_dir, "copilot-home-from-env")
+        copilot_home_from_option = os.path.join(ctx.work_dir, "copilot-home-from-option")
         with open(cli_path, "w") as f:
             f.write(FAKE_STDIO_CLI_SCRIPT)
 
@@ -212,7 +215,9 @@ class TestClientOptions:
             _make_subprocess_config(
                 ctx,
                 cli_path=cli_path,
+                copilot_home=copilot_home_from_option,
                 cli_args=["--capture-file", capture_path],
+                env={**ctx.get_env(), "COPILOT_HOME": copilot_home_from_env},
                 github_token="process-option-token",
                 log_level="debug",
                 session_idle_timeout_seconds=17,
@@ -243,6 +248,7 @@ class TestClientOptions:
             _assert_arg_value(args, "--session-idle-timeout", "17")
             assert os.path.realpath(capture["cwd"]) == os.path.realpath(ctx.work_dir)
 
+            assert env["COPILOT_HOME"] == copilot_home_from_option
             assert env["COPILOT_SDK_AUTH_TOKEN"] == "process-option-token"
             assert env["COPILOT_OTEL_ENABLED"] == "true"
             assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://127.0.0.1:4318"

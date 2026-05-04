@@ -662,6 +662,23 @@ describe("CopilotClient", () => {
             expect((client as any).options.useLoggedInUser).toBe(false);
         });
 
+        it("should accept copilotHome option", () => {
+            const client = new CopilotClient({
+                copilotHome: "/custom/copilot/home",
+                logLevel: "error",
+            });
+
+            expect((client as any).options.copilotHome).toBe("/custom/copilot/home");
+        });
+
+        it("should leave copilotHome undefined when not provided", () => {
+            const client = new CopilotClient({
+                logLevel: "error",
+            });
+
+            expect((client as any).options.copilotHome).toBeUndefined();
+        });
+
         it("should throw error when gitHubToken is used with cliUrl", () => {
             expect(() => {
                 new CopilotClient({

@@ -25,6 +25,14 @@ type ClientOptions struct {
 	CLIArgs []string
 	// Cwd is the working directory for the CLI process (default: "" = inherit from current process)
 	Cwd string
+	// CopilotHome is the base directory for Copilot data (session state, config, etc.).
+	// Sets the COPILOT_HOME environment variable on the spawned CLI process.
+	// When empty, the CLI defaults to ~/.copilot.
+	// This does not affect where the Go SDK extracts the embedded CLI binary;
+	// use embeddedcli.Config.Dir to control that install/cache location.
+	// This option is only used when the SDK spawns the CLI process; it is ignored
+	// when connecting to an external server via CLIUrl.
+	CopilotHome string
 	// Port for TCP transport (default: 0 = random port)
 	Port int
 	// UseStdio controls whether to use stdio transport instead of TCP.
