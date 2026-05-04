@@ -3,28 +3,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: session-events.schema.json
+// Generated from: api.schema.json
 
-package com.github.copilot.sdk.generated;
+package com.github.copilot.sdk.generated.rpc;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
-/**
- * Per-request cost and usage data from the CAPI copilot_usage response field
- *
- * @since 1.0.0
- */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record CompactionCompleteCompactionTokensUsedCopilotUsage(
-    /** Itemized token usage breakdown */
-    @JsonProperty("tokenDetails") List<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail> tokenDetails,
-    /** Total cost in nano-AI units for this request */
-    @JsonProperty("totalNanoAiu") Double totalNanoAiu
+public record UsageMetricsTokenDetail(
+    /** Accumulated token count for this token type */
+    @JsonProperty("tokenCount") Long tokenCount
 ) {
 }

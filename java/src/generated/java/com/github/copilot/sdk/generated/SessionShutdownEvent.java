@@ -42,6 +42,10 @@ public final class SessionShutdownEvent extends SessionEvent {
         @JsonProperty("errorReason") String errorReason,
         /** Total number of premium API requests used during the session */
         @JsonProperty("totalPremiumRequests") Double totalPremiumRequests,
+        /** Session-wide accumulated nano-AI units cost */
+        @JsonProperty("totalNanoAiu") Double totalNanoAiu,
+        /** Session-wide per-token-type accumulated token counts */
+        @JsonProperty("tokenDetails") Map<String, ShutdownTokenDetail> tokenDetails,
         /** Cumulative time spent in API calls during the session, in milliseconds */
         @JsonProperty("totalApiDurationMs") Double totalApiDurationMs,
         /** Unix timestamp (milliseconds) when the session started */

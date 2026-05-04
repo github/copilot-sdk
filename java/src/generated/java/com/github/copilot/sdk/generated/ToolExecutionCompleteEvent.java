@@ -52,6 +52,8 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         @JsonProperty("error") ToolExecutionCompleteError error,
         /** Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts) */
         @JsonProperty("toolTelemetry") Map<String, Object> toolTelemetry,
+        /** Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event */
+        @JsonProperty("turnId") String turnId,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {

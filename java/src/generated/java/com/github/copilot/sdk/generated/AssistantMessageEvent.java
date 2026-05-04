@@ -56,6 +56,8 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("interactionId") String interactionId,
         /** GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs */
         @JsonProperty("requestId") String requestId,
+        /** Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event */
+        @JsonProperty("turnId") String turnId,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {

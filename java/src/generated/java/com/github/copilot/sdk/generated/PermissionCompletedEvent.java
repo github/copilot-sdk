@@ -40,7 +40,7 @@ public final class PermissionCompletedEvent extends SessionEvent {
         /** Optional tool call ID associated with this permission prompt; clients may use it to correlate UI created from tool-scoped prompts */
         @JsonProperty("toolCallId") String toolCallId,
         /** The result of the permission request */
-        @JsonProperty("result") PermissionCompletedResult result
+        @JsonProperty("result") Object result
     ) {
     }
 }
