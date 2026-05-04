@@ -124,15 +124,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _options = options ?? new();
 
         // Validate mutually exclusive options
-        if (!string.IsNullOrEmpty(_options.CliUrl) && _options.CliPath != null)
+        if (!string.IsNullOrEmpty(_options.CliUrl) && (_options.UseStdio == true || _options.CliPath != null))
         {
-            throw new ArgumentException("CliUrl is mutually exclusive with CliPath");
+            throw new ArgumentException("CliUrl is mutually exclusive with UseStdio and CliPath");
         }
 
-        // When CliUrl is provided, disable UseStdio (we connect to an external server, not spawn one)
+        // When CliUrl is provided, force TCP mode (we connect to an external server, not spawn one)
         if (!string.IsNullOrEmpty(_options.CliUrl))
         {
             _options.UseStdio = false;
+        }
+        else
+        {
+            _options.UseStdio ??= true;
         }
 
         // Validate auth options with external server
@@ -147,13 +151,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 throw new ArgumentException("TcpConnectionToken must be a non-empty string");
             }
-            if (_options.UseStdio && string.IsNullOrEmpty(_options.CliUrl))
+            if (_options.UseStdio == true)
             {
                 throw new ArgumentException("TcpConnectionToken cannot be used with UseStdio = true");
             }
         }
 
-        var sdkSpawnsCli = !_options.UseStdio && string.IsNullOrEmpty(_options.CliUrl);
+        var sdkSpawnsCli = _options.UseStdio == false && string.IsNullOrEmpty(_options.CliUrl);
         _effectiveConnectionToken = _options.TcpConnectionToken
             ?? (sdkSpawnsCli ? Guid.NewGuid().ToString() : null);
 
@@ -1194,7 +1198,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         args.AddRange(["--headless", "--no-auto-update", "--log-level", options.LogLevel]);
 
-        if (options.UseStdio)
+        if (options.UseStdio == true)
         {
             args.Add("--stdio");
         }
@@ -1228,7 +1232,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             FileName = fileName,
             Arguments = string.Join(" ", processArgs.Select(ProcessArgumentEscaper.Escape)),
             UseShellExecute = false,
-            RedirectStandardInput = options.UseStdio,
+            RedirectStandardInput = options.UseStdio == true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             WorkingDirectory = options.Cwd,
@@ -1294,7 +1298,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }, cancellationToken);
 
         var detectedLocalhostTcpPort = (int?)null;
-        if (!options.UseStdio)
+        if (options.UseStdio != true)
         {
             // Wait for port announcement
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -1360,7 +1364,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Stream inputStream, outputStream;
         NetworkStream? networkStream = null;
 
-        if (_options.UseStdio)
+        if (_options.UseStdio == true)
         {
             if (cliProcess == null)
             {

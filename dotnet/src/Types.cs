@@ -91,8 +91,11 @@ public class CopilotClientOptions
     public int Port { get; set; }
     /// <summary>
     /// Whether to use stdio transport for communication with the CLI server.
+    /// Defaults to <c>true</c> when neither <see cref="CliUrl"/> nor <see cref="Port"/>
+    /// switches the client into TCP mode. Setting this to <c>true</c> is mutually
+    /// exclusive with <see cref="CliUrl"/>.
     /// </summary>
-    public bool UseStdio { get; set; } = true;
+    public bool? UseStdio { get; set; }
     /// <summary>
     /// URL of an existing CLI server to connect to instead of starting a new one.
     /// </summary>
