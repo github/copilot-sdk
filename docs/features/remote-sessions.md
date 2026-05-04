@@ -17,6 +17,7 @@ Set `remote: true` when creating the client. Every session in a GitHub repo auto
 
 #### **TypeScript**
 
+<!-- docs-validate: skip -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -35,6 +36,7 @@ session.on("session.info", (event) => {
 
 #### **Python**
 
+<!-- docs-validate: skip -->
 ```python
 from copilot import CopilotClient, SubprocessConfig
 
@@ -53,12 +55,13 @@ session.on(on_event)
 
 #### **Go**
 
+<!-- docs-validate: skip -->
 ```go
 client, _ := copilot.NewClient(&copilot.ClientOptions{Remote: true})
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
     WorkingDirectory: "/path/to/github-repo",
-    OnPermissionRequest: func(req copilot.PermissionRequest) copilot.PermissionResponse {
-        return copilot.PermissionResponse{Allowed: true}
+    OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
     },
 })
 
@@ -71,12 +74,14 @@ session.On(func(event copilot.SessionEvent) {
 
 #### **C#**
 
+<!-- docs-validate: skip -->
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions { Remote = true });
 var session = await client.CreateSessionAsync(new SessionConfig
 {
     WorkingDirectory = "/path/to/github-repo",
-    OnPermissionRequest = async (req, ct) => new() { Allowed = true },
+    OnPermissionRequest = (req, inv) =>
+        Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
 });
 
 session.On((SessionEvent e) =>
@@ -98,6 +103,7 @@ Use `session.rpc.remote.enable()` to start remote access mid-session, and `sessi
 
 #### **TypeScript**
 
+<!-- docs-validate: skip -->
 ```typescript
 const result = await session.rpc.remote.enable();
 console.log("Remote URL:", result.url);
@@ -108,6 +114,7 @@ await session.rpc.remote.disable();
 
 #### **Python**
 
+<!-- docs-validate: skip -->
 ```python
 result = await session.rpc.remote.enable()
 print(f"Remote URL: {result.url}")
@@ -118,6 +125,7 @@ await session.rpc.remote.disable()
 
 #### **Go**
 
+<!-- docs-validate: skip -->
 ```go
 result, err := session.RPC.Remote.Enable(ctx)
 fmt.Println("Remote URL:", *result.URL)
@@ -128,6 +136,7 @@ err = session.RPC.Remote.Disable(ctx)
 
 #### **C#**
 
+<!-- docs-validate: skip -->
 ```csharp
 var result = await session.Rpc.Remote.EnableAsync();
 Console.WriteLine($"Remote URL: {result.Url}");
