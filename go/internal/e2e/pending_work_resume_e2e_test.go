@@ -493,6 +493,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		suspendedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		session1, err := suspendedClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools:               []copilot.Tool{originalTool},
@@ -531,6 +532,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		t.Cleanup(func() { resumedClient.ForceStop() })
 
@@ -609,6 +611,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 			firstClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 				opts.CLIUrl = cliURL
 				opts.CLIPath = ""
+				opts.TCPConnectionToken = sharedTcpToken
 			})
 			defer firstClient.ForceStop()
 
@@ -636,6 +639,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.CLIUrl = cliURL
 			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
 		})
 		t.Cleanup(func() { resumedClient.ForceStop() })
 

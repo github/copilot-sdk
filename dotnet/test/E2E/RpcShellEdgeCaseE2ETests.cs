@@ -117,15 +117,35 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     public async Task Shell_Kill_Honors_Each_Supported_Signal(ShellKillSignal signal)
     {
         var session = await CreateSessionAsync();
+        var markerPath = Path.Join(Ctx.WorkDir, $"shell-kill-{Guid.NewGuid():N}.txt");
         var command = OperatingSystem.IsWindows()
             ? "powershell -NoLogo -NoProfile -Command \"Start-Sleep -Seconds 60\""
             : "sleep 60";
+        if (signal == ShellKillSignal.SIGINT && !OperatingSystem.IsWindows())
+        {
+            var scriptPath = Path.Join(Ctx.WorkDir, $"shell-kill-{Guid.NewGuid():N}.sh");
+            await File.WriteAllTextAsync(
+                scriptPath,
+                $"""
+                #!/bin/sh
+                trap 'printf done > "{markerPath}"; exit 0' INT
+                while true; do sleep 1; done
+                """);
+            command = $"sh '{scriptPath}'";
+        }
 
         var execResult = await session.Rpc.Shell.ExecAsync(command);
         Assert.False(string.IsNullOrWhiteSpace(execResult.ProcessId));
 
         var killResult = await session.Rpc.Shell.KillAsync(execResult.ProcessId, signal);
         Assert.True(killResult.Killed);
+        if (signal == ShellKillSignal.SIGINT && !OperatingSystem.IsWindows())
+        {
+            await TestHelper.WaitForConditionAsync(
+                () => File.Exists(markerPath),
+                timeout: TimeSpan.FromSeconds(30),
+                timeoutMessage: "SIGINT handler did not observe the signal.");
+        }
 
         await AssertProcessMapCleanedUpAsync(session, execResult.ProcessId, $"Process killed with {signal}");
     }

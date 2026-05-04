@@ -430,7 +430,7 @@ class TestPendingWorkResume:
         finally:
             await _safe_force_stop(server)
 
-    async def test_should_keep_pending_external_tool_handleable_on_warm_resume_when_continuependingwork_is_false(
+    async def test_should_keep_pending_external_tool_handleable_on_warm_resume_when_continuependingwork_is_false(  # noqa: E501
         self, ctx: E2ETestContext
     ):
         from copilot.generated.session_events import SessionResumeData
