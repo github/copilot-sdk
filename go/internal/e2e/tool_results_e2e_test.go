@@ -3,6 +3,7 @@ package e2e
 import (
 	"strings"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -174,6 +175,162 @@ func TestToolResultsE2E(t *testing.T) {
 		}
 		if strings.Contains(toolResults[0].Content, "resultType") {
 			t.Error("Tool result content should not contain 'resultType'")
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Errorf("Failed to disconnect session: %v", err)
+		}
+	})
+
+	t.Run("should handle tool result with rejected resulttype", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		toolHandlerCalled := false
+		toolCompleted := make(chan *copilot.ToolExecutionCompleteData, 1)
+		idle := make(chan struct{}, 1)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				{
+					Name:        "deploy_service",
+					Description: "Deploys a service",
+					Handler: func(inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+						toolHandlerCalled = true
+						return copilot.ToolResult{
+							TextResultForLLM: "Deployment rejected: policy violation - production deployments require approval",
+							ResultType:       "rejected",
+						}, nil
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		session.On(func(event copilot.SessionEvent) {
+			if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok {
+				select {
+				case toolCompleted <- d:
+				default:
+				}
+			} else if event.Type == copilot.SessionEventTypeSessionIdle {
+				select {
+				case idle <- struct{}{}:
+				default:
+				}
+			}
+		})
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "Deploy the service using deploy_service. If it's rejected, tell me it was 'rejected by policy'.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		select {
+		case d := <-toolCompleted:
+			if !toolHandlerCalled {
+				t.Error("Tool handler should have been called")
+			}
+			if d.Success {
+				t.Error("Expected Success=false for rejected tool result")
+			}
+			if d.Error == nil {
+				t.Error("Expected non-nil Error for rejected tool result")
+			} else {
+				if d.Error.Code == nil || *d.Error.Code != "rejected" {
+					t.Errorf("Expected error code 'rejected', got %v", d.Error.Code)
+				}
+				if !strings.Contains(d.Error.Message, "Deployment rejected") {
+					t.Errorf("Expected error message to contain 'Deployment rejected', got %q", d.Error.Message)
+				}
+			}
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for tool execution complete")
+		}
+
+		// Rejected tool results may end the turn without a follow-up assistant message.
+		select {
+		case <-idle:
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for session idle")
+		}
+		_ = session.Disconnect()
+	})
+
+	t.Run("should handle tool result with denied resulttype", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		toolHandlerCalled := false
+		toolCompleted := make(chan *copilot.ToolExecutionCompleteData, 1)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				{
+					Name:        "access_secret",
+					Description: "Accesses a secret",
+					Handler: func(inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+						toolHandlerCalled = true
+						return copilot.ToolResult{
+							TextResultForLLM: "Access denied: insufficient permissions to read secrets",
+							ResultType:       "denied",
+						}, nil
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		session.On(func(event copilot.SessionEvent) {
+			if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok {
+				select {
+				case toolCompleted <- d:
+				default:
+				}
+			}
+		})
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "Use access_secret to get the API key. If access is denied, tell me it was 'access denied'.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		select {
+		case d := <-toolCompleted:
+			if !toolHandlerCalled {
+				t.Error("Tool handler should have been called")
+			}
+			if d.Success {
+				t.Error("Expected Success=false for denied tool result")
+			}
+			if d.Error == nil {
+				t.Error("Expected non-nil Error for denied tool result")
+			} else {
+				if d.Error.Code == nil || *d.Error.Code != "denied" {
+					t.Errorf("Expected error code 'denied', got %v", d.Error.Code)
+				}
+				if !strings.Contains(d.Error.Message, "Access denied") {
+					t.Errorf("Expected error message to contain 'Access denied', got %q", d.Error.Message)
+				}
+			}
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for tool execution complete")
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final assistant message: %v", err)
+		}
+		if answer == nil {
+			t.Error("Expected non-nil final assistant message")
 		}
 
 		if err := session.Disconnect(); err != nil {

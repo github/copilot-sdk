@@ -73,6 +73,12 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
     {
         var session = await CreateSessionAsync();
 
+        var ready = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Reply with TASK_AGENT_READY exactly.",
+        });
+        Assert.Contains("TASK_AGENT_READY", ready?.Data.Content ?? string.Empty, StringComparison.Ordinal);
+
         var started = await session.Rpc.Tasks.StartAgentAsync(
             agentType: "general-purpose",
             prompt: "Reply with TASK_AGENT_DONE exactly.",

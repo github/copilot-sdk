@@ -110,4 +110,69 @@ describe("Streaming Fidelity", async () => {
 
         await session2.disconnect();
     });
+
+    it("should not produce deltas after session resume with streaming disabled", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            streaming: true,
+        });
+        await session.sendAndWait({ prompt: "What is 3 + 6?" });
+        await session.disconnect();
+
+        // Resume using a new client with streaming DISABLED
+        const newClient = new CopilotClient({
+            env,
+            gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+        });
+        onTestFinished(() => newClient.forceStop());
+        const session2 = await newClient.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            streaming: false,
+        });
+
+        const events: SessionEvent[] = [];
+        session2.on((event) => events.push(event));
+
+        const answer = await session2.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(answer?.data.content).toContain("18");
+
+        const deltaEvents = events.filter((e) => e.type === "assistant.message_delta");
+        expect(deltaEvents.length).toBe(0);
+
+        const assistantEvents = events.filter((e) => e.type === "assistant.message");
+        expect(assistantEvents.length).toBeGreaterThanOrEqual(1);
+
+        await session2.disconnect();
+    });
+
+    it("should emit streaming deltas with reasoning effort configured", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            streaming: true,
+            reasoningEffort: "high",
+        });
+
+        const events: SessionEvent[] = [];
+        session.on((event) => events.push(event));
+
+        await session.sendAndWait({ prompt: "What is 15 * 17?" });
+
+        const deltaEvents = events.filter((e) => e.type === "assistant.message_delta");
+        expect(deltaEvents.length).toBeGreaterThanOrEqual(1);
+
+        const assistantEvents = events.filter((e) => e.type === "assistant.message");
+        expect(assistantEvents.length).toBeGreaterThanOrEqual(1);
+        const lastAssistant = assistantEvents[assistantEvents.length - 1]!;
+        expect(lastAssistant.data.content).toContain("255");
+
+        // Verify the session was created with reasoning effort via getMessages
+        const messages = await session.getMessages();
+        const startEvent = messages.find((m) => m.type === "session.start");
+        expect(startEvent).toBeDefined();
+        expect(startEvent!.data.reasoningEffort).toBe("high");
+
+        await session.disconnect();
+    });
 });

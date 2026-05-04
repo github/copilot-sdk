@@ -155,4 +155,52 @@ describe("Client Lifecycle", async () => {
             unsubscribeActive();
         }
     });
+
+    it("should receive session updated lifecycle event for non ephemeral activity", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const updated = deferred<SessionLifecycleEvent>();
+        const unsubscribe = client.on("session.updated", (evt) => {
+            if (evt.sessionId === session.sessionId) {
+                updated.resolve(evt);
+            }
+        });
+
+        try {
+            // Setting a non-ephemeral mode triggers a session.updated lifecycle event
+            await session.rpc.mode.set({ mode: "plan" });
+
+            const evt = await withTimeout(updated.promise, 10_000, "session.updated");
+            expect(evt.type).toBe("session.updated");
+            expect(evt.sessionId).toBe(session.sessionId);
+        } finally {
+            unsubscribe();
+            await session.disconnect();
+        }
+    });
+
+    it("should receive session deleted lifecycle event when deleted", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        // Make an LLM call first to ensure the session is persisted
+        const message = await session.sendAndWait({ prompt: "Say SESSION_DELETED_OK exactly." });
+        expect(message?.data.content).toContain("SESSION_DELETED_OK");
+
+        const deleted = deferred<SessionLifecycleEvent>();
+        const unsubscribe = client.on("session.deleted", (evt) => {
+            if (evt.sessionId === session.sessionId) {
+                deleted.resolve(evt);
+            }
+        });
+
+        try {
+            await client.deleteSession(session.sessionId);
+
+            const evt = await withTimeout(deleted.promise, 10_000, "session.deleted");
+            expect(evt.type).toBe("session.deleted");
+            expect(evt.sessionId).toBe(session.sessionId);
+        } finally {
+            unsubscribe();
+        }
+    });
 });

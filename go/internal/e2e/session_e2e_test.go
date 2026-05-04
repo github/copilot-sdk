@@ -1462,7 +1462,7 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		title := "Add E2E attachment coverage"
 		url := "https://github.com/github/copilot-sdk/issues/1234"
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Summarize the referenced issue.",
+			Prompt: "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
 			Attachments: []copilot.Attachment{{
 				Type:          copilot.AttachmentTypeGithubReference,
 				Number:        &number,

@@ -210,4 +210,157 @@ func TestStreamingFidelityE2E(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("should not produce deltas after session resume with streaming disabled", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Streaming:           true,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session with streaming: %v", err)
+		}
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 3 + 6?"}); err != nil {
+			t.Fatalf("Failed to send first message: %v", err)
+		}
+
+		// Resume using a new client with streaming DISABLED
+		newClient := ctx.NewClient()
+		defer newClient.ForceStop()
+
+		session2, err := newClient.ResumeSession(t.Context(), session.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Streaming:           false,
+		})
+		if err != nil {
+			t.Fatalf("Failed to resume session: %v", err)
+		}
+
+		var events []copilot.SessionEvent
+		var mu sync.Mutex
+		session2.On(func(event copilot.SessionEvent) {
+			mu.Lock()
+			events = append(events, event)
+			mu.Unlock()
+		})
+
+		answer, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"})
+		if err != nil {
+			t.Fatalf("Failed to send follow-up: %v", err)
+		}
+		if answer == nil {
+			t.Error("Expected non-nil answer")
+		} else if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "18") {
+			t.Errorf("Expected answer to contain '18', got %v", answer)
+		}
+
+		mu.Lock()
+		snapshot := make([]copilot.SessionEvent, len(events))
+		copy(snapshot, events)
+		mu.Unlock()
+
+		// No deltas when streaming is toggled off
+		for _, e := range snapshot {
+			if e.Type == "assistant.message_delta" {
+				t.Errorf("Expected no delta events after resume with streaming disabled; got delta at index %d", len(snapshot))
+				break
+			}
+		}
+
+		// But should still have a final assistant.message
+		hasAssistantMessage := false
+		for _, e := range snapshot {
+			if e.Type == "assistant.message" {
+				hasAssistantMessage = true
+				break
+			}
+		}
+		if !hasAssistantMessage {
+			t.Error("Expected a final assistant.message event after resume with streaming disabled")
+		}
+
+		_ = session2.Disconnect()
+	})
+
+	t.Run("should emit streaming deltas with reasoning effort configured", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		// Verifies that setting ReasoningEffort alongside Streaming=true does not break
+		// the streaming pipeline — deltas still arrive and complete successfully.
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Streaming:           true,
+			ReasoningEffort:     "high",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session with streaming + reasoning effort: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		var events []copilot.SessionEvent
+		var mu sync.Mutex
+		session.On(func(event copilot.SessionEvent) {
+			mu.Lock()
+			events = append(events, event)
+			mu.Unlock()
+		})
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 15 * 17?"}); err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		mu.Lock()
+		snapshot := make([]copilot.SessionEvent, len(events))
+		copy(snapshot, events)
+		mu.Unlock()
+
+		// With streaming + reasoning effort, we should still get content deltas
+		var deltaEvents []copilot.SessionEvent
+		for _, e := range snapshot {
+			if e.Type == "assistant.message_delta" {
+				deltaEvents = append(deltaEvents, e)
+			}
+		}
+		if len(deltaEvents) < 1 {
+			t.Error("Expected at least 1 delta event with streaming + reasoning effort")
+		}
+
+		// And a final assistant.message with the answer
+		var lastAssistantContent string
+		for _, e := range snapshot {
+			if e.Type == "assistant.message" {
+				if ad, ok := e.Data.(*copilot.AssistantMessageData); ok {
+					lastAssistantContent = ad.Content
+				}
+			}
+		}
+		if lastAssistantContent == "" {
+			t.Error("Expected a final assistant.message with content")
+		}
+		if !strings.Contains(lastAssistantContent, "255") {
+			t.Errorf("Expected assistant message to contain '255' (15*17), got %q", lastAssistantContent)
+		}
+
+		// Verify the session was created with reasoning effort via GetMessages
+		messages, err := session.GetMessages(t.Context())
+		if err != nil {
+			t.Fatalf("GetMessages failed: %v", err)
+		}
+		var sessionStartReasoningEffort string
+		for _, msg := range messages {
+			if msg.Type == copilot.SessionEventTypeSessionStart {
+				if d, ok := msg.Data.(*copilot.SessionStartData); ok {
+					if d.ReasoningEffort != nil {
+						sessionStartReasoningEffort = *d.ReasoningEffort
+					}
+				}
+				break
+			}
+		}
+		if sessionStartReasoningEffort != "high" {
+			t.Errorf("Expected session.start.reasoningEffort='high', got %q", sessionStartReasoningEffort)
+		}
+	})
 }
