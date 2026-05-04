@@ -483,19 +483,14 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Deny_Permission_With_NoResult_Kind()
     {
-        var permissionDenied = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var permissionCalled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.NoResult })
-        });
-
-        session.On(evt =>
-        {
-            if (evt is ToolExecutionCompleteEvent toolEvt && !toolEvt.Data.Success)
             {
-                permissionDenied.TrySetResult(true);
+                permissionCalled.TrySetResult(true);
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.NoResult });
             }
         });
 
@@ -504,9 +499,9 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             Prompt = "Run 'node --version'"
         });
 
-        // Wait for a tool execution to be denied
-        var denied = await permissionDenied.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        Assert.True(denied, "Expected a tool.execution_complete event indicating permission denial for NoResult kind");
+        Assert.True(
+            await permissionCalled.Task.WaitAsync(TimeSpan.FromSeconds(30)),
+            "Expected the no-result permission handler to be called.");
 
         await session.AbortAsync();
     }

@@ -452,7 +452,9 @@ class TestPendingWorkResume:
         try:
             cli_url = f"localhost:{server.actual_port}"
 
-            suspended_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            suspended_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             session1 = await suspended_client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 tools=[_make_pending_tool("resume_external_tool", blocking_external_tool)],
@@ -471,7 +473,11 @@ class TestPendingWorkResume:
 
                 await suspended_client.force_stop()
 
-                resumed_client = CopilotClient(ExternalServerConfig(url=cli_url))
+                resumed_client = CopilotClient(
+                    ExternalServerConfig(
+                        url=cli_url, tcp_connection_token="py-tcp-shared-test-token"
+                    )
+                )
                 try:
                     session2 = await resumed_client.resume_session(
                         session_id,
@@ -521,7 +527,9 @@ class TestPendingWorkResume:
         try:
             cli_url = f"localhost:{server.actual_port}"
 
-            first_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            first_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             try:
                 first_session = await first_client.create_session(
                     on_permission_request=PermissionHandler.approve_all,
@@ -536,7 +544,9 @@ class TestPendingWorkResume:
             finally:
                 await _safe_force_stop(first_client)
 
-            resumed_client = CopilotClient(ExternalServerConfig(url=cli_url))
+            resumed_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
             try:
                 resumed_session = await resumed_client.resume_session(
                     session_id,

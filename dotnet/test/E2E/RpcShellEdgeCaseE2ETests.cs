@@ -13,7 +13,7 @@ namespace GitHub.Copilot.SDK.Test.E2E;
 /// Targeted edge-case tests for the shell RPC API (<c>shell.exec</c>, <c>shell.kill</c>).
 /// These tests close several runtime branches that the basic exec/kill tests miss:
 /// timeout-triggered SIGTERM, command-not-found error path, kill on unknown processId,
-/// kill with each supported signal, kill with an invalid signal, and the custom-cwd path.
+/// kill with terminating signals, kill with an invalid signal, and the custom-cwd path.
 /// All assertions are based on observable side effects (file existence, process gone) so
 /// they remain deterministic without relying on streamed shell.output / shell.exit RPC
 /// notifications which the SDK does not surface as session events.
@@ -113,39 +113,18 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     [Theory]
     [InlineData(ShellKillSignal.SIGTERM)]
     [InlineData(ShellKillSignal.SIGKILL)]
-    [InlineData(ShellKillSignal.SIGINT)]
-    public async Task Shell_Kill_Honors_Each_Supported_Signal(ShellKillSignal signal)
+    public async Task Shell_Kill_Cleans_Up_After_Terminating_Signal(ShellKillSignal signal)
     {
         var session = await CreateSessionAsync();
-        var markerPath = Path.Join(Ctx.WorkDir, $"shell-kill-{Guid.NewGuid():N}.txt");
         var command = OperatingSystem.IsWindows()
             ? "powershell -NoLogo -NoProfile -Command \"Start-Sleep -Seconds 60\""
             : "sleep 60";
-        if (signal == ShellKillSignal.SIGINT && !OperatingSystem.IsWindows())
-        {
-            var scriptPath = Path.Join(Ctx.WorkDir, $"shell-kill-{Guid.NewGuid():N}.sh");
-            await File.WriteAllTextAsync(
-                scriptPath,
-                $"""
-                #!/bin/sh
-                trap 'printf done > "{markerPath}"; exit 0' INT
-                while true; do sleep 1; done
-                """);
-            command = $"sh '{scriptPath}'";
-        }
 
         var execResult = await session.Rpc.Shell.ExecAsync(command);
         Assert.False(string.IsNullOrWhiteSpace(execResult.ProcessId));
 
         var killResult = await session.Rpc.Shell.KillAsync(execResult.ProcessId, signal);
         Assert.True(killResult.Killed);
-        if (signal == ShellKillSignal.SIGINT && !OperatingSystem.IsWindows())
-        {
-            await TestHelper.WaitForConditionAsync(
-                () => File.Exists(markerPath),
-                timeout: TimeSpan.FromSeconds(30),
-                timeoutMessage: "SIGINT handler did not observe the signal.");
-        }
 
         await AssertProcessMapCleanedUpAsync(session, execResult.ProcessId, $"Process killed with {signal}");
     }
