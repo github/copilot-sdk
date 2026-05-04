@@ -3226,6 +3226,42 @@ mod tests {
         assert!(wire.get("continuePendingWork").is_none());
     }
 
+    /// `instruction_directories` must serialize to wire as
+    /// `instructionDirectories` on `SessionConfig`. Cross-SDK parity field
+    /// (Node/Python pass it through to the CLI verbatim).
+    #[test]
+    fn session_config_serializes_instruction_directories_to_camel_case() {
+        let cfg =
+            SessionConfig::default().with_instruction_directories([PathBuf::from("/tmp/instr")]);
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(
+            wire["instructionDirectories"],
+            serde_json::json!(["/tmp/instr"])
+        );
+
+        // Unset case — skip_serializing_if must omit the field.
+        let cfg = SessionConfig::default();
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert!(wire.get("instructionDirectories").is_none());
+    }
+
+    /// Same check on the resume path. Forwarded to the CLI on
+    /// `session.resume`.
+    #[test]
+    fn resume_session_config_serializes_instruction_directories_to_camel_case() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_instruction_directories([PathBuf::from("/tmp/instr")]);
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(
+            wire["instructionDirectories"],
+            serde_json::json!(["/tmp/instr"])
+        );
+
+        let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"));
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert!(wire.get("instructionDirectories").is_none());
+    }
+
     #[test]
     fn custom_agent_config_builder_composes() {
         use std::collections::HashMap;

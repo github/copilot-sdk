@@ -810,6 +810,24 @@ fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<(), Error> {
     Ok(())
 }
 
+/// Generate a fresh CSPRNG-backed token for authenticating an SDK-spawned
+/// loopback CLI server. 128 bits of entropy, lowercase-hex encoded — not
+/// a UUID (the schema-shaped IDs in this crate stay `String` per the
+/// pre-1.0 review consensus, so adopting a `Uuid` type just for SDK-
+/// generated secrets would be inconsistent and semantically misleading;
+/// this is opaque random data, not an identifier).
+fn generate_connection_token() -> String {
+    let mut bytes = [0u8; 16];
+    getrandom::getrandom(&mut bytes)
+        .expect("OS CSPRNG (getrandom) is unavailable; cannot generate connection token");
+    let mut hex = String::with_capacity(32);
+    for byte in bytes {
+        use std::fmt::Write;
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
+}
+
 /// Connection to a GitHub Copilot CLI server (stdio, TCP, or external).
 ///
 /// Cheaply cloneable — cloning shares the underlying connection.
@@ -902,7 +920,7 @@ impl Client {
                 options
                     .tcp_connection_token
                     .clone()
-                    .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                    .unwrap_or_else(generate_connection_token),
             ),
             Transport::External { .. } => options.tcp_connection_token.clone(),
         };
@@ -1028,6 +1046,29 @@ impl Client {
         provider: Arc<dyn TraceContextProvider>,
     ) -> Result<Self, Error> {
         Self::from_transport(reader, writer, None, cwd, None, false, Some(provider), None)
+    }
+
+    /// Construct a [`Client`] from raw streams with a preset
+    /// `effective_connection_token`, for integration testing the
+    /// `connect` handshake's token-forwarding path.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn from_streams_with_connection_token(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        cwd: PathBuf,
+        token: Option<String>,
+    ) -> Result<Self, Error> {
+        Self::from_transport(reader, writer, None, cwd, None, false, None, token)
+    }
+
+    /// Public test-only wrapper around the random connection-token
+    /// generator used by [`Client::start`] when the SDK spawns a TCP
+    /// server without an explicit token. Lets integration tests
+    /// validate the token shape (32-char lowercase hex, 128 bits of
+    /// entropy) without re-implementing the helper.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn generate_connection_token_for_test() -> String {
+        generate_connection_token()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1425,11 +1466,23 @@ impl Client {
     /// [`from_streams`](Self::from_streams) if you need version verification
     /// on a custom transport.
     ///
-    /// Sends a `ping` RPC and checks the `protocolVersion` field in the
-    /// response. Returns an error if the version is outside
+    /// # Handshake sequence
+    ///
+    /// 1. Sends the `connect` JSON-RPC method, forwarding
+    ///    [`ClientOptions::tcp_connection_token`] (or the auto-generated
+    ///    token for SDK-spawned TCP servers) as the `token` param. This
+    ///    is the canonical handshake used by all SDK languages and is
+    ///    what the CLI uses to enforce loopback authentication when
+    ///    started with `COPILOT_CONNECTION_TOKEN`.
+    /// 2. If the server returns `-32601` (`MethodNotFound`), falls back
+    ///    to the legacy `ping` RPC. This preserves compatibility with
+    ///    older CLI versions that predate `connect`.
+    ///
+    /// # Result
+    ///
+    /// Returns an error if the negotiated `protocolVersion` is outside
     /// `MIN_PROTOCOL_VERSION`..=[`SDK_PROTOCOL_VERSION`]. If the server
-    /// doesn't report a version, logs a warning and succeeds (backward
-    /// compatibility with older CLI versions).
+    /// doesn't report a version, logs a warning and succeeds.
     pub async fn verify_protocol_version(&self) -> Result<(), Error> {
         // Try the new `connect` handshake first (sends the connection
         // token, if any). Fall back to `ping` for legacy CLI servers
