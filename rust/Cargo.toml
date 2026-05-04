@@ -51,6 +51,7 @@ dirs = "5"
 parking_lot = "0.12"
 regex = "1"
 sha2 = { version = "0.10", optional = true }
+uuid = { version = "1", features = ["v4"] }
 zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]

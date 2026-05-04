@@ -349,6 +349,29 @@ public surface.
   the [`LogLevel`](LogLevel) precedent for finite, enumerated CLI knobs;
   serialized verbatim as `"otlp-http"` / `"file"`. User-supplied
   `ClientOptions::env` continues to win over telemetry-injected values.
+- `ClientOptions::copilot_home: Option<PathBuf>` (and
+  `with_copilot_home`) — overrides the directory where the CLI persists
+  its state. Exported as `COPILOT_HOME` to the spawned CLI process.
+  Useful for sandboxing test runs or running multiple isolated SDK
+  instances side-by-side. Mirrors Node `copilotHome` /
+  Python `copilot_home`.
+- `ClientOptions::tcp_connection_token: Option<String>` (and
+  `with_tcp_connection_token`) — optional auth token for TCP transport.
+  Sent in the new `connect` JSON-RPC handshake (with backward-compat
+  fall-back to `ping` for legacy CLI servers) and exported as
+  `COPILOT_CONNECTION_TOKEN` to spawned CLI processes. When the SDK
+  spawns its own CLI in TCP mode and this is left unset, a UUID is
+  generated automatically so the loopback listener is safe by default.
+  Combining with `Transport::Stdio` returns
+  `Error::InvalidConfig` from `Client::start`.
+- `SessionConfig::instruction_directories: Option<Vec<PathBuf>>` and
+  `ResumeSessionConfig::instruction_directories` (plus
+  `with_instruction_directories` builders on both) — additional
+  directories searched for custom instruction files. Distinct from
+  `skill_directories`. Forwarded to the CLI on session create / resume.
+- `Error::InvalidConfig(String)` variant for client-construction errors
+  that surface from `Client::start` (e.g. `tcp_connection_token` paired
+  with `Transport::Stdio`, empty token, etc).
 
 ### Documentation
 - `README.md` with quickstart, architecture diagram, and feature matrix.

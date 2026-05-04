@@ -106,6 +106,13 @@ pub enum Error {
         /// Guidance on how to install or configure the binary.
         hint: &'static str,
     },
+
+    /// Invalid combination of [`ClientOptions`] supplied to [`Client::start`].
+    /// Surfaces consumer-side configuration errors that would otherwise
+    /// produce confusing runtime failures (e.g. a connection token paired
+    /// with stdio transport).
+    #[error("invalid client configuration: {0}")]
+    InvalidConfig(String),
 }
 
 impl Error {
@@ -371,6 +378,21 @@ pub struct ClientOptions {
     /// [`TelemetryConfig`] for the env-var mapping. The SDK takes no
     /// OpenTelemetry dependency — this is pure spawn-time env injection.
     pub telemetry: Option<TelemetryConfig>,
+    /// Override the directory where the CLI persists its state (sessions,
+    /// auth, telemetry buffers). When set, exported as `COPILOT_HOME` to
+    /// the spawned CLI process. Useful for sandboxing test runs or
+    /// running multiple isolated SDK instances side-by-side.
+    pub copilot_home: Option<PathBuf>,
+    /// Optional connection token for TCP transport. Sent to the CLI in
+    /// the `connect` handshake and exported as `COPILOT_CONNECTION_TOKEN`
+    /// to spawned CLI processes. Required when the CLI server was started
+    /// with a token, ignored otherwise.
+    ///
+    /// When the SDK spawns its own CLI in TCP mode and this is left
+    /// `None`, a UUID is generated automatically so the loopback listener
+    /// is safe by default. Combining with [`Transport::Stdio`] is invalid
+    /// and surfaces as an error from [`Client::start`].
+    pub tcp_connection_token: Option<String>,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -403,6 +425,11 @@ impl std::fmt::Debug for ClientOptions {
                 &self.on_get_trace_context.as_ref().map(|_| "<set>"),
             )
             .field("telemetry", &self.telemetry)
+            .field("copilot_home", &self.copilot_home)
+            .field(
+                "tcp_connection_token",
+                &self.tcp_connection_token.as_ref().map(|_| "<redacted>"),
+            )
             .finish()
     }
 }
@@ -607,6 +634,8 @@ impl Default for ClientOptions {
             session_fs: None,
             on_get_trace_context: None,
             telemetry: None,
+            copilot_home: None,
+            tcp_connection_token: None,
         }
     }
 }
@@ -749,6 +778,21 @@ impl ClientOptions {
         self.telemetry = Some(config);
         self
     }
+
+    /// Override the directory where the CLI persists its state. Set as
+    /// `COPILOT_HOME` on the spawned CLI process.
+    pub fn with_copilot_home(mut self, home: impl Into<PathBuf>) -> Self {
+        self.copilot_home = Some(home.into());
+        self
+    }
+
+    /// Set the connection token for TCP transport. Sent in the `connect`
+    /// handshake and exported as `COPILOT_CONNECTION_TOKEN` to spawned
+    /// CLI processes.
+    pub fn with_tcp_connection_token(mut self, token: impl Into<String>) -> Self {
+        self.tcp_connection_token = Some(token.into());
+        self
+    }
 }
 
 /// Validate a [`SessionFsConfig`] before sending `sessionFs.setProvider`.
@@ -798,6 +842,11 @@ struct ClientInner {
     on_list_models: Option<Arc<dyn ListModelsHandler>>,
     session_fs_configured: bool,
     on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
+    /// Token sent in the `connect` handshake. Auto-generated when the
+    /// SDK spawns its own CLI in TCP mode and no explicit token is set;
+    /// `None` for stdio and for external-server transport without an
+    /// explicit token.
+    effective_connection_token: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -831,6 +880,39 @@ impl Client {
     pub async fn start(options: ClientOptions) -> Result<Self, Error> {
         if let Some(cfg) = &options.session_fs {
             validate_session_fs_config(cfg)?;
+        }
+        // Validate token + transport combination. Stdio cannot use a
+        // connection token; auto-generate a UUID when the SDK spawns
+        // its own CLI in TCP mode and no explicit token was set.
+        if let Some(token) = &options.tcp_connection_token {
+            if token.is_empty() {
+                return Err(Error::InvalidConfig(
+                    "tcp_connection_token must be a non-empty string".to_string(),
+                ));
+            }
+            if matches!(options.transport, Transport::Stdio) {
+                return Err(Error::InvalidConfig(
+                    "tcp_connection_token cannot be used with Transport::Stdio".to_string(),
+                ));
+            }
+        }
+        let effective_connection_token: Option<String> = match &options.transport {
+            Transport::Stdio => None,
+            Transport::Tcp { .. } => Some(
+                options
+                    .tcp_connection_token
+                    .clone()
+                    .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            ),
+            Transport::External { .. } => options.tcp_connection_token.clone(),
+        };
+        let mut options = options;
+        if matches!(options.transport, Transport::Tcp { .. })
+            && options.tcp_connection_token.is_none()
+        {
+            // Auto-generated tokens flow to the spawned CLI via env, so
+            // make the field reflect what we'll actually send.
+            options.tcp_connection_token = effective_connection_token.clone();
         }
         let session_fs_config = options.session_fs.clone();
         let program = match &options.program {
@@ -871,6 +953,7 @@ impl Client {
                     options.on_list_models,
                     session_fs_config.is_some(),
                     options.on_get_trace_context,
+                    effective_connection_token.clone(),
                 )?
             }
             Transport::Tcp { port } => {
@@ -886,6 +969,7 @@ impl Client {
                     options.on_list_models,
                     session_fs_config.is_some(),
                     options.on_get_trace_context,
+                    effective_connection_token.clone(),
                 )?
             }
             Transport::Stdio => {
@@ -901,6 +985,7 @@ impl Client {
                     options.on_list_models,
                     session_fs_config.is_some(),
                     options.on_get_trace_context,
+                    effective_connection_token.clone(),
                 )?
             }
         };
@@ -925,7 +1010,7 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, None)
+        Self::from_transport(reader, writer, None, cwd, None, false, None, None)
     }
 
     /// Construct a [`Client`] from raw streams with a
@@ -942,9 +1027,10 @@ impl Client {
         cwd: PathBuf,
         provider: Arc<dyn TraceContextProvider>,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, Some(provider))
+        Self::from_transport(reader, writer, None, cwd, None, false, Some(provider), None)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn from_transport(
         reader: impl AsyncRead + Unpin + Send + 'static,
         writer: impl AsyncWrite + Unpin + Send + 'static,
@@ -953,6 +1039,7 @@ impl Client {
         on_list_models: Option<Arc<dyn ListModelsHandler>>,
         session_fs_configured: bool,
         on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
+        effective_connection_token: Option<String>,
     ) -> Result<Self, Error> {
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
         let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
@@ -981,6 +1068,7 @@ impl Client {
                 on_list_models,
                 session_fs_configured,
                 on_get_trace_context,
+                effective_connection_token,
             }),
         };
         client.spawn_lifecycle_dispatcher();
@@ -1059,6 +1147,12 @@ impl Client {
                     if capture { "true" } else { "false" },
                 );
             }
+        }
+        if let Some(home) = &options.copilot_home {
+            command.env("COPILOT_HOME", home);
+        }
+        if let Some(token) = &options.tcp_connection_token {
+            command.env("COPILOT_CONNECTION_TOKEN", token);
         }
         for (key, value) in &options.env {
             command.env(key, value);
@@ -1337,8 +1431,17 @@ impl Client {
     /// doesn't report a version, logs a warning and succeeds (backward
     /// compatibility with older CLI versions).
     pub async fn verify_protocol_version(&self) -> Result<(), Error> {
-        let response = self.ping(None).await?;
-        let server_version = response.protocol_version;
+        // Try the new `connect` handshake first (sends the connection
+        // token, if any). Fall back to `ping` for legacy CLI servers
+        // that don't expose `connect` (-32601 MethodNotFound). Matches
+        // the Node SDK's verify-version sequence.
+        let server_version = match self.connect_handshake().await {
+            Ok(v) => v,
+            Err(Error::Rpc { code, .. }) if code == error_codes::METHOD_NOT_FOUND => {
+                self.ping(None).await?.protocol_version
+            }
+            Err(e) => return Err(e),
+        };
 
         match server_version {
             None => {
@@ -1366,6 +1469,24 @@ impl Client {
         }
 
         Ok(())
+    }
+
+    /// Send the `connect` JSON-RPC handshake. Returns the server's
+    /// reported protocol version, or `None` if the server omits it.
+    /// Forwards [`ClientOptions::tcp_connection_token`] (or the
+    /// auto-generated token for SDK-spawned TCP servers) as the `token`
+    /// param. Server-side, the token is required when the server was
+    /// started with `COPILOT_CONNECTION_TOKEN`.
+    async fn connect_handshake(&self) -> Result<Option<u32>, Error> {
+        let params = match &self.inner.effective_connection_token {
+            Some(token) => serde_json::json!({ "token": token }),
+            None => serde_json::json!({}),
+        };
+        let value = self.call("connect", Some(params)).await?;
+        Ok(value
+            .get("protocolVersion")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32))
     }
 
     /// Send a `ping` RPC and return the typed [`PingResponse`].
@@ -2029,6 +2150,60 @@ mod tests {
     }
 
     #[test]
+    fn build_command_sets_copilot_home_env_when_configured() {
+        let opts = ClientOptions::new().with_copilot_home(PathBuf::from("/custom/copilot"));
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        assert_eq!(
+            env_value(&cmd, "COPILOT_HOME"),
+            Some(std::ffi::OsStr::new("/custom/copilot")),
+        );
+
+        let opts = ClientOptions::default();
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        assert!(env_value(&cmd, "COPILOT_HOME").is_none());
+    }
+
+    #[test]
+    fn build_command_sets_connection_token_env_when_configured() {
+        let opts = ClientOptions::new().with_tcp_connection_token("secret-token");
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        assert_eq!(
+            env_value(&cmd, "COPILOT_CONNECTION_TOKEN"),
+            Some(std::ffi::OsStr::new("secret-token")),
+        );
+
+        let opts = ClientOptions::default();
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        assert!(env_value(&cmd, "COPILOT_CONNECTION_TOKEN").is_none());
+    }
+
+    #[tokio::test]
+    async fn start_rejects_token_with_stdio_transport() {
+        let opts = ClientOptions::new()
+            .with_tcp_connection_token("token-123")
+            .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
+        let err = Client::start(opts).await.unwrap_err();
+        assert!(matches!(err, Error::InvalidConfig(_)), "got {err:?}");
+        let Error::InvalidConfig(msg) = err else {
+            unreachable!()
+        };
+        assert!(
+            msg.contains("Stdio"),
+            "error should explain the stdio incompatibility: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn start_rejects_empty_connection_token() {
+        let opts = ClientOptions::new()
+            .with_tcp_connection_token("")
+            .with_transport(Transport::Tcp { port: 0 })
+            .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
+        let err = Client::start(opts).await.unwrap_err();
+        assert!(matches!(err, Error::InvalidConfig(_)), "got {err:?}");
+    }
+
+    #[test]
     fn telemetry_config_capture_content_serializes_as_lowercase_bool() {
         let opts_true = ClientOptions {
             telemetry: Some(TelemetryConfig {
@@ -2185,6 +2360,7 @@ mod tests {
             on_list_models: Some(handler),
             session_fs_configured: false,
             on_get_trace_context: None,
+            effective_connection_token: None,
         };
         let client = Client {
             inner: Arc::new(inner),

@@ -965,6 +965,10 @@ pub struct SessionConfig {
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
+    /// Additional directories to search for custom instruction files.
+    /// Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instruction_directories: Option<Vec<PathBuf>>,
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1074,6 +1078,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
             .field("skill_directories", &self.skill_directories)
+            .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
             .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
@@ -1135,6 +1140,7 @@ impl Default for SessionConfig {
             request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
             skill_directories: None,
+            instruction_directories: None,
             disabled_skills: None,
             disabled_mcp_servers: None,
             hooks: None,
@@ -1369,6 +1375,18 @@ impl SessionConfig {
         self
     }
 
+    /// Set additional directories to search for custom instruction files.
+    /// Forwarded to the CLI on session create; not the same as
+    /// [`with_skill_directories`](Self::with_skill_directories).
+    pub fn with_instruction_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.instruction_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set the names of skills to disable (overrides skill discovery).
     pub fn with_disabled_skills<I, S>(mut self, names: I) -> Self
     where
@@ -1519,6 +1537,10 @@ pub struct ResumeSessionConfig {
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
+    /// Additional directories to search for custom instruction files on
+    /// resume. Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instruction_directories: Option<Vec<PathBuf>>,
     /// Enable session hooks on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hooks: Option<bool>,
@@ -1606,6 +1628,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
             .field("skill_directories", &self.skill_directories)
+            .field("instruction_directories", &self.instruction_directories)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
             .field("default_agent", &self.default_agent)
@@ -1662,6 +1685,7 @@ impl ResumeSessionConfig {
             request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
             skill_directories: None,
+            instruction_directories: None,
             hooks: None,
             custom_agents: None,
             default_agent: None,
@@ -1846,6 +1870,18 @@ impl ResumeSessionConfig {
         P: Into<PathBuf>,
     {
         self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set additional directories to search for custom instruction files
+    /// on resume. Forwarded to the CLI; not the same as
+    /// [`with_skill_directories`](Self::with_skill_directories).
+    pub fn with_instruction_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.instruction_directories = Some(paths.into_iter().map(Into::into).collect());
         self
     }
 
