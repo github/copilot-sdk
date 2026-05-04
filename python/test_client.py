@@ -222,6 +222,29 @@ class TestSessionIdleTimeoutSeconds:
         assert client._config.session_idle_timeout_seconds is None
 
 
+class TestCopilotHome:
+    def test_accepts_copilot_home(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                copilot_home="/custom/copilot/home",
+                log_level="error",
+            )
+        )
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.copilot_home == "/custom/copilot/home"
+
+    def test_default_copilot_home_is_none(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                log_level="error",
+            )
+        )
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.copilot_home is None
+
+
 class TestOverridesBuiltInTool:
     @pytest.mark.asyncio
     async def test_overrides_built_in_tool_sent_in_tool_definition(self):

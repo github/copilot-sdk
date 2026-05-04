@@ -344,6 +344,26 @@ func TestClient_AuthOptions(t *testing.T) {
 	})
 }
 
+func TestClient_CopilotHome(t *testing.T) {
+	t.Run("should accept CopilotHome option", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			CopilotHome: "/custom/copilot/home",
+		})
+
+		if client.options.CopilotHome != "/custom/copilot/home" {
+			t.Errorf("Expected CopilotHome to be '/custom/copilot/home', got %q", client.options.CopilotHome)
+		}
+	})
+
+	t.Run("should default CopilotHome to empty string", func(t *testing.T) {
+		client := NewClient(&ClientOptions{})
+
+		if client.options.CopilotHome != "" {
+			t.Errorf("Expected CopilotHome to be empty, got %q", client.options.CopilotHome)
+		}
+	})
+}
+
 func TestClient_EnvOptions(t *testing.T) {
 	t.Run("should store custom environment variables", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
