@@ -17,6 +17,9 @@ public sealed partial class CapiProxy : IAsyncDisposable
     private Process? _process;
     private Task<string>? _startupTask;
 
+    public string? ConnectProxyUrl { get; private set; }
+    public string? CaFilePath { get; private set; }
+
     public Task<string> StartAsync()
     {
         return _startupTask ??= StartCoreAsync();
@@ -57,8 +60,19 @@ public sealed partial class CapiProxy : IAsyncDisposable
             _process.OutputDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
-                var match = Regex.Match(e.Data, @"Listening: (http://[^\s]+)");
-                if (match.Success) tcs.TrySetResult(match.Groups[1].Value);
+                var match = Regex.Match(e.Data, @"Listening: (?<url>http://[^\s]+)(?:\s+(?<metadata>\{.*\}))?");
+                if (match.Success)
+                {
+                    if (match.Groups["metadata"].Success)
+                    {
+                        var metadata = JsonSerializer.Deserialize(
+                            match.Groups["metadata"].Value,
+                            CapiProxyJsonContext.Default.ProxyStartupMetadata);
+                        ConnectProxyUrl = metadata?.ConnectProxyUrl;
+                        CaFilePath = metadata?.CaFilePath;
+                    }
+                    tcs.TrySetResult(match.Groups["url"].Value);
+                }
             };
 
             _process.ErrorDataReceived += (_, e) =>
@@ -124,6 +138,8 @@ public sealed partial class CapiProxy : IAsyncDisposable
 
     private record ConfigureRequest(string FilePath, string WorkDir);
 
+    private record ProxyStartupMetadata(string? ConnectProxyUrl, string? CaFilePath);
+
     public async Task<List<ParsedHttpExchange>> GetExchangesAsync()
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
@@ -165,6 +181,7 @@ public sealed partial class CapiProxy : IAsyncDisposable
     [JsonSerializable(typeof(List<ParsedHttpExchange>))]
     [JsonSerializable(typeof(CopilotUserByTokenRequest))]
     [JsonSerializable(typeof(Dictionary<string, CopilotUserQuotaSnapshot>))]
+    [JsonSerializable(typeof(ProxyStartupMetadata))]
     private partial class CapiProxyJsonContext : JsonSerializerContext;
 }
 

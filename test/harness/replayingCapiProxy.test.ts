@@ -415,6 +415,60 @@ describe("ReplayingCapiProxy", () => {
     expect(toolMessages[1].content).toBe("[beta result]");
   });
 
+  test("normalizes GitHub CLI proxy auth failures", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Summarize this issue" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: { name: "web_fetch", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            'Post "https://api.github.com/graphql": tls: failed to verify certificate: x509: certificate signed by unknown authority\n<exited with exit code 1>',
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            "HTTP: 401 Requires authentication (https://api.github.com/graphql)\n<exited with exit code 1>",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessages = result.conversations[0].messages.filter(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessages).toEqual([
+      {
+        role: "tool",
+        tool_call_id: "toolcall_0",
+        content: "${gh_auth_required}\n<exited with exit code 4>",
+      },
+      {
+        role: "tool",
+        tool_call_id: "toolcall_0",
+        content: "${gh_auth_required}\n<exited with exit code 4>",
+      },
+    ]);
+  });
+
   test("ignores non-chat-completion endpoints", async () => {
     const outputPath = await createProxy([
       { url: "/models", requestBody: "{}", responseBody: "{}" },

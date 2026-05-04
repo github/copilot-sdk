@@ -128,15 +128,21 @@ class E2ETestContext:
     def get_env(self) -> dict:
         """Return environment variables configured for isolated testing."""
         env = os.environ.copy()
+        if self._proxy:
+            env.update(self._proxy.get_proxy_env())
 
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
                 "COPILOT_HOME": self.home_dir,
+                "GH_CONFIG_DIR": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }
         )
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            env["GH_TOKEN"] = "fake-token-for-e2e-tests"
+            env["GITHUB_TOKEN"] = "fake-token-for-e2e-tests"
         return env
 
     @property
