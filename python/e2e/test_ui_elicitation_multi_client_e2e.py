@@ -82,7 +82,12 @@ class ElicitationMultiClientContext:
         self._actual_port = self._client1.actual_port
         assert self._actual_port is not None
 
-        self._client2 = CopilotClient(ExternalServerConfig(url=f"localhost:{self._actual_port}", tcp_connection_token="py-tcp-shared-test-token"))
+        self._client2 = CopilotClient(
+            ExternalServerConfig(
+                url=f"localhost:{self._actual_port}",
+                tcp_connection_token="py-tcp-shared-test-token",
+            )
+        )
 
     async def teardown(self, test_failed: bool = False):
         for c in (self._client2, self._client1):
@@ -133,7 +138,12 @@ class ElicitationMultiClientContext:
     def make_external_client(self) -> CopilotClient:
         """Create a new external client connected to the same CLI server."""
         assert self._actual_port is not None
-        return CopilotClient(ExternalServerConfig(url=f"localhost:{self._actual_port}", tcp_connection_token="py-tcp-shared-test-token"))
+        return CopilotClient(
+            ExternalServerConfig(
+                url=f"localhost:{self._actual_port}",
+                tcp_connection_token="py-tcp-shared-test-token",
+            )
+        )
 
     @property
     def client1(self) -> CopilotClient:

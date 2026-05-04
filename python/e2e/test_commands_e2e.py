@@ -75,7 +75,11 @@ class CommandsMultiClientContext:
         actual_port = self._client1.actual_port
         assert actual_port is not None
 
-        self._client2 = CopilotClient(ExternalServerConfig(url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"))
+        self._client2 = CopilotClient(
+            ExternalServerConfig(
+                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            )
+        )
 
     async def teardown(self, test_failed: bool = False):
         for c in (self._client2, self._client1):
