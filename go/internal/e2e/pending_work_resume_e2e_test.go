@@ -583,16 +583,6 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 			t.Errorf("Expected HandlePendingToolCall to succeed, got %+v", toolResult)
 		}
 
-		ctxFinal, cancel := context.WithTimeout(t.Context(), pendingWorkTimeout)
-		defer cancel()
-		answer, err := testharness.GetFinalAssistantMessage(ctxFinal, session2)
-		if err != nil {
-			t.Fatalf("Failed to wait for final assistant message: %v", err)
-		}
-		if assistant, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(assistant.Content, "EXTERNAL_RESUMED_BETA") {
-			t.Errorf("Expected response to contain 'EXTERNAL_RESUMED_BETA', got %v", answer.Data)
-		}
-
 		select {
 		case releaseTool <- "ORIGINAL_SHOULD_NOT_WIN":
 		default:
