@@ -11,6 +11,7 @@
  */
 import { execSync } from "child_process";
 import * as semver from "semver";
+import { calculateVersion } from "./calculate-version.js";
 
 async function getLatestVersion(tag) {
     try {
@@ -30,69 +31,8 @@ async function getLatestVersion(tag) {
     }
 }
 
-async function main() {
-    const command = process.argv[2];
-    const validCommands = ["current", "current-prerelease", "latest", "prerelease", "unstable"];
-    if (!validCommands.includes(command)) {
-        console.error(
-            `Invalid argument, must be one of: ${validCommands.join(", ")}, got: "${command}"`
-        );
-        process.exit(1);
-    }
-
-    const latest = await getLatestVersion("latest");
-    if (!latest) {
-        console.error("No latest version found. Publish an initial version first.");
-        process.exit(1);
-    }
-
-    // Output the current latest version to stdout
-    if (command === "current") {
-        console.log(latest);
-        return;
-    }
-
-    const prerelease = await getLatestVersion("prerelease");
-
-    // Use latest if no prerelease exists, or compare to find higher
-    let higherVersion;
-    if (!prerelease) {
-        higherVersion = latest;
-    } else {
-        try {
-            higherVersion = semver.gt(latest, prerelease) ? latest : prerelease;
-        } catch (err) {
-            console.error(
-                `Failed to compare versions "${latest}" and "${prerelease}": ${err.message}`
-            );
-            process.exit(1);
-        }
-    }
-
-    // Output the most recent version including prerelease versions to stdout
-    if (command === "current-prerelease") {
-        console.log(higherVersion);
-        return;
-    }
-
-    if (command === "unstable") {
-        const unstable = await getLatestVersion("unstable");
-        if (unstable && semver.gt(unstable, higherVersion)) {
-            higherVersion = unstable;
-        }
-    }
-
-    const increment = command === "latest" ? "patch" : "prerelease";
-    const prereleaseIdentifier =
-        command === "prerelease" ? "preview" : command === "unstable" ? "unstable" : undefined;
-    const nextVersion = semver.inc(higherVersion, increment, prereleaseIdentifier);
-    if (!nextVersion) {
-        console.error(`Failed to increment version "${higherVersion}" with "${increment}"`);
-        process.exit(1);
-    }
-
-    // Output the next version to stdout
-    console.log(nextVersion);
-}
-
-void main();
+const command = process.argv[2];
+const latest = await getLatestVersion("latest");
+const prerelease = await getLatestVersion("prerelease");
+const unstable = command === "unstable" ? await getLatestVersion("unstable") : undefined;
+console.log(calculateVersion(command, { latest, prerelease, unstable }));
