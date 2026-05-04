@@ -32,6 +32,7 @@ import {
 	resolveObjectSchema,
 	resolveRef,
 	resolveSchema,
+	stripBooleanLiterals,
 } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
@@ -1359,10 +1360,10 @@ async function generate(): Promise<void> {
 	) as ApiSchema;
 
 	const sessionEventsSchema = postProcessSchema(
-		sessionEventsRaw as JSONSchema7,
+		stripBooleanLiterals(sessionEventsRaw) as JSONSchema7,
 	);
 	const apiSchema = postProcessSchema(
-		apiRaw as JSONSchema7,
+		stripBooleanLiterals(apiRaw) as JSONSchema7,
 	) as unknown as ApiSchema;
 
 	// Ensure output directory exists

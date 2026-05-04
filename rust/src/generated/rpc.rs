@@ -77,6 +77,16 @@ impl<'a> ClientRpc<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Wire method: `connect`.
+    pub async fn connect(&self, params: ConnectRequest) -> Result<ConnectResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CONNECT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `account.*` RPCs.

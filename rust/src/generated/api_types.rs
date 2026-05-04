@@ -12,6 +12,8 @@ use crate::types::{RequestId, SessionId};
 pub mod rpc_methods {
     /// `ping`
     pub const PING: &str = "ping";
+    /// `connect`
+    pub const CONNECT: &str = "connect";
     /// `models.list`
     pub const MODELS_LIST: &str = "models.list";
     /// `tools.list`
@@ -273,6 +275,25 @@ pub struct CommandsHandlePendingCommandRequest {
 pub struct CommandsHandlePendingCommandResult {
     /// Whether the command was handled successfully
     pub success: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectRequest {
+    /// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectResult {
+    /// Always true on success
+    pub ok: bool,
+    /// Server protocol version number
+    pub protocol_version: i64,
+    /// Server package version
+    pub version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
