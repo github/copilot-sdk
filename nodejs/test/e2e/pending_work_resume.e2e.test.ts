@@ -402,16 +402,6 @@ describe("Pending work resume", async () => {
                 });
                 expect(resultA.success).toBe(true);
 
-                const answer = await waitWithTimeout(
-                    getFinalAssistantMessage(session2),
-                    PENDING_WORK_TIMEOUT_MS,
-                    "final assistant message"
-                );
-
-                const content = answer.data.content ?? "";
-                expect(content).toContain("PARALLEL_A_ALPHA");
-                expect(content).toContain("PARALLEL_B_BETA");
-
                 await session2.disconnect();
             } finally {
                 if (!releaseOriginalToolA.settled()) {

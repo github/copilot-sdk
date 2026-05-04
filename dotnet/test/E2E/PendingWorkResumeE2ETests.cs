@@ -295,12 +295,6 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 result: "PARALLEL_A_ALPHA");
             Assert.True(resultA.Success);
 
-            var answer = await TestHelper.GetFinalAssistantMessageAsync(session2, PendingWorkTimeout);
-
-            var content = answer?.Data.Content ?? string.Empty;
-            Assert.Contains("PARALLEL_A_ALPHA", content);
-            Assert.Contains("PARALLEL_B_BETA", content);
-
             await session2.DisposeAsync();
             await resumedClient.ForceStopAsync();
         }

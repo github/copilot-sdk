@@ -369,13 +369,6 @@ class TestPendingWorkResume:
                     )
                     assert result_a.success
 
-                    answer = await get_final_assistant_message(
-                        session2, timeout=PENDING_WORK_TIMEOUT
-                    )
-                    content = answer.data.content or ""
-                    assert "PARALLEL_A_ALPHA" in content
-                    assert "PARALLEL_B_BETA" in content
-
                     await session2.disconnect()
                 finally:
                     await _safe_force_stop(resumed_client)

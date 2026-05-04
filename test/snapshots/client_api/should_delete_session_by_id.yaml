@@ -5,6 +5,6 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Say OK.
+        content: Say DELETE_SESSION_OK exactly.
       - role: assistant
-        content: OK.
+        content: DELETE_SESSION_OK
