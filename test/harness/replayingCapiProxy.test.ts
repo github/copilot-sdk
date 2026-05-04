@@ -439,7 +439,7 @@ describe("ReplayingCapiProxy", () => {
           role: "tool",
           tool_call_id: "tc1",
           content:
-            "HTTP: 401 Requires authentication (https://api.github.com/graphql)\n<exited with exit code 1>",
+            "\u28fe\u28fdHTTP 401: Requires authentication (https://api.github.com/graphql)\nTry authenticating with:  gh auth login\n<exited with exit code 1>",
         },
       ],
     });

@@ -88,8 +88,12 @@ export class ConnectProxy {
   async start(): Promise<void> {
     this.ca = generateCA();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-proxy-ca-"));
-    this._caFilePath = path.join(tmpDir, "test-ca.pem");
-    fs.writeFileSync(this._caFilePath, this.ca.certPem);
+    fs.writeFileSync(path.join(tmpDir, "test-ca.pem"), this.ca.certPem);
+    this._caFilePath = path.join(tmpDir, "test-ca-bundle.pem");
+    fs.writeFileSync(
+      this._caFilePath,
+      [...tls.rootCertificates, this.ca.certPem].join("\n"),
+    );
 
     this.internalServer = http.createServer((req, res) => {
       const socket = req.socket as tls.TLSSocket & { _connectTarget?: string };

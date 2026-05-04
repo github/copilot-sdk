@@ -957,7 +957,7 @@ function normalizeGhAuthMessages(result: string): string {
     "${gh_auth_required}\n<exited with exit code 4>",
   );
   normalized = normalized.replace(
-    /(?:HTTP|GraphQL): 401[^\n]*Requires authentication[^\n]*\n<exited with exit code \d+>/g,
+    /[^\n]*(?:HTTP|GraphQL)[\s:]+401[^\n]*Requires authentication(?:[^\n]*\r?\n)*?<exited with exit code \d+>/g,
     "${gh_auth_required}\n<exited with exit code 4>",
   );
   return normalized;

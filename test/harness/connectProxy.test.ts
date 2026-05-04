@@ -55,7 +55,7 @@ describe("ConnectProxy", () => {
     await proxy.start();
 
     expect(proxy.proxyUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
-    expect(proxy.caFilePath).toMatch(/test-ca\.pem$/);
+    expect(proxy.caFilePath).toMatch(/test-ca-bundle\.pem$/);
 
     await proxy.stop();
   });

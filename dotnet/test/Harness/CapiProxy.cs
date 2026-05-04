@@ -65,11 +65,19 @@ public sealed partial class CapiProxy : IAsyncDisposable
                 {
                     if (match.Groups["metadata"].Success)
                     {
-                        var metadata = JsonSerializer.Deserialize(
-                            match.Groups["metadata"].Value,
-                            CapiProxyJsonContext.Default.ProxyStartupMetadata);
-                        ConnectProxyUrl = metadata?.ConnectProxyUrl;
-                        CaFilePath = metadata?.CaFilePath;
+                        try
+                        {
+                            var metadata = JsonSerializer.Deserialize(
+                                match.Groups["metadata"].Value,
+                                CapiProxyJsonContext.Default.ProxyStartupMetadata);
+                            ConnectProxyUrl = metadata?.ConnectProxyUrl;
+                            CaFilePath = metadata?.CaFilePath;
+                        }
+                        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+                        {
+                            tcs.TrySetException(new InvalidOperationException($"Failed to parse proxy startup metadata: {match.Groups["metadata"].Value}", ex));
+                            return;
+                        }
                     }
                     tcs.TrySetResult(match.Groups["url"].Value);
                 }

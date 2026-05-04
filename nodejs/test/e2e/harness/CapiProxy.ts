@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { resolve } from "path";
+import { createInterface } from "readline";
 import { expect } from "vitest";
 import {
     CopilotUserResponse,
@@ -37,24 +38,35 @@ export class CapiProxy {
         });
 
         this.startupInfo = await new Promise<ProxyStartupInfo>((resolve, reject) => {
-            let output = "";
+            const stdout = serverProcess.stdout!;
+            const lines: string[] = [];
+            const lineReader = createInterface({ input: stdout });
             const cleanup = () => {
-                serverProcess.stdout!.off("data", onData);
+                lineReader.off("line", onLine);
                 serverProcess.off("exit", onExit);
+                lineReader.close();
             };
-            const onData = (chunk: Buffer) => {
-                output += chunk.toString();
-                const info = tryParseStartupInfo(output);
-                if (info) {
+            const onLine = (line: string) => {
+                lines.push(line);
+                try {
+                    const info = tryParseStartupInfo(line);
+                    if (!info) {
+                        return;
+                    }
                     cleanup();
                     resolve(info);
+                } catch (error) {
+                    cleanup();
+                    reject(error);
                 }
             };
             const onExit = (code: number | null) => {
                 cleanup();
-                reject(new Error(`Proxy exited before startup with code ${code}: ${output}`));
+                reject(
+                    new Error(`Proxy exited before startup with code ${code}: ${lines.join("\n")}`)
+                );
             };
-            serverProcess.stdout!.on("data", onData);
+            lineReader.on("line", onLine);
             serverProcess.once("exit", onExit);
         });
         this.proxyUrl = this.startupInfo.capiProxyUrl;
@@ -127,18 +139,23 @@ export class CapiProxy {
     }
 }
 
-function tryParseStartupInfo(output: string): ProxyStartupInfo | undefined {
-    const line = output.split(/\r?\n/).find((candidate) => candidate.includes("Listening: "));
+function tryParseStartupInfo(line: string): ProxyStartupInfo | undefined {
     if (!line) {
         return undefined;
     }
 
-    const match = line.match(/Listening: (http:\/\/[^\s]+)(?:\s+(\{.*\}))?/);
+    const match = line.match(/Listening: (http:\/\/[^\s]+)\s+(\{.*\})$/);
     if (!match) {
+        if (!line.includes("Listening: ")) {
+            return undefined;
+        }
         throw new Error(`Unexpected proxy output: ${line}`);
     }
 
-    const metadata = match[2] ? (JSON.parse(match[2]) as Partial<ProxyStartupInfo>) : {};
+    const metadata = JSON.parse(match[2]) as Partial<ProxyStartupInfo>;
+    if (!metadata.connectProxyUrl || !metadata.caFilePath) {
+        throw new Error(`Proxy startup metadata missing CONNECT proxy details: ${line}`);
+    }
     return {
         capiProxyUrl: match[1],
         connectProxyUrl: metadata.connectProxyUrl,
