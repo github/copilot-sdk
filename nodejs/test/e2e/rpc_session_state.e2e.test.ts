@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { randomUUID } from "crypto";
 import { describe, expect, it } from "vitest";
 import { approveAll } from "../../src/index.js";
 import type { SessionEvent } from "../../src/index.js";
@@ -204,6 +205,75 @@ describe("Session-scoped RPC", async () => {
         );
 
         await session.disconnect();
+    });
+
+    it("should fork session to event id excluding boundary event", async () => {
+        const firstPrompt = "Say FORK_BOUNDARY_FIRST exactly.";
+        const secondPrompt = "Say FORK_BOUNDARY_SECOND exactly.";
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            await session.sendAndWait({ prompt: firstPrompt });
+            await session.sendAndWait({ prompt: secondPrompt });
+
+            const sourceEvents = await session.getMessages();
+            const secondUserEvent = sourceEvents.find(
+                (event) => event.type === "user.message" && event.data.content === secondPrompt
+            );
+            expect(secondUserEvent).toBeDefined();
+            const boundaryEventId = secondUserEvent!.id;
+
+            const fork = await client.rpc.sessions.fork({
+                sessionId: session.sessionId,
+                toEventId: boundaryEventId,
+            });
+            expect(fork.sessionId.trim()).toBeTruthy();
+            expect(fork.sessionId).not.toBe(session.sessionId);
+
+            const forkedSession = await client.resumeSession(fork.sessionId, {
+                onPermissionRequest: approveAll,
+            });
+            try {
+                const forkedEvents = await forkedSession.getMessages();
+                expect(forkedEvents.some((event) => event.id === boundaryEventId)).toBe(false);
+
+                const forkedConversation = getConversationMessages(forkedEvents);
+                expect(
+                    forkedConversation.some((m) => m.role === "user" && m.content === firstPrompt)
+                ).toBe(true);
+                expect(
+                    forkedConversation.some((m) => m.role === "user" && m.content === secondPrompt)
+                ).toBe(false);
+            } finally {
+                await forkedSession.disconnect();
+            }
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should report error when forking session to unknown event id", async () => {
+        const sourcePrompt = "Say FORK_UNKNOWN_EVENT_OK exactly.";
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            await session.sendAndWait({ prompt: sourcePrompt });
+
+            const bogusEventId = randomUUID();
+            await expect(
+                client.rpc.sessions.fork({
+                    sessionId: session.sessionId,
+                    toEventId: bogusEventId,
+                })
+            ).rejects.toSatisfy((err: unknown) => {
+                const text =
+                    err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
+                expect(text.toLowerCase()).toContain(`event ${bogusEventId} not found`);
+                expect(text.toLowerCase()).not.toContain("unhandled method sessions.fork");
+                return true;
+            });
+        } finally {
+            await session.disconnect();
+        }
     });
 
     it("should call session usage and permission rpcs", async () => {
