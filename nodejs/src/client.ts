@@ -1129,7 +1129,11 @@ export class CopilotClient {
             );
             serverVersion = result.protocolVersion;
         } catch (err) {
-            if (err instanceof ResponseError && err.code === ErrorCodes.MethodNotFound) {
+            if (
+                err instanceof ResponseError &&
+                (err.code === ErrorCodes.MethodNotFound ||
+                    err.message === "Unhandled method connect")
+            ) {
                 // Legacy server without `connect`; fall back to `ping`. A token, if any,
                 // is silently dropped — the legacy server can't enforce one.
                 serverVersion = (await raceAgainstExit(this.ping())).protocolVersion;
