@@ -1,4 +1,4 @@
-# Using MCP Servers with the GitHub Copilot SDK
+# Using MCP servers with the GitHub Copilot SDK
 
 The Copilot SDK can integrate with **MCP servers** (Model Context Protocol) to extend the assistant's capabilities with external tools. MCP servers run as separate processes and expose tools (functions) that Copilot can invoke during conversations.
 
@@ -14,7 +14,7 @@ The Copilot SDK can integrate with **MCP servers** (Model Context Protocol) to e
 - Call external APIs
 - And much more
 
-## Server Types
+## Server types
 
 The SDK supports two types of MCP servers:
 
@@ -153,7 +153,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-## Tool Configuration
+## Tool configuration
 
 You can control which tools are available to an MCP server using the `tools` field.
 
@@ -194,7 +194,7 @@ tools: []
 - The `tools` field defines which tools are allowed.
 - There is no separate `allow` or `disallow` configuration — tool access is controlled directly through this list.
 
-## Quick Start: Filesystem MCP Server
+## Quick start: filesystem MCP server
 
 Here's a complete working example using the official [`@modelcontextprotocol/server-filesystem`](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) MCP server:
 
@@ -242,9 +242,9 @@ directories for different applications.
 
 > **Tip:** You can use any MCP server from the [MCP Servers Directory](https://github.com/modelcontextprotocol/servers). Popular options include `@modelcontextprotocol/server-github`, `@modelcontextprotocol/server-sqlite`, and `@modelcontextprotocol/server-puppeteer`.
 
-## Configuration Options
+## Configuration options
 
-### Local/Stdio Server
+### Local/stdio server
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -256,7 +256,7 @@ directories for different applications.
 | `tools` | `string[]` | No | Tools to enable (`["*"]` for all, `[]` for none) |
 | `timeout` | `number` | No | Timeout in milliseconds |
 
-### Remote Server (HTTP/SSE)
+### Remote server (HTTP/SSE)
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -294,7 +294,7 @@ directories for different applications.
 
 For detailed debugging guidance, see the **[MCP Debugging Guide](../troubleshooting/mcp-debugging.md)**.
 
-## Related Resources
+## Related resources
 
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Community MCP servers
@@ -302,7 +302,7 @@ For detailed debugging guidance, see the **[MCP Debugging Guide](../troubleshoot
 - [Getting Started Guide](../getting-started.md) - SDK basics and custom tools
 - [General Debugging Guide](.../troubleshooting/mcp-debugging.md) - SDK-wide debugging
 
-## See Also
+## See also
 
 - [MCP Debugging Guide](../troubleshooting/mcp-debugging.md) - Detailed MCP troubleshooting
 - [Issue #9](https://github.com/github/copilot-sdk/issues/9) - Original MCP tools usage question

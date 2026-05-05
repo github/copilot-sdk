@@ -1,8 +1,8 @@
-# MCP Server Debugging Guide
+# MCP server debugging guide
 
 This guide covers debugging techniques specific to MCP (Model Context Protocol) servers when using the Copilot SDK.
 
-## Table of Contents
+## Table of contents
 
 - [Quick Diagnostics](#quick-diagnostics)
 - [Testing MCP Servers Independently](#testing-mcp-servers-independently)
@@ -12,7 +12,7 @@ This guide covers debugging techniques specific to MCP (Model Context Protocol) 
 
 ---
 
-## Quick Diagnostics
+## Quick diagnostics
 
 ### Checklist
 
@@ -24,7 +24,7 @@ Before diving deep, verify these basics:
 - [ ] Server implements MCP protocol correctly (responds to `initialize`)
 - [ ] No firewall/antivirus blocking the process (Windows)
 
-### Enable MCP Debug Logging
+### Enable MCP debug logging
 
 Add environment variables to your MCP server config:
 
@@ -45,11 +45,11 @@ mcpServers: {
 
 ---
 
-## Testing MCP Servers Independently
+## Testing MCP servers independently
 
 Always test your MCP server outside the SDK first.
 
-### Manual Protocol Test
+### Manual protocol test
 
 Send an `initialize` request via stdin:
 
@@ -66,7 +66,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"your-server","version":"1.0"}}}
 ```
 
-### Test Tool Listing
+### Test tool listing
 
 After initialization, request the tools list:
 
@@ -79,7 +79,7 @@ echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | /path/to/you
 {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"my_tool","description":"Does something","inputSchema":{...}}]}}
 ```
 
-### Interactive Testing Script
+### Interactive testing script
 
 Create a test script to interactively debug your MCP server:
 
@@ -109,9 +109,9 @@ Usage:
 
 ---
 
-## Common Issues
+## Common issues
 
-### Server Not Starting
+### Server not starting
 
 **Symptoms:** No tools appear, no errors in logs.
 
@@ -131,7 +131,7 @@ cd /expected/working/dir
 /path/to/command arg1 arg2
 ```
 
-### Server Starts But Tools Don't Appear
+### Server starts but tools don't appear
 
 **Symptoms:** Server process runs but no tools are available.
 
@@ -155,7 +155,7 @@ cd /expected/working/dir
    - Server must respond to `initialize` correctly
    - Server must handle `notifications/initialized`
 
-### Tools Listed But Never Called
+### Tools listed but never called
 
 **Symptoms:** Tools appear in debug logs but model doesn't use them.
 
@@ -185,7 +185,7 @@ cd /expected/working/dir
    - Ensure `inputSchema` is valid JSON Schema
    - Required fields must be in `required` array
 
-### Timeout Errors
+### Timeout errors
 
 **Symptoms:** `MCP tool call timed out` errors.
 
@@ -208,7 +208,7 @@ cd /expected/working/dir
 
 3. **For long-running tools**, consider streaming responses if supported.
 
-### JSON-RPC Errors
+### JSON-RPC errors
 
 **Symptoms:** Parse errors, invalid request errors.
 
@@ -236,11 +236,11 @@ cd /expected/working/dir
 
 ---
 
-## Platform-Specific Issues
+## Platform-specific issues
 
 ### Windows
 
-#### .NET Console Apps / Tools
+#### .NET console apps / tools
 
 <!-- docs-validate: hidden -->
 ```csharp
@@ -291,7 +291,7 @@ public static class McpDotnetConfigExample
 }
 ```
 
-#### NPX Commands
+#### npx commands
 
 <!-- docs-validate: hidden -->
 ```csharp
@@ -324,13 +324,13 @@ public static class McpNpxConfigExample
 }
 ```
 
-#### Path Issues
+#### Path issues
 
 - Use raw strings (`@"C:\path"`) or forward slashes (`"C:/path"`)
 - Avoid spaces in paths when possible
 - If spaces required, ensure proper quoting
 
-#### Antivirus/Firewall
+#### Antivirus/firewall
 
 Windows Defender or other AV may block:
 - New executables
@@ -340,14 +340,14 @@ Windows Defender or other AV may block:
 
 ### macOS
 
-#### Gatekeeper Blocking
+#### Gatekeeper blocking
 
 ```bash
 # If server is blocked
 xattr -d com.apple.quarantine /path/to/mcp-server
 ```
 
-#### Homebrew Paths
+#### Homebrew paths
 
 <!-- docs-validate: hidden -->
 ```typescript
@@ -374,13 +374,13 @@ mcpServers: {
 
 ### Linux
 
-#### Permission Issues
+#### Permission issues
 
 ```bash
 chmod +x /path/to/mcp-server
 ```
 
-#### Missing Shared Libraries
+#### Missing shared libraries
 
 ```bash
 # Check dependencies
@@ -393,9 +393,9 @@ yum install libfoo  # RHEL/CentOS
 
 ---
 
-## Advanced Debugging
+## Advanced debugging
 
-### Capture All MCP Traffic
+### Capture all MCP traffic
 
 Create a wrapper script to log all communication:
 
@@ -426,7 +426,7 @@ mcpServers: {
 }
 ```
 
-### Inspect with MCP Inspector
+### Inspect with MCP inspector
 
 Use the official MCP Inspector tool:
 
@@ -439,7 +439,7 @@ This provides a web UI to:
 - View responses
 - Inspect tool schemas
 
-### Protocol Version Mismatches
+### Protocol version mismatches
 
 Check your server supports the protocol version the SDK uses:
 
@@ -452,7 +452,7 @@ If versions don't match, update your MCP server library.
 
 ---
 
-## Debugging Checklist
+## Debugging checklist
 
 When opening an issue or asking for help, collect:
 
@@ -465,7 +465,7 @@ When opening an issue or asking for help, collect:
 - [ ] Debug logs from SDK
 - [ ] Any error messages
 
-## See Also
+## See also
 
 - [MCP Overview](../features/mcp.md) - Configuration and setup
 - [General Debugging Guide](./debugging.md) - SDK-wide debugging

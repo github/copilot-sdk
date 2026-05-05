@@ -1,8 +1,8 @@
-# Debugging Guide
+# Debugging guide
 
 This guide covers common issues and debugging techniques for the Copilot SDK across all supported languages.
 
-## Table of Contents
+## Table of contents
 
 - [Enable Debug Logging](#enable-debug-logging)
 - [Common Issues](#common-issues)
@@ -13,7 +13,7 @@ This guide covers common issues and debugging techniques for the Copilot SDK acr
 
 ---
 
-## Enable Debug Logging
+## Enable debug logging
 
 The first step in debugging is enabling verbose logging to see what's happening under the hood.
 
@@ -108,7 +108,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 </details>
 
-### Log Directory
+### Log directory
 
 The CLI writes logs to a directory. You can specify a custom location:
 
@@ -184,9 +184,9 @@ var client = new CopilotClient(new CopilotClientOptions
 
 ---
 
-## Common Issues
+## Common issues
 
-### "CLI not found" / "copilot: command not found"
+### "CLI not found" / "Copilot: command not found"
 
 **Cause:** The Copilot CLI is not installed or not in PATH.
 
@@ -352,11 +352,11 @@ var client = new CopilotClient(new CopilotClientOptions
 
 ---
 
-## MCP Server Debugging
+## MCP server debugging
 
 MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive MCP debugging guidance, see the dedicated **[MCP Debugging Guide](./mcp-debugging.md)**.
 
-### Quick MCP Checklist
+### Quick MCP checklist
 
 - [ ] MCP server executable exists and runs independently
 - [ ] Command path is correct (use absolute paths)
@@ -364,7 +364,7 @@ MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive M
 - [ ] Server responds to `initialize` request correctly
 - [ ] Working directory (`cwd`) is set if needed
 
-### Test Your MCP Server
+### Test your MCP server
 
 Before integrating with the SDK, verify your MCP server works:
 
@@ -376,9 +376,9 @@ See [MCP Debugging Guide](./mcp-debugging.md) for detailed troubleshooting.
 
 ---
 
-## Connection Issues
+## Connection issues
 
-### Stdio vs TCP Mode
+### stdio vs TCP mode
 
 The SDK supports two transport modes:
 
@@ -409,7 +409,7 @@ const client = new CopilotClient({
 });
 ```
 
-### Diagnosing Connection Failures
+### Diagnosing connection failures
 
 1. **Check client state:**
    ```typescript
@@ -432,9 +432,9 @@ const client = new CopilotClient({
 
 ---
 
-## Tool Execution Issues
+## Tool execution issues
 
-### Custom Tool Not Being Called
+### Custom tool not being called
 
 1. **Verify tool registration:**
    ```typescript
@@ -474,7 +474,7 @@ const client = new CopilotClient({
    }
    ```
 
-### Tool Errors Not Surfacing
+### Tool errors not surfacing
 
 Subscribe to error events:
 
@@ -490,7 +490,7 @@ session.on("error", (event) => {
 
 ---
 
-## Platform-Specific Issues
+## Platform-specific issues
 
 ### Windows
 
@@ -540,7 +540,7 @@ session.on("error", (event) => {
 
 ---
 
-## Getting Help
+## Getting help
 
 If you're still stuck:
 
@@ -555,7 +555,7 @@ If you're still stuck:
 
 3. **Open a new issue** with the collected information
 
-## See Also
+## See also
 
 - [Getting Started Guide](../getting-started.md)
 - [MCP Overview](../features/mcp.md) - MCP configuration and setup

@@ -1,10 +1,10 @@
-# Scaling & Multi-Tenancy
+# Scaling and multi-tenancy
 
 Design your Copilot SDK deployment to serve multiple users, handle concurrent sessions, and scale horizontally across infrastructure. This guide covers session isolation patterns, scaling topologies, and production best practices.
 
 **Best for:** Platform developers, SaaS builders, any deployment serving more than a handful of concurrent users.
 
-## Core Concepts
+## Core concepts
 
 Before choosing a pattern, understand three dimensions of scaling:
 
@@ -24,9 +24,9 @@ flowchart TB
     style Dimensions fill:#0d1117,stroke:#58a6ff,color:#c9d1d9
 ```
 
-## Session Isolation Patterns
+## Session isolation patterns
 
-### Pattern 1: Isolated CLI Per User
+### Pattern 1: isolated CLI per user
 
 Each user gets their own CLI server instance. Strongest isolation — a user's sessions, memory, and processes are completely separated.
 
@@ -97,7 +97,7 @@ class CLIPool {
 }
 ```
 
-### Pattern 2: Shared CLI with Session Isolation
+### Pattern 2: shared CLI with session isolation
 
 Multiple users share one CLI server but have isolated sessions via unique session IDs. Lighter on resources, but weaker isolation.
 
@@ -157,7 +157,7 @@ async function resumeSessionWithAuth(
 }
 ```
 
-### Pattern 3: Shared Sessions (Collaborative)
+### Pattern 3: shared sessions (collaborative)
 
 Multiple users interact with the same session — like a shared chat room with Copilot.
 
@@ -235,7 +235,7 @@ app.post("/team-chat", authMiddleware, async (req, res) => {
 });
 ```
 
-## Comparison of Isolation Patterns
+## Comparison of isolation patterns
 
 | | Isolated CLI Per User | Shared CLI + Session Isolation | Shared Sessions |
 |---|---|---|---|
@@ -245,9 +245,9 @@ app.post("/team-chat", authMiddleware, async (req, res) => {
 | **Auth flexibility** | ✅ Per-user tokens | ⚠️ Service token | ⚠️ Service token |
 | **Best for** | Multi-tenant SaaS | Internal tools | Collaboration |
 
-## Horizontal Scaling
+## Horizontal scaling
 
-### Multiple CLI Servers Behind a Load Balancer
+### Multiple CLI servers behind a load balancer
 
 ```mermaid
 flowchart TB
@@ -330,7 +330,7 @@ app.post("/chat", async (req, res) => {
 });
 ```
 
-### Sticky Sessions vs. Shared Storage
+### Sticky sessions vs. shared storage
 
 ```mermaid
 flowchart LR
@@ -358,9 +358,9 @@ flowchart LR
 
 **Shared storage** enables any CLI to handle any session. Better load distribution, but requires networked storage for `~/.copilot/session-state/`.
 
-## Vertical Scaling
+## Vertical scaling
 
-### Tuning a Single CLI Server
+### Tuning a single CLI server
 
 A single CLI server can handle many concurrent sessions. Key considerations:
 
@@ -419,7 +419,7 @@ class SessionManager {
 }
 ```
 
-## Ephemeral vs. Persistent Sessions
+## Ephemeral vs. persistent sessions
 
 ```mermaid
 flowchart LR
@@ -441,7 +441,7 @@ flowchart LR
     style Persistent fill:#0d1117,stroke:#3fb950,color:#c9d1d9
 ```
 
-### Ephemeral Sessions
+### Ephemeral sessions
 
 For stateless API endpoints where each request is independent:
 
@@ -462,7 +462,7 @@ app.post("/api/analyze", async (req, res) => {
 });
 ```
 
-### Persistent Sessions
+### Persistent sessions
 
 For conversational interfaces or long-running workflows:
 
@@ -498,9 +498,9 @@ app.post("/api/chat/end", async (req, res) => {
 });
 ```
 
-## Container Deployments
+## Container deployments
 
-### Kubernetes with Persistent Storage
+### Kubernetes with persistent storage
 
 ```yaml
 apiVersion: apps/v1
@@ -589,7 +589,7 @@ volumes:
       storageAccountName: myaccount
 ```
 
-## Production Checklist
+## Production checklist
 
 ```mermaid
 flowchart TB
@@ -627,7 +627,7 @@ flowchart TB
 | **30-minute idle timeout** | Sessions without activity are auto-cleaned by the CLI |
 | **CLI is single-process** | Scale by adding more CLI server instances, not threads |
 
-## Next Steps
+## Next steps
 
 - **[Session Persistence](../features/session-persistence.md)** — Deep dive on resumable sessions
 - **[Backend Services](./backend-services.md)** — Core server-side setup

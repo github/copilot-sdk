@@ -1,8 +1,8 @@
-# OpenTelemetry Instrumentation for Copilot SDK
+# OpenTelemetry instrumentation for Copilot SDK
 
 This guide shows how to add OpenTelemetry tracing to your Copilot SDK applications.
 
-## Built-in Telemetry Support
+## Built-in telemetry support
 
 The SDK has built-in support for configuring OpenTelemetry on the CLI process and propagating W3C Trace Context between the SDK and CLI. Provide a `TelemetryConfig` when creating the client to opt in:
 
@@ -84,7 +84,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 </details>
 
-### TelemetryConfig Options
+### TelemetryConfig options
 
 | Option | Node.js | Python | Go | .NET | Java | Description |
 |---|---|---|---|---|---|---|
@@ -94,7 +94,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 | Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | `sourceName` | Instrumentation scope name |
 | Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | `captureContent` | Whether to capture message content |
 
-### Trace Context Propagation
+### Trace context propagation
 
 > **Most users don't need this.** The `TelemetryConfig` above is all you need to collect traces from the CLI. The trace context propagation described in this section is an **advanced feature** for applications that create their own OpenTelemetry spans and want them to appear in the **same distributed trace** as the CLI's spans.
 
@@ -157,7 +157,7 @@ session.registerTool(myTool, async (args, invocation) => {
 });
 ```
 
-### Per-Language Dependencies
+### Per-language dependencies
 
 | Language | Dependency | Notes |
 |---|---|---|

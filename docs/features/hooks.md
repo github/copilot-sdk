@@ -1,4 +1,4 @@
-# Working with Hooks
+# Working with hooks
 
 Hooks let you plug custom logic into every stage of a Copilot session — from the moment it starts, through each user prompt and tool call, to the moment it ends. This guide walks through practical use cases so you can ship permissions, auditing, notifications, and more without modifying the core agent behavior.
 
@@ -30,7 +30,7 @@ flowchart LR
 
 All hooks are **optional** — register only the ones you need. Returning `null` (or the language equivalent) from any hook tells the SDK to continue with default behavior.
 
-## Registering Hooks
+## Registering hooks
 
 Pass a `hooks` object when you create (or resume) a session. Every example below follows this pattern.
 
@@ -227,7 +227,7 @@ try (var client = new CopilotClient()) {
 
 ---
 
-## Use Case: Permission Control
+## Use case: permission control
 
 Use `onPreToolUse` to build a permission layer that decides which tools the agent may run, what arguments are allowed, and whether the user should be prompted before execution.
 
@@ -490,7 +490,7 @@ Returning `"ask"` delegates the decision to the user at runtime — useful for d
 
 ---
 
-## Use Case: Auditing & Compliance
+## Use case: auditing and compliance
 
 Combine `onPreToolUse`, `onPostToolUse`, and the session lifecycle hooks to build a complete audit trail that records every action the agent takes.
 
@@ -670,7 +670,7 @@ const session = await client.createSession({
 
 ---
 
-## Use Case: Notifications & Sounds
+## Use case: notifications and sounds
 
 Hooks fire in your application's process, so you can trigger any side-effect — desktop notifications, sounds, Slack messages, or webhook calls.
 
@@ -785,7 +785,7 @@ const session = await client.createSession({
 
 ---
 
-## Use Case: Prompt Enrichment
+## Use case: prompt enrichment
 
 Use `onSessionStart` and `onUserPromptSubmitted` to automatically inject context so users don't have to repeat themselves.
 
@@ -839,7 +839,7 @@ const session = await client.createSession({
 
 ---
 
-## Use Case: Error Handling & Recovery
+## Use case: error handling and recovery
 
 The `onErrorOccurred` hook gives you a chance to react to failures — whether that means retrying, notifying a human, or gracefully shutting down.
 
@@ -886,7 +886,7 @@ const session = await client.createSession({
 
 ---
 
-## Use Case: Session Metrics
+## Use case: session metrics
 
 Track how long sessions run, how many tools are invoked, and why sessions end — useful for dashboards and cost monitoring.
 
@@ -981,7 +981,7 @@ session = await client.create_session(
 
 ---
 
-## Combining Hooks
+## Combining hooks
 
 Hooks compose naturally. A single `hooks` object can handle permissions **and** auditing **and** notifications — each hook does its own job.
 
@@ -1016,7 +1016,7 @@ const session = await client.createSession({
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Keep hooks fast.** Every hook runs inline — slow hooks delay the conversation. Offload heavy work (database writes, HTTP calls) to a background queue when possible.
 
@@ -1041,7 +1041,7 @@ For full type definitions, input/output field tables, and additional examples fo
 - [Session Lifecycle](../hooks/session-lifecycle.md)
 - [Error Handling](../hooks/error-handling.md)
 
-## See Also
+## See also
 
 - [Getting Started](../getting-started.md)
 - [Custom Agents & Sub-Agent Orchestration](./custom-agents.md)

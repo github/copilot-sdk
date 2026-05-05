@@ -1,4 +1,4 @@
-# Session Hooks
+# Session hooks
 
 Hooks allow you to intercept and customize the behavior of Copilot sessions at key points in the conversation lifecycle. Use hooks to:
 
@@ -8,7 +8,7 @@ Hooks allow you to intercept and customize the behavior of Copilot sessions at k
 - **Handle errors** - implement custom error handling
 - **Audit and log** - track all interactions for compliance
 
-## Available Hooks
+## Available hooks
 
 | Hook | Trigger | Use Case |
 |------|---------|----------|
@@ -19,7 +19,7 @@ Hooks allow you to intercept and customize the behavior of Copilot sessions at k
 | [`onSessionEnd`](./session-lifecycle.md#session-end) | Session ends | Cleanup, analytics |
 | [`onErrorOccurred`](./error-handling.md) | Error happens | Custom error handling |
 
-## Quick Start
+## Quick start
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -192,7 +192,7 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-## Hook Invocation Context
+## Hook invocation context
 
 Every hook receives an `invocation` parameter with context about the current session:
 
@@ -202,9 +202,9 @@ Every hook receives an `invocation` parameter with context about the current ses
 
 This allows hooks to maintain state or perform session-specific logic.
 
-## Common Patterns
+## Common patterns
 
-### Logging All Tool Calls
+### Logging all tool calls
 
 ```typescript
 const session = await client.createSession({
@@ -221,7 +221,7 @@ const session = await client.createSession({
 });
 ```
 
-### Blocking Dangerous Tools
+### Blocking dangerous tools
 
 ```typescript
 const BLOCKED_TOOLS = ["shell", "bash", "exec"];
@@ -241,7 +241,7 @@ const session = await client.createSession({
 });
 ```
 
-### Adding User Context
+### Adding user context
 
 ```typescript
 const session = await client.createSession({
@@ -256,7 +256,7 @@ const session = await client.createSession({
 });
 ```
 
-## Hook Guides
+## Hook guides
 
 - **[Pre-Tool Use Hook](./pre-tool-use.md)** - Control tool execution permissions
 - **[Post-Tool Use Hook](./post-tool-use.md)** - Transform tool results
@@ -264,7 +264,7 @@ const session = await client.createSession({
 - **[Session Lifecycle Hooks](./session-lifecycle.md)** - Session start and end
 - **[Error Handling Hook](./error-handling.md)** - Custom error handling
 
-## See Also
+## See also
 
 - [Getting Started Guide](../getting-started.md)
 - [Custom Tools](../getting-started.md#step-4-add-a-custom-tool)

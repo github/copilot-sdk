@@ -1,10 +1,10 @@
-# Azure Managed Identity with BYOK
+# Azure managed identity with BYOK
 
 The Copilot SDK's [BYOK mode](../auth/byok.md) accepts static API keys, but Azure deployments often use **Managed Identity** (Entra ID) instead of long-lived keys. Since the SDK doesn't natively support Entra ID authentication, you can use a short-lived bearer token via the `bearer_token` provider config field.
 
 This guide shows how to use `DefaultAzureCredential` from the [Azure Identity](https://learn.microsoft.com/python/api/azure-identity/azure.identity.defaultazurecredential) library to authenticate with Azure AI Foundry models through the Copilot SDK.
 
-## How It Works
+## How it works
 
 Azure AI Foundry's OpenAI-compatible endpoint accepts bearer tokens from Entra ID in place of static API keys. The pattern is:
 
@@ -27,7 +27,7 @@ sequenceDiagram
     SDK-->>App: Session events
 ```
 
-## Python Example
+## Python example
 
 ### Prerequisites
 
@@ -35,7 +35,7 @@ sequenceDiagram
 pip install github-copilot-sdk azure-identity
 ```
 
-### Basic Usage
+### Basic usage
 
 ```python
 import asyncio
@@ -78,7 +78,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### Token Refresh for Long-Running Applications
+### Token refresh for long-running applications
 
 Bearer tokens expire (typically after ~1 hour). For servers or long-running agents, refresh the token before creating each session:
 
@@ -124,7 +124,7 @@ class ManagedIdentityCopilotAgent:
         return response.data.content if response else ""
 ```
 
-## Node.js / TypeScript Example
+## Node.js / TypeScript example
 
 <!-- docs-validate: skip -->
 ```typescript
@@ -154,7 +154,7 @@ console.log(response?.data.content);
 await client.stop();
 ```
 
-## .NET Example
+## .NET example
 
 <!-- docs-validate: skip -->
 ```csharp
@@ -186,7 +186,7 @@ var response = await session.SendAndWaitAsync(
 Console.WriteLine(response?.Data.Content);
 ```
 
-## Environment Configuration
+## Environment configuration
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -201,7 +201,7 @@ No API key environment variable is needed — authentication is handled by `Defa
 
 See the [DefaultAzureCredential documentation](https://learn.microsoft.com/python/api/azure-identity/azure.identity.defaultazurecredential) for the full credential chain.
 
-## When to Use This Pattern
+## When to use this pattern
 
 | Scenario | Recommendation |
 |----------|----------------|
@@ -211,7 +211,7 @@ See the [DefaultAzureCredential documentation](https://learn.microsoft.com/pytho
 | Non-Azure environment with static API key | Use [standard BYOK](../auth/byok.md) |
 | GitHub Copilot subscription available | Use [GitHub OAuth](./github-oauth.md) |
 
-## See Also
+## See also
 
 - [BYOK Setup Guide](../auth/byok.md) — Static API key configuration
 - [Backend Services](./backend-services.md) — Server-side deployment

@@ -1,4 +1,4 @@
-# Steering & Queueing
+# Steering and queueing
 
 Two interaction patterns let users send messages while the agent is already working: **steering** redirects the agent mid-turn, and **queueing** buffers messages for sequential processing after the current turn completes.
 
@@ -33,7 +33,7 @@ sequenceDiagram
     LLM->>S: Turn completes
 ```
 
-## Steering (Immediate Mode)
+## Steering (immediate mode)
 
 Steering sends a message that is injected directly into the agent's current turn. The agent sees the message in real time and adjusts its response accordingly — useful for course-correcting without aborting the turn.
 
@@ -210,7 +210,7 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-### How Steering Works Internally
+### How steering works internally
 
 1. The message is added to the runtime's `ImmediatePromptProcessor` queue
 2. Before the next LLM request within the current turn, the processor injects the message into the conversation
@@ -219,7 +219,7 @@ try (var client = new CopilotClient()) {
 
 > **Note:** Steering messages are best-effort within the current turn. If the agent has already committed to a tool call, the steering takes effect after that call completes but still within the same turn.
 
-## Queueing (Enqueue Mode)
+## Queueing (enqueue mode)
 
 Queueing buffers messages to be processed sequentially after the current turn finishes. Each queued message starts its own full turn. This is the default mode — if you omit `mode`, the SDK uses `"enqueue"`.
 
@@ -457,7 +457,7 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-### How Queueing Works Internally
+### How queueing works internally
 
 1. The message is added to the session's `itemQueue` as a `QueuedItem`
 2. When the current turn completes and the session becomes idle, `processQueuedItems()` runs
@@ -465,7 +465,7 @@ try (var client = new CopilotClient()) {
 4. If a steering message was pending when the turn ended, it is moved to the front of the queue
 5. Processing continues until the queue is empty, then the session emits an idle event
 
-## Combining Steering and Queueing
+## Combining steering and queueing
 
 You can use both patterns together in a single session. Steering affects the current turn while queued messages wait for their own turns:
 
@@ -523,7 +523,7 @@ await session.send({
 
 </details>
 
-## Choosing Between Steering and Queueing
+## Choosing between steering and queueing
 
 | Scenario | Pattern | Why |
 |----------|---------|-----|
@@ -534,7 +534,7 @@ await session.send({
 | You want to add context to the current task | **Steering** | Agent incorporates it into its current reasoning |
 | You want to batch unrelated requests | **Queueing** | Each gets its own full turn with clean context |
 
-## Building a UI with Steering & Queueing
+## Building a UI with steering and queueing
 
 Here's a pattern for building an interactive UI that supports both modes:
 
@@ -606,7 +606,7 @@ class InteractiveChat {
 }
 ```
 
-## API Reference
+## API reference
 
 ### MessageOptions
 
@@ -617,7 +617,7 @@ class InteractiveChat {
 | Go | `Mode` | `string` | `"enqueue"` | Message delivery mode |
 | .NET | `Mode` | `string?` | `"enqueue"` | Message delivery mode |
 
-### Delivery Modes
+### Delivery modes
 
 | Mode | Effect | During active turn | During idle |
 |------|--------|-------------------|-------------|
@@ -626,7 +626,7 @@ class InteractiveChat {
 
 > **Note:** When the session is idle (not processing), both modes behave identically — the message starts a new turn immediately.
 
-## Best Practices
+## Best practices
 
 1. **Default to queueing** — Use `"enqueue"` (or omit `mode`) for most messages. It's predictable and doesn't risk disrupting in-progress work.
 
@@ -640,7 +640,7 @@ class InteractiveChat {
 
 6. **Handle the steering-to-queue fallback** — If a steering message arrives after the turn completes, it's automatically moved to the queue. Design your UI to reflect this transition.
 
-## See Also
+## See also
 
 - [Getting Started](../getting-started.md) — Set up a session and send messages
 - [Custom Agents](./custom-agents.md) — Define specialized agents with scoped tools

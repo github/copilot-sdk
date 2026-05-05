@@ -1,8 +1,8 @@
-# GitHub Copilot SDK Documentation
+# GitHub Copilot SDK documentation
 
 Welcome to the GitHub Copilot SDK docs. Whether you're building your first Copilot-powered app or deploying to production, you'll find what you need here.
 
-## Where to Start
+## Where to start
 
 | I want to... | Go to |
 |---|---|
@@ -12,7 +12,7 @@ Welcome to the GitHub Copilot SDK docs. Whether you're building your first Copil
 | **Add features to my app** | [Features](./features/index.md) — hooks, custom agents, MCP, skills, and more |
 | **Debug an issue** | [Troubleshooting](./troubleshooting/debugging.md) — common problems and solutions |
 
-## Documentation Map
+## Documentation map
 
 ### [Getting Started](./getting-started.md)
 

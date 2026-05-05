@@ -1,4 +1,4 @@
-# Build Your First Copilot-Powered App
+# Build your first Copilot-powered app
 
 In this tutorial, you'll use the Copilot SDK to build a command-line assistant. You'll start with the basics, add streaming responses, then add custom tools - giving Copilot the ability to call your code.
 
@@ -28,7 +28,7 @@ Verify the CLI is working:
 copilot --version
 ```
 
-## Step 1: Install the SDK
+## Step 1: install the SDK
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -115,7 +115,7 @@ implementation 'com.github:copilot-sdk-java:${copilotSdkVersion}'
 
 </details>
 
-## Step 2: Send Your First Message
+## Step 2: send your first message
 
 Create a new file and add the following code. This is the simplest way to use the SDK—about 5 lines of code.
 
@@ -302,7 +302,7 @@ javac -cp copilot-sdk.jar HelloCopilot.java && java -cp .:copilot-sdk.jar HelloC
 
 Congratulations! You just built your first Copilot-powered app.
 
-## Step 3: Add Streaming Responses
+## Step 3: add streaming responses
 
 Right now, you wait for the complete response before seeing anything. Let's make it interactive by streaming the response as it's generated.
 
@@ -505,7 +505,7 @@ public class HelloCopilot {
 
 Run the code again. You'll see the response appear word by word.
 
-### Event Subscription Methods
+### Event subscription methods
 
 The SDK provides methods for subscribing to session events:
 
@@ -728,7 +728,7 @@ unsubscribe.close();
 
 </details>
 
-## Step 4: Add a Custom Tool
+## Step 4: add a custom tool
 
 Now for the powerful part. Let's give Copilot the ability to call your code by defining a custom tool. We'll create a simple weather lookup tool.
 
@@ -1054,7 +1054,7 @@ public class HelloCopilot {
 
 Run it and you'll see Copilot call your tool to get weather data, then respond with the results!
 
-## Step 5: Build an Interactive Assistant
+## Step 5: build an interactive assistant
 
 Let's put it all together into a useful interactive assistant:
 
@@ -1492,7 +1492,7 @@ You've built an assistant with a custom tool that Copilot can call!
 
 ---
 
-## How Tools Work
+## How tools work
 
 When you define a tool, you're telling Copilot:
 1. **What the tool does** (description)
@@ -1507,11 +1507,11 @@ Copilot decides when to call your tool based on the user's question. When it doe
 
 ---
 
-## What's Next?
+## What's next?
 
 Now that you've got the basics, here are more powerful features to explore:
 
-### Connect to MCP Servers
+### Connect to MCP servers
 
 MCP (Model Context Protocol) servers provide pre-built tools. Connect to GitHub's MCP server to give Copilot access to repositories, issues, and pull requests:
 
@@ -1528,7 +1528,7 @@ const session = await client.createSession({
 
 📖 **[Full MCP documentation →](./features/mcp.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
 
-### Create Custom Agents
+### Create custom agents
 
 Define specialized AI personas for specific tasks:
 
@@ -1545,7 +1545,7 @@ const session = await client.createSession({
 
 > **Tip:** You can also set `agent: "pr-reviewer"` in the session config to pre-select this agent from the start. See the [Custom Agents guide](./features/custom-agents.md#selecting-an-agent-at-session-creation) for details.
 
-### Customize the System Message
+### Customize the system message
 
 Control the AI's behavior and personality by appending instructions:
 
@@ -1581,7 +1581,7 @@ See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/REA
 
 ---
 
-## Connecting to an External CLI Server
+## Connecting to an external CLI server
 
 By default, the SDK automatically manages the Copilot CLI process lifecycle, starting and stopping the CLI as needed. However, you can also run the CLI in server mode separately and have the SDK connect to it. This can be useful for:
 
@@ -1589,7 +1589,7 @@ By default, the SDK automatically manages the Copilot CLI process lifecycle, sta
 - **Resource sharing**: Multiple SDK clients can connect to the same CLI server
 - **Development**: Run the CLI with custom settings or in a different environment
 
-### Running the CLI in Server Mode
+### Running the CLI in server mode
 
 Start the CLI in server mode using the `--headless` flag and optionally specify a port:
 
@@ -1608,7 +1608,7 @@ copilot --headless --host 0.0.0.0 --port 4321
 
 > **Warning:** Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. Pair it with network controls (firewall, private network, reverse proxy) and authentication appropriate for your environment.
 
-### Connecting the SDK to the External Server
+### Connecting the SDK to the external server
 
 Once the CLI is running in server mode, configure your SDK client to connect to it using the "cli url" option:
 
@@ -1750,11 +1750,11 @@ var session = client.createSession(
 
 ---
 
-## Telemetry & Observability
+## Telemetry and observability
 
 The Copilot SDK supports [OpenTelemetry](https://opentelemetry.io/) for distributed tracing. Provide a `telemetry` configuration to the client to enable trace export from the CLI process and automatic [W3C Trace Context](https://www.w3.org/TR/trace-context/) propagation between the SDK and CLI.
 
-### Enabling Telemetry
+### Enabling telemetry
 
 Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the opt-in — no separate "enabled" flag is needed.
 
@@ -1845,7 +1845,7 @@ Dependency: `io.opentelemetry:opentelemetry-api`
 
 </details>
 
-### TelemetryConfig Options
+### TelemetryConfig options
 
 | Option | Node.js | Python | Go | Java | .NET | Description |
 |---|---|---|---|---|---|---|
@@ -1855,7 +1855,7 @@ Dependency: `io.opentelemetry:opentelemetry-api`
 | Source name | `sourceName` | `source_name` | `SourceName` | `sourceName` | `SourceName` | Instrumentation scope name |
 | Capture content | `captureContent` | `capture_content` | `CaptureContent` | `captureContent` | `CaptureContent` | Whether to capture message content |
 
-### File Export
+### File export
 
 To write traces to a local file instead of an OTLP endpoint:
 
@@ -1869,7 +1869,7 @@ const client = new CopilotClient({
 });
 ```
 
-### Trace Context Propagation
+### Trace context propagation
 
 Trace context is propagated automatically — no manual instrumentation is needed:
 
@@ -1880,7 +1880,7 @@ Trace context is propagated automatically — no manual instrumentation is neede
 
 ---
 
-## Learn More
+## Learn more
 
 - [Authentication Guide](./auth/index.md) - GitHub OAuth, environment variables, and BYOK
 - [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Azure AI Foundry, OpenAI, etc.

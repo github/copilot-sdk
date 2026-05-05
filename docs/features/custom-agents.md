@@ -1,4 +1,4 @@
-# Custom Agents & Sub-Agent Orchestration
+# Custom agents and sub-agent orchestration
 
 Define specialized agents with scoped tools and prompts, then let Copilot orchestrate them as sub-agents within a single session.
 
@@ -23,7 +23,7 @@ flowchart TD
 | **Inference** | The runtime's ability to auto-select an agent based on the user's intent |
 | **Parent session** | The session that spawned the sub-agent; receives all lifecycle events |
 
-## Defining Custom Agents
+## Defining custom agents
 
 Pass `customAgents` when creating a session. Each agent needs at minimum a `name` and `prompt`.
 
@@ -241,7 +241,7 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-## Configuration Reference
+## Configuration reference
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -262,7 +262,7 @@ In addition to per-agent configuration above, you can set `agent` on the **sessi
 |-------------------------|------|-------------|
 | `agent` | `string` | Name of the custom agent to pre-select at session creation. Must match a `name` in `customAgents`. |
 
-## Per-Agent Skills
+## Per-agent skills
 
 You can preload skills into an agent's context using the `skills` property. When specified, the **full content** of each listed skill is eagerly injected into the agent's context at startup — the agent doesn't need to invoke a skill tool; the instructions are already present. Skills are **opt-in**: agents receive no skills by default, and sub-agents do not inherit skills from the parent. Skill names are resolved from the session-level `skillDirectories`.
 
@@ -289,7 +289,7 @@ const session = await client.createSession({
 
 In this example, `security-auditor` starts with `security-scan` and `dependency-check` already injected into its context, while `docs-writer` starts with `markdown-lint`. An agent without a `skills` field receives no skill content.
 
-## Selecting an Agent at Session Creation
+## Selecting an agent at session creation
 
 You can pass `agent` in the session config to pre-select which custom agent should be active when the session starts. The value must match the `name` of one of the agents defined in `customAgents`.
 
@@ -405,7 +405,7 @@ var session = client.createSession(
 
 </details>
 
-## How Sub-Agent Delegation Works
+## How sub-agent delegation works
 
 When you send a prompt to a session with custom agents, the runtime evaluates whether to delegate to a sub-agent:
 
@@ -415,7 +415,7 @@ When you send a prompt to a session with custom agents, the runtime evaluates wh
 4. **Event streaming** — Lifecycle events (`subagent.started`, `subagent.completed`, etc.) stream back to the parent session
 5. **Result integration** — The sub-agent's output is incorporated into the parent agent's response
 
-### Controlling Inference
+### Controlling inference
 
 By default, all custom agents are available for automatic selection (`infer: true`). Set `infer: false` to prevent the runtime from auto-selecting an agent — useful for agents you only want invoked through explicit user requests:
 
@@ -429,11 +429,11 @@ By default, all custom agents are available for automatic selection (`infer: tru
 }
 ```
 
-## Listening to Sub-Agent Events
+## Listening to sub-agent events
 
 When a sub-agent runs, the parent session emits lifecycle events. Subscribe to these events to build UIs that visualize agent activity.
 
-### Event Types
+### Event types
 
 | Event | Emitted when | Data |
 |-------|-------------|------|
@@ -443,7 +443,7 @@ When a sub-agent runs, the parent session emits lifecycle events. Subscribe to t
 | `subagent.failed` | Sub-agent encounters an error | `toolCallId`, `agentName`, `agentDisplayName`, `error` |
 | `subagent.deselected` | Runtime switches away from the sub-agent | — |
 
-### Subscribing to Events
+### Subscribing to events
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -678,7 +678,7 @@ var response = session.sendAndWait(
 
 </details>
 
-## Building an Agent Tree UI
+## Building an agent tree UI
 
 Sub-agent events include `toolCallId` fields that let you reconstruct the execution tree. Here's a pattern for tracking agent activity:
 
@@ -728,7 +728,7 @@ session.on((event) => {
 });
 ```
 
-## Scoping Tools per Agent
+## Scoping tools per agent
 
 Use the `tools` property to restrict which tools an agent can access. This is essential for security and for keeping agents focused:
 
@@ -759,7 +759,7 @@ const session = await client.createSession({
 
 > **Note:** When `tools` is `null` or omitted, the agent inherits access to all tools configured on the session. Use explicit tool lists to enforce the principle of least privilege.
 
-## Agent-Exclusive Tools
+## Agent-exclusive tools
 
 Use the `defaultAgent` property on the session configuration to hide specific tools from the default agent (the built-in agent that handles turns when no custom agent is selected). This forces the main agent to delegate to sub-agents when those tools' capabilities are needed, keeping the main agent's context clean.
 
@@ -883,7 +883,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 </details>
 
-### How It Works
+### How it works
 
 Tools listed in `defaultAgent.excludedTools`:
 
@@ -891,7 +891,7 @@ Tools listed in `defaultAgent.excludedTools`:
 2. **Are hidden** from the main agent's tool list — the LLM won't see or call them directly
 3. **Remain available** to any custom sub-agent that includes them in its `tools` array
 
-### Interaction with Other Tool Filters
+### Interaction with other tool filters
 
 `defaultAgent.excludedTools` is orthogonal to the session-level `availableTools` and `excludedTools`:
 
@@ -907,7 +907,7 @@ Precedence:
 
 > **Note:** If a tool is in both `excludedTools` (session-level) and `defaultAgent.excludedTools`, the session-level exclusion takes precedence — the tool is unavailable to everyone.
 
-## Attaching MCP Servers to Agents
+## Attaching MCP servers to agents
 
 Each custom agent can have its own MCP (Model Context Protocol) servers, giving it access to specialized data sources:
 
@@ -929,7 +929,7 @@ const session = await client.createSession({
 });
 ```
 
-## Patterns & Best Practices
+## Patterns and best practices
 
 ### Pair a researcher with an editor
 

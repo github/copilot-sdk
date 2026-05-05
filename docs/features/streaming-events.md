@@ -1,4 +1,4 @@
-# Streaming Session Events
+# Streaming session events
 
 Every action the Copilot agent takes — thinking, writing code, running tools — is emitted as a **session event** you can subscribe to. This guide is a field-level reference for each event type so you know exactly what data to expect without reading the SDK source.
 
@@ -47,7 +47,7 @@ sequenceDiagram
 | **Delta event** | An ephemeral streaming chunk (text or reasoning). Accumulate deltas to build the complete content. |
 | **`parentId` chain** | Each event's `parentId` points to the previous event, forming a linked list you can walk. |
 
-## Event Envelope
+## Event envelope
 
 Every session event, regardless of type, includes these fields:
 
@@ -60,7 +60,7 @@ Every session event, regardless of type, includes these fields:
 | `type` | `string` | Event type discriminator (see tables below) |
 | `data` | `object` | Event-specific payload |
 
-## Subscribing to Events
+## Subscribing to events
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -214,7 +214,7 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 
 ---
 
-## Assistant Events
+## Assistant events
 
 These events track the agent's response lifecycle — from turn start through streaming chunks to the final message.
 
@@ -327,7 +327,7 @@ Ephemeral. Low-level network progress indicator — total bytes received from th
 
 ---
 
-## Tool Execution Events
+## Tool execution events
 
 These events track the full lifecycle of each tool invocation — from the model requesting a tool call through execution to completion.
 
@@ -398,7 +398,7 @@ Emitted when the user explicitly requests a tool invocation (rather than the mod
 
 ---
 
-## Session Lifecycle Events
+## Session lifecycle events
 
 ### `session.idle`
 
@@ -497,7 +497,7 @@ The session has ended.
 
 ---
 
-## Permission & User Input Events
+## Permission and user input events
 
 These events are emitted when the agent needs approval or input from the user before continuing.
 
@@ -573,7 +573,7 @@ Ephemeral. An elicitation request was resolved.
 
 ---
 
-## Sub-Agent & Skill Events
+## Sub-agent and skill events
 
 ### `subagent.started`
 
@@ -636,7 +636,7 @@ A skill was activated for the current conversation.
 
 ---
 
-## Other Events
+## Other events
 
 ### `abort`
 
@@ -729,7 +729,7 @@ Ephemeral. A queued command was resolved.
 
 ---
 
-## Quick Reference: Agentic Turn Flow
+## Quick reference: agentic turn flow
 
 A typical agentic turn emits events in this order:
 
@@ -756,7 +756,7 @@ assistant.turn_end            → Turn complete
 session.idle                  → Ready for next message (ephemeral)
 ```
 
-## All Event Types at a Glance
+## All event types at a glance
 
 | Event Type | Ephemeral | Category | Key Data Fields |
 |------------|-----------|----------|-----------------|

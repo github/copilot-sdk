@@ -1,10 +1,10 @@
-# Local CLI Setup
+# Local CLI setup
 
 Use a specific CLI binary instead of the SDK's bundled CLI. This is an advanced option — you supply the CLI path explicitly, and you are responsible for ensuring version compatibility with the SDK.
 
 **Use when:** You need to pin a specific CLI version, or work with the Go SDK (which does not bundle a CLI).
 
-## How It Works
+## How it works
 
 By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this — for example, to use a system-installed CLI — you can use the `cliPath` option.
 
@@ -151,7 +151,7 @@ Console.WriteLine(response?.Data.Content);
 
 </details>
 
-## Additional Options
+## Additional options
 
 ```typescript
 const client = new CopilotClient({
@@ -168,7 +168,7 @@ const client = new CopilotClient({
 });
 ```
 
-## Using Environment Variables
+## Using environment variables
 
 Instead of the keychain, you can authenticate via environment variables. This is useful for CI or when you don't want interactive login.
 
@@ -181,7 +181,7 @@ export GITHUB_TOKEN="gho_xxxx"           # GitHub Actions compatible
 
 The SDK picks these up automatically — no code changes needed.
 
-## Managing Sessions
+## Managing sessions
 
 Sessions default to ephemeral. To create resumable sessions, provide your own session ID:
 
@@ -207,7 +207,7 @@ Session state is stored locally at `~/.copilot/session-state/{sessionId}/`.
 | **Local only** | The CLI runs on the same machine as your app |
 | **No multi-tenant** | Can't serve multiple users from one CLI instance |
 
-## Next Steps
+## Next steps
 
 - **[Default Setup](./bundled-cli.md)** — Use the SDK's built-in CLI (recommended for most use cases)
 - **[Getting Started tutorial](../getting-started.md)** — Build a complete interactive app

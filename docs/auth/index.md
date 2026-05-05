@@ -2,7 +2,7 @@
 
 The GitHub Copilot SDK supports multiple authentication methods to fit different use cases. Choose the method that best matches your deployment scenario.
 
-## Authentication Methods
+## Authentication methods
 
 | Method | Use Case | Copilot Subscription Required |
 |--------|----------|-------------------------------|
@@ -11,7 +11,7 @@ The GitHub Copilot SDK supports multiple authentication methods to fit different
 | [Environment Variables](#environment-variables) | CI/CD, automation, server-to-server | Yes |
 | [BYOK (Bring Your Own Key)](./byok.md) | Using your own API keys (Azure AI Foundry, OpenAI, etc.) | No |
 
-## GitHub Signed-in User
+## GitHub signed-in user
 
 This is the default authentication method when running the Copilot CLI interactively. Users authenticate via GitHub OAuth device flow, and the SDK uses their stored credentials.
 
@@ -231,7 +231,7 @@ client.start().get();
 - SaaS applications building on top of Copilot
 - Any multi-user application where you need to make requests on behalf of different users
 
-## Environment Variables
+## Environment variables
 
 For automation, CI/CD pipelines, and server-to-server scenarios, you can authenticate using environment variables.
 
@@ -279,7 +279,7 @@ await client.start()
 - Server-side applications with service accounts
 - Development when you don't want to use interactive login
 
-## BYOK (Bring Your Own Key)
+## BYOK (bring your own key)
 
 BYOK allows you to use your own API keys from model providers like Azure AI Foundry, OpenAI, or Anthropic. This bypasses GitHub Copilot authentication entirely.
 
@@ -295,7 +295,7 @@ BYOK allows you to use your own API keys from model providers like Azure AI Foun
 - Limitations and considerations
 - Complete code examples
 
-## Authentication Priority
+## Authentication priority
 
 When multiple authentication methods are available, the SDK uses them in this priority order:
 
@@ -306,7 +306,7 @@ When multiple authentication methods are available, the SDK uses them in this pr
 5. **Stored OAuth credentials** - From previous `copilot` CLI login
 6. **GitHub CLI** - `gh auth` credentials
 
-## Disabling Auto-Login
+## Disabling auto-login
 
 To prevent the SDK from automatically using stored credentials or `gh` CLI auth, use the `useLoggedInUser: false` option:
 
@@ -395,7 +395,7 @@ client.start().get();
 
 </details>
 
-## Next Steps
+## Next steps
 
 - [BYOK Documentation](./byok.md) - Learn how to use your own API keys
 - [Getting Started Guide](../getting-started.md) - Build your first Copilot-powered app

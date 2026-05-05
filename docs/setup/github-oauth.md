@@ -1,10 +1,10 @@
-# GitHub OAuth Setup
+# GitHub OAuth setup
 
 Let users authenticate with their GitHub accounts to use Copilot through your application. This supports individual accounts, organization memberships, and enterprise identities.
 
 **Best for:** Multi-user apps, internal tools with org access control, SaaS products, apps where users have GitHub accounts.
 
-## How It Works
+## How it works
 
 You create a GitHub OAuth App (or GitHub App), users authorize it, and you pass their access token to the SDK. Copilot requests are made on behalf of each authenticated user, using their Copilot subscription.
 
@@ -72,7 +72,7 @@ flowchart TB
     style CLI fill:#0d1117,stroke:#3fb950,color:#c9d1d9
 ```
 
-## Step 1: Create a GitHub OAuth App
+## Step 1: create a GitHub OAuth app
 
 1. Go to **GitHub Settings → Developer Settings → OAuth Apps → New OAuth App**
    (or for organizations: **Organization Settings → Developer Settings**)
@@ -86,7 +86,7 @@ flowchart TB
 
 > **GitHub App vs OAuth App:** Both work. GitHub Apps offer finer-grained permissions and are recommended for new projects. OAuth Apps are simpler to set up. The token flow is the same from the SDK's perspective.
 
-## Step 2: Implement the OAuth Flow
+## Step 2: implement the OAuth flow
 
 Your application handles the standard GitHub OAuth flow. Here's the server-side token exchange:
 
@@ -111,7 +111,7 @@ async function handleOAuthCallback(code: string): Promise<string> {
 }
 ```
 
-## Step 3: Pass the Token to the SDK
+## Step 3: pass the token to the SDK
 
 Create a SDK client for each authenticated user, passing their token:
 
@@ -308,7 +308,7 @@ try (var client = createClientForUser("gho_user_access_token")) {
 
 </details>
 
-## Enterprise & Organization Access
+## Enterprise and organization access
 
 GitHub OAuth naturally supports enterprise scenarios. When users authenticate with GitHub, their org memberships and enterprise associations come along.
 
@@ -341,7 +341,7 @@ flowchart TB
     style App fill:#0d1117,stroke:#58a6ff,color:#c9d1d9
 ```
 
-### Verify Organization Membership
+### Verify organization membership
 
 After OAuth, check that the user belongs to your organization:
 
@@ -365,7 +365,7 @@ if (!await verifyOrgMembership(token, "my-company")) {
 const client = createClientForUser(token);
 ```
 
-### Enterprise Managed Users (EMU)
+### Enterprise managed users (EMU)
 
 For GitHub Enterprise Managed Users, the flow is identical — EMU users authenticate through GitHub OAuth like any other user. Their enterprise policies (IP restrictions, SAML SSO) are enforced by GitHub automatically.
 
@@ -378,7 +378,7 @@ const client = new CopilotClient({
 });
 ```
 
-## Supported Token Types
+## Supported token types
 
 | Token Prefix | Source | Works? |
 |-------------|--------|--------|
@@ -387,7 +387,7 @@ const client = new CopilotClient({
 | `github_pat_` | Fine-grained personal access token | ✅ |
 | `ghp_` | Classic personal access token | ❌ (deprecated) |
 
-## Token Lifecycle
+## Token lifecycle
 
 ```mermaid
 flowchart LR
@@ -406,7 +406,7 @@ flowchart LR
 
 **Important:** Your application is responsible for token storage, refresh, and expiration handling. The SDK uses whatever token you provide — it doesn't manage the OAuth lifecycle.
 
-### Token Refresh Pattern
+### Token refresh pattern
 
 ```typescript
 async function getOrRefreshToken(userId: string): Promise<string> {
@@ -426,9 +426,9 @@ async function getOrRefreshToken(userId: string): Promise<string> {
 }
 ```
 
-## Multi-User Patterns
+## Multi-user patterns
 
-### One Client Per User (Recommended)
+### One client per user (recommended)
 
 Each user gets their own SDK client with their own token. This provides the strongest isolation.
 
@@ -446,7 +446,7 @@ function getClientForUser(userId: string, token: string): CopilotClient {
 }
 ```
 
-### Shared CLI with Per-Request Tokens
+### Shared CLI with per-request tokens
 
 For a lighter resource footprint, you can run a single external CLI server and pass tokens per session. See [Backend Services](./backend-services.md) for this pattern.
 
@@ -459,7 +459,7 @@ For a lighter resource footprint, you can run a single external CLI server and p
 | **GitHub account required** | Users must have GitHub accounts |
 | **Rate limits per user** | Subject to each user's Copilot rate limits |
 
-## When to Move On
+## When to move on
 
 | Need | Next Guide |
 |------|-----------|
@@ -467,7 +467,7 @@ For a lighter resource footprint, you can run a single external CLI server and p
 | Run the SDK on servers | [Backend Services](./backend-services.md) |
 | Handle many concurrent users | [Scaling & Multi-Tenancy](./scaling.md) |
 
-## Next Steps
+## Next steps
 
 - **[Authentication docs](../auth/index.md)** — Full auth method reference
 - **[Backend Services](./backend-services.md)** — Run the SDK server-side

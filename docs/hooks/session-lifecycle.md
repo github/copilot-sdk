@@ -1,4 +1,4 @@
-# Session Lifecycle Hooks
+# Session lifecycle hooks
 
 Session lifecycle hooks let you respond to session start and end events. Use them to:
 
@@ -7,11 +7,11 @@ Session lifecycle hooks let you respond to session start and end events. Use the
 - Track session metrics and analytics
 - Configure session behavior dynamically
 
-## Session Start Hook {#session-start}
+## Session start hook {#session-start}
 
 The `onSessionStart` hook is called when a session begins (new or resumed).
 
-### Hook Signature
+### Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -132,7 +132,7 @@ SessionStartHandler sessionStartHandler;
 
 ### Examples
 
-#### Add Project Context at Start
+#### Add project context at start
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -183,7 +183,7 @@ session = await client.create_session(on_permission_request=PermissionHandler.ap
 
 </details>
 
-#### Handle Session Resume
+#### Handle session resume
 
 ```typescript
 const session = await client.createSession({
@@ -207,7 +207,7 @@ Session resumed. Previous context:
 });
 ```
 
-#### Load User Preferences
+#### Load user preferences
 
 ```typescript
 const session = await client.createSession({
@@ -237,11 +237,11 @@ const session = await client.createSession({
 
 ---
 
-## Session End Hook {#session-end}
+## Session end hook {#session-end}
 
 The `onSessionEnd` hook is called when a session ends.
 
-### Hook Signature
+### Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -336,7 +336,7 @@ SessionEndHandler sessionEndHandler;
 | `finalMessage` | string \| undefined | The last message from the session |
 | `error` | string \| undefined | Error message if session ended due to error |
 
-#### End Reasons
+#### End reasons
 
 | Reason | Description |
 |--------|-------------|
@@ -356,7 +356,7 @@ SessionEndHandler sessionEndHandler;
 
 ### Examples
 
-#### Track Session Metrics
+#### Track session metrics
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -422,7 +422,7 @@ session = await client.create_session(on_permission_request=PermissionHandler.ap
 
 </details>
 
-#### Clean Up Resources
+#### Clean up resources
 
 ```typescript
 const sessionResources = new Map<string, { tempFiles: string[] }>();
@@ -451,7 +451,7 @@ const session = await client.createSession({
 });
 ```
 
-#### Save Session State for Resume
+#### Save session state for resume
 
 ```typescript
 const session = await client.createSession({
@@ -471,7 +471,7 @@ const session = await client.createSession({
 });
 ```
 
-#### Log Session Summary
+#### Log session summary
 
 ```typescript
 const sessionData: Record<string, { prompts: number; tools: number; startTime: number }> = {};
@@ -512,7 +512,7 @@ Session Summary:
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Keep `onSessionStart` fast** - Users are waiting for the session to be ready.
 
@@ -524,7 +524,7 @@ Session Summary:
 
 5. **Make cleanup idempotent** - `onSessionEnd` might not be called if the process crashes.
 
-## See Also
+## See also
 
 - [Hooks Overview](./index.md)
 - [Error Handling Hook](./error-handling.md)

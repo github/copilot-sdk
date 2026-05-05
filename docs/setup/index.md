@@ -1,8 +1,8 @@
-# Setup Guides
+# Setup guides
 
 These guides walk you through configuring the Copilot SDK for your specific use case — from personal side projects to production platforms serving thousands of users.
 
-## Architecture at a Glance
+## Architecture at a glance
 
 Every Copilot SDK integration follows the same core pattern: your application talks to the SDK, which communicates with the Copilot CLI over JSON-RPC. What changes across setups is **where the CLI runs**, **how users authenticate**, and **how sessions are managed**.
 
@@ -31,7 +31,7 @@ flowchart TB
 
 The setup guides below help you configure each layer for your scenario.
 
-## Who Are You?
+## Who are you?
 
 ### 🧑‍💻 Hobbyist
 
@@ -41,7 +41,7 @@ You're building a personal assistant, side project, or experimental app. You wan
 1. **[Default Setup](./bundled-cli.md)** — The SDK includes the CLI automatically — just install and go
 2. **[Local CLI](./local-cli.md)** — Use your own CLI binary or running instance (advanced)
 
-### 🏢 Internal App Developer
+### 🏢 Internal app developer
 
 You're building tools for your team or company. Users are employees who need to authenticate with their enterprise GitHub accounts or org memberships.
 
@@ -52,7 +52,7 @@ You're building tools for your team or company. Users are employees who need to 
 **If scaling beyond a single server:**
 3. **[Scaling & Multi-Tenancy](./scaling.md)** — Handle multiple users and services
 
-### 🚀 App Developer (ISV)
+### 🚀 App developer (ISV)
 
 You're building a product for customers. You need to handle authentication for your users — either through GitHub or by managing identity yourself.
 
@@ -64,7 +64,7 @@ You're building a product for customers. You need to handle authentication for y
 **For production:**
 4. **[Scaling & Multi-Tenancy](./scaling.md)** — Serve many customers reliably
 
-### 🏗️ Platform Developer
+### 🏗️ Platform developer
 
 You're embedding Copilot into a platform — APIs, developer tools, or infrastructure that other developers build on. You need fine-grained control over sessions, scaling, and multi-tenancy.
 
@@ -76,7 +76,7 @@ You're embedding Copilot into a platform — APIs, developer tools, or infrastru
 3. **[GitHub OAuth](./github-oauth.md)** — For GitHub-authenticated users
 4. **[BYOK](../auth/byok.md)** — For self-managed identity and model access
 
-## Decision Matrix
+## Decision matrix
 
 Use this table to find the right guides based on what you need to do:
 
@@ -90,7 +90,7 @@ Use this table to find the right guides based on what you need to do:
 | Run the SDK on a server | [Backend Services](./backend-services.md) |
 | Serve multiple users / scale horizontally | [Scaling & Multi-Tenancy](./scaling.md) |
 
-## Configuration Comparison
+## Configuration comparison
 
 ```mermaid
 flowchart LR
@@ -137,6 +137,6 @@ All guides assume you have:
 
 If you're brand new, start with the **[Getting Started tutorial](../getting-started.md)** first, then come back here for production configuration.
 
-## Next Steps
+## Next steps
 
 Pick the guide that matches your situation from the [decision matrix](#decision-matrix) above, or start with the persona description closest to your role.

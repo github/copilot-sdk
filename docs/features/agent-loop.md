@@ -1,4 +1,4 @@
-# The Agent Loop
+# The agent loop
 
 How the Copilot CLI processes a user message end-to-end: from prompt to `session.idle`.
 
@@ -16,7 +16,7 @@ graph LR
 
 The **SDK** is a transport layer — it sends your prompt to the **Copilot CLI** over JSON-RPC and surfaces events back to your app. The **CLI** is the orchestrator that runs the agentic tool-use loop, making one or more LLM API calls until the task is done.
 
-## The Tool-Use Loop
+## The tool-use loop
 
 When you call `session.send({ prompt })`, the CLI enters a loop:
 
@@ -38,7 +38,7 @@ The model sees the **full conversation history** on each call — system prompt,
 
 **Key insight:** Each iteration of this loop is exactly one LLM API call, visible as one `assistant.turn_start` / `assistant.turn_end` pair in the event log. There are no hidden calls.
 
-## Turns — What They Are
+## Turns — what they are
 
 A **turn** is a single LLM API call and its consequences:
 
@@ -58,7 +58,7 @@ A single user message typically results in **multiple turns**. For example, a qu
 
 The model decides on each turn whether to request more tools or produce a final answer. Each call sees the **full accumulated context** (all prior tool calls and results), so it can make an informed decision about whether it has enough information.
 
-## Event Flow for a Multi-Turn Interaction
+## Event flow for a multi-turn interaction
 
 ```mermaid
 flowchart TD
@@ -94,7 +94,7 @@ flowchart TD
     send --> Turn1 --> Turn2 --> Turn3 --> idle
 ```
 
-## Who Triggers Each Turn?
+## Who triggers each turn?
 
 | Actor | Responsibility |
 |-------|---------------|
@@ -170,7 +170,7 @@ The CLI emits `session.idle` regardless, because it's a mechanical signal (the l
 | "Know when a coding task is done" | `session.task_complete` (best-effort) |
 | "Timeout/error handling" | `session.idle` + `session.error` ✅ |
 
-## Counting LLM Calls
+## Counting LLM calls
 
 The number of `assistant.turn_start` / `assistant.turn_end` pairs in the event log equals the total number of LLM API calls made. There are no hidden calls for planning, evaluation, or completion checking.
 
@@ -181,7 +181,7 @@ To inspect turn count for a session:
 grep -c "assistant.turn_start" ~/.copilot/session-state/<sessionId>/events.jsonl
 ```
 
-## Further Reading
+## Further reading
 
 - [Streaming Events Reference](./streaming-events.md) — Full field-level reference for every event type
 - [Session Persistence](./session-persistence.md) — How sessions are saved and resumed
