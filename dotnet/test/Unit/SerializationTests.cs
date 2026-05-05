@@ -23,7 +23,7 @@ public class SerializationTests
             Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer provider-token" },
             ModelId = "gpt-4o",
             WireModel = "my-finetune-v3",
-            MaxPromptTokens = 100_000,
+            MaxInputTokens = 100_000,
             MaxOutputTokens = 4096
         };
 
@@ -43,7 +43,7 @@ public class SerializationTests
         Assert.Equal("Bearer provider-token", deserialized.Headers!["Authorization"]);
         Assert.Equal("gpt-4o", deserialized.ModelId);
         Assert.Equal("my-finetune-v3", deserialized.WireModel);
-        Assert.Equal(100_000, deserialized.MaxPromptTokens);
+        Assert.Equal(100_000, deserialized.MaxInputTokens);
         Assert.Equal(4096, deserialized.MaxOutputTokens);
     }
 

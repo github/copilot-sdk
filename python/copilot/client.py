@@ -2279,8 +2279,8 @@ class CopilotClient:
             wire_provider["modelId"] = provider["model_id"]
         if "wire_model" in provider:
             wire_provider["wireModel"] = provider["wire_model"]
-        if "max_prompt_tokens" in provider:
-            wire_provider["maxPromptTokens"] = provider["max_prompt_tokens"]
+        if "max_input_tokens" in provider:
+            wire_provider["maxPromptTokens"] = provider["max_input_tokens"]
         if "max_output_tokens" in provider:
             wire_provider["maxOutputTokens"] = provider["max_output_tokens"]
         if "azure" in provider:

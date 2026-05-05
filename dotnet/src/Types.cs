@@ -1530,38 +1530,35 @@ public class ProviderConfig
     public IDictionary<string, string>? Headers { get; set; }
 
     /// <summary>
-    /// Well-known model ID used to look up agent configuration (tools, prompts,
-    /// reasoning behavior) and default token limits from the capability catalog.
-    /// Useful for fine-tuned models that should inherit the configuration of a
-    /// known base model.
-    /// Defaults to the session's configured model (see <see cref="SessionConfig.Model"/>)
-    /// when not explicitly set.
+    /// Well-known model name used by the runtime to look up agent configuration
+    /// (tools, prompts, reasoning behavior) and default token limits. Also used
+    /// as the wire model when <see cref="WireModel"/> is not set.
+    /// Falls back to <see cref="SessionConfig.Model"/>.
     /// </summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
 
     /// <summary>
-    /// Model identifier sent to the provider API for inference.
-    /// Use this when the name your provider knows (e.g. an Azure deployment name
-    /// or a custom fine-tune name) differs from the well-known model ID used for
-    /// configuration lookup.
-    /// Defaults to the session's configured model (see <see cref="SessionConfig.Model"/>)
-    /// when not explicitly set.
+    /// Model name sent to the provider API for inference. Use this when the
+    /// provider's model name (e.g. an Azure deployment name or a custom
+    /// fine-tune name) differs from <see cref="ModelId"/>.
+    /// Falls back to <see cref="ModelId"/>, then <see cref="SessionConfig.Model"/>.
     /// </summary>
     [JsonPropertyName("wireModel")]
     public string? WireModel { get; set; }
 
     /// <summary>
-    /// Maximum number of tokens allowed in the prompt for a single LLM API request.
-    /// Used by the runtime to trigger conversation compaction before sending a request
-    /// when the prompt (system message, history, tool definitions, user message) exceeds this limit.
+    /// Overrides the resolved model's default max prompt tokens. The runtime
+    /// triggers conversation compaction before sending a request when the
+    /// prompt (system message, history, tool definitions, user message) would
+    /// exceed this limit.
     /// </summary>
     [JsonPropertyName("maxPromptTokens")]
-    public int? MaxPromptTokens { get; set; }
+    public int? MaxInputTokens { get; set; }
 
     /// <summary>
-    /// Maximum number of tokens the model can generate in a single response.
-    /// When hit, the model stops generating and returns a truncated response.
+    /// Overrides the resolved model's default max output tokens. When hit, the
+    /// model stops generating and returns a truncated response.
     /// </summary>
     [JsonPropertyName("maxOutputTokens")]
     public int? MaxOutputTokens { get; set; }

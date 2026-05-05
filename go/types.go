@@ -859,28 +859,24 @@ type ProviderConfig struct {
 	Azure *AzureProviderOptions `json:"azure,omitempty"`
 	// Headers are custom HTTP headers included in outbound provider requests.
 	Headers map[string]string `json:"headers,omitempty"`
-	// ModelID is the well-known model ID used to look up agent configuration
-	// (tools, prompts, reasoning behavior) and default token limits from the
-	// capability catalog. Useful for fine-tuned models that should inherit the
-	// configuration of a known base model.
-	// Defaults to the session's configured model (SessionConfig.Model) when
-	// not explicitly set.
+	// ModelID is the well-known model name used by the runtime to look up
+	// agent configuration (tools, prompts, reasoning behavior) and default
+	// token limits. Also used as the wire model when WireModel is not set.
+	// Falls back to SessionConfig.Model.
 	ModelID string `json:"modelId,omitempty"`
-	// WireModel is the model identifier sent to the provider API for inference.
-	// Use this when the name your provider knows (e.g. an Azure deployment name
-	// or a custom fine-tune name) differs from the well-known model ID used for
-	// configuration lookup.
-	// Defaults to the session's configured model (SessionConfig.Model) when
-	// not explicitly set.
+	// WireModel is the model name sent to the provider API for inference. Use
+	// this when the provider's model name (e.g. an Azure deployment name or a
+	// custom fine-tune name) differs from ModelID.
+	// Falls back to ModelID, then SessionConfig.Model.
 	WireModel string `json:"wireModel,omitempty"`
-	// MaxPromptTokens is the maximum number of tokens allowed in the prompt for
-	// a single LLM API request. Used by the runtime to trigger conversation
-	// compaction before sending a request when the prompt (system message,
-	// history, tool definitions, user message) exceeds this limit.
-	MaxPromptTokens int `json:"maxPromptTokens,omitempty"`
-	// MaxOutputTokens is the maximum number of tokens the model can generate in
-	// a single response. When hit, the model stops generating and returns a
-	// truncated response.
+	// MaxInputTokens overrides the resolved model's default max prompt tokens.
+	// The runtime triggers conversation compaction before sending a request
+	// when the prompt (system message, history, tool definitions, user
+	// message) would exceed this limit.
+	MaxInputTokens int `json:"maxPromptTokens,omitempty"`
+	// MaxOutputTokens overrides the resolved model's default max output
+	// tokens. When hit, the model stops generating and returns a truncated
+	// response.
 	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
 }
 

@@ -226,7 +226,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer provider-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
-                maxPromptTokens: 100_000,
+                maxInputTokens: 100_000,
                 maxOutputTokens: 4096,
             },
         });
@@ -265,7 +265,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer resume-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
-                maxPromptTokens: 100_000,
+                maxInputTokens: 100_000,
                 maxOutputTokens: 4096,
             },
         });

@@ -566,7 +566,7 @@ class TestSessionConfigForwarding:
                     "headers": {"Authorization": "Bearer provider-token"},
                     "model_id": "gpt-4o",
                     "wire_model": "my-finetune-v3",
-                    "max_prompt_tokens": 100_000,
+                    "max_input_tokens": 100_000,
                     "max_output_tokens": 4096,
                 },
             )
@@ -609,7 +609,7 @@ class TestSessionConfigForwarding:
                     "headers": {"Authorization": "Bearer resume-token"},
                     "model_id": "gpt-4o",
                     "wire_model": "my-finetune-v3",
-                    "max_prompt_tokens": 100_000,
+                    "max_input_tokens": 100_000,
                     "max_output_tokens": 4096,
                 },
             )

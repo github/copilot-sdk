@@ -159,7 +159,7 @@ func TestProviderConfig_JSONIncludesAllFields(t *testing.T) {
 		Headers:         map[string]string{"Authorization": "Bearer provider-token"},
 		ModelID:         "gpt-4o",
 		WireModel:       "my-finetune-v3",
-		MaxPromptTokens: 100000,
+		MaxInputTokens:  100000,
 		MaxOutputTokens: 4096,
 	}
 
