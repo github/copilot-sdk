@@ -207,17 +207,20 @@ public class CopilotClientOptions {
      * Sets the base directory for Copilot data (session state, config, etc.).
      * <p>
      * Sets the {@code COPILOT_HOME} environment variable on the spawned CLI
-     * process. When {@code null}, the CLI defaults to {@code ~/.copilot}.
+     * process. When {@code null}, the {@code COPILOT_HOME} env var is not set on
+     * the spawned process, so the CLI falls back to its default
+     * ({@code ~/.copilot}).
      * <p>
      * This option is only used when the SDK spawns the CLI process; it is ignored
      * when connecting to an external server via {@link #setCliUrl(String)}.
      *
      * @param copilotHome
-     *            the Copilot home directory path (must not be {@code null})
+     *            the Copilot home directory path, or {@code null} to use the CLI
+     *            default
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setCopilotHome(String copilotHome) {
-        this.copilotHome = Objects.requireNonNull(copilotHome, "copilotHome must not be null");
+        this.copilotHome = copilotHome;
         return this;
     }
 

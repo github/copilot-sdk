@@ -21,6 +21,7 @@ import java.util.logging.Logger;
 
 import com.github.copilot.sdk.json.CopilotClientOptions;
 import com.github.copilot.sdk.json.CreateSessionResponse;
+import com.github.copilot.sdk.generated.rpc.ConnectParams;
 import com.github.copilot.sdk.generated.rpc.ServerRpc;
 import com.github.copilot.sdk.json.DeleteSessionResponse;
 import com.github.copilot.sdk.json.GetAuthStatusResponse;
@@ -230,11 +231,13 @@ public final class CopilotClient implements AutoCloseable {
 
         try {
             // Try the new 'connect' RPC which supports connection tokens
-            var connectParams = new HashMap<String, Object>();
-            connectParams.put("token", effectiveConnectionToken);
-            var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
-                    TimeUnit.SECONDS);
-            serverVersion = connectResponse.protocolVersion();
+            var connectParams = new ConnectParams(effectiveConnectionToken);
+            var connectResponse = connection.rpc
+                    .invoke("connect", connectParams, com.github.copilot.sdk.generated.rpc.ConnectResult.class)
+                    .get(30, TimeUnit.SECONDS);
+            serverVersion = connectResponse.protocolVersion() != null
+                    ? connectResponse.protocolVersion().intValue()
+                    : null;
         } catch (Exception e) {
             // Unwrap CompletionException/ExecutionException to check inner cause
             Throwable cause = e;
@@ -265,12 +268,6 @@ public final class CopilotClient implements AutoCloseable {
                     + "-" + expectedVersion + ", but server reports version " + serverVersion + ". "
                     + "Please update your SDK or server to ensure compatibility.");
         }
-    }
-
-    /**
-     * Internal record for the 'connect' RPC response.
-     */
-    record ConnectResult(Integer protocolVersion) {
     }
 
     /**

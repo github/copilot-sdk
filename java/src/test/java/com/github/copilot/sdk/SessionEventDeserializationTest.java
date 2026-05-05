@@ -2276,6 +2276,9 @@ public class SessionEventDeserializationTest {
         assertEquals("permission.completed", event.getType());
         assertEquals("perm-req-456", event.getData().requestId());
         assertNotNull(event.getData().result());
+        @SuppressWarnings("unchecked")
+        var result = (java.util.Map<String, Object>) event.getData().result();
+        assertEquals("approved", result.get("kind"));
     }
 
     @Test
