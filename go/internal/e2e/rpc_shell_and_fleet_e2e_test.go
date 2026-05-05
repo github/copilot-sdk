@@ -63,7 +63,10 @@ func TestRpcShellAndFleetE2E(t *testing.T) {
 			command = "sleep 30"
 		}
 
-		exec, err := session.RPC.Shell.Exec(t.Context(), &rpc.ShellExecRequest{Command: command})
+		// On Windows, terminating the shell wrapper can briefly leave grandchildren alive.
+		// Keep this command outside the fixture workspace so cleanup is not blocked by cwd handles.
+		cwd := os.TempDir()
+		exec, err := session.RPC.Shell.Exec(t.Context(), &rpc.ShellExecRequest{Command: command, Cwd: &cwd})
 		if err != nil {
 			t.Fatalf("Failed to call session.shell.exec: %v", err)
 		}

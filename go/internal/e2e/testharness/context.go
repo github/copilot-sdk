@@ -163,12 +163,20 @@ func (c *TestContext) Env() []string {
 	env := os.Environ()
 
 	// Add overrides (later values take precedence in most systems)
+	env = append(env, c.proxy.ProxyEnv()...)
 	env = append(env,
 		"COPILOT_API_URL="+c.ProxyURL,
 		"COPILOT_HOME="+c.HomeDir,
+		"GH_CONFIG_DIR="+c.HomeDir,
 		"XDG_CONFIG_HOME="+c.HomeDir,
 		"XDG_STATE_HOME="+c.HomeDir,
 	)
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		env = append(env,
+			"GH_TOKEN=fake-token-for-e2e-tests",
+			"GITHUB_TOKEN=fake-token-for-e2e-tests",
+		)
+	}
 	return env
 }
 

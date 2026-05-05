@@ -23,10 +23,44 @@ describe("Multi-client broadcast", async () => {
 
     const actualPort = (client1 as unknown as { actualPort: number }).actualPort;
     let client2 = new CopilotClient({ cliUrl: `localhost:${actualPort}`, tcpConnectionToken });
+    const EVENT_TIMEOUT_MS = 30_000;
 
     afterAll(async () => {
         await client2.stop();
     });
+
+    async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            return await Promise.race([
+                promise,
+                new Promise<T>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms);
+                }),
+            ]);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
+
+    function waitForEvent(
+        session: { on: (handler: (event: SessionEvent) => void) => () => void },
+        type: SessionEvent["type"],
+        label: string
+    ): Promise<SessionEvent> {
+        return withTimeout(
+            new Promise<SessionEvent>((resolve) => {
+                const unsub = session.on((event) => {
+                    if (event.type === type) {
+                        unsub();
+                        resolve(event);
+                    }
+                });
+            }),
+            EVENT_TIMEOUT_MS,
+            label
+        );
+    }
 
     it("both clients see tool request and completion events", async () => {
         const tool = defineTool("magic_number", {
@@ -49,20 +83,26 @@ describe("Multi-client broadcast", async () => {
         });
 
         // Set up event waiters BEFORE sending the prompt to avoid race conditions
-        const waitForEvent = (session: typeof session1, type: string) =>
-            new Promise<SessionEvent>((resolve) => {
-                const unsub = session.on((event) => {
-                    if (event.type === type) {
-                        unsub();
-                        resolve(event);
-                    }
-                });
-            });
-
-        const client1RequestedP = waitForEvent(session1, "external_tool.requested");
-        const client2RequestedP = waitForEvent(session2, "external_tool.requested");
-        const client1CompletedP = waitForEvent(session1, "external_tool.completed");
-        const client2CompletedP = waitForEvent(session2, "external_tool.completed");
+        const client1RequestedP = waitForEvent(
+            session1,
+            "external_tool.requested",
+            "client1 external_tool.requested"
+        );
+        const client2RequestedP = waitForEvent(
+            session2,
+            "external_tool.requested",
+            "client2 external_tool.requested"
+        );
+        const client1CompletedP = waitForEvent(
+            session1,
+            "external_tool.completed",
+            "client1 external_tool.completed"
+        );
+        const client2CompletedP = waitForEvent(
+            session2,
+            "external_tool.completed",
+            "client2 external_tool.completed"
+        );
 
         // Send a prompt that triggers the custom tool
         const response = await session1.sendAndWait({
@@ -96,18 +136,31 @@ describe("Multi-client broadcast", async () => {
             },
         });
 
-        // Client 2 resumes the same session — its handler never resolves,
-        // so only client 1's approval takes effect (no race)
+        // Client 2 observes the permission request but leaves the decision to client 1.
         const session2 = await client2.resumeSession(session1.sessionId, {
-            onPermissionRequest: () => new Promise(() => {}),
+            onPermissionRequest: () => ({ kind: "no-result" as const }),
         });
 
-        // Track events seen by each client
-        const client1Events: SessionEvent[] = [];
-        const client2Events: SessionEvent[] = [];
-
-        session1.on((event) => client1Events.push(event));
-        session2.on((event) => client2Events.push(event));
+        const client1PermRequestedP = waitForEvent(
+            session1,
+            "permission.requested",
+            "client1 permission.requested"
+        );
+        const client2PermRequestedP = waitForEvent(
+            session2,
+            "permission.requested",
+            "client2 permission.requested"
+        );
+        const client1PermCompletedP = waitForEvent(
+            session1,
+            "permission.completed",
+            "client1 permission.completed"
+        );
+        const client2PermCompletedP = waitForEvent(
+            session2,
+            "permission.completed",
+            "client2 permission.completed"
+        );
 
         // Send a prompt that triggers a write operation (requires permission)
         const response = await session1.sendAndWait({
@@ -120,23 +173,15 @@ describe("Multi-client broadcast", async () => {
         expect(client1PermissionRequests.length).toBeGreaterThan(0);
 
         // Both clients should have seen permission.requested events
-        const client1PermRequested = client1Events.filter((e) => e.type === "permission.requested");
-        const client2PermRequested = client2Events.filter((e) => e.type === "permission.requested");
-        expect(client1PermRequested.length).toBeGreaterThan(0);
-        expect(client2PermRequested.length).toBeGreaterThan(0);
+        await client1PermRequestedP;
+        await client2PermRequestedP;
 
         // Both clients should have seen permission.completed events with approved result
-        const client1PermCompleted = client1Events.filter(
-            (e): e is SessionEvent & { type: "permission.completed" } =>
-                e.type === "permission.completed"
-        );
-        const client2PermCompleted = client2Events.filter(
-            (e): e is SessionEvent & { type: "permission.completed" } =>
-                e.type === "permission.completed"
-        );
-        expect(client1PermCompleted.length).toBeGreaterThan(0);
-        expect(client2PermCompleted.length).toBeGreaterThan(0);
-        for (const event of [...client1PermCompleted, ...client2PermCompleted]) {
+        const client1PermCompleted = await client1PermCompletedP;
+        const client2PermCompleted = await client2PermCompletedP;
+        for (const event of [client1PermCompleted, client2PermCompleted]) {
+            expect(event.type).toBe("permission.completed");
+            if (event.type !== "permission.completed") continue;
             expect(event.data.result.kind).toBe("approved");
         }
 
@@ -149,16 +194,31 @@ describe("Multi-client broadcast", async () => {
             onPermissionRequest: () => ({ kind: "reject" as const }),
         });
 
-        // Client 2 resumes — its handler never resolves so only client 1's denial takes effect
+        // Client 2 observes the permission request but leaves the decision to client 1.
         const session2 = await client2.resumeSession(session1.sessionId, {
-            onPermissionRequest: () => new Promise(() => {}),
+            onPermissionRequest: () => ({ kind: "no-result" as const }),
         });
 
-        const client1Events: SessionEvent[] = [];
-        const client2Events: SessionEvent[] = [];
-
-        session1.on((event) => client1Events.push(event));
-        session2.on((event) => client2Events.push(event));
+        const client1PermRequestedP = waitForEvent(
+            session1,
+            "permission.requested",
+            "client1 permission.requested"
+        );
+        const client2PermRequestedP = waitForEvent(
+            session2,
+            "permission.requested",
+            "client2 permission.requested"
+        );
+        const client1PermCompletedP = waitForEvent(
+            session1,
+            "permission.completed",
+            "client1 permission.completed"
+        );
+        const client2PermCompletedP = waitForEvent(
+            session2,
+            "permission.completed",
+            "client2 permission.completed"
+        );
 
         // Ask the agent to write a file (requires permission)
         const { writeFile } = await import("fs/promises");
@@ -176,25 +236,15 @@ describe("Multi-client broadcast", async () => {
         expect(content).toBe("protected content");
 
         // Both clients should have seen permission.requested and permission.completed
-        expect(
-            client1Events.filter((e) => e.type === "permission.requested").length
-        ).toBeGreaterThan(0);
-        expect(
-            client2Events.filter((e) => e.type === "permission.requested").length
-        ).toBeGreaterThan(0);
+        await client1PermRequestedP;
+        await client2PermRequestedP;
 
         // Both clients should see the denial in the completed event
-        const client1PermCompleted = client1Events.filter(
-            (e): e is SessionEvent & { type: "permission.completed" } =>
-                e.type === "permission.completed"
-        );
-        const client2PermCompleted = client2Events.filter(
-            (e): e is SessionEvent & { type: "permission.completed" } =>
-                e.type === "permission.completed"
-        );
-        expect(client1PermCompleted.length).toBeGreaterThan(0);
-        expect(client2PermCompleted.length).toBeGreaterThan(0);
-        for (const event of [...client1PermCompleted, ...client2PermCompleted]) {
+        const client1PermCompleted = await client1PermCompletedP;
+        const client2PermCompleted = await client2PermCompletedP;
+        for (const event of [client1PermCompleted, client2PermCompleted]) {
+            expect(event.type).toBe("permission.completed");
+            if (event.type !== "permission.completed") continue;
             expect(event.data.result.kind).toBe("denied-interactively-by-user");
         }
 

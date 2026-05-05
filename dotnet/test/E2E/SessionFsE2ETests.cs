@@ -130,6 +130,10 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                 {
                     Console.Error.WriteLine($"Ignoring expected teardown IOException from ForceStopAsync: {ex.Message}");
                 }
+                finally
+                {
+                    Ctx.UntrackClient(client2);
+                }
             }
         }
         finally
@@ -505,42 +509,19 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
     private static async Task WaitForConditionAsync(Func<bool> condition, TimeSpan? timeout = null)
     {
-        await WaitForConditionAsync(() => Task.FromResult(condition()), timeout);
+        await TestHelper.WaitForConditionAsync(
+            condition,
+            timeout: timeout ?? TimeSpan.FromSeconds(30),
+            timeoutMessage: "Timed out waiting for the session_fs test condition.");
     }
 
     private static async Task WaitForConditionAsync(Func<Task<bool>> condition, TimeSpan? timeout = null)
     {
-        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(30));
-        Exception? lastException = null;
-        while (!cts.IsCancellationRequested)
-        {
-            try
-            {
-                if (await condition())
-                {
-                    return;
-                }
-            }
-            catch (IOException ex)
-            {
-                lastException = ex;
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                lastException = ex;
-            }
-
-            try
-            {
-                await Task.Delay(100, cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
-
-        throw new TimeoutException("Timed out waiting for condition.", lastException);
+        await TestHelper.WaitForConditionAsync(
+            condition,
+            timeout: timeout ?? TimeSpan.FromSeconds(30),
+            timeoutMessage: "Timed out waiting for the session_fs test condition.",
+            transientExceptionFilter: TestHelper.IsTransientFileSystemException);
     }
 
     private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken cancellationToken = default)
@@ -557,43 +538,21 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             return;
         }
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        Exception? lastException = null;
+        await TestHelper.WaitForConditionAsync(
+            () => Task.FromResult(DeleteDirectoryIfPresent(path)),
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: $"Timed out deleting directory '{path}'.",
+            transientExceptionFilter: TestHelper.IsTransientFileSystemException);
 
-        while (!cts.IsCancellationRequested)
+        static bool DeleteDirectoryIfPresent(string path)
         {
-            try
+            if (!Directory.Exists(path))
             {
-                if (!Directory.Exists(path))
-                {
-                    return;
-                }
-
-                Directory.Delete(path, recursive: true);
-                return;
-            }
-            catch (IOException ex)
-            {
-                lastException = ex;
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                lastException = ex;
+                return true;
             }
 
-            try
-            {
-                await Task.Delay(100, cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
-
-        if (lastException is not null)
-        {
-            throw lastException;
+            Directory.Delete(path, recursive: true);
+            return !Directory.Exists(path);
         }
     }
 

@@ -93,42 +93,42 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         string path,
         Func<IReadOnlyList<JsonElement>, bool> isComplete)
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        while (!cts.IsCancellationRequested)
+        IReadOnlyList<JsonElement> entries = [];
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                entries = await ReadTelemetryEntriesOnceAsync(path);
+                return entries.Count > 0 && isComplete(entries);
+            },
+            timeout: TimeSpan.FromSeconds(30),
+            timeoutMessage: $"Timed out waiting for telemetry records in '{path}'.",
+            transientExceptionFilter: exception => TestHelper.IsTransientFileSystemException(exception) || exception is JsonException);
+
+        return entries;
+
+        static async Task<IReadOnlyList<JsonElement>> ReadTelemetryEntriesOnceAsync(string path)
         {
-            if (File.Exists(path) && new FileInfo(path).Length > 0)
+            if (!File.Exists(path) || new FileInfo(path).Length == 0)
             {
-                var entries = new List<JsonElement>();
-                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                using var reader = new StreamReader(stream);
-                while (await reader.ReadLineAsync(cts.Token) is { } line)
-                {
-                    if (string.IsNullOrWhiteSpace(line))
-                    {
-                        continue;
-                    }
+                return [];
+            }
 
-                    using var document = JsonDocument.Parse(line);
-                    entries.Add(document.RootElement.Clone());
+            var entries = new List<JsonElement>();
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            while (await reader.ReadLineAsync() is { } line)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
                 }
 
-                if (entries.Count > 0 && isComplete(entries))
-                {
-                    return entries;
-                }
+                using var document = JsonDocument.Parse(line);
+                entries.Add(document.RootElement.Clone());
             }
 
-            try
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(100), cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
+            return entries;
         }
-
-        throw new TimeoutException($"Timed out waiting for telemetry records in '{path}'.");
     }
 
     private static string? GetTraceId(JsonElement entry) => GetStringProperty(entry, "traceId");

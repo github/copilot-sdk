@@ -4987,9 +4987,9 @@ export interface CustomAgentsUpdatedAgent {
    */
   source: string;
   /**
-   * List of tool names available to this agent
+   * List of tool names available to this agent, or null when all tools are available
    */
-  tools: string[];
+  tools: string[] | null;
   /**
    * Whether the agent can be selected by the user
    */

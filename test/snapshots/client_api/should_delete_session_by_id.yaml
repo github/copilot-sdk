@@ -7,4 +7,4 @@ conversations:
       - role: user
         content: Say OK.
       - role: assistant
-        content: OK.
+        content: OK

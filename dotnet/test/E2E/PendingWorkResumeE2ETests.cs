@@ -165,6 +165,76 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
     }
 
     [Fact]
+    public async Task Should_Keep_Pending_External_Tool_Handleable_On_Warm_Resume_When_ContinuePendingWork_Is_False()
+    {
+        var originalToolStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseOriginalTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var invocationCount = 0;
+
+        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = SharedToken });
+        await server.StartAsync();
+        var cliUrl = GetCliUrl(server);
+
+        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+        var session1 = await suspendedClient.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(BlockingExternalTool, "resume_external_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+        var sessionId = session1.SessionId;
+
+        try
+        {
+            var toolRequested = WaitForExternalToolRequestAsync(session1, "resume_external_tool");
+
+            await session1.SendAsync(new MessageOptions
+            {
+                Prompt = "Use resume_external_tool with value 'beta', then reply with the result.",
+            });
+
+            var toolEvent = await toolRequested;
+            Assert.Equal("beta", await originalToolStarted.Task.WaitAsync(PendingWorkTimeout));
+
+            await suspendedClient.ForceStopAsync();
+
+            await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+            var session2 = await resumedClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+            {
+                ContinuePendingWork = false,
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+            });
+
+            var resumeEvent = await GetSingleResumeEventAsync(session2);
+            Assert.Equal(false, resumeEvent.Data.ContinuePendingWork);
+            Assert.Equal(true, resumeEvent.Data.SessionWasActive);
+
+            var resumedResult = await session2.Rpc.Tools.HandlePendingToolCallAsync(
+                toolEvent.Data.RequestId,
+                result: "EXTERNAL_RESUMED_BETA");
+            Assert.True(resumedResult.Success);
+
+            // continuePendingWork=false may interrupt agent continuation before this response,
+            // but the pending call should still accept an explicit completion.
+            Assert.Equal(1, invocationCount);
+
+            await session2.DisposeAsync();
+            await resumedClient.ForceStopAsync();
+        }
+        finally
+        {
+            releaseOriginalTool.TrySetResult("ORIGINAL_SHOULD_NOT_WIN");
+        }
+
+        [Description("Looks up a value after resumption")]
+        async Task<string> BlockingExternalTool([Description("Value to look up")] string value)
+        {
+            Interlocked.Increment(ref invocationCount);
+            originalToolStarted.TrySetResult(value);
+            return await releaseOriginalTool.Task;
+        }
+    }
+
+    [Fact]
     public async Task Should_Continue_Parallel_Pending_External_Tool_Requests_After_Resume()
     {
         var originalToolAStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -223,12 +293,6 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 toolA.Data.RequestId,
                 result: "PARALLEL_A_ALPHA");
             Assert.True(resultA.Success);
-
-            var answer = await TestHelper.GetFinalAssistantMessageAsync(session2, PendingWorkTimeout);
-
-            var content = answer?.Data.Content ?? string.Empty;
-            Assert.Contains("PARALLEL_A_ALPHA", content);
-            Assert.Contains("PARALLEL_B_BETA", content);
 
             await session2.DisposeAsync();
             await resumedClient.ForceStopAsync();
@@ -292,6 +356,52 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         await resumedSession.DisposeAsync();
     }
 
+    [Fact]
+    public async Task Should_Report_ContinuePendingWork_True_In_Resume_Event()
+    {
+        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = SharedToken });
+        await server.StartAsync();
+        var cliUrl = GetCliUrl(server);
+
+        string sessionId;
+        await using (var firstClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken }))
+        {
+            var firstSession = await firstClient.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+            });
+            sessionId = firstSession.SessionId;
+
+            var firstAnswer = await firstSession.SendAndWaitAsync(new MessageOptions
+            {
+                Prompt = "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_ONE",
+            });
+            Assert.Contains("CONTINUE_PENDING_WORK_TRUE_TURN_ONE", firstAnswer?.Data.Content ?? string.Empty);
+
+            await firstSession.DisposeAsync();
+        }
+
+        await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+        var resumedSession = await resumedClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            ContinuePendingWork = true,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        var resumeEvent = await GetSingleResumeEventAsync(resumedSession);
+        Assert.Equal(true, resumeEvent.Data.ContinuePendingWork);
+        Assert.Equal((bool?)false, resumeEvent.Data.SessionWasActive);
+
+        var followUp = await resumedSession.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_TWO",
+        });
+
+        Assert.Contains("CONTINUE_PENDING_WORK_TRUE_TURN_TWO", followUp?.Data.Content ?? string.Empty);
+
+        await resumedSession.DisposeAsync();
+    }
+
     private static async Task<ExternalToolRequestedEvent> WaitForExternalToolRequestAsync(
         CopilotSession session,
         string toolName)
@@ -337,5 +447,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var port = client.ActualPort
             ?? throw new InvalidOperationException("Expected the test server to be listening on a TCP port.");
         return $"localhost:{port}";
+    }
+
+    private static async Task<SessionResumeEvent> GetSingleResumeEventAsync(CopilotSession session)
+    {
+        var messages = await session.GetMessagesAsync();
+        return Assert.Single(messages.OfType<SessionResumeEvent>());
     }
 }

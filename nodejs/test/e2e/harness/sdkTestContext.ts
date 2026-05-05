@@ -37,8 +37,10 @@ export async function createSdkTestContext({
     const proxyUrl = await openAiEndpoint.start();
     const env = {
         ...process.env,
+        ...openAiEndpoint.getProxyEnv(),
         COPILOT_API_URL: proxyUrl,
         COPILOT_HOME: copilotHomeDir,
+        GH_CONFIG_DIR: homeDir,
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
@@ -46,6 +48,10 @@ export async function createSdkTestContext({
         XDG_CONFIG_HOME: homeDir,
         XDG_STATE_HOME: homeDir,
     };
+    if (isCI) {
+        env.GH_TOKEN = "fake-token-for-e2e-tests";
+        env.GITHUB_TOKEN = "fake-token-for-e2e-tests";
+    }
 
     const copilotClient = new CopilotClient({
         cwd: workDir,

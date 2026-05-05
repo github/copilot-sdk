@@ -152,11 +152,10 @@ func TestMultiClientE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		// Client 2 resumes — its handler never resolves, so only client 1's approval takes effect
+		// Client 2 observes the permission request but leaves the decision to client 1.
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				// Block forever so only client 1's handler responds
-				select {}
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindNoResult}, nil
 			},
 		})
 		if err != nil {
@@ -246,10 +245,10 @@ func TestMultiClientE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		// Client 2 resumes — its handler never resolves so only client 1's denial takes effect
+		// Client 2 observes the permission request but leaves the decision to client 1.
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				select {}
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindNoResult}, nil
 			},
 		})
 		if err != nil {

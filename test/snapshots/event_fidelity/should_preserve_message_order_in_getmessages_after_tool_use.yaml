@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the file 'order.txt' and tell me what the number is.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"order.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: 1. ORDER_CONTENT_42
+      - role: assistant
+        content: The number in 'order.txt' is **42**.

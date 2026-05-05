@@ -5,3 +5,6 @@ docs/.validation/
 
 # Visual Studio
 .vs/
+
+# C# Dev Kit
+*.csproj.lscache

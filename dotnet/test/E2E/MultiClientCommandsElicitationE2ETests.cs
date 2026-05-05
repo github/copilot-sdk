@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Reflection;
 using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
@@ -26,16 +25,11 @@ public class MultiClientCommandsElicitationFixture : IAsyncLifetime
         Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
         {
             TcpConnectionToken = SharedToken,
-        });
+        }, persistent: true);
     }
 
     public async Task DisposeAsync()
     {
-        if (Client1 is not null)
-        {
-            await Client1.ForceStopAsync();
-        }
-
         await Ctx.DisposeAsync();
     }
 }
@@ -56,20 +50,12 @@ public class MultiClientCommandsElicitationE2ETests
         ITestOutputHelper output)
     {
         _fixture = fixture;
-        _testName = GetTestName(output);
-    }
-
-    private static string GetTestName(ITestOutputHelper output)
-    {
-        var type = output.GetType();
-        var testField = type.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic);
-        var test = (ITest?)testField?.GetValue(output);
-        return test?.TestCase.TestMethod.Method.Name
-            ?? throw new InvalidOperationException("Couldn't find test name");
+        _testName = E2ETestBase.GetTestName(output);
     }
 
     public async Task InitializeAsync()
     {
+        await Ctx.CleanupAfterTestAsync();
         await Ctx.ConfigureForTestAsync("multi_client", _testName);
 
         // Trigger connection so we can read the port
@@ -82,7 +68,7 @@ public class MultiClientCommandsElicitationE2ETests
         var port = Client1.ActualPort
             ?? throw new InvalidOperationException("Client1 is not using TCP mode; ActualPort is null");
 
-        _client2 = new CopilotClient(new CopilotClientOptions
+        _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
             TcpConnectionToken = MultiClientCommandsElicitationFixture.SharedToken,
@@ -91,16 +77,23 @@ public class MultiClientCommandsElicitationE2ETests
 
     public async Task DisposeAsync()
     {
-        if (_client3 is not null)
+        try
         {
-            await _client3.ForceStopAsync();
-            _client3 = null;
-        }
+            if (_client3 is not null)
+            {
+                await _client3.ForceStopAsync();
+            }
 
-        if (_client2 is not null)
+            if (_client2 is not null)
+            {
+                await _client2.ForceStopAsync();
+            }
+        }
+        finally
         {
-            await _client2.ForceStopAsync();
+            _client3 = null;
             _client2 = null;
+            await Ctx.CleanupAfterTestAsync();
         }
     }
 
@@ -224,7 +217,7 @@ public class MultiClientCommandsElicitationE2ETests
         // Use a dedicated client (client3) so we can stop it without affecting client2
         var port = Client1.ActualPort
             ?? throw new InvalidOperationException("Client1 ActualPort is null");
-        _client3 = new CopilotClient(new CopilotClientOptions
+        _client3 = Ctx.CreateClient(options: new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
             TcpConnectionToken = MultiClientCommandsElicitationFixture.SharedToken,

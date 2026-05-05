@@ -475,15 +475,9 @@ When using BYOK, be aware of these limitations:
 
 ### Identity Limitations
 
-BYOK authentication uses **static credentials only**. The following identity providers are NOT supported:
-
-- ❌ **Microsoft Entra ID (Azure AD)** - No support for Entra managed identities or service principals
-- ❌ **Third-party identity providers** - No OIDC, SAML, or other federated identity
-- ❌ **Managed identities** - Azure Managed Identity is not supported
+BYOK authentication uses **static credentials only**. 
 
 You must use an API key or static bearer token that you manage yourself.
-
-**Why not Entra ID?** While Entra ID does issue bearer tokens, these tokens are short-lived (typically 1 hour) and require automatic refresh via the Azure Identity SDK. The `bearerToken` option only accepts a static string—there is no callback mechanism for the SDK to request fresh tokens. For long-running workloads requiring Entra authentication, you would need to implement your own token refresh logic and create new sessions with updated tokens.
 
 ### Feature Limitations
 

@@ -317,6 +317,117 @@ func TestRpcSessionStateE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("should fork session to event id excluding boundary event", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		const firstPrompt = "Say FORK_BOUNDARY_FIRST exactly."
+		const secondPrompt = "Say FORK_BOUNDARY_SECOND exactly."
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		defer session.Disconnect()
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: firstPrompt}); err != nil {
+			t.Fatalf("Failed to send first prompt: %v", err)
+		}
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: secondPrompt}); err != nil {
+			t.Fatalf("Failed to send second prompt: %v", err)
+		}
+
+		sourceEvents, err := session.GetMessages(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to read source messages: %v", err)
+		}
+		var secondUserEvent *copilot.SessionEvent
+		for i := range sourceEvents {
+			data, ok := sourceEvents[i].Data.(*copilot.UserMessageData)
+			if ok && data.Content == secondPrompt {
+				secondUserEvent = &sourceEvents[i]
+				break
+			}
+		}
+		if secondUserEvent == nil {
+			t.Fatal("Expected the second user.message in persisted history")
+		}
+		boundaryEventID := secondUserEvent.ID
+
+		fork, err := client.RPC.Sessions.Fork(t.Context(), &rpc.SessionsForkRequest{
+			SessionID: session.SessionID,
+			ToEventID: &boundaryEventID,
+		})
+		if err != nil {
+			t.Fatalf("Failed to fork session to event id: %v", err)
+		}
+		if strings.TrimSpace(fork.SessionID) == "" {
+			t.Fatal("Expected non-empty fork session id")
+		}
+		if fork.SessionID == session.SessionID {
+			t.Errorf("Expected fork session id to differ from source %q", session.SessionID)
+		}
+
+		forkedSession, err := client.ResumeSession(t.Context(), fork.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to resume forked session: %v", err)
+		}
+		defer forkedSession.Disconnect()
+
+		forkedEvents, err := forkedSession.GetMessages(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to read forked messages: %v", err)
+		}
+		for _, event := range forkedEvents {
+			if event.ID == boundaryEventID {
+				t.Fatalf("toEventId is exclusive; boundary event %q must not be in forked session", boundaryEventID)
+			}
+		}
+		forkedConversation := conversationMessages(forkedEvents)
+		if !containsConversation(forkedConversation, "user", firstPrompt, false) {
+			t.Errorf("Expected forked conversation to contain first prompt %q, got %v", firstPrompt, forkedConversation)
+		}
+		if containsConversation(forkedConversation, "user", secondPrompt, false) {
+			t.Errorf("Expected forked conversation to exclude second prompt %q, got %v", secondPrompt, forkedConversation)
+		}
+	})
+
+	t.Run("should report error when forking session to unknown event id", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		const sourcePrompt = "Say FORK_UNKNOWN_EVENT_OK exactly."
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		defer session.Disconnect()
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: sourcePrompt}); err != nil {
+			t.Fatalf("Failed to send source prompt: %v", err)
+		}
+
+		bogusEventID := "00000000-0000-4000-8000-000000000000"
+		_, err = client.RPC.Sessions.Fork(t.Context(), &rpc.SessionsForkRequest{
+			SessionID: session.SessionID,
+			ToEventID: &bogusEventID,
+		})
+		if err == nil {
+			t.Fatal("Expected sessions.fork to fail for unknown event id")
+		}
+		if !strings.Contains(strings.ToLower(err.Error()), strings.ToLower("Event "+bogusEventID+" not found")) {
+			t.Errorf("Expected error mentioning unknown event %q, got %v", bogusEventID, err)
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "unhandled method sessions.fork") {
+			t.Errorf("sessions.fork should be implemented; error suggests it isn't: %v", err)
+		}
+	})
+
 	t.Run("should call session usage and permission rpcs", func(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,

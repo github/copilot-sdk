@@ -34,7 +34,9 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
             ? "powershell -NoLogo -NoProfile -Command \"Start-Sleep -Seconds 30\""
             : "sleep 30";
 
-        var execResult = await session.Rpc.Shell.ExecAsync(command);
+        // On Windows, terminating the shell wrapper can briefly leave grandchildren alive.
+        // Keep this command outside the fixture workspace so that cleanup is not blocked by cwd handles.
+        var execResult = await session.Rpc.Shell.ExecAsync(command, cwd: Path.GetTempPath());
         Assert.False(string.IsNullOrWhiteSpace(execResult.ProcessId));
 
         var killResult = await session.Rpc.Shell.KillAsync(execResult.ProcessId);
@@ -95,25 +97,15 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
 
     private static async Task WaitForFileTextAsync(string path, string expected)
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        while (!cts.IsCancellationRequested)
-        {
-            if (File.Exists(path) && (await File.ReadAllTextAsync(path)).Contains(expected, StringComparison.Ordinal))
+        await TestHelper.WaitForConditionAsync(
+            async () =>
             {
-                return;
-            }
-
-            try
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(100), cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
-
-        throw new TimeoutException($"Timed out waiting for shell command to write '{expected}' to '{path}'.");
+                return File.Exists(path) &&
+                    (await File.ReadAllTextAsync(path)).Contains(expected, StringComparison.Ordinal);
+            },
+            timeout: TimeSpan.FromSeconds(30),
+            timeoutMessage: $"Timed out waiting for shell command to write '{expected}' to '{path}'.",
+            transientExceptionFilter: TestHelper.IsTransientFileSystemException);
     }
 
     private static async Task<IReadOnlyList<SessionEvent>> WaitForMessagesAsync(
@@ -123,25 +115,16 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         // Fleet-mode tasks do not emit SessionIdleEvent on completion, so polling the
         // session message list is the simplest way to wait for the assistant's final
         // reply text without depending on idle-event semantics.
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
-        while (!cts.IsCancellationRequested)
-        {
-            var messages = (await session.GetMessagesAsync()).ToList();
-            if (predicate(messages))
+        IReadOnlyList<SessionEvent> messages = [];
+        await TestHelper.WaitForConditionAsync(
+            async () =>
             {
-                return messages;
-            }
-
-            try
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(250), cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
-
-        throw new TimeoutException("Timed out waiting for fleet-mode assistant reply to satisfy predicate.");
+                messages = (await session.GetMessagesAsync()).ToList();
+                return predicate(messages);
+            },
+            timeout: TimeSpan.FromSeconds(120),
+            timeoutMessage: "Timed out waiting for fleet-mode assistant reply to satisfy predicate.",
+            pollInterval: TimeSpan.FromMilliseconds(250));
+        return messages;
     }
 }

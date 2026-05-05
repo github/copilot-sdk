@@ -23,6 +23,33 @@ from .testharness import E2ETestContext
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
+async def _wait_for_condition(predicate, timeout: float = 10.0) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        if predicate():
+            return
+        if asyncio.get_running_loop().time() >= deadline:
+            raise TimeoutError("condition was not met before timeout")
+        await asyncio.sleep(0.05)
+
+
+async def _wait_for_last_session_id(client) -> str:
+    last_id = None
+
+    async def poll() -> bool:
+        nonlocal last_id
+        last_id = await client.get_last_session_id()
+        return bool(last_id)
+
+    deadline = asyncio.get_running_loop().time() + 10.0
+    while True:
+        if await poll():
+            return last_id
+        if asyncio.get_running_loop().time() >= deadline:
+            raise TimeoutError("last session id was not persisted before timeout")
+        await asyncio.sleep(0.05)
+
+
 def _make_isolated_client(ctx: E2ETestContext) -> CopilotClient:
     """Build a client with the same isolated env as ctx.client but disjoint state.
 
@@ -49,10 +76,8 @@ class TestClientLifecycle:
         )
         try:
             await session.send_and_wait("Say hello")
-            # Allow session metadata to flush to disk.
-            await asyncio.sleep(0.5)
 
-            last_id = await ctx.client.get_last_session_id()
+            last_id = await _wait_for_last_session_id(ctx.client)
             assert last_id
         finally:
             await session.disconnect()
@@ -66,11 +91,13 @@ class TestClientLifecycle:
             )
             try:
                 await session.send_and_wait("Say hello")
-                await asyncio.sleep(0.5)
 
-                if events:
-                    matching = [e for e in events if e.sessionId == session.session_id]
-                    assert matching, "Expected at least one lifecycle event for this session"
+                await _wait_for_condition(
+                    lambda: any(
+                        getattr(e, "sessionId", None) == session.session_id for e in events
+                    ),
+                    timeout=10.0,
+                )
             finally:
                 await session.disconnect()
         finally:
@@ -163,3 +190,70 @@ class TestClientLifecycle:
 
         with pytest.raises(RuntimeError):
             _ = client.rpc
+
+    async def test_should_receive_session_updated_lifecycle_event_for_non_ephemeral_activity(
+        self, ctx: E2ETestContext
+    ):
+        """Changing session mode emits a session.updated lifecycle event."""
+        from copilot.generated.rpc import ModeSetRequest, SessionMode
+
+        loop = asyncio.get_event_loop()
+        updated: asyncio.Future = loop.create_future()
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+
+        def handler(event):
+            if (
+                event.type == "session.updated"
+                and event.sessionId == session.session_id
+                and not updated.done()
+            ):
+                updated.set_result(event)
+
+        unsubscribe = ctx.client.on(handler)
+        try:
+            await session.rpc.mode.set(ModeSetRequest(mode=SessionMode.PLAN))
+            event = await asyncio.wait_for(updated, timeout=15.0)
+            assert event.type == "session.updated"
+            assert event.sessionId == session.session_id
+        finally:
+            unsubscribe()
+            await session.disconnect()
+
+    async def test_should_receive_session_deleted_lifecycle_event_when_deleted(
+        self, ctx: E2ETestContext
+    ):
+        """Deleting a session emits a session.deleted lifecycle event."""
+        loop = asyncio.get_event_loop()
+        deleted: asyncio.Future = loop.create_future()
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        session_id = session.session_id
+
+        # Do a turn so the session is persisted
+        message = await session.send_and_wait("Say SESSION_DELETED_OK exactly.", timeout=60.0)
+        assert message is not None
+        assert "SESSION_DELETED_OK" in (message.data.content or "")
+
+        def handler(event):
+            if (
+                event.type == "session.deleted"
+                and event.sessionId == session_id
+                and not deleted.done()
+            ):
+                deleted.set_result(event)
+
+        unsubscribe = ctx.client.on(handler)
+        try:
+            await session.disconnect()
+            await ctx.client.delete_session(session_id)
+
+            event = await asyncio.wait_for(deleted, timeout=15.0)
+            assert event.type == "session.deleted"
+            assert event.sessionId == session_id
+        finally:
+            unsubscribe()
