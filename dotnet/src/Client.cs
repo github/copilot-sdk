@@ -1154,6 +1154,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
         }
+        catch (IOException ex) when (stderrBuffer is not null)
+        {
+            var stderrOutput = await GetStderrOutputAsync(stderrBuffer, stderrReader);
+
+            if (!string.IsNullOrEmpty(stderrOutput))
+            {
+                throw new IOException(FormatCliExitedMessage("CLI process exited unexpectedly.", stderrOutput), ex);
+            }
+
+            throw;
+        }
         catch (RemoteRpcException ex)
         {
             throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
