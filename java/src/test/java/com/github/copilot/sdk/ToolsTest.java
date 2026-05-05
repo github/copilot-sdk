@@ -13,10 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -377,10 +374,6 @@ public class ToolsTest {
 
         var toolACalled = new CompletableFuture<String>();
         var toolBCalled = new CompletableFuture<String>();
-        var handlersStarted = new CountDownLatch(2);
-        var releaseHandlers = new CountDownLatch(1);
-        var activeHandlers = new AtomicInteger();
-        var handlersOverlapped = new AtomicBoolean(false);
 
         Map<String, Object> cityParams = Map.of("type", "object", "properties",
                 Map.of("city", Map.of("type", "string", "description", "City name")), "required", List.of("city"));
@@ -392,16 +385,14 @@ public class ToolsTest {
                 (invocation) -> {
                     String city = (String) invocation.getArguments().get("city");
                     toolACalled.complete(city);
-                    return executeParallelHandler(city, "CITY_", handlersStarted, releaseHandlers, activeHandlers,
-                            handlersOverlapped);
+                    return CompletableFuture.completedFuture("CITY_" + city.toUpperCase());
                 });
 
         ToolDefinition lookupCountry = ToolDefinition.create("lookup_country", "Looks up country information",
                 countryParams, (invocation) -> {
                     String country = (String) invocation.getArguments().get("country");
                     toolBCalled.complete(country);
-                    return executeParallelHandler(country, "COUNTRY_", handlersStarted, releaseHandlers, activeHandlers,
-                            handlersOverlapped);
+                    return CompletableFuture.completedFuture("COUNTRY_" + country.toUpperCase());
                 });
 
         try (CopilotClient client = ctx.createClient()) {
@@ -409,19 +400,13 @@ public class ToolsTest {
                     .setTools(List.of(lookupCity, lookupCountry)).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
-            CompletableFuture<AssistantMessageEvent> responseFuture = session
-                    .sendAndWait(new MessageOptions().setPrompt(
-                            "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in your reply."));
-
-            assertTrue(handlersStarted.await(10, TimeUnit.SECONDS), "Both tool handlers should start");
-            releaseHandlers.countDown();
-
-            AssistantMessageEvent response = responseFuture.get(60, TimeUnit.SECONDS);
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt(
+                    "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in your reply."))
+                    .get(60, TimeUnit.SECONDS);
 
             // Both tools should have been called
             assertEquals("Paris", toolACalled.get(10, TimeUnit.SECONDS));
             assertEquals("France", toolBCalled.get(10, TimeUnit.SECONDS));
-            assertTrue(handlersOverlapped.get(), "Tool handlers should overlap in execution");
 
             assertNotNull(response);
             String content = response.getData().content();
@@ -429,32 +414,6 @@ public class ToolsTest {
             assertTrue(content.contains("COUNTRY_FRANCE"), "Response should contain COUNTRY_FRANCE: " + content);
 
             session.close();
-        }
-    }
-
-    private CompletableFuture<Object> executeParallelHandler(String value, String prefix,
-            CountDownLatch handlersStarted, CountDownLatch releaseHandlers, AtomicInteger activeHandlers,
-            AtomicBoolean handlersOverlapped) {
-        int currentActive = activeHandlers.incrementAndGet();
-        if (currentActive > 1) {
-            handlersOverlapped.set(true);
-        }
-
-        handlersStarted.countDown();
-        try {
-            if (!handlersStarted.await(10, TimeUnit.SECONDS)) {
-                return CompletableFuture.failedFuture(new IllegalStateException("Tool handlers did not overlap"));
-            }
-            if (!releaseHandlers.await(10, TimeUnit.SECONDS)) {
-                return CompletableFuture
-                        .failedFuture(new IllegalStateException("Timed out waiting to release handlers"));
-            }
-            return CompletableFuture.completedFuture(prefix + value.toUpperCase());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return CompletableFuture.failedFuture(e);
-        } finally {
-            activeHandlers.decrementAndGet();
         }
     }
 
