@@ -226,30 +226,46 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             _logger.LogDebug("Starting Copilot client");
             _disconnected = false;
 
-            Task<Connection> result;
+            Connection? connection = null;
+            Process? cliProcess = null;
 
-            if (_optionsHost is not null && _optionsPort is not null)
+            try
             {
-                // External server (TCP)
-                _actualPort = _optionsPort;
-                result = ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
+                if (_optionsHost is not null && _optionsPort is not null)
+                {
+                    // External server (TCP)
+                    _actualPort = _optionsPort;
+                    connection = await ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
+                }
+                else
+                {
+                    // Child process (stdio or TCP)
+                    var (startedProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _effectiveConnectionToken, _logger, ct);
+                    cliProcess = startedProcess;
+                    _actualPort = portOrNull;
+                    connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
+                }
+
+                // Verify protocol version compatibility
+                await VerifyProtocolVersionAsync(connection, ct);
+                await ConfigureSessionFsAsync(ct);
+
+                _logger.LogInformation("Copilot client connected");
+                return connection;
             }
-            else
+            catch
             {
-                // Child process (stdio or TCP)
-                var (cliProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _effectiveConnectionToken, _logger, ct);
-                _actualPort = portOrNull;
-                result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
+                if (connection is not null)
+                {
+                    await CleanupConnectionAsync(connection, errors: null);
+                }
+                else if (cliProcess is not null)
+                {
+                    await CleanupCliProcessAsync(cliProcess, errors: null, _logger);
+                }
+
+                throw;
             }
-
-            var connection = await result;
-
-            // Verify protocol version compatibility
-            await VerifyProtocolVersionAsync(connection, ct);
-            await ConfigureSessionFsAsync(ct);
-
-            _logger.LogInformation("Copilot client connected");
-            return connection;
         }
     }
 
@@ -353,11 +369,27 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return;
         }
 
-        var ctx = await _connectionTask;
+        var connectionTask = _connectionTask;
         _connectionTask = null;
 
+        Connection ctx;
+        try
+        {
+            ctx = await connectionTask;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Ignoring failed Copilot client startup during cleanup");
+            return;
+        }
+
+        await CleanupConnectionAsync(ctx, errors);
+    }
+
+    private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors)
+    {
         try { ctx.Rpc.Dispose(); }
-        catch (Exception ex) { errors?.Add(ex); }
+        catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
 
         // Clear RPC and models cache
         _serverRpc = null;
@@ -366,10 +398,18 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (ctx.NetworkStream is not null)
         {
             try { await ctx.NetworkStream.DisposeAsync(); }
-            catch (Exception ex) { errors?.Add(ex); }
+            catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
         }
 
         if (ctx.CliProcess is { } childProcess)
+        {
+            await CleanupCliProcessAsync(childProcess, errors, _logger);
+        }
+    }
+
+    private static async Task CleanupCliProcessAsync(Process childProcess, List<Exception>? errors, ILogger? logger)
+    {
+        try
         {
             try
             {
@@ -378,9 +418,27 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     childProcess.Kill(entireProcessTree: true);
                     await childProcess.WaitForExitAsync();
                 }
+            }
+            finally
+            {
                 childProcess.Dispose();
             }
-            catch (Exception ex) { errors?.Add(ex); }
+        }
+        catch (Exception ex)
+        {
+            AddCleanupError(errors, ex, logger);
+        }
+    }
+
+    private static void AddCleanupError(List<Exception>? errors, Exception ex, ILogger? logger)
+    {
+        if (errors is not null)
+        {
+            errors.Add(ex);
+        }
+        else
+        {
+            logger?.LogDebug(ex, "Error while cleaning up Copilot CLI connection");
         }
     }
 
@@ -1305,58 +1363,71 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (telemetry.CaptureContent is { } capture) startInfo.Environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
         }
 
-        var cliProcess = new Process { StartInfo = startInfo };
-        cliProcess.Start();
-
-        // Capture stderr for error messages and forward to logger
-        var stderrBuffer = new StringBuilder();
-        var stderrReader = Task.Run(async () =>
+        Process? cliProcess = null;
+        try
         {
-            while (true)
+            cliProcess = new Process { StartInfo = startInfo };
+            cliProcess.Start();
+
+            // Capture stderr for error messages and forward to logger
+            var stderrBuffer = new StringBuilder();
+            var stderrReader = Task.Run(async () =>
             {
-                var line = await cliProcess.StandardError.ReadLineAsync(cancellationToken);
-                if (line is null)
+                while (true)
                 {
-                    break;
-                }
+                    var line = await cliProcess.StandardError.ReadLineAsync(cancellationToken);
+                    if (line is null)
+                    {
+                        break;
+                    }
 
-                lock (stderrBuffer)
-                {
-                    stderrBuffer.AppendLine(line);
-                }
+                    lock (stderrBuffer)
+                    {
+                        stderrBuffer.AppendLine(line);
+                    }
 
-                if (logger.IsEnabled(LogLevel.Debug))
+                    if (logger.IsEnabled(LogLevel.Debug))
+                    {
+                        logger.LogDebug("[CLI] {Line}", line);
+                    }
+                }
+            }, cancellationToken);
+
+            var detectedLocalhostTcpPort = (int?)null;
+            if (options.UseStdio != true)
+            {
+                // Wait for port announcement
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(30));
+
+                while (!cts.Token.IsCancellationRequested)
                 {
-                    logger.LogDebug("[CLI] {Line}", line);
+                    var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token);
+                    if (line is null)
+                    {
+                        await stderrReader;
+                        throw CreateCliExitedException("CLI process exited unexpectedly", stderrBuffer);
+                    }
+
+                    if (ListeningOnPortRegex().Match(line) is { Success: true } match)
+                    {
+                        detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+                        break;
+                    }
                 }
             }
-        }, cancellationToken);
 
-        var detectedLocalhostTcpPort = (int?)null;
-        if (options.UseStdio != true)
-        {
-            // Wait for port announcement
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(30));
-
-            while (!cts.Token.IsCancellationRequested)
-            {
-                var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token);
-                if (line is null)
-                {
-                    await stderrReader;
-                    throw CreateCliExitedException("CLI process exited unexpectedly", stderrBuffer);
-                }
-
-                if (ListeningOnPortRegex().Match(line) is { Success: true } match)
-                {
-                    detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-                    break;
-                }
-            }
+            return (cliProcess, detectedLocalhostTcpPort, stderrBuffer);
         }
+        catch
+        {
+            if (cliProcess is not null)
+            {
+                await CleanupCliProcessAsync(cliProcess, errors: null, logger);
+            }
 
-        return (cliProcess, detectedLocalhostTcpPort, stderrBuffer);
+            throw;
+        }
     }
 
     private static string? GetBundledCliPath(out string searchedPath)
