@@ -377,7 +377,6 @@ async fn session_rpc_methods_send_correct_method_names() {
 
     let cases: Vec<(&str, Option<&str>)> = vec![
         ("session.abort", None),
-        ("session.plan.delete", None),
         ("session.log", Some("message")),
         ("session.destroy", None),
     ];
@@ -387,7 +386,6 @@ async fn session_rpc_methods_send_correct_method_names() {
         let handle = tokio::spawn(async move {
             match expected_method {
                 "session.abort" => s.abort().await.map(|_| ()),
-                "session.plan.delete" => s.delete_plan().await,
                 "session.log" => s.log("test msg", None).await,
                 "session.destroy" => s.destroy().await,
                 _ => unreachable!(),
@@ -1004,46 +1002,6 @@ async fn set_model_sends_switch_to_request() {
             serde_json::json!({ "modelId": "claude-sonnet-4" }),
         )
         .await;
-
-    timeout(TIMEOUT, handle).await.unwrap().unwrap();
-}
-
-#[tokio::test]
-async fn get_name_returns_name() {
-    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
-    let session = Arc::new(session);
-
-    let handle = tokio::spawn({
-        let session = session.clone();
-        async move { session.get_name().await.unwrap() }
-    });
-
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.name.get");
-    server
-        .respond(&request, serde_json::json!({ "name": "Fix input flicker" }))
-        .await;
-
-    assert_eq!(
-        timeout(TIMEOUT, handle).await.unwrap().unwrap(),
-        Some("Fix input flicker".to_string())
-    );
-}
-
-#[tokio::test]
-async fn set_name_sends_name() {
-    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
-    let session = Arc::new(session);
-
-    let handle = tokio::spawn({
-        let session = session.clone();
-        async move { session.set_name("Fix input flicker").await.unwrap() }
-    });
-
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.name.set");
-    assert_eq!(request["params"]["name"], "Fix input flicker");
-    server.respond(&request, serde_json::json!(null)).await;
 
     timeout(TIMEOUT, handle).await.unwrap().unwrap();
 }
@@ -2405,70 +2363,6 @@ async fn system_message_transform_returns_error_for_missing_sections() {
     let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
     assert_eq!(response["id"], 401);
     assert_eq!(response["error"]["code"], -32602);
-}
-
-#[tokio::test]
-async fn list_workspace_files_uses_plural_method_name() {
-    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
-    let session = Arc::new(session);
-
-    let s = session.clone();
-    let handle = tokio::spawn(async move { s.list_workspace_files().await });
-
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.workspaces.listFiles");
-    assert_eq!(request["params"]["sessionId"], server.session_id);
-    server
-        .respond(
-            &request,
-            serde_json::json!({ "files": ["a.txt", "subdir/b.txt"] }),
-        )
-        .await;
-
-    let files = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
-    assert_eq!(files, vec!["a.txt".to_string(), "subdir/b.txt".to_string()]);
-}
-
-#[tokio::test]
-async fn read_workspace_file_uses_plural_method_name_and_forwards_path() {
-    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
-    let session = Arc::new(session);
-
-    let s = session.clone();
-    let handle =
-        tokio::spawn(async move { s.read_workspace_file(Path::new("notes/plan.md")).await });
-
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.workspaces.readFile");
-    assert_eq!(request["params"]["sessionId"], server.session_id);
-    assert_eq!(request["params"]["path"], "notes/plan.md");
-    server
-        .respond(&request, serde_json::json!({ "content": "hello" }))
-        .await;
-
-    let content = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
-    assert_eq!(content, "hello");
-}
-
-#[tokio::test]
-async fn create_workspace_file_uses_plural_method_name_and_forwards_payload() {
-    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
-    let session = Arc::new(session);
-
-    let s = session.clone();
-    let handle = tokio::spawn(async move {
-        s.create_workspace_file(Path::new("notes/plan.md"), "body")
-            .await
-    });
-
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.workspaces.createFile");
-    assert_eq!(request["params"]["sessionId"], server.session_id);
-    assert_eq!(request["params"]["path"], "notes/plan.md");
-    assert_eq!(request["params"]["content"], "body");
-    server.respond(&request, serde_json::json!({})).await;
-
-    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
 }
 
 #[tokio::test]

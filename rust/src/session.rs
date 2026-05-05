@@ -11,10 +11,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
 use crate::generated::api_types::{
-    LogRequest, ModeSetRequest, ModelSwitchToRequest, NameSetRequest, PermissionDecision,
-    PermissionDecisionApproveOnce, PermissionDecisionApproveOnceKind, PermissionDecisionReject,
-    PermissionDecisionRejectKind, PlanUpdateRequest, SessionMode, WorkspacesCreateFileRequest,
-    WorkspacesReadFileRequest,
+    LogRequest, ModelSwitchToRequest, PermissionDecision, PermissionDecisionApproveOnce,
+    PermissionDecisionApproveOnceKind, PermissionDecisionReject, PermissionDecisionRejectKind,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
@@ -320,17 +318,6 @@ impl Session {
         Ok(message_id)
     }
 
-    /// Enable or disable session-wide auto-approval for tool permission requests.
-    pub async fn set_approve_all_permissions(&self, enabled: bool) -> Result<(), Error> {
-        self.rpc()
-            .permissions()
-            .set_approve_all(
-                crate::generated::api_types::PermissionsSetApproveAllRequest { enabled },
-            )
-            .await?;
-        Ok(())
-    }
-
     /// Send a user message and wait for the agent to finish processing.
     ///
     /// Accepts anything convertible to [`MessageOptions`] — pass a `&str` for the
@@ -436,45 +423,6 @@ impl Session {
         Ok(())
     }
 
-    /// Get the current model.
-    pub async fn get_model(&self) -> Result<Option<String>, Error> {
-        Ok(self.rpc().model().get_current().await?.model_id)
-    }
-
-    /// Set the session mode (e.g. "interactive", "plan", "autopilot").
-    pub async fn set_mode(&self, mode: &str) -> Result<String, Error> {
-        let parsed: SessionMode = serde_json::from_value(Value::String(mode.to_string()))?;
-        self.rpc()
-            .mode()
-            .set(ModeSetRequest { mode: parsed })
-            .await?;
-        Ok(mode.to_string())
-    }
-
-    /// Get the current session mode.
-    pub async fn get_mode(&self) -> Result<String, Error> {
-        let mode = self.rpc().mode().get().await?;
-        Ok(serde_json::to_value(mode)?
-            .as_str()
-            .unwrap_or("interactive")
-            .to_string())
-    }
-
-    /// Get the current session name.
-    pub async fn get_name(&self) -> Result<Option<String>, Error> {
-        Ok(self.rpc().name().get().await?.name)
-    }
-
-    /// Set the current session name.
-    pub async fn set_name(&self, name: &str) -> Result<(), Error> {
-        self.rpc()
-            .name()
-            .set(NameSetRequest {
-                name: name.to_string(),
-            })
-            .await
-    }
-
     /// Disconnect this session from the CLI.
     ///
     /// Sends the `session.destroy` RPC, stops the event loop, and unregisters
@@ -510,55 +458,6 @@ impl Session {
     /// state is preserved.
     pub async fn destroy(&self) -> Result<(), Error> {
         self.disconnect().await
-    }
-
-    /// List files in the session workspace.
-    pub async fn list_workspace_files(&self) -> Result<Vec<String>, Error> {
-        Ok(self.rpc().workspaces().list_files().await?.files)
-    }
-
-    /// Read a file from the session workspace.
-    pub async fn read_workspace_file(&self, path: &Path) -> Result<String, Error> {
-        Ok(self
-            .rpc()
-            .workspaces()
-            .read_file(WorkspacesReadFileRequest {
-                path: path.to_string_lossy().into_owned(),
-            })
-            .await?
-            .content)
-    }
-
-    /// Create a file in the session workspace.
-    pub async fn create_workspace_file(&self, path: &Path, content: &str) -> Result<(), Error> {
-        self.rpc()
-            .workspaces()
-            .create_file(WorkspacesCreateFileRequest {
-                path: path.to_string_lossy().into_owned(),
-                content: content.to_string(),
-            })
-            .await
-    }
-
-    /// Read the session plan.
-    pub async fn read_plan(&self) -> Result<(bool, Option<String>), Error> {
-        let r = self.rpc().plan().read().await?;
-        Ok((r.exists, r.content))
-    }
-
-    /// Update the session plan.
-    pub async fn update_plan(&self, content: &str) -> Result<(), Error> {
-        self.rpc()
-            .plan()
-            .update(PlanUpdateRequest {
-                content: content.to_string(),
-            })
-            .await
-    }
-
-    /// Delete the session plan.
-    pub async fn delete_plan(&self) -> Result<(), Error> {
-        self.rpc().plan().delete().await
     }
 
     /// Write a log message to the session.
@@ -606,34 +505,6 @@ impl Session {
             return Err(Error::Session(SessionError::ElicitationNotSupported));
         }
         Ok(())
-    }
-
-    /// Start a fleet of sub-agents.
-    pub async fn start_fleet(&self, prompt: Option<&str>) -> Result<bool, Error> {
-        Ok(self
-            .rpc()
-            .fleet()
-            .start(crate::generated::api_types::FleetStartRequest {
-                prompt: prompt.map(|s| s.to_string()),
-            })
-            .await?
-            .started)
-    }
-
-    /// Generic RPC forwarder — auto-injects sessionId into params.
-    pub async fn call_rpc(
-        &self,
-        method: &str,
-        extra_params: Option<Value>,
-    ) -> Result<Value, Error> {
-        let mut params = serde_json::json!({ "sessionId": self.id });
-        let extra_obj = extra_params.as_ref().and_then(Value::as_object);
-        if let (Some(base), Some(extra_obj)) = (params.as_object_mut(), extra_obj) {
-            for (k, v) in extra_obj {
-                base.insert(k.clone(), v.clone());
-            }
-        }
-        self.client.call(method, Some(params)).await
     }
 }
 

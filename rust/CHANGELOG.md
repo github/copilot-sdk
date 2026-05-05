@@ -42,7 +42,7 @@ public surface.
   `get_last_session_id`, `get_foreground_session_id`,
   `set_foreground_session_id`.
 - `Client::list_models`, `get_status` (typed `GetStatusResponse`),
-  `get_auth_status` (typed `GetAuthStatusResponse`), `get_quota`.
+  `get_auth_status` (typed `GetAuthStatusResponse`).
 
 #### Sessions
 - `Client::create_session` and `Client::resume_session` accepting
@@ -54,19 +54,14 @@ public surface.
 - `Session::subscribe` returning an `EventSubscription` for observe-only
   access to the session's event stream. Implements `tokio_stream::Stream`
   and offers an inherent `recv()`; drop the value to unsubscribe.
-- Mode + model controls: `get_mode` / `set_mode`, `get_model` /
-  `set_model(model, SetModelOptions)` with `reasoning_effort` and
-  `model_capabilities` overrides.
-- Plan helpers: `read_plan`, `delete_plan`.
-- Workspace helpers: `list_workspace_files`, `read_workspace_file`,
-  `create_workspace_file`, `cwd`, `remote_url`.
+- `Session::set_model(model, SetModelOptions)` with `reasoning_effort`
+  and `model_capabilities` overrides (matches Node/Python/.NET).
 - UI primitives: `session.ui().elicitation()`, `confirm()`, `select()`,
   `input()` — grouped under a `SessionUi` sub-API to mirror .NET / Python /
   Go.
 - `Session::log(message, LogOptions)` with optional severity and
   ephemeral flag.
-- `Session::start_fleet`, `abort`, `set_approve_all_permissions`,
-  `set_name`.
+- `Session::abort` (matches all other SDKs).
 - `Session::disconnect` (canonical) and `Session::destroy` (alias)
   preserve on-disk session state for later resume.
 - `Session::stop_event_loop` for shutting down the per-session loop.
