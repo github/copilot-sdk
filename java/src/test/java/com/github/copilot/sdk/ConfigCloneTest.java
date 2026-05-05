@@ -36,6 +36,9 @@ class ConfigCloneTest {
         original.setPort(9000);
         original.setGitHubToken("ghp_test");
         original.setUseLoggedInUser(false);
+        original.setCopilotHome("/custom/copilot/home");
+        original.setUseStdio(false);
+        original.setTcpConnectionToken("my-token-123");
 
         CopilotClientOptions cloned = original.clone();
 
@@ -44,6 +47,8 @@ class ConfigCloneTest {
         assertEquals(original.getPort(), cloned.getPort());
         assertEquals(original.getGitHubToken(), cloned.getGitHubToken());
         assertEquals(original.getUseLoggedInUser(), cloned.getUseLoggedInUser());
+        assertEquals(original.getCopilotHome(), cloned.getCopilotHome());
+        assertEquals(original.getTcpConnectionToken(), cloned.getTcpConnectionToken());
     }
 
     @Test
@@ -120,6 +125,7 @@ class ConfigCloneTest {
         toolList.add("grep");
         toolList.add("bash");
         original.setAvailableTools(toolList);
+        original.setInstructionDirectories(new ArrayList<>(List.of("/path/a", "/path/b")));
 
         SessionConfig cloned = original.clone();
 
@@ -129,6 +135,7 @@ class ConfigCloneTest {
         // The cloned config should be unaffected by mutations to the original list
         assertEquals(2, cloned.getAvailableTools().size());
         assertEquals(3, original.getAvailableTools().size());
+        assertEquals(List.of("/path/a", "/path/b"), cloned.getInstructionDirectories());
     }
 
     @Test

@@ -104,6 +104,14 @@ public final class SessionRpc {
     }
 
     /**
+     * Invokes {@code session.suspend}.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> suspend() {
+        return caller.invoke("session.suspend", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    }
+
+    /**
      * Invokes {@code session.log}.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

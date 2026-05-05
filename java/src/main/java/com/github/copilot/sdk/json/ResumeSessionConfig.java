@@ -59,6 +59,7 @@ public class ResumeSessionConfig {
     private DefaultAgentConfig defaultAgent;
     private String agent;
     private List<String> skillDirectories;
+    private List<String> instructionDirectories;
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
     private Consumer<SessionEvent> onEvent;
@@ -592,6 +593,27 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the additional directories to search for custom instruction files.
+     *
+     * @return the list of instruction directory paths
+     */
+    public List<String> getInstructionDirectories() {
+        return instructionDirectories == null ? null : Collections.unmodifiableList(instructionDirectories);
+    }
+
+    /**
+     * Sets additional directories to search for custom instruction files.
+     *
+     * @param instructionDirectories
+     *            the list of instruction directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setInstructionDirectories(List<String> instructionDirectories) {
+        this.instructionDirectories = instructionDirectories;
+        return this;
+    }
+
+    /**
      * Gets the disabled skills.
      *
      * @return the list of disabled skill names
@@ -775,6 +797,9 @@ public class ResumeSessionConfig {
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.instructionDirectories = this.instructionDirectories != null
+                ? new ArrayList<>(this.instructionDirectories)
+                : null;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.infiniteSessions = this.infiniteSessions;
         copy.onEvent = this.onEvent;

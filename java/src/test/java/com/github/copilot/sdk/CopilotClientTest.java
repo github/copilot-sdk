@@ -199,6 +199,30 @@ public class CopilotClientTest {
         assertEquals(600, options.getSessionIdleTimeoutSeconds());
     }
 
+    @Test
+    void testTcpConnectionTokenWithUseStdioThrows() {
+        var options = new CopilotClientOptions().setUseStdio(true).setTcpConnectionToken("my-token");
+
+        assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
+    }
+
+    @Test
+    void testTcpConnectionTokenAcceptedInTcpMode() {
+        var options = new CopilotClientOptions().setUseStdio(false).setTcpConnectionToken("my-token");
+
+        // Should not throw
+        try (var client = new CopilotClient(options)) {
+            assertNotNull(client);
+        }
+    }
+
+    @Test
+    void testCopilotHomeOptionSetOnOptions() {
+        var options = new CopilotClientOptions().setCopilotHome("/custom/home");
+
+        assertEquals("/custom/home", options.getCopilotHome());
+    }
+
     // ===== onLifecycle tests =====
 
     /**

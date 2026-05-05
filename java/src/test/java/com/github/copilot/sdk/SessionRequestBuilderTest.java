@@ -441,4 +441,28 @@ public class SessionRequestBuilderTest {
 
         assertEquals("ghp_per_session_token", request.getGitHubToken());
     }
+
+    // =========================================================================
+    // instructionDirectories propagation
+    // =========================================================================
+
+    @Test
+    void testBuildCreateRequestPropagatesInstructionDirectories() {
+        var dirs = List.of("/path/to/instructions", "/another/path");
+        var config = new SessionConfig().setInstructionDirectories(dirs);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertEquals(dirs, request.getInstructionDirectories());
+    }
+
+    @Test
+    void testBuildResumeRequestPropagatesInstructionDirectories() {
+        var dirs = List.of("/resume/instructions", "/other/dir");
+        var config = new ResumeSessionConfig().setInstructionDirectories(dirs);
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-inst", config);
+
+        assertEquals(dirs, request.getInstructionDirectories());
+    }
 }

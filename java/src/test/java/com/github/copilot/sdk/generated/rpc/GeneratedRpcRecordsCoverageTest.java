@@ -832,8 +832,8 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionUsageGetMetricsResult_nested() {
         var changes = new UsageMetricsCodeChanges(100L, 50L, 5L);
-        var result = new SessionUsageGetMetricsResult(0.5, 10L, 2000.0, 1700000000000L, changes, null, "gpt-5", 1000L,
-                500L);
+        var result = new SessionUsageGetMetricsResult(0.5, 10L, null, null, 2000.0, 1700000000000L, changes, null,
+                "gpt-5", 1000L, 500L);
         assertEquals(0.5, result.totalPremiumRequestCost());
         assertEquals(10L, result.totalUserRequests());
         assertNotNull(result.codeChanges());

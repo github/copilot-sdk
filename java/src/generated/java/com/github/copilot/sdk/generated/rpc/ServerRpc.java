@@ -63,4 +63,12 @@ public final class ServerRpc {
         return caller.invoke("ping", params, PingResult.class);
     }
 
+    /**
+     * Invokes {@code connect}.
+     * @since 1.0.0
+     */
+    public CompletableFuture<ConnectResult> connect(ConnectParams params) {
+        return caller.invoke("connect", params, ConnectResult.class);
+    }
+
 }

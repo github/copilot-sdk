@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 public record AssistantUsageCopilotUsage(
     /** Itemized token usage breakdown */
     @JsonProperty("tokenDetails") List<AssistantUsageCopilotUsageTokenDetail> tokenDetails,
-    /** Total cost in nano-AIU (AI Units) for this request */
+    /** Total cost in nano-AI units for this request */
     @JsonProperty("totalNanoAiu") Double totalNanoAiu
 ) {
 }

@@ -10,6 +10,7 @@ package com.github.copilot.sdk.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -19,6 +20,10 @@ public record ShutdownModelMetric(
     /** Request count and cost metrics */
     @JsonProperty("requests") ShutdownModelMetricRequests requests,
     /** Token usage breakdown */
-    @JsonProperty("usage") ShutdownModelMetricUsage usage
+    @JsonProperty("usage") ShutdownModelMetricUsage usage,
+    /** Accumulated nano-AI units cost for this model */
+    @JsonProperty("totalNanoAiu") Double totalNanoAiu,
+    /** Token count details per type */
+    @JsonProperty("tokenDetails") Map<String, ShutdownModelMetricTokenDetail> tokenDetails
 ) {
 }

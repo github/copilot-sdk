@@ -51,7 +51,9 @@ public final class UserMessageEvent extends SessionEvent {
         /** The agent mode that was active when this message was sent */
         @JsonProperty("agentMode") UserMessageAgentMode agentMode,
         /** CAPI interaction ID for correlating this user message with its turn */
-        @JsonProperty("interactionId") String interactionId
+        @JsonProperty("interactionId") String interactionId,
+        /** Parent agent task ID for background telemetry correlated to this user turn */
+        @JsonProperty("parentAgentTaskId") String parentAgentTaskId
     ) {
     }
 }

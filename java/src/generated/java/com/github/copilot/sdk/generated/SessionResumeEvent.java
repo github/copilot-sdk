@@ -48,8 +48,12 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("context") WorkingDirectoryContext context,
         /** Whether the session was already in use by another client at resume time */
         @JsonProperty("alreadyInUse") Boolean alreadyInUse,
+        /** True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log. */
+        @JsonProperty("sessionWasActive") Boolean sessionWasActive,
         /** Whether this session supports remote steering via Mission Control */
-        @JsonProperty("remoteSteerable") Boolean remoteSteerable
+        @JsonProperty("remoteSteerable") Boolean remoteSteerable,
+        /** When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume. */
+        @JsonProperty("continuePendingWork") Boolean continuePendingWork
     ) {
     }
 }

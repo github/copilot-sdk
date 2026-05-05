@@ -10,6 +10,7 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -19,6 +20,10 @@ public record UsageMetricsModelMetric(
     /** Request count and cost metrics for this model */
     @JsonProperty("requests") UsageMetricsModelMetricRequests requests,
     /** Token usage metrics for this model */
-    @JsonProperty("usage") UsageMetricsModelMetricUsage usage
+    @JsonProperty("usage") UsageMetricsModelMetricUsage usage,
+    /** Accumulated nano-AI units cost for this model */
+    @JsonProperty("totalNanoAiu") Long totalNanoAiu,
+    /** Token count details per type */
+    @JsonProperty("tokenDetails") Map<String, UsageMetricsModelMetricTokenDetail> tokenDetails
 ) {
 }

@@ -26,6 +26,10 @@ public record SessionUsageGetMetricsResult(
     @JsonProperty("totalPremiumRequestCost") Double totalPremiumRequestCost,
     /** Raw count of user-initiated API requests */
     @JsonProperty("totalUserRequests") Long totalUserRequests,
+    /** Session-wide accumulated nano-AI units cost */
+    @JsonProperty("totalNanoAiu") Long totalNanoAiu,
+    /** Session-wide per-token-type accumulated token counts */
+    @JsonProperty("tokenDetails") Map<String, UsageMetricsTokenDetail> tokenDetails,
     /** Total time spent in model API calls (milliseconds) */
     @JsonProperty("totalApiDurationMs") Double totalApiDurationMs,
     /** Session start timestamp (epoch milliseconds) */

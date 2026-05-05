@@ -33,9 +33,21 @@ final class CliServerManager {
 
     private final CopilotClientOptions options;
     private final StringBuilder stderrBuffer = new StringBuilder();
+    private String connectionToken;
 
     CliServerManager(CopilotClientOptions options) {
         this.options = options;
+    }
+
+    /**
+     * Sets the connection token to pass to the CLI process via environment
+     * variable.
+     *
+     * @param connectionToken
+     *            the token, or {@code null} if not applicable
+     */
+    void setConnectionToken(String connectionToken) {
+        this.connectionToken = connectionToken;
     }
 
     /**
@@ -113,6 +125,16 @@ final class CliServerManager {
         // Set auth token in environment if provided
         if (options.getGitHubToken() != null && !options.getGitHubToken().isEmpty()) {
             pb.environment().put("COPILOT_SDK_AUTH_TOKEN", options.getGitHubToken());
+        }
+
+        // Set Copilot home directory if configured
+        if (options.getCopilotHome() != null && !options.getCopilotHome().isEmpty()) {
+            pb.environment().put("COPILOT_HOME", options.getCopilotHome());
+        }
+
+        // Set connection token for TCP mode
+        if (connectionToken != null && !connectionToken.isEmpty()) {
+            pb.environment().put("COPILOT_CONNECTION_TOKEN", connectionToken);
         }
 
         // Set telemetry environment variables if configured
