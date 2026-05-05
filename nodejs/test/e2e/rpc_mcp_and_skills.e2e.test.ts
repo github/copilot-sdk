@@ -10,7 +10,11 @@ import type { MCPServerConfig } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Session MCP and skills RPC", async () => {
-    const { copilotClient: client, workDir } = await createSdkTestContext();
+    // --yolo auto-approves extension permission gates at the CLI level,
+    // preventing breakage from new gates (e.g., extension-permission-access).
+    const { copilotClient: client, workDir } = await createSdkTestContext({
+        copilotClientOptions: { cliArgs: ["--yolo"] },
+    });
 
     function createSkill(skillsDir: string, skillName: string, description: string): void {
         const skillSubdir = path.join(skillsDir, skillName);

@@ -98,7 +98,16 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_List_Extensions()
     {
-        var session = await CreateSessionAsync();
+        // Use --yolo to auto-approve extension permission gates at the CLI level,
+        // preventing breakage from new gates (e.g., extension-permission-access).
+        await using var yoloClient = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            CliArgs = ["--yolo"],
+        });
+        await using var session = await yoloClient.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
 
         var result = await session.Rpc.Extensions.ListAsync();
 
@@ -175,7 +184,16 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_Report_Error_When_Extensions_Are_Not_Available()
     {
-        var session = await CreateSessionAsync();
+        // Use --yolo to auto-approve extension permission gates at the CLI level,
+        // preventing breakage from new gates (e.g., extension-permission-access).
+        await using var yoloClient = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            CliArgs = ["--yolo"],
+        });
+        await using var session = await yoloClient.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
 
         await AssertFailureAsync(
             () => session.Rpc.Extensions.EnableAsync("missing-extension"),

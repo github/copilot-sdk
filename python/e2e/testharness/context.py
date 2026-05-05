@@ -51,8 +51,12 @@ class E2ETestContext:
         self._proxy: CapiProxy | None = None
         self._client: CopilotClient | None = None
 
-    async def setup(self):
-        """Set up the test context with a shared client."""
+    async def setup(self, cli_args: list[str] | None = None):
+        """Set up the test context with a shared client.
+
+        Args:
+            cli_args: Optional extra CLI arguments passed to the CLI process.
+        """
         self.cli_path = get_cli_path_for_tests()
 
         self.home_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-test-config-"))
@@ -69,6 +73,7 @@ class E2ETestContext:
         self._client = CopilotClient(
             SubprocessConfig(
                 cli_path=self.cli_path,
+                cli_args=cli_args or [],
                 cwd=self.work_dir,
                 env=self.get_env(),
                 github_token=github_token,
