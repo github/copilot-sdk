@@ -360,4 +360,109 @@ public class ToolsTest {
             session.close();
         }
     }
+
+    /**
+     * Verifies that the model can call multiple custom tools in parallel within a
+     * single turn.
+     *
+     * @see Snapshot:
+     *      tools/should_execute_multiple_custom_tools_in_parallel_single_turn
+     */
+    @Test
+    void testShouldExecuteMultipleCustomToolsInParallelSingleTurn() throws Exception {
+        ctx.configureForTest("tools", "should_execute_multiple_custom_tools_in_parallel_single_turn");
+
+        var toolACalled = new CompletableFuture<String>();
+        var toolBCalled = new CompletableFuture<String>();
+
+        Map<String, Object> cityParams = Map.of("type", "object", "properties",
+                Map.of("city", Map.of("type", "string", "description", "City name")), "required", List.of("city"));
+        Map<String, Object> countryParams = Map.of("type", "object", "properties",
+                Map.of("country", Map.of("type", "string", "description", "Country name")), "required",
+                List.of("country"));
+
+        ToolDefinition lookupCity = ToolDefinition.create("lookup_city", "Looks up city information", cityParams,
+                (invocation) -> {
+                    String city = (String) invocation.getArguments().get("city");
+                    toolACalled.complete(city);
+                    return CompletableFuture.completedFuture("CITY_" + city.toUpperCase());
+                });
+
+        ToolDefinition lookupCountry = ToolDefinition.create("lookup_country", "Looks up country information",
+                countryParams, (invocation) -> {
+                    String country = (String) invocation.getArguments().get("country");
+                    toolBCalled.complete(country);
+                    return CompletableFuture.completedFuture("COUNTRY_" + country.toUpperCase());
+                });
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig()
+                    .setTools(List.of(lookupCity, lookupCountry)).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt(
+                    "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in your reply."))
+                    .get(60, TimeUnit.SECONDS);
+
+            // Both tools should have been called
+            assertEquals("Paris", toolACalled.get(10, TimeUnit.SECONDS));
+            assertEquals("France", toolBCalled.get(10, TimeUnit.SECONDS));
+
+            assertNotNull(response);
+            String content = response.getData().content();
+            assertTrue(content.contains("CITY_PARIS"), "Response should contain CITY_PARIS: " + content);
+            assertTrue(content.contains("COUNTRY_FRANCE"), "Response should contain COUNTRY_FRANCE: " + content);
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that excludedTools are respected even when also listed in
+     * availableTools.
+     *
+     * @see Snapshot: tools/should_respect_availabletools_and_excludedtools_combined
+     */
+    @Test
+    void testShouldRespectAvailableToolsAndExcludedToolsCombined() throws Exception {
+        ctx.configureForTest("tools", "should_respect_availabletools_and_excludedtools_combined");
+
+        var excludedToolCalled = new boolean[]{false};
+
+        Map<String, Object> inputParams = Map.of("type", "object", "properties",
+                Map.of("input", Map.of("type", "string", "description", "Input value")), "required", List.of("input"));
+
+        ToolDefinition allowedTool = ToolDefinition.create("allowed_tool", "An allowed tool", inputParams,
+                (invocation) -> {
+                    String input = (String) invocation.getArguments().get("input");
+                    return CompletableFuture.completedFuture("ALLOWED_" + input.toUpperCase());
+                });
+
+        ToolDefinition excludedTool = ToolDefinition.create("excluded_tool", "A tool that should be excluded",
+                inputParams, (invocation) -> {
+                    excludedToolCalled[0] = true;
+                    String input = (String) invocation.getArguments().get("input");
+                    return CompletableFuture.completedFuture("EXCLUDED_" + input.toUpperCase());
+                });
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig()
+                    .setTools(List.of(allowedTool, excludedTool))
+                    .setAvailableTools(List.of("allowed_tool", "excluded_tool"))
+                    .setExcludedTools(List.of("excluded_tool")).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions()
+                            .setPrompt("Use the allowed_tool with input 'test'. Do NOT use excluded_tool."))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().content().contains("ALLOWED_TEST"),
+                    "Response should contain ALLOWED_TEST: " + response.getData().content());
+            assertFalse(excludedToolCalled[0], "Excluded tool should not have been called");
+
+            session.close();
+        }
+    }
 }

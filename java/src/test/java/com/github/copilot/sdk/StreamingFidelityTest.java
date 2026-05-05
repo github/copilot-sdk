@@ -182,4 +182,97 @@ public class StreamingFidelityTest {
             }
         }
     }
+
+    /**
+     * Verifies that no delta events are produced after resuming a session with
+     * streaming disabled (even though it was originally created with streaming
+     * enabled).
+     *
+     * @see Snapshot:
+     *      streaming_fidelity/should_not_produce_deltas_after_session_resume_with_streaming_disabled
+     */
+    @Test
+    void testShouldNotProduceDeltasAfterSessionResumeWithStreamingDisabled() throws Exception {
+        ctx.configureForTest("streaming_fidelity",
+                "should_not_produce_deltas_after_session_resume_with_streaming_disabled");
+
+        try (CopilotClient client = ctx.createClient()) {
+            // Create a streaming session and send an initial message
+            CopilotSession session = client.createSession(
+                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
+            session.sendAndWait(new MessageOptions().setPrompt("What is 3 + 6?")).get(60, TimeUnit.SECONDS);
+            String sessionId = session.getSessionId();
+            session.close();
+
+            // Resume using a new client with streaming DISABLED
+            try (CopilotClient newClient = ctx.createClient()) {
+                CopilotSession session2 = newClient.resumeSession(sessionId, new ResumeSessionConfig()
+                        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false)).get();
+
+                List<SessionEvent> events = new ArrayList<>();
+                session2.on(events::add);
+
+                AssistantMessageEvent answer = session2
+                        .sendAndWait(new MessageOptions().setPrompt("Now if you double that, what do you get?"))
+                        .get(60, TimeUnit.SECONDS);
+                assertNotNull(answer);
+                assertTrue(answer.getData().content().contains("18"),
+                        "Follow-up response should contain 18: " + answer.getData().content());
+
+                // No deltas when streaming is toggled off
+                List<AssistantMessageDeltaEvent> deltaEvents = events.stream()
+                        .filter(e -> e instanceof AssistantMessageDeltaEvent).map(e -> (AssistantMessageDeltaEvent) e)
+                        .toList();
+                assertTrue(deltaEvents.isEmpty(),
+                        "Should not receive delta events when streaming is disabled on resume");
+
+                // But should still have a final assistant.message
+                List<AssistantMessageEvent> assistantEvents = events.stream()
+                        .filter(e -> e instanceof AssistantMessageEvent).map(e -> (AssistantMessageEvent) e).toList();
+                assertFalse(assistantEvents.isEmpty(),
+                        "Should still have a final assistant.message when streaming is disabled");
+
+                session2.close();
+            }
+        }
+    }
+
+    /**
+     * Verifies that setting reasoningEffort alongside streaming=true does not break
+     * the streaming pipeline — deltas still arrive and complete successfully.
+     *
+     * @see Snapshot:
+     *      streaming_fidelity/should_emit_streaming_deltas_with_reasoning_effort_configured
+     */
+    @Test
+    void testShouldEmitStreamingDeltasWithReasoningEffortConfigured() throws Exception {
+        ctx.configureForTest("streaming_fidelity", "should_emit_streaming_deltas_with_reasoning_effort_configured");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setStreaming(true).setReasoningEffort("high"))
+                    .get();
+
+            List<SessionEvent> events = new ArrayList<>();
+            session.on(events::add);
+
+            session.sendAndWait(new MessageOptions().setPrompt("What is 15 * 17?")).get(60, TimeUnit.SECONDS);
+
+            // With streaming + reasoning effort, we should still get content deltas
+            List<AssistantMessageDeltaEvent> deltaEvents = events.stream()
+                    .filter(e -> e instanceof AssistantMessageDeltaEvent).map(e -> (AssistantMessageDeltaEvent) e)
+                    .toList();
+            assertFalse(deltaEvents.isEmpty(), "Should have received delta events with reasoning effort configured");
+
+            // And a final assistant.message with the answer
+            List<AssistantMessageEvent> assistantEvents = events.stream()
+                    .filter(e -> e instanceof AssistantMessageEvent).map(e -> (AssistantMessageEvent) e).toList();
+            assertFalse(assistantEvents.isEmpty(), "Should have received assistant message events");
+            assertTrue(assistantEvents.get(assistantEvents.size() - 1).getData().content().contains("255"),
+                    "Response should contain 255");
+
+            session.close();
+        }
+    }
 }

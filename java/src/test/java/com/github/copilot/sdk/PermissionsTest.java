@@ -363,4 +363,114 @@ public class PermissionsTest {
             session2.close();
         }
     }
+
+    /**
+     * Verifies that a permission handler returning {@code noResult} is handled
+     * correctly — the handler is called, and the session can be aborted afterward.
+     *
+     * @see Snapshot: permissions/should_deny_permission_with_noresult_kind
+     */
+    @Test
+    void testShouldDenyPermissionWithNoResultKind() throws Exception {
+        ctx.configureForTest("permissions", "should_deny_permission_with_noresult_kind");
+
+        var permissionCalled = new CompletableFuture<Boolean>();
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+                        permissionCalled.complete(true);
+                        return CompletableFuture.completedFuture(
+                                new PermissionRequestResult().setKind(PermissionRequestResultKind.NO_RESULT));
+                    })).get();
+
+            session.send(new MessageOptions().setPrompt("Run 'node --version'"));
+
+            assertTrue(permissionCalled.get(30, TimeUnit.SECONDS),
+                    "Expected the no-result permission handler to be called.");
+
+            session.abort().get(10, TimeUnit.SECONDS);
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that the runtime short-circuits the permission handler when
+     * {@code session.permissions.setApproveAll(true)} has been called.
+     *
+     * @see Snapshot:
+     *      permissions/should_short_circuit_permission_handler_when_set_approve_all_enabled
+     */
+    @Test
+    void testShouldShortCircuitPermissionHandlerWhenSetApproveAllEnabled() throws Exception {
+        ctx.configureForTest("permissions", "should_short_circuit_permission_handler_when_set_approve_all_enabled");
+
+        var handlerCallCount = new int[]{0};
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+                        handlerCallCount[0]++;
+                        return CompletableFuture.completedFuture(
+                                new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
+                    })).get();
+
+            // Set approve-all so the runtime short-circuits
+            var setResult = session.getRpc().permissions
+                    .setApproveAll(new com.github.copilot.sdk.generated.rpc.SessionPermissionsSetApproveAllParams(
+                            session.getSessionId(), true))
+                    .get(10, TimeUnit.SECONDS);
+            assertTrue(setResult.success(), "setApproveAll should succeed");
+
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Run 'echo test' and tell me what happens"))
+                    .get(60, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            // Handler should not have been called since runtime approves all
+            assertEquals(0, handlerCallCount[0],
+                    "Permission handler should not be called when setApproveAll is enabled");
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that the SDK correctly waits for a slow permission handler before
+     * completing tool execution.
+     *
+     * @see Snapshot: permissions/should_wait_for_slow_permission_handler
+     */
+    @Test
+    void testShouldWaitForSlowPermissionHandler() throws Exception {
+        ctx.configureForTest("permissions", "should_wait_for_slow_permission_handler");
+
+        var handlerEntered = new CompletableFuture<Void>();
+        var releaseHandler = new CompletableFuture<Void>();
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+                        handlerEntered.complete(null);
+                        return releaseHandler.thenApply(
+                                v -> new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
+                    })).get();
+
+            // Use send (non-blocking) so we can interact with the handler
+            CompletableFuture<AssistantMessageEvent> responseFuture = session
+                    .sendAndWait(new MessageOptions().setPrompt("Run 'echo slow_handler_test'"));
+
+            // Wait for permission handler to be entered
+            handlerEntered.get(30, TimeUnit.SECONDS);
+
+            // Release the handler
+            releaseHandler.complete(null);
+
+            // Session should complete successfully
+            AssistantMessageEvent message = responseFuture.get(60, TimeUnit.SECONDS);
+            assertNotNull(message);
+
+            session.close();
+        }
+    }
 }

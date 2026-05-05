@@ -33,6 +33,7 @@ final class CliServerManager {
 
     private final CopilotClientOptions options;
     private final StringBuilder stderrBuffer = new StringBuilder();
+    private volatile Thread stderrThread;
     private String connectionToken;
 
     CliServerManager(CopilotClientOptions options) {
@@ -199,7 +200,7 @@ final class CliServerManager {
     }
 
     private void startStderrReader(Process process) {
-        var stderrThread = new Thread(() -> {
+        var thread = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
                 String line;
@@ -213,8 +214,9 @@ final class CliServerManager {
                 LOG.log(Level.FINE, "Error reading stderr", e);
             }
         }, "cli-stderr-reader");
-        stderrThread.setDaemon(true);
-        stderrThread.start();
+        thread.setDaemon(true);
+        thread.start();
+        this.stderrThread = thread;
     }
 
     private Integer waitForPortAnnouncement(Process process) throws IOException {
@@ -226,11 +228,10 @@ final class CliServerManager {
             while (System.currentTimeMillis() < deadline) {
                 String line = reader.readLine();
                 if (line == null) {
+                    awaitStderrReader();
                     String stderr = getStderrOutput();
-                    if (!stderr.isEmpty()) {
-                        throw new IOException("CLI process exited unexpectedly. stderr: " + stderr);
-                    }
-                    throw new IOException("CLI process exited unexpectedly");
+                    throw new IOException(
+                            CopilotClient.formatCliExitedMessage("CLI process exited unexpectedly.", stderr));
                 }
 
                 Matcher matcher = portPattern.matcher(line);
@@ -247,6 +248,17 @@ final class CliServerManager {
     String getStderrOutput() {
         synchronized (stderrBuffer) {
             return stderrBuffer.toString().trim();
+        }
+    }
+
+    private void awaitStderrReader() {
+        Thread t = this.stderrThread;
+        if (t != null) {
+            try {
+                t.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
