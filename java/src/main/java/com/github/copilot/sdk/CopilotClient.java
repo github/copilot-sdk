@@ -76,7 +76,7 @@ public final class CopilotClient implements AutoCloseable {
      * shutdown via {@link #stop()}.
      */
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
-    private static final long FORCE_KILL_TIMEOUT_SECONDS = 10;
+    private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
     private final CopilotClientOptions options;
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();

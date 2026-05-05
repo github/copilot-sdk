@@ -30,6 +30,7 @@ import com.github.copilot.sdk.json.CopilotClientOptions;
 final class CliServerManager {
 
     private static final Logger LOG = Logger.getLogger(CliServerManager.class.getName());
+    private static final int STDERR_READER_JOIN_TIMEOUT_MS = 5000;
 
     private final CopilotClientOptions options;
     private final StringBuilder stderrBuffer = new StringBuilder();
@@ -254,7 +255,7 @@ final class CliServerManager {
         Thread t = this.stderrThread;
         if (t != null) {
             try {
-                t.join(5000);
+                t.join(STDERR_READER_JOIN_TIMEOUT_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
