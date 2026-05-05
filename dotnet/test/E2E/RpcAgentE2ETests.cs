@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Rpc;
 using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
@@ -104,10 +105,11 @@ public class RpcAgentE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     [Fact]
     public async Task Should_Call_Agent_Reload()
     {
-        var session = await CreateSessionAsync(new SessionConfig { CustomAgents = [CreateReloadAgent()] });
+        var reloadAgent = CreateReloadAgent($"reload-test-agent-{Guid.NewGuid():N}");
+        var session = await CreateSessionAsync(new SessionConfig { CustomAgents = [reloadAgent] });
 
         var before = await session.Rpc.Agent.ListAsync();
-        Assert.Single(before.Agents, agent => string.Equals(agent.Name, "reload-test-agent", StringComparison.Ordinal));
+        AssertReloadAgent(before.Agents, reloadAgent);
 
         var result = await session.Rpc.Agent.ReloadAsync();
         var current = await session.Rpc.Agent.ListAsync();
@@ -118,6 +120,13 @@ public class RpcAgentE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         Assert.Equal(
             result.Agents.Select(agent => agent.DisplayName).OrderBy(name => name, StringComparer.Ordinal),
             current.Agents.Select(agent => agent.DisplayName).OrderBy(name => name, StringComparer.Ordinal));
+    }
+
+    private static void AssertReloadAgent(IEnumerable<AgentInfo> agents, CustomAgentConfig expected)
+    {
+        var agent = Assert.Single(agents, agent => string.Equals(agent.Name, expected.Name, StringComparison.Ordinal));
+        Assert.Equal(expected.DisplayName, agent.DisplayName);
+        Assert.Equal(expected.Description, agent.Description);
     }
 
     private static List<CustomAgentConfig> CreateCustomAgents() =>
@@ -138,10 +147,10 @@ public class RpcAgentE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         }
     ];
 
-    private static CustomAgentConfig CreateReloadAgent() =>
+    private static CustomAgentConfig CreateReloadAgent(string name) =>
         new()
         {
-            Name = "reload-test-agent",
+            Name = name,
             DisplayName = "Reload Test Agent",
             Description = "Used by the agent reload RPC test.",
             Prompt = "You are a reload test agent.",

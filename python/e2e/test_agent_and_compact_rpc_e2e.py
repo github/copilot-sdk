@@ -1,5 +1,7 @@
 """E2E tests for Agent Selection and Session Compaction RPC APIs."""
 
+import uuid
+
 import pytest
 
 from copilot import CopilotClient
@@ -174,34 +176,43 @@ class TestAgentSelectionRpc:
     async def test_should_call_agent_reload(self):
         """Test reloading agents via RPC."""
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        reload_agent = {
+            "name": f"reload-test-agent-{uuid.uuid4().hex}",
+            "display_name": "Reload Agent",
+            "description": "An agent used to validate reload",
+            "prompt": "You are a reload test agent.",
+        }
 
         try:
             await client.start()
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
-                custom_agents=[
-                    {
-                        "name": "reload-test-agent",
-                        "display_name": "Reload Agent",
-                        "description": "An agent used to validate reload",
-                        "prompt": "You are a reload test agent.",
-                    }
-                ],
+                custom_agents=[reload_agent],
             )
 
             before = await session.rpc.agent.list()
-            assert any(agent.name == "reload-test-agent" for agent in before.agents)
+            _assert_reload_agent(before.agents, reload_agent)
 
-            # Reload should succeed and return some agent set. The CLI currently
-            # drops session-configured CustomAgents on reload, so we don't
-            # require the reload-test-agent to remain present after reload.
             result = await session.rpc.agent.reload()
             assert result.agents is not None
+            current = await session.rpc.agent.list()
+            assert _agent_summaries(result.agents) == _agent_summaries(current.agents)
 
             await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()
+
+
+def _assert_reload_agent(agents, expected):
+    matches = [agent for agent in agents if agent.name == expected["name"]]
+    assert len(matches) == 1
+    assert matches[0].display_name == expected["display_name"]
+    assert matches[0].description == expected["description"]
+
+
+def _agent_summaries(agents):
+    return sorted((agent.name, agent.display_name) for agent in agents)
 
 
 class TestSessionCompactionRpc:

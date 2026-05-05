@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { approveAll } from "../../src/index.js";
 import type { CustomAgentConfig } from "../../src/index.js";
@@ -127,6 +128,34 @@ describe("Agent Selection RPC", async () => {
 
         await session.disconnect();
     });
+
+    it("should call agent reload", async () => {
+        const reloadAgent: CustomAgentConfig = {
+            name: `reload-test-agent-${randomUUID().replaceAll("-", "")}`,
+            displayName: "Reload Test Agent",
+            description: "Used by the agent reload RPC test.",
+            prompt: "You are a reload test agent.",
+        };
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            customAgents: [reloadAgent],
+        });
+
+        const before = await session.rpc.agent.list();
+        const match = before.agents.find((agent) => agent.name === reloadAgent.name);
+        expect(match).toBeDefined();
+        expect(match!.displayName).toBe(reloadAgent.displayName);
+        expect(match!.description).toBe(reloadAgent.description);
+
+        const result = await session.rpc.agent.reload();
+        expect(result.agents).toBeDefined();
+
+        const current = await session.rpc.agent.list();
+        expect(summarizeAgents(result.agents)).toEqual(summarizeAgents(current.agents));
+
+        await session.disconnect();
+    });
 });
 
 describe("Session Compact RPC", async () => {
@@ -147,3 +176,7 @@ describe("Session Compact RPC", async () => {
         await session.disconnect();
     }, 60000);
 });
+
+function summarizeAgents(agents: { name: string; displayName: string }[]) {
+    return agents.map((agent) => `${agent.name}\x00${agent.displayName}`).sort();
+}

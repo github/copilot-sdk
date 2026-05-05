@@ -1,7 +1,10 @@
 package e2e
 
 import (
+	"fmt"
+	"slices"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -253,6 +256,13 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 	})
 
 	t.Run("should call agent reload", func(t *testing.T) {
+		reloadAgent := copilot.CustomAgentConfig{
+			Name:        fmt.Sprintf("reload-test-agent-%d", time.Now().UnixNano()),
+			DisplayName: "Reload Test Agent",
+			Description: "Used by the agent reload RPC test.",
+			Prompt:      "You are a reload test agent.",
+		}
+
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
 			UseStdio: copilot.Bool(true),
@@ -266,12 +276,7 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			CustomAgents: []copilot.CustomAgentConfig{
-				{
-					Name:        "reload-test-agent",
-					DisplayName: "Reload Test Agent",
-					Description: "Used by the agent reload RPC test.",
-					Prompt:      "You are a reload test agent.",
-				},
+				reloadAgent,
 			},
 		})
 		if err != nil {
@@ -282,21 +287,8 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to list agents: %v", err)
 		}
-		var sawReloadAgent bool
-		for _, agent := range before.Agents {
-			if agent.Name == "reload-test-agent" {
-				sawReloadAgent = true
-				break
-			}
-		}
-		if !sawReloadAgent {
-			t.Fatalf("Expected reload-test-agent in initial Agent.List, got %+v", before.Agents)
-		}
+		assertReloadAgent(t, before.Agents, reloadAgent)
 
-		// Reload should succeed; the runtime currently drops session-configured
-		// CustomAgents on reload, so we only assert the result shape is non-nil.
-		// Once that runtime behavior is fixed, tighten this to assert
-		// reload-test-agent is still present.
 		result, err := session.RPC.Agent.Reload(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to reload agents: %v", err)
@@ -304,11 +296,47 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 		if result.Agents == nil {
 			t.Errorf("Expected non-nil Agents after reload")
 		}
+		current, err := session.RPC.Agent.List(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to list agents after reload: %v", err)
+		}
+		if got, want := agentSummaries(result.Agents), agentSummaries(current.Agents); !slices.Equal(got, want) {
+			t.Errorf("Expected reload result agents to match current agents.\nGot:  %v\nWant: %v", got, want)
+		}
 
 		if err := client.Stop(); err != nil {
 			t.Errorf("Expected no errors on stop, got %v", err)
 		}
 	})
+}
+
+func assertReloadAgent(t *testing.T, agents []rpc.AgentInfo, expected copilot.CustomAgentConfig) {
+	t.Helper()
+
+	var matches []rpc.AgentInfo
+	for _, agent := range agents {
+		if agent.Name == expected.Name {
+			matches = append(matches, agent)
+		}
+	}
+	if len(matches) != 1 {
+		t.Fatalf("Expected exactly one %q in Agent.List, got %+v", expected.Name, agents)
+	}
+	if matches[0].DisplayName != expected.DisplayName {
+		t.Errorf("Expected reload agent display name %q, got %q", expected.DisplayName, matches[0].DisplayName)
+	}
+	if matches[0].Description != expected.Description {
+		t.Errorf("Expected reload agent description %q, got %q", expected.Description, matches[0].Description)
+	}
+}
+
+func agentSummaries(agents []rpc.AgentInfo) []string {
+	summaries := make([]string, len(agents))
+	for i, agent := range agents {
+		summaries[i] = fmt.Sprintf("%s\x00%s", agent.Name, agent.DisplayName)
+	}
+	slices.Sort(summaries)
+	return summaries
 }
 
 func TestSessionCompactionRpcE2E(t *testing.T) {
