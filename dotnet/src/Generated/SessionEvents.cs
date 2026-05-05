@@ -4766,9 +4766,9 @@ public partial class CustomAgentsUpdatedAgent
     [JsonPropertyName("source")]
     public required string Source { get; set; }
 
-    /// <summary>List of tool names available to this agent.</summary>
+    /// <summary>List of tool names available to this agent, or null when all tools are available.</summary>
     [JsonPropertyName("tools")]
-    public required string[] Tools { get; set; }
+    public string[]? Tools { get; set; }
 
     /// <summary>Whether the agent can be selected by the user.</summary>
     [JsonPropertyName("userInvocable")]
