@@ -40,7 +40,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
     /// </summary>
     private Dictionary<string, string> ExtensionsEnabledEnvironment()
     {
-        var env = new Dictionary<string, string>(Ctx.GetEnvironment(), StringComparer.OrdinalIgnoreCase)
+        var env = new Dictionary<string, string>(Ctx.GetEnvironment())
         {
             ["COPILOT_CLI_ENABLED_FEATURE_FLAGS"] = "EXTENSIONS",
         };

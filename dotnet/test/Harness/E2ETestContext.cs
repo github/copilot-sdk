@@ -166,8 +166,33 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         env["COPILOT_API_URL"] = ProxyUrl;
         env["COPILOT_HOME"] = HomeDir;
+        env["GH_CONFIG_DIR"] = HomeDir;
         env["XDG_CONFIG_HOME"] = HomeDir;
         env["XDG_STATE_HOME"] = HomeDir;
+        if (!string.IsNullOrEmpty(_proxy.ConnectProxyUrl) && !string.IsNullOrEmpty(_proxy.CaFilePath))
+        {
+            const string noProxy = "127.0.0.1,localhost,::1";
+            env["HTTP_PROXY"] = _proxy.ConnectProxyUrl;
+            env["HTTPS_PROXY"] = _proxy.ConnectProxyUrl;
+            env["http_proxy"] = _proxy.ConnectProxyUrl;
+            env["https_proxy"] = _proxy.ConnectProxyUrl;
+            env["NO_PROXY"] = noProxy;
+            env["no_proxy"] = noProxy;
+            env["NODE_EXTRA_CA_CERTS"] = _proxy.CaFilePath;
+            env["SSL_CERT_FILE"] = _proxy.CaFilePath;
+            env["REQUESTS_CA_BUNDLE"] = _proxy.CaFilePath;
+            env["CURL_CA_BUNDLE"] = _proxy.CaFilePath;
+            env["GIT_SSL_CAINFO"] = _proxy.CaFilePath;
+            env["GH_TOKEN"] = "";
+            env["GITHUB_TOKEN"] = "";
+            env["GH_ENTERPRISE_TOKEN"] = "";
+            env["GITHUB_ENTERPRISE_TOKEN"] = "";
+        }
+        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
+        {
+            env["GH_TOKEN"] = "fake-token-for-e2e-tests";
+            env["GITHUB_TOKEN"] = "fake-token-for-e2e-tests";
+        }
 
         return env!;
     }
