@@ -244,12 +244,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             var connection = await result;
 
-            // Verify protocol version compatibility
-            await VerifyProtocolVersionAsync(connection, ct);
-            await ConfigureSessionFsAsync(ct);
+            try
+            {
+                // Verify protocol version compatibility
+                await VerifyProtocolVersionAsync(connection, ct);
+                await ConfigureSessionFsAsync(ct);
 
-            _logger.LogInformation("Copilot client connected");
-            return connection;
+                _logger.LogInformation("Copilot client connected");
+                return connection;
+            }
+            catch
+            {
+                await CleanupConnectionAsync(connection, errors: null);
+                throw;
+            }
         }
     }
 
@@ -353,11 +361,27 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return;
         }
 
-        var ctx = await _connectionTask;
+        var connectionTask = _connectionTask;
         _connectionTask = null;
 
+        Connection ctx;
+        try
+        {
+            ctx = await connectionTask;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Ignoring failed Copilot client startup during cleanup");
+            return;
+        }
+
+        await CleanupConnectionAsync(ctx, errors);
+    }
+
+    private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors)
+    {
         try { ctx.Rpc.Dispose(); }
-        catch (Exception ex) { errors?.Add(ex); }
+        catch (Exception ex) { AddCleanupError(errors, ex); }
 
         // Clear RPC and models cache
         _serverRpc = null;
@@ -366,7 +390,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (ctx.NetworkStream is not null)
         {
             try { await ctx.NetworkStream.DisposeAsync(); }
-            catch (Exception ex) { errors?.Add(ex); }
+            catch (Exception ex) { AddCleanupError(errors, ex); }
         }
 
         if (ctx.CliProcess is { } childProcess)
@@ -380,7 +404,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 }
                 childProcess.Dispose();
             }
-            catch (Exception ex) { errors?.Add(ex); }
+            catch (Exception ex) { AddCleanupError(errors, ex); }
+        }
+    }
+
+    private void AddCleanupError(List<Exception>? errors, Exception ex)
+    {
+        if (errors is not null)
+        {
+            errors.Add(ex);
+        }
+        else
+        {
+            _logger.LogDebug(ex, "Error while cleaning up Copilot CLI connection");
         }
     }
 

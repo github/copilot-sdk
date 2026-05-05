@@ -203,6 +203,28 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task ForceStop_Does_Not_Rethrow_When_Tcp_Cli_Drops_During_Startup()
+    {
+        var cliPath = Path.Join(Ctx.WorkDir, $"fake-tcp-drop-cli-{Guid.NewGuid():N}.js");
+        await File.WriteAllTextAsync(cliPath, FakeTcpDropDuringStartupCliScript);
+
+        await using var client = Ctx.CreateClient(
+            useStdio: false,
+            options: new CopilotClientOptions
+            {
+                AutoStart = false,
+                CliPath = cliPath,
+                UseLoggedInUser = false,
+            });
+
+        var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
+        Assert.Contains("Communication error", ex.Message, StringComparison.Ordinal);
+
+        await client.ForceStopAsync();
+        Assert.Equal(ConnectionState.Disconnected, client.State);
+    }
+
+    [Fact]
     public async Task Should_Propagate_Activity_TraceContext_To_Session_Resume()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
@@ -361,6 +383,24 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             .Single(request => request.GetProperty("method").GetString() == method)
             .GetProperty("params");
     }
+
+    private const string FakeTcpDropDuringStartupCliScript = """
+        const net = require("net");
+
+        const server = net.createServer(socket => {
+          socket.on("data", () => {
+            socket.destroy();
+            server.close(() => process.exit(0));
+          });
+        });
+
+        server.listen(0, "localhost", () => {
+          const address = server.address();
+          console.log(`listening on port ${address.port}`);
+        });
+
+        setTimeout(() => process.exit(2), 30000).unref();
+        """;
 
     private const string FakeStdioCliScript = """
         const fs = require("fs");
