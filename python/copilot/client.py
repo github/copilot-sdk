@@ -2275,6 +2275,14 @@ class CopilotClient:
             wire_provider["bearerToken"] = provider["bearer_token"]
         if "headers" in provider:
             wire_provider["headers"] = provider["headers"]
+        if "model_id" in provider:
+            wire_provider["modelId"] = provider["model_id"]
+        if "wire_model" in provider:
+            wire_provider["wireModel"] = provider["wire_model"]
+        if "max_input_tokens" in provider:
+            wire_provider["maxPromptTokens"] = provider["max_input_tokens"]
+        if "max_output_tokens" in provider:
+            wire_provider["maxOutputTokens"] = provider["max_output_tokens"]
         if "azure" in provider:
             azure = provider["azure"]
             wire_azure: dict[str, Any] = {}

@@ -236,6 +236,57 @@ class TestSessionConfig:
         await session2.disconnect()
         await session1.disconnect()
 
+    async def test_should_forward_provider_wire_model(self, ctx: E2ETestContext):
+        # Verifies that ProviderConfig.wire_model overrides the model name sent
+        # to the provider API, while SessionConfig.model still drives runtime
+        # configuration lookup (capabilities, prompts, reasoning behavior).
+        # max_output_tokens is also set here to confirm the SDK accepts it
+        # without serialization errors; the CLI does not echo it as
+        # `max_tokens` on the OpenAI-style wire request, so we don't assert on
+        # it directly (see unit tests for serialization coverage).
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            model="claude-sonnet-4.5",
+            provider={
+                "type": "openai",
+                "base_url": ctx.proxy_url,
+                "api_key": "test-provider-key",
+                "wire_model": "test-wire-model",
+                "max_output_tokens": 1024,
+            },
+        )
+
+        await session.send_and_wait("What is 1+1?")
+
+        exchanges = await ctx.get_exchanges()
+        assert len(exchanges) == 1
+        request = exchanges[0]["request"]
+        assert request["model"] == "test-wire-model"
+
+        await session.disconnect()
+
+    async def test_should_use_provider_model_id_as_wire_model(self, ctx: E2ETestContext):
+        # ProviderConfig.model_id drives both the runtime resolved model AND the wire
+        # model when wire_model is not specified. SessionConfig.model is intentionally
+        # omitted so that model_id is the only model source.
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            provider={
+                "type": "openai",
+                "base_url": ctx.proxy_url,
+                "api_key": "test-provider-key",
+                "model_id": "claude-sonnet-4.5",
+            },
+        )
+
+        await session.send_and_wait("What is 1+1?")
+
+        exchanges = await ctx.get_exchanges()
+        assert len(exchanges) == 1
+        assert exchanges[0]["request"]["model"] == "claude-sonnet-4.5"
+
+        await session.disconnect()
+
     async def test_should_use_workingdirectory_for_tool_execution(self, ctx: E2ETestContext):
         sub_dir = os.path.join(ctx.work_dir, "subproject")
         os.makedirs(sub_dir, exist_ok=True)

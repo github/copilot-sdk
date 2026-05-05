@@ -325,6 +325,58 @@ describe("Session Configuration", async () => {
         await session2.disconnect();
     });
 
+    it("should forward provider wire model", async () => {
+        // Verifies that ProviderConfig.wireModel overrides the model name sent to
+        // the provider API, while SessionConfig.model still drives runtime
+        // configuration lookup (capabilities, prompts, reasoning behavior).
+        // maxOutputTokens is also set here to confirm the SDK accepts it without
+        // serialization errors; the CLI does not echo it as `max_tokens` on the
+        // OpenAI-style wire request, so we don't assert on it directly (see unit
+        // tests for serialization coverage).
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+            provider: {
+                type: "openai",
+                baseUrl: openAiEndpoint.url,
+                apiKey: "test-provider-key",
+                wireModel: "test-wire-model",
+                maxOutputTokens: 1024,
+            },
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBe(1);
+        expect(exchanges[0].request.model).toBe("test-wire-model");
+
+        await session.disconnect();
+    });
+
+    it("should use provider model id as wire model", async () => {
+        // ProviderConfig.modelId drives both the runtime resolved model AND the wire
+        // model when wireModel is not specified. SessionConfig.model is intentionally
+        // omitted so that modelId is the only model source.
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            provider: {
+                type: "openai",
+                baseUrl: openAiEndpoint.url,
+                apiKey: "test-provider-key",
+                modelId: "claude-sonnet-4.5",
+            },
+        });
+
+        await session.sendAndWait({ prompt: "What is 1+1?" });
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBe(1);
+        expect(exchanges[0].request.model).toBe("claude-sonnet-4.5");
+
+        await session.disconnect();
+    });
+
     it("should apply workingDirectory on session resume", async () => {
         const subDir = join(workDir, "resume-subproject");
         await mkdir(subDir, { recursive: true });

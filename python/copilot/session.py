@@ -832,6 +832,24 @@ class ProviderConfig(TypedDict, total=False):
     bearer_token: str
     azure: AzureProviderOptions  # Azure-specific options
     headers: dict[str, str]
+    # Well-known model name used by the runtime to look up agent configuration
+    # (tools, prompts, reasoning behavior) and default token limits. Also used
+    # as the wire model when wire_model is not set.
+    # Falls back to SessionConfig.model.
+    model_id: str
+    # Model name sent to the provider API for inference. Use this when the
+    # provider's model name (e.g. an Azure deployment name or a custom
+    # fine-tune name) differs from model_id.
+    # Falls back to model_id, then SessionConfig.model.
+    wire_model: str
+    # Overrides the resolved model's default max prompt tokens. The runtime
+    # triggers conversation compaction before sending a request when the prompt
+    # (system message, history, tool definitions, user message) would exceed
+    # this limit.
+    max_input_tokens: int
+    # Overrides the resolved model's default max output tokens. When hit, the
+    # model stops generating and returns a truncated response.
+    max_output_tokens: int
 
 
 class SessionConfig(TypedDict, total=False):

@@ -564,12 +564,20 @@ class TestSessionConfigForwarding:
                 provider={
                     "base_url": "https://example.com/provider",
                     "headers": {"Authorization": "Bearer provider-token"},
+                    "model_id": "gpt-4o",
+                    "wire_model": "my-finetune-v3",
+                    "max_input_tokens": 100_000,
+                    "max_output_tokens": 4096,
                 },
             )
 
             provider = captured["session.create"]["provider"]
             assert provider["baseUrl"] == "https://example.com/provider"
             assert provider["headers"] == {"Authorization": "Bearer provider-token"}
+            assert provider["modelId"] == "gpt-4o"
+            assert provider["wireModel"] == "my-finetune-v3"
+            assert provider["maxPromptTokens"] == 100_000
+            assert provider["maxOutputTokens"] == 4096
         finally:
             await client.force_stop()
 
@@ -599,12 +607,20 @@ class TestSessionConfigForwarding:
                 provider={
                     "base_url": "https://example.com/provider",
                     "headers": {"Authorization": "Bearer resume-token"},
+                    "model_id": "gpt-4o",
+                    "wire_model": "my-finetune-v3",
+                    "max_input_tokens": 100_000,
+                    "max_output_tokens": 4096,
                 },
             )
 
             provider = captured["session.resume"]["provider"]
             assert provider["baseUrl"] == "https://example.com/provider"
             assert provider["headers"] == {"Authorization": "Bearer resume-token"}
+            assert provider["modelId"] == "gpt-4o"
+            assert provider["wireModel"] == "my-finetune-v3"
+            assert provider["maxPromptTokens"] == 100_000
+            assert provider["maxOutputTokens"] == 4096
         finally:
             await client.force_stop()
 
