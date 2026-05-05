@@ -68,7 +68,7 @@ public class ClientE2ETests
     [Fact]
     public async Task Should_Get_Status_With_Version_And_Protocol_Info()
     {
-        var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -83,16 +83,14 @@ public class ClientE2ETests
         }
         finally
         {
-            try { await client.ForceStopAsync(); }
-            catch (OperationCanceledException) { }
-            catch (IOException) { }
+            await client.ForceStopAsync();
         }
     }
 
     [Fact]
     public async Task Should_Get_Auth_Status()
     {
-        var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -110,16 +108,14 @@ public class ClientE2ETests
         }
         finally
         {
-            try { await client.ForceStopAsync(); }
-            catch (OperationCanceledException) { }
-            catch (IOException) { }
+            await client.ForceStopAsync();
         }
     }
 
     [Fact]
     public async Task Should_List_Models_When_Authenticated()
     {
-        var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -148,9 +144,7 @@ public class ClientE2ETests
         }
         finally
         {
-            try { await client.ForceStopAsync(); }
-            catch (OperationCanceledException) { }
-            catch (IOException) { }
+            await client.ForceStopAsync();
         }
     }
 
