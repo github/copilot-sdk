@@ -12,6 +12,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 
 from copilot.generated.rpc import (
     ExtensionsDisableRequest,
@@ -26,6 +27,18 @@ from copilot.session import PermissionHandler
 from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
+
+
+# --yolo auto-approves extension permission gates at the CLI level,
+# preventing breakage from new gates (e.g., extension-permission-access).
+@pytest_asyncio.fixture(scope="module", loop_scope="module")
+async def ctx(request):
+    """Module-scoped context with --yolo for extension test hardening."""
+    context = E2ETestContext()
+    await context.setup(cli_args=["--yolo"])
+    yield context
+    any_failed = request.session.stash.get("any_test_failed", False)
+    await context.teardown(test_failed=any_failed)
 
 
 def _create_skill(skills_dir: Path, skill_name: str, description: str) -> None:
