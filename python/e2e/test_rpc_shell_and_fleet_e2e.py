@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -75,7 +76,11 @@ class TestRpcShellAndFleet:
         else:
             command = "sleep 30"
 
-        exec_result = await session.rpc.shell.exec(ShellExecRequest(command=command))
+        # On Windows, terminating the shell wrapper can briefly leave grandchildren alive.
+        # Keep this command outside the fixture workspace so cleanup is not blocked by cwd handles.
+        exec_result = await session.rpc.shell.exec(
+            ShellExecRequest(command=command, cwd=tempfile.gettempdir())
+        )
         assert (exec_result.process_id or "").strip()
 
         kill_result = await session.rpc.shell.kill(
