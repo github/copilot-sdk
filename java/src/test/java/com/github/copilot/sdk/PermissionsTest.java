@@ -456,7 +456,8 @@ public class PermissionsTest {
                                 v -> new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
                     })).get();
 
-            // Use send (non-blocking) so we can interact with the handler
+            // Capture the sendAndWait future before awaiting it so we can interact with the
+            // handler
             CompletableFuture<AssistantMessageEvent> responseFuture = session
                     .sendAndWait(new MessageOptions().setPrompt("Run 'echo slow_handler_test'"));
 

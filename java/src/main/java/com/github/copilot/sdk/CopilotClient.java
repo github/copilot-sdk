@@ -76,6 +76,7 @@ public final class CopilotClient implements AutoCloseable {
      * shutdown via {@link #stop()}.
      */
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
+    private static final long FORCE_KILL_TIMEOUT_SECONDS = 10;
     private final CopilotClientOptions options;
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
@@ -216,18 +217,11 @@ public final class CopilotClient implements AutoCloseable {
         } catch (Exception e) {
             String stderr = serverManager.getStderrOutput();
             if (!stderr.isEmpty()) {
-                throw new CompletionException(
-                        new IOException(formatCliExitedMessage("CLI process exited unexpectedly.", stderr), e));
+                throw new CompletionException(new IOException(
+                        CliServerManager.formatCliExitedMessage("CLI process exited unexpectedly.", stderr), e));
             }
             throw new CompletionException(e);
         }
-    }
-
-    static String formatCliExitedMessage(String message, String stderrOutput) {
-        if (stderrOutput == null || stderrOutput.isEmpty()) {
-            return message;
-        }
-        return message + "\nstderr: " + stderrOutput;
     }
 
     private static final int MIN_PROTOCOL_VERSION = 2;
@@ -360,8 +354,14 @@ public final class CopilotClient implements AutoCloseable {
             if (connection.process != null) {
                 try {
                     if (connection.process.isAlive()) {
-                        connection.process.destroyForcibly().waitFor();
+                        Process destroyedProcess = connection.process.destroyForcibly();
+                        if (!destroyedProcess.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                            LOG.fine("Process did not terminate within force kill timeout");
+                        }
                     }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    LOG.log(Level.FINE, "Interrupted while killing process", e);
                 } catch (Exception e) {
                     LOG.log(Level.FINE, "Error killing process", e);
                 }

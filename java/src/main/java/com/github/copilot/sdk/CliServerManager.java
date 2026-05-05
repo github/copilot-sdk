@@ -230,8 +230,7 @@ final class CliServerManager {
                 if (line == null) {
                     awaitStderrReader();
                     String stderr = getStderrOutput();
-                    throw new IOException(
-                            CopilotClient.formatCliExitedMessage("CLI process exited unexpectedly.", stderr));
+                    throw new IOException(formatCliExitedMessage("CLI process exited unexpectedly.", stderr));
                 }
 
                 Matcher matcher = portPattern.matcher(line);
@@ -266,6 +265,13 @@ final class CliServerManager {
         synchronized (stderrBuffer) {
             stderrBuffer.setLength(0);
         }
+    }
+
+    static String formatCliExitedMessage(String message, String stderrOutput) {
+        if (stderrOutput == null || stderrOutput.isEmpty()) {
+            return message;
+        }
+        return message + "\nstderr: " + stderrOutput;
     }
 
     private List<String> resolveCliCommand(String cliPath, List<String> args) {
