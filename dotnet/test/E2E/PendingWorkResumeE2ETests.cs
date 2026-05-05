@@ -213,10 +213,9 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 result: "EXTERNAL_RESUMED_BETA");
             Assert.True(resumedResult.Success);
 
-            var answer = await TestHelper.GetFinalAssistantMessageAsync(session2, PendingWorkTimeout);
-
+            // continuePendingWork=false may interrupt agent continuation before this response,
+            // but the pending call should still accept an explicit completion.
             Assert.Equal(1, invocationCount);
-            Assert.Contains("EXTERNAL_RESUMED_BETA", answer?.Data.Content ?? string.Empty);
 
             await session2.DisposeAsync();
             await resumedClient.ForceStopAsync();
