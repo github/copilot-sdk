@@ -854,7 +854,6 @@ struct ClientInner {
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
     negotiated_protocol_version: OnceLock<u32>,
-    server_telemetry_method: parking_lot::Mutex<Option<ServerTelemetryRpcMethod>>,
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
     on_list_models: Option<Arc<dyn ListModelsHandler>>,
@@ -865,21 +864,6 @@ struct ClientInner {
     /// `None` for stdio and for external-server transport without an
     /// explicit token.
     effective_connection_token: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ServerTelemetryRpcMethod {
-    SendTelemetry,
-    NamespacedSendTelemetry,
-}
-
-impl ServerTelemetryRpcMethod {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::SendTelemetry => "sendTelemetry",
-            Self::NamespacedSendTelemetry => "server.sendTelemetry",
-        }
-    }
 }
 
 impl Client {
@@ -1103,7 +1087,6 @@ impl Client {
                 notification_tx: notification_broadcast_tx,
                 router: router::SessionRouter::new(),
                 negotiated_protocol_version: OnceLock::new(),
-                server_telemetry_method: parking_lot::Mutex::new(None),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
                 on_list_models,
@@ -1694,56 +1677,6 @@ impl Client {
             provider.get_trace_context().await
         } else {
             TraceContext::default()
-        }
-    }
-
-    /// Send a top-level telemetry event via `sendTelemetry`.
-    pub async fn send_telemetry(&self, event: ServerTelemetryEvent) -> Result<(), Error> {
-        let params = serde_json::to_value(event)?;
-        let cached_method = { *self.inner.server_telemetry_method.lock() };
-        if let Some(method) = cached_method {
-            match self.call(method.as_str(), Some(params.clone())).await {
-                Ok(_) => return Ok(()),
-                Err(Error::Rpc { code, .. })
-                    if code == error_codes::METHOD_NOT_FOUND
-                        && method == ServerTelemetryRpcMethod::SendTelemetry =>
-                {
-                    self.call(
-                        ServerTelemetryRpcMethod::NamespacedSendTelemetry.as_str(),
-                        Some(params),
-                    )
-                    .await?;
-                    *self.inner.server_telemetry_method.lock() =
-                        Some(ServerTelemetryRpcMethod::NamespacedSendTelemetry);
-                    return Ok(());
-                }
-                Err(error) => return Err(error),
-            }
-        }
-
-        match self
-            .call(
-                ServerTelemetryRpcMethod::SendTelemetry.as_str(),
-                Some(params.clone()),
-            )
-            .await
-        {
-            Ok(_) => {
-                *self.inner.server_telemetry_method.lock() =
-                    Some(ServerTelemetryRpcMethod::SendTelemetry);
-                Ok(())
-            }
-            Err(Error::Rpc { code, .. }) if code == error_codes::METHOD_NOT_FOUND => {
-                self.call(
-                    ServerTelemetryRpcMethod::NamespacedSendTelemetry.as_str(),
-                    Some(params),
-                )
-                .await?;
-                *self.inner.server_telemetry_method.lock() =
-                    Some(ServerTelemetryRpcMethod::NamespacedSendTelemetry);
-                Ok(())
-            }
-            Err(error) => Err(error),
         }
     }
 
@@ -2405,7 +2338,6 @@ mod tests {
             notification_tx: broadcast::channel(16).0,
             router: router::SessionRouter::new(),
             negotiated_protocol_version: OnceLock::new(),
-            server_telemetry_method: parking_lot::Mutex::new(None),
             state: parking_lot::Mutex::new(ConnectionState::Connected),
             lifecycle_tx: broadcast::channel(16).0,
             on_list_models: Some(handler),

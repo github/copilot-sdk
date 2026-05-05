@@ -696,10 +696,6 @@ none of them are scheduled for removal.
   `delete_plan`, `start_fleet`, `list_workspace_files` /
   `read_workspace_file` / `create_workspace_file`. The other SDKs require
   the consumer to drive the typed JSON-RPC namespace directly for these.
-- **`Client::send_telemetry` / `Session::send_telemetry`** — top-level
-  and session-scoped telemetry emission via `sendTelemetry` /
-  `session.sendTelemetry`. Other SDKs do not currently expose these RPC
-  endpoints in their public APIs (not even via the typed namespace).
 - **Typed newtypes** — `SessionId` and `RequestId` are `#[serde(transparent)]`
   newtypes around `String`, so the type system distinguishes a session
   identifier from an arbitrary `String` at compile time. Node/Python/Go

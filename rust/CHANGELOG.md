@@ -42,8 +42,7 @@ public surface.
   `get_last_session_id`, `get_foreground_session_id`,
   `set_foreground_session_id`.
 - `Client::list_models`, `get_status` (typed `GetStatusResponse`),
-  `get_auth_status` (typed `GetAuthStatusResponse`), `get_quota`,
-  `send_telemetry`.
+  `get_auth_status` (typed `GetAuthStatusResponse`), `get_quota`.
 
 #### Sessions
 - `Client::create_session` and `Client::resume_session` accepting
@@ -66,8 +65,8 @@ public surface.
   Go.
 - `Session::log(message, LogOptions)` with optional severity and
   ephemeral flag.
-- `Session::send_telemetry`, `start_fleet`, `abort`,
-  `set_approve_all_permissions`, `set_name`.
+- `Session::start_fleet`, `abort`, `set_approve_all_permissions`,
+  `set_name`.
 - `Session::disconnect` (canonical) and `Session::destroy` (alias)
   preserve on-disk session state for later resume.
 - `Session::stop_event_loop` for shutting down the per-session loop.
@@ -148,8 +147,7 @@ public surface.
 - Newtype `SessionId`, plus generated RPC types under `github_copilot_sdk::generated`.
 - `LogLevel`, `LogOptions`, `SetModelOptions`, `PingResponse`,
   `SessionLifecycleEvent`, `SessionLifecycleEventType`, `ConnectionState`,
-  `SessionTelemetryEvent`, `ServerTelemetryEvent`, `SystemMessageConfig`,
-  `MessageOptions`, `SectionOverride`, `Attachment`,
+  `SystemMessageConfig`, `MessageOptions`, `SectionOverride`, `Attachment`,
   `InputFormat`, `InputOptions`.
 - Strongly-typed `Error` and `ProtocolError` with `is_transport_failure`
   classifier and `error_codes` constants.

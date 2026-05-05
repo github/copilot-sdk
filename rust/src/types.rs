@@ -2052,23 +2052,6 @@ pub struct CreateSessionResult {
     pub capabilities: Option<SessionCapabilities>,
 }
 
-/// Parameters for the `session.sendTelemetry` RPC.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionTelemetryEvent {
-    /// Telemetry event kind (for example, `"session_shutdown"`).
-    pub kind: String,
-    /// Non-restricted string properties to include with the telemetry event.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub properties: Option<HashMap<String, String>>,
-    /// Restricted string properties that may contain sensitive data.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub restricted_properties: Option<HashMap<String, String>>,
-    /// Numeric metrics to include with the telemetry event.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metrics: Option<HashMap<String, f64>>,
-}
-
 /// Severity level for [`Session::log`](crate::session::Session::log) messages.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -2161,25 +2144,6 @@ pub struct PingResponse {
     /// The protocol version negotiated by the CLI, if reported.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol_version: Option<u32>,
-}
-
-/// Parameters for the top-level `sendTelemetry` RPC.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ServerTelemetryEvent {
-    /// Telemetry event kind (for example, `"app.launched"`).
-    pub kind: String,
-    /// SDK client name. Non-allowlisted values are hashed in telemetry.
-    pub client_name: String,
-    /// Non-restricted string properties to include with the telemetry event.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub properties: Option<HashMap<String, String>>,
-    /// Restricted string properties that may contain sensitive data.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub restricted_properties: Option<HashMap<String, String>>,
-    /// Numeric metrics to include with the telemetry event.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metrics: Option<HashMap<String, f64>>,
 }
 
 /// Line range for file attachments.

@@ -12,8 +12,8 @@ use github_copilot_sdk::handler::{
     PermissionResult, SessionHandler, UserInputResponse,
 };
 use github_copilot_sdk::types::{
-    CommandContext, CommandDefinition, CommandHandler, DeliveryMode, MessageOptions,
-    ServerTelemetryEvent, SessionConfig, SessionId, SessionTelemetryEvent, ToolResult,
+    CommandContext, CommandDefinition, CommandHandler, DeliveryMode, MessageOptions, SessionConfig,
+    SessionId, ToolResult,
 };
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
@@ -21,7 +21,6 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 
 const TIMEOUT: Duration = Duration::from_secs(2);
-const METHOD_NOT_FOUND: i32 = -32601;
 
 struct NoopHandler;
 #[async_trait]
@@ -380,7 +379,6 @@ async fn session_rpc_methods_send_correct_method_names() {
         ("session.abort", None),
         ("session.plan.delete", None),
         ("session.log", Some("message")),
-        ("session.sendTelemetry", Some("kind")),
         ("session.destroy", None),
     ];
 
@@ -391,19 +389,6 @@ async fn session_rpc_methods_send_correct_method_names() {
                 "session.abort" => s.abort().await.map(|_| ()),
                 "session.plan.delete" => s.delete_plan().await,
                 "session.log" => s.log("test msg", None).await,
-                "session.sendTelemetry" => {
-                    s.send_telemetry(SessionTelemetryEvent {
-                        kind: "sdk_test_event".to_string(),
-                        properties: Some(
-                            [("source".to_string(), "sdk".to_string())]
-                                .into_iter()
-                                .collect(),
-                        ),
-                        restricted_properties: None,
-                        metrics: None,
-                    })
-                    .await
-                }
                 "session.destroy" => s.destroy().await,
                 _ => unreachable!(),
             }
@@ -427,58 +412,6 @@ async fn session_rpc_methods_send_correct_method_names() {
         server.respond(&request, response).await;
         timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     }
-}
-
-#[tokio::test]
-async fn send_telemetry_injects_payload_and_session_id() {
-    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
-    let session = Arc::new(session);
-
-    let handle = tokio::spawn({
-        let session = session.clone();
-        async move {
-            session
-                .send_telemetry(SessionTelemetryEvent {
-                    kind: "sdk_test_event".to_string(),
-                    properties: Some(
-                        [
-                            ("source".to_string(), "sdk".to_string()),
-                            ("feature".to_string(), "shared-api".to_string()),
-                        ]
-                        .into_iter()
-                        .collect(),
-                    ),
-                    restricted_properties: Some(
-                        [("file_path".to_string(), "/tmp/example.ts".to_string())]
-                            .into_iter()
-                            .collect(),
-                    ),
-                    metrics: Some(
-                        [
-                            ("count".to_string(), 1.0),
-                            ("duration_ms".to_string(), 12.5),
-                        ]
-                        .into_iter()
-                        .collect(),
-                    ),
-                })
-                .await
-        }
-    });
-
-    let request = server.read_request().await;
-    assert_eq!(request["method"], "session.sendTelemetry");
-    assert_eq!(request["params"]["sessionId"], server.session_id);
-    assert_eq!(request["params"]["kind"], "sdk_test_event");
-    assert_eq!(request["params"]["properties"]["source"], "sdk");
-    assert_eq!(
-        request["params"]["restrictedProperties"]["file_path"],
-        "/tmp/example.ts"
-    );
-    assert_eq!(request["params"]["metrics"]["duration_ms"], 12.5);
-
-    server.respond(&request, serde_json::json!(null)).await;
-    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
 }
 
 #[tokio::test]
@@ -517,124 +450,6 @@ async fn client_rpc_methods_send_correct_method_names() {
         write_framed(&mut server_write, &serde_json::to_vec(&resp).unwrap()).await;
         timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     }
-}
-
-#[tokio::test]
-async fn server_send_telemetry_sends_correct_payload() {
-    let (client, mut server_read, mut server_write) = make_client();
-
-    let handle = tokio::spawn({
-        let client = client.clone();
-        async move {
-            client
-                .send_telemetry(ServerTelemetryEvent {
-                    kind: "app.launched".to_string(),
-                    client_name: "github/autopilot".to_string(),
-                    properties: Some(
-                        [("machine_id".to_string(), "machine-123".to_string())]
-                            .into_iter()
-                            .collect(),
-                    ),
-                    restricted_properties: None,
-                    metrics: Some([("launch_count".to_string(), 1.0)].into_iter().collect()),
-                })
-                .await
-        }
-    });
-
-    let request = read_framed(&mut server_read).await;
-    assert_eq!(request["method"], "sendTelemetry");
-    assert_eq!(request["params"]["kind"], "app.launched");
-    assert_eq!(request["params"]["clientName"], "github/autopilot");
-    assert_eq!(request["params"]["properties"]["machine_id"], "machine-123");
-    assert_eq!(request["params"]["metrics"]["launch_count"], 1.0);
-
-    let id = request["id"].as_u64().unwrap();
-    let resp = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": null });
-    write_framed(&mut server_write, &serde_json::to_vec(&resp).unwrap()).await;
-    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
-}
-
-#[tokio::test]
-async fn server_send_telemetry_falls_back_to_namespaced_method_and_caches_it() {
-    let (client, mut server_read, mut server_write) = make_client();
-
-    let handle = tokio::spawn({
-        let client = client.clone();
-        async move {
-            client
-                .send_telemetry(ServerTelemetryEvent {
-                    kind: "app.launched".to_string(),
-                    client_name: "github/autopilot".to_string(),
-                    properties: Some(
-                        [("machine_id".to_string(), "machine-123".to_string())]
-                            .into_iter()
-                            .collect(),
-                    ),
-                    restricted_properties: None,
-                    metrics: Some([("launch_count".to_string(), 1.0)].into_iter().collect()),
-                })
-                .await?;
-            client
-                .send_telemetry(ServerTelemetryEvent {
-                    kind: "app.closed".to_string(),
-                    client_name: "github/autopilot".to_string(),
-                    properties: None,
-                    restricted_properties: None,
-                    metrics: None,
-                })
-                .await
-        }
-    });
-
-    let first_request = read_framed(&mut server_read).await;
-    assert_eq!(first_request["method"], "sendTelemetry");
-    let first_id = first_request["id"].as_u64().unwrap();
-    let first_response = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": first_id,
-        "error": {
-            "code": METHOD_NOT_FOUND,
-            "message": "Unhandled method sendTelemetry"
-        }
-    });
-    write_framed(
-        &mut server_write,
-        &serde_json::to_vec(&first_response).unwrap(),
-    )
-    .await;
-
-    let second_request = read_framed(&mut server_read).await;
-    assert_eq!(second_request["method"], "server.sendTelemetry");
-    assert_eq!(second_request["params"]["kind"], "app.launched");
-    assert_eq!(second_request["params"]["clientName"], "github/autopilot");
-    assert_eq!(
-        second_request["params"]["properties"]["machine_id"],
-        "machine-123"
-    );
-    assert_eq!(second_request["params"]["metrics"]["launch_count"], 1.0);
-
-    let second_id = second_request["id"].as_u64().unwrap();
-    let second_response = serde_json::json!({ "jsonrpc": "2.0", "id": second_id, "result": null });
-    write_framed(
-        &mut server_write,
-        &serde_json::to_vec(&second_response).unwrap(),
-    )
-    .await;
-
-    let third_request = read_framed(&mut server_read).await;
-    assert_eq!(third_request["method"], "server.sendTelemetry");
-    assert_eq!(third_request["params"]["kind"], "app.closed");
-
-    let third_id = third_request["id"].as_u64().unwrap();
-    let third_response = serde_json::json!({ "jsonrpc": "2.0", "id": third_id, "result": null });
-    write_framed(
-        &mut server_write,
-        &serde_json::to_vec(&third_response).unwrap(),
-    )
-    .await;
-
-    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
 }
 
 #[tokio::test]

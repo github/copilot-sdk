@@ -32,9 +32,8 @@ use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
     PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
-    SessionConfig, SessionEvent, SessionId, SessionTelemetryEvent, SetModelOptions,
-    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultResponse, TraceContext,
-    ensure_attachment_display_names,
+    SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
+    ToolResult, ToolResultResponse, TraceContext, ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -582,20 +581,6 @@ impl Session {
             url: None,
         };
         self.rpc().log(request).await?;
-        Ok(())
-    }
-
-    /// Send a telemetry event through the session's internal shared API.
-    pub async fn send_telemetry(&self, event: SessionTelemetryEvent) -> Result<(), Error> {
-        let mut params = serde_json::to_value(event)?;
-        let params_object = params
-            .as_object_mut()
-            .expect("SessionTelemetryEvent always serializes to an object");
-        params_object.insert("sessionId".to_string(), serde_json::to_value(&self.id)?);
-
-        self.client
-            .call("session.sendTelemetry", Some(params))
-            .await?;
         Ok(())
     }
 
