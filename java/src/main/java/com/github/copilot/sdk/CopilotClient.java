@@ -76,6 +76,7 @@ public final class CopilotClient implements AutoCloseable {
      * shutdown via {@link #stop()}.
      */
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
+    private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
     private final CopilotClientOptions options;
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
@@ -216,7 +217,8 @@ public final class CopilotClient implements AutoCloseable {
         } catch (Exception e) {
             String stderr = serverManager.getStderrOutput();
             if (!stderr.isEmpty()) {
-                throw new CompletionException(new IOException("CLI process exited unexpectedly. stderr: " + stderr, e));
+                throw new CompletionException(new IOException(
+                        CliServerManager.formatCliExitedMessage("CLI process exited unexpectedly.", stderr), e));
             }
             throw new CompletionException(e);
         }
@@ -244,7 +246,7 @@ public final class CopilotClient implements AutoCloseable {
             while (cause instanceof java.util.concurrent.ExecutionException || cause instanceof CompletionException) {
                 cause = cause.getCause();
             }
-            if (cause instanceof JsonRpcException rpcEx && rpcEx.getCode() == METHOD_NOT_FOUND_ERROR_CODE) {
+            if (cause instanceof JsonRpcException rpcEx && isUnsupportedConnectMethod(rpcEx)) {
                 // Legacy server without 'connect'; fall back to 'ping'.
                 // A token, if any, is silently dropped — the legacy server can't enforce one.
                 var params = new HashMap<String, Object>();
@@ -268,6 +270,10 @@ public final class CopilotClient implements AutoCloseable {
                     + "-" + expectedVersion + ", but server reports version " + serverVersion + ". "
                     + "Please update your SDK or server to ensure compatibility.");
         }
+    }
+
+    private static boolean isUnsupportedConnectMethod(JsonRpcException ex) {
+        return ex.getCode() == METHOD_NOT_FOUND_ERROR_CODE || "Unhandled method connect".equals(ex.getMessage());
     }
 
     /**
@@ -348,8 +354,14 @@ public final class CopilotClient implements AutoCloseable {
             if (connection.process != null) {
                 try {
                     if (connection.process.isAlive()) {
-                        connection.process.destroyForcibly();
+                        Process destroyedProcess = connection.process.destroyForcibly();
+                        if (!destroyedProcess.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                            LOG.fine("Process did not terminate within force kill timeout");
+                        }
                     }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    LOG.log(Level.FINE, "Interrupted while killing process", e);
                 } catch (Exception e) {
                     LOG.log(Level.FINE, "Error killing process", e);
                 }
