@@ -235,15 +235,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 {
                     // External server (TCP)
                     _actualPort = _optionsPort;
-                    connection = await ConnectToServerAsync(null, _optionsHost, _optionsPort, null, null, ct);
+                    connection = await ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
                 }
                 else
                 {
                     // Child process (stdio or TCP)
-                    var (startedProcess, portOrNull, stderrBuffer, stderrReader) = await StartCliServerAsync(_options, _effectiveConnectionToken, _logger, ct);
+                    var (startedProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _effectiveConnectionToken, _logger, ct);
                     cliProcess = startedProcess;
                     _actualPort = portOrNull;
-                    connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, stderrReader, ct);
+                    connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
                 }
 
                 // Verify protocol version compatibility
@@ -1135,18 +1135,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal static async Task<T> InvokeRpcAsync<T>(JsonRpc rpc, string method, object?[]? args, StringBuilder? stderrBuffer, CancellationToken cancellationToken)
     {
-        return await InvokeRpcAsync<T>(rpc, method, args, stderrBuffer, stderrReader: null, cancellationToken);
-    }
-
-    internal static async Task<T> InvokeRpcAsync<T>(JsonRpc rpc, string method, object?[]? args, StringBuilder? stderrBuffer, Task? stderrReader, CancellationToken cancellationToken)
-    {
         try
         {
             return await rpc.InvokeAsync<T>(method, args, cancellationToken);
         }
         catch (ConnectionLostException ex)
         {
-            var stderrOutput = await GetStderrOutputAsync(stderrBuffer, stderrReader);
+            string? stderrOutput = null;
+            if (stderrBuffer is not null)
+            {
+                lock (stderrBuffer)
+                {
+                    stderrOutput = stderrBuffer.ToString().Trim();
+                }
+            }
 
             if (!string.IsNullOrEmpty(stderrOutput))
             {
@@ -1167,34 +1169,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             : $"{message}\nstderr: {stderrOutput}";
     }
 
-    private static async Task<string?> GetStderrOutputAsync(StringBuilder? stderrBuffer, Task? stderrReader)
-    {
-        if (stderrBuffer is null)
-        {
-            return null;
-        }
-
-        var stderrOutput = ReadStderrBuffer(stderrBuffer);
-        if (string.IsNullOrEmpty(stderrOutput) && stderrReader is not null)
-        {
-            await Task.WhenAny(stderrReader, Task.Delay(TimeSpan.FromMilliseconds(250)));
-            stderrOutput = ReadStderrBuffer(stderrBuffer);
-        }
-
-        return string.IsNullOrEmpty(stderrOutput) ? null : stderrOutput;
-    }
-
-    private static string ReadStderrBuffer(StringBuilder stderrBuffer)
-    {
-        lock (stderrBuffer)
-        {
-            return stderrBuffer.ToString().Trim();
-        }
-    }
-
     private static IOException CreateCliExitedException(string message, StringBuilder stderrBuffer)
     {
-        var stderrOutput = ReadStderrBuffer(stderrBuffer);
+        string stderrOutput;
+        lock (stderrBuffer)
+        {
+            stderrOutput = stderrBuffer.ToString().Trim();
+        }
 
         return new IOException(FormatCliExitedMessage(message, stderrOutput));
     }
@@ -1248,7 +1229,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         try
         {
             var connectResponse = await InvokeRpcAsync<ConnectResult>(
-                connection.Rpc, "connect", [new ConnectRequest { Token = _effectiveConnectionToken }], connection.StderrBuffer, connection.StderrReader, cancellationToken);
+                connection.Rpc, "connect", [new ConnectRequest { Token = _effectiveConnectionToken }], connection.StderrBuffer, cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
@@ -1256,7 +1237,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             // Legacy server without `connect`; fall back to `ping`. A token, if any,
             // is silently dropped — the legacy server can't enforce one.
             var pingResponse = await InvokeRpcAsync<PingResponse>(
-                connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, connection.StderrReader, cancellationToken);
+                connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, cancellationToken);
             serverVersion = pingResponse.ProtocolVersion;
         }
 
@@ -1285,7 +1266,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
     }
 
-    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer, Task StderrReader)> StartCliServerAsync(CopilotClientOptions options, string? connectionToken, ILogger logger, CancellationToken cancellationToken)
+    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, string? connectionToken, ILogger logger, CancellationToken cancellationToken)
     {
         // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled CLI - no PATH fallback
         var envCliPath = options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue
@@ -1436,7 +1417,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 }
             }
 
-            return (cliProcess, detectedLocalhostTcpPort, stderrBuffer, stderrReader);
+            return (cliProcess, detectedLocalhostTcpPort, stderrBuffer);
         }
         catch
         {
@@ -1490,7 +1471,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return (cliPath, args);
     }
 
-    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, StringBuilder? stderrBuffer, Task? stderrReader, CancellationToken cancellationToken)
+    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, StringBuilder? stderrBuffer, CancellationToken cancellationToken)
     {
         Stream inputStream, outputStream;
         NetworkStream? networkStream = null;
@@ -1556,7 +1537,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _serverRpc = new ServerRpc(rpc);
 
-        return new Connection(rpc, cliProcess, networkStream, stderrBuffer, stderrReader);
+        return new Connection(rpc, cliProcess, networkStream, stderrBuffer);
     }
 
     private static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
@@ -1771,14 +1752,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         JsonRpc rpc,
         Process? cliProcess, // Set if we created the child process
         NetworkStream? networkStream, // Set if using TCP
-        StringBuilder? stderrBuffer = null, // Captures stderr for error messages
-        Task? stderrReader = null)
+        StringBuilder? stderrBuffer = null) // Captures stderr for error messages
     {
         public Process? CliProcess => cliProcess;
         public JsonRpc Rpc => rpc;
         public NetworkStream? NetworkStream => networkStream;
         public StringBuilder? StderrBuffer => stderrBuffer;
-        public Task? StderrReader => stderrReader;
     }
 
     private static class ProcessArgumentEscaper
