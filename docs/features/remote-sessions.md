@@ -93,6 +93,30 @@ session.On((SessionEvent e) =>
 });
 ```
 
+#### **Rust**
+
+<!-- docs-validate: skip -->
+```rust
+use copilot_sdk::{Client, ClientOptions};
+
+let client = Client::start(
+    ClientOptions::new().with_remote(true)
+).await?;
+let session = client.create_session(
+    SessionConfig::new("/path/to/github-repo")
+        .with_permission_handler(|_req, _inv| async {
+            Ok(PermissionRequestResult::approved())
+        }),
+).await?;
+
+let mut events = session.subscribe();
+while let Ok(event) = events.recv().await {
+    if event.event_type == "session.info" {
+        // Check info_type and extract URL
+    }
+}
+```
+
 <!-- tabs:end -->
 
 ### On-demand (per-session toggle)
@@ -147,6 +171,19 @@ Console.WriteLine($"Remote URL: {result.Url}");
 await session.Rpc.Remote.DisableAsync();
 ```
 
+#### **Rust**
+
+<!-- docs-validate: skip -->
+```rust
+let result = session.rpc().remote().enable().await?;
+if let Some(url) = &result.url {
+    println!("Remote URL: {url}");
+}
+
+// Later: stop sharing
+session.rpc().remote().disable().await?;
+```
+
 <!-- tabs:end -->
 
 ## QR Code Generation
@@ -157,6 +194,7 @@ The remote URL can be rendered as a QR code for easy mobile access. The SDK prov
 - **Python**: [qrcode](https://pypi.org/project/qrcode/)
 - **Go**: [go-qrcode](https://github.com/skip2/go-qrcode)
 - **C#**: [QRCoder](https://www.nuget.org/packages/QRCoder)
+- **Rust**: [qrcode](https://crates.io/crates/qrcode)
 
 ## Notes
 
