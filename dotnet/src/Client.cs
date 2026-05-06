@@ -57,6 +57,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Minimum protocol version this SDK can communicate with.
     /// </summary>
     private const int MinProtocolVersion = 3;
+    private static readonly TimeSpan StderrPumpShutdownTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Provides a thread-safe collection of active Copilot sessions, indexed by session identifier.
@@ -235,6 +236,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var startTimestamp = Stopwatch.GetTimestamp();
             Connection? connection = null;
             Process? cliProcess = null;
+            ProcessStderrPump? stderrPump = null;
 
             try
             {
@@ -247,10 +249,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 else
                 {
                     // Child process (stdio or TCP)
-                    var (startedProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(ct);
+                    var (startedProcess, portOrNull, startedStderrPump) = await StartCliServerAsync(ct);
                     cliProcess = startedProcess;
+                    stderrPump = startedStderrPump;
                     _actualPort = portOrNull;
-                    connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
+                    connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrPump, ct);
                 }
 
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -279,20 +282,33 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             catch (Exception ex)
             {
-                if (ex is not OperationCanceledException)
+                var cleanupErrors = new List<Exception>();
+                try
                 {
-                    LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
-                        "CopilotClient.StartAsync failed. Elapsed={Elapsed}",
-                        startTimestamp);
-                }
+                    if (ex is not OperationCanceledException)
+                    {
+                        LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
+                            "CopilotClient.StartAsync failed. Elapsed={Elapsed}",
+                            startTimestamp);
+                    }
 
-                if (connection is not null)
-                {
-                    await CleanupConnectionAsync(connection, errors: null);
+                    if (connection is not null)
+                    {
+                        await CleanupConnectionAsync(connection, cleanupErrors);
+                    }
+                    else if (cliProcess is not null)
+                    {
+                        await CleanupCliProcessAsync(cliProcess, stderrPump, cleanupErrors, _logger);
+                    }
+
+                    foreach (var cleanupError in cleanupErrors)
+                    {
+                        _logger.LogDebug(cleanupError, "Failed to clean up Copilot client connection after startup failure");
+                    }
                 }
-                else if (cliProcess is not null)
+                finally
                 {
-                    await CleanupCliProcessAsync(cliProcess, errors: null, _logger);
+                    _connectionTask = null;
                 }
 
                 throw;
@@ -403,8 +419,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return;
         }
 
-        _connectionTask = null;
-
         Connection ctx;
         try
         {
@@ -414,6 +428,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             _logger.LogDebug(ex, "Ignoring failed Copilot client startup during cleanup");
             return;
+        }
+        finally
+        {
+            if (ReferenceEquals(_connectionTask, connectionTask))
+            {
+                _connectionTask = null;
+            }
         }
 
         await CleanupConnectionAsync(ctx, errors);
@@ -436,31 +457,60 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (ctx.CliProcess is { } childProcess)
         {
-            await CleanupCliProcessAsync(childProcess, errors, _logger);
+            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger);
         }
     }
 
-    private static async Task CleanupCliProcessAsync(Process childProcess, List<Exception>? errors, ILogger? logger)
+    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger)
     {
+        stderrPump?.Cancel();
+
         try
         {
-            try
+            if (!childProcess.HasExited)
             {
-                if (!childProcess.HasExited)
-                {
-                    childProcess.Kill(entireProcessTree: true);
-                    await childProcess.WaitForExitAsync();
-                }
-            }
-            finally
-            {
-                childProcess.Dispose();
+                childProcess.Kill(entireProcessTree: true);
+                // Kill is asynchronous; wait for the root CLI process to exit so cleanup callers
+                // do not observe StopAsync/DisposeAsync completion while it is still tearing down.
+                await childProcess.WaitForExitAsync();
             }
         }
         catch (Exception ex)
         {
             AddCleanupError(errors, ex, logger);
         }
+
+        if (stderrPump is not null)
+        {
+            var stderrPumpWaitTimestamp = Stopwatch.GetTimestamp();
+            try
+            {
+                await stderrPump.WaitForCompletionAsync(StderrPumpShutdownTimeout);
+            }
+            catch (TimeoutException ex)
+            {
+                if (logger is not null)
+                {
+                    LoggingHelpers.LogTiming(logger, LogLevel.Debug, ex,
+                        "Timed out waiting for CLI stderr pump to stop. Elapsed={Elapsed}, Timeout={Timeout}",
+                        stderrPumpWaitTimestamp,
+                        StderrPumpShutdownTimeout);
+                }
+
+                AddCleanupError(errors, ex, logger);
+            }
+            catch (Exception ex)
+            {
+                AddCleanupError(errors, ex, logger);
+            }
+            finally
+            {
+                stderrPump.Dispose();
+            }
+        }
+
+        try { childProcess.Dispose(); }
+        catch (Exception ex) { AddCleanupError(errors, ex, logger); }
     }
 
     private static void AddCleanupError(List<Exception>? errors, Exception ex, ILogger? logger)
@@ -1655,7 +1705,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
     }
 
-    private async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CancellationToken cancellationToken)
+    private async Task<(Process Process, int? DetectedLocalhostTcpPort, ProcessStderrPump StderrPump)> StartCliServerAsync(CancellationToken cancellationToken)
     {
         var options = _options;
         var logger = _logger;
@@ -1779,38 +1829,29 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (telemetry.CaptureContent is { } capture) startInfo.Environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
         }
 
-        Process? cliProcess = null;
+        var cliProcess = new Process { StartInfo = startInfo };
         try
         {
-            cliProcess = new Process { StartInfo = startInfo };
             var spawnTimestamp = Stopwatch.GetTimestamp();
             cliProcess.Start();
             LoggingHelpers.LogTiming(logger, LogLevel.Debug, null,
                 "CopilotClient.StartCliServerAsync subprocess spawned. Elapsed={Elapsed}",
                 spawnTimestamp);
+        }
+        catch
+        {
+            cliProcess.Dispose();
+            throw;
+        }
 
-            // Capture stderr for error messages and forward to logger
-            var stderrBuffer = new StringBuilder();
-            var stderrReader = Task.Run(async () =>
-            {
-                while (true)
-                {
-                    var line = await cliProcess.StandardError.ReadLineAsync(cancellationToken);
-                    if (line is null)
-                    {
-                        break;
-                    }
+        // Capture stderr for error messages and forward to logger.
+        // The pump has its own lifetime token and is later cancelled/observed
+        // by the owning Connection before the process is disposed.
+        var stderrPump = ProcessStderrPump.Start(cliProcess, logger);
 
-                    lock (stderrBuffer)
-                    {
-                        stderrBuffer.AppendLine(line);
-                    }
-
-                    logger.LogWarning("[CLI] {Line}", line);
-                }
-            }, cancellationToken);
-
-            var detectedLocalhostTcpPort = (int?)null;
+        var detectedLocalhostTcpPort = (int?)null;
+        try
+        {
             if (!useStdio)
             {
                 // Wait for port announcement
@@ -1818,39 +1859,47 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 cts.CancelAfter(TimeSpan.FromSeconds(30));
 
-                while (!cts.Token.IsCancellationRequested)
+                try
                 {
-                    var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token);
-                    if (line is null)
+                    while (true)
                     {
-                        await stderrReader;
-                        throw CreateCliExitedException("Runtime process exited unexpectedly", stderrBuffer);
-                    }
+                        var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token);
+                        if (line is null)
+                        {
+                            throw CreateCliExitedException("CLI process exited unexpectedly", stderrPump.Buffer);
+                        }
 
-                    if (logger.IsEnabled(LogLevel.Debug))
-                    {
-                        logger.LogDebug("[CLI] {Line}", line);
-                    }
+                        if (logger.IsEnabled(LogLevel.Debug))
+                        {
+                            logger.LogDebug("[CLI] {Line}", line);
+                        }
 
-                    if (ListeningOnPortRegex().Match(line) is { Success: true } match)
-                    {
-                        detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-                        LoggingHelpers.LogTiming(logger, LogLevel.Debug, null,
-                            "CopilotClient.StartCliServerAsync TCP port wait complete. Elapsed={Elapsed}, Port={Port}",
-                            portWaitTimestamp,
-                            detectedLocalhostTcpPort.Value);
-                        break;
+                        if (ListeningOnPortRegex().Match(line) is { Success: true } match)
+                        {
+                            detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+                            LoggingHelpers.LogTiming(logger, LogLevel.Debug, null,
+                                "CopilotClient.StartCliServerAsync TCP port wait complete. Elapsed={Elapsed}, Port={Port}",
+                                portWaitTimestamp,
+                                detectedLocalhostTcpPort.Value);
+                            break;
+                        }
                     }
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && cts.IsCancellationRequested)
+                {
+                    throw CreateCliExitedException("Timed out waiting for Copilot CLI to report its TCP listening port.", stderrPump.Buffer);
                 }
             }
 
-            return (cliProcess, detectedLocalhostTcpPort, stderrBuffer);
+            return (cliProcess, detectedLocalhostTcpPort, stderrPump);
         }
         catch
         {
-            if (cliProcess is not null)
+            var cleanupErrors = new List<Exception>();
+            await CleanupCliProcessAsync(cliProcess, stderrPump, cleanupErrors, logger);
+            foreach (var cleanupError in cleanupErrors)
             {
-                await CleanupCliProcessAsync(cliProcess, errors: null, logger);
+                logger.LogDebug(cleanupError, "Failed to clean up Copilot CLI process after startup failure");
             }
 
             throw;
@@ -1898,77 +1947,94 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return (cliPath, args);
     }
 
-    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, StringBuilder? stderrBuffer, CancellationToken cancellationToken)
+    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, ProcessStderrPump? stderrPump, CancellationToken cancellationToken)
     {
         var setupTimestamp = Stopwatch.GetTimestamp();
-        Stream inputStream, outputStream;
         NetworkStream? networkStream = null;
+        JsonRpc? rpc = null;
 
-        if (_connection is StdioRuntimeConnection)
+        try
         {
-            if (cliProcess == null)
+            Stream inputStream, outputStream;
+
+            if (_connection is StdioRuntimeConnection)
             {
-                throw new InvalidOperationException("Runtime process not started");
+                if (cliProcess == null)
+                {
+                    throw new InvalidOperationException("Runtime process not started");
+                }
+
+                inputStream = cliProcess.StandardOutput.BaseStream;
+                outputStream = cliProcess.StandardInput.BaseStream;
+            }
+            else
+            {
+                if (tcpHost is null || tcpPort is null)
+                {
+                    throw new InvalidOperationException("Cannot connect because TCP host or port are not available");
+                }
+
+                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+                try
+                {
+                    var tcpConnectTimestamp = Stopwatch.GetTimestamp();
+                    LogConnectingToCliServer(_logger, tcpHost, tcpPort.Value);
+                    await socket.ConnectAsync(tcpHost, tcpPort.Value, cancellationToken);
+                    LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
+                        "CopilotClient.ConnectToServerAsync TCP connect complete. Elapsed={Elapsed}, Host={Host}, Port={Port}",
+                        tcpConnectTimestamp,
+                        tcpHost,
+                        tcpPort.Value);
+                }
+                catch
+                {
+                    socket.Dispose();
+                    throw;
+                }
+
+                inputStream = outputStream = networkStream = new NetworkStream(socket, ownsSocket: true);
             }
 
-            inputStream = cliProcess.StandardOutput.BaseStream;
-            outputStream = cliProcess.StandardInput.BaseStream;
+            rpc = new JsonRpc(
+                outputStream,
+                inputStream,
+                SerializerOptionsForMessageFormatter,
+                _logger);
+
+            var handler = new RpcHandler(this);
+            rpc.SetLocalRpcMethod("session.event", handler.OnSessionEvent);
+            rpc.SetLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
+            rpc.SetLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
+            rpc.SetLocalRpcMethod("exitPlanMode.request", handler.OnExitPlanModeRequest);
+            rpc.SetLocalRpcMethod("autoModeSwitch.request", handler.OnAutoModeSwitchRequest);
+            rpc.SetLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
+            rpc.SetLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
+            ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
+            {
+                var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+                return session.ClientSessionApis;
+            });
+            rpc.StartListening();
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
+                setupTimestamp);
+
+            _serverRpc = new ServerRpc(rpc);
+
+            return new Connection(rpc, cliProcess, networkStream, stderrPump);
         }
-        else
+        catch
         {
-            if (tcpHost is null || tcpPort is null)
-            {
-                throw new InvalidOperationException("Cannot connect because TCP host or port are not available");
-            }
+            try { rpc?.Dispose(); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose JSON-RPC connection after startup failure"); }
 
-            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            try
+            if (networkStream is not null)
             {
-                var tcpConnectTimestamp = Stopwatch.GetTimestamp();
-                LogConnectingToCliServer(_logger, tcpHost, tcpPort.Value);
-                await socket.ConnectAsync(tcpHost, tcpPort.Value, cancellationToken);
-                LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
-                    "CopilotClient.ConnectToServerAsync TCP connect complete. Elapsed={Elapsed}, Host={Host}, Port={Port}",
-                    tcpConnectTimestamp,
-                    tcpHost,
-                    tcpPort.Value);
+                try { await networkStream.DisposeAsync(); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose TCP stream after startup failure"); }
             }
-            catch
-            {
-                socket.Dispose();
-                throw;
-            }
-
-            inputStream = outputStream = networkStream = new NetworkStream(socket, ownsSocket: true);
+            throw;
         }
-
-        var rpc = new JsonRpc(
-            outputStream,
-            inputStream,
-            SerializerOptionsForMessageFormatter,
-            _logger);
-
-        var handler = new RpcHandler(this);
-        rpc.SetLocalRpcMethod("session.event", handler.OnSessionEvent);
-        rpc.SetLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
-        rpc.SetLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
-        rpc.SetLocalRpcMethod("exitPlanMode.request", handler.OnExitPlanModeRequest);
-        rpc.SetLocalRpcMethod("autoModeSwitch.request", handler.OnAutoModeSwitchRequest);
-        rpc.SetLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
-        rpc.SetLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
-        ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
-        {
-            var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
-            return session.ClientSessionApis;
-        });
-        rpc.StartListening();
-        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
-            "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
-            setupTimestamp);
-
-        _serverRpc = new ServerRpc(rpc);
-
-        return new Connection(rpc, cliProcess, networkStream, stderrBuffer);
     }
 
     private static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
@@ -2155,12 +2221,116 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         JsonRpc rpc,
         Process? cliProcess, // Set if we created the child process
         NetworkStream? networkStream, // Set if using TCP
-        StringBuilder? stderrBuffer = null) // Captures stderr for error messages
+        ProcessStderrPump? stderrPump = null) // Captures stderr for error messages
     {
         public Process? CliProcess => cliProcess;
         public JsonRpc Rpc => rpc;
         public NetworkStream? NetworkStream => networkStream;
-        public StringBuilder? StderrBuffer => stderrBuffer;
+        public ProcessStderrPump? StderrPump => stderrPump;
+        public StringBuilder? StderrBuffer => stderrPump?.Buffer;
+    }
+
+    private sealed class ProcessStderrPump : IDisposable
+    {
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
+        private readonly Task _completion;
+        private int _disposeRequested;
+
+        private ProcessStderrPump(Process process, ILogger logger)
+        {
+            _completion = Task.Run(() => PumpAsync(process, logger, _cancellationTokenSource.Token));
+        }
+
+        public StringBuilder Buffer { get; } = new();
+
+        public static ProcessStderrPump Start(Process process, ILogger logger)
+        {
+            return new ProcessStderrPump(process, logger);
+        }
+
+        public void Cancel()
+        {
+            try
+            {
+                _cancellationTokenSource.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        public async Task WaitForCompletionAsync(TimeSpan timeout)
+        {
+            var completedTask = await Task.WhenAny(_completion, Task.Delay(timeout));
+            if (!ReferenceEquals(completedTask, _completion))
+            {
+                throw new TimeoutException();
+            }
+
+            await _completion;
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposeRequested, 1) != 0)
+            {
+                return;
+            }
+
+            Cancel();
+
+            if (_completion.IsCompleted)
+            {
+                _cancellationTokenSource.Dispose();
+            }
+            else
+            {
+                _ = _completion.ContinueWith(
+                    static (_, state) => ((CancellationTokenSource)state!).Dispose(),
+                    _cancellationTokenSource,
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+        }
+
+        private async Task PumpAsync(Process process, ILogger logger, CancellationToken cancellationToken)
+        {
+            try
+            {
+                while (true)
+                {
+                    var line = await process.StandardError.ReadLineAsync(cancellationToken);
+                    if (line is null)
+                    {
+                        break;
+                    }
+
+                    lock (Buffer)
+                    {
+                        Buffer.AppendLine(line);
+                    }
+
+                    logger.LogWarning("[CLI] {Line}", line);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (InvalidOperationException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (IOException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "CLI stderr pump stopped unexpectedly");
+            }
+        }
     }
 
     private static class ProcessArgumentEscaper
