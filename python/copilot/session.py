@@ -11,9 +11,11 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import logging
 import os
 import pathlib
 import threading
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from types import TracebackType
@@ -57,6 +59,30 @@ from .generated.session_events import (
     session_event_from_dict,
 )
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+
+logger = logging.getLogger(__name__)
+
+
+def _elapsed_ms(start: float) -> float:
+    return (time.perf_counter() - start) * 1000
+
+
+def _log_timing(
+    level: int,
+    message: str,
+    start: float,
+    *,
+    exc_info: bool = False,
+    **fields: Any,
+) -> None:
+    if logger.isEnabledFor(level):
+        logger.log(
+            level,
+            message,
+            extra={"elapsed_ms": _elapsed_ms(start), **fields},
+            exc_info=exc_info,
+        )
+
 
 if TYPE_CHECKING:
     from .client import ModelCapabilitiesOverride
@@ -1169,8 +1195,17 @@ class CopilotSession:
             params["requestHeaders"] = request_headers
         params.update(get_trace_context())
 
+        rpc_start = time.perf_counter()
         response = await self._client.request("session.send", params)
-        return response["messageId"]
+        message_id = response["messageId"]
+        _log_timing(
+            logging.INFO,
+            "CopilotSession.send completed successfully",
+            rpc_start,
+            session_id=self.session_id,
+            message_id=message_id,
+        )
+        return message_id
 
     async def send_and_wait(
         self,
@@ -1213,16 +1248,32 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(data.content)
         """
+        total_start = time.perf_counter()
         idle_event = asyncio.Event()
         error_event: Exception | None = None
         last_assistant_message: SessionEvent | None = None
+        first_assistant_message_logged = False
 
         def handler(event: SessionEventTypeAlias) -> None:
-            nonlocal last_assistant_message, error_event
+            nonlocal first_assistant_message_logged, last_assistant_message, error_event
             match event.data:
                 case AssistantMessageData():
                     last_assistant_message = event
+                    if not first_assistant_message_logged:
+                        first_assistant_message_logged = True
+                        _log_timing(
+                            logging.DEBUG,
+                            "CopilotSession.send_and_wait first assistant message",
+                            total_start,
+                            session_id=self.session_id,
+                        )
                 case SessionIdleData():
+                    _log_timing(
+                        logging.DEBUG,
+                        "CopilotSession.send_and_wait idle received",
+                        total_start,
+                        session_id=self.session_id,
+                    )
                     idle_event.set()
                 case SessionErrorData() as data:
                     error_event = Exception(f"Session error: {data.message or str(data)}")
@@ -1238,9 +1289,31 @@ class CopilotSession:
             )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)
             if error_event:
+                _log_timing(
+                    logging.WARNING,
+                    "CopilotSession.send_and_wait failed",
+                    total_start,
+                    session_id=self.session_id,
+                    completed_by="error",
+                )
                 raise error_event
+            _log_timing(
+                logging.INFO,
+                "CopilotSession.send_and_wait complete",
+                total_start,
+                session_id=self.session_id,
+                completed_by="idle",
+                assistant_message_received=last_assistant_message is not None,
+            )
             return last_assistant_message
         except TimeoutError:
+            _log_timing(
+                logging.WARNING,
+                "CopilotSession.send_and_wait failed",
+                total_start,
+                session_id=self.session_id,
+                completed_by="timeout",
+            )
             raise TimeoutError(f"Timeout after {timeout}s waiting for session.idle")
         finally:
             unsubscribe()
@@ -1294,6 +1367,7 @@ class CopilotSession:
         Args:
             event: The session event to dispatch to all handlers.
         """
+        dispatch_start = time.perf_counter()
         # Handle broadcast request events (protocol v3) before dispatching to user handlers.
         # Fire-and-forget: the response is sent asynchronously via RPC.
         self._handle_broadcast_event(event)
@@ -1304,8 +1378,15 @@ class CopilotSession:
         for handler in handlers:
             try:
                 handler(event)
-            except Exception as e:
-                print(f"Error in session event handler: {e}")
+            except Exception:
+                logger.error("Unhandled exception in session event handler", exc_info=True)
+        _log_timing(
+            logging.DEBUG,
+            "CopilotSession._dispatch_event dispatch",
+            dispatch_start,
+            session_id=self.session_id,
+            event_type=event.type,
+        )
 
     def _handle_broadcast_event(self, event: SessionEvent) -> None:
         """Handle broadcast request events by executing local handlers and responding via RPC.
@@ -1335,6 +1416,14 @@ class CopilotSession:
                 )
 
             case PermissionRequestedData() as data:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "CopilotSession._dispatch_event permission request received",
+                        extra={
+                            "session_id": self.session_id,
+                            "event_type": event.type.value,
+                        },
+                    )
                 request_id = data.request_id
                 permission_request = data.permission_request
                 if not request_id or not permission_request:
@@ -1419,9 +1508,19 @@ class CopilotSession:
             )
 
             with trace_context(traceparent, tracestate):
+                handler_start = time.perf_counter()
                 result = handler(invocation)
                 if inspect.isawaitable(result):
                     result = await result
+                _log_timing(
+                    logging.INFO,
+                    "CopilotSession._execute_tool_and_respond tool dispatch",
+                    handler_start,
+                    session_id=self.session_id,
+                    request_id=request_id,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                )
 
             tool_result: ToolResult
             if result is None:
@@ -1439,13 +1538,24 @@ class CopilotSession:
             # standard "Failed to execute..." message. Deliberate user-returned
             # failures send the full structured result to preserve metadata.
             if tool_result._from_exception:
+                rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
                         request_id=request_id,
                         error=tool_result.error,
                     )
                 )
+                _log_timing(
+                    logging.DEBUG,
+                    "CopilotSession._execute_tool_and_respond response sent successfully",
+                    rpc_start,
+                    session_id=self.session_id,
+                    request_id=request_id,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                )
             else:
+                rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
                         request_id=request_id,
@@ -1456,6 +1566,15 @@ class CopilotSession:
                             tool_telemetry=tool_result.tool_telemetry,
                         ),
                     )
+                )
+                _log_timing(
+                    logging.DEBUG,
+                    "CopilotSession._execute_tool_and_respond response sent successfully",
+                    rpc_start,
+                    session_id=self.session_id,
+                    request_id=request_id,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
                 )
         except Exception as exc:
             try:
@@ -1476,9 +1595,17 @@ class CopilotSession:
     ) -> None:
         """Execute a permission handler and respond via RPC."""
         try:
+            handler_start = time.perf_counter()
             result = handler(permission_request, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
+            _log_timing(
+                logging.INFO,
+                "CopilotSession._execute_permission_and_respond dispatch",
+                handler_start,
+                session_id=self.session_id,
+                request_id=request_id,
+            )
 
             result = cast(PermissionRequestResult, result)
             if result.kind == "no-result":
@@ -1488,11 +1615,19 @@ class CopilotSession:
                 kind=PermissionDecisionKind(result.kind),
             )
 
+            rpc_start = time.perf_counter()
             await self.rpc.permissions.handle_pending_permission_request(
                 PermissionDecisionRequest(
                     request_id=request_id,
                     result=perm_result,
                 )
+            )
+            _log_timing(
+                logging.DEBUG,
+                "CopilotSession._execute_permission_and_respond response sent successfully",
+                rpc_start,
+                session_id=self.session_id,
+                request_id=request_id,
             )
         except Exception:
             try:
@@ -1537,11 +1672,29 @@ class CopilotSession:
                 command_name=command_name,
                 args=args,
             )
+            handler_start = time.perf_counter()
             result = handler(ctx)
             if inspect.isawaitable(result):
                 await result
+            _log_timing(
+                logging.INFO,
+                "CopilotSession._execute_command_and_respond dispatch",
+                handler_start,
+                session_id=self.session_id,
+                request_id=request_id,
+                command_name=command_name,
+            )
+            rpc_start = time.perf_counter()
             await self.rpc.commands.handle_pending_command(
                 CommandsHandlePendingCommandRequest(request_id=request_id)
+            )
+            _log_timing(
+                logging.DEBUG,
+                "CopilotSession._execute_command_and_respond response sent successfully",
+                rpc_start,
+                session_id=self.session_id,
+                request_id=request_id,
+                command_name=command_name,
             )
         except Exception as exc:
             message = str(exc)
@@ -1570,20 +1723,36 @@ class CopilotSession:
         if not handler:
             return
         try:
+            handler_start = time.perf_counter()
             result = handler(context)
             if inspect.isawaitable(result):
                 result = await result
+            _log_timing(
+                logging.INFO,
+                "CopilotSession._handle_elicitation_request dispatch",
+                handler_start,
+                session_id=self.session_id,
+                request_id=request_id,
+            )
             result = cast(ElicitationResult, result)
             action_val = result.get("action", "cancel")
             rpc_result = UIElicitationResponse(
                 action=UIElicitationResponseAction(action_val),
                 content=result.get("content"),
             )
+            rpc_start = time.perf_counter()
             await self.rpc.ui.handle_pending_elicitation(
                 UIHandlePendingElicitationRequest(
                     request_id=request_id,
                     result=rpc_result,
                 )
+            )
+            _log_timing(
+                logging.DEBUG,
+                "CopilotSession._handle_elicitation_request response sent successfully",
+                rpc_start,
+                session_id=self.session_id,
+                request_id=request_id,
             )
         except Exception:
             # Handler failed — attempt to cancel so the request doesn't hang
@@ -1720,12 +1889,24 @@ class CopilotSession:
             return PermissionRequestResult()
 
         try:
+            handler_start = time.perf_counter()
             result = handler(request, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
+            _log_timing(
+                logging.INFO,
+                "CopilotSession._handle_permission_request dispatch",
+                handler_start,
+                session_id=self.session_id,
+            )
             return cast(PermissionRequestResult, result)
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission
+            logger.debug(
+                "Error handling permission request",
+                extra={"session_id": self.session_id},
+                exc_info=True,
+            )
             return PermissionRequestResult()
 
     def _register_user_input_handler(self, handler: UserInputHandler | None) -> None:
@@ -1765,6 +1946,7 @@ class CopilotSession:
             raise RuntimeError("User input requested but no handler registered")
 
         try:
+            handler_start = time.perf_counter()
             result = handler(
                 UserInputRequest(
                     question=request.get("question", ""),
@@ -1775,6 +1957,12 @@ class CopilotSession:
             )
             if inspect.isawaitable(result):
                 result = await result
+            _log_timing(
+                logging.INFO,
+                "CopilotSession._handle_user_input_request dispatch",
+                handler_start,
+                session_id=self.session_id,
+            )
             return cast(UserInputResponse, result)
         except Exception:
             raise
@@ -1807,6 +1995,7 @@ class CopilotSession:
         self, sections: dict[str, dict[str, str]]
     ) -> dict[str, dict[str, dict[str, str]]]:
         """Handle a systemMessage.transform request from the runtime."""
+        transform_start = time.perf_counter()
         with self._transform_callbacks_lock:
             callbacks = self._transform_callbacks
 
@@ -1824,6 +2013,12 @@ class CopilotSession:
                     result[section_id] = {"content": content}
             else:
                 result[section_id] = {"content": content}
+        _log_timing(
+            logging.INFO,
+            "CopilotSession._handle_system_message_transform dispatch",
+            transform_start,
+            session_id=self.session_id,
+        )
         return {"sections": result}
 
     async def _handle_hooks_invoke(self, hook_type: str, input_data: Any) -> Any:
@@ -1860,12 +2055,25 @@ class CopilotSession:
             return None
 
         try:
+            handler_start = time.perf_counter()
             result = handler(input_data, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
+            _log_timing(
+                logging.INFO,
+                "CopilotSession._handle_hooks_invoke dispatch",
+                handler_start,
+                session_id=self.session_id,
+                hook_type=hook_type,
+            )
             return result
         except Exception:  # pylint: disable=broad-except
             # Hook failed, return None
+            logger.warning(
+                "Hook handler failed",
+                extra={"session_id": self.session_id, "hook_type": hook_type},
+                exc_info=True,
+            )
             return None
 
     async def get_messages(self) -> list[SessionEvent]:

@@ -38,6 +38,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 
 use async_trait::async_trait;
 // JSON-RPC wire types are internal transport details (like Go SDK's internal/jsonrpc2/).
@@ -68,6 +69,10 @@ pub use subscription::{EventSubscription, Lagged, LifecycleSubscription, RecvErr
 
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 2;
+
+fn elapsed_ms(start: Instant) -> u128 {
+    start.elapsed().as_millis()
+}
 
 /// Errors returned by the SDK.
 #[derive(Debug, thiserror::Error)]
@@ -880,6 +885,7 @@ impl Client {
     /// `sessionFs.setProvider` to register the SDK as the filesystem
     /// backend.
     pub async fn start(options: ClientOptions) -> Result<Self, Error> {
+        let start_time = Instant::now();
         if let Some(cfg) = &options.session_fs {
             validate_session_fs_config(cfg)?;
         }
@@ -945,7 +951,14 @@ impl Client {
         let client = match options.transport {
             Transport::External { ref host, port } => {
                 info!(host = %host, port = %port, "connecting to external CLI server");
+                let connect_start = Instant::now();
                 let stream = TcpStream::connect((host.as_str(), port)).await?;
+                info!(
+                    elapsed_ms = elapsed_ms(connect_start),
+                    host = %host,
+                    port,
+                    "Client::start TCP connect complete"
+                );
                 let (reader, writer) = tokio::io::split(stream);
                 Self::from_transport(
                     reader,
@@ -960,7 +973,13 @@ impl Client {
             }
             Transport::Tcp { port } => {
                 let (mut child, actual_port) = Self::spawn_tcp(&program, &options, port).await?;
+                let connect_start = Instant::now();
                 let stream = TcpStream::connect(("127.0.0.1", actual_port)).await?;
+                info!(
+                    elapsed_ms = elapsed_ms(connect_start),
+                    port = actual_port,
+                    "Client::start TCP connect complete"
+                );
                 let (reader, writer) = tokio::io::split(stream);
                 Self::drain_stderr(&mut child);
                 Self::from_transport(
@@ -992,15 +1011,32 @@ impl Client {
             }
         };
 
+        info!(
+            elapsed_ms = elapsed_ms(start_time),
+            "Client::start transport setup complete"
+        );
         client.verify_protocol_version().await?;
+        info!(
+            elapsed_ms = elapsed_ms(start_time),
+            "Client::start protocol verification complete"
+        );
         if let Some(cfg) = session_fs_config {
+            let session_fs_start = Instant::now();
             let request = crate::generated::api_types::SessionFsSetProviderRequest {
                 conventions: cfg.conventions.into_wire(),
                 initial_cwd: cfg.initial_cwd,
                 session_state_path: cfg.session_state_path,
             };
             client.rpc().session_fs().set_provider(request).await?;
+            info!(
+                elapsed_ms = elapsed_ms(session_fs_start),
+                "Client::start session filesystem setup complete"
+            );
         }
+        info!(
+            elapsed_ms = elapsed_ms(start_time),
+            "Client::start complete"
+        );
         Ok(client)
     }
 
@@ -1066,6 +1102,7 @@ impl Client {
         on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
         effective_connection_token: Option<String>,
     ) -> Result<Self, Error> {
+        let setup_start = Instant::now();
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
         let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
         let rpc = JsonRpcClient::new(
@@ -1096,6 +1133,11 @@ impl Client {
             }),
         };
         client.spawn_lifecycle_dispatcher();
+        info!(
+            elapsed_ms = elapsed_ms(setup_start),
+            pid = ?pid,
+            "Client::from_transport setup complete"
+        );
         Ok(client)
     }
 
@@ -1249,7 +1291,13 @@ impl Client {
             .args(Self::session_idle_timeout_args(options))
             .args(&options.extra_args)
             .stdin(Stdio::piped());
-        Ok(command.spawn()?)
+        let spawn_start = Instant::now();
+        let child = command.spawn()?;
+        info!(
+            elapsed_ms = elapsed_ms(spawn_start),
+            "Client::spawn_stdio subprocess spawned"
+        );
+        Ok(child)
     }
 
     async fn spawn_tcp(
@@ -1273,7 +1321,12 @@ impl Client {
             .args(Self::session_idle_timeout_args(options))
             .args(&options.extra_args)
             .stdin(Stdio::null());
+        let spawn_start = Instant::now();
         let mut child = command.spawn()?;
+        info!(
+            elapsed_ms = elapsed_ms(spawn_start),
+            "Client::spawn_tcp subprocess spawned"
+        );
         let stdout = child.stdout.take().expect("stdout is piped");
 
         let (port_tx, port_rx) = oneshot::channel::<u16>();
@@ -1302,11 +1355,17 @@ impl Client {
             .instrument(span),
         );
 
+        let port_wait_start = Instant::now();
         let actual_port = tokio::time::timeout(std::time::Duration::from_secs(10), port_rx)
             .await
             .map_err(|_| Error::Protocol(ProtocolError::CliStartupTimeout))?
             .map_err(|_| Error::Protocol(ProtocolError::CliStartupFailed))?;
 
+        info!(
+            elapsed_ms = elapsed_ms(port_wait_start),
+            port = actual_port,
+            "Client::spawn_tcp TCP port wait complete"
+        );
         info!(port = %actual_port, "CLI server listening");
         Ok((child, actual_port))
     }
@@ -1467,13 +1526,15 @@ impl Client {
     /// `MIN_PROTOCOL_VERSION`..=[`SDK_PROTOCOL_VERSION`]. If the server
     /// doesn't report a version, logs a warning and succeeds.
     pub async fn verify_protocol_version(&self) -> Result<(), Error> {
+        let handshake_start = Instant::now();
+        let mut used_fallback_ping = false;
         // Try the new `connect` handshake first (sends the connection
         // token, if any). Fall back to `ping` for legacy CLI servers
-        // that don't expose `connect` (-32601 MethodNotFound). Matches
-        // the Node SDK's verify-version sequence.
+        // that don't expose `connect` (-32601 MethodNotFound).
         let server_version = match self.connect_handshake().await {
             Ok(v) => v,
             Err(Error::Rpc { code, .. }) if code == error_codes::METHOD_NOT_FOUND => {
+                used_fallback_ping = true;
                 self.ping(None).await?.protocol_version
             }
             Err(e) => return Err(e),
@@ -1504,6 +1565,12 @@ impl Client {
             }
         }
 
+        info!(
+            elapsed_ms = elapsed_ms(handshake_start),
+            protocol_version = ?server_version,
+            used_fallback_ping,
+            "Client::verify_protocol_version protocol handshake complete"
+        );
         Ok(())
     }
 

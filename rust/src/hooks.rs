@@ -6,12 +6,17 @@
 //! [`Client::create_session`](crate::Client::create_session).
 
 use std::path::PathBuf;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::types::SessionId;
+
+fn elapsed_ms(start: Instant) -> u128 {
+    start.elapsed().as_millis()
+}
 
 /// Context provided to every hook invocation.
 #[derive(Debug, Clone)]
@@ -466,7 +471,14 @@ pub(crate) async fn dispatch_hook(
         }
     };
 
+    let dispatch_start = Instant::now();
     let output = hooks.on_hook(event).await;
+    tracing::info!(
+        elapsed_ms = elapsed_ms(dispatch_start),
+        session_id = %session_id,
+        hook_type = hook_type,
+        "SessionHooks::on_hook dispatch"
+    );
 
     // Validate that the output variant matches the dispatched hook type.
     // A mismatched return (e.g. HookOutput::SessionEnd for a preToolUse
