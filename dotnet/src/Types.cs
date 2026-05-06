@@ -1942,7 +1942,11 @@ public class SessionConfig
     public ProviderConfig? Provider { get; set; }
 
     /// <summary>
-    /// When false, disables internal session telemetry for this session.
+    /// Enables or disables internal session telemetry for this session.
+    /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
+    /// telemetry remains enabled.
+    /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
+    /// OpenTelemetry export for observability.
     /// </summary>
     public bool? EnableSessionTelemetry { get; set; }
 
@@ -2182,7 +2186,11 @@ public class ResumeSessionConfig
     public ProviderConfig? Provider { get; set; }
 
     /// <summary>
-    /// When false, disables internal session telemetry for this session.
+    /// Enables or disables internal session telemetry for this session.
+    /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
+    /// telemetry remains enabled.
+    /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
+    /// OpenTelemetry export for observability.
     /// </summary>
     public bool? EnableSessionTelemetry { get; set; }
 

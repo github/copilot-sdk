@@ -160,6 +160,63 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Forward_EnableSessionTelemetry_In_Wire_Request()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            AutoStart = false,
+            CliPath = cliPath,
+            CliArgs = ["--capture-file", capturePath],
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        // When explicitly set to false, it should appear in the wire request
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            EnableSessionTelemetry = false,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var createRequest = GetCapturedRequestParams(capture.RootElement, "session.create");
+        Assert.False(createRequest.GetProperty("enableSessionTelemetry").GetBoolean());
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Omit_EnableSessionTelemetry_When_Not_Set()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            AutoStart = false,
+            CliPath = cliPath,
+            CliArgs = ["--capture-file", capturePath],
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        // When omitted (null/default), the field should not be present in the wire request
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var createRequest = GetCapturedRequestParams(capture.RootElement, "session.create");
+        Assert.False(createRequest.TryGetProperty("enableSessionTelemetry", out _));
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Propagate_Activity_TraceContext_To_Session_Create_And_Send()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();

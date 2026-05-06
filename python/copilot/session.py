@@ -888,7 +888,9 @@ class SessionConfig(TypedDict, total=False):
     working_directory: str
     # Custom provider configuration (BYOK - Bring Your Own Key)
     provider: ProviderConfig
-    # When False, disables internal session telemetry for this session.
+    # Enables or disables internal session telemetry. When False, disables session
+    # telemetry. When omitted (the default) or True, telemetry remains enabled.
+    # This is independent of the OpenTelemetry configuration in CopilotClientOptions.
     enable_session_telemetry: bool
     # Enable streaming of assistant message and reasoning chunks
     # When True, assistant.message_delta and assistant.reasoning_delta events
@@ -958,7 +960,9 @@ class ResumeSessionConfig(TypedDict, total=False):
     # registered via tools=. Ignored if available_tools is set.
     excluded_tools: list[str]
     provider: ProviderConfig
-    # When False, disables internal session telemetry for this session.
+    # Enables or disables internal session telemetry. When False, disables session
+    # telemetry. When omitted (the default) or True, telemetry remains enabled.
+    # This is independent of the OpenTelemetry configuration in CopilotClientOptions.
     enable_session_telemetry: bool
     # Reasoning effort level for models that support it.
     reasoning_effort: ReasoningEffort

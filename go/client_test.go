@@ -1058,7 +1058,7 @@ func TestCreateSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 func TestResumeSessionRequest_EnableSessionTelemetry(t *testing.T) {
 	t.Run("forwards enableSessionTelemetry when false", func(t *testing.T) {
 		req := resumeSessionRequest{
-			SessionID:               "s1",
+			SessionID:              "s1",
 			EnableSessionTelemetry: Bool(false),
 		}
 		data, err := json.Marshal(req)
