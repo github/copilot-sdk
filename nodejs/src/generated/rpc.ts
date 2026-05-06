@@ -1477,6 +1477,18 @@ export interface PluginList {
   plugins: Plugin[];
 }
 
+/** @experimental */
+export interface RemoteEnableResult {
+  /**
+   * Mission Control frontend URL for this session
+   */
+  url?: string;
+  /**
+   * Whether remote steering is enabled
+   */
+  remoteSteerable: boolean;
+}
+
 export interface ServerSkill {
   /**
    * Unique identifier for the skill
@@ -2721,6 +2733,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         usage: {
             getMetrics: async (): Promise<UsageGetMetricsResult> =>
                 connection.sendRequest("session.usage.getMetrics", { sessionId }),
+        },
+        /** @experimental */
+        remote: {
+            enable: async (): Promise<RemoteEnableResult> =>
+                connection.sendRequest("session.remote.enable", { sessionId }),
+            disable: async (): Promise<void> =>
+                connection.sendRequest("session.remote.disable", { sessionId }),
         },
     };
 }

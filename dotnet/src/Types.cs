@@ -72,6 +72,7 @@ public class CopilotClientOptions
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         TcpConnectionToken = other.TcpConnectionToken;
+        Remote = other.Remote;
     }
 
     /// <summary>
@@ -194,6 +195,15 @@ public class CopilotClientOptions
     /// listener is safe by default. Cannot be combined with <see cref="UseStdio"/> = true.
     /// </summary>
     public string? TcpConnectionToken { get; set; }
+
+    /// <summary>
+    /// Enable remote session support (Mission Control integration).
+    /// When true, sessions in a GitHub repository working directory are
+    /// accessible from GitHub web and mobile.
+    /// This option is only used when the SDK spawns the CLI process; it is ignored
+    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// </summary>
+    public bool Remote { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.

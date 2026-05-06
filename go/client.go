@@ -235,6 +235,7 @@ func NewClient(options *ClientOptions) *Client {
 			opts.CopilotHome = options.CopilotHome
 		}
 		opts.SessionIdleTimeoutSeconds = options.SessionIdleTimeoutSeconds
+		opts.Remote = options.Remote
 	}
 
 	// Default Env to current environment if not set
@@ -1458,6 +1459,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	if c.options.SessionIdleTimeoutSeconds > 0 {
 		args = append(args, "--session-idle-timeout", strconv.Itoa(c.options.SessionIdleTimeoutSeconds))
+	}
+
+	if c.options.Remote {
+		args = append(args, "--remote")
 	}
 
 	// If CLIPath is a .js file, run it with node

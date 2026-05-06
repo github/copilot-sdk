@@ -2476,6 +2476,37 @@ internal sealed class SessionUsageGetMetricsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>RPC data type for RemoteEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class RemoteEnableResult
+{
+    /// <summary>Whether remote steering is enabled.</summary>
+    [JsonPropertyName("remoteSteerable")]
+    public bool RemoteSteerable { get; set; }
+
+    /// <summary>Mission Control frontend URL for this session.</summary>
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+}
+
+/// <summary>RPC data type for SessionRemoteEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionRemoteEnableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionRemoteDisable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionRemoteDisableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Describes a filesystem error.</summary>
 public sealed class SessionFsError
 {
@@ -3419,6 +3450,7 @@ public sealed class SessionRpc
         Shell = new ShellApi(rpc, sessionId);
         History = new HistoryApi(rpc, sessionId);
         Usage = new UsageApi(rpc, sessionId);
+        Remote = new RemoteApi(rpc, sessionId);
     }
 
     /// <summary>Auth APIs.</summary>
@@ -3483,6 +3515,9 @@ public sealed class SessionRpc
 
     /// <summary>Usage APIs.</summary>
     public UsageApi Usage { get; }
+
+    /// <summary>Remote APIs.</summary>
+    public RemoteApi Remote { get; }
 
     /// <summary>Calls "session.suspend".</summary>
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
@@ -4163,6 +4198,34 @@ public sealed class UsageApi
     }
 }
 
+/// <summary>Provides session-scoped Remote APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class RemoteApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal RemoteApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.remote.enable".</summary>
+    public async Task<RemoteEnableResult> EnableAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionRemoteEnableRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<RemoteEnableResult>(_rpc, "session.remote.enable", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.remote.disable".</summary>
+    public async Task DisableAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionRemoteDisableRequest { SessionId = _sessionId };
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.remote.disable", [request], cancellationToken);
+    }
+}
+
 /// <summary>Handles `sessionFs` client session API methods.</summary>
 public interface ISessionFsHandler
 {
@@ -4355,6 +4418,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PlanUpdateRequest))]
 [JsonSerializable(typeof(Plugin))]
 [JsonSerializable(typeof(PluginList))]
+[JsonSerializable(typeof(RemoteEnableResult))]
 [JsonSerializable(typeof(ServerSkill))]
 [JsonSerializable(typeof(ServerSkillList))]
 [JsonSerializable(typeof(SessionAgentDeselectRequest))]
@@ -4395,6 +4459,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]
 [JsonSerializable(typeof(SessionPlanReadRequest))]
 [JsonSerializable(typeof(SessionPluginsListRequest))]
+[JsonSerializable(typeof(SessionRemoteDisableRequest))]
+[JsonSerializable(typeof(SessionRemoteEnableRequest))]
 [JsonSerializable(typeof(SessionSkillsListRequest))]
 [JsonSerializable(typeof(SessionSkillsReloadRequest))]
 [JsonSerializable(typeof(SessionSuspendRequest))]

@@ -17,6 +17,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [Streaming Events](./streaming-events.md) | Subscribe to real-time session events (40+ event types) |
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery — immediate steering vs. sequential queueing |
 | [Session Persistence](./session-persistence.md) | Resume sessions across restarts, manage session storage |
+| [Remote Sessions](./remote-sessions.md) | Share sessions to GitHub web and mobile via Mission Control |
 
 ## Related
 

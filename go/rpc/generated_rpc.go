@@ -159,6 +159,8 @@ type RPCTypes struct {
 	PlanUpdateResult                                         PlanUpdateResult                                         `json:"PlanUpdateResult"`
 	Plugin                                                   PluginElement                                            `json:"Plugin"`
 	PluginList                                               PluginList                                               `json:"PluginList"`
+	RemoteDisableResult                                      RemoteDisableResult                                      `json:"RemoteDisableResult"`
+	RemoteEnableResult                                       RemoteEnableResult                                       `json:"RemoteEnableResult"`
 	ServerSkill                                              ServerSkill                                              `json:"ServerSkill"`
 	ServerSkillList                                          ServerSkillList                                          `json:"ServerSkillList"`
 	SessionAuthStatus                                        SessionAuthStatus                                        `json:"SessionAuthStatus"`
@@ -1264,6 +1266,18 @@ type PluginElement struct {
 type PluginList struct {
 	// Installed plugins
 	Plugins []PluginElement `json:"plugins"`
+}
+
+// Experimental: RemoteDisableResult is part of an experimental API and may change or be removed.
+type RemoteDisableResult struct {
+}
+
+// Experimental: RemoteEnableResult is part of an experimental API and may change or be removed.
+type RemoteEnableResult struct {
+	// Whether remote steering is enabled
+	RemoteSteerable bool `json:"remoteSteerable"`
+	// Mission Control frontend URL for this session
+	URL *string `json:"url,omitempty"`
 }
 
 type ServerSkill struct {
@@ -3663,6 +3677,35 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 	return &result, nil
 }
 
+// Experimental: RemoteApi contains experimental APIs that may change or be removed.
+type RemoteApi sessionApi
+
+func (a *RemoteApi) Enable(ctx context.Context) (*RemoteEnableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.remote.enable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result RemoteEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *RemoteApi) Disable(ctx context.Context) (*RemoteDisableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.remote.disable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result RemoteDisableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SessionRpc provides typed session-scoped RPC methods.
 type SessionRpc struct {
 	common sessionApi // Reuse a single struct instead of allocating one for each service on the heap.
@@ -3688,6 +3731,7 @@ type SessionRpc struct {
 	Shell        *ShellApi
 	History      *HistoryApi
 	Usage        *UsageApi
+	Remote       *RemoteApi
 }
 
 func (a *SessionRpc) Suspend(ctx context.Context) (*SuspendResult, error) {
@@ -3752,6 +3796,7 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Shell = (*ShellApi)(&r.common)
 	r.History = (*HistoryApi)(&r.common)
 	r.Usage = (*UsageApi)(&r.common)
+	r.Remote = (*RemoteApi)(&r.common)
 	return r
 }
 

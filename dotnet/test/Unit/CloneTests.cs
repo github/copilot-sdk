@@ -27,6 +27,7 @@ public class CloneTests
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
             CopilotHome = "/custom/copilot/home",
+            Remote = true,
             SessionIdleTimeoutSeconds = 600,
         };
 
@@ -45,6 +46,7 @@ public class CloneTests
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
         Assert.Equal(original.CopilotHome, clone.CopilotHome);
+        Assert.Equal(original.Remote, clone.Remote);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
     }
 

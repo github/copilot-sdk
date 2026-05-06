@@ -393,6 +393,12 @@ pub struct ClientOptions {
     /// is safe by default. Combining with [`Transport::Stdio`] is invalid
     /// and surfaces as an error from [`Client::start`].
     pub tcp_connection_token: Option<String>,
+    /// Enable remote session support (Mission Control integration).
+    /// When `true`, the SDK passes `--remote` to the spawned CLI process so
+    /// sessions in a GitHub repository working directory are accessible from
+    /// GitHub web and mobile. Ignored when connecting to an external server
+    /// via [`Transport::External`].
+    pub remote: bool,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -430,6 +436,7 @@ impl std::fmt::Debug for ClientOptions {
                 "tcp_connection_token",
                 &self.tcp_connection_token.as_ref().map(|_| "<redacted>"),
             )
+            .field("remote", &self.remote)
             .finish()
     }
 }
@@ -636,6 +643,7 @@ impl Default for ClientOptions {
             telemetry: None,
             copilot_home: None,
             tcp_connection_token: None,
+            remote: false,
         }
     }
 }
@@ -791,6 +799,13 @@ impl ClientOptions {
     /// CLI processes.
     pub fn with_tcp_connection_token(mut self, token: impl Into<String>) -> Self {
         self.tcp_connection_token = Some(token.into());
+        self
+    }
+
+    /// Enable remote session support (Mission Control). Passes `--remote`
+    /// to the spawned CLI process.
+    pub fn with_remote(mut self, enabled: bool) -> Self {
+        self.remote = enabled;
         self
     }
 }
@@ -1233,6 +1248,14 @@ impl Client {
         }
     }
 
+    fn remote_args(options: &ClientOptions) -> Vec<String> {
+        if options.remote {
+            vec!["--remote".to_string()]
+        } else {
+            Vec::new()
+        }
+    }
+
     fn spawn_stdio(program: &Path, options: &ClientOptions) -> Result<Child, Error> {
         info!(cwd = ?options.cwd, program = %program.display(), "spawning copilot CLI (stdio)");
         let mut command = Self::build_command(program, options);
@@ -1247,6 +1270,7 @@ impl Client {
             ])
             .args(Self::auth_args(options))
             .args(Self::session_idle_timeout_args(options))
+            .args(Self::remote_args(options))
             .args(&options.extra_args)
             .stdin(Stdio::piped());
         Ok(command.spawn()?)
@@ -1271,6 +1295,7 @@ impl Client {
             ])
             .args(Self::auth_args(options))
             .args(Self::session_idle_timeout_args(options))
+            .args(Self::remote_args(options))
             .args(&options.extra_args)
             .stdin(Stdio::null());
         let mut child = command.spawn()?;
@@ -1901,7 +1926,8 @@ mod tests {
             .with_github_token("ghp_test")
             .with_use_logged_in_user(false)
             .with_log_level(LogLevel::Debug)
-            .with_session_idle_timeout_seconds(120);
+            .with_session_idle_timeout_seconds(120)
+            .with_remote(true);
         assert!(matches!(opts.program, CliProgram::Path(_)));
         assert_eq!(opts.prefix_args, vec![std::ffi::OsString::from("node")]);
         assert_eq!(opts.cwd, PathBuf::from("/tmp"));
@@ -1918,6 +1944,7 @@ mod tests {
         assert_eq!(opts.use_logged_in_user, Some(false));
         assert!(matches!(opts.log_level, Some(LogLevel::Debug)));
         assert_eq!(opts.session_idle_timeout_seconds, Some(120));
+        assert!(opts.remote);
     }
 
     #[test]
@@ -2231,6 +2258,21 @@ mod tests {
             Client::session_idle_timeout_args(&opts),
             vec!["--session-idle-timeout".to_string(), "300".to_string()]
         );
+    }
+
+    #[test]
+    fn remote_args_omitted_by_default() {
+        let opts = ClientOptions::default();
+        assert!(Client::remote_args(&opts).is_empty());
+    }
+
+    #[test]
+    fn remote_args_emit_flag_when_enabled() {
+        let opts = ClientOptions {
+            remote: true,
+            ..Default::default()
+        };
+        assert_eq!(Client::remote_args(&opts), vec!["--remote".to_string()]);
     }
 
     #[test]

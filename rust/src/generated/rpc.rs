@@ -437,6 +437,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.remote.*` sub-namespace.
+    pub fn remote(&self) -> SessionRpcRemote<'a> {
+        SessionRpcRemote {
+            session: self.session,
+        }
+    }
+
     /// `session.shell.*` sub-namespace.
     pub fn shell(&self) -> SessionRpcShell<'a> {
         SessionRpcShell {
@@ -1188,6 +1195,52 @@ impl<'a> SessionRpcPlugins<'a> {
             .call(rpc_methods::SESSION_PLUGINS_LIST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.remote.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcRemote<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcRemote<'a> {
+    /// Wire method: `session.remote.enable`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn enable(&self) -> Result<RemoteEnableResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_REMOTE_ENABLE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Wire method: `session.remote.disable`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn disable(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_REMOTE_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
     }
 }
 

@@ -1311,6 +1311,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(["--session-idle-timeout", options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
         }
 
+        if (options.Remote)
+        {
+            args.Add("--remote");
+        }
+
         var (fileName, processArgs) = ResolveCliCommand(cliPath, args);
 
         var startInfo = new ProcessStartInfo
