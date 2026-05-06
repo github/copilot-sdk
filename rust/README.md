@@ -105,23 +105,40 @@ let messages = session.get_messages().await?;
 session.abort().await?;
 
 // Model management
-let model = session.get_model().await?;
 session.set_model("claude-sonnet-4.5", None).await?;
 
-// Mode management (interactive, plan, autopilot)
-let mode = session.get_mode().await?;
-session.set_mode("autopilot").await?;
+// Generated typed RPCs cover lower-level session operations.
+let model = session.rpc().model().get_current().await?;
+let mode = session.rpc().mode().get().await?;
 
 // Workspace files
-let files = session.list_workspace_files().await?;
-let content = session.read_workspace_file("plan.md").await?;
+let files = session.rpc().workspaces().list_files().await?;
+let content = session
+    .rpc()
+    .workspaces()
+    .read_file(github_copilot_sdk::generated::api_types::WorkspacesReadFileRequest {
+        path: "plan.md".to_string(),
+    })
+    .await?;
 
 // Plan management
-let (exists, content) = session.read_plan().await?;
-session.update_plan("Updated plan content").await?;
+let plan = session.rpc().plan().read().await?;
+session
+    .rpc()
+    .plan()
+    .update(github_copilot_sdk::generated::api_types::PlanUpdateRequest {
+        content: "Updated plan content".to_string(),
+    })
+    .await?;
 
 // Fleet (sub-agents)
-session.start_fleet(Some("Implement the auth module")).await?;
+session
+    .rpc()
+    .fleet()
+    .start(github_copilot_sdk::generated::api_types::FleetStartRequest {
+        prompt: Some("Implement the auth module".to_string()),
+    })
+    .await?;
 
 // Cleanup (preserves on-disk session state for later resume)
 session.disconnect().await?;
@@ -129,14 +146,14 @@ session.disconnect().await?;
 
 #### Typed RPC namespace
 
-The ergonomic helpers above are convenience wrappers over a fully-typed
+High-level helpers are convenience wrappers over a fully-typed
 JSON-RPC namespace generated from the GitHub Copilot CLI schema. `Client::rpc()`
 and `Session::rpc()` give direct access to every method on the wire,
 including ones with no helper today, with strongly-typed request and
 response structs.
 
 ```rust,ignore
-// Methods with helpers — wire strings live in one generated place.
+// Common generated RPCs.
 let files = session.rpc().workspaces().list_files().await?.files;
 let models = client.rpc().models().list().await?.models;
 
@@ -631,7 +648,7 @@ if err.is_transport_failure() {
 
 ## Differences From Other SDKs
 
-The Rust SDK aligns closely with the Node, Python, and Go SDKs but diverges
+The Rust SDK aligns closely with the Node, Python, Go, and .NET SDKs but diverges
 in a few places where Rust idiom or the type system gives a clearly better
 shape, and exposes a small additional surface where the language affords
 ergonomics the dynamically-typed SDKs don't.
@@ -639,7 +656,7 @@ ergonomics the dynamically-typed SDKs don't.
 ### Shape divergence
 
 - **`SessionFsProvider` registration is direct, not factory-closure.** Where
-  Node/Python/Go accept a closure that the runtime calls on each
+  Node/Python/Go/.NET accept a closure that the runtime calls on each
   session-create to build a fresh provider, the Rust SDK takes
   `Arc<dyn SessionFsProvider>` directly via
   [`SessionConfig::with_session_fs_provider`]. The factory pattern doesn't
@@ -676,7 +693,7 @@ in-memory provider implementation.
 
 A handful of conveniences exist only on the Rust SDK as of 0.1.0. These
 are surface areas where Rust idiom (newtypes, enums, trait objects)
-gives a clearly nicer shape than Node/Python/Go currently expose. Rust
+gives a clearly nicer shape than Node/Python/Go/.NET currently expose. Rust
 gets to be Rust here — cross-SDK parity for these is a post-release
 conversation, not a release blocker. None of these are deprecated and
 none of them are scheduled for removal.
@@ -701,13 +718,6 @@ none of them are scheduled for removal.
   arg vectors for "prepend before subcommand" vs "append after the
   built-in flags", giving precise control over CLI invocation order
   without string-splicing.
-- **`SessionHandler::on_auto_mode_switch`** — typed handler for the CLI's
-  rate-limit-recovery prompt (CLI's `autoModeSwitch.request` callback,
-  added in copilot-agent-runtime PR #7024). Returns
-  `AutoModeSwitchResponse::{Yes, YesAlways, No}`. Default impl declines.
-  Cross-SDK parity is post-release follow-up — Node / Python / Go / .NET
-  consumers currently observe the request as a raw event and must drive
-  the wire response themselves.
 
 ## Layout
 

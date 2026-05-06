@@ -547,8 +547,7 @@ type SessionConfig struct {
 	// Ignored if AvailableTools is specified.
 	ExcludedTools []string
 	// OnPermissionRequest is a handler for permission requests from the server.
-	// If nil, all permission requests are denied by default.
-	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
+	// This field is required; use PermissionHandler.ApproveAll to allow all permissions.
 	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
@@ -767,8 +766,7 @@ type ResumeSessionConfig struct {
 	// Valid values: "low", "medium", "high", "xhigh"
 	ReasoningEffort string
 	// OnPermissionRequest is a handler for permission requests from the server.
-	// If nil, all permission requests are denied by default.
-	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
+	// This field is required; use PermissionHandler.ApproveAll to allow all permissions.
 	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler

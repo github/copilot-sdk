@@ -16,10 +16,10 @@ use async_trait::async_trait;
 pub use schemars::JsonSchema;
 
 use crate::Error;
-use crate::handler::{ExitPlanModeResult, PermissionResult, SessionHandler, UserInputResponse};
+use crate::handler::{PermissionResult, SessionHandler, UserInputResponse};
 use crate::types::{
-    ElicitationRequest, ElicitationResult, ExitPlanModeData, PermissionRequestData, RequestId,
-    SessionEvent, SessionId, Tool, ToolInvocation, ToolResult, ToolResultExpanded,
+    ElicitationRequest, ElicitationResult, PermissionRequestData, RequestId, SessionEvent,
+    SessionId, Tool, ToolBinaryResult, ToolInvocation, ToolResult, ToolResultExpanded,
 };
 
 /// Generate a JSON Schema [`Value`](serde_json::Value) from a Rust type.
@@ -84,6 +84,91 @@ pub fn try_tool_parameters(
     schema: serde_json::Value,
 ) -> Result<HashMap<String, serde_json::Value>, serde_json::Error> {
     serde_json::from_value(schema)
+}
+
+/// Convert an MCP `CallToolResult` JSON value into a Copilot tool result.
+///
+/// Returns `None` when the value is not shaped like a `CallToolResult`.
+pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolResult> {
+    let content = value.get("content")?.as_array()?;
+    let mut text_parts = Vec::new();
+    let mut binary_results = Vec::new();
+
+    for block in content {
+        match block.get("type").and_then(serde_json::Value::as_str) {
+            Some("text") => {
+                if let Some(text) = block.get("text").and_then(serde_json::Value::as_str) {
+                    text_parts.push(text.to_string());
+                }
+            }
+            Some("image") => {
+                let data = block
+                    .get("data")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|s| !s.is_empty());
+                let mime_type = block
+                    .get("mimeType")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|s| !s.is_empty());
+                if let (Some(data), Some(mime_type)) = (data, mime_type) {
+                    binary_results.push(ToolBinaryResult {
+                        data: data.to_string(),
+                        mime_type: mime_type.to_string(),
+                        r#type: "image".to_string(),
+                        description: None,
+                    });
+                }
+            }
+            Some("resource") => {
+                let Some(resource) = block.get("resource").and_then(serde_json::Value::as_object)
+                else {
+                    continue;
+                };
+                if let Some(text) = resource
+                    .get("text")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|s| !s.is_empty())
+                {
+                    text_parts.push(text.to_string());
+                }
+                if let Some(blob) = resource
+                    .get("blob")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|s| !s.is_empty())
+                {
+                    let mime_type = resource
+                        .get("mimeType")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("application/octet-stream");
+                    let description = resource
+                        .get("uri")
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|s| !s.is_empty())
+                        .map(ToString::to_string);
+                    binary_results.push(ToolBinaryResult {
+                        data: blob.to_string(),
+                        mime_type: mime_type.to_string(),
+                        r#type: "resource".to_string(),
+                        description,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Some(ToolResult::Expanded(ToolResultExpanded {
+        text_result_for_llm: text_parts.join("\n"),
+        result_type: if value.get("isError").and_then(serde_json::Value::as_bool) == Some(true) {
+            "failure".to_string()
+        } else {
+            "success".to_string()
+        },
+        binary_results_for_llm: (!binary_results.is_empty()).then_some(binary_results),
+        session_log: None,
+        error: None,
+        tool_telemetry: None,
+    }))
 }
 
 /// A client-defined tool with its handler logic.
@@ -317,8 +402,10 @@ impl SessionHandler for ToolHandlerRouter {
                 ToolResult::Expanded(ToolResultExpanded {
                     text_result_for_llm: msg.clone(),
                     result_type: "failure".to_string(),
+                    binary_results_for_llm: None,
                     session_log: None,
                     error: Some(msg),
+                    tool_telemetry: None,
                 })
             }
         }
@@ -360,14 +447,6 @@ impl SessionHandler for ToolHandlerRouter {
         self.inner
             .on_elicitation(session_id, request_id, request)
             .await
-    }
-
-    async fn on_exit_plan_mode(
-        &self,
-        session_id: SessionId,
-        data: ExitPlanModeData,
-    ) -> ExitPlanModeResult {
-        self.inner.on_exit_plan_mode(session_id, data).await
     }
 }
 
@@ -411,6 +490,43 @@ mod tests {
             .expect_err("non-object schemas should be rejected");
 
         assert!(err.is_data());
+    }
+
+    #[test]
+    fn convert_mcp_call_tool_result_collects_text_and_binary_content() {
+        let result = convert_mcp_call_tool_result(&serde_json::json!({
+            "isError": true,
+            "content": [
+                { "type": "text", "text": "hello" },
+                { "type": "image", "data": "aW1n", "mimeType": "image/png" },
+                {
+                    "type": "resource",
+                    "resource": {
+                        "uri": "file:///tmp/data.bin",
+                        "blob": "Ymlu",
+                        "mimeType": "application/octet-stream",
+                        "text": "resource text"
+                    }
+                }
+            ]
+        }))
+        .expect("valid CallToolResult should convert");
+
+        let ToolResult::Expanded(expanded) = result else {
+            panic!("expected expanded tool result");
+        };
+
+        assert_eq!(expanded.text_result_for_llm, "hello\nresource text");
+        assert_eq!(expanded.result_type, "failure");
+        let binary_results = expanded
+            .binary_results_for_llm
+            .expect("binary results should be captured");
+        assert_eq!(binary_results.len(), 2);
+        assert_eq!(binary_results[0].r#type, "image");
+        assert_eq!(
+            binary_results[1].description.as_deref(),
+            Some("file:///tmp/data.bin")
+        );
     }
 
     #[tokio::test]
