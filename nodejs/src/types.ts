@@ -1274,6 +1274,15 @@ export interface SessionConfig {
     provider?: ProviderConfig;
 
     /**
+     * When false, disables internal session telemetry (Hydro/AppInsights) for this session.
+     * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
+     * When a custom provider (BYOK) is configured, telemetry is always disabled
+     * regardless of this flag.
+      * By default, telemetry remains enabled when this field is omitted.
+     */
+    enableSessionTelemetry?: boolean;
+
+    /**
      * Handler for permission requests from the server.
      * When provided, the server will call this handler to request permission for operations.
      */
@@ -1415,6 +1424,7 @@ export type ResumeSessionConfig = Pick<
     | "availableTools"
     | "excludedTools"
     | "provider"
+    | "enableSessionTelemetry"
     | "modelCapabilities"
     | "streaming"
     | "includeSubAgentStreamingEvents"

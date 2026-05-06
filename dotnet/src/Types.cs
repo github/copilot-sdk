@@ -1849,6 +1849,7 @@ public class SessionConfig
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
+        EnableSessionTelemetry = other.EnableSessionTelemetry;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
@@ -1929,6 +1930,11 @@ public class SessionConfig
     /// Custom model provider configuration for the session.
     /// </summary>
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// When false, disables internal session telemetry for this session.
+    /// </summary>
+    public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
     /// Handler for permission requests from the server.
@@ -2114,6 +2120,7 @@ public class ResumeSessionConfig
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
+        EnableSessionTelemetry = other.EnableSessionTelemetry;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
@@ -2163,6 +2170,11 @@ public class ResumeSessionConfig
     /// Custom model provider configuration for the resumed session.
     /// </summary>
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// When false, disables internal session telemetry for this session.
+    /// </summary>
+    public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
     /// Reasoning effort level for models that support it.
