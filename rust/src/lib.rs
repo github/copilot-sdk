@@ -927,15 +927,15 @@ impl Client {
                 info!(path = %resolved.display(), "resolved copilot CLI");
                 #[cfg(windows)]
                 {
-                    if let Some(ext) = resolved.extension().and_then(|e| e.to_str()) {
-                        if ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat") {
-                            warn!(
-                                path = %resolved.display(),
-                                ext = %ext,
-                                "resolved copilot CLI is a .cmd/.bat wrapper; \
-                                 this may cause console window flashes on Windows"
-                            );
-                        }
+                    if let Some(ext) = resolved.extension().and_then(|e| e.to_str()).filter(|ext| {
+                        ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
+                    }) {
+                        warn!(
+                            path = %resolved.display(),
+                            ext = %ext,
+                            "resolved copilot CLI is a .cmd/.bat wrapper; \
+                             this may cause console window flashes on Windows"
+                        );
                     }
                 }
                 resolved

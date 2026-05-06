@@ -154,13 +154,15 @@ mod tests {
     #[tokio::test]
     async fn non_permission_events_forward_to_inner() {
         let h = deny_all(Arc::new(ApproveAllHandler));
-        let event = HandlerEvent::ExitPlanMode {
+        let event = HandlerEvent::UserInput {
             session_id: SessionId::from("s1"),
-            data: crate::types::ExitPlanModeData::default(),
+            question: "continue?".to_string(),
+            choices: None,
+            allow_freeform: None,
         };
         match h.on_event(event).await {
-            HandlerResponse::ExitPlanMode(_) => {}
-            other => panic!("expected ExitPlanMode forwarded, got {other:?}"),
+            HandlerResponse::UserInput(None) => {}
+            other => panic!("expected UserInput forwarded, got {other:?}"),
         }
     }
 }

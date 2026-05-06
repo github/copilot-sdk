@@ -994,23 +994,6 @@ pub struct SessionConfig {
     /// requests so the wire surface is safe out-of-the-box.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_permission: Option<bool>,
-    /// Enable `exitPlanMode.request` JSON-RPC calls for plan approval.
-    /// Defaults to `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_exit_plan_mode: Option<bool>,
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. When `true`, the CLI
-    /// asks the handler whether to switch to auto model when an eligible
-    /// rate limit is hit. Defaults to `Some(true)` via
-    /// [`SessionConfig::default`]. Without this flag, the CLI surfaces the
-    /// rate-limit error directly without offering the auto-mode switch.
-    ///
-    /// Currently a Rust-only typed handler; cross-SDK parity (Node /
-    /// Python / Go / .NET) is post-release follow-up work — see
-    /// [`SessionHandler::on_auto_mode_switch`].
-    ///
-    /// [`SessionHandler::on_auto_mode_switch`]: crate::handler::SessionHandler::on_auto_mode_switch
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_switch: Option<bool>,
     /// Advertise elicitation provider capability. When true, the CLI sends
     /// `elicitation.requested` events that the handler can respond to.
     /// Defaults to `Some(true)` via [`SessionConfig::default`].
@@ -1027,10 +1010,6 @@ pub struct SessionConfig {
     /// even if found in skill directories.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
-    /// MCP server names to disable. Servers in this set will not be
-    /// started or connected.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disabled_mcp_servers: Option<Vec<String>>,
     /// Enable session hooks. When `true`, the CLI sends `hooks.invoke`
     /// RPC requests at key lifecycle points (pre/post tool use, prompt
     /// submission, session start/end, errors).
@@ -1128,13 +1107,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("request_user_input", &self.request_user_input)
             .field("request_permission", &self.request_permission)
-            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
-            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
-            .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
             .field("default_agent", &self.default_agent)
@@ -1190,13 +1166,10 @@ impl Default for SessionConfig {
             enable_config_discovery: None,
             request_user_input: Some(true),
             request_permission: Some(true),
-            request_exit_plan_mode: Some(true),
-            request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
-            disabled_mcp_servers: None,
             hooks: None,
             custom_agents: None,
             default_agent: None,
@@ -1401,18 +1374,6 @@ impl SessionConfig {
         self
     }
 
-    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
-        self.request_exit_plan_mode = Some(enable);
-        self
-    }
-
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
-        self.request_auto_mode_switch = Some(enable);
-        self
-    }
-
     /// Advertise elicitation provider capability. Defaults to `Some(true)`.
     pub fn with_request_elicitation(mut self, enable: bool) -> Self {
         self.request_elicitation = Some(enable);
@@ -1448,16 +1409,6 @@ impl SessionConfig {
         S: Into<String>,
     {
         self.disabled_skills = Some(names.into_iter().map(Into::into).collect());
-        self
-    }
-
-    /// Set the names of MCP servers to disable.
-    pub fn with_disabled_mcp_servers<I, S>(mut self, names: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.disabled_mcp_servers = Some(names.into_iter().map(Into::into).collect());
         self
     }
 
@@ -1559,6 +1510,9 @@ pub struct ResumeSessionConfig {
     /// Client-defined tools to re-supply on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
+    /// Allowlist of tool names the agent may use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
@@ -1577,14 +1531,6 @@ pub struct ResumeSessionConfig {
     /// Enable permission request RPCs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_permission: Option<bool>,
-    /// Enable exit-plan-mode request RPCs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_exit_plan_mode: Option<bool>,
-    /// Enable auto-mode-switch request RPCs on resume. Defaults to
-    /// `Some(true)` via [`ResumeSessionConfig::new`]. See
-    /// [`SessionConfig::request_auto_mode_switch`] for details.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_switch: Option<bool>,
     /// Advertise elicitation provider capability on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
@@ -1595,6 +1541,9 @@ pub struct ResumeSessionConfig {
     /// resume. Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
+    /// Skill names to disable on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hooks: Option<bool>,
@@ -1672,17 +1621,17 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
+            .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("env_value_mode", &self.env_value_mode)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("request_user_input", &self.request_user_input)
             .field("request_permission", &self.request_permission)
-            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
-            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
+            .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
             .field("default_agent", &self.default_agent)
@@ -1729,17 +1678,17 @@ impl ResumeSessionConfig {
             streaming: None,
             system_message: None,
             tools: None,
+            available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
             env_value_mode: None,
             enable_config_discovery: None,
             request_user_input: Some(true),
             request_permission: Some(true),
-            request_exit_plan_mode: Some(true),
-            request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
             skill_directories: None,
             instruction_directories: None,
+            disabled_skills: None,
             hooks: None,
             custom_agents: None,
             default_agent: None,
@@ -1858,6 +1807,16 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set the allowlist of tool names the agent may use.
+    pub fn with_available_tools<I, S>(mut self, tools: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.available_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set the blocklist of built-in tool names the agent must not use.
     pub fn with_excluded_tools<I, S>(mut self, tools: I) -> Self
     where
@@ -1899,18 +1858,6 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
-        self.request_exit_plan_mode = Some(enable);
-        self
-    }
-
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
-        self.request_auto_mode_switch = Some(enable);
-        self
-    }
-
     /// Advertise elicitation provider capability on resume. Defaults to `Some(true)`.
     pub fn with_request_elicitation(mut self, enable: bool) -> Self {
         self.request_elicitation = Some(enable);
@@ -1936,6 +1883,16 @@ impl ResumeSessionConfig {
         P: Into<PathBuf>,
     {
         self.instruction_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the names of skills to disable on resume.
+    pub fn with_disabled_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_skills = Some(names.into_iter().map(Into::into).collect());
         self
     }
 
@@ -2729,6 +2686,21 @@ impl ToolInvocation {
     }
 }
 
+/// Binary content returned by a tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolBinaryResult {
+    /// Base64-encoded binary data.
+    pub data: String,
+    /// MIME type for the binary data.
+    pub mime_type: String,
+    /// Type identifier for the binary result.
+    pub r#type: String,
+    /// Optional description shown alongside the binary result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// Expanded tool result with metadata for the LLM and session log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2737,12 +2709,18 @@ pub struct ToolResultExpanded {
     pub text_result_for_llm: String,
     /// `"success"` or `"failure"`.
     pub result_type: String,
+    /// Binary payloads sent back to the LLM.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binary_results_for_llm: Option<Vec<ToolBinaryResult>>,
     /// Optional log message for the session timeline.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_log: Option<String>,
     /// Error message, if the tool failed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Tool-specific telemetry emitted with the result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_telemetry: Option<HashMap<String, Value>>,
 }
 
 /// Result of a tool invocation — either a plain text string or an expanded result.
@@ -3025,39 +3003,6 @@ pub struct PermissionRequestData {
     pub extra: Value,
 }
 
-/// Data sent by the CLI with an `exitPlanMode.request` RPC call.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExitPlanModeData {
-    /// Markdown summary of the plan presented to the user.
-    #[serde(default)]
-    pub summary: String,
-    /// Full plan content (e.g. the plan.md body), if available.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plan_content: Option<String>,
-    /// Allowed exit actions (e.g. "interactive", "autopilot", "autopilot_fleet").
-    #[serde(default)]
-    pub actions: Vec<String>,
-    /// Which action the CLI recommends, defaults to "autopilot".
-    #[serde(default = "default_recommended_action")]
-    pub recommended_action: String,
-}
-
-fn default_recommended_action() -> String {
-    "autopilot".to_string()
-}
-
-impl Default for ExitPlanModeData {
-    fn default() -> Self {
-        Self {
-            summary: String::new(),
-            plan_content: None,
-            actions: Vec::new(),
-            recommended_action: default_recommended_action(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -3105,8 +3050,6 @@ mod tests {
         let cfg = SessionConfig::default();
         assert_eq!(cfg.request_user_input, Some(true));
         assert_eq!(cfg.request_permission, Some(true));
-        assert_eq!(cfg.request_exit_plan_mode, Some(true));
-        assert_eq!(cfg.request_auto_mode_switch, Some(true));
         assert_eq!(cfg.request_elicitation, Some(true));
     }
 
@@ -3115,8 +3058,6 @@ mod tests {
         let cfg = ResumeSessionConfig::new(SessionId::from("test-id"));
         assert_eq!(cfg.request_user_input, Some(true));
         assert_eq!(cfg.request_permission, Some(true));
-        assert_eq!(cfg.request_exit_plan_mode, Some(true));
-        assert_eq!(cfg.request_auto_mode_switch, Some(true));
         assert_eq!(cfg.request_elicitation, Some(true));
     }
 
@@ -3139,7 +3080,6 @@ mod tests {
             .with_request_user_input(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
-            .with_disabled_mcp_servers(["broken-server"])
             .with_agent("researcher")
             .with_config_dir(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
@@ -3188,12 +3128,14 @@ mod tests {
             .with_client_name("test-app")
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
+            .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
             .with_env_value_mode("indirect")
             .with_enable_config_discovery(true)
             .with_request_user_input(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
+            .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
             .with_config_dir(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
@@ -3207,6 +3149,10 @@ mod tests {
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(
+            cfg.available_tools.as_deref(),
+            Some(&["bash".to_string(), "view".to_string()][..])
+        );
+        assert_eq!(
             cfg.excluded_tools.as_deref(),
             Some(&["dangerous".to_string()][..])
         );
@@ -3218,6 +3164,10 @@ mod tests {
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])
+        );
+        assert_eq!(
+            cfg.disabled_skills.as_deref(),
+            Some(&["broken-skill".to_string()][..])
         );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
         assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
@@ -3245,8 +3195,7 @@ mod tests {
     }
 
     /// `instruction_directories` must serialize to wire as
-    /// `instructionDirectories` on `SessionConfig`. Cross-SDK parity field
-    /// (Node/Python pass it through to the CLI verbatim).
+    /// `instructionDirectories` on `SessionConfig`.
     #[test]
     fn session_config_serializes_instruction_directories_to_camel_case() {
         let cfg =
