@@ -802,6 +802,7 @@ export class CopilotClient {
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
                 provider: config.provider ? toWireProviderConfig(config.provider) : undefined,
+                enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
@@ -933,6 +934,7 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
+                enableSessionTelemetry: config.enableSessionTelemetry,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,
