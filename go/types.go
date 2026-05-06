@@ -570,7 +570,10 @@ type SessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
-	// When false, disables internal session telemetry for this session.
+	// EnableSessionTelemetry enables or disables internal session telemetry.
+	// When false, disables session telemetry. When nil (the default) or true,
+	// telemetry remains enabled. This is independent of the OpenTelemetry
+	// configuration in CopilotClientOptions.
 	EnableSessionTelemetry *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
@@ -762,7 +765,10 @@ type ResumeSessionConfig struct {
 	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
-	// When false, disables internal session telemetry for this session.
+	// EnableSessionTelemetry enables or disables internal session telemetry.
+	// When false, disables session telemetry. When nil (the default) or true,
+	// telemetry remains enabled. This is independent of the OpenTelemetry
+	// configuration in CopilotClientOptions.
 	EnableSessionTelemetry *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
