@@ -10,7 +10,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWrite
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{Instrument, debug, error, warn};
 
-use crate::{Error, ProtocolError};
+use crate::{Error, ProtocolError, elapsed_ms};
 
 /// A JSON-RPC 2.0 request message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,10 +148,6 @@ impl JsonRpcResponse {
 }
 
 const CONTENT_LENGTH_HEADER: &str = "Content-Length: ";
-
-fn elapsed_ms(start: Instant) -> u128 {
-    start.elapsed().as_millis()
-}
 
 /// One framed JSON-RPC message handed to the writer actor.
 ///

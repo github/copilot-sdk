@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
+from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
@@ -61,27 +62,6 @@ from .generated.session_events import (
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
-
-
-def _elapsed_ms(start: float) -> float:
-    return (time.perf_counter() - start) * 1000
-
-
-def _log_timing(
-    level: int,
-    message: str,
-    start: float,
-    *,
-    exc_info: bool = False,
-    **fields: Any,
-) -> None:
-    if logger.isEnabledFor(level):
-        logger.log(
-            level,
-            message,
-            extra={"elapsed_ms": _elapsed_ms(start), **fields},
-            exc_info=exc_info,
-        )
 
 
 if TYPE_CHECKING:
@@ -1198,7 +1178,8 @@ class CopilotSession:
         rpc_start = time.perf_counter()
         response = await self._client.request("session.send", params)
         message_id = response["messageId"]
-        _log_timing(
+        log_timing(
+            logger,
             logging.INFO,
             "CopilotSession.send completed successfully",
             rpc_start,
@@ -1261,14 +1242,16 @@ class CopilotSession:
                     last_assistant_message = event
                     if not first_assistant_message_logged:
                         first_assistant_message_logged = True
-                        _log_timing(
+                        log_timing(
+                            logger,
                             logging.DEBUG,
                             "CopilotSession.send_and_wait first assistant message",
                             total_start,
                             session_id=self.session_id,
                         )
                 case SessionIdleData():
-                    _log_timing(
+                    log_timing(
+                        logger,
                         logging.DEBUG,
                         "CopilotSession.send_and_wait idle received",
                         total_start,
@@ -1289,7 +1272,8 @@ class CopilotSession:
             )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)
             if error_event:
-                _log_timing(
+                log_timing(
+                    logger,
                     logging.WARNING,
                     "CopilotSession.send_and_wait failed",
                     total_start,
@@ -1297,7 +1281,8 @@ class CopilotSession:
                     completed_by="error",
                 )
                 raise error_event
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotSession.send_and_wait complete",
                 total_start,
@@ -1307,7 +1292,8 @@ class CopilotSession:
             )
             return last_assistant_message
         except TimeoutError:
-            _log_timing(
+            log_timing(
+                logger,
                 logging.WARNING,
                 "CopilotSession.send_and_wait failed",
                 total_start,
@@ -1380,7 +1366,8 @@ class CopilotSession:
                 handler(event)
             except Exception:
                 logger.error("Unhandled exception in session event handler", exc_info=True)
-        _log_timing(
+        log_timing(
+            logger,
             logging.DEBUG,
             "CopilotSession._dispatch_event dispatch",
             dispatch_start,
@@ -1512,7 +1499,8 @@ class CopilotSession:
                 result = handler(invocation)
                 if inspect.isawaitable(result):
                     result = await result
-                _log_timing(
+                log_timing(
+                    logger,
                     logging.INFO,
                     "CopilotSession._execute_tool_and_respond tool dispatch",
                     handler_start,
@@ -1545,7 +1533,8 @@ class CopilotSession:
                         error=tool_result.error,
                     )
                 )
-                _log_timing(
+                log_timing(
+                    logger,
                     logging.DEBUG,
                     "CopilotSession._execute_tool_and_respond response sent successfully",
                     rpc_start,
@@ -1567,7 +1556,8 @@ class CopilotSession:
                         ),
                     )
                 )
-                _log_timing(
+                log_timing(
+                    logger,
                     logging.DEBUG,
                     "CopilotSession._execute_tool_and_respond response sent successfully",
                     rpc_start,
@@ -1599,7 +1589,8 @@ class CopilotSession:
             result = handler(permission_request, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotSession._execute_permission_and_respond dispatch",
                 handler_start,
@@ -1622,7 +1613,8 @@ class CopilotSession:
                     result=perm_result,
                 )
             )
-            _log_timing(
+            log_timing(
+                logger,
                 logging.DEBUG,
                 "CopilotSession._execute_permission_and_respond response sent successfully",
                 rpc_start,
@@ -1676,7 +1668,8 @@ class CopilotSession:
             result = handler(ctx)
             if inspect.isawaitable(result):
                 await result
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotSession._execute_command_and_respond dispatch",
                 handler_start,
@@ -1688,7 +1681,8 @@ class CopilotSession:
             await self.rpc.commands.handle_pending_command(
                 CommandsHandlePendingCommandRequest(request_id=request_id)
             )
-            _log_timing(
+            log_timing(
+                logger,
                 logging.DEBUG,
                 "CopilotSession._execute_command_and_respond response sent successfully",
                 rpc_start,
@@ -1727,7 +1721,8 @@ class CopilotSession:
             result = handler(context)
             if inspect.isawaitable(result):
                 result = await result
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotSession._handle_elicitation_request dispatch",
                 handler_start,
@@ -1747,7 +1742,8 @@ class CopilotSession:
                     result=rpc_result,
                 )
             )
-            _log_timing(
+            log_timing(
+                logger,
                 logging.DEBUG,
                 "CopilotSession._handle_elicitation_request response sent successfully",
                 rpc_start,
@@ -1893,7 +1889,8 @@ class CopilotSession:
             result = handler(request, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotSession._handle_permission_request dispatch",
                 handler_start,
@@ -1957,7 +1954,8 @@ class CopilotSession:
             )
             if inspect.isawaitable(result):
                 result = await result
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotSession._handle_user_input_request dispatch",
                 handler_start,
@@ -2013,7 +2011,8 @@ class CopilotSession:
                     result[section_id] = {"content": content}
             else:
                 result[section_id] = {"content": content}
-        _log_timing(
+        log_timing(
+            logger,
             logging.INFO,
             "CopilotSession._handle_system_message_transform dispatch",
             transform_start,
@@ -2059,7 +2058,8 @@ class CopilotSession:
             result = handler(input_data, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotSession._handle_hooks_invoke dispatch",
                 handler_start,

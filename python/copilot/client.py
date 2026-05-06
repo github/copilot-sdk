@@ -31,6 +31,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Literal, TypedDict, cast, overload
 
+from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context, trace_context
@@ -774,27 +775,6 @@ NO_RESULT_PERMISSION_V2_ERROR = (
 MIN_PROTOCOL_VERSION = 2
 
 
-def _elapsed_ms(start: float) -> float:
-    return (time.perf_counter() - start) * 1000
-
-
-def _log_timing(
-    level: int,
-    message: str,
-    start: float,
-    *,
-    exc_info: bool = False,
-    **fields: Any,
-) -> None:
-    if logger.isEnabledFor(level):
-        logger.log(
-            level,
-            message,
-            extra={"elapsed_ms": _elapsed_ms(start), **fields},
-            exc_info=exc_info,
-        )
-
-
 def _get_bundled_cli_path() -> str | None:
     """Get the path to the bundled CLI binary, if available."""
     # The binary is bundled in copilot/bin/ within the package
@@ -1112,7 +1092,8 @@ class CopilotClient:
 
             # Connect to the server
             await self._connect_to_server()
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotClient.start transport setup complete",
                 start_time,
@@ -1120,7 +1101,8 @@ class CopilotClient:
 
             # Verify protocol version compatibility
             await self._verify_protocol_version()
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotClient.start protocol verification complete",
                 start_time,
@@ -1129,14 +1111,16 @@ class CopilotClient:
             if self._session_fs_config:
                 session_fs_start = time.perf_counter()
                 await self._set_session_fs_provider()
-                _log_timing(
+                log_timing(
+                    logger,
                     logging.INFO,
                     "CopilotClient.start session filesystem setup complete",
                     session_fs_start,
                 )
 
             self._state = "connected"
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotClient.start complete",
                 start_time,
@@ -1144,7 +1128,8 @@ class CopilotClient:
         except ProcessExitedError as e:
             # Process exited with error - reraise as RuntimeError with stderr
             self._state = "error"
-            _log_timing(
+            log_timing(
+                logger,
                 logging.WARNING,
                 "CopilotClient.start failed",
                 start_time,
@@ -1153,7 +1138,8 @@ class CopilotClient:
             raise RuntimeError(str(e)) from None
         except Exception as e:
             self._state = "error"
-            _log_timing(
+            log_timing(
+                logger,
                 logging.WARNING,
                 "CopilotClient.start failed",
                 start_time,
@@ -1587,7 +1573,8 @@ class CopilotClient:
             session.on(on_event)
         with self._sessions_lock:
             self._sessions[actual_session_id] = session
-        _log_timing(
+        log_timing(
+            logger,
             logging.DEBUG,
             "CopilotClient.create_session local setup complete",
             setup_start,
@@ -1600,7 +1587,8 @@ class CopilotClient:
         try:
             rpc_start = time.perf_counter()
             response = await self._client.request("session.create", payload)
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotClient.create_session session creation request completed successfully",
                 rpc_start,
@@ -1613,7 +1601,8 @@ class CopilotClient:
             with self._sessions_lock:
                 self._sessions.pop(actual_session_id, None)
             if not isinstance(exc, asyncio.CancelledError):
-                _log_timing(
+                log_timing(
+                    logger,
                     logging.WARNING,
                     "CopilotClient.create_session failed",
                     total_start,
@@ -1622,7 +1611,8 @@ class CopilotClient:
                 )
             raise
 
-        _log_timing(
+        log_timing(
+            logger,
             logging.INFO,
             "CopilotClient.create_session complete",
             total_start,
@@ -1908,7 +1898,8 @@ class CopilotClient:
             session.on(on_event)
         with self._sessions_lock:
             self._sessions[session_id] = session
-        _log_timing(
+        log_timing(
+            logger,
             logging.DEBUG,
             "CopilotClient.resume_session local setup complete",
             setup_start,
@@ -1921,7 +1912,8 @@ class CopilotClient:
         try:
             rpc_start = time.perf_counter()
             response = await self._client.request("session.resume", payload)
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotClient.resume_session session resume request completed successfully",
                 rpc_start,
@@ -1934,7 +1926,8 @@ class CopilotClient:
             with self._sessions_lock:
                 self._sessions.pop(session_id, None)
             if not isinstance(exc, asyncio.CancelledError):
-                _log_timing(
+                log_timing(
+                    logger,
                     logging.WARNING,
                     "CopilotClient.resume_session failed",
                     total_start,
@@ -1943,7 +1936,8 @@ class CopilotClient:
                 )
             raise
 
-        _log_timing(
+        log_timing(
+            logger,
             logging.INFO,
             "CopilotClient.resume_session complete",
             total_start,
@@ -2387,7 +2381,8 @@ class CopilotClient:
             )
 
         self._negotiated_protocol_version = server_version
-        _log_timing(
+        log_timing(
+            logger,
             logging.INFO,
             "CopilotClient._verify_protocol_version protocol handshake complete",
             handshake_start,
@@ -2599,7 +2594,8 @@ class CopilotClient:
                 env=env,
                 creationflags=creationflags,
             )
-        _log_timing(
+        log_timing(
+            logger,
             logging.INFO,
             "CopilotClient._start_cli_server subprocess spawned",
             spawn_start,
@@ -2631,7 +2627,8 @@ class CopilotClient:
         try:
             port_wait_start = time.perf_counter()
             await asyncio.wait_for(read_port(), timeout=10.0)
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotClient._start_cli_server TCP port wait complete",
                 port_wait_start,
@@ -2655,7 +2652,8 @@ class CopilotClient:
             await self._connect_via_stdio()
         else:
             await self._connect_via_tcp()
-        _log_timing(
+        log_timing(
+            logger,
             logging.INFO,
             "CopilotClient._connect_to_server transport setup complete",
             setup_start,
@@ -2742,7 +2740,8 @@ class CopilotClient:
             )
             sock.connect((self._actual_host, self._actual_port))
             sock.settimeout(None)  # Remove timeout after connection
-            _log_timing(
+            log_timing(
+                logger,
                 logging.INFO,
                 "CopilotClient._connect_via_tcp TCP connect complete",
                 tcp_connect_start,
@@ -2968,7 +2967,8 @@ class CopilotClient:
                 result = handler(invocation)
                 if inspect.isawaitable(result):
                     result = await result
-                _log_timing(
+                log_timing(
+                    logger,
                     logging.INFO,
                     "CopilotClient._handle_tool_call_request_v2 tool dispatch",
                     handler_start,

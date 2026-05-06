@@ -12,11 +12,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::elapsed_ms;
 use crate::types::SessionId;
-
-fn elapsed_ms(start: Instant) -> u128 {
-    start.elapsed().as_millis()
-}
 
 /// Context provided to every hook invocation.
 #[derive(Debug, Clone)]

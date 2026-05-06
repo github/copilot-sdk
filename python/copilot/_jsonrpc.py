@@ -15,6 +15,8 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from ._diagnostics import elapsed_ms
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,10 +39,6 @@ class ProcessExitedError(Exception):
 RequestHandler = Callable[[dict], dict | Awaitable[dict]]
 
 
-def _elapsed_ms(start: float) -> float:
-    return (time.perf_counter() - start) * 1000
-
-
 def _log_request_timing(
     level: int,
     start: float,
@@ -55,7 +53,7 @@ def _log_request_timing(
             level,
             "JsonRpcClient.request JSON-RPC request finished",
             extra={
-                "elapsed_ms": _elapsed_ms(start),
+                "elapsed_ms": elapsed_ms(start),
                 "method": method,
                 "request_id": request_id,
                 "status": status,

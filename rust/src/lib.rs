@@ -70,7 +70,7 @@ pub use subscription::{EventSubscription, Lagged, LifecycleSubscription, RecvErr
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 2;
 
-fn elapsed_ms(start: Instant) -> u128 {
+pub(crate) fn elapsed_ms(start: Instant) -> u128 {
     start.elapsed().as_millis()
 }
 

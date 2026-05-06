@@ -32,11 +32,9 @@ use crate::types::{
     SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation, ToolResult,
     ToolResultResponse, TraceContext, ensure_attachment_display_names,
 };
-use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
-
-fn elapsed_ms(start: Instant) -> u128 {
-    start.elapsed().as_millis()
-}
+use crate::{
+    Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, elapsed_ms, error_codes,
+};
 
 /// Shared state between a [`Session`] and its event loop, used by [`Session::send_and_wait`].
 struct IdleWaiter {
