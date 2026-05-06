@@ -2477,6 +2477,7 @@ internal sealed class SessionUsageGetMetricsRequest
 }
 
 /// <summary>RPC data type for RemoteEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class RemoteEnableResult
 {
     /// <summary>Whether remote steering is enabled.</summary>
@@ -2489,6 +2490,7 @@ public sealed class RemoteEnableResult
 }
 
 /// <summary>RPC data type for SessionRemoteEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionRemoteEnableRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2497,6 +2499,7 @@ internal sealed class SessionRemoteEnableRequest
 }
 
 /// <summary>RPC data type for SessionRemoteDisable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionRemoteDisableRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -4196,6 +4199,7 @@ public sealed class UsageApi
 }
 
 /// <summary>Provides session-scoped Remote APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class RemoteApi
 {
     private readonly JsonRpc _rpc;

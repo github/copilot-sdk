@@ -1477,6 +1477,7 @@ export interface PluginList {
   plugins: Plugin[];
 }
 
+/** @experimental */
 export interface RemoteEnableResult {
   /**
    * Mission Control frontend URL for this session
@@ -2506,8 +2507,6 @@ export function createServerRpc(connection: MessageConnection) {
     return {
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
-        connect: async (params: ConnectRequest): Promise<ConnectResult> =>
-            connection.sendRequest("connect", params),
         models: {
             list: async (params?: ModelsListRequest): Promise<ModelList> =>
                 connection.sendRequest("models.list", params),
@@ -2735,6 +2734,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             getMetrics: async (): Promise<UsageGetMetricsResult> =>
                 connection.sendRequest("session.usage.getMetrics", { sessionId }),
         },
+        /** @experimental */
         remote: {
             enable: async (): Promise<RemoteEnableResult> =>
                 connection.sendRequest("session.remote.enable", { sessionId }),

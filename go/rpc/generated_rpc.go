@@ -159,6 +159,8 @@ type RPCTypes struct {
 	PlanUpdateResult                                         PlanUpdateResult                                         `json:"PlanUpdateResult"`
 	Plugin                                                   PluginElement                                            `json:"Plugin"`
 	PluginList                                               PluginList                                               `json:"PluginList"`
+	RemoteDisableResult                                      RemoteDisableResult                                      `json:"RemoteDisableResult"`
+	RemoteEnableResult                                       RemoteEnableResult                                       `json:"RemoteEnableResult"`
 	ServerSkill                                              ServerSkill                                              `json:"ServerSkill"`
 	ServerSkillList                                          ServerSkillList                                          `json:"ServerSkillList"`
 	SessionAuthStatus                                        SessionAuthStatus                                        `json:"SessionAuthStatus"`
@@ -246,7 +248,6 @@ type RPCTypes struct {
 	UIElicitationStringOneOfField                            UIElicitationStringOneOfField                            `json:"UIElicitationStringOneOfField"`
 	UIElicitationStringOneOfFieldOneOf                       UIElicitationStringOneOfFieldOneOf                       `json:"UIElicitationStringOneOfFieldOneOf"`
 	UIHandlePendingElicitationRequest                        UIHandlePendingElicitationRequest                        `json:"UIHandlePendingElicitationRequest"`
-	RemoteEnableResult                                       RemoteEnableResult                                       `json:"RemoteEnableResult"`
 	UsageGetMetricsResult                                    UsageGetMetricsResult                                    `json:"UsageGetMetricsResult"`
 	UsageMetricsCodeChanges                                  UsageMetricsCodeChanges                                  `json:"UsageMetricsCodeChanges"`
 	UsageMetricsModelMetric                                  UsageMetricsModelMetric                                  `json:"UsageMetricsModelMetric"`
@@ -1267,6 +1268,18 @@ type PluginList struct {
 	Plugins []PluginElement `json:"plugins"`
 }
 
+// Experimental: RemoteDisableResult is part of an experimental API and may change or be removed.
+type RemoteDisableResult struct {
+}
+
+// Experimental: RemoteEnableResult is part of an experimental API and may change or be removed.
+type RemoteEnableResult struct {
+	// Whether remote steering is enabled
+	RemoteSteerable bool `json:"remoteSteerable"`
+	// Mission Control frontend URL for this session
+	URL *string `json:"url,omitempty"`
+}
+
 type ServerSkill struct {
 	// Description of what the skill does
 	Description string `json:"description"`
@@ -1946,13 +1959,6 @@ type UsageGetMetricsResult struct {
 	TotalPremiumRequestCost float64 `json:"totalPremiumRequestCost"`
 	// Raw count of user-initiated API requests
 	TotalUserRequests int64 `json:"totalUserRequests"`
-}
-
-type RemoteEnableResult struct {
-	// Mission Control frontend URL for this session
-	URL *string `json:"url,omitempty"`
-	// Whether remote steering is enabled
-	RemoteSteerable bool `json:"remoteSteerable"`
 }
 
 // Aggregated code change metrics
@@ -3671,6 +3677,7 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 	return &result, nil
 }
 
+// Experimental: RemoteApi contains experimental APIs that may change or be removed.
 type RemoteApi sessionApi
 
 func (a *RemoteApi) Enable(ctx context.Context) (*RemoteEnableResult, error) {
@@ -3686,10 +3693,17 @@ func (a *RemoteApi) Enable(ctx context.Context) (*RemoteEnableResult, error) {
 	return &result, nil
 }
 
-func (a *RemoteApi) Disable(ctx context.Context) error {
+func (a *RemoteApi) Disable(ctx context.Context) (*RemoteDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	_, err := a.client.Request("session.remote.disable", req)
-	return err
+	raw, err := a.client.Request("session.remote.disable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result RemoteDisableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 // SessionRpc provides typed session-scoped RPC methods.

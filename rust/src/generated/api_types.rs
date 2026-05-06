@@ -152,6 +152,10 @@ pub mod rpc_methods {
     pub const SESSION_HISTORY_TRUNCATE: &str = "session.history.truncate";
     /// `session.usage.getMetrics`
     pub const SESSION_USAGE_GETMETRICS: &str = "session.usage.getMetrics";
+    /// `session.remote.enable`
+    pub const SESSION_REMOTE_ENABLE: &str = "session.remote.enable";
+    /// `session.remote.disable`
+    pub const SESSION_REMOTE_DISABLE: &str = "session.remote.disable";
     /// `sessionFs.readFile`
     pub const SESSIONFS_READFILE: &str = "sessionFs.readFile";
     /// `sessionFs.writeFile`
@@ -1277,6 +1281,16 @@ pub struct Plugin {
 pub struct PluginList {
     /// Installed plugins
     pub plugins: Vec<Plugin>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteEnableResult {
+    /// Whether remote steering is enabled
+    pub remote_steerable: bool,
+    /// Mission Control frontend URL for this session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2732,6 +2746,30 @@ pub struct SessionUsageGetMetricsResult {
     pub total_premium_request_cost: f64,
     /// Raw count of user-initiated API requests
     pub total_user_requests: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRemoteEnableParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRemoteEnableResult {
+    /// Whether remote steering is enabled
+    pub remote_steerable: bool,
+    /// Mission Control frontend URL for this session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRemoteDisableParams {
+    /// Target session identifier
+    pub session_id: SessionId,
 }
 
 /// Authentication type
