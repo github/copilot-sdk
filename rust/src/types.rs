@@ -720,11 +720,8 @@ pub struct McpStdioServerConfig {
     /// Arguments to pass to the subprocess.
     #[serde(default)]
     pub args: Vec<String>,
-    /// Environment variables to set on the subprocess.
-    ///
-    /// Interpretation depends on the parent session's
-    /// `env_value_mode`: `"direct"` (default) treats values as literals;
-    /// `"indirect"` treats them as env-var names to look up at start time.
+    /// Environment variables to set on the subprocess. Values are passed
+    /// through literally to the child process.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub env: HashMap<String, String>,
     /// Working directory for the subprocess.
@@ -897,6 +894,14 @@ pub struct AzureProviderOptions {
     pub api_version: Option<String>,
 }
 
+/// Wire default for [`SessionConfig::env_value_mode`] /
+/// [`ResumeSessionConfig::env_value_mode`]. The runtime understands
+/// `"direct"` (literal values) or `"indirect"` (env-var lookup); the SDK
+/// only ever sends `"direct"`.
+fn default_env_value_mode() -> String {
+    "direct".into()
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -977,10 +982,11 @@ pub struct SessionConfig {
     /// MCP server configurations passed through to the CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
-    /// How the CLI interprets env values in MCP server configs.
-    /// `"direct"` = literal values; `"indirect"` = env var names to look up.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub env_value_mode: Option<String>,
+    /// Wire-format hint for MCP `env` map values. The runtime understands
+    /// `"direct"` (literal values) and `"indirect"` (env-var lookup); the
+    /// SDK only ever sends `"direct"` and consumers don't have a knob.
+    #[serde(default = "default_env_value_mode", skip_deserializing)]
+    pub(crate) env_value_mode: String,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
@@ -1027,10 +1033,6 @@ pub struct SessionConfig {
     /// even if found in skill directories.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
-    /// MCP server names to disable. Servers in this set will not be
-    /// started or connected.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disabled_mcp_servers: Option<Vec<String>>,
     /// Enable session hooks. When `true`, the CLI sends `hooks.invoke`
     /// RPC requests at key lifecycle points (pre/post tool use, prompt
     /// submission, session start/end, errors).
@@ -1124,7 +1126,6 @@ impl std::fmt::Debug for SessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
-            .field("env_value_mode", &self.env_value_mode)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("request_user_input", &self.request_user_input)
             .field("request_permission", &self.request_permission)
@@ -1134,7 +1135,6 @@ impl std::fmt::Debug for SessionConfig {
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
-            .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
             .field("default_agent", &self.default_agent)
@@ -1186,7 +1186,7 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
-            env_value_mode: None,
+            env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
             request_user_input: Some(true),
             request_permission: Some(true),
@@ -1196,7 +1196,6 @@ impl Default for SessionConfig {
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
-            disabled_mcp_servers: None,
             hooks: None,
             custom_agents: None,
             default_agent: None,
@@ -1376,13 +1375,6 @@ impl SessionConfig {
         self
     }
 
-    /// Set how the CLI interprets env values in MCP server configs
-    /// (`"direct"` literal vs `"indirect"` env var name lookup).
-    pub fn with_env_value_mode(mut self, mode: impl Into<String>) -> Self {
-        self.env_value_mode = Some(mode.into());
-        self
-    }
-
     /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
@@ -1448,16 +1440,6 @@ impl SessionConfig {
         S: Into<String>,
     {
         self.disabled_skills = Some(names.into_iter().map(Into::into).collect());
-        self
-    }
-
-    /// Set the names of MCP servers to disable.
-    pub fn with_disabled_mcp_servers<I, S>(mut self, names: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.disabled_mcp_servers = Some(names.into_iter().map(Into::into).collect());
         self
     }
 
@@ -1565,9 +1547,9 @@ pub struct ResumeSessionConfig {
     /// Re-supply MCP servers so they remain available after app restart.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
-    /// How the CLI interprets env values in MCP configs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub env_value_mode: Option<String>,
+    /// See [`SessionConfig::env_value_mode`]. Always `"direct"` on the wire.
+    #[serde(default = "default_env_value_mode", skip_deserializing)]
+    pub(crate) env_value_mode: String,
     /// Enable config discovery on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
@@ -1674,7 +1656,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("tools", &self.tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
-            .field("env_value_mode", &self.env_value_mode)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("request_user_input", &self.request_user_input)
             .field("request_permission", &self.request_permission)
@@ -1731,7 +1712,7 @@ impl ResumeSessionConfig {
             tools: None,
             excluded_tools: None,
             mcp_servers: None,
-            env_value_mode: None,
+            env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
             request_user_input: Some(true),
             request_permission: Some(true),
@@ -1871,13 +1852,6 @@ impl ResumeSessionConfig {
     /// Re-supply MCP server configurations on resume.
     pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
-        self
-    }
-
-    /// Set how the CLI interprets env values in MCP configs (`"direct"` /
-    /// `"indirect"`).
-    pub fn with_env_value_mode(mut self, mode: impl Into<String>) -> Self {
-        self.env_value_mode = Some(mode.into());
         self
     }
 
@@ -3134,12 +3108,10 @@ mod tests {
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
-            .with_env_value_mode("direct")
             .with_enable_config_discovery(true)
             .with_request_user_input(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
-            .with_disabled_mcp_servers(["broken-server"])
             .with_agent("researcher")
             .with_config_dir(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
@@ -3161,7 +3133,6 @@ mod tests {
             Some(&["dangerous".to_string()][..])
         );
         assert!(cfg.mcp_servers.is_some());
-        assert_eq!(cfg.env_value_mode.as_deref(), Some("direct"));
         assert_eq!(cfg.enable_config_discovery, Some(true));
         assert_eq!(cfg.request_user_input, Some(false)); // overrode default
         assert_eq!(cfg.request_permission, Some(true)); // default preserved
@@ -3190,7 +3161,6 @@ mod tests {
             .with_tools([Tool::new("greet")])
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
-            .with_env_value_mode("indirect")
             .with_enable_config_discovery(true)
             .with_request_user_input(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
@@ -3211,7 +3181,6 @@ mod tests {
             Some(&["dangerous".to_string()][..])
         );
         assert!(cfg.mcp_servers.is_some());
-        assert_eq!(cfg.env_value_mode.as_deref(), Some("indirect"));
         assert_eq!(cfg.enable_config_discovery, Some(true));
         assert_eq!(cfg.request_user_input, Some(false)); // overrode default
         assert_eq!(cfg.request_permission, Some(true)); // default preserved

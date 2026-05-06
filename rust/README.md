@@ -105,23 +105,35 @@ let messages = session.get_messages().await?;
 session.abort().await?;
 
 // Model management
-let model = session.get_model().await?;
+let model = session.rpc().model().get_current().await?;
 session.set_model("claude-sonnet-4.5", None).await?;
 
 // Mode management (interactive, plan, autopilot)
-let mode = session.get_mode().await?;
-session.set_mode("autopilot").await?;
+let mode = session.rpc().mode().get().await?;
+session.rpc().mode().set(ModeSetRequest { mode: SessionMode::Autopilot }).await?;
 
 // Workspace files
-let files = session.list_workspace_files().await?;
-let content = session.read_workspace_file("plan.md").await?;
+let files = session.rpc().workspaces().list_files().await?;
+let content = session
+    .rpc()
+    .workspaces()
+    .read_file(WorkspacesReadFileRequest { path: "plan.md".into() })
+    .await?;
 
 // Plan management
-let (exists, content) = session.read_plan().await?;
-session.update_plan("Updated plan content").await?;
+let plan = session.rpc().plan().read().await?;
+session
+    .rpc()
+    .plan()
+    .update(PlanUpdateRequest { content: "Updated plan content".into() })
+    .await?;
 
 // Fleet (sub-agents)
-session.start_fleet(Some("Implement the auth module")).await?;
+session
+    .rpc()
+    .fleet()
+    .start(FleetStartRequest { prompt: Some("Implement the auth module".into()) })
+    .await?;
 
 // Cleanup (preserves on-disk session state for later resume)
 session.disconnect().await?;
