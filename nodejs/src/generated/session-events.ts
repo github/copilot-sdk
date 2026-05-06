@@ -10,6 +10,8 @@ export type SessionEvent =
   | ErrorEvent
   | IdleEvent
   | TitleChangedEvent
+  | ScheduleCreatedEvent
+  | ScheduleCancelledEvent
   | InfoEvent
   | WarningEvent
   | ModelChangeEvent
@@ -584,6 +586,80 @@ export interface TitleChangedData {
    * The new display title for the session
    */
   title: string;
+}
+export interface ScheduleCreatedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ScheduleCreatedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "session.schedule_created";
+}
+/**
+ * Scheduled prompt registered via /every
+ */
+export interface ScheduleCreatedData {
+  /**
+   * Sequential id assigned to the scheduled prompt within the session
+   */
+  id: number;
+  /**
+   * Interval between ticks in milliseconds
+   */
+  intervalMs: number;
+  /**
+   * Prompt text that gets enqueued on every tick
+   */
+  prompt: string;
+}
+export interface ScheduleCancelledEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ScheduleCancelledData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "session.schedule_cancelled";
+}
+/**
+ * Scheduled prompt cancelled from the schedule manager dialog
+ */
+export interface ScheduleCancelledData {
+  /**
+   * Id of the scheduled prompt that was cancelled
+   */
+  id: number;
 }
 export interface InfoEvent {
   /**
@@ -1952,6 +2028,10 @@ export interface AssistantMessageToolRequest {
    * Name of the MCP server hosting this tool, when the tool is an MCP tool
    */
   mcpServerName?: string;
+  /**
+   * Original tool name on the MCP server, when the tool is an MCP tool
+   */
+  mcpToolName?: string;
   /**
    * Name of the tool being invoked
    */

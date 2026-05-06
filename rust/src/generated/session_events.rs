@@ -21,6 +21,10 @@ pub enum SessionEventType {
     SessionIdle,
     #[serde(rename = "session.title_changed")]
     SessionTitleChanged,
+    #[serde(rename = "session.schedule_created")]
+    SessionScheduleCreated,
+    #[serde(rename = "session.schedule_cancelled")]
+    SessionScheduleCancelled,
     #[serde(rename = "session.info")]
     SessionInfo,
     #[serde(rename = "session.warning")]
@@ -188,6 +192,10 @@ pub enum SessionEventData {
     SessionIdle(SessionIdleData),
     #[serde(rename = "session.title_changed")]
     SessionTitleChanged(SessionTitleChangedData),
+    #[serde(rename = "session.schedule_created")]
+    SessionScheduleCreated(SessionScheduleCreatedData),
+    #[serde(rename = "session.schedule_cancelled")]
+    SessionScheduleCancelled(SessionScheduleCancelledData),
     #[serde(rename = "session.info")]
     SessionInfo(SessionInfoData),
     #[serde(rename = "session.warning")]
@@ -503,6 +511,26 @@ pub struct SessionIdleData {
 pub struct SessionTitleChangedData {
     /// The new display title for the session
     pub title: String,
+}
+
+/// Scheduled prompt registered via /every
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionScheduleCreatedData {
+    /// Sequential id assigned to the scheduled prompt within the session
+    pub id: i64,
+    /// Interval between ticks in milliseconds
+    pub interval_ms: i64,
+    /// Prompt text that gets enqueued on every tick
+    pub prompt: String,
+}
+
+/// Scheduled prompt cancelled from the schedule manager dialog
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionScheduleCancelledData {
+    /// Id of the scheduled prompt that was cancelled
+    pub id: i64,
 }
 
 /// Informational message for timeline display with categorization
@@ -1039,6 +1067,9 @@ pub struct AssistantMessageToolRequest {
     /// Name of the MCP server hosting this tool, when the tool is an MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server_name: Option<String>,
+    /// Original tool name on the MCP server, when the tool is an MCP tool
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_tool_name: Option<String>,
     /// Name of the tool being invoked
     pub name: String,
     /// Unique identifier for this tool call
