@@ -4,11 +4,12 @@
 //! [`on_event`](crate::handler::SessionHandler::on_event) to control how sessions respond to
 //! CLI events, permission requests, tool calls, and user input prompts.
 
+use async_trait::async_trait;
+
 use crate::types::{
     ElicitationRequest, ElicitationResult, PermissionRequestData, RequestId, SessionEvent,
     SessionId, ToolInvocation, ToolResult,
 };
-use async_trait::async_trait;
 
 /// Events dispatched by the SDK session event loop to the handler.
 ///
