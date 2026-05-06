@@ -5,37 +5,14 @@ All notable changes to the `github-copilot-sdk` crate will be documented in this
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-[release-plz](https://release-plz.dev/) prepends new entries from
-conventional-commit history. The 0.1.0 entry below was hand-curated so that
-crates.io readers got a usable summary of the public surface on first publish,
-not a flat list of merge commits.
+After 0.1.0 ships, [release-plz](https://release-plz.dev/) will prepend new
+entries from conventional-commit history. The Unreleased entry below is
+hand-curated so that crates.io readers get a usable summary of the public
+surface on first publish, not a flat list of merge commits — release-plz
+will rename `[Unreleased]` to `[0.1.0] - <date>` and add a fresh empty
+`[Unreleased]` above it when it cuts the first release PR.
 
 ## [Unreleased]
-
-### Removed
-
-- `SessionConfig::disabled_mcp_servers` and the `with_disabled_mcp_servers`
-  builder. The field was schema-undocumented, silently ignored by the runtime
-  on `session.create`, and absent from the Node, Python, Go, and .NET SDKs.
-  Disable individual MCP servers at runtime through the typed RPC surface
-  instead — `session.rpc().mcp().disable(...)` and
-  `session.rpc().mcp().config().disable(...)`.
-- `SessionConfig::env_value_mode` and `ResumeSessionConfig::env_value_mode`
-  (and their `with_env_value_mode` builders). The SDK now hardcodes
-  `envValueMode: "direct"` on every `session.create` and `session.resume`
-  payload, matching the wire behaviour of the Node, Python, Go, and .NET
-  SDKs. Subprocess MCP server `env` values are passed through to the child
-  process literally; callers no longer have a knob here.
-
-### README
-
-- The README's `Session` cheat-sheet showed several methods (`get_model`,
-  `get_mode` / `set_mode`, `list_workspace_files` / `read_workspace_file`,
-  `read_plan` / `update_plan`, `start_fleet`) as if they existed on
-  `Session` directly. They don't — the snippets now use the typed
-  `session.rpc().*` namespace.
-
-## [0.1.0] - 2026-05-06
 
 Initial public release. Programmatic Rust access to the GitHub Copilot CLI
 over JSON-RPC 2.0 (stdio or TCP), with handler-based event dispatch, typed

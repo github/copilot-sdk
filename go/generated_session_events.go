@@ -111,6 +111,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionScheduleCreated:
+		var d SessionScheduleCreatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionScheduleCancelled:
+		var d SessionScheduleCancelledData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionInfo:
 		var d SessionInfoData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -580,6 +592,8 @@ const (
 	SessionEventTypeSessionError                  SessionEventType = "session.error"
 	SessionEventTypeSessionIdle                   SessionEventType = "session.idle"
 	SessionEventTypeSessionTitleChanged           SessionEventType = "session.title_changed"
+	SessionEventTypeSessionScheduleCreated        SessionEventType = "session.schedule_created"
+	SessionEventTypeSessionScheduleCancelled      SessionEventType = "session.schedule_cancelled"
 	SessionEventTypeSessionInfo                   SessionEventType = "session.info"
 	SessionEventTypeSessionWarning                SessionEventType = "session.warning"
 	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
@@ -1216,6 +1230,26 @@ type SamplingRequestedData struct {
 
 func (*SamplingRequestedData) sessionEventData() {}
 
+// Scheduled prompt cancelled from the schedule manager dialog
+type SessionScheduleCancelledData struct {
+	// Id of the scheduled prompt that was cancelled
+	ID int64 `json:"id"`
+}
+
+func (*SessionScheduleCancelledData) sessionEventData() {}
+
+// Scheduled prompt registered via /every
+type SessionScheduleCreatedData struct {
+	// Sequential id assigned to the scheduled prompt within the session
+	ID int64 `json:"id"`
+	// Interval between ticks in milliseconds
+	IntervalMs int64 `json:"intervalMs"`
+	// Prompt text that gets enqueued on every tick
+	Prompt string `json:"prompt"`
+}
+
+func (*SessionScheduleCreatedData) sessionEventData() {}
+
 // Session capability change notification
 type CapabilitiesChangedData struct {
 	// UI capability changes
@@ -1796,6 +1830,8 @@ type AssistantMessageToolRequest struct {
 	IntentionSummary *string `json:"intentionSummary,omitempty"`
 	// Name of the MCP server hosting this tool, when the tool is an MCP tool
 	McpServerName *string `json:"mcpServerName,omitempty"`
+	// Original tool name on the MCP server, when the tool is an MCP tool
+	McpToolName *string `json:"mcpToolName,omitempty"`
 	// Name of the tool being invoked
 	Name string `json:"name"`
 	// Unique identifier for this tool call

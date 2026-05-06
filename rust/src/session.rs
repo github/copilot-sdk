@@ -19,8 +19,7 @@ use crate::generated::session_events::{
     SessionEventType,
 };
 use crate::handler::{
-    AutoModeSwitchResponse, ExitPlanModeResult, HandlerEvent, HandlerResponse, PermissionResult,
-    SessionHandler, UserInputResponse,
+    HandlerEvent, HandlerResponse, PermissionResult, SessionHandler, UserInputResponse,
 };
 use crate::hooks::SessionHooks;
 use crate::session_fs::SessionFsProvider;
@@ -28,10 +27,10 @@ use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
-    SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultResponse, TraceContext, ensure_attachment_display_names,
+    ElicitationResult, GetMessagesResponse, InputOptions, MessageOptions, PermissionRequestData,
+    RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities, SessionConfig,
+    SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation, ToolResult,
+    ToolResultResponse, TraceContext, ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -1475,82 +1474,6 @@ async fn handle_request(
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
                 result: Some(rpc_result),
-                error: None,
-            };
-            let _ = client.send_response(&rpc_response).await;
-        }
-
-        "exitPlanMode.request" => {
-            let params = request
-                .params
-                .as_ref()
-                .cloned()
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            let data: ExitPlanModeData = match serde_json::from_value(params) {
-                Ok(d) => d,
-                Err(e) => {
-                    warn!(error = %e, "failed to deserialize exitPlanMode.request params, using defaults");
-                    ExitPlanModeData::default()
-                }
-            };
-
-            let response = handler
-                .on_event(HandlerEvent::ExitPlanMode {
-                    session_id: sid,
-                    data,
-                })
-                .await;
-
-            let rpc_result = match response {
-                HandlerResponse::ExitPlanMode(ExitPlanModeResult {
-                    approved,
-                    selected_action,
-                    feedback,
-                }) => serde_json::json!({
-                    "approved": approved,
-                    "selectedAction": selected_action,
-                    "feedback": feedback,
-                }),
-                _ => serde_json::json!({ "approved": true }),
-            };
-            let rpc_response = JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(rpc_result),
-                error: None,
-            };
-            let _ = client.send_response(&rpc_response).await;
-        }
-
-        "autoModeSwitch.request" => {
-            let error_code = request
-                .params
-                .as_ref()
-                .and_then(|p| p.get("errorCode"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            let retry_after_seconds = request
-                .params
-                .as_ref()
-                .and_then(|p| p.get("retryAfterSeconds"))
-                .and_then(|v| v.as_u64());
-
-            let response = handler
-                .on_event(HandlerEvent::AutoModeSwitch {
-                    session_id: sid,
-                    error_code,
-                    retry_after_seconds,
-                })
-                .await;
-
-            let answer = match response {
-                HandlerResponse::AutoModeSwitch(answer) => answer,
-                _ => AutoModeSwitchResponse::No,
-            };
-            let rpc_response = JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(serde_json::json!({ "response": answer })),
                 error: None,
             };
             let _ = client.send_response(&rpc_response).await;
