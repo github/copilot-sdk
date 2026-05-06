@@ -74,6 +74,8 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
 [JsonDerivedType(typeof(SessionRemoteSteerableChangedEvent), "session.remote_steerable_changed")]
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
+[JsonDerivedType(typeof(SessionScheduleCancelledEvent), "session.schedule_cancelled")]
+[JsonDerivedType(typeof(SessionScheduleCreatedEvent), "session.schedule_created")]
 [JsonDerivedType(typeof(SessionShutdownEvent), "session.shutdown")]
 [JsonDerivedType(typeof(SessionSkillsLoadedEvent), "session.skills_loaded")]
 [JsonDerivedType(typeof(SessionSnapshotRewindEvent), "session.snapshot_rewind")]
@@ -219,6 +221,32 @@ public partial class SessionTitleChangedEvent : SessionEvent
     /// <summary>The <c>session.title_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionTitleChangedData Data { get; set; }
+}
+
+/// <summary>Scheduled prompt registered via /every.</summary>
+/// <remarks>Represents the <c>session.schedule_created</c> event.</remarks>
+public partial class SessionScheduleCreatedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.schedule_created";
+
+    /// <summary>The <c>session.schedule_created</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionScheduleCreatedData Data { get; set; }
+}
+
+/// <summary>Scheduled prompt cancelled from the schedule manager dialog.</summary>
+/// <remarks>Represents the <c>session.schedule_cancelled</c> event.</remarks>
+public partial class SessionScheduleCancelledEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.schedule_cancelled";
+
+    /// <summary>The <c>session.schedule_cancelled</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionScheduleCancelledData Data { get; set; }
 }
 
 /// <summary>Informational message for timeline display with categorization.</summary>
@@ -1312,6 +1340,30 @@ public partial class SessionTitleChangedData
     /// <summary>The new display title for the session.</summary>
     [JsonPropertyName("title")]
     public required string Title { get; set; }
+}
+
+/// <summary>Scheduled prompt registered via /every.</summary>
+public partial class SessionScheduleCreatedData
+{
+    /// <summary>Sequential id assigned to the scheduled prompt within the session.</summary>
+    [JsonPropertyName("id")]
+    public required long Id { get; set; }
+
+    /// <summary>Interval between ticks in milliseconds.</summary>
+    [JsonPropertyName("intervalMs")]
+    public required long IntervalMs { get; set; }
+
+    /// <summary>Prompt text that gets enqueued on every tick.</summary>
+    [JsonPropertyName("prompt")]
+    public required string Prompt { get; set; }
+}
+
+/// <summary>Scheduled prompt cancelled from the schedule manager dialog.</summary>
+public partial class SessionScheduleCancelledData
+{
+    /// <summary>Id of the scheduled prompt that was cancelled.</summary>
+    [JsonPropertyName("id")]
+    public required long Id { get; set; }
 }
 
 /// <summary>Informational message for timeline display with categorization.</summary>
@@ -3344,6 +3396,11 @@ public partial class AssistantMessageToolRequest
     [JsonPropertyName("mcpServerName")]
     public string? McpServerName { get; set; }
 
+    /// <summary>Original tool name on the MCP server, when the tool is an MCP tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mcpToolName")]
+    public string? McpToolName { get; set; }
+
     /// <summary>Name of the tool being invoked.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
@@ -5300,6 +5357,10 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(SessionRemoteSteerableChangedEvent))]
 [JsonSerializable(typeof(SessionResumeData))]
 [JsonSerializable(typeof(SessionResumeEvent))]
+[JsonSerializable(typeof(SessionScheduleCancelledData))]
+[JsonSerializable(typeof(SessionScheduleCancelledEvent))]
+[JsonSerializable(typeof(SessionScheduleCreatedData))]
+[JsonSerializable(typeof(SessionScheduleCreatedEvent))]
 [JsonSerializable(typeof(SessionShutdownData))]
 [JsonSerializable(typeof(SessionShutdownEvent))]
 [JsonSerializable(typeof(SessionSkillsLoadedData))]
