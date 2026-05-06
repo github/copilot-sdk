@@ -1958,6 +1958,66 @@ async fn request_elicitation_sent_in_create_params() {
 }
 
 #[tokio::test]
+async fn env_value_mode_hardcoded_direct_on_create_and_resume() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(request["params"]["envValueMode"], "direct");
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": "s-env-create" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            let cfg = ResumeSessionConfig::new(SessionId::from("s-env-create"))
+                .with_handler(Arc::new(NoopHandler));
+            client.resume_session(cfg).await.unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["envValueMode"], "direct");
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": "s-env-create" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    // resume_session also fires `session.skills.reload`; respond so resume can return.
+    let reload = read_framed(&mut server_read).await;
+    assert_eq!(reload["method"], "session.skills.reload");
+    let id = reload["id"].as_u64().unwrap();
+    let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn elicitation_methods_fail_without_capability() {
     let (session, _server) = create_session_pair(Arc::new(NoopHandler)).await;
 
