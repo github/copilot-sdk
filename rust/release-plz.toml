@@ -1,0 +1,35 @@
+[workspace]
+# release-plz config for the Rust github-copilot-sdk crate.
+#
+# The crate lives in the `rust/` subdirectory of the monorepo, so
+# invoke release-plz from this directory (via the release-plz workflows
+# under `.github/workflows/`). release-plz will:
+#
+#   1. `release-plz release-pr`: open a PR updating `rust/Cargo.toml`'s
+#      version and `rust/CHANGELOG.md` based on conventional-commit
+#      history on `tclem/rust-sdk-release-prep`-style branches.
+#   2. `release-plz release`: after that PR is merged to main, publish
+#      the tagged version to crates.io and create a `rust-vX.Y.Z` git
+#      tag.
+#
+# Publishing requires a `CARGO_REGISTRY_TOKEN` repository secret scoped
+# to the `github-copilot-sdk` crate owner account. See
+# `.github/workflows/rust-publish-release.yml` for the setup checklist.
+#
+# Reference: https://release-plz.dev/docs/config
+changelog_update = true
+dependencies_update = false
+git_release_enable = true
+# Prefix crate git tags so they don't collide with the monorepo's
+# top-level `vX.Y.Z` tags used by the other SDKs.
+git_tag_name = "rust-v{{ version }}"
+git_release_name = "rust-v{{ version }}"
+
+[[package]]
+name = "github-copilot-sdk"
+changelog_path = "CHANGELOG.md"
+# Mark pre-1.0 publishes as prereleases on the GitHub release page so
+# consumers don't pick them up as "stable" by default. Maintainers
+# should flip this (or remove it) when cutting 1.0.
+git_release_type = "auto"
+
