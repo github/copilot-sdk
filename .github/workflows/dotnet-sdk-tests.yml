@@ -41,7 +41,7 @@ jobs:
         shell: bash
         working-directory: ./dotnet
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
