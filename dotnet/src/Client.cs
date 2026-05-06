@@ -1341,6 +1341,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             : $"{message}\nstderr: {stderrOutput}";
     }
 
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "CopilotClient.StartCliServerAsync starting Copilot CLI. CliPath={CliPath}, Executable={Executable}, CliPathSource={CliPathSource}, UseStdio={UseStdio}, Port={Port}")]
+    private static partial void LogStartingCopilotCli(ILogger logger, string cliPath, string executable, string cliPathSource, bool useStdio, int? port);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "CopilotClient.ConnectToServerAsync connecting to CLI server. Host={Host}, Port={Port}")]
+    private static partial void LogConnectingToCliServer(ILogger logger, string host, int port);
+
     private static IOException CreateCliExitedException(string message, StringBuilder stderrBuffer)
     {
         string stderrOutput;
@@ -1494,13 +1504,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var (fileName, processArgs) = ResolveCliCommand(cliPath, args);
         var configuredPort = options.UseStdio == true ? (int?)null : options.Port;
-        logger.LogInformation(
-            "CopilotClient.StartCliServerAsync starting Copilot CLI. CliPath={CliPath}, Executable={Executable}, CliPathSource={CliPathSource}, UseStdio={UseStdio}, Port={Port}",
-            cliPath,
-            fileName,
-            cliPathSource,
-            options.UseStdio == true,
-            configuredPort);
+        LogStartingCopilotCli(logger, cliPath, fileName, cliPathSource, options.UseStdio == true, configuredPort);
 
         var startInfo = new ProcessStartInfo
         {
@@ -1698,7 +1702,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             try
             {
                 var tcpConnectTimestamp = Stopwatch.GetTimestamp();
-                _logger.LogInformation("CopilotClient.ConnectToServerAsync connecting to CLI server. Host={Host}, Port={Port}", tcpHost, tcpPort.Value);
+                LogConnectingToCliServer(_logger, tcpHost, tcpPort.Value);
                 await socket.ConnectAsync(tcpHost, tcpPort.Value, cancellationToken);
                 LogTiming(_logger, LogLevel.Information, null,
                     "CopilotClient.ConnectToServerAsync TCP connect complete. Elapsed={Elapsed}, Host={Host}, Port={Port}",
