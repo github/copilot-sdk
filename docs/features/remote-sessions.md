@@ -128,7 +128,9 @@ await session.rpc.remote.disable()
 <!-- docs-validate: skip -->
 ```go
 result, err := session.RPC.Remote.Enable(ctx)
-fmt.Println("Remote URL:", *result.URL)
+if result.URL != nil {
+    fmt.Println("Remote URL:", *result.URL)
+}
 
 // Later: stop sharing
 err = session.RPC.Remote.Disable(ctx)
