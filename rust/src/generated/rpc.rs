@@ -8,8 +8,7 @@
 #![allow(missing_docs)]
 #![allow(clippy::too_many_arguments)]
 
-use super::api_types::rpc_methods;
-use super::api_types::*;
+use super::api_types::{rpc_methods, *};
 use crate::session::Session;
 use crate::{Client, Error};
 
