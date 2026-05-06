@@ -102,6 +102,10 @@ final class CliServerManager {
             args.add(String.valueOf(options.getSessionIdleTimeoutSeconds()));
         }
 
+        if (options.isRemote()) {
+            args.add("--remote");
+        }
+
         List<String> command = resolveCliCommand(cliPath, args);
 
         var pb = new ProcessBuilder(command);

@@ -250,8 +250,37 @@ public class E2ETestContext implements AutoCloseable {
         Map<String, String> env = new HashMap<>(System.getenv());
         env.put("COPILOT_API_URL", proxyUrl);
         env.put("COPILOT_HOME", homeDir.toString());
+        env.put("GH_CONFIG_DIR", homeDir.toString());
         env.put("XDG_CONFIG_HOME", homeDir.toString());
         env.put("XDG_STATE_HOME", homeDir.toString());
+
+        // Configure CONNECT proxy for HTTPS interception if available
+        String connectUrl = proxy.getConnectProxyUrl();
+        String caFile = proxy.getCaFilePath();
+        if (connectUrl != null && !connectUrl.isEmpty() && caFile != null && !caFile.isEmpty()) {
+            String noProxy = "127.0.0.1,localhost,::1";
+            env.put("HTTP_PROXY", connectUrl);
+            env.put("HTTPS_PROXY", connectUrl);
+            env.put("http_proxy", connectUrl);
+            env.put("https_proxy", connectUrl);
+            env.put("NO_PROXY", noProxy);
+            env.put("no_proxy", noProxy);
+            env.put("NODE_EXTRA_CA_CERTS", caFile);
+            env.put("SSL_CERT_FILE", caFile);
+            env.put("REQUESTS_CA_BUNDLE", caFile);
+            env.put("CURL_CA_BUNDLE", caFile);
+            env.put("GIT_SSL_CAINFO", caFile);
+            env.put("GH_TOKEN", "");
+            env.put("GITHUB_TOKEN", "");
+            env.put("GH_ENTERPRISE_TOKEN", "");
+            env.put("GITHUB_ENTERPRISE_TOKEN", "");
+        }
+
+        if ("true".equals(System.getenv("GITHUB_ACTIONS"))) {
+            env.put("GH_TOKEN", "fake-token-for-e2e-tests");
+            env.put("GITHUB_TOKEN", "fake-token-for-e2e-tests");
+        }
+
         return env;
     }
 

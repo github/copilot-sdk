@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
+import com.github.copilot.sdk.json.ProviderConfig;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.SessionConfig;
 
@@ -103,6 +104,49 @@ public class SessionConfigE2ETest {
             assertNotNull(systemMessage, "System message should not be null");
             assertTrue(systemMessage.contains(sentinel),
                     "System message should contain the instruction sentinel: " + sentinel);
+        }
+    }
+
+    @Test
+    void testShouldForwardProviderWireModel() throws Exception {
+        ctx.configureForTest("session_config", "should_forward_provider_wire_model");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setModel("claude-sonnet-4.5")
+                            .setProvider(new ProviderConfig().setType("openai").setBaseUrl(ctx.getProxyUrl())
+                                    .setApiKey("test-provider-key").setWireModel("test-wire-model")
+                                    .setMaxOutputTokens(1024))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+
+            session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(30, TimeUnit.SECONDS);
+
+            List<Map<String, Object>> exchanges = ctx.getExchanges();
+            assertFalse(exchanges.isEmpty(), "Should have at least one exchange");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> request = (Map<String, Object>) exchanges.get(0).get("request");
+            assertEquals("test-wire-model", request.get("model"));
+        }
+    }
+
+    @Test
+    void testShouldUseProviderModelIdAsWireModel() throws Exception {
+        ctx.configureForTest("session_config", "should_use_provider_model_id_as_wire_model");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig()
+                    .setProvider(new ProviderConfig().setType("openai").setBaseUrl(ctx.getProxyUrl())
+                            .setApiKey("test-provider-key").setModelId("claude-sonnet-4.5"))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+
+            session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(30, TimeUnit.SECONDS);
+
+            List<Map<String, Object>> exchanges = ctx.getExchanges();
+            assertFalse(exchanges.isEmpty(), "Should have at least one exchange");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> request = (Map<String, Object>) exchanges.get(0).get("request");
+            assertEquals("claude-sonnet-4.5", request.get("model"));
         }
     }
 

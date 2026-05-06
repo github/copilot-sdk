@@ -56,10 +56,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class CapiProxy implements AutoCloseable {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final Pattern LISTENING_PATTERN = Pattern.compile("Listening: (http://[^\\s]+)");
+    private static final Pattern LISTENING_PATTERN = Pattern.compile("Listening: (http://[^\\s]+)(?:\\s+(\\{.*\\}))?$");
 
     private Process process;
     private String proxyUrl;
+    private String connectProxyUrl;
+    private String caFilePath;
     private final HttpClient httpClient;
     private BufferedReader stdoutReader;
 
@@ -138,6 +140,21 @@ public class CapiProxy implements AutoCloseable {
         }
 
         proxyUrl = matcher.group(1);
+
+        // Parse optional metadata (CONNECT proxy details)
+        String metadata = matcher.group(2);
+        if (metadata != null && !metadata.isEmpty()) {
+            try {
+                Map<String, String> meta = MAPPER.readValue(metadata, new TypeReference<Map<String, String>>() {
+                });
+                connectProxyUrl = meta.get("connectProxyUrl");
+                caFilePath = meta.get("caFilePath");
+            } catch (Exception e) {
+                process.destroyForcibly();
+                throw new IOException("Failed to parse proxy startup metadata: " + metadata, e);
+            }
+        }
+
         return proxyUrl;
     }
 
@@ -329,6 +346,8 @@ public class CapiProxy implements AutoCloseable {
 
         process = null;
         proxyUrl = null;
+        connectProxyUrl = null;
+        caFilePath = null;
     }
 
     /**
@@ -338,6 +357,24 @@ public class CapiProxy implements AutoCloseable {
      */
     public String getProxyUrl() {
         return proxyUrl;
+    }
+
+    /**
+     * Gets the CONNECT proxy URL for HTTPS interception.
+     *
+     * @return the CONNECT proxy URL, or null if not available
+     */
+    public String getConnectProxyUrl() {
+        return connectProxyUrl;
+    }
+
+    /**
+     * Gets the CA file path for trusting the CONNECT proxy's certificate.
+     *
+     * @return the CA file path, or null if not available
+     */
+    public String getCaFilePath() {
+        return caFilePath;
     }
 
     /**

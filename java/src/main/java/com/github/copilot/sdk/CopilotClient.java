@@ -187,9 +187,9 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     private Connection startCoreBody() {
+        Process process = null;
         try {
             JsonRpcClient rpc;
-            Process process = null;
 
             if (optionsHost != null && optionsPort != null) {
                 // External server (TCP)
@@ -215,6 +215,10 @@ public final class CopilotClient implements AutoCloseable {
             LOG.info("Copilot client connected");
             return connection;
         } catch (Exception e) {
+            // Clean up the spawned process if connection setup failed
+            if (process != null) {
+                cleanupCliProcess(process);
+            }
             String stderr = serverManager.getStderrOutput();
             if (!stderr.isEmpty()) {
                 throw new CompletionException(new IOException(
@@ -352,21 +356,28 @@ public final class CopilotClient implements AutoCloseable {
             }
 
             if (connection.process != null) {
-                try {
-                    if (connection.process.isAlive()) {
-                        Process destroyedProcess = connection.process.destroyForcibly();
-                        if (!destroyedProcess.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                            LOG.fine("Process did not terminate within force kill timeout");
-                        }
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    LOG.log(Level.FINE, "Interrupted while killing process", e);
-                } catch (Exception e) {
-                    LOG.log(Level.FINE, "Error killing process", e);
+                cleanupCliProcess(connection.process);
+            }
+        }).exceptionally(ex -> {
+            LOG.log(Level.FINE, "Ignoring failed Copilot client startup during cleanup", ex);
+            return null;
+        });
+    }
+
+    private static void cleanupCliProcess(Process process) {
+        try {
+            if (process.isAlive()) {
+                Process destroyedProcess = process.destroyForcibly();
+                if (!destroyedProcess.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                    LOG.fine("Process did not terminate within force kill timeout");
                 }
             }
-        }).exceptionally(ex -> null);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.log(Level.FINE, "Interrupted while killing process", e);
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Error killing process", e);
+        }
     }
 
     /**

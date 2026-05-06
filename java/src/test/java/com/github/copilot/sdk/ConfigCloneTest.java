@@ -37,6 +37,8 @@ class ConfigCloneTest {
         original.setGitHubToken("ghp_test");
         original.setUseLoggedInUser(false);
         original.setCopilotHome("/custom/copilot/home");
+        original.setRemote(true);
+        original.setSessionIdleTimeoutSeconds(600);
         original.setUseStdio(false);
         original.setTcpConnectionToken("my-token-123");
 
@@ -48,6 +50,8 @@ class ConfigCloneTest {
         assertEquals(original.getGitHubToken(), cloned.getGitHubToken());
         assertEquals(original.getUseLoggedInUser(), cloned.getUseLoggedInUser());
         assertEquals(original.getCopilotHome(), cloned.getCopilotHome());
+        assertEquals(original.isRemote(), cloned.isRemote());
+        assertEquals(original.getSessionIdleTimeoutSeconds(), cloned.getSessionIdleTimeoutSeconds());
         assertEquals(original.getTcpConnectionToken(), cloned.getTcpConnectionToken());
     }
 

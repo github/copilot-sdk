@@ -386,4 +386,52 @@ public class ProviderConfigTest {
 
         assertTrue(json.path("provider").isMissingNode(), "provider field should be omitted when null");
     }
+
+    // =========================================================================
+    // Provider model and token limit overrides
+    // =========================================================================
+
+    @Test
+    void testProviderModelIdAndWireModelSerialization() throws Exception {
+        var provider = new ProviderConfig().setBaseUrl("https://example.com/provider")
+                .setHeaders(java.util.Map.of("Authorization", "Bearer provider-token")).setModelId("gpt-4o")
+                .setWireModel("my-finetune-v3").setMaxPromptTokens(100_000).setMaxOutputTokens(4096);
+
+        JsonNode json = MAPPER.valueToTree(provider);
+
+        assertEquals("https://example.com/provider", json.get("baseUrl").asText());
+        assertEquals("Bearer provider-token", json.get("headers").get("Authorization").asText());
+        assertEquals("gpt-4o", json.get("modelId").asText());
+        assertEquals("my-finetune-v3", json.get("wireModel").asText());
+        assertEquals(100_000, json.get("maxPromptTokens").asInt());
+        assertEquals(4096, json.get("maxOutputTokens").asInt());
+
+        // Round-trip
+        ProviderConfig deserialized = MAPPER.readValue(MAPPER.writeValueAsString(provider), ProviderConfig.class);
+        assertEquals("gpt-4o", deserialized.getModelId());
+        assertEquals("my-finetune-v3", deserialized.getWireModel());
+        assertEquals(100_000, deserialized.getMaxPromptTokens());
+        assertEquals(4096, deserialized.getMaxOutputTokens());
+    }
+
+    @Test
+    void testProviderModelFieldsDefaultToNull() {
+        var provider = new ProviderConfig();
+        assertNull(provider.getModelId());
+        assertNull(provider.getWireModel());
+        assertNull(provider.getMaxPromptTokens());
+        assertNull(provider.getMaxOutputTokens());
+    }
+
+    @Test
+    void testProviderModelFieldsOmittedWhenNull() throws Exception {
+        var provider = new ProviderConfig().setType("openai");
+
+        JsonNode json = MAPPER.valueToTree(provider);
+
+        assertTrue(json.path("modelId").isMissingNode());
+        assertTrue(json.path("wireModel").isMissingNode());
+        assertTrue(json.path("maxPromptTokens").isMissingNode());
+        assertTrue(json.path("maxOutputTokens").isMissingNode());
+    }
 }

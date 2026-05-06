@@ -54,6 +54,7 @@ public class CopilotClientOptions {
     private int port;
     private TelemetryConfig telemetry;
     private Integer sessionIdleTimeoutSeconds;
+    private boolean remote;
     private String tcpConnectionToken;
     private Boolean useLoggedInUser;
     private boolean useStdio = true;
@@ -439,6 +440,37 @@ public class CopilotClientOptions {
     }
 
     /**
+     * Returns whether remote session support (Mission Control integration) is
+     * enabled.
+     * <p>
+     * When {@code true}, sessions in a GitHub repository working directory are
+     * accessible from GitHub web and mobile.
+     *
+     * @return {@code true} if remote sessions are enabled
+     */
+    public boolean isRemote() {
+        return remote;
+    }
+
+    /**
+     * Enables remote session support (Mission Control integration).
+     * <p>
+     * When {@code true}, sessions in a GitHub repository working directory are
+     * accessible from GitHub web and mobile.
+     * <p>
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link #setCliUrl(String)}.
+     *
+     * @param remote
+     *            {@code true} to enable remote sessions
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setRemote(boolean remote) {
+        this.remote = remote;
+        return this;
+    }
+
+    /**
      * Gets the OpenTelemetry configuration for the CLI server.
      *
      * @return the telemetry config, or {@code null}
@@ -599,6 +631,7 @@ public class CopilotClientOptions {
         copy.logLevel = this.logLevel;
         copy.onListModels = this.onListModels;
         copy.port = this.port;
+        copy.remote = this.remote;
         copy.sessionIdleTimeoutSeconds = this.sessionIdleTimeoutSeconds;
         copy.tcpConnectionToken = this.tcpConnectionToken;
         copy.telemetry = this.telemetry;
