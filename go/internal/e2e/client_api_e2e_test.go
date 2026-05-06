@@ -50,12 +50,14 @@ func TestClientApiE2E(t *testing.T) {
 	})
 
 	t.Run("should report error when deleting unknown session id", func(t *testing.T) {
-		err := client.DeleteSession(t.Context(), "00000000-0000-0000-0000-000000000000")
+		sessionID := "00000000-0000-0000-0000-000000000000"
+		err := client.DeleteSession(t.Context(), sessionID)
 		if err == nil {
 			t.Fatal("Expected DeleteSession to fail for unknown id")
 		}
-		if !strings.Contains(strings.ToLower(err.Error()), "session file not found") {
-			t.Errorf("Expected error mentioning 'Session file not found', got %v", err)
+		expectedMessage := "failed to delete session " + sessionID
+		if !strings.Contains(strings.ToLower(err.Error()), expectedMessage) {
+			t.Errorf("Expected error mentioning %q, got %v", expectedMessage, err)
 		}
 	})
 

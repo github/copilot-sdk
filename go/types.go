@@ -859,6 +859,25 @@ type ProviderConfig struct {
 	Azure *AzureProviderOptions `json:"azure,omitempty"`
 	// Headers are custom HTTP headers included in outbound provider requests.
 	Headers map[string]string `json:"headers,omitempty"`
+	// ModelID is the well-known model name used by the runtime to look up
+	// agent configuration (tools, prompts, reasoning behavior) and default
+	// token limits. Also used as the wire model when WireModel is not set.
+	// Falls back to SessionConfig.Model.
+	ModelID string `json:"modelId,omitempty"`
+	// WireModel is the model name sent to the provider API for inference. Use
+	// this when the provider's model name (e.g. an Azure deployment name or a
+	// custom fine-tune name) differs from ModelID.
+	// Falls back to ModelID, then SessionConfig.Model.
+	WireModel string `json:"wireModel,omitempty"`
+	// MaxInputTokens overrides the resolved model's default max prompt tokens.
+	// The runtime triggers conversation compaction before sending a request
+	// when the prompt (system message, history, tool definitions, user
+	// message) would exceed this limit.
+	MaxInputTokens int `json:"maxPromptTokens,omitempty"`
+	// MaxOutputTokens overrides the resolved model's default max output
+	// tokens. When hit, the model stops generating and returns a truncated
+	// response.
+	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration

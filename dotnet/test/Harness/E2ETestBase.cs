@@ -47,7 +47,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         }
     }
 
-    private static string GetTestName(ITestOutputHelper output)
+    internal static string GetTestName(ITestOutputHelper output)
     {
         // xUnit doesn't provide a public API to get the current test name.
         var type = output.GetType();
@@ -58,12 +58,13 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     public async Task InitializeAsync()
     {
+        await Ctx.CleanupAfterTestAsync();
         await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName);
     }
 
     public Task DisposeAsync()
     {
-        return Task.CompletedTask;
+        return Ctx.CleanupAfterTestAsync();
     }
 
     /// <summary>

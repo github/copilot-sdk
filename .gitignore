@@ -9,3 +9,6 @@ test/scenarios/**/rust/Cargo.lock
 
 # Visual Studio
 .vs/
+
+# C# Dev Kit
+*.csproj.lscache

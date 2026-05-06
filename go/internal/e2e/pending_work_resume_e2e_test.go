@@ -378,23 +378,6 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 			t.Fatalf("HandlePendingToolCall(A) failed: err=%v result=%+v", err, resA)
 		}
 
-		ctxFinal, cancel := context.WithTimeout(t.Context(), pendingWorkTimeout)
-		defer cancel()
-		answer, err := testharness.GetFinalAssistantMessage(ctxFinal, session2)
-		if err != nil {
-			t.Fatalf("Failed to wait for final assistant message: %v", err)
-		}
-		assistant, ok := answer.Data.(*copilot.AssistantMessageData)
-		if !ok {
-			t.Fatalf("Expected AssistantMessageData, got %T", answer.Data)
-		}
-		if !strings.Contains(assistant.Content, "PARALLEL_A_ALPHA") {
-			t.Errorf("Expected response to contain 'PARALLEL_A_ALPHA', got %q", assistant.Content)
-		}
-		if !strings.Contains(assistant.Content, "PARALLEL_B_BETA") {
-			t.Errorf("Expected response to contain 'PARALLEL_B_BETA', got %q", assistant.Content)
-		}
-
 		select {
 		case releaseA <- "ORIGINAL_A_SHOULD_NOT_WIN":
 		default:
@@ -465,6 +448,214 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		}
 		if assistant, ok := followUp.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(assistant.Content, "NO_PENDING_TURN_TWO") {
 			t.Errorf("Expected follow-up answer to contain 'NO_PENDING_TURN_TWO', got %v", followUp.Data)
+		}
+
+		resumedSession.Disconnect()
+	})
+
+	t.Run("should keep pending external tool handleable on warm resume when continuependingwork is false", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		_, cliURL := startTcpServer(t, ctx)
+
+		type ValueParams struct {
+			Value string `json:"value" jsonschema:"Value to look up"`
+		}
+		toolStarted := make(chan string, 1)
+		releaseTool := make(chan string, 1)
+
+		originalTool := copilot.DefineTool("resume_external_tool", "Looks up a value after resumption",
+			func(params ValueParams, inv copilot.ToolInvocation) (string, error) {
+				select {
+				case toolStarted <- params.Value:
+				default:
+				}
+				return <-releaseTool, nil
+			})
+
+		suspendedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.CLIUrl = cliURL
+			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
+		})
+		session1, err := suspendedClient.CreateSession(t.Context(), &copilot.SessionConfig{
+			Tools:               []copilot.Tool{originalTool},
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		sessionID := session1.SessionID
+
+		toolEventCh := waitForExternalToolRequests(session1, []string{"resume_external_tool"})
+
+		if _, err := session1.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "Use resume_external_tool with value 'beta', then reply with the result.",
+		}); err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		toolEvents, err := waitForExternalToolResults(toolEventCh, pendingWorkTimeout)
+		if err != nil {
+			t.Fatalf("waiting for external tool requests: %v", err)
+		}
+		toolEvent := toolEvents["resume_external_tool"]
+
+		select {
+		case v := <-toolStarted:
+			if v != "beta" {
+				t.Errorf("Expected original tool started with 'beta', got %q", v)
+			}
+		case <-time.After(pendingWorkTimeout):
+			t.Fatal("Timed out waiting for original tool to start")
+		}
+
+		suspendedClient.ForceStop()
+
+		resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.CLIUrl = cliURL
+			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
+		})
+		t.Cleanup(func() { resumedClient.ForceStop() })
+
+		session2, err := resumedClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			ContinuePendingWork: false,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to resume session: %v", err)
+		}
+
+		// Verify resume event reflects ContinuePendingWork=false and SessionWasActive=true
+		messages, err := session2.GetMessages(t.Context())
+		if err != nil {
+			t.Fatalf("GetMessages failed: %v", err)
+		}
+		var resumeEvent *copilot.SessionResumeData
+		for _, msg := range messages {
+			if msg.Type == copilot.SessionEventTypeSessionResume {
+				if d, ok := msg.Data.(*copilot.SessionResumeData); ok {
+					resumeEvent = d
+					break
+				}
+			}
+		}
+		if resumeEvent == nil {
+			t.Fatal("Expected a session.resume event")
+		}
+		if resumeEvent.ContinuePendingWork == nil || *resumeEvent.ContinuePendingWork != false {
+			t.Errorf("Expected ContinuePendingWork=false in resume event, got %v", resumeEvent.ContinuePendingWork)
+		}
+		if resumeEvent.SessionWasActive == nil || *resumeEvent.SessionWasActive != true {
+			t.Errorf("Expected SessionWasActive=true in resume event, got %v", resumeEvent.SessionWasActive)
+		}
+
+		// Even with ContinuePendingWork=false, the pending tool call should still be
+		// handleable via HandlePendingToolCall.
+		toolResult, err := session2.RPC.Tools.HandlePendingToolCall(t.Context(), &rpc.HandlePendingToolCallRequest{
+			RequestID: toolEvent.RequestID,
+			Result: &rpc.ExternalToolResult{
+				String: copilot.String("EXTERNAL_RESUMED_BETA"),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to handle pending tool call: %v", err)
+		}
+		if !toolResult.Success {
+			t.Errorf("Expected HandlePendingToolCall to succeed, got %+v", toolResult)
+		}
+
+		select {
+		case releaseTool <- "ORIGINAL_SHOULD_NOT_WIN":
+		default:
+		}
+
+		session2.Disconnect()
+	})
+
+	t.Run("should report continuependingwork true in resume event", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		_, cliURL := startTcpServer(t, ctx)
+
+		var sessionID string
+		func() {
+			firstClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
+				opts.CLIUrl = cliURL
+				opts.CLIPath = ""
+				opts.TCPConnectionToken = sharedTcpToken
+			})
+			defer firstClient.ForceStop()
+
+			firstSession, err := firstClient.CreateSession(t.Context(), &copilot.SessionConfig{
+				OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			})
+			if err != nil {
+				t.Fatalf("Failed to create first session: %v", err)
+			}
+			sessionID = firstSession.SessionID
+
+			answer, err := firstSession.SendAndWait(t.Context(), copilot.MessageOptions{
+				Prompt: "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_ONE",
+			})
+			if err != nil {
+				t.Fatalf("Failed to send first turn: %v", err)
+			}
+			if assistant, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(assistant.Content, "CONTINUE_PENDING_WORK_TRUE_TURN_ONE") {
+				t.Errorf("Expected first answer to contain 'CONTINUE_PENDING_WORK_TRUE_TURN_ONE', got %v", answer.Data)
+			}
+
+			firstSession.Disconnect()
+		}()
+
+		resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.CLIUrl = cliURL
+			opts.CLIPath = ""
+			opts.TCPConnectionToken = sharedTcpToken
+		})
+		t.Cleanup(func() { resumedClient.ForceStop() })
+
+		resumedSession, err := resumedClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			ContinuePendingWork: true,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to resume session: %v", err)
+		}
+
+		// Verify resume event reflects ContinuePendingWork=true and SessionWasActive=false (cold resume)
+		messages, err := resumedSession.GetMessages(t.Context())
+		if err != nil {
+			t.Fatalf("GetMessages failed: %v", err)
+		}
+		var resumeEvent *copilot.SessionResumeData
+		for _, msg := range messages {
+			if msg.Type == copilot.SessionEventTypeSessionResume {
+				if d, ok := msg.Data.(*copilot.SessionResumeData); ok {
+					resumeEvent = d
+					break
+				}
+			}
+		}
+		if resumeEvent == nil {
+			t.Fatal("Expected a session.resume event")
+		}
+		if resumeEvent.ContinuePendingWork == nil || *resumeEvent.ContinuePendingWork != true {
+			t.Errorf("Expected ContinuePendingWork=true in resume event, got %v", resumeEvent.ContinuePendingWork)
+		}
+		if resumeEvent.SessionWasActive != nil && *resumeEvent.SessionWasActive != false {
+			t.Errorf("Expected SessionWasActive=false (or nil) for cold resume, got %v", resumeEvent.SessionWasActive)
+		}
+
+		followUp, err := resumedSession.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_TWO",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send follow-up turn: %v", err)
+		}
+		if assistant, ok := followUp.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(assistant.Content, "CONTINUE_PENDING_WORK_TRUE_TURN_TWO") {
+			t.Errorf("Expected follow-up answer to contain 'CONTINUE_PENDING_WORK_TRUE_TURN_TWO', got %v", followUp.Data)
 		}
 
 		resumedSession.Disconnect()

@@ -784,6 +784,29 @@ pub struct ProviderConfig {
     /// Custom HTTP headers included in outbound provider requests.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub headers: Option<HashMap<String, String>>,
+    /// Well-known model ID used to look up agent config and default token
+    /// limits. Also used as the wire model when [`wire_model`](Self::wire_model)
+    /// is unset. Falls back to [`SessionConfig::model`](crate::SessionConfig::model).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    /// Model name sent to the provider API for inference. Use this when
+    /// the provider's model name (e.g. an Azure deployment name or a
+    /// custom fine-tune name) differs from
+    /// [`model_id`](Self::model_id). Falls back to
+    /// [`model_id`](Self::model_id), then to
+    /// [`SessionConfig::model`](crate::SessionConfig::model).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_model: Option<String>,
+    /// Overrides the resolved model's default max prompt tokens. The
+    /// runtime triggers conversation compaction before sending a request
+    /// when the prompt (system message, history, tool definitions, user
+    /// message) would exceed this limit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
+    /// Overrides the resolved model's default max output tokens. When
+    /// hit, the model stops generating and returns a truncated response.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i64>,
 }
 
 impl ProviderConfig {
@@ -830,6 +853,37 @@ impl ProviderConfig {
     /// Set the custom HTTP headers attached to outbound provider requests.
     pub fn with_headers(mut self, headers: HashMap<String, String>) -> Self {
         self.headers = Some(headers);
+        self
+    }
+
+    /// Set the well-known model ID used to look up agent config and default
+    /// token limits. Falls back to the session's configured model when unset.
+    pub fn with_model_id(mut self, model_id: impl Into<String>) -> Self {
+        self.model_id = Some(model_id.into());
+        self
+    }
+
+    /// Set the model name sent to the provider API for inference. Use this
+    /// when the provider's model name (e.g. an Azure deployment name or a
+    /// custom fine-tune name) differs from
+    /// [`model_id`](Self::model_id).
+    pub fn with_wire_model(mut self, wire_model: impl Into<String>) -> Self {
+        self.wire_model = Some(wire_model.into());
+        self
+    }
+
+    /// Override the resolved model's default max prompt tokens. The
+    /// runtime triggers conversation compaction when the prompt would
+    /// exceed this limit.
+    pub fn with_max_prompt_tokens(mut self, max: i64) -> Self {
+        self.max_prompt_tokens = Some(max);
+        self
+    }
+
+    /// Override the resolved model's default max output tokens. When
+    /// hit, the model stops generating and returns a truncated response.
+    pub fn with_max_output_tokens(mut self, max: i64) -> Self {
+        self.max_output_tokens = Some(max);
         self
     }
 }
@@ -3281,7 +3335,11 @@ mod tests {
             .with_wire_api("completions")
             .with_api_key("sk-test")
             .with_bearer_token("bearer-test")
-            .with_headers(headers);
+            .with_headers(headers)
+            .with_model_id("gpt-4")
+            .with_wire_model("azure-gpt-4-deployment")
+            .with_max_prompt_tokens(8192)
+            .with_max_output_tokens(2048);
 
         assert_eq!(cfg.base_url, "https://api.example.com");
         assert_eq!(cfg.provider_type.as_deref(), Some("openai"));
@@ -3295,6 +3353,24 @@ mod tests {
                 .map(String::as_str),
             Some("value"),
         );
+        assert_eq!(cfg.model_id.as_deref(), Some("gpt-4"));
+        assert_eq!(cfg.wire_model.as_deref(), Some("azure-gpt-4-deployment"));
+        assert_eq!(cfg.max_prompt_tokens, Some(8192));
+        assert_eq!(cfg.max_output_tokens, Some(2048));
+
+        // Wire-shape: camelCase, skip_serializing_if when unset.
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(wire["modelId"], "gpt-4");
+        assert_eq!(wire["wireModel"], "azure-gpt-4-deployment");
+        assert_eq!(wire["maxPromptTokens"], 8192);
+        assert_eq!(wire["maxOutputTokens"], 2048);
+
+        let unset = ProviderConfig::new("https://api.example.com");
+        let wire_unset = serde_json::to_value(&unset).unwrap();
+        assert!(wire_unset.get("modelId").is_none());
+        assert!(wire_unset.get("wireModel").is_none());
+        assert!(wire_unset.get("maxPromptTokens").is_none());
+        assert!(wire_unset.get("maxOutputTokens").is_none());
     }
 
     #[test]

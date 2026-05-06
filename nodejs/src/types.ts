@@ -1503,6 +1503,36 @@ export interface ProviderConfig {
      * Custom HTTP headers to include in outbound provider requests.
      */
     headers?: Record<string, string>;
+
+    /**
+     * Well-known model name used by the runtime to look up agent configuration
+     * (tools, prompts, reasoning behavior) and default token limits. Also used
+     * as the wire model when {@link wireModel} is not set.
+     * Falls back to {@link SessionConfig.model}.
+     */
+    modelId?: string;
+
+    /**
+     * Model name sent to the provider API for inference. Use this when the
+     * provider's model name (e.g. an Azure deployment name or a custom
+     * fine-tune name) differs from {@link modelId}.
+     * Falls back to {@link modelId}, then {@link SessionConfig.model}.
+     */
+    wireModel?: string;
+
+    /**
+     * Overrides the resolved model's default max prompt tokens. The runtime
+     * triggers conversation compaction before sending a request when the
+     * prompt (system message, history, tool definitions, user message) would
+     * exceed this limit.
+     */
+    maxInputTokens?: number;
+
+    /**
+     * Overrides the resolved model's default max output tokens. When hit, the
+     * model stops generating and returns a truncated response.
+     */
+    maxOutputTokens?: number;
 }
 
 /**

@@ -87,6 +87,76 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Emit_Assistant_Usage_Event_After_Model_Call()
+    {
+        var session = await CreateSessionAsync();
+        var events = new List<SessionEvent>();
+        session.On(evt => { lock (events) { events.Add(evt); } });
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "What is 5+5? Reply with just the number.",
+        });
+
+        AssistantUsageEvent? usageEvent;
+        lock (events) { usageEvent = events.OfType<AssistantUsageEvent>().LastOrDefault(); }
+
+        Assert.NotNull(usageEvent);
+        Assert.False(string.IsNullOrWhiteSpace(usageEvent!.Data.Model));
+        Assert.NotEqual(Guid.Empty, usageEvent.Id);
+        Assert.NotEqual(default, usageEvent.Timestamp);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Emit_Session_Usage_Info_Event_After_Model_Call()
+    {
+        var session = await CreateSessionAsync();
+        var events = new List<SessionEvent>();
+        session.On(evt => { lock (events) { events.Add(evt); } });
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "What is 5+5? Reply with just the number.",
+        });
+
+        SessionUsageInfoEvent? usageInfoEvent;
+        lock (events) { usageInfoEvent = events.OfType<SessionUsageInfoEvent>().LastOrDefault(); }
+
+        Assert.NotNull(usageInfoEvent);
+        Assert.True(usageInfoEvent!.Data.CurrentTokens > 0);
+        Assert.True(usageInfoEvent.Data.MessagesLength > 0);
+        Assert.True(usageInfoEvent.Data.TokenLimit > 0);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Emit_Pending_Messages_Modified_Event_When_Message_Queue_Changes()
+    {
+        var session = await CreateSessionAsync();
+        var pendingMessagesModified = TestHelper.GetNextEventOfTypeAsync<PendingMessagesModifiedEvent>(
+            session,
+            static _ => true,
+            timeout: TimeSpan.FromSeconds(60),
+            timeoutDescription: "pending_messages.modified event");
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "What is 9+9? Reply with just the number.",
+        });
+
+        var pendingEvent = await pendingMessagesModified;
+        var answer = await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.NotNull(pendingEvent);
+        Assert.Contains("18", answer?.Data.Content ?? string.Empty);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Emit_Tool_Execution_Events_With_Correct_Fields()
     {
         await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "data.txt"), "test data");
@@ -139,6 +209,51 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var msg = assistantEvents[0];
         Assert.False(string.IsNullOrEmpty(msg.Data.MessageId));
         Assert.Contains("pong", msg.Data.Content);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Preserve_Message_Order_In_GetMessages_After_Tool_Use()
+    {
+        await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "order.txt"), "ORDER_CONTENT_42");
+
+        var session = await CreateSessionAsync();
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Read the file 'order.txt' and tell me what the number is.",
+        });
+
+        var messages = await session.GetMessagesAsync();
+        var types = messages.Select(m => m.Type).ToList();
+
+        // Verify complete event ordering contract:
+        // session.start → user.message → tool.execution_start → tool.execution_complete → assistant.message
+        var sessionStartIdx = types.IndexOf("session.start");
+        var userMsgIdx = types.IndexOf("user.message");
+        var toolStartIdx = types.IndexOf("tool.execution_start");
+        var toolCompleteIdx = types.IndexOf("tool.execution_complete");
+        var assistantMsgIdx = types.LastIndexOf("assistant.message");
+
+        Assert.True(sessionStartIdx >= 0, "Expected session.start event");
+        Assert.True(userMsgIdx >= 0, "Expected user.message event");
+        Assert.True(toolStartIdx >= 0, "Expected tool.execution_start event");
+        Assert.True(toolCompleteIdx >= 0, "Expected tool.execution_complete event");
+        Assert.True(assistantMsgIdx >= 0, "Expected assistant.message event");
+
+        Assert.True(sessionStartIdx < userMsgIdx, "session.start should precede user.message");
+        Assert.True(userMsgIdx < toolStartIdx, "user.message should precede tool.execution_start");
+        Assert.True(toolStartIdx < toolCompleteIdx, "tool.execution_start should precede tool.execution_complete");
+        Assert.True(toolCompleteIdx < assistantMsgIdx, "tool.execution_complete should precede final assistant.message");
+
+        // Verify user.message has our content
+        var userEvent = messages.OfType<UserMessageEvent>().First();
+        Assert.Contains("order.txt", userEvent.Data.Content ?? string.Empty);
+
+        // Verify assistant.message references the file content
+        var assistantEvent = messages.OfType<AssistantMessageEvent>().Last();
+        Assert.Contains("42", assistantEvent.Data.Content ?? string.Empty);
 
         await session.DisposeAsync();
     }

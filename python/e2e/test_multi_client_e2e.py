@@ -245,10 +245,12 @@ class TestMultiClientBroadcast:
             ),
         )
 
-        # Client 2 resumes — its handler never resolves, so only client 1's approval takes effect
+        # Client 2 observes the permission request but leaves the decision to client 1.
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            on_permission_request=lambda request, invocation: asyncio.Future(),
+            on_permission_request=lambda request, invocation: PermissionRequestResult(
+                kind="no-result"
+            ),
         )
 
         client1_events = []
@@ -291,10 +293,12 @@ class TestMultiClientBroadcast:
             ),
         )
 
-        # Client 2 resumes — its handler never resolves
+        # Client 2 observes the permission request but leaves the decision to client 1.
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            on_permission_request=lambda request, invocation: asyncio.Future(),
+            on_permission_request=lambda request, invocation: PermissionRequestResult(
+                kind="no-result"
+            ),
         )
 
         client1_events = []

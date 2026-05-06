@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Rpc;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -22,7 +23,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             }
         });
 
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
         var evt = await created.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(SessionLifecycleEventTypes.Created, evt.Type);
@@ -35,7 +36,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var created = new TaskCompletionSource<SessionLifecycleEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = Client.On(SessionLifecycleEventTypes.Created, evt => created.TrySetResult(evt));
 
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
         var evt = await created.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(SessionLifecycleEventTypes.Created, evt.Type);
@@ -51,7 +52,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         subscription.Dispose();
         using var activeSubscription = Client.On(SessionLifecycleEventTypes.Created, evt => created.TrySetResult(evt));
 
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
         var evt = await created.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(session.SessionId, evt.SessionId);
@@ -79,5 +80,61 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         Assert.Equal(ConnectionState.Disconnected, client.State);
         Assert.Throws<ObjectDisposedException>(() => client.Rpc);
+    }
+
+    [Fact]
+    public async Task Should_Receive_Session_Updated_Lifecycle_Event_For_Non_Ephemeral_Activity()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var updated = new TaskCompletionSource<SessionLifecycleEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = Client.On(SessionLifecycleEventTypes.Updated, evt =>
+        {
+            if (string.Equals(evt.SessionId, session.SessionId, StringComparison.Ordinal))
+            {
+                updated.TrySetResult(evt);
+            }
+        });
+
+        // session.mode.set emits a non-ephemeral session.mode_changed event,
+        // which the runtime forwards as session.updated to lifecycle subscribers.
+        await session.Rpc.Mode.SetAsync(SessionMode.Plan);
+
+        var evt = await updated.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(SessionLifecycleEventTypes.Updated, evt.Type);
+        Assert.Equal(session.SessionId, evt.SessionId);
+    }
+
+    [Fact]
+    public async Task Should_Receive_Session_Deleted_Lifecycle_Event_When_Deleted()
+    {
+        var session = await CreateSessionAsync();
+        var sessionId = session.SessionId;
+
+        // The runtime persists session state to disk only after the first user.message
+        // (LocalSessionManager.SessionWriter gates flushing on shouldSaveSession).
+        // session.delete fails with "Session file not found" otherwise, so prime
+        // persistence with a real LLM round-trip first.
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say SESSION_DELETED_OK exactly." });
+
+        var deleted = new TaskCompletionSource<SessionLifecycleEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = Client.On(SessionLifecycleEventTypes.Deleted, evt =>
+        {
+            if (string.Equals(evt.SessionId, sessionId, StringComparison.Ordinal))
+            {
+                deleted.TrySetResult(evt);
+            }
+        });
+
+        // Do NOT DisposeAsync the session before deleting: dispose sends session.destroy
+        // which closes in-memory state but does not remove the disk file; calling
+        // delete afterwards still succeeds, but skipping dispose keeps the test minimal.
+        await Client.DeleteSessionAsync(sessionId);
+
+        var evt = await deleted.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(SessionLifecycleEventTypes.Deleted, evt.Type);
+        Assert.Equal(sessionId, evt.SessionId);
+
+        await session.DisposeAsync();
     }
 }

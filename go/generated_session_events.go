@@ -2289,7 +2289,7 @@ type CustomAgentsUpdatedAgent struct {
 	Name string `json:"name"`
 	// Source location: user, project, inherited, remote, or plugin
 	Source string `json:"source"`
-	// List of tool names available to this agent
+	// List of tool names available to this agent, or null when all tools are available
 	Tools []string `json:"tools"`
 	// Whether the agent can be selected by the user
 	UserInvocable bool `json:"userInvocable"`

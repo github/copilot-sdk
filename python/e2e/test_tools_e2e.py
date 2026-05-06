@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from copilot import define_tool
 from copilot.session import PermissionHandler, PermissionRequestResult
-from copilot.tools import ToolInvocation
+from copilot.tools import Tool, ToolInvocation, ToolResult
 
 from .testharness import E2ETestContext, get_final_assistant_message
 
@@ -230,3 +230,126 @@ class TestTools:
 
         # The tool handler should NOT have been called since permission was denied
         assert not tool_handler_called
+
+    async def test_should_execute_multiple_custom_tools_in_parallel_single_turn(
+        self, ctx: E2ETestContext
+    ):
+        """Multiple custom tools invoked in parallel in the same turn."""
+        import asyncio
+
+        city_called: asyncio.Future = asyncio.get_event_loop().create_future()
+        country_called: asyncio.Future = asyncio.get_event_loop().create_future()
+
+        def lookup_city(invocation: ToolInvocation) -> ToolResult:
+            city = (invocation.arguments or {}).get("city", "")
+            if not city_called.done():
+                city_called.set_result(city)
+            return ToolResult(text_result_for_llm=f"CITY_{city.upper()}")
+
+        def lookup_country(invocation: ToolInvocation) -> ToolResult:
+            country = (invocation.arguments or {}).get("country", "")
+            if not country_called.done():
+                country_called.set_result(country)
+            return ToolResult(text_result_for_llm=f"COUNTRY_{country.upper()}")
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            tools=[
+                Tool(
+                    name="lookup_city",
+                    description="Looks up city information",
+                    parameters={
+                        "type": "object",
+                        "properties": {"city": {"type": "string", "description": "City name"}},
+                        "required": ["city"],
+                    },
+                    handler=lookup_city,
+                ),
+                Tool(
+                    name="lookup_country",
+                    description="Looks up country information",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "country": {"type": "string", "description": "Country name"}
+                        },
+                        "required": ["country"],
+                    },
+                    handler=lookup_country,
+                ),
+            ],
+        )
+
+        try:
+            await session.send(
+                "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time,"
+                " then combine both results in your reply."
+            )
+
+            city_result = await asyncio.wait_for(city_called, timeout=60.0)
+            country_result = await asyncio.wait_for(country_called, timeout=60.0)
+            assert city_result == "Paris"
+            assert country_result == "France"
+
+            assistant_message = await get_final_assistant_message(session, timeout=60.0)
+            assert assistant_message is not None
+            content = assistant_message.data.content or ""
+            assert "CITY_PARIS" in content
+            assert "COUNTRY_FRANCE" in content
+        finally:
+            await session.disconnect()
+
+    async def test_should_respect_availabletools_and_excludedtools_combined(
+        self, ctx: E2ETestContext
+    ):
+        """excluded_tools takes precedence over available_tools."""
+        excluded_tool_called = False
+
+        def allowed_handler(invocation: ToolInvocation) -> ToolResult:
+            input_val = (invocation.arguments or {}).get("input", "")
+            return ToolResult(text_result_for_llm=f"ALLOWED_{input_val.upper()}")
+
+        def excluded_handler(invocation: ToolInvocation) -> ToolResult:
+            nonlocal excluded_tool_called
+            excluded_tool_called = True
+            input_val = (invocation.arguments or {}).get("input", "")
+            return ToolResult(text_result_for_llm=f"EXCLUDED_{input_val.upper()}")
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            tools=[
+                Tool(
+                    name="allowed_tool",
+                    description="An allowed tool",
+                    parameters={
+                        "type": "object",
+                        "properties": {"input": {"type": "string", "description": "Input value"}},
+                        "required": ["input"],
+                    },
+                    handler=allowed_handler,
+                ),
+                Tool(
+                    name="excluded_tool",
+                    description="A tool that should be excluded",
+                    parameters={
+                        "type": "object",
+                        "properties": {"input": {"type": "string", "description": "Input value"}},
+                        "required": ["input"],
+                    },
+                    handler=excluded_handler,
+                ),
+            ],
+            available_tools=["allowed_tool", "excluded_tool"],
+            excluded_tools=["excluded_tool"],
+        )
+
+        try:
+            result = await session.send_and_wait(
+                "Use the allowed_tool with input 'test'. Do NOT use excluded_tool.",
+                timeout=60.0,
+            )
+            assert result is not None
+            assert "ALLOWED_TEST" in (result.data.content or "")
+            assert not excluded_tool_called, "Excluded tool should not have been called"
+        finally:
+            await session.disconnect()

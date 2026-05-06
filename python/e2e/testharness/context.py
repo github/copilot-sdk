@@ -51,8 +51,12 @@ class E2ETestContext:
         self._proxy: CapiProxy | None = None
         self._client: CopilotClient | None = None
 
-    async def setup(self):
-        """Set up the test context with a shared client."""
+    async def setup(self, cli_args: list[str] | None = None):
+        """Set up the test context with a shared client.
+
+        Args:
+            cli_args: Optional extra CLI arguments passed to the CLI process.
+        """
         self.cli_path = get_cli_path_for_tests()
 
         self.home_dir = os.path.realpath(tempfile.mkdtemp(prefix="copilot-test-config-"))
@@ -69,6 +73,7 @@ class E2ETestContext:
         self._client = CopilotClient(
             SubprocessConfig(
                 cli_path=self.cli_path,
+                cli_args=cli_args or [],
                 cwd=self.work_dir,
                 env=self.get_env(),
                 github_token=github_token,
@@ -128,15 +133,21 @@ class E2ETestContext:
     def get_env(self) -> dict:
         """Return environment variables configured for isolated testing."""
         env = os.environ.copy()
+        if self._proxy:
+            env.update(self._proxy.get_proxy_env())
 
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
                 "COPILOT_HOME": self.home_dir,
+                "GH_CONFIG_DIR": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }
         )
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            env["GH_TOKEN"] = "fake-token-for-e2e-tests"
+            env["GITHUB_TOKEN"] = "fake-token-for-e2e-tests"
         return env
 
     @property

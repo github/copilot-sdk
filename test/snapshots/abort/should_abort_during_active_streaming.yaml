@@ -1,0 +1,30 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Write a very long essay about the history of computing, covering every decade from the 1940s to the 2020s in
+          great detail.
+      - role: assistant
+        content: >-
+          # The History of Computing: A Comprehensive Overview
+
+
+          ## The 1940s: The Dawn of Electronic Computing
+
+
+          The 1940s marked the beginning of electronic computing as we know it. The development of ENIAC (Electronic
+          Numerical Integrator and Computer) at the University of Pennsylvania in 1945 represented a watershed moment.
+          This massive machine, weighing over 30 tons and containing 18,000 vacuum tubes, could perform calculations
+          thousands of times faster than any previous device.
+
+
+          During this same period, the theoretical foundations were being laid by pioneers like Alan Turing and John von
+          Neumann. Turing's concept of a universal machine and von Neumann's architecture for stored-program computers
+          would shape the entire future of the field.
+      - role: user
+        content: Say 'abort_recovery_ok'.
+      - role: assistant
+        content: abort_recovery_ok

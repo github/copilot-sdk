@@ -700,7 +700,7 @@ describe("Sessions", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
         await session.sendAndWait({
-            prompt: "Summarize the referenced issue.",
+            prompt: "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
             // GitHub reference is a valid runtime attachment type but not part of
             // the public TS attachment shape; cast through unknown to forward it.
             attachments: [

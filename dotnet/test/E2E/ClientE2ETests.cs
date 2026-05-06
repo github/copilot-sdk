@@ -10,10 +10,12 @@ namespace GitHub.Copilot.SDK.Test.E2E;
 // Other test classes should instead inherit from E2ETestBase
 public class ClientE2ETests
 {
-    [Fact]
-    public async Task Should_Start_And_Connect_To_Server_Using_Stdio()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Start_And_Connect_To_Server(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
 
         try
         {
@@ -33,31 +35,12 @@ public class ClientE2ETests
         }
     }
 
-    [Fact]
-    public async Task Should_Start_And_Connect_To_Server_Using_Tcp()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Force_Stop_Without_Cleanup(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = false });
-
-        try
-        {
-            await client.StartAsync();
-            Assert.Equal(ConnectionState.Connected, client.State);
-
-            var pong = await client.PingAsync("test message");
-            Assert.Equal("pong: test message", pong.Message);
-
-            await client.StopAsync();
-        }
-        finally
-        {
-            await client.ForceStopAsync();
-        }
-    }
-
-    [Fact]
-    public async Task Should_Force_Stop_Without_Cleanup()
-    {
-        using var client = new CopilotClient(new CopilotClientOptions());
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
 
         await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
@@ -65,10 +48,12 @@ public class ClientE2ETests
         Assert.Equal(ConnectionState.Disconnected, client.State);
     }
 
-    [Fact]
-    public async Task Should_Get_Status_With_Version_And_Protocol_Info()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Get_Status_With_Version_And_Protocol_Info(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
 
         try
         {
@@ -87,10 +72,12 @@ public class ClientE2ETests
         }
     }
 
-    [Fact]
-    public async Task Should_Get_Auth_Status()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Get_Auth_Status(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
 
         try
         {
@@ -112,10 +99,12 @@ public class ClientE2ETests
         }
     }
 
-    [Fact]
-    public async Task Should_List_Models_When_Authenticated()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_List_Models_When_Authenticated(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
 
         try
         {
@@ -148,22 +137,26 @@ public class ClientE2ETests
         }
     }
 
-    [Fact]
-    public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client(bool useStdio)
     {
-        await using var client = new CopilotClient(new CopilotClientOptions());
+        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
         await using var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         await client.StopAsync();
     }
 
-    [Fact]
-    public async Task Should_Report_Error_With_Stderr_When_CLI_Fails_To_Start()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Report_Error_With_Stderr_When_CLI_Fails_To_Start(bool useStdio)
     {
         var client = new CopilotClient(new CopilotClientOptions
         {
             CliArgs = ["--nonexistent-flag-for-testing"],
-            UseStdio = true
+            UseStdio = useStdio
         });
 
         var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
@@ -185,10 +178,12 @@ public class ClientE2ETests
         try { await client.ForceStopAsync(); } catch (Exception) { /* Expected */ }
     }
 
-    [Fact]
-    public async Task Should_Throw_When_CreateSession_Called_Without_PermissionHandler()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Throw_When_CreateSession_Called_Without_PermissionHandler(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions());
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => client.CreateSessionAsync(new SessionConfig()));
 
@@ -196,10 +191,12 @@ public class ClientE2ETests
         Assert.Contains("is required", ex.Message);
     }
 
-    [Fact]
-    public async Task Should_Throw_When_ResumeSession_Called_Without_PermissionHandler()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Throw_When_ResumeSession_Called_Without_PermissionHandler(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions());
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => client.ResumeSessionAsync("some-session-id", new()));
 
@@ -207,8 +204,10 @@ public class ClientE2ETests
         Assert.Contains("is required", ex.Message);
     }
 
-    [Fact]
-    public async Task ListModels_WithCustomHandler_CallsHandler()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task ListModels_WithCustomHandler_CallsHandler(bool useStdio)
     {
         IList<ModelInfo> customModels = new List<ModelInfo>
         {
@@ -227,6 +226,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
+            UseStdio = useStdio,
             OnListModels = (ct) =>
             {
                 callCount++;
@@ -241,8 +241,10 @@ public class ClientE2ETests
         Assert.Equal("my-custom-model", models[0].Id);
     }
 
-    [Fact]
-    public async Task ListModels_WithCustomHandler_CachesResults()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task ListModels_WithCustomHandler_CachesResults(bool useStdio)
     {
         IList<ModelInfo> customModels = new List<ModelInfo>
         {
@@ -261,6 +263,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
+            UseStdio = useStdio,
             OnListModels = (ct) =>
             {
                 callCount++;
@@ -274,8 +277,10 @@ public class ClientE2ETests
         Assert.Equal(1, callCount); // Only called once due to caching
     }
 
-    [Fact]
-    public async Task ListModels_WithCustomHandler_WorksWithoutStart()
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task ListModels_WithCustomHandler_WorksWithoutStart(bool useStdio)
     {
         IList<ModelInfo> customModels = new List<ModelInfo>
         {
@@ -294,6 +299,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
+            UseStdio = useStdio,
             OnListModels = (ct) =>
             {
                 callCount++;

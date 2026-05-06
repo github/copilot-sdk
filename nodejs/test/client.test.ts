@@ -224,6 +224,10 @@ describe("CopilotClient", () => {
             provider: {
                 baseUrl: "https://example.com/provider",
                 headers: { Authorization: "Bearer provider-token" },
+                modelId: "gpt-4o",
+                wireModel: "my-finetune-v3",
+                maxInputTokens: 100_000,
+                maxOutputTokens: 4096,
             },
         });
 
@@ -232,6 +236,10 @@ describe("CopilotClient", () => {
             expect.objectContaining({
                 baseUrl: "https://example.com/provider",
                 headers: { Authorization: "Bearer provider-token" },
+                modelId: "gpt-4o",
+                wireModel: "my-finetune-v3",
+                maxPromptTokens: 100_000,
+                maxOutputTokens: 4096,
             })
         );
         spy.mockRestore();
@@ -255,6 +263,10 @@ describe("CopilotClient", () => {
             provider: {
                 baseUrl: "https://example.com/provider",
                 headers: { Authorization: "Bearer resume-token" },
+                modelId: "gpt-4o",
+                wireModel: "my-finetune-v3",
+                maxInputTokens: 100_000,
+                maxOutputTokens: 4096,
             },
         });
 
@@ -263,6 +275,10 @@ describe("CopilotClient", () => {
             expect.objectContaining({
                 baseUrl: "https://example.com/provider",
                 headers: { Authorization: "Bearer resume-token" },
+                modelId: "gpt-4o",
+                wireModel: "my-finetune-v3",
+                maxPromptTokens: 100_000,
+                maxOutputTokens: 4096,
             })
         );
         spy.mockRestore();

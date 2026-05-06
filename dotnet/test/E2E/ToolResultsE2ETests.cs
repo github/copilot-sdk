@@ -118,4 +118,104 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
                 },
             });
     }
+
+    [Fact]
+    public async Task Should_Handle_Tool_Result_With_Rejected_ResultType()
+    {
+        var toolExecutionComplete = new TaskCompletionSource<ToolExecutionCompleteEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolHandlerCalled = false;
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(AttemptDeploy, "deploy_service", serializerOptions: ToolResultsJsonContext.Default.Options)],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        session.On(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt)
+            {
+                toolExecutionComplete.TrySetResult(toolEvt);
+            }
+        });
+        var idle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Deploy the service using deploy_service. If it's rejected, tell me it was 'rejected by policy'."
+        });
+
+        var toolEvt = await toolExecutionComplete.Task.WaitAsync(TimeSpan.FromSeconds(60));
+        // The tool handler was called and returned a "rejected" result
+        Assert.True(toolHandlerCalled, "Tool handler should have been called");
+        Assert.NotNull(toolEvt);
+        Assert.False(toolEvt.Data.Success);
+        Assert.Equal("rejected", toolEvt.Data.Error?.Code);
+        Assert.Contains("Deployment rejected", toolEvt.Data.Error?.Message ?? string.Empty);
+
+        // A rejected tool result may complete the turn without a follow-up assistant
+        // message; the stable contract is the tool result event plus session idle.
+        await idle;
+
+        [Description("Deploys a service")]
+        ToolResultAIContent AttemptDeploy()
+        {
+            toolHandlerCalled = true;
+            return new(new()
+            {
+                TextResultForLlm = "Deployment rejected: policy violation - production deployments require approval",
+                ResultType = "rejected",
+            });
+        }
+    }
+
+    [Fact]
+    public async Task Should_Handle_Tool_Result_With_Denied_ResultType()
+    {
+        var toolExecutionComplete = new TaskCompletionSource<ToolExecutionCompleteEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolHandlerCalled = false;
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(AccessSecret, "access_secret", serializerOptions: ToolResultsJsonContext.Default.Options)],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        session.On(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt)
+            {
+                toolExecutionComplete.TrySetResult(toolEvt);
+            }
+        });
+        var idle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Use access_secret to get the API key. If access is denied, tell me it was 'access denied'."
+        });
+
+        var toolEvt = await toolExecutionComplete.Task.WaitAsync(TimeSpan.FromSeconds(60));
+        // The tool handler was called and returned a "denied" result
+        Assert.True(toolHandlerCalled, "Tool handler should have been called");
+        Assert.NotNull(toolEvt);
+        Assert.False(toolEvt.Data.Success);
+        Assert.Equal("denied", toolEvt.Data.Error?.Code);
+        Assert.Contains("Access denied", toolEvt.Data.Error?.Message ?? string.Empty);
+
+        // A denied tool result may complete the turn without a follow-up assistant
+        // message; the stable contract is the tool result event plus session idle.
+        await idle;
+
+        [Description("Accesses a secret")]
+        ToolResultAIContent AccessSecret()
+        {
+            toolHandlerCalled = true;
+            return new(new()
+            {
+                TextResultForLlm = "Access denied: insufficient permissions to read secrets",
+                ResultType = "denied",
+            });
+        }
+    }
 }

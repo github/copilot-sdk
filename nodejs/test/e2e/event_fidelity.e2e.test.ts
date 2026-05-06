@@ -7,6 +7,7 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
+import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Event Fidelity", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext();
@@ -128,6 +129,108 @@ describe("Event Fidelity", async () => {
         expect(msg.data.messageId).toBeDefined();
         expect(typeof msg.data.messageId).toBe("string");
         expect(msg.data.content).toContain("pong");
+
+        await session.disconnect();
+    });
+
+    it("should emit assistant usage event after model call", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const events: SessionEvent[] = [];
+        session.on((event) => {
+            events.push(event);
+        });
+
+        await session.sendAndWait({
+            prompt: "What is 5+5? Reply with just the number.",
+        });
+
+        const usageEvent = [...events].reverse().find((e) => e.type === "assistant.usage");
+        expect(usageEvent).toBeDefined();
+        expect(typeof usageEvent!.data.model).toBe("string");
+        expect((usageEvent!.data.model as string).length).toBeGreaterThan(0);
+        expect(usageEvent!.id).toBeDefined();
+        expect(typeof usageEvent!.id).toBe("string");
+        expect(usageEvent!.timestamp).toBeDefined();
+        expect(typeof usageEvent!.timestamp).toBe("string");
+
+        await session.disconnect();
+    });
+
+    it("should emit session usage info event after model call", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const events: SessionEvent[] = [];
+        session.on((event) => {
+            events.push(event);
+        });
+
+        await session.sendAndWait({
+            prompt: "What is 5+5? Reply with just the number.",
+        });
+
+        const usageInfoEvent = [...events].reverse().find((e) => e.type === "session.usage_info");
+        expect(usageInfoEvent).toBeDefined();
+        expect(usageInfoEvent!.data.currentTokens).toBeGreaterThan(0);
+        expect(usageInfoEvent!.data.messagesLength).toBeGreaterThan(0);
+        expect(usageInfoEvent!.data.tokenLimit).toBeGreaterThan(0);
+
+        await session.disconnect();
+    });
+
+    it("should emit pending messages modified event when message queue changes", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const pendingModifiedP = getNextEventOfType(session, "pending_messages.modified");
+
+        void session.send({
+            prompt: "What is 9+9? Reply with just the number.",
+        });
+
+        const [pendingEvent, answer] = await Promise.all([
+            pendingModifiedP,
+            getFinalAssistantMessage(session),
+        ]);
+
+        expect(pendingEvent).toBeDefined();
+        expect(answer?.data.content).toContain("18");
+
+        await session.disconnect();
+    });
+
+    it("should preserve message order in getMessages after tool use", async () => {
+        await writeFile(join(workDir, "order.txt"), "ORDER_CONTENT_42");
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.sendAndWait({
+            prompt: "Read the file 'order.txt' and tell me what the number is.",
+        });
+
+        const messages = await session.getMessages();
+        const types = messages.map((m) => m.type);
+
+        const sessionStartIdx = types.indexOf("session.start");
+        const userMsgIdx = types.indexOf("user.message");
+        const toolStartIdx = types.indexOf("tool.execution_start");
+        const toolCompleteIdx = types.indexOf("tool.execution_complete");
+        const assistantMsgIdx = types.lastIndexOf("assistant.message");
+
+        expect(sessionStartIdx).toBeGreaterThanOrEqual(0);
+        expect(userMsgIdx).toBeGreaterThanOrEqual(0);
+        expect(toolStartIdx).toBeGreaterThanOrEqual(0);
+        expect(toolCompleteIdx).toBeGreaterThanOrEqual(0);
+        expect(assistantMsgIdx).toBeGreaterThanOrEqual(0);
+
+        expect(sessionStartIdx).toBeLessThan(userMsgIdx);
+        expect(userMsgIdx).toBeLessThan(toolStartIdx);
+        expect(toolStartIdx).toBeLessThan(toolCompleteIdx);
+        expect(toolCompleteIdx).toBeLessThan(assistantMsgIdx);
+
+        const userEvent = messages.find((m) => m.type === "user.message");
+        expect(userEvent?.data.content).toContain("order.txt");
+
+        const assistantEvents = messages.filter((m) => m.type === "assistant.message");
+        const lastAssistant = assistantEvents[assistantEvents.length - 1]!;
+        expect(lastAssistant.data.content).toContain("42");
 
         await session.disconnect();
     });

@@ -1095,7 +1095,7 @@ class CustomAgentsUpdatedAgent:
     id: str
     name: str
     source: str
-    tools: list[str]
+    tools: list[str] | None
     user_invocable: bool
     model: str | None = None
 
@@ -1107,7 +1107,7 @@ class CustomAgentsUpdatedAgent:
         id = from_str(obj.get("id"))
         name = from_str(obj.get("name"))
         source = from_str(obj.get("source"))
-        tools = from_list(from_str, obj.get("tools"))
+        tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("tools"))
         user_invocable = from_bool(obj.get("userInvocable"))
         model = from_union([from_none, from_str], obj.get("model"))
         return CustomAgentsUpdatedAgent(
@@ -1128,7 +1128,7 @@ class CustomAgentsUpdatedAgent:
         result["id"] = from_str(self.id)
         result["name"] = from_str(self.name)
         result["source"] = from_str(self.source)
-        result["tools"] = from_list(from_str, self.tools)
+        result["tools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.tools)
         result["userInvocable"] = from_bool(self.user_invocable)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)

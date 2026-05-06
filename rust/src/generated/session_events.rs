@@ -2454,7 +2454,7 @@ pub struct CustomAgentsUpdatedAgent {
     pub name: String,
     /// Source location: user, project, inherited, remote, or plugin
     pub source: String,
-    /// List of tool names available to this agent
+    /// List of tool names available to this agent, or null when all tools are available
     pub tools: Vec<String>,
     /// Whether the agent can be selected by the user
     pub user_invocable: bool,

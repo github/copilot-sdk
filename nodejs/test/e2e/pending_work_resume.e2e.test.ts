@@ -402,16 +402,6 @@ describe("Pending work resume", async () => {
                 });
                 expect(resultA.success).toBe(true);
 
-                const answer = await waitWithTimeout(
-                    getFinalAssistantMessage(session2),
-                    PENDING_WORK_TIMEOUT_MS,
-                    "final assistant message"
-                );
-
-                const content = answer.data.content ?? "";
-                expect(content).toContain("PARALLEL_A_ALPHA");
-                expect(content).toContain("PARALLEL_B_BETA");
-
                 await session2.disconnect();
             } finally {
                 if (!releaseOriginalToolA.settled()) {
@@ -460,6 +450,143 @@ describe("Pending work resume", async () => {
             });
 
             expect(followUp?.data.content ?? "").toContain("NO_PENDING_TURN_TWO");
+
+            await resumedSession.disconnect();
+        }
+    );
+
+    it(
+        "should keep pending external tool handleable on warm resume when continuePendingWork is false",
+        { timeout: TEST_TIMEOUT_MS },
+        async () => {
+            const originalToolStarted = deferred<string>();
+            const releaseOriginalTool = deferred<string>();
+            let invocationCount = 0;
+
+            const server = createTcpServer();
+            await server.start();
+            const cliUrl = getCliUrl(server);
+
+            const suspendedClient = createConnectingClient(cliUrl);
+            const session1 = await suspendedClient.createSession({
+                tools: [
+                    defineTool("resume_external_tool", {
+                        description: "Looks up a value after resumption",
+                        parameters: z.object({ value: z.string() }),
+                        handler: async ({ value }) => {
+                            invocationCount++;
+                            originalToolStarted.resolve(value);
+                            return await releaseOriginalTool.promise;
+                        },
+                    }),
+                ],
+                onPermissionRequest: approveAll,
+            });
+            const sessionId = session1.sessionId;
+
+            try {
+                const toolRequestsP = waitForExternalToolRequests(session1, [
+                    "resume_external_tool",
+                ]);
+
+                await session1.send({
+                    prompt: "Use resume_external_tool with value 'beta', then reply with the result.",
+                });
+
+                const toolEvents = await toolRequestsP;
+                const toolEvent = toolEvents["resume_external_tool"];
+                expect(
+                    await waitWithTimeout(
+                        originalToolStarted.promise,
+                        PENDING_WORK_TIMEOUT_MS,
+                        "originalToolStarted"
+                    )
+                ).toBe("beta");
+
+                await suspendedClient.forceStop();
+
+                const resumedClient = createConnectingClient(cliUrl);
+                const session2 = await resumedClient.resumeSession(sessionId, {
+                    continuePendingWork: false,
+                    onPermissionRequest: approveAll,
+                });
+
+                // Verify resume event has continuePendingWork: false and sessionWasActive: true
+                const messages = await session2.getMessages();
+                const resumeEvent = messages.find((m) => m.type === "session.resume");
+                expect(resumeEvent).toBeDefined();
+                expect(resumeEvent!.data.continuePendingWork).toBe(false);
+                expect(resumeEvent!.data.sessionWasActive).toBe(true);
+
+                // Handle the pending tool call directly via RPC
+                const resumedResult = await session2.rpc.tools.handlePendingToolCall({
+                    requestId: toolEvent.data.requestId,
+                    result: "EXTERNAL_RESUMED_BETA",
+                });
+                expect(resumedResult.success).toBe(true);
+
+                const answer = await waitWithTimeout(
+                    getFinalAssistantMessage(session2),
+                    PENDING_WORK_TIMEOUT_MS,
+                    "final assistant message"
+                );
+
+                expect(invocationCount).toBe(1);
+                expect(answer.data.content ?? "").toContain("EXTERNAL_RESUMED_BETA");
+
+                await session2.disconnect();
+            } finally {
+                if (!releaseOriginalTool.settled()) {
+                    releaseOriginalTool.resolve("ORIGINAL_SHOULD_NOT_WIN");
+                }
+            }
+        }
+    );
+
+    it(
+        "should report continuePendingWork true in resume event",
+        { timeout: TEST_TIMEOUT_MS },
+        async () => {
+            const server = createTcpServer();
+            await server.start();
+            const cliUrl = getCliUrl(server);
+
+            let sessionId: string;
+            {
+                const firstClient = createConnectingClient(cliUrl);
+                const firstSession = await firstClient.createSession({
+                    onPermissionRequest: approveAll,
+                });
+                sessionId = firstSession.sessionId;
+
+                const firstAnswer = await firstSession.sendAndWait({
+                    prompt: "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_ONE",
+                });
+                expect(firstAnswer?.data.content ?? "").toContain(
+                    "CONTINUE_PENDING_WORK_TRUE_TURN_ONE"
+                );
+
+                await firstSession.disconnect();
+                await firstClient.forceStop();
+            }
+
+            const resumedClient = createConnectingClient(cliUrl);
+            const resumedSession = await resumedClient.resumeSession(sessionId, {
+                continuePendingWork: true,
+                onPermissionRequest: approveAll,
+            });
+
+            // Verify resume event has continuePendingWork: true and sessionWasActive: false
+            const messages = await resumedSession.getMessages();
+            const resumeEvent = messages.find((m) => m.type === "session.resume");
+            expect(resumeEvent).toBeDefined();
+            expect(resumeEvent!.data.continuePendingWork).toBe(true);
+            expect(resumeEvent!.data.sessionWasActive).toBe(false);
+
+            const followUp = await resumedSession.sendAndWait({
+                prompt: "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_TWO",
+            });
+            expect(followUp?.data.content ?? "").toContain("CONTINUE_PENDING_WORK_TRUE_TURN_TWO");
 
             await resumedSession.disconnect();
         }

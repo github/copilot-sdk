@@ -20,7 +20,11 @@ public class SerializationTests
         var original = new ProviderConfig
         {
             BaseUrl = "https://example.com/provider",
-            Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer provider-token" }
+            Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer provider-token" },
+            ModelId = "gpt-4o",
+            WireModel = "my-finetune-v3",
+            MaxInputTokens = 100_000,
+            MaxOutputTokens = 4096
         };
 
         var json = JsonSerializer.Serialize(original, options);
@@ -28,11 +32,19 @@ public class SerializationTests
         var root = document.RootElement;
         Assert.Equal("https://example.com/provider", root.GetProperty("baseUrl").GetString());
         Assert.Equal("Bearer provider-token", root.GetProperty("headers").GetProperty("Authorization").GetString());
+        Assert.Equal("gpt-4o", root.GetProperty("modelId").GetString());
+        Assert.Equal("my-finetune-v3", root.GetProperty("wireModel").GetString());
+        Assert.Equal(100_000, root.GetProperty("maxPromptTokens").GetInt32());
+        Assert.Equal(4096, root.GetProperty("maxOutputTokens").GetInt32());
 
         var deserialized = JsonSerializer.Deserialize<ProviderConfig>(json, options);
         Assert.NotNull(deserialized);
         Assert.Equal("https://example.com/provider", deserialized.BaseUrl);
         Assert.Equal("Bearer provider-token", deserialized.Headers!["Authorization"]);
+        Assert.Equal("gpt-4o", deserialized.ModelId);
+        Assert.Equal("my-finetune-v3", deserialized.WireModel);
+        Assert.Equal(100_000, deserialized.MaxInputTokens);
+        Assert.Equal(4096, deserialized.MaxOutputTokens);
     }
 
     [Fact]

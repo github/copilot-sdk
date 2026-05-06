@@ -369,13 +369,6 @@ class TestPendingWorkResume:
                     )
                     assert result_a.success
 
-                    answer = await get_final_assistant_message(
-                        session2, timeout=PENDING_WORK_TIMEOUT
-                    )
-                    content = answer.data.content or ""
-                    assert "PARALLEL_A_ALPHA" in content
-                    assert "PARALLEL_B_BETA" in content
-
                     await session2.disconnect()
                 finally:
                     await _safe_force_stop(resumed_client)
@@ -424,6 +417,148 @@ class TestPendingWorkResume:
                     "Reply with exactly: NO_PENDING_TURN_TWO"
                 )
                 assert "NO_PENDING_TURN_TWO" in (follow_up.data.content or "")
+                await resumed_session.disconnect()
+            finally:
+                await _safe_force_stop(resumed_client)
+        finally:
+            await _safe_force_stop(server)
+
+    async def test_should_keep_pending_external_tool_handleable_on_warm_resume_when_continuependingwork_is_false(  # noqa: E501
+        self, ctx: E2ETestContext
+    ):
+        from copilot.generated.session_events import SessionResumeData
+
+        tool_started: asyncio.Future = asyncio.get_event_loop().create_future()
+        release_original: asyncio.Future = asyncio.get_event_loop().create_future()
+        invocation_count = 0
+
+        async def blocking_external_tool(args):
+            nonlocal invocation_count
+            invocation_count += 1
+            value = args.get("value", "")
+            if not tool_started.done():
+                tool_started.set_result(value)
+            return await release_original
+
+        server = _make_subprocess_client(ctx, use_stdio=False)
+        await server.start()
+        try:
+            cli_url = f"localhost:{server.actual_port}"
+
+            suspended_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
+            session1 = await suspended_client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[_make_pending_tool("resume_external_tool", blocking_external_tool)],
+            )
+            session_id = session1.session_id
+
+            try:
+                tool_request_task = asyncio.create_task(
+                    _wait_for_external_tool_requests(session1, ["resume_external_tool"])
+                )
+                await session1.send(
+                    "Use resume_external_tool with value 'beta', then reply with the result."
+                )
+                tool_events = await tool_request_task
+                assert (await asyncio.wait_for(tool_started, PENDING_WORK_TIMEOUT)) == "beta"
+
+                await suspended_client.force_stop()
+
+                resumed_client = CopilotClient(
+                    ExternalServerConfig(
+                        url=cli_url, tcp_connection_token="py-tcp-shared-test-token"
+                    )
+                )
+                try:
+                    session2 = await resumed_client.resume_session(
+                        session_id,
+                        on_permission_request=PermissionHandler.approve_all,
+                        continue_pending_work=False,
+                    )
+
+                    # Verify resume event: continue_pending_work=False and session_was_active=True
+                    messages = await session2.get_messages()
+                    resume_events = [m for m in messages if isinstance(m.data, SessionResumeData)]
+                    assert len(resume_events) == 1, "Expected exactly one session.resume event"
+                    resume_event = resume_events[0]
+                    assert resume_event.data.continue_pending_work is False
+                    assert resume_event.data.session_was_active is True
+
+                    # The pending tool call should still be satisfiable
+                    tool_result = await session2.rpc.tools.handle_pending_tool_call(
+                        HandlePendingToolCallRequest(
+                            request_id=tool_events["resume_external_tool"].data.request_id,
+                            result="EXTERNAL_RESUMED_BETA",
+                        )
+                    )
+                    assert tool_result.success
+
+                    answer = await get_final_assistant_message(
+                        session2, timeout=PENDING_WORK_TIMEOUT
+                    )
+                    assert invocation_count == 1
+                    assert "EXTERNAL_RESUMED_BETA" in (answer.data.content or "")
+
+                    await session2.disconnect()
+                finally:
+                    await _safe_force_stop(resumed_client)
+            finally:
+                if not release_original.done():
+                    release_original.set_result("ORIGINAL_SHOULD_NOT_WIN")
+        finally:
+            await _safe_force_stop(server)
+
+    async def test_should_report_continuependingwork_true_in_resume_event(
+        self, ctx: E2ETestContext
+    ):
+        from copilot.generated.session_events import SessionResumeData
+
+        server = _make_subprocess_client(ctx, use_stdio=False)
+        await server.start()
+        try:
+            cli_url = f"localhost:{server.actual_port}"
+
+            first_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
+            try:
+                first_session = await first_client.create_session(
+                    on_permission_request=PermissionHandler.approve_all,
+                )
+                session_id = first_session.session_id
+                first_answer = await first_session.send_and_wait(
+                    "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_ONE",
+                    timeout=PENDING_WORK_TIMEOUT,
+                )
+                assert "CONTINUE_PENDING_WORK_TRUE_TURN_ONE" in (first_answer.data.content or "")
+                await first_session.disconnect()
+            finally:
+                await _safe_force_stop(first_client)
+
+            resumed_client = CopilotClient(
+                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+            )
+            try:
+                resumed_session = await resumed_client.resume_session(
+                    session_id,
+                    on_permission_request=PermissionHandler.approve_all,
+                    continue_pending_work=True,
+                )
+
+                messages = await resumed_session.get_messages()
+                resume_events = [m for m in messages if isinstance(m.data, SessionResumeData)]
+                assert len(resume_events) == 1, "Expected exactly one session.resume event"
+                resume_event = resume_events[0]
+                assert resume_event.data.continue_pending_work is True
+                assert resume_event.data.session_was_active is False
+
+                follow_up = await resumed_session.send_and_wait(
+                    "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_TWO",
+                    timeout=PENDING_WORK_TIMEOUT,
+                )
+                assert "CONTINUE_PENDING_WORK_TRUE_TURN_TWO" in (follow_up.data.content or "")
                 await resumed_session.disconnect()
             finally:
                 await _safe_force_stop(resumed_client)

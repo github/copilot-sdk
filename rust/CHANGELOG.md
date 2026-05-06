@@ -413,7 +413,8 @@ public surface.
   `with_buffer_exhaustion_threshold`;
   `ProviderConfig::new(base_url)` plus `with_provider_type`,
   `with_wire_api`, `with_api_key`, `with_bearer_token`,
-  `with_azure`, `with_headers`; `SystemMessageConfig::new()` plus
+  `with_azure`, `with_headers`, `with_model_id`, `with_wire_model`,
+  `with_max_prompt_tokens`, `with_max_output_tokens`; `SystemMessageConfig::new()` plus
   `with_mode`, `with_content`, `with_sections`;
   `TelemetryConfig::new()` plus `with_otlp_endpoint`,
   `with_file_path`, `with_exporter_type`, `with_source_name`,

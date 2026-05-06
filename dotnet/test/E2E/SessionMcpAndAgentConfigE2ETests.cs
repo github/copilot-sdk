@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Rpc;
 using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
@@ -291,6 +292,83 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
     }
 
     [Fact]
+    public async Task Should_Round_Trip_Mcp_Server_Elicitation_Request()
+    {
+        var testHarnessDir = FindTestHarnessDir();
+        var configPath = Path.Join(Ctx.WorkDir, $"elicitation-config-{Guid.NewGuid():N}.json");
+        await File.WriteAllTextAsync(
+            configPath,
+            """
+            [
+              {
+                "message": "Pick a color.",
+                "requestedSchema": {
+                  "type": "object",
+                  "properties": {
+                    "color": {
+                      "type": "string",
+                      "enum": ["red", "blue"]
+                    }
+                  },
+                  "required": ["color"]
+                }
+              }
+            ]
+            """);
+
+        var elicitationContext = new TaskCompletionSource<ElicitationContext>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var mcpServers = new Dictionary<string, McpServerConfig>
+        {
+            ["test-elicitation-server"] = new McpStdioServerConfig
+            {
+                Command = "node",
+                Args =
+                [
+                    Path.Join(testHarnessDir, "test-mcp-elicitation-server.mjs"),
+                    "--config",
+                    configPath
+                ],
+                Cwd = testHarnessDir,
+                Tools = ["*"]
+            }
+        };
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            McpServers = mcpServers,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnElicitationRequest = context =>
+            {
+                elicitationContext.TrySetResult(context);
+                return Task.FromResult(new ElicitationResult
+                {
+                    Action = UIElicitationResponseAction.Accept,
+                    Content = new Dictionary<string, object> { ["color"] = "blue" }
+                });
+            },
+        });
+
+        await WaitForMcpServerStatusAsync(session, "test-elicitation-server", McpServerStatus.Connected);
+
+        var message = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Use the test-elicitation-server-request_user_input tool and tell me the chosen color. Reply with just the color."
+        });
+
+        var request = await elicitationContext.Task.WaitAsync(TimeSpan.FromSeconds(60));
+
+        Assert.Equal("Pick a color.", request.Message);
+        Assert.Equal(ElicitationRequestedMode.Form, request.Mode);
+        Assert.Contains("test-elicitation-server", request.ElicitationSource ?? string.Empty, StringComparison.Ordinal);
+        Assert.NotNull(request.RequestedSchema);
+        Assert.Equal("object", request.RequestedSchema!.Type);
+        Assert.Contains("color", request.RequestedSchema.Properties.Keys);
+        Assert.Contains("blue", message?.Data.Content ?? string.Empty);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Accept_Both_MCP_Servers_And_Custom_Agents()
     {
         var mcpServers = new Dictionary<string, McpServerConfig>
@@ -343,5 +421,23 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
             dir = dir.Parent;
         }
         throw new InvalidOperationException("Could not find test/harness/test-mcp-server.mjs");
+    }
+
+    private static async Task WaitForMcpServerStatusAsync(
+        CopilotSession session,
+        string serverName,
+        McpServerStatus expectedStatus)
+    {
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                var result = await session.Rpc.Mcp.ListAsync();
+                return result.Servers.Any(server =>
+                    string.Equals(server.Name, serverName, StringComparison.Ordinal)
+                    && server.Status == expectedStatus);
+            },
+            timeout: TimeSpan.FromSeconds(60),
+            pollInterval: TimeSpan.FromMilliseconds(200),
+            timeoutMessage: $"{serverName} reaching {expectedStatus}");
     }
 }

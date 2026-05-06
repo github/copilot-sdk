@@ -2226,7 +2226,7 @@ class CopilotClient:
             )
             server_version = connect_result.protocol_version
         except JsonRpcError as err:
-            if err.code == -32601:
+            if err.code == -32601 or err.message == "Unhandled method connect":
                 # Legacy server without `connect`; fall back to `ping`. A token, if any,
                 # is silently dropped — the legacy server can't enforce one.
                 ping_result = await self.ping()
@@ -2275,6 +2275,14 @@ class CopilotClient:
             wire_provider["bearerToken"] = provider["bearer_token"]
         if "headers" in provider:
             wire_provider["headers"] = provider["headers"]
+        if "model_id" in provider:
+            wire_provider["modelId"] = provider["model_id"]
+        if "wire_model" in provider:
+            wire_provider["wireModel"] = provider["wire_model"]
+        if "max_input_tokens" in provider:
+            wire_provider["maxPromptTokens"] = provider["max_input_tokens"]
+        if "max_output_tokens" in provider:
+            wire_provider["maxOutputTokens"] = provider["max_output_tokens"]
         if "azure" in provider:
             azure = provider["azure"]
             wire_azure: dict[str, Any] = {}
