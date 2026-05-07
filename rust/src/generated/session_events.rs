@@ -1292,8 +1292,8 @@ pub struct ModelCallFailureData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AbortData {
-    /// Reason the current turn was aborted (e.g., "user initiated")
-    pub reason: String,
+    /// Finite reason code describing why the current turn was aborted
+    pub reason: AbortReason,
 }
 
 /// User-initiated tool invocation request with tool name and arguments
@@ -1449,6 +1449,9 @@ pub struct SubagentStartedData {
     pub agent_display_name: String,
     /// Internal name of the sub-agent
     pub agent_name: String,
+    /// Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
 }
@@ -2652,6 +2655,20 @@ pub enum ModelCallFailureSource {
     Subagent,
     #[serde(rename = "mcp_sampling")]
     McpSampling,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Finite reason code describing why the current turn was aborted
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AbortReason {
+    #[serde(rename = "user_initiated")]
+    UserInitiated,
+    #[serde(rename = "remote_command")]
+    RemoteCommand,
+    #[serde(rename = "user_abort")]
+    UserAbort,
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,

@@ -2155,9 +2155,9 @@ public partial class ModelCallFailureData
 /// <summary>Turn abort information including the reason for termination.</summary>
 public partial class AbortData
 {
-    /// <summary>Reason the current turn was aborted (e.g., "user initiated").</summary>
+    /// <summary>Finite reason code describing why the current turn was aborted.</summary>
     [JsonPropertyName("reason")]
-    public required string Reason { get; set; }
+    public required AbortReason Reason { get; set; }
 }
 
 /// <summary>User-initiated tool invocation request with tool name and arguments.</summary>
@@ -2342,6 +2342,11 @@ public partial class SubagentStartedData
     /// <summary>Internal name of the sub-agent.</summary>
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
+
+    /// <summary>Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
     [JsonPropertyName("toolCallId")]
@@ -4995,6 +5000,21 @@ public enum ModelCallFailureSource
     /// <summary>The <c>mcp_sampling</c> variant.</summary>
     [JsonStringEnumMemberName("mcp_sampling")]
     McpSampling,
+}
+
+/// <summary>Finite reason code describing why the current turn was aborted.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<AbortReason>))]
+public enum AbortReason
+{
+    /// <summary>The <c>user_initiated</c> variant.</summary>
+    [JsonStringEnumMemberName("user_initiated")]
+    UserInitiated,
+    /// <summary>The <c>remote_command</c> variant.</summary>
+    [JsonStringEnumMemberName("remote_command")]
+    RemoteCommand,
+    /// <summary>The <c>user_abort</c> variant.</summary>
+    [JsonStringEnumMemberName("user_abort")]
+    UserAbort,
 }
 
 /// <summary>Theme variant this icon is intended for.</summary>

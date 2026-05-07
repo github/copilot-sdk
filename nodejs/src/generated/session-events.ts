@@ -130,6 +130,10 @@ export type AssistantMessageToolRequestType = "function" | "custom";
  */
 export type ModelCallFailureSource = "top_level" | "subagent" | "mcp_sampling";
 /**
+ * Finite reason code describing why the current turn was aborted
+ */
+export type AbortReason = "user_initiated" | "remote_command" | "user_abort";
+/**
  * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
  */
 export type ToolExecutionCompleteContent =
@@ -2397,10 +2401,7 @@ export interface AbortEvent {
  * Turn abort information including the reason for termination
  */
 export interface AbortData {
-  /**
-   * Reason the current turn was aborted (e.g., "user initiated")
-   */
-  reason: string;
+  reason: AbortReason;
 }
 export interface ToolUserRequestedEvent {
   /**
@@ -2927,6 +2928,10 @@ export interface SubagentStartedData {
    * Internal name of the sub-agent
    */
   agentName: string;
+  /**
+   * Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck).
+   */
+  model?: string;
   /**
    * Tool call ID of the parent tool invocation that spawned this sub-agent
    */
