@@ -167,6 +167,27 @@ public class ForwardCompatibilityTests
     }
 
     [Fact]
+    public void FromJson_KnownEventType_WithUnknownEnumInData_PreservesValue()
+    {
+        var json = """
+        {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "parentId": null,
+            "type": "abort",
+            "data": {
+                "reason": "future_abort_reason"
+            }
+        }
+        """;
+
+        var result = SessionEvent.FromJson(json);
+
+        var abort = Assert.IsType<AbortEvent>(result);
+        Assert.Equal("future_abort_reason", abort.Data.Reason.Value);
+    }
+
+    [Fact]
     public void FromJson_KnownEventType_WithNullOptionalFields_DoesNotThrow()
     {
         // The CLI may emit null for optional fields. Verify parsing doesn't throw.

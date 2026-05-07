@@ -320,20 +320,90 @@ interface EventVariant {
     dataDescription?: string;
 }
 
-let generatedEnums = new Map<string, { enumName: string; values: string[] }>();
+let generatedEnums = new Map<string, { enumName: string; values: string[]; useStringEnum: boolean }>();
 
 /** Schema definitions available during session event generation (for $ref resolution). */
 let sessionDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
 
-function getOrCreateEnum(parentClassName: string, propName: string, values: string[], enumOutput: string[], description?: string, explicitName?: string, deprecated?: boolean): string {
+/**
+ * Emits a schema enum type. RPC schemas use the default regular .NET enum output
+ * because RPC method contracts are closed to the schema version. Session event
+ * schemas pass useStringEnum=true because persisted runtime events need to
+ * deserialize and preserve enum strings added by newer runtimes.
+ */
+function getOrCreateEnum(
+    parentClassName: string,
+    propName: string,
+    values: string[],
+    enumOutput: string[],
+    description?: string,
+    explicitName?: string,
+    deprecated?: boolean,
+    useStringEnum = false
+): string {
     const enumName = explicitName ?? `${parentClassName}${propName}`;
     const existing = generatedEnums.get(enumName);
     if (existing) return existing.enumName;
-    generatedEnums.set(enumName, { enumName, values });
+    generatedEnums.set(enumName, { enumName, values, useStringEnum });
 
     const lines: string[] = [];
     lines.push(...xmlDocEnumComment(description, ""));
     if (deprecated) lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
+
+    if (useStringEnum) {
+        lines.push(`[JsonConverter(typeof(Converter))]`);
+        lines.push(`[DebuggerDisplay("{Value,nq}")]`);
+        lines.push(`public readonly struct ${enumName} : IEquatable<${enumName}>`);
+        lines.push(`{`);
+        for (const value of values) {
+            lines.push(`    /// <summary>Gets the <c>${escapeXml(value)}</c> value.</summary>`);
+            lines.push(`    public static ${enumName} ${toPascalCaseEnumMember(value)} { get; } = new("${value}");`, "");
+        }
+        lines.push(`    /// <summary>Gets the value associated with this <see cref="${enumName}"/>.</summary>`);
+        lines.push(`    public string Value { get; }`, "");
+        lines.push(`    /// <summary>Initializes a new instance of the <see cref="${enumName}"/> struct.</summary>`);
+        lines.push(`    /// <param name="value">The value to associate with this <see cref="${enumName}"/>.</param>`);
+        lines.push(`    [JsonConstructor]`);
+        lines.push(`    public ${enumName}(string value)`);
+        lines.push(`    {`);
+        lines.push(`        ArgumentException.ThrowIfNullOrWhiteSpace(value);`);
+        lines.push(`        Value = value;`);
+        lines.push(`    }`, "");
+        lines.push(`    /// <summary>Returns a value indicating whether two <see cref="${enumName}"/> instances are equivalent.</summary>`);
+        lines.push(`    public static bool operator ==(${enumName} left, ${enumName} right) => left.Equals(right);`, "");
+        lines.push(`    /// <summary>Returns a value indicating whether two <see cref="${enumName}"/> instances are not equivalent.</summary>`);
+        lines.push(`    public static bool operator !=(${enumName} left, ${enumName} right) => !(left == right);`, "");
+        lines.push(`    /// <inheritdoc />`);
+        lines.push(`    public override bool Equals(object? obj) => obj is ${enumName} other && Equals(other);`, "");
+        lines.push(`    /// <inheritdoc />`);
+        lines.push(`    public bool Equals(${enumName} other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);`, "");
+        lines.push(`    /// <inheritdoc />`);
+        lines.push(`    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);`, "");
+        lines.push(`    /// <inheritdoc />`);
+        lines.push(`    public override string ToString() => Value ?? string.Empty;`, "");
+        lines.push(`    /// <summary>Provides a <see cref="JsonConverter{${enumName}}"/> for serializing <see cref="${enumName}"/> instances.</summary>`);
+        lines.push(`    [EditorBrowsable(EditorBrowsableState.Never)]`);
+        lines.push(`    public sealed class Converter : JsonConverter<${enumName}>`);
+        lines.push(`    {`);
+        lines.push(`        /// <inheritdoc />`);
+        lines.push(`        public override ${enumName} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)`);
+        lines.push(`        {`);
+        lines.push(`            var value = reader.GetString();`);
+        lines.push(`            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();`);
+        lines.push(`            return new(value);`);
+        lines.push(`        }`, "");
+        lines.push(`        /// <inheritdoc />`);
+        lines.push(`        public override void Write(Utf8JsonWriter writer, ${enumName} value, JsonSerializerOptions options)`);
+        lines.push(`        {`);
+        lines.push(`            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();`);
+        lines.push(`            writer.WriteStringValue(value.Value);`);
+        lines.push(`        }`);
+        lines.push(`    }`);
+        lines.push(`}`, "");
+        enumOutput.push(lines.join("\n"));
+        return enumName;
+    }
+
     lines.push(`[JsonConverter(typeof(JsonStringEnumConverter<${enumName}>))]`, `public enum ${enumName}`, `{`);
     for (const value of values) {
         lines.push(`    /// <summary>The <c>${escapeXml(value)}</c> variant.</summary>`);
@@ -557,7 +627,7 @@ function resolveSessionPropertyType(
         }
 
         if (refSchema.enum && Array.isArray(refSchema.enum)) {
-            const enumName = getOrCreateEnum(className, "", refSchema.enum as string[], enumOutput, refSchema.description, undefined, isSchemaDeprecated(refSchema));
+            const enumName = getOrCreateEnum(className, "", refSchema.enum as string[], enumOutput, refSchema.description, undefined, isSchemaDeprecated(refSchema), true);
             return isRequired ? enumName : `${enumName}?`;
         }
 
@@ -599,7 +669,7 @@ function resolveSessionPropertyType(
         return !isRequired ? "object?" : "object";
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
-        const enumName = getOrCreateEnum(parentClassName, propName, propSchema.enum as string[], enumOutput, propSchema.description, propSchema.title as string | undefined, isSchemaDeprecated(propSchema));
+        const enumName = getOrCreateEnum(parentClassName, propName, propSchema.enum as string[], enumOutput, propSchema.description, propSchema.title as string | undefined, isSchemaDeprecated(propSchema), true);
         return isRequired ? enumName : `${enumName}?`;
     }
     if (propSchema.type === "object" && propSchema.properties) {
@@ -718,6 +788,7 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 #pragma warning disable CS0612 // Type or member is obsolete
 #pragma warning disable CS0618 // Type or member is obsolete (with message)
 
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
