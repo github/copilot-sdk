@@ -139,7 +139,7 @@ public class CapiProxy implements AutoCloseable {
             throw new IOException("Unexpected proxy output: " + line);
         }
 
-        proxyUrl = matcher.group(1);
+        String url = matcher.group(1);
 
         // Parse optional metadata (CONNECT proxy details)
         String metadata = matcher.group(2);
@@ -155,6 +155,8 @@ public class CapiProxy implements AutoCloseable {
             }
         }
 
+        // Only set proxyUrl after all parsing succeeds to avoid inconsistent state
+        proxyUrl = url;
         return proxyUrl;
     }
 
