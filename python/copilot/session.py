@@ -1180,7 +1180,7 @@ class CopilotSession:
         message_id = response["messageId"]
         log_timing(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "CopilotSession.send completed successfully",
             rpc_start,
             session_id=self.session_id,
@@ -1283,7 +1283,7 @@ class CopilotSession:
                 raise error_event
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotSession.send_and_wait complete",
                 total_start,
                 session_id=self.session_id,
@@ -1501,7 +1501,7 @@ class CopilotSession:
                     result = await result
                 log_timing(
                     logger,
-                    logging.INFO,
+                    logging.DEBUG,
                     "CopilotSession._execute_tool_and_respond tool dispatch",
                     handler_start,
                     session_id=self.session_id,
@@ -1591,7 +1591,7 @@ class CopilotSession:
                 result = await result
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotSession._execute_permission_and_respond dispatch",
                 handler_start,
                 session_id=self.session_id,
@@ -1670,7 +1670,7 @@ class CopilotSession:
                 await result
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotSession._execute_command_and_respond dispatch",
                 handler_start,
                 session_id=self.session_id,
@@ -1723,7 +1723,7 @@ class CopilotSession:
                 result = await result
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotSession._handle_elicitation_request dispatch",
                 handler_start,
                 session_id=self.session_id,
@@ -1891,7 +1891,7 @@ class CopilotSession:
                 result = await result
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotSession._handle_permission_request dispatch",
                 handler_start,
                 session_id=self.session_id,
@@ -1956,7 +1956,7 @@ class CopilotSession:
                 result = await result
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotSession._handle_user_input_request dispatch",
                 handler_start,
                 session_id=self.session_id,
@@ -2013,7 +2013,7 @@ class CopilotSession:
                 result[section_id] = {"content": content}
         log_timing(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "CopilotSession._handle_system_message_transform dispatch",
             transform_start,
             session_id=self.session_id,
@@ -2060,7 +2060,7 @@ class CopilotSession:
                 result = await result
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotSession._handle_hooks_invoke dispatch",
                 handler_start,
                 session_id=self.session_id,

@@ -1094,7 +1094,7 @@ class CopilotClient:
             await self._connect_to_server()
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotClient.start transport setup complete",
                 start_time,
             )
@@ -1103,7 +1103,7 @@ class CopilotClient:
             await self._verify_protocol_version()
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotClient.start protocol verification complete",
                 start_time,
             )
@@ -1113,7 +1113,7 @@ class CopilotClient:
                 await self._set_session_fs_provider()
                 log_timing(
                     logger,
-                    logging.INFO,
+                    logging.DEBUG,
                     "CopilotClient.start session filesystem setup complete",
                     session_fs_start,
                 )
@@ -1121,7 +1121,7 @@ class CopilotClient:
             self._state = "connected"
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotClient.start complete",
                 start_time,
             )
@@ -1589,7 +1589,7 @@ class CopilotClient:
             response = await self._client.request("session.create", payload)
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotClient.create_session session creation request completed successfully",
                 rpc_start,
                 session_id=actual_session_id,
@@ -1613,7 +1613,7 @@ class CopilotClient:
 
         log_timing(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "CopilotClient.create_session complete",
             total_start,
             session_id=actual_session_id,
@@ -1914,7 +1914,7 @@ class CopilotClient:
             response = await self._client.request("session.resume", payload)
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotClient.resume_session session resume request completed successfully",
                 rpc_start,
                 session_id=session_id,
@@ -1938,7 +1938,7 @@ class CopilotClient:
 
         log_timing(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "CopilotClient.resume_session complete",
             total_start,
             session_id=session_id,
@@ -2383,7 +2383,7 @@ class CopilotClient:
         self._negotiated_protocol_version = server_version
         log_timing(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "CopilotClient._verify_protocol_version protocol handshake complete",
             handshake_start,
             protocol_version=server_version,
@@ -2596,7 +2596,7 @@ class CopilotClient:
             )
         log_timing(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "CopilotClient._start_cli_server subprocess spawned",
             spawn_start,
         )
@@ -2629,7 +2629,7 @@ class CopilotClient:
             await asyncio.wait_for(read_port(), timeout=10.0)
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotClient._start_cli_server TCP port wait complete",
                 port_wait_start,
                 port=self._actual_port,
@@ -2654,7 +2654,7 @@ class CopilotClient:
             await self._connect_via_tcp()
         log_timing(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "CopilotClient._connect_to_server transport setup complete",
             setup_start,
         )
@@ -2742,7 +2742,7 @@ class CopilotClient:
             sock.settimeout(None)  # Remove timeout after connection
             log_timing(
                 logger,
-                logging.INFO,
+                logging.DEBUG,
                 "CopilotClient._connect_via_tcp TCP connect complete",
                 tcp_connect_start,
                 host=self._actual_host,
@@ -2969,7 +2969,7 @@ class CopilotClient:
                     result = await result
                 log_timing(
                     logger,
-                    logging.INFO,
+                    logging.DEBUG,
                     "CopilotClient._handle_tool_call_request_v2 tool dispatch",
                     handler_start,
                     session_id=session_id,

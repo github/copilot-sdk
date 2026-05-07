@@ -469,7 +469,7 @@ pub(crate) async fn dispatch_hook(
 
     let dispatch_start = Instant::now();
     let output = hooks.on_hook(event).await;
-    tracing::info!(
+    tracing::debug!(
         elapsed_ms = dispatch_start.elapsed().as_millis(),
         session_id = %session_id,
         hook_type = hook_type,

@@ -247,13 +247,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
                 }
 
-                LogTiming(_logger, LogLevel.Information, null,
+                LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StartAsync transport setup complete. Elapsed={Elapsed}",
                     startTimestamp);
 
                 // Verify protocol version compatibility
                 await VerifyProtocolVersionAsync(connection, ct);
-                LogTiming(_logger, LogLevel.Information, null,
+                LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StartAsync protocol verification complete. Elapsed={Elapsed}",
                     startTimestamp);
 
@@ -261,12 +261,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 await ConfigureSessionFsAsync(ct);
                 if (_options.SessionFs is not null)
                 {
-                    LogTiming(_logger, LogLevel.Information, null,
+                    LogTiming(_logger, LogLevel.Debug, null,
                         "CopilotClient.StartAsync session filesystem setup complete. Elapsed={Elapsed}",
                         sessionFsTimestamp);
                 }
 
-                LogTiming(_logger, LogLevel.Information, null,
+                LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StartAsync complete. Elapsed={Elapsed}",
                     startTimestamp);
                 return connection;
@@ -629,7 +629,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<CreateSessionResponse>(
                 connection.Rpc, "session.create", [request], cancellationToken);
-            LogTiming(_logger, LogLevel.Information, null,
+            LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.CreateSessionAsync session creation request completed successfully. Elapsed={Elapsed}, SessionId={SessionId}",
                 rpcTimestamp,
                 sessionId);
@@ -650,7 +650,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             throw;
         }
 
-        LogTiming(_logger, LogLevel.Information, null,
+        LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.CreateSessionAsync complete. Elapsed={Elapsed}, SessionId={SessionId}",
             totalTimestamp,
             sessionId);
@@ -782,7 +782,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
                 connection.Rpc, "session.resume", [request], cancellationToken);
-            LogTiming(_logger, LogLevel.Information, null,
+            LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.ResumeSessionAsync session resume request completed successfully. Elapsed={Elapsed}, SessionId={SessionId}",
                 rpcTimestamp,
                 sessionId);
@@ -803,7 +803,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             throw;
         }
 
-        LogTiming(_logger, LogLevel.Information, null,
+        LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.ResumeSessionAsync complete. Elapsed={Elapsed}, SessionId={SessionId}",
             totalTimestamp,
             sessionId);
@@ -1346,7 +1346,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         _negotiatedProtocolVersion = serverVersion.Value;
-        LogTiming(_logger, LogLevel.Information, null,
+        LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.VerifyProtocolVersionAsync protocol handshake complete. Elapsed={Elapsed}, ProtocolVersion={ProtocolVersion}, UsedFallbackPing={UsedFallbackPing}",
             handshakeTimestamp,
             serverVersion.Value,
@@ -1465,7 +1465,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             cliProcess = new Process { StartInfo = startInfo };
             var spawnTimestamp = Stopwatch.GetTimestamp();
             cliProcess.Start();
-            LogTiming(logger, LogLevel.Information, null,
+            LogTiming(logger, LogLevel.Debug, null,
                 "CopilotClient.StartCliServerAsync subprocess spawned. Elapsed={Elapsed}",
                 spawnTimestamp);
 
@@ -1515,7 +1515,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     if (ListeningOnPortRegex().Match(line) is { Success: true } match)
                     {
                         detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-                        LogTiming(logger, LogLevel.Information, null,
+                        LogTiming(logger, LogLevel.Debug, null,
                             "CopilotClient.StartCliServerAsync TCP port wait complete. Elapsed={Elapsed}, Port={Port}",
                             portWaitTimestamp,
                             detectedLocalhostTcpPort.Value);
@@ -1607,7 +1607,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 var tcpConnectTimestamp = Stopwatch.GetTimestamp();
                 LogConnectingToCliServer(_logger, tcpHost, tcpPort.Value);
                 await socket.ConnectAsync(tcpHost, tcpPort.Value, cancellationToken);
-                LogTiming(_logger, LogLevel.Information, null,
+                LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.ConnectToServerAsync TCP connect complete. Elapsed={Elapsed}, Host={Host}, Port={Port}",
                     tcpConnectTimestamp,
                     tcpHost,
@@ -1646,7 +1646,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return session.ClientSessionApis;
         });
         rpc.StartListening();
-        LogTiming(_logger, LogLevel.Information, null,
+        LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
             setupTimestamp);
 
@@ -1824,7 +1824,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
                 var toolTimestamp = Stopwatch.GetTimestamp();
                 var result = await tool.InvokeAsync(aiFunctionArgs);
-                LogTiming(client._logger, LogLevel.Information, null,
+                LogTiming(client._logger, LogLevel.Debug, null,
                     "RpcHandler.OnToolCallV2 tool dispatch. Elapsed={Elapsed}, SessionId={SessionId}, ToolCallId={ToolCallId}, Tool={ToolName}",
                     toolTimestamp,
                     sessionId,

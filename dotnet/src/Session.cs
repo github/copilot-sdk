@@ -200,7 +200,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var rpcTimestamp = Stopwatch.GetTimestamp();
         var response = await InvokeRpcAsync<SendMessageResponse>(
             "session.send", [request], cancellationToken);
-        LogTiming(_logger, LogLevel.Information, null,
+        LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.SendAsync completed successfully. Elapsed={Elapsed}, SessionId={SessionId}, MessageId={MessageId}",
             rpcTimestamp,
             SessionId,
@@ -295,7 +295,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         try
         {
             var result = await tcs.Task;
-            LogTiming(_logger, LogLevel.Information, null,
+            LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.SendAndWaitAsync complete. Elapsed={Elapsed}, SessionId={SessionId}, CompletedBy={CompletedBy}, AssistantMessageReceived={AssistantMessageReceived}",
                 totalTimestamp,
                 SessionId,
@@ -481,7 +481,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         var permissionTimestamp = Stopwatch.GetTimestamp();
         var result = await handler(request, invocation);
-        LogTiming(_logger, LogLevel.Information, null,
+        LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.HandlePermissionRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
             permissionTimestamp,
             SessionId);
@@ -639,7 +639,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             var toolTimestamp = Stopwatch.GetTimestamp();
             var result = await tool.InvokeAsync(aiFunctionArgs);
-            LogTiming(_logger, LogLevel.Information, null,
+            LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync tool dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
                 toolTimestamp,
                 SessionId,
@@ -690,7 +690,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             var permissionTimestamp = Stopwatch.GetTimestamp();
             var result = await handler(permissionRequest, invocation);
-            LogTiming(_logger, LogLevel.Information, null,
+            LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecutePermissionAndRespondAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 permissionTimestamp,
                 SessionId,
@@ -797,7 +797,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 CommandName = commandName,
                 Args = args
             });
-            LogTiming(_logger, LogLevel.Information, null,
+            LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteCommandAndRespondAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}",
                 commandTimestamp,
                 SessionId,
@@ -841,7 +841,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             var elicitationTimestamp = Stopwatch.GetTimestamp();
             var result = await handler(context);
-            LogTiming(_logger, LogLevel.Information, null,
+            LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleElicitationRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 elicitationTimestamp,
                 SessionId,
@@ -1009,7 +1009,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         var userInputTimestamp = Stopwatch.GetTimestamp();
         var response = await handler(request, invocation);
-        LogTiming(_logger, LogLevel.Information, null,
+        LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.HandleUserInputRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
             userInputTimestamp,
             SessionId);
@@ -1102,7 +1102,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         finally
         {
-            LogTiming(_logger, LogLevel.Information, null,
+            LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleHooksInvokeAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, Hook={HookType}",
                 hookTimestamp,
                 SessionId,

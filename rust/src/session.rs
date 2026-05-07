@@ -317,7 +317,7 @@ impl Session {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .unwrap_or_default();
-        tracing::info!(
+        tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
             session_id = %self.id,
             message_id = %message_id,
@@ -386,7 +386,7 @@ impl Session {
 
         match result {
             Ok(inner) => {
-                tracing::info!(
+                tracing::debug!(
                     elapsed_ms = total_start.elapsed().as_millis(),
                     session_id = %self.id,
                     completed_by = if inner.is_ok() { "idle" } else { "error" },
@@ -740,7 +740,7 @@ impl Client {
         inject_trace_context(&mut params, &trace_ctx);
         let rpc_start = Instant::now();
         let result = self.call("session.create", Some(params)).await?;
-        tracing::info!(
+        tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
             "Client::create_session session creation request completed successfully"
         );
@@ -779,7 +779,7 @@ impl Client {
             "Client::create_session local setup complete"
         );
 
-        tracing::info!(
+        tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
             session_id = %session_id,
             "Client::create_session complete"
@@ -837,7 +837,7 @@ impl Client {
         inject_trace_context(&mut params, &trace_ctx);
         let rpc_start = Instant::now();
         let result = self.call("session.resume", Some(params)).await?;
-        tracing::info!(
+        tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
             session_id = %session_id,
             "Client::resume_session session resume request completed successfully"
@@ -879,7 +879,7 @@ impl Client {
                 "Client::resume_session skills reload request failed"
             );
         } else {
-            tracing::info!(
+            tracing::debug!(
                 elapsed_ms = skills_reload_start.elapsed().as_millis(),
                 session_id = %cli_session_id,
                 "Client::resume_session skills reload request completed successfully"
@@ -918,7 +918,7 @@ impl Client {
             "Client::resume_session local setup complete"
         );
 
-        tracing::info!(
+        tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
             session_id = %cli_session_id,
             "Client::resume_session complete"
@@ -1224,7 +1224,7 @@ async fn handle_notification(
                             data,
                         })
                         .await;
-                    tracing::info!(
+                    tracing::debug!(
                         elapsed_ms = handler_start.elapsed().as_millis(),
                         session_id = %sid,
                         request_id = %request_id,
@@ -1348,7 +1348,7 @@ async fn handle_notification(
                     let response = handler
                         .on_event(HandlerEvent::ExternalTool { invocation })
                         .await;
-                    tracing::info!(
+                    tracing::debug!(
                         elapsed_ms = handler_start.elapsed().as_millis(),
                         session_id = %sid,
                         request_id = %request_id,
@@ -1453,7 +1453,7 @@ async fn handle_notification(
                                     request,
                                 })
                                 .await;
-                            tracing::info!(
+                            tracing::debug!(
                                 elapsed_ms = handler_start.elapsed().as_millis(),
                                 session_id = %sid,
                                 request_id = %request_id,
@@ -1531,7 +1531,7 @@ async fn handle_notification(
                             };
                             let handler_start = Instant::now();
                             let result = handler.on_command(ctx).await;
-                            tracing::info!(
+                            tracing::debug!(
                                 elapsed_ms = handler_start.elapsed().as_millis(),
                                 session_id = %sid,
                                 request_id = %request_id,
@@ -1643,7 +1643,7 @@ async fn handle_request(
             let response = handler
                 .on_event(HandlerEvent::ExternalTool { invocation })
                 .await;
-            tracing::info!(
+            tracing::debug!(
                 elapsed_ms = handler_start.elapsed().as_millis(),
                 session_id = %sid,
                 tool_call_id = %tool_call_id,
@@ -1707,7 +1707,7 @@ async fn handle_request(
                     allow_freeform,
                 })
                 .await;
-            tracing::info!(
+            tracing::debug!(
                 elapsed_ms = handler_start.elapsed().as_millis(),
                 session_id = %sid,
                 "SessionHandler::on_user_input dispatch"
@@ -1775,7 +1775,7 @@ async fn handle_request(
                     data,
                 })
                 .await;
-            tracing::info!(
+            tracing::debug!(
                 elapsed_ms = handler_start.elapsed().as_millis(),
                 session_id = %sid,
                 request_id = %request_id,
@@ -1823,7 +1823,7 @@ async fn handle_request(
                 let transform_start = Instant::now();
                 let response =
                     crate::transforms::dispatch_transform(transforms, &sid, sections).await;
-                tracing::info!(
+                tracing::debug!(
                     elapsed_ms = transform_start.elapsed().as_millis(),
                     session_id = %sid,
                     "SystemMessageTransform::transform_section dispatch"
