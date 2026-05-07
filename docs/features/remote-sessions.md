@@ -186,7 +186,7 @@ session.rpc().remote().disable().await?;
 
 <!-- tabs:end -->
 
-## Qr code generation
+## QR code generation
 
 The remote URL can be rendered as a QR code for easy mobile access. The SDK provides the URL—use your preferred QR code library:
 
