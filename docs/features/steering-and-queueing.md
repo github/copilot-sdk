@@ -213,9 +213,9 @@ try (var client = new CopilotClient()) {
 ### How steering works internally
 
 1. The message is added to the runtime's `ImmediatePromptProcessor` queue
-2. Before the next LLM request within the current turn, the processor injects the message into the conversation
-3. The agent sees the steering message as a new user message and adjusts its response
-4. If the turn completes before the steering message is processed, it is automatically moved to the regular queue for the next turn
+1. Before the next LLM request within the current turn, the processor injects the message into the conversation
+1. The agent sees the steering message as a new user message and adjusts its response
+1. If the turn completes before the steering message is processed, it is automatically moved to the regular queue for the next turn
 
 > [!NOTE]
 > Steering messages are best-effort within the current turn. If the agent has already committed to a tool call, the steering takes effect after that call completes but still within the same turn.
@@ -461,10 +461,10 @@ try (var client = new CopilotClient()) {
 ### How queueing works internally
 
 1. The message is added to the session's `itemQueue` as a `QueuedItem`
-2. When the current turn completes and the session becomes idle, `processQueuedItems()` runs
-3. Items are dequeued in FIFO order — each message triggers a full agentic turn
-4. If a steering message was pending when the turn ended, it is moved to the front of the queue
-5. Processing continues until the queue is empty, then the session emits an idle event
+1. When the current turn completes and the session becomes idle, `processQueuedItems()` runs
+1. Items are dequeued in FIFO order — each message triggers a full agentic turn
+1. If a steering message was pending when the turn ended, it is moved to the front of the queue
+1. Processing continues until the queue is empty, then the session emits an idle event
 
 ## Combining steering and queueing
 
@@ -632,15 +632,15 @@ class InteractiveChat {
 
 1. **Default to queueing** — Use `"enqueue"` (or omit `mode`) for most messages. It's predictable and doesn't risk disrupting in-progress work.
 
-2. **Reserve steering for corrections** — Use `"immediate"` when the agent is actively doing the wrong thing and you need to redirect it before it goes further.
+1. **Reserve steering for corrections** — Use `"immediate"` when the agent is actively doing the wrong thing and you need to redirect it before it goes further.
 
-3. **Keep steering messages concise** — The agent needs to quickly understand the course correction. Long, complex steering messages may confuse the current context.
+1. **Keep steering messages concise** — The agent needs to quickly understand the course correction. Long, complex steering messages may confuse the current context.
 
-4. **Don't over-steer** — Multiple rapid steering messages can degrade turn quality. If you need to change direction significantly, consider aborting the turn and starting fresh.
+1. **Don't over-steer** — Multiple rapid steering messages can degrade turn quality. If you need to change direction significantly, consider aborting the turn and starting fresh.
 
-5. **Show queue state in your UI** — Display the number of queued messages so users know what's pending. Listen for idle events to clear the display.
+1. **Show queue state in your UI** — Display the number of queued messages so users know what's pending. Listen for idle events to clear the display.
 
-6. **Handle the steering-to-queue fallback** — If a steering message arrives after the turn completes, it's automatically moved to the queue. Design your UI to reflect this transition.
+1. **Handle the steering-to-queue fallback** — If a steering message arrives after the turn completes, it's automatically moved to the queue. Design your UI to reflect this transition.
 
 ## See also
 

@@ -195,12 +195,12 @@ var client = new CopilotClient(new CopilotClientOptions
 
 1. Install the CLI: [Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli)
 
-2. Verify installation:
+1. Verify installation:
    ```bash
    copilot --version
    ```
 
-3. Or specify the full path:
+1. Or specify the full path:
 
    <details open>
    <summary><strong>Node.js</strong></summary>
@@ -262,7 +262,7 @@ var client = new CopilotClient(new CopilotClientOptions
    copilot auth login
    ```
 
-2. Or provide a token programmatically:
+1. Or provide a token programmatically:
 
    <details open>
    <summary><strong>Node.js</strong></summary>
@@ -326,7 +326,7 @@ var client = new CopilotClient(new CopilotClientOptions
    // Don't use session after this!
    ```
 
-2. For resuming sessions, verify the session ID exists:
+1. For resuming sessions, verify the session ID exists:
    ```typescript
    const sessions = await client.listSessions();
    console.log("Available sessions:", sessions);
@@ -343,7 +343,7 @@ var client = new CopilotClient(new CopilotClientOptions
    copilot --server --stdio
    ```
 
-2. Check for port conflicts if using TCP mode:
+1. Check for port conflicts if using TCP mode:
    ```typescript
    const client = new CopilotClient({
      useStdio: false,
@@ -418,14 +418,14 @@ const client = new CopilotClient({
    // Should be "connected" after start()
    ```
 
-2. **Listen for state changes:**
+1. **Listen for state changes:**
    ```typescript
    client.on("stateChange", (state) => {
      console.log("State changed to:", state);
    });
    ```
 
-3. **Verify CLI process is running:**
+1. **Verify CLI process is running:**
    ```bash
    # Check for copilot processes
    ps aux | grep copilot
@@ -447,7 +447,7 @@ const client = new CopilotClient({
    console.log("Registered tools:", session.getTools?.());
    ```
 
-2. **Check tool schema is valid JSON Schema:**
+1. **Check tool schema is valid JSON Schema:**
    ```typescript
    const myTool = {
      name: "get_weather",
@@ -465,7 +465,7 @@ const client = new CopilotClient({
    };
    ```
 
-3. **Ensure handler returns valid result:**
+1. **Ensure handler returns valid result:**
    ```typescript
    handler: async (args) => {
      // Must return something JSON-serializable
@@ -502,13 +502,13 @@ session.on("error", (event) => {
    CliPath = "C:/Program Files/GitHub/copilot.exe"
    ```
 
-2. **PATHEXT resolution:** The SDK handles this automatically, but if issues persist:
+1. **PATHEXT resolution:** The SDK handles this automatically, but if issues persist:
    ```csharp
    // Explicitly specify .exe
    Command = "myserver.exe"  // Not just "myserver"
    ```
 
-3. **Console encoding:** Ensure UTF-8 for proper JSON handling:
+1. **Console encoding:** Ensure UTF-8 for proper JSON handling:
    ```csharp
    Console.OutputEncoding = System.Text.Encoding.UTF8;
    ```
@@ -520,7 +520,7 @@ session.on("error", (event) => {
    xattr -d com.apple.quarantine /path/to/copilot
    ```
 
-2. **PATH issues in GUI apps:** GUI applications may not inherit shell PATH:
+1. **PATH issues in GUI apps:** GUI applications may not inherit shell PATH:
    ```typescript
    const client = new CopilotClient({
      cliPath: "/opt/homebrew/bin/copilot",  // Full path
@@ -534,7 +534,7 @@ session.on("error", (event) => {
    chmod +x /path/to/copilot
    ```
 
-2. **Missing libraries:** Check for required shared libraries:
+1. **Missing libraries:** Check for required shared libraries:
    ```bash
    ldd /path/to/copilot
    ```
@@ -552,9 +552,9 @@ If you're still stuck:
    * Debug logs
    * Minimal reproduction code
 
-2. **Search existing issues:** [GitHub Issues](https://github.com/github/copilot-sdk/issues)
+1. **Search existing issues:** [GitHub Issues](https://github.com/github/copilot-sdk/issues)
 
-3. **Open a new issue** with the collected information
+1. **Open a new issue** with the collected information
 
 ## See also
 

@@ -606,8 +606,8 @@ foundry model run phi-4-mini
 ### Authentication failed
 
 1. Verify your API key is correct and not expired
-2. Check the `baseUrl` matches your provider's expected format
-3. For bearer tokens, ensure the full token is provided (not just a prefix)
+1. Check the `baseUrl` matches your provider's expected format
+1. For bearer tokens, ensure the full token is provided (not just a prefix)
 
 ## Next steps
 

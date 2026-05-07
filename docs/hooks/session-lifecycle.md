@@ -516,13 +516,13 @@ Session Summary:
 
 1. **Keep `onSessionStart` fast** - Users are waiting for the session to be ready.
 
-2. **Handle all end reasons** - Don't assume sessions end cleanly; handle errors and aborts.
+1. **Handle all end reasons** - Don't assume sessions end cleanly; handle errors and aborts.
 
-3. **Clean up resources** - Use `onSessionEnd` to free any resources allocated during the session.
+1. **Clean up resources** - Use `onSessionEnd` to free any resources allocated during the session.
 
-4. **Store minimal state** - If tracking session data, keep it lightweight.
+1. **Store minimal state** - If tracking session data, keep it lightweight.
 
-5. **Make cleanup idempotent** - `onSessionEnd` might not be called if the process crashes.
+1. **Make cleanup idempotent** - `onSessionEnd` might not be called if the process crashes.
 
 ## See also
 

@@ -182,7 +182,7 @@ The `--share` option is not available via SDK. Workarounds:
    // Format as markdown yourself
    ```
 
-2. **Use CLI directly for export** - Run the CLI with `--share` for one-off exports.
+1. **Use CLI directly for export** - Run the CLI with `--share` for one-off exports.
 
 ### Permission control
 
@@ -266,8 +266,8 @@ await session.send({ prompt: "Next, add tests" });
 The SDK can only access features exposed through the CLI's JSON-RPC protocol. If you need a CLI feature that's not available:
 
 1. **Check for alternatives** - Many features have SDK equivalents (see workarounds above)
-2. **Use the CLI directly** - For one-off operations, invoke the CLI
-3. **Request the feature** - Open an issue to request protocol support
+1. **Use the CLI directly** - For one-off operations, invoke the CLI
+1. **Request the feature** - Open an issue to request protocol support
 
 ## Version compatibility
 

@@ -43,9 +43,9 @@ The model sees the **full conversation history** on each call — system prompt,
 A **turn** is a single LLM API call and its consequences:
 
 1. The CLI sends the conversation history to the LLM
-2. The LLM responds (possibly with tool requests)
-3. If tools were requested, the CLI executes them
-4. `assistant.turn_end` is emitted
+1. The LLM responds (possibly with tool requests)
+1. If tools were requested, the CLI executes them
+1. `assistant.turn_end` is emitted
 
 A single user message typically results in **multiple turns**. For example, a question like "how does X work in this codebase?" might produce:
 
@@ -150,7 +150,7 @@ This effectively restarts the tool-use loop — the model sees the nudge as a ne
 
 This creates a **two-level completion mechanism** in autopilot:
 1. The model calls `task_complete` with a summary → CLI emits `session.task_complete` → done
-2. The model stops without calling it → CLI nudges → model continues or calls `task_complete`
+1. The model stops without calling it → CLI nudges → model continues or calls `task_complete`
 
 ### Why `task_complete` might not appear
 

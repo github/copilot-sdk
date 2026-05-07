@@ -405,7 +405,7 @@ const session = await client.createSession({
 
 1. **Always return a decision** - Returning `null` allows the tool, but being explicit with `{ permissionDecision: "allow" }` is clearer.
 
-2. **Provide helpful denial reasons** - When denying, explain why so users understand:
+1. **Provide helpful denial reasons** - When denying, explain why so users understand:
    ```typescript
    return {
      permissionDecision: "deny",
@@ -413,11 +413,11 @@ const session = await client.createSession({
    };
    ```
 
-3. **Be careful with argument modification** - Ensure modified args maintain the expected schema for the tool.
+1. **Be careful with argument modification** - Ensure modified args maintain the expected schema for the tool.
 
-4. **Consider performance** - Pre-tool hooks run synchronously before each tool call. Keep them fast.
+1. **Consider performance** - Pre-tool hooks run synchronously before each tool call. Keep them fast.
 
-5. **Use `suppressOutput` judiciously** - Suppressing output means the model won't see the result, which may affect conversation quality.
+1. **Use `suppressOutput` judiciously** - Suppressing output means the model won't see the result, which may affect conversation quality.
 
 ## See also
 

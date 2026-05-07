@@ -39,7 +39,7 @@ You're building a personal assistant, side project, or experimental app. You wan
 
 **Start with:**
 1. **[Default Setup](./bundled-cli.md)** — The SDK includes the CLI automatically — just install and go
-2. **[Local CLI](./local-cli.md)** — Use your own CLI binary or running instance (advanced)
+1. **[Local CLI](./local-cli.md)** — Use your own CLI binary or running instance (advanced)
 
 ### 🏢 Internal app developer
 
@@ -47,10 +47,10 @@ You're building tools for your team or company. Users are employees who need to 
 
 **Start with:**
 1. **[GitHub OAuth](./github-oauth.md)** — Let employees sign in with their GitHub accounts
-2. **[Backend Services](./backend-services.md)** — Run the SDK in your internal services
+1. **[Backend Services](./backend-services.md)** — Run the SDK in your internal services
 
 **If scaling beyond a single server:**
-3. **[Scaling & Multi-Tenancy](./scaling.md)** — Handle multiple users and services
+1. **[Scaling & Multi-Tenancy](./scaling.md)** — Handle multiple users and services
 
 ### 🚀 App developer (ISV)
 
@@ -58,11 +58,11 @@ You're building a product for customers. You need to handle authentication for y
 
 **Start with:**
 1. **[GitHub OAuth](./github-oauth.md)** — Let customers sign in with GitHub
-2. **[BYOK](../auth/byok.md)** — Manage identity yourself with your own model keys
-3. **[Backend Services](./backend-services.md)** — Power your product from server-side code
+1. **[BYOK](../auth/byok.md)** — Manage identity yourself with your own model keys
+1. **[Backend Services](./backend-services.md)** — Power your product from server-side code
 
 **For production:**
-4. **[Scaling & Multi-Tenancy](./scaling.md)** — Serve many customers reliably
+1. **[Scaling & Multi-Tenancy](./scaling.md)** — Serve many customers reliably
 
 ### 🏗️ Platform developer
 
@@ -70,11 +70,11 @@ You're embedding Copilot into a platform — APIs, developer tools, or infrastru
 
 **Start with:**
 1. **[Backend Services](./backend-services.md)** — Core server-side integration
-2. **[Scaling & Multi-Tenancy](./scaling.md)** — Session isolation, horizontal scaling, persistence
+1. **[Scaling & Multi-Tenancy](./scaling.md)** — Session isolation, horizontal scaling, persistence
 
 **Depending on your auth model:**
-3. **[GitHub OAuth](./github-oauth.md)** — For GitHub-authenticated users
-4. **[BYOK](../auth/byok.md)** — For self-managed identity and model access
+1. **[GitHub OAuth](./github-oauth.md)** — For GitHub-authenticated users
+1. **[BYOK](../auth/byok.md)** — For self-managed identity and model access
 
 ## Decision matrix
 

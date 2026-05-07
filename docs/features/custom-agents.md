@@ -411,10 +411,10 @@ var session = client.createSession(
 When you send a prompt to a session with custom agents, the runtime evaluates whether to delegate to a sub-agent:
 
 1. **Intent matching** — The runtime analyzes the user's prompt against each agent's `name` and `description`
-2. **Agent selection** — If a match is found and `infer` is not `false`, the runtime selects the agent
-3. **Isolated execution** — The sub-agent runs with its own prompt and restricted tool set
-4. **Event streaming** — Lifecycle events (`subagent.started`, `subagent.completed`, etc.) stream back to the parent session
-5. **Result integration** — The sub-agent's output is incorporated into the parent agent's response
+1. **Agent selection** — If a match is found and `infer` is not `false`, the runtime selects the agent
+1. **Isolated execution** — The sub-agent runs with its own prompt and restricted tool set
+1. **Event streaming** — Lifecycle events (`subagent.started`, `subagent.completed`, etc.) stream back to the parent session
+1. **Result integration** — The sub-agent's output is incorporated into the parent agent's response
 
 ### Controlling inference
 
@@ -890,8 +890,8 @@ var session = await client.CreateSessionAsync(new SessionConfig
 Tools listed in `defaultAgent.excludedTools`:
 
 1. **Are registered** — their handlers are available for execution
-2. **Are hidden** from the main agent's tool list — the LLM won't see or call them directly
-3. **Remain available** to any custom sub-agent that includes them in its `tools` array
+1. **Are hidden** from the main agent's tool list — the LLM won't see or call them directly
+1. **Remain available** to any custom sub-agent that includes them in its `tools` array
 
 ### Interaction with other tool filters
 
@@ -905,7 +905,7 @@ Tools listed in `defaultAgent.excludedTools`:
 
 Precedence:
 1. Session-level `availableTools`/`excludedTools` are applied first (globally)
-2. `defaultAgent.excludedTools` is applied on top, further restricting the main agent only
+1. `defaultAgent.excludedTools` is applied on top, further restricting the main agent only
 
 > [!NOTE]
 > If a tool is in both `excludedTools` (session-level) and `defaultAgent.excludedTools`, the session-level exclusion takes precedence — the tool is unavailable to everyone.

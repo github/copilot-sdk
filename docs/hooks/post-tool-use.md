@@ -454,13 +454,13 @@ const session = await client.createSession({
 
 1. **Return `null` when no changes needed** - This is more efficient than returning an empty object or the same result.
 
-2. **Be careful with result modification** - Changing results can affect how the model interprets tool output. Only modify when necessary.
+1. **Be careful with result modification** - Changing results can affect how the model interprets tool output. Only modify when necessary.
 
-3. **Use `additionalContext` for hints** - Instead of modifying results, add context to help the model interpret them.
+1. **Use `additionalContext` for hints** - Instead of modifying results, add context to help the model interpret them.
 
-4. **Consider privacy when logging** - Tool results may contain sensitive data. Apply redaction before logging.
+1. **Consider privacy when logging** - Tool results may contain sensitive data. Apply redaction before logging.
 
-5. **Keep hooks fast** - Post-tool hooks run synchronously. Heavy processing should be done asynchronously or batched.
+1. **Keep hooks fast** - Post-tool hooks run synchronously. Heavy processing should be done asynchronously or batched.
 
 ## See also
 

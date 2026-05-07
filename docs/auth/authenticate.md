@@ -17,8 +17,8 @@ This is the default authentication method when running the Copilot CLI interacti
 
 **How it works:**
 1. User runs `copilot` CLI and signs in via GitHub OAuth
-2. Credentials are stored securely in the system keychain
-3. SDK automatically uses stored credentials
+1. Credentials are stored securely in the system keychain
+1. SDK automatically uses stored credentials
 
 **SDK Configuration:**
 
@@ -109,8 +109,8 @@ Use an OAuth GitHub App to authenticate users through your application and pass 
 
 **How it works:**
 1. User authorizes your OAuth GitHub App
-2. Your app receives a user access token (`gho_` or `ghu_` prefix)
-3. Pass the token to the SDK via `gitHubToken` option
+1. Your app receives a user access token (`gho_` or `ghu_` prefix)
+1. Pass the token to the SDK via `gitHubToken` option
 
 **SDK Configuration:**
 
@@ -237,12 +237,12 @@ For automation, CI/CD pipelines, and server-to-server scenarios, you can authent
 
 **Supported environment variables (in priority order):**
 1. `COPILOT_GITHUB_TOKEN` - Recommended for explicit Copilot usage
-2. `GH_TOKEN` - GitHub CLI compatible
-3. `GITHUB_TOKEN` - GitHub Actions compatible
+1. `GH_TOKEN` - GitHub CLI compatible
+1. `GITHUB_TOKEN` - GitHub Actions compatible
 
 **How it works:**
 1. Set one of the supported environment variables with a valid token
-2. The SDK automatically detects and uses the token
+1. The SDK automatically detects and uses the token
 
 **SDK Configuration:**
 
@@ -300,11 +300,11 @@ BYOK allows you to use your own API keys from model providers like Azure AI Foun
 When multiple authentication methods are available, the SDK uses them in this priority order:
 
 1. **Explicit `gitHubToken`** - Token passed directly to SDK constructor
-2. **HMAC key** - `CAPI_HMAC_KEY` or `COPILOT_HMAC_KEY` environment variables
-3. **Direct API token** - `GITHUB_COPILOT_API_TOKEN` with `COPILOT_API_URL`
-4. **Environment variable tokens** - `COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN`
-5. **Stored OAuth credentials** - From previous `copilot` CLI login
-6. **GitHub CLI** - `gh auth` credentials
+1. **HMAC key** - `CAPI_HMAC_KEY` or `COPILOT_HMAC_KEY` environment variables
+1. **Direct API token** - `GITHUB_COPILOT_API_TOKEN` with `COPILOT_API_URL`
+1. **Environment variable tokens** - `COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN`
+1. **Stored OAuth credentials** - From previous `copilot` CLI login
+1. **GitHub CLI** - `gh auth` credentials
 
 ## Disabling auto-login
 

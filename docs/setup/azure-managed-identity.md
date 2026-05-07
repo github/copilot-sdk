@@ -9,8 +9,8 @@ This guide shows how to use `DefaultAzureCredential` from the [Azure Identity](h
 Azure AI Foundry's OpenAI-compatible endpoint accepts bearer tokens from Entra ID in place of static API keys. The pattern is:
 
 1. Use `DefaultAzureCredential` to obtain a token for the `https://cognitiveservices.azure.com/.default` scope
-2. Pass the token as the `bearer_token` in the BYOK provider config
-3. Refresh the token before it expires (tokens are typically valid for ~1 hour)
+1. Pass the token as the `bearer_token` in the BYOK provider config
+1. Refresh the token before it expires (tokens are typically valid for ~1 hour)
 
 ```mermaid
 sequenceDiagram

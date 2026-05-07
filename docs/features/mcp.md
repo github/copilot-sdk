@@ -277,11 +277,11 @@ directories for different applications.
    * Ensure the server process doesn't crash on startup
    * Look for error output in stderr
 
-2. **Check tool configuration**
+1. **Check tool configuration**
    * Make sure `tools` is set to `["*"]` or lists the specific tools you need
    * An empty array `[]` means no tools are enabled
 
-3. **Verify connectivity for remote servers**
+1. **Verify connectivity for remote servers**
    * Ensure the URL is accessible
    * Check that authentication headers are correct
 

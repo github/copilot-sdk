@@ -77,12 +77,12 @@ flowchart TB
 1. Go to **GitHub Settings → Developer Settings → OAuth Apps → New OAuth App**
    (or for organizations: **Organization Settings → Developer Settings**)
 
-2. Fill in:
+1. Fill in:
    * **Application name**: Your app's name
    * **Homepage URL**: Your app's URL
    * **Authorization callback URL**: Your OAuth callback endpoint (e.g., `https://yourapp.com/auth/callback`)
 
-3. Note your **Client ID** and generate a **Client Secret**
+1. Note your **Client ID** and generate a **Client Secret**
 
 > **GitHub App vs OAuth App:** Both work. GitHub Apps offer finer-grained permissions and are recommended for new projects. OAuth Apps are simpler to set up. The token flow is the same from the SDK's perspective.
 

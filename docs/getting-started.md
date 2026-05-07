@@ -1496,14 +1496,14 @@ You've built an assistant with a custom tool that Copilot can call!
 
 When you define a tool, you're telling Copilot:
 1. **What the tool does** (description)
-2. **What parameters it needs** (schema)
-3. **What code to run** (handler)
+1. **What parameters it needs** (schema)
+1. **What code to run** (handler)
 
 Copilot decides when to call your tool based on the user's question. When it does:
 1. Copilot sends a tool call request with the parameters
-2. The SDK runs your handler function
-3. The result is sent back to Copilot
-4. Copilot incorporates the result into its response
+1. The SDK runs your handler function
+1. The result is sent back to Copilot
+1. Copilot incorporates the result into its response
 
 ---
 

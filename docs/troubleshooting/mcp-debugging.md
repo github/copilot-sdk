@@ -147,11 +147,11 @@ cd /expected/working/dir
    }
    ```
 
-2. **Server doesn't expose tools:**
+1. **Server doesn't expose tools:**
    * Test with `tools/list` request manually
    * Check server implements `tools/list` method
 
-3. **Initialization handshake fails:**
+1. **Initialization handshake fails:**
    * Server must respond to `initialize` correctly
    * Server must handle `notifications/initialized`
 
@@ -172,7 +172,7 @@ cd /expected/working/dir
    });
    ```
 
-2. **Tool description unclear:**
+1. **Tool description unclear:**
    ```typescript
    // Bad - model doesn't know when to use it
    { name: "do_thing", description: "Does a thing" }
@@ -181,7 +181,7 @@ cd /expected/working/dir
    { name: "get_weather", description: "Get current weather conditions for a city. Returns temperature, humidity, and conditions." }
    ```
 
-3. **Tool schema issues:**
+1. **Tool schema issues:**
    * Ensure `inputSchema` is valid JSON Schema
    * Required fields must be in `required` array
 
@@ -201,12 +201,12 @@ cd /expected/working/dir
    }
    ```
 
-2. **Optimize server performance:**
+1. **Optimize server performance:**
    * Add progress logging to identify bottleneck
    * Consider async operations
    * Check for blocking I/O
 
-3. **For long-running tools**, consider streaming responses if supported.
+1. **For long-running tools**, consider streaming responses if supported.
 
 ### JSON-RPC errors
 
@@ -226,11 +226,11 @@ cd /expected/working/dir
    console.error("Debug info");
    ```
 
-2. **Encoding issues:**
+1. **Encoding issues:**
    * Ensure UTF-8 encoding
    * No BOM (Byte Order Mark)
 
-3. **Message framing:**
+1. **Message framing:**
    * Each message must be a complete JSON object
    * Newline-delimited (one message per line)
 

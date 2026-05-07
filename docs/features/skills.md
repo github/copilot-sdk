@@ -352,13 +352,13 @@ The markdown body contains the instructions that are injected into the session c
 
 1. **Organize by domain** - Group related skills together (e.g., `skills/security/`, `skills/testing/`)
 
-2. **Use frontmatter** - Include `name` and `description` in YAML frontmatter for clarity
+1. **Use frontmatter** - Include `name` and `description` in YAML frontmatter for clarity
 
-3. **Document dependencies** - Note any tools or MCP servers a skill requires
+1. **Document dependencies** - Note any tools or MCP servers a skill requires
 
-4. **Test skills in isolation** - Verify skills work before combining them
+1. **Test skills in isolation** - Verify skills work before combining them
 
-5. **Use relative paths** - Keep skills portable across environments
+1. **Use relative paths** - Keep skills portable across environments
 
 ## Combining with other features
 
@@ -405,9 +405,9 @@ const session = await client.createSession({
 ### Skills not loading
 
 1. **Check path exists** - Verify the skill directory path is correct and contains subdirectories with `SKILL.md` files
-2. **Check permissions** - Ensure the SDK can read the directory
-3. **Check SKILL.md format** - Verify the markdown is well-formed and any YAML frontmatter uses valid syntax
-4. **Enable debug logging** - Set `logLevel: "debug"` to see skill loading logs
+1. **Check permissions** - Ensure the SDK can read the directory
+1. **Check SKILL.md format** - Verify the markdown is well-formed and any YAML frontmatter uses valid syntax
+1. **Enable debug logging** - Set `logLevel: "debug"` to see skill loading logs
 
 ### Skill conflicts
 

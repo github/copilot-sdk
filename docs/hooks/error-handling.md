@@ -500,15 +500,15 @@ const session = await client.createSession({
 
 1. **Always log errors** - Even if you suppress them from users, keep logs for debugging.
 
-2. **Categorize errors** - Use `errorType` to handle different errors appropriately.
+1. **Categorize errors** - Use `errorType` to handle different errors appropriately.
 
-3. **Don't swallow critical errors** - Only suppress errors you're certain are non-critical.
+1. **Don't swallow critical errors** - Only suppress errors you're certain are non-critical.
 
-4. **Keep hooks fast** - Error handling shouldn't slow down recovery.
+1. **Keep hooks fast** - Error handling shouldn't slow down recovery.
 
-5. **Provide helpful context** - When errors occur, `additionalContext` can help the model recover.
+1. **Provide helpful context** - When errors occur, `additionalContext` can help the model recover.
 
-6. **Monitor error patterns** - Track recurring errors to identify systemic issues.
+1. **Monitor error patterns** - Track recurring errors to identify systemic issues.
 
 ## See also
 

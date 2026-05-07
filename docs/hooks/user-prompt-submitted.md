@@ -470,13 +470,13 @@ const session = await client.createSession({
 
 1. **Preserve user intent** - When modifying prompts, ensure the core intent remains clear.
 
-2. **Be transparent about modifications** - If you significantly change a prompt, consider logging or notifying the user.
+1. **Be transparent about modifications** - If you significantly change a prompt, consider logging or notifying the user.
 
-3. **Use `additionalContext` over `modifiedPrompt`** - Adding context is less intrusive than rewriting the prompt.
+1. **Use `additionalContext` over `modifiedPrompt`** - Adding context is less intrusive than rewriting the prompt.
 
-4. **Provide clear rejection reasons** - When rejecting prompts, explain why and how to fix it.
+1. **Provide clear rejection reasons** - When rejecting prompts, explain why and how to fix it.
 
-5. **Keep processing fast** - This hook runs on every user message. Avoid slow operations.
+1. **Keep processing fast** - This hook runs on every user message. Avoid slow operations.
 
 ## See also
 
