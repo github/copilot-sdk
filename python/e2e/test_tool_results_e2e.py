@@ -106,6 +106,8 @@ class TestToolResults:
     async def test_should_handle_tool_result_with_rejected_resulttype(self, ctx: E2ETestContext):
         tool_handler_called = False
         tool_complete_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        idle_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        tool_complete_seen = False
 
         @define_tool("deploy_service", description="Deploys a service")
         def deploy_service(invocation: ToolInvocation) -> ToolResult:
@@ -124,8 +126,15 @@ class TestToolResults:
         )
 
         def on_event(event):
-            if event.type.value == "tool.execution_complete" and not tool_complete_future.done():
-                tool_complete_future.set_result(event)
+            nonlocal tool_complete_seen
+            if event.type.value == "tool.execution_complete":
+                tool_complete_seen = True
+                if not tool_complete_future.done():
+                    tool_complete_future.set_result(event)
+            elif (
+                event.type.value == "session.idle" and tool_complete_seen and not idle_future.done()
+            ):
+                idle_future.set_result(event)
 
         unsubscribe = session.on(on_event)
         try:
@@ -147,14 +156,6 @@ class TestToolResults:
             assert "Deployment rejected" in (error_msg or "")
 
             # Session should reach idle
-            idle_future: asyncio.Future = asyncio.get_event_loop().create_future()
-            session.on(
-                lambda e: (
-                    idle_future.set_result(e)
-                    if e.type.value == "session.idle" and not idle_future.done()
-                    else None
-                )
-            )
             await asyncio.wait_for(idle_future, timeout=30.0)
         finally:
             unsubscribe()
