@@ -139,6 +139,7 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
                     let mime_type = resource
                         .get("mimeType")
                         .and_then(serde_json::Value::as_str)
+                        .filter(|s| !s.is_empty())
                         .unwrap_or("application/octet-stream");
                     let description = resource
                         .get("uri")
@@ -523,10 +524,128 @@ mod tests {
             .expect("binary results should be captured");
         assert_eq!(binary_results.len(), 2);
         assert_eq!(binary_results[0].r#type, "image");
+        assert_eq!(binary_results[0].data, "aW1n");
+        assert_eq!(binary_results[0].mime_type, "image/png");
         assert_eq!(
             binary_results[1].description.as_deref(),
             Some("file:///tmp/data.bin")
         );
+    }
+
+    #[test]
+    fn convert_mcp_call_tool_result_converts_image_content() {
+        let result = convert_mcp_call_tool_result(&serde_json::json!({
+            "content": [
+                { "type": "image", "data": "aW1hZ2U=", "mimeType": "image/jpeg" }
+            ]
+        }))
+        .expect("valid CallToolResult should convert");
+
+        let ToolResult::Expanded(expanded) = result else {
+            panic!("expected expanded tool result");
+        };
+
+        assert_eq!(expanded.text_result_for_llm, "");
+        assert_eq!(expanded.result_type, "success");
+        let binary_results = expanded
+            .binary_results_for_llm
+            .expect("image result should be captured");
+        assert_eq!(binary_results.len(), 1);
+        assert_eq!(binary_results[0].data, "aW1hZ2U=");
+        assert_eq!(binary_results[0].mime_type, "image/jpeg");
+        assert_eq!(binary_results[0].r#type, "image");
+        assert!(binary_results[0].description.is_none());
+    }
+
+    #[test]
+    fn convert_mcp_call_tool_result_converts_resource_blob_content() {
+        let result = convert_mcp_call_tool_result(&serde_json::json!({
+            "content": [
+                {
+                    "type": "resource",
+                    "resource": {
+                        "uri": "file:///tmp/report.pdf",
+                        "blob": "cGRm",
+                        "mimeType": "application/pdf"
+                    }
+                }
+            ]
+        }))
+        .expect("valid CallToolResult should convert");
+
+        let ToolResult::Expanded(expanded) = result else {
+            panic!("expected expanded tool result");
+        };
+
+        let binary_results = expanded
+            .binary_results_for_llm
+            .expect("resource result should be captured");
+        assert_eq!(binary_results.len(), 1);
+        assert_eq!(binary_results[0].data, "cGRm");
+        assert_eq!(binary_results[0].mime_type, "application/pdf");
+        assert_eq!(binary_results[0].r#type, "resource");
+        assert_eq!(
+            binary_results[0].description.as_deref(),
+            Some("file:///tmp/report.pdf")
+        );
+    }
+
+    #[test]
+    fn convert_mcp_call_tool_result_defaults_resource_blob_mime_type() {
+        let result = convert_mcp_call_tool_result(&serde_json::json!({
+            "content": [
+                {
+                    "type": "resource",
+                    "resource": {
+                        "uri": "file:///tmp/data.bin",
+                        "blob": "Ymlu"
+                    }
+                },
+                {
+                    "type": "resource",
+                    "resource": {
+                        "blob": "YmluMg==",
+                        "mimeType": ""
+                    }
+                }
+            ]
+        }))
+        .expect("valid CallToolResult should convert");
+
+        let ToolResult::Expanded(expanded) = result else {
+            panic!("expected expanded tool result");
+        };
+
+        let binary_results = expanded
+            .binary_results_for_llm
+            .expect("resource blobs should be captured");
+        assert_eq!(binary_results.len(), 2);
+        assert_eq!(binary_results[0].mime_type, "application/octet-stream");
+        assert_eq!(binary_results[1].mime_type, "application/octet-stream");
+    }
+
+    #[test]
+    fn convert_mcp_call_tool_result_omits_binary_results_without_binary_content() {
+        let result = convert_mcp_call_tool_result(&serde_json::json!({
+            "content": [
+                { "type": "text", "text": "hello" },
+                {
+                    "type": "resource",
+                    "resource": {
+                        "uri": "file:///tmp/readme.md",
+                        "text": "resource text"
+                    }
+                }
+            ]
+        }))
+        .expect("valid CallToolResult should convert");
+
+        let ToolResult::Expanded(expanded) = result else {
+            panic!("expected expanded tool result");
+        };
+
+        assert_eq!(expanded.text_result_for_llm, "hello\nresource text");
+        assert!(expanded.binary_results_for_llm.is_none());
     }
 
     #[tokio::test]
