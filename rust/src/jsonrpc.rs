@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tracing::{Instrument, error, warn};
+use tracing::{Instrument, debug, error, warn};
 
 use crate::{Error, ProtocolError};
 
@@ -368,6 +369,7 @@ impl JsonRpcClient {
         method: &str,
         params: Option<serde_json::Value>,
     ) -> Result<JsonRpcResponse, Error> {
+        let request_start = Instant::now();
         let id = self.request_id.fetch_add(1, Ordering::SeqCst);
         let request = JsonRpcRequest::new(id, method, params);
 
@@ -387,12 +389,53 @@ impl JsonRpcClient {
         // The PendingGuard's drop removes the entry on every error path
         // and on cancellation; disarmed below before the success return so
         // the read loop owns the cleanup on the happy path.
-        self.write(&request).await?;
+        if let Err(error) = self.write(&request).await {
+            warn!(
+                elapsed_ms = request_start.elapsed().as_millis(),
+                method = %method,
+                request_id = id,
+                status = "failed",
+                error = %error,
+                "JsonRpcClient::send_request JSON-RPC request finished"
+            );
+            return Err(error);
+        }
 
-        let response = rx
-            .await
-            .map_err(|_| Error::Protocol(ProtocolError::RequestCancelled))?;
+        let response = match rx.await {
+            Ok(response) => response,
+            Err(_) => {
+                let error = Error::Protocol(ProtocolError::RequestCancelled);
+                warn!(
+                    elapsed_ms = request_start.elapsed().as_millis(),
+                    method = %method,
+                    request_id = id,
+                    status = "failed",
+                    error = %error,
+                    "JsonRpcClient::send_request JSON-RPC request finished"
+                );
+                return Err(error);
+            }
+        };
         guard.disarm();
+        if let Some(error) = &response.error {
+            warn!(
+                elapsed_ms = request_start.elapsed().as_millis(),
+                method = %method,
+                request_id = id,
+                status = "failed",
+                code = error.code,
+                error = %error.message,
+                "JsonRpcClient::send_request JSON-RPC request finished"
+            );
+        } else {
+            debug!(
+                elapsed_ms = request_start.elapsed().as_millis(),
+                method = %method,
+                request_id = id,
+                status = "succeeded",
+                "JsonRpcClient::send_request JSON-RPC request finished"
+            );
+        }
         Ok(response)
     }
 

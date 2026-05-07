@@ -77,6 +77,7 @@ internal sealed partial class JsonRpc : IDisposable
     /// </summary>
     public async Task<T> InvokeAsync<T>(string method, object?[]? args, CancellationToken cancellationToken)
     {
+        var timingTimestamp = Stopwatch.GetTimestamp();
         var id = Interlocked.Increment(ref _nextId);
         var pending = new PendingRequest();
         _pendingRequests[id] = pending;
@@ -111,16 +112,53 @@ internal sealed partial class JsonRpc : IDisposable
 
             if (responseElement.ValueKind == JsonValueKind.Null || responseElement.ValueKind == JsonValueKind.Undefined)
             {
+                LogInvokeTiming(LogLevel.Debug, null, method, id, "Succeeded", timingTimestamp);
                 return default!;
             }
 
-            return (T)responseElement.Deserialize(_serializerOptions.GetTypeInfo(typeof(T)))!;
+            var result = (T)responseElement.Deserialize(_serializerOptions.GetTypeInfo(typeof(T)))!;
+            LogInvokeTiming(LogLevel.Debug, null, method, id, "Succeeded", timingTimestamp);
+            return result;
+        }
+        catch (OperationCanceledException ex)
+        {
+            LogInvokeTiming(LogLevel.Debug, ex, method, id, "Canceled", timingTimestamp);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogInvokeTiming(LogLevel.Warning, ex, method, id, "Failed", timingTimestamp);
+            throw;
         }
         finally
         {
             _pendingRequests.TryRemove(id, out _);
             await cancelRegistration.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    private void LogInvokeTiming(
+        LogLevel level,
+        Exception? exception,
+        string method,
+        long requestId,
+        string status,
+        long startTimestamp)
+    {
+        if (!_logger.IsEnabled(level))
+        {
+            return;
+        }
+
+        var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+        _logger.Log(
+            level,
+            exception,
+            "JsonRpc.InvokeAsync JSON-RPC request finished. Elapsed={Elapsed}, Method={Method}, RequestId={RequestId}, Status={Status}",
+            elapsed,
+            method,
+            requestId,
+            status);
     }
 
     /// <summary>

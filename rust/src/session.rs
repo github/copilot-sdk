@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use parking_lot::Mutex as ParkingLotMutex;
 use serde_json::Value;
@@ -38,6 +38,8 @@ use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotificati
 struct IdleWaiter {
     tx: oneshot::Sender<Result<Option<SessionEvent>, Error>>,
     last_assistant_message: Option<SessionEvent>,
+    started_at: Instant,
+    first_assistant_message_seen: bool,
 }
 
 /// RAII guard that clears the [`Session::idle_waiter`] slot on drop. Used
@@ -308,12 +310,19 @@ impl Session {
             self.client.resolve_trace_context().await
         };
         inject_trace_context(&mut params, &trace_ctx);
+        let rpc_start = Instant::now();
         let result = self.client.call("session.send", Some(params)).await?;
         let message_id = result
             .get("messageId")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .unwrap_or_default();
+        tracing::debug!(
+            elapsed_ms = rpc_start.elapsed().as_millis(),
+            session_id = %self.id,
+            message_id = %message_id,
+            "Session::send completed successfully"
+        );
         Ok(message_id)
     }
 
@@ -340,6 +349,7 @@ impl Session {
         &self,
         opts: impl Into<MessageOptions>,
     ) -> Result<Option<SessionEvent>, Error> {
+        let total_start = Instant::now();
         let opts = opts.into();
         let timeout_duration = opts.wait_timeout.unwrap_or(Duration::from_secs(60));
         let (tx, rx) = oneshot::channel();
@@ -352,6 +362,8 @@ impl Session {
             *guard = Some(IdleWaiter {
                 tx,
                 last_assistant_message: None,
+                started_at: total_start,
+                first_assistant_message_seen: false,
             });
         }
 
@@ -373,8 +385,24 @@ impl Session {
         .await;
 
         match result {
-            Ok(inner) => inner,
-            Err(_) => Err(Error::Session(SessionError::Timeout(timeout_duration))),
+            Ok(inner) => {
+                tracing::debug!(
+                    elapsed_ms = total_start.elapsed().as_millis(),
+                    session_id = %self.id,
+                    completed_by = if inner.is_ok() { "idle" } else { "error" },
+                    "Session::send_and_wait complete"
+                );
+                inner
+            }
+            Err(_) => {
+                tracing::warn!(
+                    elapsed_ms = total_start.elapsed().as_millis(),
+                    session_id = %self.id,
+                    completed_by = "timeout",
+                    "Session::send_and_wait failed"
+                );
+                Err(Error::Session(SessionError::Timeout(timeout_duration)))
+            }
         }
     }
 
@@ -685,12 +713,16 @@ impl Client {
     /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
     /// requests are denied; other events are no-ops.
     pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
+        let total_start = Instant::now();
         let handler = config
             .handler
             .take()
             .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
+        let tools_count = config.tools.as_ref().map_or(0, Vec::len);
+        let commands_count = config.commands.as_ref().map_or(0, Vec::len);
+        let has_hooks = hooks.is_some();
         let command_handlers = build_command_handler_map(config.commands.as_deref());
         let session_fs_provider = config.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
@@ -706,10 +738,16 @@ impl Client {
         let mut params = serde_json::to_value(&config)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
+        let rpc_start = Instant::now();
         let result = self.call("session.create", Some(params)).await?;
+        tracing::debug!(
+            elapsed_ms = rpc_start.elapsed().as_millis(),
+            "Client::create_session session creation request completed successfully"
+        );
         let create_result: CreateSessionResult = serde_json::from_value(result)?;
 
         let session_id = create_result.session_id;
+        let setup_start = Instant::now();
         let capabilities = Arc::new(parking_lot::RwLock::new(
             create_result.capabilities.unwrap_or_default(),
         ));
@@ -732,7 +770,20 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
+        tracing::debug!(
+            elapsed_ms = setup_start.elapsed().as_millis(),
+            session_id = %session_id,
+            tools_count,
+            commands_count,
+            has_hooks,
+            "Client::create_session local setup complete"
+        );
 
+        tracing::debug!(
+            elapsed_ms = total_start.elapsed().as_millis(),
+            session_id = %session_id,
+            "Client::create_session complete"
+        );
         Ok(Session {
             id: session_id,
             cwd: self.cwd().clone(),
@@ -758,12 +809,16 @@ impl Client {
     /// See [`Self::create_session`] for the defaults applied when callback
     /// fields are unset.
     pub async fn resume_session(&self, mut config: ResumeSessionConfig) -> Result<Session, Error> {
+        let total_start = Instant::now();
         let handler = config
             .handler
             .take()
             .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
+        let tools_count = config.tools.as_ref().map_or(0, Vec::len);
+        let commands_count = config.commands.as_ref().map_or(0, Vec::len);
+        let has_hooks = hooks.is_some();
         let command_handlers = build_command_handler_map(config.commands.as_deref());
         let session_fs_provider = config.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
@@ -780,7 +835,13 @@ impl Client {
         let mut params = serde_json::to_value(&config)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
+        let rpc_start = Instant::now();
         let result = self.call("session.resume", Some(params)).await?;
+        tracing::debug!(
+            elapsed_ms = rpc_start.elapsed().as_millis(),
+            session_id = %session_id,
+            "Client::resume_session session resume request completed successfully"
+        );
 
         // The CLI may reassign the session ID on resume.
         let cli_session_id: SessionId = result
@@ -803,6 +864,7 @@ impl Client {
             .map(ToString::to_string);
 
         // Reload skills after resume (best-effort).
+        let skills_reload_start = Instant::now();
         if let Err(e) = self
             .call(
                 "session.skills.reload",
@@ -810,12 +872,24 @@ impl Client {
             )
             .await
         {
-            warn!(error = %e, "failed to reload skills after resume");
+            warn!(
+                elapsed_ms = skills_reload_start.elapsed().as_millis(),
+                session_id = %cli_session_id,
+                error = %e,
+                "Client::resume_session skills reload request failed"
+            );
+        } else {
+            tracing::debug!(
+                elapsed_ms = skills_reload_start.elapsed().as_millis(),
+                session_id = %cli_session_id,
+                "Client::resume_session skills reload request completed successfully"
+            );
         }
 
         let capabilities = Arc::new(parking_lot::RwLock::new(
             resume_capabilities.unwrap_or_default(),
         ));
+        let setup_start = Instant::now();
         let channels = self.register_session(&cli_session_id);
 
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
@@ -835,7 +909,20 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
+        tracing::debug!(
+            elapsed_ms = setup_start.elapsed().as_millis(),
+            session_id = %cli_session_id,
+            tools_count,
+            commands_count,
+            has_hooks,
+            "Client::resume_session local setup complete"
+        );
 
+        tracing::debug!(
+            elapsed_ms = total_start.elapsed().as_millis(),
+            session_id = %cli_session_id,
+            "Client::resume_session complete"
+        );
         Ok(Session {
             id: cli_session_id,
             cwd: self.cwd().clone(),
@@ -1009,8 +1096,16 @@ async fn handle_notification(
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
 ) {
+    let dispatch_start = Instant::now();
     let event = notification.event.clone();
     let event_type = event.parsed_type();
+    if event_type == SessionEventType::PermissionRequested {
+        tracing::debug!(
+            session_id = %session_id,
+            event_type = %event.event_type,
+            "Session::handle_notification permission request received"
+        );
+    }
 
     // Signal send_and_wait if active. The lock is only contended when
     // a send_and_wait call is in flight (idle_waiter is Some).
@@ -1022,11 +1117,24 @@ async fn handle_notification(
             if let Some(waiter) = guard.as_mut() {
                 match event_type {
                     SessionEventType::AssistantMessage => {
+                        if !waiter.first_assistant_message_seen {
+                            waiter.first_assistant_message_seen = true;
+                            tracing::debug!(
+                                elapsed_ms = waiter.started_at.elapsed().as_millis(),
+                                session_id = %session_id,
+                                "Session::send_and_wait first assistant message"
+                            );
+                        }
                         waiter.last_assistant_message = Some(event.clone());
                     }
                     SessionEventType::SessionIdle | SessionEventType::SessionError => {
                         if let Some(waiter) = guard.take() {
                             if event_type == SessionEventType::SessionIdle {
+                                tracing::debug!(
+                                    elapsed_ms = waiter.started_at.elapsed().as_millis(),
+                                    session_id = %session_id,
+                                    "Session::send_and_wait idle received"
+                                );
                                 let _ = waiter.tx.send(Ok(waiter.last_assistant_message));
                             } else {
                                 let error_msg = event
@@ -1076,6 +1184,13 @@ async fn handle_notification(
         }
     }
 
+    tracing::debug!(
+        elapsed_ms = dispatch_start.elapsed().as_millis(),
+        session_id = %session_id,
+        event_type = %notification.event.event_type,
+        "Session::handle_notification dispatch"
+    );
+
     // Notification-based permission/tool/elicitation requests require a
     // separate RPC callback. Spawn concurrently since the CLI doesn't block.
     match event_type {
@@ -1094,30 +1209,52 @@ async fn handle_notification(
                         extra: notification.event.data.clone(),
                     }
                 });
-            tokio::spawn(async move {
-                let response = handler
-                    .on_event(HandlerEvent::PermissionRequest {
-                        session_id: sid.clone(),
-                        request_id: request_id.clone(),
-                        data,
-                    })
-                    .await;
-                let Some(result_value) = notification_permission_payload(&response) else {
-                    // Handler returned Deferred — it will call
-                    // handlePendingPermissionRequest itself.
-                    return;
-                };
-                let _ = client
-                    .call(
-                        "session.permissions.handlePendingPermissionRequest",
-                        Some(serde_json::json!({
-                            "sessionId": sid,
-                            "requestId": request_id,
-                            "result": result_value,
-                        })),
-                    )
-                    .await;
-            });
+            let span = tracing::error_span!(
+                "permission_request_handler",
+                session_id = %sid,
+                request_id = %request_id
+            );
+            tokio::spawn(
+                async move {
+                    let handler_start = Instant::now();
+                    let response = handler
+                        .on_event(HandlerEvent::PermissionRequest {
+                            session_id: sid.clone(),
+                            request_id: request_id.clone(),
+                            data,
+                        })
+                        .await;
+                    tracing::debug!(
+                        elapsed_ms = handler_start.elapsed().as_millis(),
+                        session_id = %sid,
+                        request_id = %request_id,
+                        "SessionHandler::on_permission_request dispatch"
+                    );
+                    let Some(result_value) = notification_permission_payload(&response) else {
+                        // Handler returned Deferred — it will call
+                        // handlePendingPermissionRequest itself.
+                        return;
+                    };
+                    let rpc_start = Instant::now();
+                    let _ = client
+                        .call(
+                            "session.permissions.handlePendingPermissionRequest",
+                            Some(serde_json::json!({
+                                "sessionId": sid,
+                                "requestId": request_id,
+                                "result": result_value,
+                            })),
+                        )
+                        .await;
+                    tracing::debug!(
+                        elapsed_ms = rpc_start.elapsed().as_millis(),
+                        session_id = %sid,
+                        request_id = %request_id,
+                        "Session::handle_notification response sent successfully"
+                    );
+                }
+                .instrument(span),
+            );
         }
         SessionEventType::ExternalToolRequested => {
             let Some(request_id) = extract_request_id(&notification.event.data) else {
@@ -1130,8 +1267,15 @@ async fn handle_notification(
                         warn!(error = %e, "failed to deserialize external_tool.requested");
                         let client = client.clone();
                         let sid = session_id.clone();
-                        tokio::spawn(async move {
-                            let _ = client
+                        let span = tracing::error_span!(
+                            "external_tool_deserialize_error",
+                            session_id = %sid,
+                            request_id = %request_id
+                        );
+                        tokio::spawn(
+                            async move {
+                                let rpc_start = Instant::now();
+                                let _ = client
                                 .call(
                                     "session.tools.handlePendingToolCall",
                                     Some(serde_json::json!({
@@ -1141,61 +1285,104 @@ async fn handle_notification(
                                     })),
                                 )
                                 .await;
-                        });
+                                tracing::debug!(
+                                    elapsed_ms = rpc_start.elapsed().as_millis(),
+                                    session_id = %sid,
+                                    request_id = %request_id,
+                                    "Session::handle_notification response sent successfully"
+                                );
+                            }
+                            .instrument(span),
+                        );
                         return;
                     }
                 };
             let client = client.clone();
             let handler = handler.clone();
             let sid = session_id.clone();
-            tokio::spawn(async move {
-                if data.tool_call_id.is_empty() || data.tool_name.is_empty() {
-                    let error_msg = if data.tool_call_id.is_empty() {
-                        "Missing toolCallId"
-                    } else {
-                        "Missing toolName"
+            let span = tracing::error_span!(
+                "external_tool_handler",
+                session_id = %sid,
+                request_id = %request_id
+            );
+            tokio::spawn(
+                async move {
+                    if data.tool_call_id.is_empty() || data.tool_name.is_empty() {
+                        let error_msg = if data.tool_call_id.is_empty() {
+                            "Missing toolCallId"
+                        } else {
+                            "Missing toolName"
+                        };
+                        let rpc_start = Instant::now();
+                        let _ = client
+                            .call(
+                                "session.tools.handlePendingToolCall",
+                                Some(serde_json::json!({
+                                    "sessionId": sid,
+                                    "requestId": request_id,
+                                    "error": error_msg,
+                                })),
+                            )
+                            .await;
+                        tracing::debug!(
+                            elapsed_ms = rpc_start.elapsed().as_millis(),
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "Session::handle_notification response sent successfully"
+                        );
+                        return;
+                    }
+                    let tool_call_id = data.tool_call_id.clone();
+                    let tool_name = data.tool_name.clone();
+                    let invocation = ToolInvocation {
+                        session_id: sid.clone(),
+                        tool_call_id: data.tool_call_id,
+                        tool_name: data.tool_name,
+                        arguments: data
+                            .arguments
+                            .unwrap_or(Value::Object(serde_json::Map::new())),
+                        traceparent: data.traceparent,
+                        tracestate: data.tracestate,
                     };
+                    let handler_start = Instant::now();
+                    let response = handler
+                        .on_event(HandlerEvent::ExternalTool { invocation })
+                        .await;
+                    tracing::debug!(
+                        elapsed_ms = handler_start.elapsed().as_millis(),
+                        session_id = %sid,
+                        request_id = %request_id,
+                        tool_call_id = %tool_call_id,
+                        tool_name = %tool_name,
+                        "ToolHandler::call dispatch"
+                    );
+                    let tool_result = match response {
+                        HandlerResponse::ToolResult(r) => r,
+                        _ => ToolResult::Text("Unexpected handler response".to_string()),
+                    };
+                    let result_value = serde_json::to_value(&tool_result).unwrap_or(Value::Null);
+                    let rpc_start = Instant::now();
                     let _ = client
                         .call(
                             "session.tools.handlePendingToolCall",
                             Some(serde_json::json!({
                                 "sessionId": sid,
                                 "requestId": request_id,
-                                "error": error_msg,
+                                "result": result_value,
                             })),
                         )
                         .await;
-                    return;
+                    tracing::debug!(
+                        elapsed_ms = rpc_start.elapsed().as_millis(),
+                        session_id = %sid,
+                        request_id = %request_id,
+                        tool_call_id = %tool_call_id,
+                        tool_name = %tool_name,
+                        "Session::handle_notification response sent successfully"
+                    );
                 }
-                let invocation = ToolInvocation {
-                    session_id: sid.clone(),
-                    tool_call_id: data.tool_call_id,
-                    tool_name: data.tool_name,
-                    arguments: data
-                        .arguments
-                        .unwrap_or(Value::Object(serde_json::Map::new())),
-                    traceparent: data.traceparent,
-                    tracestate: data.tracestate,
-                };
-                let response = handler
-                    .on_event(HandlerEvent::ExternalTool { invocation })
-                    .await;
-                let tool_result = match response {
-                    HandlerResponse::ToolResult(r) => r,
-                    _ => ToolResult::Text("Unexpected handler response".to_string()),
-                };
-                let result_value = serde_json::to_value(&tool_result).unwrap_or(Value::Null);
-                let _ = client
-                    .call(
-                        "session.tools.handlePendingToolCall",
-                        Some(serde_json::json!({
-                            "sessionId": sid,
-                            "requestId": request_id,
-                            "result": result_value,
-                        })),
-                    )
-                    .await;
-            });
+                .instrument(span),
+            );
         }
         SessionEventType::UserInputRequested => {
             // Notification-only signal for observers (UI, telemetry).
@@ -1237,55 +1424,84 @@ async fn handle_notification(
             let client = client.clone();
             let handler = handler.clone();
             let sid = session_id.clone();
-            tokio::spawn(async move {
-                let cancel = ElicitationResult {
-                    action: "cancel".to_string(),
-                    content: None,
-                };
-                // Dispatch to handler inside a nested task so panics are
-                // caught as JoinErrors (matches Node SDK's try/catch pattern).
-                let handler_task = tokio::spawn({
-                    let sid = sid.clone();
-                    let request_id = request_id.clone();
-                    async move {
-                        handler
-                            .on_event(HandlerEvent::ElicitationRequest {
-                                session_id: sid,
-                                request_id,
-                                request,
-                            })
-                            .await
-                    }
-                });
-                let result = match handler_task.await {
-                    Ok(HandlerResponse::Elicitation(r)) => r,
-                    _ => cancel.clone(),
-                };
-                if let Err(e) = client
-                    .call(
-                        "session.ui.handlePendingElicitation",
-                        Some(serde_json::json!({
-                            "sessionId": sid,
-                            "requestId": request_id,
-                            "result": result,
-                        })),
-                    )
-                    .await
-                {
-                    // RPC failed — attempt cancel as last resort
-                    warn!(error = %e, "handlePendingElicitation failed, sending cancel");
-                    let _ = client
+            let span = tracing::error_span!(
+                "elicitation_request_handler",
+                session_id = %sid,
+                request_id = %request_id
+            );
+            tokio::spawn(
+                async move {
+                    let cancel = ElicitationResult {
+                        action: "cancel".to_string(),
+                        content: None,
+                    };
+                    // Dispatch to a nested task so panics are caught as JoinErrors.
+                    let handler_task = tokio::spawn({
+                        let sid = sid.clone();
+                        let request_id = request_id.clone();
+                        let span = tracing::error_span!(
+                            "elicitation_callback",
+                            session_id = %sid,
+                            request_id = %request_id
+                        );
+                        async move {
+                            let handler_start = Instant::now();
+                            let response = handler
+                                .on_event(HandlerEvent::ElicitationRequest {
+                                    session_id: sid.clone(),
+                                    request_id: request_id.clone(),
+                                    request,
+                                })
+                                .await;
+                            tracing::debug!(
+                                elapsed_ms = handler_start.elapsed().as_millis(),
+                                session_id = %sid,
+                                request_id = %request_id,
+                                "SessionHandler::on_elicitation dispatch"
+                            );
+                            response
+                        }
+                        .instrument(span)
+                    });
+                    let result = match handler_task.await {
+                        Ok(HandlerResponse::Elicitation(r)) => r,
+                        _ => cancel.clone(),
+                    };
+                    let rpc_start = Instant::now();
+                    if let Err(e) = client
                         .call(
                             "session.ui.handlePendingElicitation",
                             Some(serde_json::json!({
                                 "sessionId": sid,
                                 "requestId": request_id,
-                                "result": cancel,
+                                "result": result,
                             })),
                         )
-                        .await;
+                        .await
+                    {
+                        // RPC failed — attempt cancel as last resort
+                        warn!(error = %e, "handlePendingElicitation failed, sending cancel");
+                        let _ = client
+                            .call(
+                                "session.ui.handlePendingElicitation",
+                                Some(serde_json::json!({
+                                    "sessionId": sid,
+                                    "requestId": request_id,
+                                    "result": cancel,
+                                })),
+                            )
+                            .await;
+                    } else {
+                        tracing::debug!(
+                            elapsed_ms = rpc_start.elapsed().as_millis(),
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "Session::handle_notification response sent successfully"
+                        );
+                    }
                 }
-            });
+                .instrument(span),
+            );
         }
         SessionEventType::CommandExecute => {
             let data: CommandExecuteData =
@@ -1299,34 +1515,55 @@ async fn handle_notification(
             let client = client.clone();
             let command_handlers = command_handlers.clone();
             let sid = session_id.clone();
-            tokio::spawn(async move {
-                let request_id = data.request_id;
-                let ack_error = match command_handlers.get(&data.command_name).cloned() {
-                    None => Some(format!("Unknown command: {}", data.command_name)),
-                    Some(handler) => {
-                        let ctx = CommandContext {
-                            session_id: sid.clone(),
-                            command: data.command,
-                            command_name: data.command_name,
-                            args: data.args,
-                        };
-                        match handler.on_command(ctx).await {
-                            Ok(()) => None,
-                            Err(e) => Some(e.to_string()),
+            let span = tracing::error_span!("command_handler", session_id = %sid);
+            tokio::spawn(
+                async move {
+                    let request_id = data.request_id;
+                    let ack_error = match command_handlers.get(&data.command_name).cloned() {
+                        None => Some(format!("Unknown command: {}", data.command_name)),
+                        Some(handler) => {
+                            let command_name = data.command_name.clone();
+                            let ctx = CommandContext {
+                                session_id: sid.clone(),
+                                command: data.command,
+                                command_name: data.command_name,
+                                args: data.args,
+                            };
+                            let handler_start = Instant::now();
+                            let result = handler.on_command(ctx).await;
+                            tracing::debug!(
+                                elapsed_ms = handler_start.elapsed().as_millis(),
+                                session_id = %sid,
+                                request_id = %request_id,
+                                command_name = %command_name,
+                                "CommandHandler::call dispatch"
+                            );
+                            match result {
+                                Ok(()) => None,
+                                Err(e) => Some(e.to_string()),
+                            }
                         }
+                    };
+                    let mut params = serde_json::json!({
+                        "sessionId": sid,
+                        "requestId": request_id,
+                    });
+                    if let Some(error_msg) = ack_error {
+                        params["error"] = serde_json::Value::String(error_msg);
                     }
-                };
-                let mut params = serde_json::json!({
-                    "sessionId": sid,
-                    "requestId": request_id,
-                });
-                if let Some(error_msg) = ack_error {
-                    params["error"] = serde_json::Value::String(error_msg);
+                    let rpc_start = Instant::now();
+                    let _ = client
+                        .call("session.commands.handlePendingCommand", Some(params))
+                        .await;
+                    tracing::debug!(
+                        elapsed_ms = rpc_start.elapsed().as_millis(),
+                        session_id = %sid,
+                        request_id = %request_id,
+                        "Session::handle_notification response sent successfully"
+                    );
                 }
-                let _ = client
-                    .call("session.commands.handlePendingCommand", Some(params))
-                    .await;
-            });
+                .instrument(span),
+            );
         }
         _ => {}
     }
@@ -1400,9 +1637,19 @@ async fn handle_request(
                     return;
                 }
             };
+            let tool_call_id = invocation.tool_call_id.clone();
+            let tool_name = invocation.tool_name.clone();
+            let handler_start = Instant::now();
             let response = handler
                 .on_event(HandlerEvent::ExternalTool { invocation })
                 .await;
+            tracing::debug!(
+                elapsed_ms = handler_start.elapsed().as_millis(),
+                session_id = %sid,
+                tool_call_id = %tool_call_id,
+                tool_name = %tool_name,
+                "ToolHandler::call dispatch"
+            );
             let tool_result = match response {
                 HandlerResponse::ToolResult(r) => r,
                 _ => ToolResult::Text("Unexpected handler response".to_string()),
@@ -1451,14 +1698,20 @@ async fn handle_request(
                 .and_then(|p| p.get("allowFreeform"))
                 .and_then(|v| v.as_bool());
 
+            let handler_start = Instant::now();
             let response = handler
                 .on_event(HandlerEvent::UserInput {
-                    session_id: sid,
+                    session_id: sid.clone(),
                     question,
                     choices,
                     allow_freeform,
                 })
                 .await;
+            tracing::debug!(
+                elapsed_ms = handler_start.elapsed().as_millis(),
+                session_id = %sid,
+                "SessionHandler::on_user_input dispatch"
+            );
 
             let rpc_result = match response {
                 HandlerResponse::UserInput(Some(UserInputResponse {
@@ -1514,13 +1767,20 @@ async fn handle_request(
                     extra: raw_params,
                 });
 
+            let handler_start = Instant::now();
             let response = handler
                 .on_event(HandlerEvent::PermissionRequest {
-                    session_id: sid,
-                    request_id,
+                    session_id: sid.clone(),
+                    request_id: request_id.clone(),
                     data,
                 })
                 .await;
+            tracing::debug!(
+                elapsed_ms = handler_start.elapsed().as_millis(),
+                session_id = %sid,
+                request_id = %request_id,
+                "SessionHandler::on_permission_request dispatch"
+            );
             let rpc_response = JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
@@ -1560,8 +1820,14 @@ async fn handle_request(
                 };
 
             let rpc_result = if let Some(transforms) = transforms {
+                let transform_start = Instant::now();
                 let response =
                     crate::transforms::dispatch_transform(transforms, &sid, sections).await;
+                tracing::debug!(
+                    elapsed_ms = transform_start.elapsed().as_millis(),
+                    session_id = %sid,
+                    "SystemMessageTransform::transform_section dispatch"
+                );
                 match serde_json::to_value(response) {
                     Ok(v) => v,
                     Err(e) => {

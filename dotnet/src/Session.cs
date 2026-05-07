@@ -6,10 +6,12 @@ using GitHub.Copilot.SDK.Rpc;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
+using static GitHub.Copilot.SDK.LoggingHelpers;
 
 namespace GitHub.Copilot.SDK;
 
@@ -195,8 +197,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
             RequestHeaders = options.RequestHeaders,
         };
 
+        var rpcTimestamp = Stopwatch.GetTimestamp();
         var response = await InvokeRpcAsync<SendMessageResponse>(
             "session.send", [request], cancellationToken);
+        LogTiming(_logger, LogLevel.Debug, null,
+            "CopilotSession.SendAsync completed successfully. Elapsed={Elapsed}, SessionId={SessionId}, MessageId={MessageId}",
+            rpcTimestamp,
+            SessionId,
+            response.MessageId);
 
         return response.MessageId;
     }
@@ -233,9 +241,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
+        var totalTimestamp = Stopwatch.GetTimestamp();
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(60);
         var tcs = new TaskCompletionSource<AssistantMessageEvent?>(TaskCreationOptions.RunContinuationsAsynchronously);
         AssistantMessageEvent? lastAssistantMessage = null;
+        var firstAssistantMessageLogged = false;
 
         void Handler(SessionEvent evt)
         {
@@ -243,9 +253,21 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 case AssistantMessageEvent assistantMessage:
                     lastAssistantMessage = assistantMessage;
+                    if (!firstAssistantMessageLogged)
+                    {
+                        firstAssistantMessageLogged = true;
+                        LogTiming(_logger, LogLevel.Debug, null,
+                            "CopilotSession.SendAndWaitAsync first assistant message. Elapsed={Elapsed}, SessionId={SessionId}",
+                            totalTimestamp,
+                            SessionId);
+                    }
                     break;
 
                 case SessionIdleEvent:
+                    LogTiming(_logger, LogLevel.Debug, null,
+                        "CopilotSession.SendAndWaitAsync idle received. Elapsed={Elapsed}, SessionId={SessionId}",
+                        totalTimestamp,
+                        SessionId);
                     tcs.TrySetResult(lastAssistantMessage);
                     break;
 
@@ -270,7 +292,35 @@ public sealed partial class CopilotSession : IAsyncDisposable
             else
                 tcs.TrySetException(new TimeoutException($"SendAndWaitAsync timed out after {effectiveTimeout}"));
         });
-        return await tcs.Task;
+        try
+        {
+            var result = await tcs.Task;
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.SendAndWaitAsync complete. Elapsed={Elapsed}, SessionId={SessionId}, CompletedBy={CompletedBy}, AssistantMessageReceived={AssistantMessageReceived}",
+                totalTimestamp,
+                SessionId,
+                "idle",
+                result is not null);
+            return result;
+        }
+        catch (Exception ex) when (ex is TimeoutException)
+        {
+            LogTiming(_logger, LogLevel.Warning, ex,
+                "CopilotSession.SendAndWaitAsync failed. Elapsed={Elapsed}, SessionId={SessionId}, CompletedBy={CompletedBy}",
+                totalTimestamp,
+                SessionId,
+                "timeout");
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogTiming(_logger, LogLevel.Warning, ex,
+                "CopilotSession.SendAndWaitAsync failed. Elapsed={Elapsed}, SessionId={SessionId}, CompletedBy={CompletedBy}",
+                totalTimestamp,
+                SessionId,
+                "error");
+            throw;
+        }
     }
 
     /// <summary>
@@ -344,6 +394,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         await foreach (var sessionEvent in _eventChannel.Reader.ReadAllAsync())
         {
+            var dispatchTimestamp = Stopwatch.GetTimestamp();
             foreach (var handler in _eventHandlers)
             {
                 try
@@ -355,6 +406,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     LogEventHandlerError(ex);
                 }
             }
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.ProcessEventsAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, EventType={EventType}",
+                dispatchTimestamp,
+                SessionId,
+                sessionEvent.Type);
         }
     }
 
@@ -423,7 +479,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
             SessionId = SessionId
         };
 
-        return await handler(request, invocation);
+        var permissionTimestamp = Stopwatch.GetTimestamp();
+        var result = await handler(request, invocation);
+        LogTiming(_logger, LogLevel.Debug, null,
+            "CopilotSession.HandlePermissionRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
+            permissionTimestamp,
+            SessionId);
+        return result;
     }
 
     /// <summary>
@@ -433,6 +495,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private async Task HandleBroadcastEventAsync(SessionEvent sessionEvent)
     {
+        var dispatchTimestamp = Stopwatch.GetTimestamp();
         try
         {
             switch (sessionEvent)
@@ -528,6 +591,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             LogBroadcastHandlerError(ex);
         }
+        finally
+        {
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.HandleBroadcastEventAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, EventType={EventType}",
+                dispatchTimestamp,
+                SessionId,
+                sessionEvent.Type);
+        }
     }
 
     /// <summary>
@@ -566,11 +637,27 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 }
             }
 
+            var toolTimestamp = Stopwatch.GetTimestamp();
             var result = await tool.InvokeAsync(aiFunctionArgs);
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.ExecuteToolAndRespondAsync tool dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
+                toolTimestamp,
+                SessionId,
+                requestId,
+                toolCallId,
+                toolName);
 
             var toolResultObject = ToolResultObject.ConvertFromInvocationResult(result, tool.JsonSerializerOptions);
 
+            var responseRpcTimestamp = Stopwatch.GetTimestamp();
             await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultObject, error: null);
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.ExecuteToolAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
+                responseRpcTimestamp,
+                SessionId,
+                requestId,
+                toolCallId,
+                toolName);
         }
         catch (Exception ex)
         {
@@ -601,12 +688,24 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId = SessionId
             };
 
+            var permissionTimestamp = Stopwatch.GetTimestamp();
             var result = await handler(permissionRequest, invocation);
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.ExecutePermissionAndRespondAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
+                permissionTimestamp,
+                SessionId,
+                requestId);
             if (result.Kind == new PermissionRequestResultKind("no-result"))
             {
                 return;
             }
+            var responseRpcTimestamp = Stopwatch.GetTimestamp();
             await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, new PermissionDecision { Kind = result.Kind.Value });
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.ExecutePermissionAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
+                responseRpcTimestamp,
+                SessionId,
+                requestId);
         }
         catch (Exception)
         {
@@ -690,6 +789,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         try
         {
+            var commandTimestamp = Stopwatch.GetTimestamp();
             await handler(new CommandContext
             {
                 SessionId = SessionId,
@@ -697,7 +797,20 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 CommandName = commandName,
                 Args = args
             });
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.ExecuteCommandAndRespondAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}",
+                commandTimestamp,
+                SessionId,
+                requestId,
+                commandName);
+            var responseRpcTimestamp = Stopwatch.GetTimestamp();
             await Rpc.Commands.HandlePendingCommandAsync(requestId);
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.ExecuteCommandAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}",
+                responseRpcTimestamp,
+                SessionId,
+                requestId,
+                commandName);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -726,12 +839,24 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         try
         {
+            var elicitationTimestamp = Stopwatch.GetTimestamp();
             var result = await handler(context);
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.HandleElicitationRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
+                elicitationTimestamp,
+                SessionId,
+                requestId);
+            var responseRpcTimestamp = Stopwatch.GetTimestamp();
             await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse
             {
                 Action = result.Action,
                 Content = result.Content
             });
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.HandleElicitationRequestAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
+                responseRpcTimestamp,
+                SessionId,
+                requestId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -882,7 +1007,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
             SessionId = SessionId
         };
 
-        return await handler(request, invocation);
+        var userInputTimestamp = Stopwatch.GetTimestamp();
+        var response = await handler(request, invocation);
+        LogTiming(_logger, LogLevel.Debug, null,
+            "CopilotSession.HandleUserInputRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
+            userInputTimestamp,
+            SessionId);
+        return response;
     }
 
     /// <summary>
@@ -931,40 +1062,52 @@ public sealed partial class CopilotSession : IAsyncDisposable
             SessionId = SessionId
         };
 
-        return hookType switch
+        var hookTimestamp = Stopwatch.GetTimestamp();
+        try
         {
-            "preToolUse" => hooks.OnPreToolUse != null
-                ? await hooks.OnPreToolUse(
-                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreToolUseHookInput)!,
-                    invocation)
-                : null,
-            "postToolUse" => hooks.OnPostToolUse != null
-                ? await hooks.OnPostToolUse(
-                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseHookInput)!,
-                    invocation)
-                : null,
-            "userPromptSubmitted" => hooks.OnUserPromptSubmitted != null
-                ? await hooks.OnUserPromptSubmitted(
-                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
-                    invocation)
-                : null,
-            "sessionStart" => hooks.OnSessionStart != null
-                ? await hooks.OnSessionStart(
-                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionStartHookInput)!,
-                    invocation)
-                : null,
-            "sessionEnd" => hooks.OnSessionEnd != null
-                ? await hooks.OnSessionEnd(
-                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionEndHookInput)!,
-                    invocation)
-                : null,
-            "errorOccurred" => hooks.OnErrorOccurred != null
-                ? await hooks.OnErrorOccurred(
-                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.ErrorOccurredHookInput)!,
-                    invocation)
-                : null,
-            _ => null
-        };
+            return hookType switch
+            {
+                "preToolUse" => hooks.OnPreToolUse != null
+                    ? await hooks.OnPreToolUse(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreToolUseHookInput)!,
+                        invocation)
+                    : null,
+                "postToolUse" => hooks.OnPostToolUse != null
+                    ? await hooks.OnPostToolUse(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseHookInput)!,
+                        invocation)
+                    : null,
+                "userPromptSubmitted" => hooks.OnUserPromptSubmitted != null
+                    ? await hooks.OnUserPromptSubmitted(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
+                        invocation)
+                    : null,
+                "sessionStart" => hooks.OnSessionStart != null
+                    ? await hooks.OnSessionStart(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionStartHookInput)!,
+                        invocation)
+                    : null,
+                "sessionEnd" => hooks.OnSessionEnd != null
+                    ? await hooks.OnSessionEnd(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionEndHookInput)!,
+                        invocation)
+                    : null,
+                "errorOccurred" => hooks.OnErrorOccurred != null
+                    ? await hooks.OnErrorOccurred(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.ErrorOccurredHookInput)!,
+                        invocation)
+                    : null,
+                _ => null
+            };
+        }
+        finally
+        {
+            LogTiming(_logger, LogLevel.Debug, null,
+                "CopilotSession.HandleHooksInvokeAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, Hook={HookType}",
+                hookTimestamp,
+                SessionId,
+                hookType);
+        }
     }
 
     /// <summary>
