@@ -575,7 +575,7 @@ type SessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
-	// EnableSessionTelemetry enables or disables internal session telemetry.
+	// EnableSessionTelemetry enables or disables internal session telemetry for this session.
 	// When false, disables session telemetry. When nil (the default) or true,
 	// telemetry is enabled for GitHub-authenticated sessions. When a custom
 	// Provider (BYOK) is configured, session telemetry is always disabled
@@ -772,7 +772,7 @@ type ResumeSessionConfig struct {
 	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
-	// EnableSessionTelemetry enables or disables internal session telemetry.
+	// EnableSessionTelemetry enables or disables internal session telemetry for this session.
 	// When false, disables session telemetry. When nil (the default) or true,
 	// telemetry is enabled for GitHub-authenticated sessions. When a custom
 	// Provider (BYOK) is configured, session telemetry is always disabled

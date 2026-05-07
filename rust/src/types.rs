@@ -1042,7 +1042,7 @@ pub struct SessionConfig {
     /// routing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
-    /// Enables or disables internal session telemetry.
+    /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
     /// `Some(true)`, telemetry is enabled for GitHub-authenticated sessions.
@@ -1457,6 +1457,8 @@ impl SessionConfig {
     }
 
     /// Enable or disable internal session telemetry.
+    ///
+    /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
     pub fn with_enable_session_telemetry(mut self, enable: bool) -> Self {
         self.enable_session_telemetry = Some(enable);
         self
@@ -1577,7 +1579,7 @@ pub struct ResumeSessionConfig {
     /// Re-supply BYOK provider configuration on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
-    /// Enables or disables internal session telemetry on resume.
+    /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
     /// `Some(true)`, telemetry is enabled for GitHub-authenticated sessions.
@@ -1948,6 +1950,8 @@ impl ResumeSessionConfig {
     }
 
     /// Enable or disable internal session telemetry on resume.
+    ///
+    /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
     pub fn with_enable_session_telemetry(mut self, enable: bool) -> Self {
         self.enable_session_telemetry = Some(enable);
         self

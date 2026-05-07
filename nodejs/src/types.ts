@@ -1284,7 +1284,7 @@ export interface SessionConfig {
     provider?: ProviderConfig;
 
     /**
-     * Enables or disables session telemetry for this session.
+     * Enables or disables internal session telemetry for this session.
      * When `false`, disables session telemetry. When omitted (the default) or `true`,
      * telemetry is enabled for GitHub-authenticated sessions.
      * When a custom {@link provider} (BYOK) is configured, session telemetry is always

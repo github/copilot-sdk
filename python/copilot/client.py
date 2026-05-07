@@ -1351,8 +1351,12 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
-            enable_session_telemetry: When False, disables internal session telemetry
-                for this session.
+            enable_session_telemetry: Enables or disables internal session telemetry
+                for this session. When False, disables session telemetry. When omitted
+                or True, telemetry is enabled for GitHub-authenticated sessions. When
+                a custom provider (BYOK) is configured, session telemetry is always
+                disabled regardless of this setting. This is independent of the client
+                OpenTelemetry configuration.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -1700,8 +1704,12 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
-            enable_session_telemetry: When False, disables internal session telemetry
-                for this session.
+            enable_session_telemetry: Enables or disables internal session telemetry
+                for this session. When False, disables session telemetry. When omitted
+                or True, telemetry is enabled for GitHub-authenticated sessions. When
+                a custom provider (BYOK) is configured, session telemetry is always
+                disabled regardless of this setting. This is independent of the client
+                OpenTelemetry configuration.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming

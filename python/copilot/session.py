@@ -888,8 +888,8 @@ class SessionConfig(TypedDict, total=False):
     working_directory: str
     # Custom provider configuration (BYOK - Bring Your Own Key)
     provider: ProviderConfig
-    # Enables or disables internal session telemetry. When False, disables session
-    # telemetry. When omitted (the default) or True, telemetry is enabled for
+    # Enables or disables internal session telemetry for this session. When False,
+    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
     # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
     # session telemetry is always disabled regardless of this setting.
     # This is independent of the client OpenTelemetry configuration.
@@ -962,8 +962,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     # registered via tools=. Ignored if available_tools is set.
     excluded_tools: list[str]
     provider: ProviderConfig
-    # Enables or disables internal session telemetry. When False, disables session
-    # telemetry. When omitted (the default) or True, telemetry is enabled for
+    # Enables or disables internal session telemetry for this session. When False,
+    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
     # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
     # session telemetry is always disabled regardless of this setting.
     # This is independent of the client OpenTelemetry configuration.
