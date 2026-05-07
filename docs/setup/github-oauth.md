@@ -469,6 +469,6 @@ For a lighter resource footprint, you can run a single external CLI server and p
 
 ## Next steps
 
-- **[Authentication docs](../auth/index.md)** — Full auth method reference
+- **[Authentication docs](../auth/authenticate.md)** — Full auth method reference
 - **[Backend Services](./backend-services.md)** — Run the SDK server-side
 - **[Scaling & Multi-Tenancy](./scaling.md)** — Handle many users at scale

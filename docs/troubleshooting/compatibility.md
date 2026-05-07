@@ -288,6 +288,6 @@ console.log("Protocol version:", status.protocolVersion);
 ## See also
 
 - [Getting Started Guide](../getting-started.md)
-- [Hooks Documentation](../hooks/index.md)
+- [Hooks Documentation](../hooks/hooks-overview.md)
 - [MCP Servers Guide](../features/mcp.md)
 - [Debugging Guide](./debugging.md)

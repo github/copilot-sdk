@@ -212,4 +212,4 @@ Session state is stored locally at `~/.copilot/session-state/{sessionId}/`.
 
 - **[Default Setup](./bundled-cli.md)** — Use the SDK's built-in CLI (recommended for most use cases)
 - **[Getting Started tutorial](../getting-started.md)** — Build a complete interactive app
-- **[Authentication docs](../auth/index.md)** — All auth methods in detail
+- **[Authentication docs](../auth/authenticate.md)** — All auth methods in detail

@@ -635,6 +635,6 @@ await withSessionLock("user-123-task-456", async () => {
 
 ## Next steps
 
-- [Hooks Overview](../hooks/index.md) - Customize session behavior with hooks
+- [Hooks Overview](../hooks/hooks-overview.md) - Customize session behavior with hooks
 - [Compatibility Guide](../troubleshooting/compatibility.md) - SDK vs CLI feature comparison
 - [Debugging Guide](../troubleshooting/debugging.md) - Troubleshoot session issues
