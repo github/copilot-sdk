@@ -15,7 +15,7 @@ Set `remote: true` when creating the client. Every session in a GitHub repo auto
 
 <!-- tabs:start -->
 
-#### **typescript**
+#### TypeScript
 
 <!-- docs-validate: skip -->
 ```typescript
@@ -34,7 +34,7 @@ session.on("session.info", (event) => {
 });
 ```
 
-#### **python**
+#### Python
 
 <!-- docs-validate: skip -->
 ```python
@@ -53,7 +53,7 @@ def on_event(event):
 session.on(on_event)
 ```
 
-#### **go**
+#### Go
 
 <!-- docs-validate: skip -->
 ```go
@@ -72,7 +72,7 @@ session.On(func(event copilot.SessionEvent) {
 })
 ```
 
-#### **c#**
+#### C#
 
 <!-- docs-validate: skip -->
 ```csharp
@@ -93,7 +93,7 @@ session.On((SessionEvent e) =>
 });
 ```
 
-#### **rust**
+#### Rust
 
 <!-- docs-validate: skip -->
 ```rust
@@ -125,7 +125,7 @@ Use `session.rpc.remote.enable()` to start remote access mid-session, and `sessi
 
 <!-- tabs:start -->
 
-#### **typescript**
+#### TypeScript
 
 <!-- docs-validate: skip -->
 ```typescript
@@ -136,7 +136,7 @@ console.log("Remote URL:", result.url);
 await session.rpc.remote.disable();
 ```
 
-#### **python**
+#### Python
 
 <!-- docs-validate: skip -->
 ```python
@@ -147,7 +147,7 @@ print(f"Remote URL: {result.url}")
 await session.rpc.remote.disable()
 ```
 
-#### **go**
+#### Go
 
 <!-- docs-validate: skip -->
 ```go
@@ -160,7 +160,7 @@ if result.URL != nil {
 err = session.RPC.Remote.Disable(ctx)
 ```
 
-#### **c#**
+#### C#
 
 <!-- docs-validate: skip -->
 ```csharp
@@ -171,7 +171,7 @@ Console.WriteLine($"Remote URL: {result.Url}");
 await session.Rpc.Remote.DisableAsync();
 ```
 
-#### **rust**
+#### Rust
 
 <!-- docs-validate: skip -->
 ```rust
