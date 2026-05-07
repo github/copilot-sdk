@@ -296,7 +296,7 @@ For detailed debugging guidance, see the **[MCP Debugging Guide](../troubleshoot
 * [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Community MCP servers
 * [GitHub MCP Server](https://github.com/github/github-mcp-server) - Official GitHub MCP server
 * [Getting Started Guide](../getting-started.md) - SDK basics and custom tools
-* [General Debugging Guide](.../troubleshooting/mcp-debugging.md) - SDK-wide debugging
+* [General Debugging Guide](../troubleshooting/debugging.md) - SDK-wide debugging
 
 ## See also
 
