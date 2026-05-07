@@ -52,6 +52,9 @@ public final class CreateSessionRequest {
     @JsonProperty("provider")
     private ProviderConfig provider;
 
+    @JsonProperty("enableSessionTelemetry")
+    private Boolean enableSessionTelemetry;
+
     @JsonProperty("requestPermission")
     private Boolean requestPermission;
 
@@ -205,6 +208,18 @@ public final class CreateSessionRequest {
     /** Sets the provider config. @param provider the provider */
     public void setProvider(ProviderConfig provider) {
         this.provider = provider;
+    }
+
+    /** Gets enable session telemetry flag. @return the flag */
+    public Boolean getEnableSessionTelemetry() {
+        return enableSessionTelemetry;
+    }
+
+    /**
+     * Sets enable session telemetry flag. @param enableSessionTelemetry the flag
+     */
+    public void setEnableSessionTelemetry(Boolean enableSessionTelemetry) {
+        this.enableSessionTelemetry = enableSessionTelemetry;
     }
 
     /** Gets request permission flag. @return the flag */

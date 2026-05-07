@@ -111,6 +111,7 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
+        request.setEnableSessionTelemetry(config.getEnableSessionTelemetry());
         request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
         request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());
@@ -187,6 +188,7 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
+        request.setEnableSessionTelemetry(config.getEnableSessionTelemetry());
         request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
         request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());

@@ -195,6 +195,44 @@ class ConfigCloneTest {
     }
 
     @Test
+    void sessionConfigEnableSessionTelemetryCopied() {
+        SessionConfig original = new SessionConfig();
+        original.setEnableSessionTelemetry(false);
+
+        SessionConfig cloned = original.clone();
+
+        assertFalse(cloned.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void sessionConfigEnableSessionTelemetryDefaultIsNull() {
+        SessionConfig original = new SessionConfig();
+
+        SessionConfig cloned = original.clone();
+
+        assertNull(cloned.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void resumeSessionConfigEnableSessionTelemetryCopied() {
+        ResumeSessionConfig original = new ResumeSessionConfig();
+        original.setEnableSessionTelemetry(false);
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertFalse(cloned.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void resumeSessionConfigEnableSessionTelemetryDefaultIsNull() {
+        ResumeSessionConfig original = new ResumeSessionConfig();
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertNull(cloned.getEnableSessionTelemetry());
+    }
+
+    @Test
     void clonePreservesNullFields() {
         CopilotClientOptions opts = new CopilotClientOptions();
         CopilotClientOptions optsClone = opts.clone();

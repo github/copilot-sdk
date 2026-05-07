@@ -86,6 +86,20 @@ public class SessionRequestBuilderTest {
         assertEquals("my-app", request.getClientName());
     }
 
+    @Test
+    void testBuildCreateRequestForwardsEnableSessionTelemetryWhenFalse() {
+        var config = new SessionConfig().setEnableSessionTelemetry(false);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertFalse(request.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void testBuildCreateRequestOmitsEnableSessionTelemetryWhenNotSet() {
+        var config = new SessionConfig();
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertNull(request.getEnableSessionTelemetry());
+    }
+
     // =========================================================================
     // buildResumeRequest
     // =========================================================================
@@ -97,6 +111,20 @@ public class SessionRequestBuilderTest {
         assertNull(request.getModel());
         assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
         assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
+    }
+
+    @Test
+    void testBuildResumeRequestForwardsEnableSessionTelemetryWhenFalse() {
+        var config = new ResumeSessionConfig().setEnableSessionTelemetry(false);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertFalse(request.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void testBuildResumeRequestOmitsEnableSessionTelemetryWhenNotSet() {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertNull(request.getEnableSessionTelemetry());
     }
 
     @Test
@@ -464,5 +492,47 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-inst", config);
 
         assertEquals(dirs, request.getInstructionDirectories());
+    }
+
+    // =========================================================================
+    // enableSessionTelemetry serialization
+    // =========================================================================
+
+    @Test
+    void testCreateRequestSerializesEnableSessionTelemetryWhenFalse() throws Exception {
+        var config = new SessionConfig().setEnableSessionTelemetry(false);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+        assertTrue(json.contains("\"enableSessionTelemetry\":false"),
+                "enableSessionTelemetry should be serialized when set to false");
+    }
+
+    @Test
+    void testCreateRequestOmitsEnableSessionTelemetryWhenNull() throws Exception {
+        var config = new SessionConfig();
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+        assertFalse(json.contains("enableSessionTelemetry"), "enableSessionTelemetry should be omitted when null");
+    }
+
+    @Test
+    void testResumeRequestSerializesEnableSessionTelemetryWhenFalse() throws Exception {
+        var config = new ResumeSessionConfig().setEnableSessionTelemetry(false);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-tel", config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+        assertTrue(json.contains("\"enableSessionTelemetry\":false"),
+                "enableSessionTelemetry should be serialized when set to false");
+    }
+
+    @Test
+    void testResumeRequestOmitsEnableSessionTelemetryWhenNull() throws Exception {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-tel", config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+        assertFalse(json.contains("enableSessionTelemetry"), "enableSessionTelemetry should be omitted when null");
     }
 }
