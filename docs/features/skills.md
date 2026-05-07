@@ -7,10 +7,10 @@ Skills are reusable prompt modules that extend Copilot's capabilities. Load skil
 A skill is a named directory containing a `SKILL.md` file — a markdown document that provides instructions to Copilot. When loaded, the skill's content is injected into the session context.
 
 Skills allow you to:
-- Package domain expertise into reusable modules
-- Share specialized behaviors across projects
-- Organize complex agent configurations
-- Enable/disable capabilities per session
+* Package domain expertise into reusable modules
+* Share specialized behaviors across projects
+* Organize complex agent configurations
+* Enable/disable capabilities per session
 
 ## Loading skills
 
@@ -328,8 +328,8 @@ Provide specific line-number references and suggested fixes.
 ```
 
 The frontmatter fields:
-- **`name`** — The skill's identifier (used with `disabledSkills` to selectively disable it). If omitted, the directory name is used.
-- **`description`** — A short description of what the skill does.
+* **`name`** — The skill's identifier (used with `disabledSkills` to selectively disable it). If omitted, the directory name is used.
+* **`description`** — A short description of what the skill does.
 
 The markdown body contains the instructions that are injected into the session context when the skill is loaded.
 
@@ -412,11 +412,11 @@ const session = await client.createSession({
 ### Skill conflicts
 
 If multiple skills provide conflicting instructions:
-- Use `disabledSkills` to exclude conflicting skills
-- Reorganize skill directories to avoid overlaps
+* Use `disabledSkills` to exclude conflicting skills
+* Reorganize skill directories to avoid overlaps
 
 ## See also
 
-- [Custom Agents](../getting-started.md#create-custom-agents) - Define specialized AI personas
-- [Custom Tools](../getting-started.md#step-4-add-a-custom-tool) - Build your own tools
-- [MCP Servers](./mcp.md) - Connect external tool providers
+* [Custom Agents](../getting-started.md#create-custom-agents) - Define specialized AI personas
+* [Custom Tools](../getting-started.md#step-4-add-a-custom-tool) - Build your own tools
+* [MCP Servers](./mcp.md) - Connect external tool providers

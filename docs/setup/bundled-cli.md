@@ -24,10 +24,10 @@ flowchart TB
 ```
 
 **Key characteristics:**
-- CLI binary is included with the SDK — no separate install needed
-- The SDK manages the CLI version to ensure compatibility
-- Users authenticate through your app (or use env vars / BYOK)
-- Sessions are managed per-user on their machine
+* CLI binary is included with the SDK — no separate install needed
+* The SDK manages the CLI version to ensure compatibility
+* Users authenticate through your app (or use env vars / BYOK)
+* Sessions are managed per-user on their machine
 
 ## Quick start
 
@@ -254,6 +254,6 @@ Session state persists at `~/.copilot/session-state/{sessionId}/`.
 
 ## Next steps
 
-- **[BYOK guide](../auth/byok.md)** — Use your own model provider keys
-- **[Session Persistence](../features/session-persistence.md)** — Advanced session management
-- **[Getting Started tutorial](../getting-started.md)** — Build a complete app
+* **[BYOK guide](../auth/byok.md)** — Use your own model provider keys
+* **[Session Persistence](../features/session-persistence.md)** — Advanced session management
+* **[Getting Started tutorial](../getting-started.md)** — Build a complete app

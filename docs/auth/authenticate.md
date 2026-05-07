@@ -99,9 +99,9 @@ client.start().get();
 </details>
 
 **When to use:**
-- Desktop applications where users interact directly
-- Development and testing environments
-- Any scenario where a user can sign in interactively
+* Desktop applications where users interact directly
+* Development and testing environments
+* Any scenario where a user can sign in interactively
 
 ## OAuth GitHub App
 
@@ -219,17 +219,17 @@ client.start().get();
 </details>
 
 **Supported token types:**
-- `gho_` - OAuth user access tokens
-- `ghu_` - GitHub App user access tokens  
-- `github_pat_` - Fine-grained personal access tokens
+* `gho_` - OAuth user access tokens
+* `ghu_` - GitHub App user access tokens  
+* `github_pat_` - Fine-grained personal access tokens
 
 **Not supported:**
-- `ghp_` - Classic personal access tokens (deprecated)
+* `ghp_` - Classic personal access tokens (deprecated)
 
 **When to use:**
-- Web applications where users sign in via GitHub
-- SaaS applications building on top of Copilot
-- Any multi-user application where you need to make requests on behalf of different users
+* Web applications where users sign in via GitHub
+* SaaS applications building on top of Copilot
+* Any multi-user application where you need to make requests on behalf of different users
 
 ## Environment variables
 
@@ -274,26 +274,26 @@ await client.start()
 </details>
 
 **When to use:**
-- CI/CD pipelines (GitHub Actions, Jenkins, etc.)
-- Automated testing
-- Server-side applications with service accounts
-- Development when you don't want to use interactive login
+* CI/CD pipelines (GitHub Actions, Jenkins, etc.)
+* Automated testing
+* Server-side applications with service accounts
+* Development when you don't want to use interactive login
 
 ## BYOK (bring your own key)
 
 BYOK allows you to use your own API keys from model providers like Azure AI Foundry, OpenAI, or Anthropic. This bypasses GitHub Copilot authentication entirely.
 
 **Key benefits:**
-- No GitHub Copilot subscription required
-- Use enterprise model deployments
-- Direct billing with your model provider
-- Support for Azure AI Foundry, OpenAI, Anthropic, and OpenAI-compatible endpoints
+* No GitHub Copilot subscription required
+* Use enterprise model deployments
+* Direct billing with your model provider
+* Support for Azure AI Foundry, OpenAI, Anthropic, and OpenAI-compatible endpoints
 
 **See the [BYOK documentation](./byok.md) for complete details**, including:
-- Azure AI Foundry setup
-- Provider configuration options
-- Limitations and considerations
-- Complete code examples
+* Azure AI Foundry setup
+* Provider configuration options
+* Limitations and considerations
+* Complete code examples
 
 ## Authentication priority
 
@@ -397,6 +397,6 @@ client.start().get();
 
 ## Next steps
 
-- [BYOK Documentation](./byok.md) - Learn how to use your own API keys
-- [Getting Started Guide](../getting-started.md) - Build your first Copilot-powered app
-- [MCP Servers](../features/mcp.md) - Connect to external tools
+* [BYOK Documentation](./byok.md) - Learn how to use your own API keys
+* [Getting Started Guide](../getting-started.md) - Build your first Copilot-powered app
+* [MCP Servers](../features/mcp.md) - Connect to external tools

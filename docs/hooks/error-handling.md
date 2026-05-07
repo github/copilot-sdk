@@ -2,10 +2,10 @@
 
 The `onErrorOccurred` hook is called when errors occur during session execution. Use it to:
 
-- Implement custom error logging
-- Track error patterns
-- Provide user-friendly error messages
-- Trigger alerts for critical errors
+* Implement custom error logging
+* Track error patterns
+* Provide user-friendly error messages
+* Trigger alerts for critical errors
 
 ## Hook signature
 
@@ -512,6 +512,6 @@ const session = await client.createSession({
 
 ## See also
 
-- [Hooks Overview](./index.md)
-- [Session Lifecycle Hooks](./session-lifecycle.md)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Hooks Overview](./index.md)
+* [Session Lifecycle Hooks](./session-lifecycle.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

@@ -644,7 +644,7 @@ class InteractiveChat {
 
 ## See also
 
-- [Getting Started](../getting-started.md) — Set up a session and send messages
-- [Custom Agents](./custom-agents.md) — Define specialized agents with scoped tools
-- [Session Hooks](../hooks/hooks-overview.md) — React to session lifecycle events
-- [Session Persistence](./session-persistence.md) — Resume sessions across restarts
+* [Getting Started](../getting-started.md) — Set up a session and send messages
+* [Custom Agents](./custom-agents.md) — Define specialized agents with scoped tools
+* [Session Hooks](../hooks/hooks-overview.md) — React to session lifecycle events
+* [Session Persistence](./session-persistence.md) — Resume sessions across restarts

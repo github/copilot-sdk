@@ -34,10 +34,10 @@ sequenceDiagram
 ```
 
 **Key characteristics:**
-- Each user authenticates with their own GitHub account
-- Copilot usage is billed to each user's subscription
-- Supports GitHub organizations and enterprise accounts
-- Your app never handles model API keys — GitHub manages everything
+* Each user authenticates with their own GitHub account
+* Copilot usage is billed to each user's subscription
+* Supports GitHub organizations and enterprise accounts
+* Your app never handles model API keys — GitHub manages everything
 
 ## Architecture
 
@@ -78,9 +78,9 @@ flowchart TB
    (or for organizations: **Organization Settings → Developer Settings**)
 
 2. Fill in:
-   - **Application name**: Your app's name
-   - **Homepage URL**: Your app's URL
-   - **Authorization callback URL**: Your OAuth callback endpoint (e.g., `https://yourapp.com/auth/callback`)
+   * **Application name**: Your app's name
+   * **Homepage URL**: Your app's URL
+   * **Authorization callback URL**: Your OAuth callback endpoint (e.g., `https://yourapp.com/auth/callback`)
 
 3. Note your **Client ID** and generate a **Client Secret**
 
@@ -469,6 +469,6 @@ For a lighter resource footprint, you can run a single external CLI server and p
 
 ## Next steps
 
-- **[Authentication docs](../auth/authenticate.md)** — Full auth method reference
-- **[Backend Services](./backend-services.md)** — Run the SDK server-side
-- **[Scaling & Multi-Tenancy](./scaling.md)** — Handle many users at scale
+* **[Authentication docs](../auth/authenticate.md)** — Full auth method reference
+* **[Backend Services](./backend-services.md)** — Run the SDK server-side
+* **[Scaling & Multi-Tenancy](./scaling.md)** — Handle many users at scale

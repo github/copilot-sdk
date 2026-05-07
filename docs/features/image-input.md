@@ -2,8 +2,8 @@
 
 Send images to Copilot sessions as attachments. There are two ways to attach images:
 
-- **File attachment** (`type: "file"`) — provide an absolute path; the runtime reads the file from disk, converts it to base64, and sends it to the LLM.
-- **Blob attachment** (`type: "blob"`) — provide base64-encoded data directly; useful when the image is already in memory (e.g., screenshots, generated images, or data from an API).
+* **File attachment** (`type: "file"`) — provide an absolute path; the runtime reads the file from disk, converts it to base64, and sends it to the LLM.
+* **Blob attachment** (`type: "blob"`) — provide base64-encoded data directly; useful when the image is already in memory (e.g., screenshots, generated images, or data from an API).
 
 ## Overview
 
@@ -472,9 +472,9 @@ The model's `capabilities.limits.vision.supported_media_types` field lists the e
 
 The runtime automatically processes images to fit within the model's constraints. No manual resizing is required.
 
-- Images that exceed the model's dimension or size limits are automatically resized (preserving aspect ratio) or quality-reduced.
-- If an image cannot be brought within limits after processing, it is skipped and not sent to the LLM.
-- The model's `capabilities.limits.vision.max_prompt_image_size` field indicates the maximum image size in bytes.
+* Images that exceed the model's dimension or size limits are automatically resized (preserving aspect ratio) or quality-reduced.
+* If an image cannot be brought within limits after processing, it is skipped and not sent to the LLM.
+* The model's `capabilities.limits.vision.max_prompt_image_size` field indicates the maximum image size in bytes.
 
 You can check these limits at runtime via the model capabilities object. For the best experience, use reasonably-sized PNG or JPEG images.
 
@@ -538,5 +538,5 @@ These image blocks appear in `tool.execution_complete` event results. See the [S
 
 ## See also
 
-- [Streaming Events](./streaming-events.md) — event lifecycle including tool result content blocks
-- [Steering & Queueing](./steering-and-queueing.md) — sending follow-up messages with attachments
+* [Streaming Events](./streaming-events.md) — event lifecycle including tool result content blocks
+* [Steering & Queueing](./steering-and-queueing.md) — sending follow-up messages with attachments

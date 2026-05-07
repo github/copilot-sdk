@@ -111,10 +111,10 @@ These are two different completion signals with very different guarantees:
 
 ### `session.idle`
 
-- **Always emitted** when the tool-use loop ends
-- **Ephemeral** — not persisted to disk, not replayed on session resume
-- Means: "the agent has stopped processing and is ready for the next message"
-- **Use this** as your reliable "done" signal
+* **Always emitted** when the tool-use loop ends
+* **Ephemeral** — not persisted to disk, not replayed on session resume
+* Means: "the agent has stopped processing and is ready for the next message"
+* **Use this** as your reliable "done" signal
 
 The SDK's `sendAndWait()` method waits for this event:
 
@@ -125,10 +125,10 @@ const response = await session.sendAndWait({ prompt: "Fix the bug" });
 
 ### `session.task_complete`
 
-- **Optionally emitted** — requires the model to explicitly signal it
-- **Persisted** — saved to the session event log on disk
-- Means: "the agent considers the overall task fulfilled"
-- Carries an optional `summary` field
+* **Optionally emitted** — requires the model to explicitly signal it
+* **Persisted** — saved to the session event log on disk
+* Means: "the agent considers the overall task fulfilled"
+* Carries an optional `summary` field
 
 ```typescript
 session.on("session.task_complete", (event) => {
@@ -144,9 +144,9 @@ In **autopilot mode** (headless/autonomous operation), the CLI actively tracks w
 
 This effectively restarts the tool-use loop — the model sees the nudge as a new user message and continues working. The nudge also instructs the model **not** to call `task_complete` prematurely:
 
-- Don't call it if you have open questions — make decisions and keep working
-- Don't call it if you hit an error — try to resolve it
-- Don't call it if there are remaining steps — complete them first
+* Don't call it if you have open questions — make decisions and keep working
+* Don't call it if you hit an error — try to resolve it
+* Don't call it if there are remaining steps — complete them first
 
 This creates a **two-level completion mechanism** in autopilot:
 1. The model calls `task_complete` with a summary → CLI emits `session.task_complete` → done
@@ -156,9 +156,9 @@ This creates a **two-level completion mechanism** in autopilot:
 
 In **interactive mode** (normal chat), the CLI does not nudge for `task_complete`. The model may skip it entirely. Common reasons:
 
-- **Conversational Q&A**: The model answers a question and simply stops — there's no discrete "task" to complete
-- **Model discretion**: The model produces a final text response without calling the task-complete signal
-- **Interrupted sessions**: The session ends before the model reaches a completion point
+* **Conversational Q&A**: The model answers a question and simply stops — there's no discrete "task" to complete
+* **Model discretion**: The model produces a final text response without calling the task-complete signal
+* **Interrupted sessions**: The session ends before the model reaches a completion point
 
 The CLI emits `session.idle` regardless, because it's a mechanical signal (the loop ended), not a semantic one (the model thinks it's done).
 
@@ -183,6 +183,6 @@ grep -c "assistant.turn_start" ~/.copilot/session-state/<sessionId>/events.jsonl
 
 ## Further reading
 
-- [Streaming Events Reference](./streaming-events.md) — Full field-level reference for every event type
-- [Session Persistence](./session-persistence.md) — How sessions are saved and resumed
-- [Hooks](./hooks.md) — Intercepting events in the loop (permissions, tools)
+* [Streaming Events Reference](./streaming-events.md) — Full field-level reference for every event type
+* [Session Persistence](./session-persistence.md) — How sessions are saved and resumed
+* [Hooks](./hooks.md) — Intercepting events in the loop (permissions, tools)

@@ -2,10 +2,10 @@
 
 The `onPostToolUse` hook is called **after** a tool executes. Use it to:
 
-- Transform or filter tool results
-- Log tool execution for auditing
-- Add context based on results
-- Suppress results from the conversation
+* Transform or filter tool results
+* Log tool execution for auditing
+* Add context based on results
+* Suppress results from the conversation
 
 ## Hook signature
 
@@ -464,6 +464,6 @@ const session = await client.createSession({
 
 ## See also
 
-- [Hooks Overview](./index.md)
-- [Pre-Tool Use Hook](./pre-tool-use.md)
-- [Error Handling Hook](./error-handling.md)
+* [Hooks Overview](./index.md)
+* [Pre-Tool Use Hook](./pre-tool-use.md)
+* [Error Handling Hook](./error-handling.md)

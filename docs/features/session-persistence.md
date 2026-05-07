@@ -327,9 +327,9 @@ Choose session IDs that encode ownership and purpose. This makes auditing and cl
 | ✅ `{userId}-{taskId}-{timestamp}` | `alice-deploy-1706932800` | Time-based cleanup |
 
 **Benefits of structured IDs:**
-- Easy to audit: "Show all sessions for user alice"
-- Easy to clean up: "Delete all sessions older than X"
-- Natural access control: Parse user ID from session ID
+* Easy to audit: "Show all sessions for user alice"
+* Easy to clean up: "Delete all sessions older than X"
+* Natural access control: Parse user ID from session ID
 
 ### Example: generating session IDs
 
@@ -497,9 +497,9 @@ flowchart LR
 ```
 
 **Requirements:**
-- ⚠️ Unique session IDs per user
-- ⚠️ Application-level access control
-- ⚠️ Session ID validation before operations
+* ⚠️ Unique session IDs per user
+* ⚠️ Application-level access control
+* ⚠️ Session ID validation before operations
 
 ```typescript
 // Application-level access control for shared CLI
@@ -635,6 +635,6 @@ await withSessionLock("user-123-task-456", async () => {
 
 ## Next steps
 
-- [Hooks Overview](../hooks/hooks-overview.md) - Customize session behavior with hooks
-- [Compatibility Guide](../troubleshooting/compatibility.md) - SDK vs CLI feature comparison
-- [Debugging Guide](../troubleshooting/debugging.md) - Troubleshoot session issues
+* [Hooks Overview](../hooks/hooks-overview.md) - Customize session behavior with hooks
+* [Compatibility Guide](../troubleshooting/compatibility.md) - SDK vs CLI feature comparison
+* [Debugging Guide](../troubleshooting/debugging.md) - Troubleshoot session issues

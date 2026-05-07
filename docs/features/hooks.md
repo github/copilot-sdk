@@ -1035,16 +1035,16 @@ const session = await client.createSession({
 
 For full type definitions, input/output field tables, and additional examples for every hook, see the API reference:
 
-- [Hooks Overview](../hooks/hooks-overview.md)
-- [Pre-Tool Use](../hooks/pre-tool-use.md)
-- [Post-Tool Use](../hooks/post-tool-use.md)
-- [User Prompt Submitted](../hooks/user-prompt-submitted.md)
-- [Session Lifecycle](../hooks/session-lifecycle.md)
-- [Error Handling](../hooks/error-handling.md)
+* [Hooks Overview](../hooks/hooks-overview.md)
+* [Pre-Tool Use](../hooks/pre-tool-use.md)
+* [Post-Tool Use](../hooks/post-tool-use.md)
+* [User Prompt Submitted](../hooks/user-prompt-submitted.md)
+* [Session Lifecycle](../hooks/session-lifecycle.md)
+* [Error Handling](../hooks/error-handling.md)
 
 ## See also
 
-- [Getting Started](../getting-started.md)
-- [Custom Agents & Sub-Agent Orchestration](./custom-agents.md)
-- [Streaming Session Events](./streaming-events.md)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Getting Started](../getting-started.md)
+* [Custom Agents & Sub-Agent Orchestration](./custom-agents.md)
+* [Streaming Session Events](./streaming-events.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

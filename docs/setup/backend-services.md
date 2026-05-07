@@ -31,10 +31,10 @@ flowchart TB
 ```
 
 **Key characteristics:**
-- CLI runs as a persistent server process (not spawned per request)
-- SDK connects over TCP — CLI and app can run in different containers
-- Multiple SDK clients can share one CLI server
-- Works with any auth method (GitHub tokens, env vars, BYOK)
+* CLI runs as a persistent server process (not spawned per request)
+* SDK connects over TCP — CLI and app can run in different containers
+* Multiple SDK clients can share one CLI server
+* Works with any auth method (GitHub tokens, env vars, BYOK)
 
 ## Architecture: auto-managed vs. external CLI
 
@@ -544,6 +544,6 @@ setInterval(() => cleanupSessions(24 * 60 * 60 * 1000), 60 * 60 * 1000);
 
 ## Next steps
 
-- **[Scaling & Multi-Tenancy](./scaling.md)** — Handle more users, add redundancy
-- **[Session Persistence](../features/session-persistence.md)** — Resume sessions across restarts
-- **[GitHub OAuth](./github-oauth.md)** — Add user authentication
+* **[Scaling & Multi-Tenancy](./scaling.md)** — Handle more users, add redundancy
+* **[Session Persistence](../features/session-persistence.md)** — Resume sessions across restarts
+* **[GitHub OAuth](./github-oauth.md)** — Add user authentication

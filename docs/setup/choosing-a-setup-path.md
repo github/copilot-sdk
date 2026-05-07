@@ -129,11 +129,11 @@ flowchart LR
 
 All guides assume you have:
 
-- **One of the SDKs** installed (Node.js, Python, and .NET SDKs include the CLI automatically):
-  - Node.js: `npm install @github/copilot-sdk`
-  - Python: `pip install github-copilot-sdk`
-  - Go: `go get github.com/github/copilot-sdk/go` (requires separate CLI installation)
-  - .NET: `dotnet add package GitHub.Copilot.SDK`
+* **One of the SDKs** installed (Node.js, Python, and .NET SDKs include the CLI automatically):
+  * Node.js: `npm install @github/copilot-sdk`
+  * Python: `pip install github-copilot-sdk`
+  * Go: `go get github.com/github/copilot-sdk/go` (requires separate CLI installation)
+  * .NET: `dotnet add package GitHub.Copilot.SDK`
 
 If you're brand new, start with the **[Getting Started tutorial](../getting-started.md)** first, then come back here for production configuration.
 

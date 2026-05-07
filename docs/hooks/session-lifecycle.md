@@ -2,10 +2,10 @@
 
 Session lifecycle hooks let you respond to session start and end events. Use them to:
 
-- Initialize context when sessions begin
-- Clean up resources when sessions end
-- Track session metrics and analytics
-- Configure session behavior dynamically
+* Initialize context when sessions begin
+* Clean up resources when sessions end
+* Track session metrics and analytics
+* Configure session behavior dynamically
 
 ## Session start hook {#session-start}
 
@@ -526,6 +526,6 @@ Session Summary:
 
 ## See also
 
-- [Hooks Overview](./index.md)
-- [Error Handling Hook](./error-handling.md)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Hooks Overview](./index.md)
+* [Error Handling Hook](./error-handling.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

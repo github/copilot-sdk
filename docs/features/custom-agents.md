@@ -766,9 +766,9 @@ const session = await client.createSession({
 Use the `defaultAgent` property on the session configuration to hide specific tools from the default agent (the built-in agent that handles turns when no custom agent is selected). This forces the main agent to delegate to sub-agents when those tools' capabilities are needed, keeping the main agent's context clean.
 
 This is useful when:
-- Certain tools generate large amounts of context that would overwhelm the main agent
-- You want the main agent to act as an orchestrator, delegating heavy work to specialized sub-agents
-- You need strict separation between orchestration and execution
+* Certain tools generate large amounts of context that would overwhelm the main agent
+* You want the main agent to act as an orchestrator, delegating heavy work to specialized sub-agents
+* You need strict separation between orchestration and execution
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>

@@ -4,11 +4,11 @@ This guide covers debugging techniques specific to MCP (Model Context Protocol) 
 
 ## Table of contents
 
-- [Quick Diagnostics](#quick-diagnostics)
-- [Testing MCP Servers Independently](#testing-mcp-servers-independently)
-- [Common Issues](#common-issues)
-- [Platform-Specific Issues](#platform-specific-issues)
-- [Advanced Debugging](#advanced-debugging)
+* [Quick Diagnostics](#quick-diagnostics)
+* [Testing MCP Servers Independently](#testing-mcp-servers-independently)
+* [Common Issues](#common-issues)
+* [Platform-Specific Issues](#platform-specific-issues)
+* [Advanced Debugging](#advanced-debugging)
 
 ---
 
@@ -18,11 +18,11 @@ This guide covers debugging techniques specific to MCP (Model Context Protocol) 
 
 Before diving deep, verify these basics:
 
-- [ ] MCP server executable exists and is runnable
-- [ ] Command path is correct (use absolute paths when in doubt)
-- [ ] Tools are enabled (`tools: ["*"]` or specific tool names)
-- [ ] Server implements MCP protocol correctly (responds to `initialize`)
-- [ ] No firewall/antivirus blocking the process (Windows)
+* [ ] MCP server executable exists and is runnable
+* [ ] Command path is correct (use absolute paths when in doubt)
+* [ ] Tools are enabled (`tools: ["*"]` or specific tool names)
+* [ ] Server implements MCP protocol correctly (responds to `initialize`)
+* [ ] No firewall/antivirus blocking the process (Windows)
 
 ### Enable MCP debug logging
 
@@ -148,12 +148,12 @@ cd /expected/working/dir
    ```
 
 2. **Server doesn't expose tools:**
-   - Test with `tools/list` request manually
-   - Check server implements `tools/list` method
+   * Test with `tools/list` request manually
+   * Check server implements `tools/list` method
 
 3. **Initialization handshake fails:**
-   - Server must respond to `initialize` correctly
-   - Server must handle `notifications/initialized`
+   * Server must respond to `initialize` correctly
+   * Server must handle `notifications/initialized`
 
 ### Tools listed but never called
 
@@ -182,8 +182,8 @@ cd /expected/working/dir
    ```
 
 3. **Tool schema issues:**
-   - Ensure `inputSchema` is valid JSON Schema
-   - Required fields must be in `required` array
+   * Ensure `inputSchema` is valid JSON Schema
+   * Required fields must be in `required` array
 
 ### Timeout errors
 
@@ -202,9 +202,9 @@ cd /expected/working/dir
    ```
 
 2. **Optimize server performance:**
-   - Add progress logging to identify bottleneck
-   - Consider async operations
-   - Check for blocking I/O
+   * Add progress logging to identify bottleneck
+   * Consider async operations
+   * Check for blocking I/O
 
 3. **For long-running tools**, consider streaming responses if supported.
 
@@ -215,8 +215,8 @@ cd /expected/working/dir
 **Common causes:**
 
 1. **Server writes to stdout incorrectly:**
-   - Debug output going to stdout instead of stderr
-   - Extra newlines or whitespace
+   * Debug output going to stdout instead of stderr
+   * Extra newlines or whitespace
    
    ```typescript
    // Wrong - pollutes stdout
@@ -227,12 +227,12 @@ cd /expected/working/dir
    ```
 
 2. **Encoding issues:**
-   - Ensure UTF-8 encoding
-   - No BOM (Byte Order Mark)
+   * Ensure UTF-8 encoding
+   * No BOM (Byte Order Mark)
 
 3. **Message framing:**
-   - Each message must be a complete JSON object
-   - Newline-delimited (one message per line)
+   * Each message must be a complete JSON object
+   * Newline-delimited (one message per line)
 
 ---
 
@@ -326,15 +326,15 @@ public static class McpNpxConfigExample
 
 #### Path issues
 
-- Use raw strings (`@"C:\path"`) or forward slashes (`"C:/path"`)
-- Avoid spaces in paths when possible
-- If spaces required, ensure proper quoting
+* Use raw strings (`@"C:\path"`) or forward slashes (`"C:/path"`)
+* Avoid spaces in paths when possible
+* If spaces required, ensure proper quoting
 
 #### Antivirus/firewall
 
 Windows Defender or other AV may block:
-- New executables
-- Processes communicating via stdin/stdout
+* New executables
+* Processes communicating via stdin/stdout
 
 **Solution:** Add exclusions for your MCP server executable.
 
@@ -435,9 +435,9 @@ npx @modelcontextprotocol/inspector /path/to/your/mcp-server
 ```
 
 This provides a web UI to:
-- Send test requests
-- View responses
-- Inspect tool schemas
+* Send test requests
+* View responses
+* Inspect tool schemas
 
 ### Protocol version mismatches
 
@@ -456,17 +456,17 @@ If versions don't match, update your MCP server library.
 
 When opening an issue or asking for help, collect:
 
-- [ ] SDK language and version
-- [ ] CLI version (`copilot --version`)
-- [ ] MCP server type (Node.js, Python, .NET, Go, etc.)
-- [ ] Full MCP server configuration (redact secrets)
-- [ ] Result of manual `initialize` test
-- [ ] Result of manual `tools/list` test  
-- [ ] Debug logs from SDK
-- [ ] Any error messages
+* [ ] SDK language and version
+* [ ] CLI version (`copilot --version`)
+* [ ] MCP server type (Node.js, Python, .NET, Go, etc.)
+* [ ] Full MCP server configuration (redact secrets)
+* [ ] Result of manual `initialize` test
+* [ ] Result of manual `tools/list` test  
+* [ ] Debug logs from SDK
+* [ ] Any error messages
 
 ## See also
 
-- [MCP Overview](../features/mcp.md) - Configuration and setup
-- [General Debugging Guide](./debugging.md) - SDK-wide debugging
-- [MCP Specification](https://modelcontextprotocol.io/) - Official protocol docs
+* [MCP Overview](../features/mcp.md) - Configuration and setup
+* [General Debugging Guide](./debugging.md) - SDK-wide debugging
+* [MCP Specification](https://modelcontextprotocol.io/) - Official protocol docs

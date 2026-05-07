@@ -2,11 +2,11 @@
 
 Hooks allow you to intercept and customize the behavior of Copilot sessions at key points in the conversation lifecycle. Use hooks to:
 
-- **Control tool execution** - approve, deny, or modify tool calls
-- **Transform results** - modify tool outputs before they're processed
-- **Add context** - inject additional information at session start
-- **Handle errors** - implement custom error handling
-- **Audit and log** - track all interactions for compliance
+* **Control tool execution** - approve, deny, or modify tool calls
+* **Transform results** - modify tool outputs before they're processed
+* **Add context** - inject additional information at session start
+* **Handle errors** - implement custom error handling
+* **Audit and log** - track all interactions for compliance
 
 ## Available hooks
 
@@ -258,14 +258,14 @@ const session = await client.createSession({
 
 ## Hook guides
 
-- **[Pre-Tool Use Hook](./pre-tool-use.md)** - Control tool execution permissions
-- **[Post-Tool Use Hook](./post-tool-use.md)** - Transform tool results
-- **[User Prompt Submitted Hook](./user-prompt-submitted.md)** - Modify user prompts
-- **[Session Lifecycle Hooks](./session-lifecycle.md)** - Session start and end
-- **[Error Handling Hook](./error-handling.md)** - Custom error handling
+* **[Pre-Tool Use Hook](./pre-tool-use.md)** - Control tool execution permissions
+* **[Post-Tool Use Hook](./post-tool-use.md)** - Transform tool results
+* **[User Prompt Submitted Hook](./user-prompt-submitted.md)** - Modify user prompts
+* **[Session Lifecycle Hooks](./session-lifecycle.md)** - Session start and end
+* **[Error Handling Hook](./error-handling.md)** - Custom error handling
 
 ## See also
 
-- [Getting Started Guide](../getting-started.md)
-- [Custom Tools](../getting-started.md#step-4-add-a-custom-tool)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Getting Started Guide](../getting-started.md)
+* [Custom Tools](../getting-started.md#step-4-add-a-custom-tool)
+* [Debugging Guide](../troubleshooting/debugging.md)

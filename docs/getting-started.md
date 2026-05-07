@@ -18,9 +18,9 @@ Copilot: In Tokyo it's 75°F and sunny. Great day to be outside!
 
 Before you begin, make sure you have:
 
-- **GitHub Copilot CLI** installed and authenticated ([Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli))
-- Your preferred language runtime:
-  - **Node.js** 18+ or **Python** 3.11+ or **Go** 1.21+ or **Java** 17+ or **.NET** 8.0+
+* **GitHub Copilot CLI** installed and authenticated ([Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli))
+* Your preferred language runtime:
+  * **Node.js** 18+ or **Python** 3.11+ or **Go** 1.21+ or **Java** 17+ or **.NET** 8.0+
 
 Verify the CLI is working:
 
@@ -1586,9 +1586,9 @@ See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/REA
 
 By default, the SDK automatically manages the Copilot CLI process lifecycle, starting and stopping the CLI as needed. However, you can also run the CLI in server mode separately and have the SDK connect to it. This can be useful for:
 
-- **Debugging**: Keep the CLI running between SDK restarts to inspect logs
-- **Resource sharing**: Multiple SDK clients can connect to the same CLI server
-- **Development**: Run the CLI with custom settings or in a different environment
+* **Debugging**: Keep the CLI running between SDK restarts to inspect logs
+* **Resource sharing**: Multiple SDK clients can connect to the same CLI server
+* **Development**: Run the CLI with custom settings or in a different environment
 
 ### Running the CLI in server mode
 
@@ -1875,8 +1875,8 @@ const client = new CopilotClient({
 
 Trace context is propagated automatically — no manual instrumentation is needed:
 
-- **SDK → CLI**: `traceparent` and `tracestate` headers from the current span/activity are included in `session.create`, `session.resume`, and `session.send` RPC calls.
-- **CLI → SDK**: When the CLI invokes tool handlers, the trace context from the CLI's span is propagated so your tool code runs under the correct parent span.
+* **SDK → CLI**: `traceparent` and `tracestate` headers from the current span/activity are included in `session.create`, `session.resume`, and `session.send` RPC calls.
+* **CLI → SDK**: When the CLI invokes tool handlers, the trace context from the CLI's span is propagated so your tool code runs under the correct parent span.
 
 📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)** — TelemetryConfig options, trace context propagation, and per-language dependencies.
 
@@ -1884,24 +1884,24 @@ Trace context is propagated automatically — no manual instrumentation is neede
 
 ## Learn more
 
-- [Authentication Guide](./auth/authenticate.md) - GitHub OAuth, environment variables, and BYOK
-- [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Azure AI Foundry, OpenAI, etc.
-- [Node.js SDK Reference](../nodejs/README.md)
-- [Python SDK Reference](../python/README.md)
-- [Go SDK Reference](../go/README.md)
-- [.NET SDK Reference](../dotnet/README.md)
-- [Java SDK Reference](../java/README.md)
-- [Using MCP Servers](./features/mcp.md) - Integrate external tools via Model Context Protocol
-- [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
-- [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
-- [OpenTelemetry Instrumentation](./observability/opentelemetry.md) - TelemetryConfig, trace context propagation, and per-language dependencies
+* [Authentication Guide](./auth/authenticate.md) - GitHub OAuth, environment variables, and BYOK
+* [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Azure AI Foundry, OpenAI, etc.
+* [Node.js SDK Reference](../nodejs/README.md)
+* [Python SDK Reference](../python/README.md)
+* [Go SDK Reference](../go/README.md)
+* [.NET SDK Reference](../dotnet/README.md)
+* [Java SDK Reference](../java/README.md)
+* [Using MCP Servers](./features/mcp.md) - Integrate external tools via Model Context Protocol
+* [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
+* [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
+* [OpenTelemetry Instrumentation](./observability/opentelemetry.md) - TelemetryConfig, trace context propagation, and per-language dependencies
 
 ---
 
 **You did it!** You've learned the core concepts of the GitHub Copilot SDK:
-- ✅ Creating a client and session
-- ✅ Sending messages and receiving responses
-- ✅ Streaming for real-time output
-- ✅ Defining custom tools that Copilot can call
+* ✅ Creating a client and session
+* ✅ Sending messages and receiving responses
+* ✅ Streaming for real-time output
+* ✅ Defining custom tools that Copilot can call
 
 Now go build something amazing! 🚀

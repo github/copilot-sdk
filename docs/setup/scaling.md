@@ -59,9 +59,9 @@ flowchart TB
 ```
 
 **When to use:**
-- Multi-tenant SaaS where data isolation is critical
-- Users with different auth credentials
-- Compliance requirements (SOC 2, HIPAA)
+* Multi-tenant SaaS where data isolation is critical
+* Users with different auth credentials
+* Compliance requirements (SOC 2, HIPAA)
 
 ```typescript
 // CLI pool manager — one CLI per user
@@ -130,9 +130,9 @@ flowchart TB
 ```
 
 **When to use:**
-- Internal tools with trusted users
-- Resource-constrained environments
-- Lower isolation requirements
+* Internal tools with trusted users
+* Resource-constrained environments
+* Lower isolation requirements
 
 ```typescript
 const sharedClient = new CopilotClient({
@@ -188,9 +188,9 @@ flowchart TB
 ```
 
 **When to use:**
-- Team collaboration tools
-- Shared code review sessions
-- Pair programming assistants
+* Team collaboration tools
+* Shared code review sessions
+* Pair programming assistants
 
 > ⚠️ **Important:** The SDK doesn't provide built-in session locking. You **must** serialize access to prevent concurrent writes to the same session.
 
@@ -629,7 +629,7 @@ flowchart TB
 
 ## Next steps
 
-- **[Session Persistence](../features/session-persistence.md)** — Deep dive on resumable sessions
-- **[Backend Services](./backend-services.md)** — Core server-side setup
-- **[GitHub OAuth](./github-oauth.md)** — Multi-user authentication
-- **[BYOK](../auth/byok.md)** — Use your own model provider
+* **[Session Persistence](../features/session-persistence.md)** — Deep dive on resumable sessions
+* **[Backend Services](./backend-services.md)** — Core server-side setup
+* **[GitHub OAuth](./github-oauth.md)** — Multi-user authentication
+* **[BYOK](../auth/byok.md)** — Use your own model provider

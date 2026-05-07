@@ -2,10 +2,10 @@
 
 The `onUserPromptSubmitted` hook is called when a user submits a message. Use it to:
 
-- Modify or enhance user prompts
-- Add context before processing
-- Filter or validate user input
-- Implement prompt templates
+* Modify or enhance user prompts
+* Add context before processing
+* Filter or validate user input
+* Implement prompt templates
 
 ## Hook signature
 
@@ -480,6 +480,6 @@ const session = await client.createSession({
 
 ## See also
 
-- [Hooks Overview](./index.md)
-- [Session Lifecycle Hooks](./session-lifecycle.md)
-- [Pre-Tool Use Hook](./pre-tool-use.md)
+* [Hooks Overview](./index.md)
+* [Session Lifecycle Hooks](./session-lifecycle.md)
+* [Pre-Tool Use Hook](./pre-tool-use.md)

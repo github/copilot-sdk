@@ -4,12 +4,12 @@ This guide covers common issues and debugging techniques for the Copilot SDK acr
 
 ## Table of contents
 
-- [Enable Debug Logging](#enable-debug-logging)
-- [Common Issues](#common-issues)
-- [MCP Server Debugging](#mcp-server-debugging)
-- [Connection Issues](#connection-issues)
-- [Tool Execution Issues](#tool-execution-issues)
-- [Platform-Specific Issues](#platform-specific-issues)
+* [Enable Debug Logging](#enable-debug-logging)
+* [Common Issues](#common-issues)
+* [MCP Server Debugging](#mcp-server-debugging)
+* [Connection Issues](#connection-issues)
+* [Tool Execution Issues](#tool-execution-issues)
+* [Platform-Specific Issues](#platform-specific-issues)
 
 ---
 
@@ -359,11 +359,11 @@ MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive M
 
 ### Quick MCP checklist
 
-- [ ] MCP server executable exists and runs independently
-- [ ] Command path is correct (use absolute paths)
-- [ ] Tools are enabled: `tools: ["*"]`
-- [ ] Server responds to `initialize` request correctly
-- [ ] Working directory (`cwd`) is set if needed
+* [ ] MCP server executable exists and runs independently
+* [ ] Command path is correct (use absolute paths)
+* [ ] Tools are enabled: `tools: ["*"]`
+* [ ] Server responds to `initialize` request correctly
+* [ ] Working directory (`cwd`) is set if needed
 
 ### Test your MCP server
 
@@ -546,11 +546,11 @@ session.on("error", (event) => {
 If you're still stuck:
 
 1. **Collect debug information:**
-   - SDK version
-   - CLI version (`copilot --version`)
-   - Operating system
-   - Debug logs
-   - Minimal reproduction code
+   * SDK version
+   * CLI version (`copilot --version`)
+   * Operating system
+   * Debug logs
+   * Minimal reproduction code
 
 2. **Search existing issues:** [GitHub Issues](https://github.com/github/copilot-sdk/issues)
 
@@ -558,7 +558,7 @@ If you're still stuck:
 
 ## See also
 
-- [Getting Started Guide](../getting-started.md)
-- [MCP Overview](../features/mcp.md) - MCP configuration and setup
-- [MCP Debugging Guide](./mcp-debugging.md) - Detailed MCP troubleshooting
-- [API Reference](https://github.com/github/copilot-sdk)
+* [Getting Started Guide](../getting-started.md)
+* [MCP Overview](../features/mcp.md) - MCP configuration and setup
+* [MCP Debugging Guide](./mcp-debugging.md) - Detailed MCP troubleshooting
+* [API Reference](https://github.com/github/copilot-sdk)

@@ -9,11 +9,11 @@ The Copilot SDK can integrate with **MCP servers** (Model Context Protocol) to e
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard for connecting AI assistants to external tools and data sources. MCP servers can:
 
-- Execute code or scripts
-- Query databases
-- Access file systems
-- Call external APIs
-- And much more
+* Execute code or scripts
+* Query databases
+* Access file systems
+* Call external APIs
+* And much more
 
 ## Server types
 
@@ -192,8 +192,8 @@ tools: []
 
 ### Notes
 
-- The `tools` field defines which tools are allowed.
-- There is no separate `allow` or `disallow` configuration — tool access is controlled directly through this list.
+* The `tools` field defines which tools are allowed.
+* There is no separate `allow` or `disallow` configuration — tool access is controlled directly through this list.
 
 ## Quick start: filesystem MCP server
 
@@ -273,17 +273,17 @@ directories for different applications.
 ### Tools not showing up or not being invoked
 
 1. **Verify the MCP server starts correctly**
-   - Check that the command and args are correct
-   - Ensure the server process doesn't crash on startup
-   - Look for error output in stderr
+   * Check that the command and args are correct
+   * Ensure the server process doesn't crash on startup
+   * Look for error output in stderr
 
 2. **Check tool configuration**
-   - Make sure `tools` is set to `["*"]` or lists the specific tools you need
-   - An empty array `[]` means no tools are enabled
+   * Make sure `tools` is set to `["*"]` or lists the specific tools you need
+   * An empty array `[]` means no tools are enabled
 
 3. **Verify connectivity for remote servers**
-   - Ensure the URL is accessible
-   - Check that authentication headers are correct
+   * Ensure the URL is accessible
+   * Check that authentication headers are correct
 
 ### Common issues
 
@@ -298,14 +298,14 @@ For detailed debugging guidance, see the **[MCP Debugging Guide](../troubleshoot
 
 ## Related resources
 
-- [Model Context Protocol Specification](https://modelcontextprotocol.io/)
-- [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Community MCP servers
-- [GitHub MCP Server](https://github.com/github/github-mcp-server) - Official GitHub MCP server
-- [Getting Started Guide](../getting-started.md) - SDK basics and custom tools
-- [General Debugging Guide](.../troubleshooting/mcp-debugging.md) - SDK-wide debugging
+* [Model Context Protocol Specification](https://modelcontextprotocol.io/)
+* [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Community MCP servers
+* [GitHub MCP Server](https://github.com/github/github-mcp-server) - Official GitHub MCP server
+* [Getting Started Guide](../getting-started.md) - SDK basics and custom tools
+* [General Debugging Guide](.../troubleshooting/mcp-debugging.md) - SDK-wide debugging
 
 ## See also
 
-- [MCP Debugging Guide](../troubleshooting/mcp-debugging.md) - Detailed MCP troubleshooting
-- [Issue #9](https://github.com/github/copilot-sdk/issues/9) - Original MCP tools usage question
-- [Issue #36](https://github.com/github/copilot-sdk/issues/36) - MCP documentation tracking issue
+* [MCP Debugging Guide](../troubleshooting/mcp-debugging.md) - Detailed MCP troubleshooting
+* [Issue #9](https://github.com/github/copilot-sdk/issues/9) - Original MCP tools usage question
+* [Issue #36](https://github.com/github/copilot-sdk/issues/36) - MCP documentation tracking issue

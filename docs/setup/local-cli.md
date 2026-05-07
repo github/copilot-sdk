@@ -21,10 +21,10 @@ flowchart LR
 ```
 
 **Key characteristics:**
-- You explicitly provide the CLI binary path
-- You are responsible for CLI version compatibility with the SDK
-- Authentication uses the signed-in user's credentials from the system keychain (or env vars)
-- Communication happens over stdio
+* You explicitly provide the CLI binary path
+* You are responsible for CLI version compatibility with the SDK
+* Authentication uses the signed-in user's credentials from the system keychain (or env vars)
+* Communication happens over stdio
 
 ## Configuration
 
@@ -210,6 +210,6 @@ Session state is stored locally at `~/.copilot/session-state/{sessionId}/`.
 
 ## Next steps
 
-- **[Default Setup](./bundled-cli.md)** — Use the SDK's built-in CLI (recommended for most use cases)
-- **[Getting Started tutorial](../getting-started.md)** — Build a complete interactive app
-- **[Authentication docs](../auth/authenticate.md)** — All auth methods in detail
+* **[Default Setup](./bundled-cli.md)** — Use the SDK's built-in CLI (recommended for most use cases)
+* **[Getting Started tutorial](../getting-started.md)** — Build a complete interactive app
+* **[Authentication docs](../auth/authenticate.md)** — All auth methods in detail

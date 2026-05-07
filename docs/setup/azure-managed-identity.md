@@ -194,10 +194,10 @@ Console.WriteLine(response?.Data.Content);
 
 No API key environment variable is needed — authentication is handled by `DefaultAzureCredential`, which automatically supports:
 
-- **Managed Identity** (system-assigned or user-assigned) — for Azure-hosted apps
-- **Azure CLI** (`az login`) — for local development
-- **Environment variables** (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`) — for service principals
-- **Workload Identity** — for Kubernetes
+* **Managed Identity** (system-assigned or user-assigned) — for Azure-hosted apps
+* **Azure CLI** (`az login`) — for local development
+* **Environment variables** (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`) — for service principals
+* **Workload Identity** — for Kubernetes
 
 See the [DefaultAzureCredential documentation](https://learn.microsoft.com/python/api/azure-identity/azure.identity.defaultazurecredential) for the full credential chain.
 
@@ -213,6 +213,6 @@ See the [DefaultAzureCredential documentation](https://learn.microsoft.com/pytho
 
 ## See also
 
-- [BYOK Setup Guide](../auth/byok.md) — Static API key configuration
-- [Backend Services](./backend-services.md) — Server-side deployment
-- [Azure Identity documentation](https://learn.microsoft.com/python/api/overview/azure/identity-readme)
+* [BYOK Setup Guide](../auth/byok.md) — Static API key configuration
+* [Backend Services](./backend-services.md) — Server-side deployment
+* [Azure Identity documentation](https://learn.microsoft.com/python/api/overview/azure/identity-readme)

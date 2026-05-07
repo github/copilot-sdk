@@ -2,10 +2,10 @@
 
 The `onPreToolUse` hook is called **before** a tool executes. Use it to:
 
-- Approve or deny tool execution
-- Modify tool arguments
-- Add context for the tool
-- Suppress tool output from the conversation
+* Approve or deny tool execution
+* Modify tool arguments
+* Add context for the tool
+* Suppress tool output from the conversation
 
 ## Hook signature
 
@@ -421,6 +421,6 @@ const session = await client.createSession({
 
 ## See also
 
-- [Hooks Overview](./index.md)
-- [Post-Tool Use Hook](./post-tool-use.md)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Hooks Overview](./index.md)
+* [Post-Tool Use Hook](./post-tool-use.md)
+* [Debugging Guide](../troubleshooting/debugging.md)
