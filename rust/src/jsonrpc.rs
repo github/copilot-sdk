@@ -10,7 +10,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWrite
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{Instrument, debug, error, warn};
 
-use crate::{Error, ProtocolError, elapsed_ms};
+use crate::{Error, ProtocolError};
 
 /// A JSON-RPC 2.0 request message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -391,7 +391,7 @@ impl JsonRpcClient {
         // the read loop owns the cleanup on the happy path.
         if let Err(error) = self.write(&request).await {
             warn!(
-                elapsed_ms = elapsed_ms(request_start),
+                elapsed_ms = request_start.elapsed().as_millis(),
                 method = %method,
                 request_id = id,
                 status = "failed",
@@ -406,7 +406,7 @@ impl JsonRpcClient {
             Err(_) => {
                 let error = Error::Protocol(ProtocolError::RequestCancelled);
                 warn!(
-                    elapsed_ms = elapsed_ms(request_start),
+                    elapsed_ms = request_start.elapsed().as_millis(),
                     method = %method,
                     request_id = id,
                     status = "failed",
@@ -419,7 +419,7 @@ impl JsonRpcClient {
         guard.disarm();
         if let Some(error) = &response.error {
             warn!(
-                elapsed_ms = elapsed_ms(request_start),
+                elapsed_ms = request_start.elapsed().as_millis(),
                 method = %method,
                 request_id = id,
                 status = "failed",
@@ -429,7 +429,7 @@ impl JsonRpcClient {
             );
         } else {
             debug!(
-                elapsed_ms = elapsed_ms(request_start),
+                elapsed_ms = request_start.elapsed().as_millis(),
                 method = %method,
                 request_id = id,
                 status = "succeeded",

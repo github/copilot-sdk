@@ -70,10 +70,6 @@ pub use subscription::{EventSubscription, Lagged, LifecycleSubscription, RecvErr
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 2;
 
-pub(crate) fn elapsed_ms(start: Instant) -> u128 {
-    start.elapsed().as_millis()
-}
-
 /// Errors returned by the SDK.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -953,8 +949,8 @@ impl Client {
                 info!(host = %host, port = %port, "connecting to external CLI server");
                 let connect_start = Instant::now();
                 let stream = TcpStream::connect((host.as_str(), port)).await?;
-                info!(
-                    elapsed_ms = elapsed_ms(connect_start),
+                debug!(
+                    elapsed_ms = connect_start.elapsed().as_millis(),
                     host = %host,
                     port,
                     "Client::start TCP connect complete"
@@ -975,8 +971,8 @@ impl Client {
                 let (mut child, actual_port) = Self::spawn_tcp(&program, &options, port).await?;
                 let connect_start = Instant::now();
                 let stream = TcpStream::connect(("127.0.0.1", actual_port)).await?;
-                info!(
-                    elapsed_ms = elapsed_ms(connect_start),
+                debug!(
+                    elapsed_ms = connect_start.elapsed().as_millis(),
                     port = actual_port,
                     "Client::start TCP connect complete"
                 );
@@ -1011,13 +1007,13 @@ impl Client {
             }
         };
 
-        info!(
-            elapsed_ms = elapsed_ms(start_time),
+        debug!(
+            elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start transport setup complete"
         );
         client.verify_protocol_version().await?;
-        info!(
-            elapsed_ms = elapsed_ms(start_time),
+        debug!(
+            elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start protocol verification complete"
         );
         if let Some(cfg) = session_fs_config {
@@ -1028,13 +1024,13 @@ impl Client {
                 session_state_path: cfg.session_state_path,
             };
             client.rpc().session_fs().set_provider(request).await?;
-            info!(
-                elapsed_ms = elapsed_ms(session_fs_start),
+            debug!(
+                elapsed_ms = session_fs_start.elapsed().as_millis(),
                 "Client::start session filesystem setup complete"
             );
         }
-        info!(
-            elapsed_ms = elapsed_ms(start_time),
+        debug!(
+            elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start complete"
         );
         Ok(client)
@@ -1133,8 +1129,8 @@ impl Client {
             }),
         };
         client.spawn_lifecycle_dispatcher();
-        info!(
-            elapsed_ms = elapsed_ms(setup_start),
+        debug!(
+            elapsed_ms = setup_start.elapsed().as_millis(),
             pid = ?pid,
             "Client::from_transport setup complete"
         );
@@ -1293,8 +1289,8 @@ impl Client {
             .stdin(Stdio::piped());
         let spawn_start = Instant::now();
         let child = command.spawn()?;
-        info!(
-            elapsed_ms = elapsed_ms(spawn_start),
+        debug!(
+            elapsed_ms = spawn_start.elapsed().as_millis(),
             "Client::spawn_stdio subprocess spawned"
         );
         Ok(child)
@@ -1323,8 +1319,8 @@ impl Client {
             .stdin(Stdio::null());
         let spawn_start = Instant::now();
         let mut child = command.spawn()?;
-        info!(
-            elapsed_ms = elapsed_ms(spawn_start),
+        debug!(
+            elapsed_ms = spawn_start.elapsed().as_millis(),
             "Client::spawn_tcp subprocess spawned"
         );
         let stdout = child.stdout.take().expect("stdout is piped");
@@ -1361,8 +1357,8 @@ impl Client {
             .map_err(|_| Error::Protocol(ProtocolError::CliStartupTimeout))?
             .map_err(|_| Error::Protocol(ProtocolError::CliStartupFailed))?;
 
-        info!(
-            elapsed_ms = elapsed_ms(port_wait_start),
+        debug!(
+            elapsed_ms = port_wait_start.elapsed().as_millis(),
             port = actual_port,
             "Client::spawn_tcp TCP port wait complete"
         );
@@ -1565,8 +1561,8 @@ impl Client {
             }
         }
 
-        info!(
-            elapsed_ms = elapsed_ms(handshake_start),
+        debug!(
+            elapsed_ms = handshake_start.elapsed().as_millis(),
             protocol_version = ?server_version,
             used_fallback_ping,
             "Client::verify_protocol_version protocol handshake complete"

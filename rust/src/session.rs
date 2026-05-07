@@ -32,9 +32,7 @@ use crate::types::{
     SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation, ToolResult,
     ToolResultResponse, TraceContext, ensure_attachment_display_names,
 };
-use crate::{
-    Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, elapsed_ms, error_codes,
-};
+use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
 /// Shared state between a [`Session`] and its event loop, used by [`Session::send_and_wait`].
 struct IdleWaiter {
@@ -320,7 +318,7 @@ impl Session {
             .map(|s| s.to_string())
             .unwrap_or_default();
         tracing::info!(
-            elapsed_ms = elapsed_ms(rpc_start),
+            elapsed_ms = rpc_start.elapsed().as_millis(),
             session_id = %self.id,
             message_id = %message_id,
             "Session::send completed successfully"
@@ -389,7 +387,7 @@ impl Session {
         match result {
             Ok(inner) => {
                 tracing::info!(
-                    elapsed_ms = elapsed_ms(total_start),
+                    elapsed_ms = total_start.elapsed().as_millis(),
                     session_id = %self.id,
                     completed_by = if inner.is_ok() { "idle" } else { "error" },
                     "Session::send_and_wait complete"
@@ -398,7 +396,7 @@ impl Session {
             }
             Err(_) => {
                 tracing::warn!(
-                    elapsed_ms = elapsed_ms(total_start),
+                    elapsed_ms = total_start.elapsed().as_millis(),
                     session_id = %self.id,
                     completed_by = "timeout",
                     "Session::send_and_wait failed"
@@ -743,7 +741,7 @@ impl Client {
         let rpc_start = Instant::now();
         let result = self.call("session.create", Some(params)).await?;
         tracing::info!(
-            elapsed_ms = elapsed_ms(rpc_start),
+            elapsed_ms = rpc_start.elapsed().as_millis(),
             "Client::create_session session creation request completed successfully"
         );
         let create_result: CreateSessionResult = serde_json::from_value(result)?;
@@ -773,7 +771,7 @@ impl Client {
             shutdown.clone(),
         );
         tracing::debug!(
-            elapsed_ms = elapsed_ms(setup_start),
+            elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
             tools_count,
             commands_count,
@@ -782,7 +780,7 @@ impl Client {
         );
 
         tracing::info!(
-            elapsed_ms = elapsed_ms(total_start),
+            elapsed_ms = total_start.elapsed().as_millis(),
             session_id = %session_id,
             "Client::create_session complete"
         );
@@ -840,7 +838,7 @@ impl Client {
         let rpc_start = Instant::now();
         let result = self.call("session.resume", Some(params)).await?;
         tracing::info!(
-            elapsed_ms = elapsed_ms(rpc_start),
+            elapsed_ms = rpc_start.elapsed().as_millis(),
             session_id = %session_id,
             "Client::resume_session session resume request completed successfully"
         );
@@ -875,14 +873,14 @@ impl Client {
             .await
         {
             warn!(
-                elapsed_ms = elapsed_ms(skills_reload_start),
+                elapsed_ms = skills_reload_start.elapsed().as_millis(),
                 session_id = %cli_session_id,
                 error = %e,
                 "Client::resume_session skills reload request failed"
             );
         } else {
             tracing::info!(
-                elapsed_ms = elapsed_ms(skills_reload_start),
+                elapsed_ms = skills_reload_start.elapsed().as_millis(),
                 session_id = %cli_session_id,
                 "Client::resume_session skills reload request completed successfully"
             );
@@ -912,7 +910,7 @@ impl Client {
             shutdown.clone(),
         );
         tracing::debug!(
-            elapsed_ms = elapsed_ms(setup_start),
+            elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %cli_session_id,
             tools_count,
             commands_count,
@@ -921,7 +919,7 @@ impl Client {
         );
 
         tracing::info!(
-            elapsed_ms = elapsed_ms(total_start),
+            elapsed_ms = total_start.elapsed().as_millis(),
             session_id = %cli_session_id,
             "Client::resume_session complete"
         );
@@ -1122,7 +1120,7 @@ async fn handle_notification(
                         if !waiter.first_assistant_message_seen {
                             waiter.first_assistant_message_seen = true;
                             tracing::debug!(
-                                elapsed_ms = elapsed_ms(waiter.started_at),
+                                elapsed_ms = waiter.started_at.elapsed().as_millis(),
                                 session_id = %session_id,
                                 "Session::send_and_wait first assistant message"
                             );
@@ -1133,7 +1131,7 @@ async fn handle_notification(
                         if let Some(waiter) = guard.take() {
                             if event_type == SessionEventType::SessionIdle {
                                 tracing::debug!(
-                                    elapsed_ms = elapsed_ms(waiter.started_at),
+                                    elapsed_ms = waiter.started_at.elapsed().as_millis(),
                                     session_id = %session_id,
                                     "Session::send_and_wait idle received"
                                 );
@@ -1187,7 +1185,7 @@ async fn handle_notification(
     }
 
     tracing::debug!(
-        elapsed_ms = elapsed_ms(dispatch_start),
+        elapsed_ms = dispatch_start.elapsed().as_millis(),
         session_id = %session_id,
         event_type = %notification.event.event_type,
         "Session::handle_notification dispatch"
@@ -1227,7 +1225,7 @@ async fn handle_notification(
                         })
                         .await;
                     tracing::info!(
-                        elapsed_ms = elapsed_ms(handler_start),
+                        elapsed_ms = handler_start.elapsed().as_millis(),
                         session_id = %sid,
                         request_id = %request_id,
                         "SessionHandler::on_permission_request dispatch"
@@ -1249,7 +1247,7 @@ async fn handle_notification(
                         )
                         .await;
                     tracing::debug!(
-                        elapsed_ms = elapsed_ms(rpc_start),
+                        elapsed_ms = rpc_start.elapsed().as_millis(),
                         session_id = %sid,
                         request_id = %request_id,
                         "Session::handle_notification response sent successfully"
@@ -1288,7 +1286,7 @@ async fn handle_notification(
                                 )
                                 .await;
                                 tracing::debug!(
-                                    elapsed_ms = elapsed_ms(rpc_start),
+                                    elapsed_ms = rpc_start.elapsed().as_millis(),
                                     session_id = %sid,
                                     request_id = %request_id,
                                     "Session::handle_notification response sent successfully"
@@ -1327,7 +1325,7 @@ async fn handle_notification(
                             )
                             .await;
                         tracing::debug!(
-                            elapsed_ms = elapsed_ms(rpc_start),
+                            elapsed_ms = rpc_start.elapsed().as_millis(),
                             session_id = %sid,
                             request_id = %request_id,
                             "Session::handle_notification response sent successfully"
@@ -1351,7 +1349,7 @@ async fn handle_notification(
                         .on_event(HandlerEvent::ExternalTool { invocation })
                         .await;
                     tracing::info!(
-                        elapsed_ms = elapsed_ms(handler_start),
+                        elapsed_ms = handler_start.elapsed().as_millis(),
                         session_id = %sid,
                         request_id = %request_id,
                         tool_call_id = %tool_call_id,
@@ -1375,7 +1373,7 @@ async fn handle_notification(
                         )
                         .await;
                     tracing::debug!(
-                        elapsed_ms = elapsed_ms(rpc_start),
+                        elapsed_ms = rpc_start.elapsed().as_millis(),
                         session_id = %sid,
                         request_id = %request_id,
                         tool_call_id = %tool_call_id,
@@ -1456,7 +1454,7 @@ async fn handle_notification(
                                 })
                                 .await;
                             tracing::info!(
-                                elapsed_ms = elapsed_ms(handler_start),
+                                elapsed_ms = handler_start.elapsed().as_millis(),
                                 session_id = %sid,
                                 request_id = %request_id,
                                 "SessionHandler::on_elicitation dispatch"
@@ -1495,7 +1493,7 @@ async fn handle_notification(
                             .await;
                     } else {
                         tracing::debug!(
-                            elapsed_ms = elapsed_ms(rpc_start),
+                            elapsed_ms = rpc_start.elapsed().as_millis(),
                             session_id = %sid,
                             request_id = %request_id,
                             "Session::handle_notification response sent successfully"
@@ -1534,7 +1532,7 @@ async fn handle_notification(
                             let handler_start = Instant::now();
                             let result = handler.on_command(ctx).await;
                             tracing::info!(
-                                elapsed_ms = elapsed_ms(handler_start),
+                                elapsed_ms = handler_start.elapsed().as_millis(),
                                 session_id = %sid,
                                 request_id = %request_id,
                                 command_name = %command_name,
@@ -1558,7 +1556,7 @@ async fn handle_notification(
                         .call("session.commands.handlePendingCommand", Some(params))
                         .await;
                     tracing::debug!(
-                        elapsed_ms = elapsed_ms(rpc_start),
+                        elapsed_ms = rpc_start.elapsed().as_millis(),
                         session_id = %sid,
                         request_id = %request_id,
                         "Session::handle_notification response sent successfully"
@@ -1646,7 +1644,7 @@ async fn handle_request(
                 .on_event(HandlerEvent::ExternalTool { invocation })
                 .await;
             tracing::info!(
-                elapsed_ms = elapsed_ms(handler_start),
+                elapsed_ms = handler_start.elapsed().as_millis(),
                 session_id = %sid,
                 tool_call_id = %tool_call_id,
                 tool_name = %tool_name,
@@ -1710,7 +1708,7 @@ async fn handle_request(
                 })
                 .await;
             tracing::info!(
-                elapsed_ms = elapsed_ms(handler_start),
+                elapsed_ms = handler_start.elapsed().as_millis(),
                 session_id = %sid,
                 "SessionHandler::on_user_input dispatch"
             );
@@ -1778,7 +1776,7 @@ async fn handle_request(
                 })
                 .await;
             tracing::info!(
-                elapsed_ms = elapsed_ms(handler_start),
+                elapsed_ms = handler_start.elapsed().as_millis(),
                 session_id = %sid,
                 request_id = %request_id,
                 "SessionHandler::on_permission_request dispatch"
@@ -1826,7 +1824,7 @@ async fn handle_request(
                 let response =
                     crate::transforms::dispatch_transform(transforms, &sid, sections).await;
                 tracing::info!(
-                    elapsed_ms = elapsed_ms(transform_start),
+                    elapsed_ms = transform_start.elapsed().as_millis(),
                     session_id = %sid,
                     "SystemMessageTransform::transform_section dispatch"
                 );

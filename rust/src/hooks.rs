@@ -12,7 +12,6 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::elapsed_ms;
 use crate::types::SessionId;
 
 /// Context provided to every hook invocation.
@@ -471,7 +470,7 @@ pub(crate) async fn dispatch_hook(
     let dispatch_start = Instant::now();
     let output = hooks.on_hook(event).await;
     tracing::info!(
-        elapsed_ms = elapsed_ms(dispatch_start),
+        elapsed_ms = dispatch_start.elapsed().as_millis(),
         session_id = %session_id,
         hook_type = hook_type,
         "SessionHooks::on_hook dispatch"
