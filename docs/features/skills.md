@@ -305,7 +305,7 @@ skills/
 
 The `skillDirectories` option points to the parent directory (e.g., `./skills`). The CLI discovers all `SKILL.md` files in immediate subdirectories.
 
-### Skill.md format
+### SKILL.md format
 
 A `SKILL.md` file is a markdown document with optional YAML frontmatter:
 
