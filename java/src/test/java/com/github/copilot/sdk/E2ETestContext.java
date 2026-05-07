@@ -270,15 +270,10 @@ public class E2ETestContext implements AutoCloseable {
             env.put("REQUESTS_CA_BUNDLE", caFile);
             env.put("CURL_CA_BUNDLE", caFile);
             env.put("GIT_SSL_CAINFO", caFile);
-            env.put("GH_TOKEN", "");
-            env.put("GITHUB_TOKEN", "");
-            env.put("GH_ENTERPRISE_TOKEN", "");
-            env.put("GITHUB_ENTERPRISE_TOKEN", "");
-        }
-
-        if ("true".equals(System.getenv("GITHUB_ACTIONS"))) {
             env.put("GH_TOKEN", "fake-token-for-e2e-tests");
             env.put("GITHUB_TOKEN", "fake-token-for-e2e-tests");
+            env.put("GH_ENTERPRISE_TOKEN", "");
+            env.put("GITHUB_ENTERPRISE_TOKEN", "");
         }
 
         return env;
@@ -291,13 +286,7 @@ public class E2ETestContext implements AutoCloseable {
      */
     public CopilotClient createClient() {
         CopilotClientOptions options = new CopilotClientOptions().setCliPath(cliPath).setCwd(workDir.toString())
-                .setEnvironment(getEnvironment());
-
-        // In CI (GitHub Actions), use a fake token to avoid auth issues
-        String ci = System.getenv("GITHUB_ACTIONS");
-        if (ci != null && !ci.isEmpty()) {
-            options.setGitHubToken("fake-token-for-e2e-tests");
-        }
+                .setEnvironment(getEnvironment()).setGitHubToken("fake-token-for-e2e-tests");
 
         return new CopilotClient(options);
     }
@@ -321,10 +310,7 @@ public class E2ETestContext implements AutoCloseable {
         if (options.getEnvironment() == null || options.getEnvironment().isEmpty()) {
             options.setEnvironment(getEnvironment());
         }
-
-        // In CI (GitHub Actions), use a fake token to avoid auth issues
-        String ci = System.getenv("GITHUB_ACTIONS");
-        if (ci != null && !ci.isEmpty() && options.getGitHubToken() == null) {
+        if (options.getGitHubToken() == null) {
             options.setGitHubToken("fake-token-for-e2e-tests");
         }
 
