@@ -260,19 +260,19 @@ class Data:
 @dataclass
 class AbortData:
     "Turn abort information including the reason for termination"
-    reason: str
+    reason: AbortReason
 
     @staticmethod
     def from_dict(obj: Any) -> "AbortData":
         assert isinstance(obj, dict)
-        reason = from_str(obj.get("reason"))
+        reason = parse_enum(AbortReason, obj.get("reason"))
         return AbortData(
             reason=reason,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["reason"] = from_str(self.reason)
+        result["reason"] = to_enum(AbortReason, self.reason)
         return result
 
 
@@ -3649,6 +3649,7 @@ class SubagentStartedData:
     agent_display_name: str
     agent_name: str
     tool_call_id: str
+    model: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SubagentStartedData":
@@ -3657,11 +3658,13 @@ class SubagentStartedData:
         agent_display_name = from_str(obj.get("agentDisplayName"))
         agent_name = from_str(obj.get("agentName"))
         tool_call_id = from_str(obj.get("toolCallId"))
+        model = from_union([from_none, from_str], obj.get("model"))
         return SubagentStartedData(
             agent_description=agent_description,
             agent_display_name=agent_display_name,
             agent_name=agent_name,
             tool_call_id=tool_call_id,
+            model=model,
         )
 
     def to_dict(self) -> dict:
@@ -3670,6 +3673,8 @@ class SubagentStartedData:
         result["agentDisplayName"] = from_str(self.agent_display_name)
         result["agentName"] = from_str(self.agent_name)
         result["toolCallId"] = from_str(self.tool_call_id)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
         return result
 
 
@@ -4583,6 +4588,13 @@ class WorkingDirectoryContext:
         if self.repository_host is not None:
             result["repositoryHost"] = from_union([from_none, from_str], self.repository_host)
         return result
+
+
+class AbortReason(Enum):
+    "Finite reason code describing why the current turn was aborted"
+    USER_INITIATED = "user_initiated"
+    REMOTE_COMMAND = "remote_command"
+    USER_ABORT = "user_abort"
 
 
 class AssistantMessageToolRequestType(Enum):

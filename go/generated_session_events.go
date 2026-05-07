@@ -1560,6 +1560,8 @@ type SubagentStartedData struct {
 	AgentDisplayName string `json:"agentDisplayName"`
 	// Internal name of the sub-agent
 	AgentName string `json:"agentName"`
+	// Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck).
+	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 }
@@ -1660,8 +1662,8 @@ func (*ToolExecutionStartData) sessionEventData() {}
 
 // Turn abort information including the reason for termination
 type AbortData struct {
-	// Reason the current turn was aborted (e.g., "user initiated")
-	Reason string `json:"reason"`
+	// Finite reason code describing why the current turn was aborted
+	Reason AbortReason `json:"reason"`
 }
 
 func (*AbortData) sessionEventData() {}
@@ -2444,6 +2446,15 @@ type ElicitationRequestedMode string
 const (
 	ElicitationRequestedModeForm ElicitationRequestedMode = "form"
 	ElicitationRequestedModeURL  ElicitationRequestedMode = "url"
+)
+
+// Finite reason code describing why the current turn was aborted
+type AbortReason string
+
+const (
+	AbortReasonUserInitiated AbortReason = "user_initiated"
+	AbortReasonRemoteCommand AbortReason = "remote_command"
+	AbortReasonUserAbort     AbortReason = "user_abort"
 )
 
 // Hosting platform type of the repository (github or ado)
