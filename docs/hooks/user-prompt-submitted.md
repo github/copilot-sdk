@@ -1,13 +1,13 @@
-# User Prompt Submitted Hook
+# User prompt submitted hook
 
 The `onUserPromptSubmitted` hook is called when a user submits a message. Use it to:
 
-- Modify or enhance user prompts
-- Add context before processing
-- Filter or validate user input
-- Implement prompt templates
+* Modify or enhance user prompts
+* Add context before processing
+* Filter or validate user input
+* Implement prompt templates
 
-## Hook Signature
+## Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -130,7 +130,7 @@ Return `null` or `undefined` to use the prompt unchanged. Otherwise, return an o
 
 ## Examples
 
-### Log All User Prompts
+### Log all user prompts
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -270,7 +270,7 @@ var session = client.createSession(
 
 </details>
 
-### Add Project Context
+### Add project context
 
 ```typescript
 const session = await client.createSession({
@@ -290,7 +290,7 @@ Framework: ${projectInfo.framework}
 });
 ```
 
-### Expand Shorthand Commands
+### Expand shorthand commands
 
 ```typescript
 const SHORTCUTS: Record<string, string> = {
@@ -317,7 +317,7 @@ const session = await client.createSession({
 });
 ```
 
-### Content Filtering
+### Content filtering
 
 ```typescript
 const BLOCKED_PATTERNS = [
@@ -344,7 +344,7 @@ const session = await client.createSession({
 });
 ```
 
-### Enforce Prompt Length Limits
+### Enforce prompt length limits
 
 ```typescript
 const MAX_PROMPT_LENGTH = 10000;
@@ -365,7 +365,7 @@ const session = await client.createSession({
 });
 ```
 
-### Add User Preferences
+### Add user preferences
 
 ```typescript
 interface UserPreferences {
@@ -399,7 +399,7 @@ const session = await client.createSession({
 });
 ```
 
-### Rate Limiting
+### Rate limiting
 
 ```typescript
 const promptTimestamps: number[] = [];
@@ -430,7 +430,7 @@ const session = await client.createSession({
 });
 ```
 
-### Prompt Templates
+### Prompt templates
 
 ```typescript
 const TEMPLATES: Record<string, (args: string) => string> = {
@@ -466,20 +466,20 @@ const session = await client.createSession({
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Preserve user intent** - When modifying prompts, ensure the core intent remains clear.
 
-2. **Be transparent about modifications** - If you significantly change a prompt, consider logging or notifying the user.
+1. **Be transparent about modifications** - If you significantly change a prompt, consider logging or notifying the user.
 
-3. **Use `additionalContext` over `modifiedPrompt`** - Adding context is less intrusive than rewriting the prompt.
+1. **Use `additionalContext` over `modifiedPrompt`** - Adding context is less intrusive than rewriting the prompt.
 
-4. **Provide clear rejection reasons** - When rejecting prompts, explain why and how to fix it.
+1. **Provide clear rejection reasons** - When rejecting prompts, explain why and how to fix it.
 
-5. **Keep processing fast** - This hook runs on every user message. Avoid slow operations.
+1. **Keep processing fast** - This hook runs on every user message. Avoid slow operations.
 
-## See Also
+## See also
 
-- [Hooks Overview](./index.md)
-- [Session Lifecycle Hooks](./session-lifecycle.md)
-- [Pre-Tool Use Hook](./pre-tool-use.md)
+* [Hooks Overview](./index.md)
+* [Session Lifecycle Hooks](./session-lifecycle.md)
+* [Pre-Tool Use Hook](./pre-tool-use.md)

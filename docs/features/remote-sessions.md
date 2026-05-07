@@ -1,13 +1,13 @@
-# Remote Sessions
+# Remote sessions
 
 Remote sessions let users access their Copilot session from GitHub web and mobile via [Mission Control](https://github.com). When enabled, the SDK connects each session to Mission Control, producing a URL that can be shared as a link or QR code.
 
 ## Prerequisites
 
-- The user must be authenticated (GitHub token or logged-in user)
-- The session's working directory must be a GitHub repository
+* The user must be authenticated (GitHub token or logged-in user)
+* The session's working directory must be a GitHub repository
 
-## Enabling Remote Sessions
+## Enabling remote sessions
 
 ### Always-on (client-level)
 
@@ -15,7 +15,7 @@ Set `remote: true` when creating the client. Every session in a GitHub repo auto
 
 <!-- tabs:start -->
 
-#### **TypeScript**
+#### TypeScript
 
 <!-- docs-validate: skip -->
 ```typescript
@@ -34,7 +34,7 @@ session.on("session.info", (event) => {
 });
 ```
 
-#### **Python**
+#### Python
 
 <!-- docs-validate: skip -->
 ```python
@@ -53,7 +53,7 @@ def on_event(event):
 session.on(on_event)
 ```
 
-#### **Go**
+#### Go
 
 <!-- docs-validate: skip -->
 ```go
@@ -72,7 +72,7 @@ session.On(func(event copilot.SessionEvent) {
 })
 ```
 
-#### **C#**
+#### C#
 
 <!-- docs-validate: skip -->
 ```csharp
@@ -93,7 +93,7 @@ session.On((SessionEvent e) =>
 });
 ```
 
-#### **Rust**
+#### Rust
 
 <!-- docs-validate: skip -->
 ```rust
@@ -125,7 +125,7 @@ Use `session.rpc.remote.enable()` to start remote access mid-session, and `sessi
 
 <!-- tabs:start -->
 
-#### **TypeScript**
+#### TypeScript
 
 <!-- docs-validate: skip -->
 ```typescript
@@ -136,7 +136,7 @@ console.log("Remote URL:", result.url);
 await session.rpc.remote.disable();
 ```
 
-#### **Python**
+#### Python
 
 <!-- docs-validate: skip -->
 ```python
@@ -147,7 +147,7 @@ print(f"Remote URL: {result.url}")
 await session.rpc.remote.disable()
 ```
 
-#### **Go**
+#### Go
 
 <!-- docs-validate: skip -->
 ```go
@@ -160,7 +160,7 @@ if result.URL != nil {
 err = session.RPC.Remote.Disable(ctx)
 ```
 
-#### **C#**
+#### C#
 
 <!-- docs-validate: skip -->
 ```csharp
@@ -171,7 +171,7 @@ Console.WriteLine($"Remote URL: {result.Url}");
 await session.Rpc.Remote.DisableAsync();
 ```
 
-#### **Rust**
+#### Rust
 
 <!-- docs-validate: skip -->
 ```rust
@@ -186,18 +186,18 @@ session.rpc().remote().disable().await?;
 
 <!-- tabs:end -->
 
-## QR Code Generation
+## QR code generation
 
-The remote URL can be rendered as a QR code for easy mobile access. The SDK provides the URL — use your preferred QR code library:
+The remote URL can be rendered as a QR code for easy mobile access. The SDK provides the URL—use your preferred QR code library:
 
-- **TypeScript**: [qrcode](https://www.npmjs.com/package/qrcode)
-- **Python**: [qrcode](https://pypi.org/project/qrcode/)
-- **Go**: [go-qrcode](https://github.com/skip2/go-qrcode)
-- **C#**: [QRCoder](https://www.nuget.org/packages/QRCoder)
-- **Rust**: [qrcode](https://crates.io/crates/qrcode)
+* **TypeScript**: [qrcode](https://www.npmjs.com/package/qrcode)
+* **Python**: [qrcode](https://pypi.org/project/qrcode/)
+* **Go**: [go-qrcode](https://github.com/skip2/go-qrcode)
+* **C#**: [QRCoder](https://www.nuget.org/packages/QRCoder)
+* **Rust**: [qrcode](https://crates.io/crates/qrcode)
 
 ## Notes
 
-- The `remote` client option only applies when the SDK spawns the CLI process. It is ignored when connecting to an external server via `cliUrl`.
-- If the working directory is not a GitHub repository, remote setup is silently skipped (always-on mode) or returns an error (on-demand mode).
-- Remote sessions require authentication. Ensure `gitHubToken` or `useLoggedInUser` is configured.
+* The `remote` client option only applies when the SDK spawns the CLI process. It is ignored when connecting to an external server via `cliUrl`.
+* If the working directory is not a GitHub repository, remote setup is silently skipped (always-on mode) or returns an error (on-demand mode).
+* Remote sessions require authentication. Ensure `gitHubToken` or `useLoggedInUser` is configured.

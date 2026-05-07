@@ -1,13 +1,13 @@
-# Post-Tool Use Hook
+# Post-tool use hook
 
 The `onPostToolUse` hook is called **after** a tool executes. Use it to:
 
-- Transform or filter tool results
-- Log tool execution for auditing
-- Add context based on results
-- Suppress results from the conversation
+* Transform or filter tool results
+* Log tool execution for auditing
+* Add context based on results
+* Suppress results from the conversation
 
-## Hook Signature
+## Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -132,7 +132,7 @@ Return `null` or `undefined` to pass through the result unchanged. Otherwise, re
 
 ## Examples
 
-### Log All Tool Results
+### Log all tool results
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -286,7 +286,7 @@ var session = client.createSession(
 
 </details>
 
-### Redact Sensitive Data
+### Redact sensitive data
 
 ```typescript
 const SENSITIVE_PATTERNS = [
@@ -314,7 +314,7 @@ const session = await client.createSession({
 });
 ```
 
-### Truncate Large Results
+### Truncate large results
 
 ```typescript
 const MAX_RESULT_LENGTH = 10000;
@@ -340,7 +340,7 @@ const session = await client.createSession({
 });
 ```
 
-### Add Context Based on Results
+### Add context based on results
 
 ```typescript
 const session = await client.createSession({
@@ -366,7 +366,7 @@ const session = await client.createSession({
 });
 ```
 
-### Filter Error Stack Traces
+### Filter error stack traces
 
 ```typescript
 const session = await client.createSession({
@@ -388,7 +388,7 @@ const session = await client.createSession({
 });
 ```
 
-### Audit Trail for Compliance
+### Audit trail for compliance
 
 ```typescript
 interface AuditEntry {
@@ -423,7 +423,7 @@ const session = await client.createSession({
 });
 ```
 
-### Suppress Noisy Results
+### Suppress noisy results
 
 ```typescript
 const NOISY_TOOLS = ["list_directory", "search_codebase"];
@@ -450,20 +450,20 @@ const session = await client.createSession({
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Return `null` when no changes needed** - This is more efficient than returning an empty object or the same result.
 
-2. **Be careful with result modification** - Changing results can affect how the model interprets tool output. Only modify when necessary.
+1. **Be careful with result modification** - Changing results can affect how the model interprets tool output. Only modify when necessary.
 
-3. **Use `additionalContext` for hints** - Instead of modifying results, add context to help the model interpret them.
+1. **Use `additionalContext` for hints** - Instead of modifying results, add context to help the model interpret them.
 
-4. **Consider privacy when logging** - Tool results may contain sensitive data. Apply redaction before logging.
+1. **Consider privacy when logging** - Tool results may contain sensitive data. Apply redaction before logging.
 
-5. **Keep hooks fast** - Post-tool hooks run synchronously. Heavy processing should be done asynchronously or batched.
+1. **Keep hooks fast** - Post-tool hooks run synchronously. Heavy processing should be done asynchronously or batched.
 
-## See Also
+## See also
 
-- [Hooks Overview](./index.md)
-- [Pre-Tool Use Hook](./pre-tool-use.md)
-- [Error Handling Hook](./error-handling.md)
+* [Hooks Overview](./index.md)
+* [Pre-Tool Use Hook](./pre-tool-use.md)
+* [Error Handling Hook](./error-handling.md)

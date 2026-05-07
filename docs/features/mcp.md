@@ -1,20 +1,21 @@
-# Using MCP Servers with the GitHub Copilot SDK
+# Using MCP servers with the GitHub Copilot SDK
 
 The Copilot SDK can integrate with **MCP servers** (Model Context Protocol) to extend the assistant's capabilities with external tools. MCP servers run as separate processes and expose tools (functions) that Copilot can invoke during conversations.
 
-> **Note:** This is an evolving feature. See [issue #36](https://github.com/github/copilot-sdk/issues/36) for ongoing discussion.
+> [!NOTE]
+> This is an evolving feature. See [issue #36](https://github.com/github/copilot-sdk/issues/36) for ongoing discussion.
 
 ## What is MCP?
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard for connecting AI assistants to external tools and data sources. MCP servers can:
 
-- Execute code or scripts
-- Query databases
-- Access file systems
-- Call external APIs
-- And much more
+* Execute code or scripts
+* Query databases
+* Access file systems
+* Call external APIs
+* And much more
 
-## Server Types
+## Server types
 
 The SDK supports two types of MCP servers:
 
@@ -153,7 +154,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-## Tool Configuration
+## Tool configuration
 
 You can control which tools are available to an MCP server using the `tools` field.
 
@@ -165,8 +166,6 @@ Use `"*"` to enable all tools provided by the MCP server:
 tools: ["*"]
 ```
 
----
-
 ### Allow specific tools
 
 Provide a list of tool names to restrict access:
@@ -177,8 +176,6 @@ tools: ["bash", "edit"]
 
 Only the listed tools will be available to the agent.
 
----
-
 ### Disable all tools
 
 Use an empty array to disable all tools:
@@ -187,14 +184,12 @@ Use an empty array to disable all tools:
 tools: []
 ```
 
----
-
 ### Notes
 
-- The `tools` field defines which tools are allowed.
-- There is no separate `allow` or `disallow` configuration — tool access is controlled directly through this list.
+* The `tools` field defines which tools are allowed.
+* There is no separate `allow` or `disallow` configuration—tool access is controlled directly through this list.
 
-## Quick Start: Filesystem MCP Server
+## Quick start: filesystem MCP server
 
 Here's a complete working example using the official [`@modelcontextprotocol/server-filesystem`](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) MCP server:
 
@@ -240,11 +235,12 @@ and subdirectories including temporary system files, log files, and
 directories for different applications.
 ```
 
-> **Tip:** You can use any MCP server from the [MCP Servers Directory](https://github.com/modelcontextprotocol/servers). Popular options include `@modelcontextprotocol/server-github`, `@modelcontextprotocol/server-sqlite`, and `@modelcontextprotocol/server-puppeteer`.
+> [!TIP]
+> You can use any MCP server from the [MCP Servers Directory](https://github.com/modelcontextprotocol/servers). Popular options include `@modelcontextprotocol/server-github`, `@modelcontextprotocol/server-sqlite`, and `@modelcontextprotocol/server-puppeteer`.
 
-## Configuration Options
+## Configuration options
 
-### Local/Stdio Server
+### Local/stdio server
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -256,7 +252,7 @@ directories for different applications.
 | `tools` | `string[]` | No | Tools to enable (`["*"]` for all, `[]` for none) |
 | `timeout` | `number` | No | Timeout in milliseconds |
 
-### Remote Server (HTTP/SSE)
+### Remote server (HTTP/SSE)
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -271,17 +267,17 @@ directories for different applications.
 ### Tools not showing up or not being invoked
 
 1. **Verify the MCP server starts correctly**
-   - Check that the command and args are correct
-   - Ensure the server process doesn't crash on startup
-   - Look for error output in stderr
+   * Check that the command and args are correct
+   * Ensure the server process doesn't crash on startup
+   * Look for error output in stderr
 
-2. **Check tool configuration**
-   - Make sure `tools` is set to `["*"]` or lists the specific tools you need
-   - An empty array `[]` means no tools are enabled
+1. **Check tool configuration**
+   * Make sure `tools` is set to `["*"]` or lists the specific tools you need
+   * An empty array `[]` means no tools are enabled
 
-3. **Verify connectivity for remote servers**
-   - Ensure the URL is accessible
-   - Check that authentication headers are correct
+1. **Verify connectivity for remote servers**
+   * Ensure the URL is accessible
+   * Check that authentication headers are correct
 
 ### Common issues
 
@@ -294,16 +290,16 @@ directories for different applications.
 
 For detailed debugging guidance, see the **[MCP Debugging Guide](../troubleshooting/mcp-debugging.md)**.
 
-## Related Resources
+## Related resources
 
-- [Model Context Protocol Specification](https://modelcontextprotocol.io/)
-- [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Community MCP servers
-- [GitHub MCP Server](https://github.com/github/github-mcp-server) - Official GitHub MCP server
-- [Getting Started Guide](../getting-started.md) - SDK basics and custom tools
-- [General Debugging Guide](.../troubleshooting/mcp-debugging.md) - SDK-wide debugging
+* [Model Context Protocol Specification](https://modelcontextprotocol.io/)
+* [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Community MCP servers
+* [GitHub MCP Server](https://github.com/github/github-mcp-server) - Official GitHub MCP server
+* [Getting Started Guide](../getting-started.md) - SDK basics and custom tools
+* [General Debugging Guide](../troubleshooting/debugging.md) - SDK-wide debugging
 
-## See Also
+## See also
 
-- [MCP Debugging Guide](../troubleshooting/mcp-debugging.md) - Detailed MCP troubleshooting
-- [Issue #9](https://github.com/github/copilot-sdk/issues/9) - Original MCP tools usage question
-- [Issue #36](https://github.com/github/copilot-sdk/issues/36) - MCP documentation tracking issue
+* [MCP Debugging Guide](../troubleshooting/mcp-debugging.md) - Detailed MCP troubleshooting
+* [Issue #9](https://github.com/github/copilot-sdk/issues/9) - Original MCP tools usage question
+* [Issue #36](https://github.com/github/copilot-sdk/issues/36) - MCP documentation tracking issue

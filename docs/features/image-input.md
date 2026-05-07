@@ -1,9 +1,9 @@
-# Image Input
+# Image input
 
 Send images to Copilot sessions as attachments. There are two ways to attach images:
 
-- **File attachment** (`type: "file"`) — provide an absolute path; the runtime reads the file from disk, converts it to base64, and sends it to the LLM.
-- **Blob attachment** (`type: "blob"`) — provide base64-encoded data directly; useful when the image is already in memory (e.g., screenshots, generated images, or data from an API).
+* **File attachment** (`type: "file"`): provide an absolute path; the runtime reads the file from disk, converts it to base64, and sends it to the LLM.
+* **Blob attachment** (`type: "blob"`): provide base64-encoded data directly; useful when the image is already in memory (e.g., screenshots, generated images, or data from an API).
 
 ## Overview
 
@@ -28,12 +28,12 @@ sequenceDiagram
 | Concept | Description |
 |---------|-------------|
 | **File attachment** | An attachment with `type: "file"` and an absolute `path` to an image on disk |
-| **Blob attachment** | An attachment with `type: "blob"`, base64-encoded `data`, and a `mimeType` — no disk I/O needed |
+| **Blob attachment** | An attachment with `type: "blob"`, base64-encoded `data`, and a `mimeType`—no disk I/O needed |
 | **Automatic encoding** | For file attachments, the runtime reads the image and converts it to base64 automatically |
 | **Auto-resize** | The runtime automatically resizes or quality-reduces images that exceed model-specific limits |
 | **Vision capability** | The model must have `capabilities.supports.vision = true` to process images |
 
-## Quick Start — File Attachment
+## Quick start—file attachment
 
 Attach an image file to any message using the file attachment type. The path must be an absolute path to an image on disk.
 
@@ -248,7 +248,7 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-## Quick Start — Blob Attachment
+## Quick start—blob attachment
 
 When you already have image data in memory (e.g., a screenshot captured by your app, or an image fetched from an API), use a blob attachment to send it directly without writing to disk.
 
@@ -462,23 +462,23 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-## Supported Formats
+## Supported formats
 
 Supported image formats include JPG, PNG, GIF, and other common image types. For file attachments, the runtime reads the image from disk and converts it as needed. For blob attachments, you provide the base64 data and MIME type directly. Use PNG or JPEG for best results, as these are the most widely supported formats.
 
 The model's `capabilities.limits.vision.supported_media_types` field lists the exact MIME types it accepts.
 
-## Automatic Processing
+## Automatic processing
 
 The runtime automatically processes images to fit within the model's constraints. No manual resizing is required.
 
-- Images that exceed the model's dimension or size limits are automatically resized (preserving aspect ratio) or quality-reduced.
-- If an image cannot be brought within limits after processing, it is skipped and not sent to the LLM.
-- The model's `capabilities.limits.vision.max_prompt_image_size` field indicates the maximum image size in bytes.
+* Images that exceed the model's dimension or size limits are automatically resized (preserving aspect ratio) or quality-reduced.
+* If an image cannot be brought within limits after processing, it is skipped and not sent to the LLM.
+* The model's `capabilities.limits.vision.max_prompt_image_size` field indicates the maximum image size in bytes.
 
 You can check these limits at runtime via the model capabilities object. For the best experience, use reasonably-sized PNG or JPEG images.
 
-## Vision Model Capabilities
+## Vision model capabilities
 
 Not all models support vision. Check the model's capabilities before sending images.
 
@@ -512,7 +512,7 @@ vision?: {
 };
 ```
 
-## Receiving Image Results
+## Receiving image results
 
 When tools return images (e.g., screenshots or generated charts), the result contains `"image"` content blocks with base64-encoded data.
 
@@ -524,11 +524,11 @@ When tools return images (e.g., screenshots or generated charts), the result con
 
 These image blocks appear in `tool.execution_complete` event results. See the [Streaming Events](./streaming-events.md) guide for the full event lifecycle.
 
-## Tips & Limitations
+## Tips and limitations
 
 | Tip | Details |
 |-----|---------|
-| **Use PNG or JPEG directly** | Avoids conversion overhead — these are sent to the LLM as-is |
+| **Use PNG or JPEG directly** | Avoids conversion overhead—these are sent to the LLM as-is |
 | **Keep images reasonably sized** | Large images may be quality-reduced, which can lose important details |
 | **Use absolute paths for file attachments** | The runtime reads files from disk; relative paths may not resolve correctly |
 | **Use blob attachments for in-memory data** | When you already have base64 data (e.g., screenshots, API responses), blob avoids unnecessary disk I/O |
@@ -536,7 +536,7 @@ These image blocks appear in `tool.execution_complete` event results. See the [S
 | **Multiple images are supported** | Attach several attachments in one message, up to the model's `max_prompt_images` limit |
 | **SVG is not supported** | SVG files are text-based and excluded from image processing |
 
-## See Also
+## See also
 
-- [Streaming Events](./streaming-events.md) — event lifecycle including tool result content blocks
-- [Steering & Queueing](./steering-and-queueing.md) — sending follow-up messages with attachments
+* [Streaming Events](./streaming-events.md): event lifecycle including tool result content blocks
+* [Steering & Queueing](./steering-and-queueing.md): sending follow-up messages with attachments

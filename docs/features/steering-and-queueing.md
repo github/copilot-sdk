@@ -1,4 +1,4 @@
-# Steering & Queueing
+# Steering and queueing
 
 Two interaction patterns let users send messages while the agent is already working: **steering** redirects the agent mid-turn, and **queueing** buffers messages for sequential processing after the current turn completes.
 
@@ -8,7 +8,7 @@ When a session is actively processing a turn, incoming messages can be delivered
 
 | Mode | Behavior | Use case |
 |------|----------|----------|
-| `"immediate"` (steering) | Injected into the **current** LLM turn | "Actually, don't create that file — use a different approach" |
+| `"immediate"` (steering) | Injected into the **current** LLM turn | "Actually, don't create that file—use a different approach" |
 | `"enqueue"` (queueing) | Queued and processed **after** the current turn finishes | "After this, also fix the tests" |
 
 ```mermaid
@@ -33,9 +33,9 @@ sequenceDiagram
     LLM->>S: Turn completes
 ```
 
-## Steering (Immediate Mode)
+## Steering (immediate mode)
 
-Steering sends a message that is injected directly into the agent's current turn. The agent sees the message in real time and adjusts its response accordingly — useful for course-correcting without aborting the turn.
+Steering sends a message that is injected directly into the agent's current turn. The agent sees the message in real time and adjusts its response accordingly—useful for course-correcting without aborting the turn.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -210,18 +210,19 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-### How Steering Works Internally
+### How steering works internally
 
 1. The message is added to the runtime's `ImmediatePromptProcessor` queue
-2. Before the next LLM request within the current turn, the processor injects the message into the conversation
-3. The agent sees the steering message as a new user message and adjusts its response
-4. If the turn completes before the steering message is processed, it is automatically moved to the regular queue for the next turn
+1. Before the next LLM request within the current turn, the processor injects the message into the conversation
+1. The agent sees the steering message as a new user message and adjusts its response
+1. If the turn completes before the steering message is processed, it is automatically moved to the regular queue for the next turn
 
-> **Note:** Steering messages are best-effort within the current turn. If the agent has already committed to a tool call, the steering takes effect after that call completes but still within the same turn.
+> [!NOTE]
+> Steering messages are best-effort within the current turn. If the agent has already committed to a tool call, the steering takes effect after that call completes but still within the same turn.
 
-## Queueing (Enqueue Mode)
+## Queueing (enqueue mode)
 
-Queueing buffers messages to be processed sequentially after the current turn finishes. Each queued message starts its own full turn. This is the default mode — if you omit `mode`, the SDK uses `"enqueue"`.
+Queueing buffers messages to be processed sequentially after the current turn finishes. Each queued message starts its own full turn. This is the default mode—if you omit `mode`, the SDK uses `"enqueue"`.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -457,15 +458,15 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-### How Queueing Works Internally
+### How queueing works internally
 
 1. The message is added to the session's `itemQueue` as a `QueuedItem`
-2. When the current turn completes and the session becomes idle, `processQueuedItems()` runs
-3. Items are dequeued in FIFO order — each message triggers a full agentic turn
-4. If a steering message was pending when the turn ended, it is moved to the front of the queue
-5. Processing continues until the queue is empty, then the session emits an idle event
+1. When the current turn completes and the session becomes idle, `processQueuedItems()` runs
+1. Items are dequeued in FIFO order—each message triggers a full agentic turn
+1. If a steering message was pending when the turn ended, it is moved to the front of the queue
+1. Processing continues until the queue is empty, then the session emits an idle event
 
-## Combining Steering and Queueing
+## Combining steering and queueing
 
 You can use both patterns together in a single session. Steering affects the current turn while queued messages wait for their own turns:
 
@@ -523,7 +524,7 @@ await session.send({
 
 </details>
 
-## Choosing Between Steering and Queueing
+## Choosing between steering and queueing
 
 | Scenario | Pattern | Why |
 |----------|---------|-----|
@@ -534,7 +535,7 @@ await session.send({
 | You want to add context to the current task | **Steering** | Agent incorporates it into its current reasoning |
 | You want to batch unrelated requests | **Queueing** | Each gets its own full turn with clean context |
 
-## Building a UI with Steering & Queueing
+## Building a UI with steering and queueing
 
 Here's a pattern for building an interactive UI that supports both modes:
 
@@ -606,7 +607,7 @@ class InteractiveChat {
 }
 ```
 
-## API Reference
+## API reference
 
 ### MessageOptions
 
@@ -617,32 +618,33 @@ class InteractiveChat {
 | Go | `Mode` | `string` | `"enqueue"` | Message delivery mode |
 | .NET | `Mode` | `string?` | `"enqueue"` | Message delivery mode |
 
-### Delivery Modes
+### Delivery modes
 
 | Mode | Effect | During active turn | During idle |
 |------|--------|-------------------|-------------|
 | `"enqueue"` | Queue for next turn | Waits in FIFO queue | Starts a new turn immediately |
 | `"immediate"` | Inject into current turn | Injected before next LLM call | Starts a new turn immediately |
 
-> **Note:** When the session is idle (not processing), both modes behave identically — the message starts a new turn immediately.
+> [!NOTE]
+> When the session is idle (not processing), both modes behave identically—the message starts a new turn immediately.
 
-## Best Practices
+## Best practices
 
-1. **Default to queueing** — Use `"enqueue"` (or omit `mode`) for most messages. It's predictable and doesn't risk disrupting in-progress work.
+1. **Default to queueing**—Use `"enqueue"` (or omit `mode`) for most messages. It's predictable and doesn't risk disrupting in-progress work.
 
-2. **Reserve steering for corrections** — Use `"immediate"` when the agent is actively doing the wrong thing and you need to redirect it before it goes further.
+1. **Reserve steering for corrections**—Use `"immediate"` when the agent is actively doing the wrong thing and you need to redirect it before it goes further.
 
-3. **Keep steering messages concise** — The agent needs to quickly understand the course correction. Long, complex steering messages may confuse the current context.
+1. **Keep steering messages concise**—The agent needs to quickly understand the course correction. Long, complex steering messages may confuse the current context.
 
-4. **Don't over-steer** — Multiple rapid steering messages can degrade turn quality. If you need to change direction significantly, consider aborting the turn and starting fresh.
+1. **Don't over-steer**—Multiple rapid steering messages can degrade turn quality. If you need to change direction significantly, consider aborting the turn and starting fresh.
 
-5. **Show queue state in your UI** — Display the number of queued messages so users know what's pending. Listen for idle events to clear the display.
+1. **Show queue state in your UI**—Display the number of queued messages so users know what's pending. Listen for idle events to clear the display.
 
-6. **Handle the steering-to-queue fallback** — If a steering message arrives after the turn completes, it's automatically moved to the queue. Design your UI to reflect this transition.
+1. **Handle the steering-to-queue fallback**—If a steering message arrives after the turn completes, it's automatically moved to the queue. Design your UI to reflect this transition.
 
-## See Also
+## See also
 
-- [Getting Started](../getting-started.md) — Set up a session and send messages
-- [Custom Agents](./custom-agents.md) — Define specialized agents with scoped tools
-- [Session Hooks](../hooks/index.md) — React to session lifecycle events
-- [Session Persistence](./session-persistence.md) — Resume sessions across restarts
+* [Getting Started](../getting-started.md): Set up a session and send messages
+* [Custom Agents](./custom-agents.md): Define specialized agents with scoped tools
+* [Session Hooks](../hooks/hooks-overview.md): React to session lifecycle events
+* [Session Persistence](./session-persistence.md): Resume sessions across restarts

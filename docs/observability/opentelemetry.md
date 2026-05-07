@@ -1,8 +1,8 @@
-# OpenTelemetry Instrumentation for Copilot SDK
+# OpenTelemetry instrumentation for Copilot SDK
 
 This guide shows how to add OpenTelemetry tracing to your Copilot SDK applications.
 
-## Built-in Telemetry Support
+## Built-in telemetry support
 
 The SDK has built-in support for configuring OpenTelemetry on the CLI process and propagating W3C Trace Context between the SDK and CLI. Provide a `TelemetryConfig` when creating the client to opt in:
 
@@ -84,7 +84,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 </details>
 
-### TelemetryConfig Options
+### TelemetryConfig options
 
 | Option | Node.js | Python | Go | .NET | Java | Description |
 |---|---|---|---|---|---|---|
@@ -94,7 +94,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 | Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | `sourceName` | Instrumentation scope name |
 | Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | `captureContent` | Whether to capture message content |
 
-### Trace Context Propagation
+### Trace context propagation
 
 > **Most users don't need this.** The `TelemetryConfig` above is all you need to collect traces from the CLI. The trace context propagation described in this section is an **advanced feature** for applications that create their own OpenTelemetry spans and want them to appear in the **same distributed trace** as the CLI's spans.
 
@@ -119,16 +119,16 @@ const client = new CopilotClient({
 });
 ```
 
-For **Python**, **Go**, and **.NET**, trace context injection is automatic when the respective OpenTelemetry/Activity API is configured — no callback is needed.
+For **Python**, **Go**, and **.NET**, trace context injection is automatic when the respective OpenTelemetry/Activity API is configured—no callback is needed.
 
 #### CLI → SDK (inbound)
 
 When the CLI invokes a tool handler, the `traceparent` and `tracestate` from the CLI's span are available in all languages:
 
-- **Go**: The `ToolInvocation.TraceContext` field is a `context.Context` with the trace already restored — use it directly as the parent for your spans.
-- **Python**: Trace context is automatically restored around the handler via `trace_context()` — child spans are parented to the CLI's span automatically.
-- **.NET**: Trace context is automatically restored via `RestoreTraceContext()` — child `Activity` instances are parented to the CLI's span automatically.
-- **Node.js**: Since the SDK has no OpenTelemetry dependency, `traceparent` and `tracestate` are passed as raw strings on the `ToolInvocation` object. Restore the context manually if needed:
+* **Go**: The `ToolInvocation.TraceContext` field is a `context.Context` with the trace already restored—use it directly as the parent for your spans.
+* **Python**: Trace context is automatically restored around the handler via `trace_context()`—child spans are parented to the CLI's span automatically.
+* **.NET**: Trace context is automatically restored via `RestoreTraceContext()`—child `Activity` instances are parented to the CLI's span automatically.
+* **Node.js**: Since the SDK has no OpenTelemetry dependency, `traceparent` and `tracestate` are passed as raw strings on the `ToolInvocation` object. Restore the context manually if needed:
 
 <!-- docs-validate: skip -->
 ```typescript
@@ -157,19 +157,19 @@ session.registerTool(myTool, async (args, invocation) => {
 });
 ```
 
-### Per-Language Dependencies
+### Per-language dependencies
 
 | Language | Dependency | Notes |
 |---|---|---|
-| Node.js | — | No dependency; provide `onGetTraceContext` callback for outbound propagation |
+| Node.js |—| No dependency; provide `onGetTraceContext` callback for outbound propagation |
 | Python | `opentelemetry-api` | Install with `pip install copilot-sdk[telemetry]` |
 | Go | `go.opentelemetry.io/otel` | Required dependency |
-| .NET | — | Uses built-in `System.Diagnostics.Activity` |
+| .NET |—| Uses built-in `System.Diagnostics.Activity` |
 | Java | `io.opentelemetry:opentelemetry-api` | Add this dependency for SDK-based setup; trace context injection is automatic when the OpenTelemetry Java agent or SDK is configured |
 
 ## References
 
-- [OpenTelemetry GenAI Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
-- [OpenTelemetry MCP Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/mcp/)
-- [OpenTelemetry Python SDK](https://opentelemetry.io/docs/instrumentation/python/)
-- [Copilot SDK Documentation](https://github.com/github/copilot-sdk)
+* [OpenTelemetry GenAI Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+* [OpenTelemetry MCP Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/mcp/)
+* [OpenTelemetry Python SDK](https://opentelemetry.io/docs/instrumentation/python/)
+* [Copilot SDK Documentation](https://github.com/github/copilot-sdk)

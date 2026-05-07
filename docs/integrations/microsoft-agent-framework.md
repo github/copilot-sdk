@@ -1,10 +1,10 @@
-# Microsoft Agent Framework Integration
+# Microsoft agent framework integration
 
 Use the Copilot SDK as an agent provider inside the [Microsoft Agent Framework](https://devblogs.microsoft.com/semantic-kernel/build-ai-agents-with-github-copilot-sdk-and-microsoft-agent-framework/) (MAF) to compose multi-agent workflows alongside Azure OpenAI, Anthropic, and other providers.
 
 ## Overview
 
-The Microsoft Agent Framework is the unified successor to Semantic Kernel and AutoGen. It provides a standard interface for building, orchestrating, and deploying AI agents. Dedicated integration packages let you wrap a Copilot SDK client as a first-class MAF agent — interchangeable with any other agent provider in the framework.
+The Microsoft Agent Framework is the unified successor to Semantic Kernel and AutoGen. It provides a standard interface for building, orchestrating, and deploying AI agents. Dedicated integration packages let you wrap a Copilot SDK client as a first-class MAF agent—interchangeable with any other agent provider in the framework.
 
 | Concept | Description |
 |---------|-------------|
@@ -13,15 +13,16 @@ The Microsoft Agent Framework is the unified successor to Semantic Kernel and Au
 | **Orchestrator** | A MAF component that coordinates agents in sequential, concurrent, or handoff workflows |
 | **A2A protocol** | Agent-to-Agent communication standard supported by the framework |
 
-> **Note:** MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly — the standard SDK APIs already provide tool calling, streaming, and custom agents.
+> [!NOTE]
+> MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly—the standard SDK APIs already provide tool calling, streaming, and custom agents.
 
 ## Prerequisites
 
 Before you begin, ensure you have:
 
-- A working [Copilot SDK setup](../getting-started.md) in your language of choice
-- A GitHub Copilot subscription (Individual, Business, or Enterprise)
-- The Copilot CLI installed or available via the SDK's bundled CLI
+* A working [Copilot SDK setup](../getting-started.md) in your language of choice
+* A GitHub Copilot subscription (Individual, Business, or Enterprise)
+* The Copilot CLI installed or available via the SDK's bundled CLI
 
 ## Installation
 
@@ -49,7 +50,8 @@ pip install copilot-sdk agent-framework-github-copilot
 <details>
 <summary><strong>Java</strong></summary>
 
-> **Note:** The Java SDK does not have a dedicated MAF integration package. Use the standard Copilot SDK directly — it provides tool calling, streaming, and custom agents out of the box.
+> [!NOTE]
+> The Java SDK does not have a dedicated MAF integration package. Use the standard Copilot SDK directly—it provides tool calling, streaming, and custom agents out of the box.
 
 ```xml
 <!-- Maven -->
@@ -63,7 +65,7 @@ pip install copilot-sdk agent-framework-github-copilot
 
 </details>
 
-## Basic Usage
+## Basic usage
 
 Wrap the Copilot SDK client as a MAF agent with a single method call. The resulting agent conforms to the framework's standard interface and can be used anywhere a MAF agent is expected.
 
@@ -135,7 +137,7 @@ client.stop().get();
 
 </details>
 
-## Adding Custom Tools
+## Adding custom tools
 
 Extend your Copilot agent with custom function tools. Tools defined through the standard Copilot SDK are automatically available when the agent runs inside MAF.
 
@@ -264,11 +266,11 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-## Multi-Agent Workflows
+## Multi-agent workflows
 
 The primary benefit of MAF integration is composing Copilot alongside other agent providers in orchestrated workflows. Use the framework's built-in orchestrators to create pipelines where different agents handle different steps.
 
-### Sequential Workflow
+### Sequential workflow
 
 Run agents one after another, passing output from one to the next:
 
@@ -381,7 +383,7 @@ client.stop().get();
 
 </details>
 
-### Concurrent Workflow
+### Concurrent workflow
 
 Run multiple agents in parallel and aggregate their results:
 
@@ -458,7 +460,7 @@ client.stop().get();
 
 </details>
 
-## Streaming Responses
+## Streaming responses
 
 When building interactive applications, stream agent responses to show real-time output. The MAF integration preserves the Copilot SDK's streaming capabilities.
 
@@ -561,9 +563,9 @@ client.stop().get();
 
 </details>
 
-## Configuration Reference
+## Configuration reference
 
-### MAF Agent Options
+### MAF agent options
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -572,7 +574,7 @@ client.stop().get();
 | `Streaming` / `streaming` | `bool` | Enable streaming responses |
 | `Model` / `model` | `string` | Override the default model |
 
-### Copilot SDK Options (Passed Through)
+### Copilot SDK options (passed through)
 
 All standard [SessionConfig](../getting-started.md) options are still available when creating the underlying Copilot client. The MAF wrapper delegates to the SDK under the hood:
 
@@ -585,7 +587,7 @@ All standard [SessionConfig](../getting-started.md) options are still available 
 | Model selection | ✅ Overridable per agent or per call |
 | Streaming | ✅ Full delta event support |
 
-## Best Practices
+## Best practices
 
 ### Choose the right level of integration
 
@@ -639,10 +641,10 @@ catch (AgentException ex)
 }
 ```
 
-## See Also
+## See also
 
-- [Getting Started](../getting-started.md) — initial Copilot SDK setup
-- [Custom Agents](../features/custom-agents.md) — define specialized sub-agents within the SDK
-- [Custom Skills](../features/skills.md) — reusable prompt modules
-- [Microsoft Agent Framework documentation](https://learn.microsoft.com/en-us/agent-framework/agents/providers/github-copilot) — official MAF docs for the Copilot provider
-- [Blog: Build AI Agents with GitHub Copilot SDK and Microsoft Agent Framework](https://devblogs.microsoft.com/semantic-kernel/build-ai-agents-with-github-copilot-sdk-and-microsoft-agent-framework/)
+* [Getting Started](../getting-started.md): initial Copilot SDK setup
+* [Custom Agents](../features/custom-agents.md): define specialized sub-agents within the SDK
+* [Custom Skills](../features/skills.md): reusable prompt modules
+* [Microsoft Agent Framework documentation](https://learn.microsoft.com/en-us/agent-framework/agents/providers/github-copilot): official MAF docs for the Copilot provider
+* [Blog: Build AI Agents with GitHub Copilot SDK and Microsoft Agent Framework](https://devblogs.microsoft.com/semantic-kernel/build-ai-agents-with-github-copilot-sdk-and-microsoft-agent-framework/)

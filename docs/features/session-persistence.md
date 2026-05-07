@@ -1,8 +1,8 @@
-# Session Resume & Persistence
+# Session resume and persistence
 
 This guide walks you through the SDK's session persistence capabilities—how to pause work, resume it later, and manage sessions in production environments.
 
-## How Sessions Work
+## How sessions work
 
 When you create a session, the Copilot CLI maintains conversation history, tool state, and planning context. By default, this state lives in memory and disappears when the session ends. With persistence enabled, you can resume sessions across restarts, container migrations, or even different client instances.
 
@@ -19,7 +19,7 @@ flowchart LR
 | **Paused** | State saved to disk |
 | **Resume** | State loaded from disk |
 
-## Quick Start: Creating a Resumable Session
+## Quick start: creating a resumable session
 
 The key to resumable sessions is providing your own `session_id`. Without one, the SDK generates a random ID and the session can't be resumed later.
 
@@ -126,7 +126,7 @@ await session.SendAndWaitAsync(new MessageOptions { Prompt = "Analyze my codebas
 // Session state is automatically persisted
 ```
 
-## Resuming a Session
+## Resuming a session
 
 Later—minutes, hours, or even days—you can resume the session from where you left off.
 
@@ -229,7 +229,7 @@ var session = await client.ResumeSessionAsync("user-123-task-456");
 await session.SendAndWaitAsync(new MessageOptions { Prompt = "What did we discuss earlier?" });
 ```
 
-## Resume Options
+## Resume options
 
 When resuming a session, you can optionally reconfigure many settings. This is useful when you need to change the model, update tool configurations, or modify behavior.
 
@@ -251,7 +251,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `disabledSkills` | Skills to disable |
 | `infiniteSessions` | Configure infinite session behavior |
 
-### Example: Changing Model on Resume
+### Example: changing model on resume
 
 ```typescript
 // Resume with a different model
@@ -261,7 +261,7 @@ const session = await client.resumeSession("user-123-task-456", {
 });
 ```
 
-## Using BYOK (Bring Your Own Key) with Resumed Sessions
+## Using BYOK (bring your own key) with resumed sessions
 
 When using your own API keys, you must re-provide the provider configuration when resuming. API keys are never persisted to disk for security reasons.
 
@@ -289,7 +289,7 @@ const resumed = await client.resumeSession("user-123-task-456", {
 });
 ```
 
-## What Gets Persisted?
+## What gets persisted?
 
 Session state is saved to `~/.copilot/session-state/{sessionId}/`:
 
@@ -315,7 +315,7 @@ Session state is saved to `~/.copilot/session-state/{sessionId}/`:
 | Provider/API keys | ❌ No | Security: must re-provide |
 | In-memory tool state | ❌ No | Tools should be stateless |
 
-## Session ID Best Practices
+## Session ID best practices
 
 Choose session IDs that encode ownership and purpose. This makes auditing and cleanup much easier.
 
@@ -327,11 +327,11 @@ Choose session IDs that encode ownership and purpose. This makes auditing and cl
 | ✅ `{userId}-{taskId}-{timestamp}` | `alice-deploy-1706932800` | Time-based cleanup |
 
 **Benefits of structured IDs:**
-- Easy to audit: "Show all sessions for user alice"
-- Easy to clean up: "Delete all sessions older than X"
-- Natural access control: Parse user ID from session ID
+* Easy to audit: "Show all sessions for user alice"
+* Easy to clean up: "Delete all sessions older than X"
+* Natural access control: Parse user ID from session ID
 
-### Example: Generating Session IDs
+### Example: generating session IDs
 
 ```typescript
 function createSessionId(userId: string, taskType: string): string {
@@ -354,9 +354,9 @@ session_id = create_session_id("alice", "code-review")
 # → "alice-code-review-1706932800"
 ```
 
-## Managing Session Lifecycle
+## Managing session lifecycle
 
-### Listing Active Sessions
+### Listing active sessions
 
 ```typescript
 // List all sessions
@@ -371,7 +371,7 @@ for (const session of sessions) {
 const repoSessions = await client.listSessions({ repository: "owner/repo" });
 ```
 
-### Cleaning Up Old Sessions
+### Cleaning up old sessions
 
 ```typescript
 async function cleanupExpiredSessions(maxAgeMs: number) {
@@ -391,7 +391,7 @@ async function cleanupExpiredSessions(maxAgeMs: number) {
 await cleanupExpiredSessions(24 * 60 * 60 * 1000);
 ```
 
-### Disconnecting from a Session (`disconnect`)
+### Disconnecting from a session (`disconnect`)
 
 When a task completes, disconnect from the session explicitly rather than waiting for timeouts. This releases in-memory resources but **preserves session data on disk**, so the session can still be resumed later:
 
@@ -418,11 +418,12 @@ Each SDK also provides idiomatic automatic cleanup patterns:
 | **C#** | `IAsyncDisposable` | `await using var session = await client.CreateSessionAsync(config);` |
 | **Go** | `defer` | `defer session.Disconnect()` |
 
-> **Note:** `destroy()` is deprecated in favor of `disconnect()`. Existing code using `destroy()` will continue to work but should be migrated.
+> [!NOTE]
+> `destroy()` is deprecated in favor of `disconnect()`. Existing code using `destroy()` will continue to work but should be migrated.
 
-### Permanently Deleting a Session (`deleteSession`)
+### Permanently deleting a session (`deleteSession`)
 
-To permanently remove a session and all its data from disk (conversation history, planning state, artifacts), use `deleteSession`. This is irreversible — the session **cannot** be resumed after deletion:
+To permanently remove a session and all its data from disk (conversation history, planning state, artifacts), use `deleteSession`. This is irreversible—the session **cannot** be resumed after deletion:
 
 ```typescript
 // Permanently remove session data
@@ -431,7 +432,7 @@ await client.deleteSession("user-123-task-456");
 
 > **`disconnect()` vs `deleteSession()`:** `disconnect()` releases in-memory resources but keeps session data on disk for later resumption. `deleteSession()` permanently removes everything, including files on disk.
 
-## Automatic Cleanup: Idle Timeout
+## Automatic cleanup: idle timeout
 
 By default, sessions have **no idle timeout** and live indefinitely until explicitly disconnected or deleted. You can optionally configure a server-wide idle timeout via `CopilotClientOptions.sessionIdleTimeoutSeconds`:
 
@@ -443,7 +444,8 @@ const client = new CopilotClient({
 
 When a timeout is configured, sessions without activity for that duration are automatically cleaned up. Set to `0` or omit to disable.
 
-> **Note:** This option only applies when the SDK spawns the runtime process. When connecting to an existing server via `cliUrl`, the server's own timeout configuration applies.
+> [!NOTE]
+> This option only applies when the SDK spawns the runtime process. When connecting to an existing server via `cliUrl`, the server's own timeout configuration applies.
 
 ```mermaid
 flowchart LR
@@ -460,9 +462,9 @@ session.on("session.idle", (event) => {
 });
 ```
 
-## Deployment Patterns
+## Deployment patterns
 
-### Pattern 1: One CLI Server Per User (Recommended)
+### Pattern 1: one CLI server per user (recommended)
 
 Best for: Strong isolation, multi-tenant environments, Azure Dynamic Sessions.
 
@@ -480,7 +482,7 @@ flowchart LR
 
 **Benefits:** ✅ Complete isolation | ✅ Simple security | ✅ Easy scaling
 
-### Pattern 2: Shared CLI Server (Resource Efficient)
+### Pattern 2: shared CLI server (resource efficient)
 
 Best for: Internal tools, trusted environments, resource-constrained setups.
 
@@ -495,9 +497,9 @@ flowchart LR
 ```
 
 **Requirements:**
-- ⚠️ Unique session IDs per user
-- ⚠️ Application-level access control
-- ⚠️ Session ID validation before operations
+* ⚠️ Unique session IDs per user
+* ⚠️ Application-level access control
+* ⚠️ Session ID validation before operations
 
 ```typescript
 // Application-level access control for shared CLI
@@ -517,11 +519,11 @@ async function resumeSessionWithAuth(
 }
 ```
 
-## Azure Dynamic Sessions
+## Azure dynamic sessions
 
 For serverless/container deployments where containers can restart or migrate:
 
-### Mount Persistent Storage
+### Mount persistent storage
 
 The session state directory must be mounted to persistent storage:
 
@@ -557,7 +559,7 @@ flowchart LR
 
 **Session survives container restarts!**
 
-## Infinite Sessions for Long-Running Workflows
+## Infinite sessions for long-running workflows
 
 For workflows that might exceed context limits, enable infinite sessions with automatic compaction:
 
@@ -572,9 +574,10 @@ const session = await client.createSession({
 });
 ```
 
-> **Note:** Thresholds are context utilization ratios (0.0-1.0), not absolute token counts. See the [Compatibility Guide](../troubleshooting/compatibility.md) for details.
+> [!NOTE]
+> Thresholds are context utilization ratios (0.0-1.0), not absolute token counts. See the [Compatibility Guide](../troubleshooting/compatibility.md) for details.
 
-## Limitations & Considerations
+## Limitations and considerations
 
 | Limitation | Description | Mitigation |
 |------------|-------------|------------|
@@ -583,7 +586,7 @@ const session = await client.createSession({
 | **No session locking** | Concurrent access to same session is undefined | Implement application-level locking or queue |
 | **Tool state not persisted** | In-memory tool state is lost | Design tools to be stateless or persist their own state |
 
-### Handling Concurrent Access
+### Handling concurrent access
 
 The SDK doesn't provide built-in session locking. If multiple clients might access the same session:
 
@@ -626,12 +629,12 @@ await withSessionLock("user-123-task-456", async () => {
 | **Resume session** | `client.resumeSession(sessionId)` |
 | **BYOK resume** | Re-provide `provider` config |
 | **List sessions** | `client.listSessions(filter?)` |
-| **Disconnect from active session** | `session.disconnect()` — releases in-memory resources; session data on disk is preserved for resumption |
-| **Delete session permanently** | `client.deleteSession(sessionId)` — permanently removes all session data from disk; cannot be resumed |
+| **Disconnect from active session** | `session.disconnect()`—releases in-memory resources; session data on disk is preserved for resumption |
+| **Delete session permanently** | `client.deleteSession(sessionId)`—permanently removes all session data from disk; cannot be resumed |
 | **Containerized deployment** | Mount `~/.copilot/session-state/` to persistent storage |
 
-## Next Steps
+## Next steps
 
-- [Hooks Overview](../hooks/index.md) - Customize session behavior with hooks
-- [Compatibility Guide](../troubleshooting/compatibility.md) - SDK vs CLI feature comparison
-- [Debugging Guide](../troubleshooting/debugging.md) - Troubleshoot session issues
+* [Hooks Overview](../hooks/hooks-overview.md) - Customize session behavior with hooks
+* [Compatibility Guide](../troubleshooting/compatibility.md) - SDK vs CLI feature comparison
+* [Debugging Guide](../troubleshooting/debugging.md) - Troubleshoot session issues

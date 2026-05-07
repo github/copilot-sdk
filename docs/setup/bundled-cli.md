@@ -1,10 +1,10 @@
-# Default Setup (Bundled CLI)
+# Default setup (bundled CLI)
 
-The Node.js, Python, and .NET SDKs include the Copilot CLI as a dependency — your app ships with everything it needs, with no extra installation or configuration required.
+The Node.js, Python, and .NET SDKs include the Copilot CLI as a dependency—your app ships with everything it needs, with no extra installation or configuration required.
 
-**Best for:** Most applications — desktop apps, standalone tools, CLI utilities, prototypes, and more.
+**Best for:** Most applications—desktop apps, standalone tools, CLI utilities, prototypes, and more.
 
-## How It Works
+## How it works
 
 When you install the SDK, the Copilot CLI binary is included automatically. The SDK starts it as a child process and communicates over stdio. There's nothing extra to configure.
 
@@ -24,12 +24,12 @@ flowchart TB
 ```
 
 **Key characteristics:**
-- CLI binary is included with the SDK — no separate install needed
-- The SDK manages the CLI version to ensure compatibility
-- Users authenticate through your app (or use env vars / BYOK)
-- Sessions are managed per-user on their machine
+* CLI binary is included with the SDK—no separate install needed
+* The SDK manages the CLI version to ensure compatibility
+* Users authenticate through your app (or use env vars / BYOK)
+* Sessions are managed per-user on their machine
 
-## Quick Start
+## Quick start
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -70,7 +70,8 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
-> **Note:** The Go SDK does not bundle the CLI. You must install the CLI separately or set `CLIPath` to point to an existing binary. See [Local CLI Setup](./local-cli.md) for details.
+> [!NOTE]
+> The Go SDK does not bundle the CLI. You must install the CLI separately or set `CLIPath` to point to an existing binary. See [Local CLI Setup](./local-cli.md) for details.
 
 <!-- docs-validate: hidden -->
 ```go
@@ -135,7 +136,8 @@ Console.WriteLine(response?.Data.Content);
 <details>
 <summary><strong>Java</strong></summary>
 
-> **Note:** The Java SDK does not bundle or embed the Copilot CLI. You must install the CLI separately and configure its path via `cliPath` or the `COPILOT_CLI_PATH` environment variable.
+> [!NOTE]
+> The Java SDK does not bundle or embed the Copilot CLI. You must install the CLI separately and configure its path via `cliPath` or the `COPILOT_CLI_PATH` environment variable.
 
 ```java
 import com.github.copilot.sdk.CopilotClient;
@@ -162,7 +164,7 @@ client.stop().get();
 
 </details>
 
-## Authentication Strategies
+## Authentication strategies
 
 You need to decide how your users will authenticate. Here are the common patterns:
 
@@ -181,16 +183,16 @@ flowchart TB
     style App fill:#0d1117,stroke:#58a6ff,color:#c9d1d9
 ```
 
-### Option A: User's Signed-In Credentials (Simplest)
+### Option A: user's signed-in credentials (simplest)
 
-The user signs in to the CLI once, and your app uses those credentials. No extra code needed — this is the default behavior.
+The user signs in to the CLI once, and your app uses those credentials. No extra code needed—this is the default behavior.
 
 ```typescript
 const client = new CopilotClient();
 // Default: uses signed-in user credentials
 ```
 
-### Option B: Token via Environment Variable
+### Option B: token via environment variable
 
 Ship your app with instructions to set a token, or set it programmatically:
 
@@ -202,7 +204,7 @@ const client = new CopilotClient({
 });
 ```
 
-### Option C: BYOK (No GitHub Auth Needed)
+### Option C: BYOK (no GitHub auth needed)
 
 If you manage your own model provider keys, users don't need GitHub accounts at all:
 
@@ -221,7 +223,7 @@ const session = await client.createSession({
 
 See the **[BYOK guide](../auth/byok.md)** for full details.
 
-## Session Management
+## Session management
 
 Apps typically want named sessions so users can resume conversations:
 
@@ -242,7 +244,7 @@ const resumed = await client.resumeSession(sessionId);
 
 Session state persists at `~/.copilot/session-state/{sessionId}/`.
 
-## When to Move On
+## When to move on
 
 | Need | Next Guide |
 |------|-----------|
@@ -250,8 +252,8 @@ Session state persists at `~/.copilot/session-state/{sessionId}/`.
 | Run on a server instead of user machines | [Backend Services](./backend-services.md) |
 | Use your own model keys | [BYOK](../auth/byok.md) |
 
-## Next Steps
+## Next steps
 
-- **[BYOK guide](../auth/byok.md)** — Use your own model provider keys
-- **[Session Persistence](../features/session-persistence.md)** — Advanced session management
-- **[Getting Started tutorial](../getting-started.md)** — Build a complete app
+* **[BYOK guide](../auth/byok.md)**: Use your own model provider keys
+* **[Session Persistence](../features/session-persistence.md)**: Advanced session management
+* **[Getting Started tutorial](../getting-started.md)**: Build a complete app
