@@ -1285,8 +1285,11 @@ export interface SessionConfig {
 
     /**
      * Enables or disables session telemetry for this session.
+     * When `false`, disables session telemetry. When omitted (the default) or `true`,
+     * telemetry is enabled for GitHub-authenticated sessions.
+     * When a custom {@link provider} (BYOK) is configured, session telemetry is always
+     * disabled regardless of this setting.
      * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
-     * By default, session telemetry remains enabled when this field is omitted.
      */
     enableSessionTelemetry?: boolean;
 

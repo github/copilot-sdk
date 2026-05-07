@@ -577,7 +577,9 @@ type SessionConfig struct {
 	Provider *ProviderConfig
 	// EnableSessionTelemetry enables or disables internal session telemetry.
 	// When false, disables session telemetry. When nil (the default) or true,
-	// telemetry remains enabled. This is independent of the OpenTelemetry
+	// telemetry is enabled for GitHub-authenticated sessions. When a custom
+	// Provider (BYOK) is configured, session telemetry is always disabled
+	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in CopilotClientOptions.
 	EnableSessionTelemetry *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
@@ -772,7 +774,9 @@ type ResumeSessionConfig struct {
 	Provider *ProviderConfig
 	// EnableSessionTelemetry enables or disables internal session telemetry.
 	// When false, disables session telemetry. When nil (the default) or true,
-	// telemetry remains enabled. This is independent of the OpenTelemetry
+	// telemetry is enabled for GitHub-authenticated sessions. When a custom
+	// Provider (BYOK) is configured, session telemetry is always disabled
+	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in CopilotClientOptions.
 	EnableSessionTelemetry *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
