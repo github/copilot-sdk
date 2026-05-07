@@ -1934,7 +1934,9 @@ public class SessionConfig
     /// <summary>
     /// Enables or disables internal session telemetry for this session.
     /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
-    /// telemetry remains enabled.
+    /// telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom <see cref="Provider"/> (BYOK) is configured, session telemetry is
+    /// always disabled regardless of this setting.
     /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
     /// OpenTelemetry export for observability.
     /// </summary>
@@ -2178,7 +2180,9 @@ public class ResumeSessionConfig
     /// <summary>
     /// Enables or disables internal session telemetry for this session.
     /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
-    /// telemetry remains enabled.
+    /// telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom <see cref="Provider"/> (BYOK) is configured, session telemetry is
+    /// always disabled regardless of this setting.
     /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
     /// OpenTelemetry export for observability.
     /// </summary>
