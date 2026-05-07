@@ -33,6 +33,8 @@ public record AssistantMessageToolRequest(
     @JsonProperty("toolTitle") String toolTitle,
     /** Name of the MCP server hosting this tool, when the tool is an MCP tool */
     @JsonProperty("mcpServerName") String mcpServerName,
+    /** Original tool name on the MCP server, when the tool is an MCP tool */
+    @JsonProperty("mcpToolName") String mcpToolName,
     /** Resolved intention summary describing what this specific call does */
     @JsonProperty("intentionSummary") String intentionSummary
 ) {

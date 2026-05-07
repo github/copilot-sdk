@@ -27,7 +27,7 @@ public record CustomAgentsUpdatedAgent(
     @JsonProperty("description") String description,
     /** Source location: user, project, inherited, remote, or plugin */
     @JsonProperty("source") String source,
-    /** List of tool names available to this agent */
+    /** List of tool names available to this agent, or null when all tools are available */
     @JsonProperty("tools") List<String> tools,
     /** Whether the agent can be selected by the user */
     @JsonProperty("userInvocable") Boolean userInvocable,

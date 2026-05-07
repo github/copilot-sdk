@@ -70,6 +70,8 @@ public final class SessionRpc {
     public final SessionHistoryApi history;
     /** API methods for the {@code usage} namespace. */
     public final SessionUsageApi usage;
+    /** API methods for the {@code remote} namespace. */
+    public final SessionRemoteApi remote;
 
     /**
      * Creates a new session RPC client.
@@ -101,6 +103,7 @@ public final class SessionRpc {
         this.shell = new SessionShellApi(caller, sessionId);
         this.history = new SessionHistoryApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
+        this.remote = new SessionRemoteApi(caller, sessionId);
     }
 
     /**
