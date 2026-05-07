@@ -2,8 +2,8 @@
 
 Send images to Copilot sessions as attachments. There are two ways to attach images:
 
-* **File attachment** (`type: "file"`) — provide an absolute path; the runtime reads the file from disk, converts it to base64, and sends it to the LLM.
-* **Blob attachment** (`type: "blob"`) — provide base64-encoded data directly; useful when the image is already in memory (e.g., screenshots, generated images, or data from an API).
+* **File attachment** (`type: "file"`): provide an absolute path; the runtime reads the file from disk, converts it to base64, and sends it to the LLM.
+* **Blob attachment** (`type: "blob"`): provide base64-encoded data directly; useful when the image is already in memory (e.g., screenshots, generated images, or data from an API).
 
 ## Overview
 
@@ -28,12 +28,12 @@ sequenceDiagram
 | Concept | Description |
 |---------|-------------|
 | **File attachment** | An attachment with `type: "file"` and an absolute `path` to an image on disk |
-| **Blob attachment** | An attachment with `type: "blob"`, base64-encoded `data`, and a `mimeType` — no disk I/O needed |
+| **Blob attachment** | An attachment with `type: "blob"`, base64-encoded `data`, and a `mimeType`—no disk I/O needed |
 | **Automatic encoding** | For file attachments, the runtime reads the image and converts it to base64 automatically |
 | **Auto-resize** | The runtime automatically resizes or quality-reduces images that exceed model-specific limits |
 | **Vision capability** | The model must have `capabilities.supports.vision = true` to process images |
 
-## Quick start — file attachment
+## Quick start—file attachment
 
 Attach an image file to any message using the file attachment type. The path must be an absolute path to an image on disk.
 
@@ -248,7 +248,7 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-## Quick start — blob attachment
+## Quick start—blob attachment
 
 When you already have image data in memory (e.g., a screenshot captured by your app, or an image fetched from an API), use a blob attachment to send it directly without writing to disk.
 
@@ -528,7 +528,7 @@ These image blocks appear in `tool.execution_complete` event results. See the [S
 
 | Tip | Details |
 |-----|---------|
-| **Use PNG or JPEG directly** | Avoids conversion overhead — these are sent to the LLM as-is |
+| **Use PNG or JPEG directly** | Avoids conversion overhead—these are sent to the LLM as-is |
 | **Keep images reasonably sized** | Large images may be quality-reduced, which can lose important details |
 | **Use absolute paths for file attachments** | The runtime reads files from disk; relative paths may not resolve correctly |
 | **Use blob attachments for in-memory data** | When you already have base64 data (e.g., screenshots, API responses), blob avoids unnecessary disk I/O |
@@ -538,5 +538,5 @@ These image blocks appear in `tool.execution_complete` event results. See the [S
 
 ## See also
 
-* [Streaming Events](./streaming-events.md) — event lifecycle including tool result content blocks
-* [Steering & Queueing](./steering-and-queueing.md) — sending follow-up messages with attachments
+* [Streaming Events](./streaming-events.md): event lifecycle including tool result content blocks
+* [Steering & Queueing](./steering-and-queueing.md): sending follow-up messages with attachments

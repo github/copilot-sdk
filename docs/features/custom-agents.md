@@ -4,7 +4,7 @@ Define specialized agents with scoped tools and prompts, then let Copilot orches
 
 ## Overview
 
-Custom agents are lightweight agent definitions you attach to a session. Each agent has its own system prompt, tool restrictions, and optional MCP servers. When a user's request matches an agent's expertise, the Copilot runtime automatically delegates to that agent as a **sub-agent** — running it in an isolated context while streaming lifecycle events back to the parent session.
+Custom agents are lightweight agent definitions you attach to a session. Each agent has its own system prompt, tool restrictions, and optional MCP servers. When a user's request matches an agent's expertise, the Copilot runtime automatically delegates to that agent as a **sub-agent**—running it in an isolated context while streaming lifecycle events back to the parent session.
 
 ```mermaid
 flowchart TD
@@ -247,7 +247,7 @@ try (var client = new CopilotClient()) {
 |----------|------|----------|-------------|
 | `name` | `string` | ✅ | Unique identifier for the agent |
 | `displayName` | `string` | | Human-readable name shown in events |
-| `description` | `string` | | What the agent does — helps the runtime select it |
+| `description` | `string` | | What the agent does—helps the runtime select it |
 | `tools` | `string[]` or `null` | | Tool names the agent can use. `null` or omitted = all tools |
 | `prompt` | `string` | ✅ | System prompt for the agent |
 | `mcpServers` | `object` | | MCP server configurations specific to this agent |
@@ -265,7 +265,7 @@ In addition to per-agent configuration above, you can set `agent` on the **sessi
 
 ## Per-agent skills
 
-You can preload skills into an agent's context using the `skills` property. When specified, the **full content** of each listed skill is eagerly injected into the agent's context at startup — the agent doesn't need to invoke a skill tool; the instructions are already present. Skills are **opt-in**: agents receive no skills by default, and sub-agents do not inherit skills from the parent. Skill names are resolved from the session-level `skillDirectories`.
+You can preload skills into an agent's context using the `skills` property. When specified, the **full content** of each listed skill is eagerly injected into the agent's context at startup—the agent doesn't need to invoke a skill tool; the instructions are already present. Skills are **opt-in**: agents receive no skills by default, and sub-agents do not inherit skills from the parent. Skill names are resolved from the session-level `skillDirectories`.
 
 ```typescript
 const session = await client.createSession({
@@ -410,15 +410,15 @@ var session = client.createSession(
 
 When you send a prompt to a session with custom agents, the runtime evaluates whether to delegate to a sub-agent:
 
-1. **Intent matching** — The runtime analyzes the user's prompt against each agent's `name` and `description`
-1. **Agent selection** — If a match is found and `infer` is not `false`, the runtime selects the agent
-1. **Isolated execution** — The sub-agent runs with its own prompt and restricted tool set
-1. **Event streaming** — Lifecycle events (`subagent.started`, `subagent.completed`, etc.) stream back to the parent session
-1. **Result integration** — The sub-agent's output is incorporated into the parent agent's response
+1. **Intent matching**—The runtime analyzes the user's prompt against each agent's `name` and `description`
+1. **Agent selection**—If a match is found and `infer` is not `false`, the runtime selects the agent
+1. **Isolated execution**—The sub-agent runs with its own prompt and restricted tool set
+1. **Event streaming**—Lifecycle events (`subagent.started`, `subagent.completed`, etc.) stream back to the parent session
+1. **Result integration**—The sub-agent's output is incorporated into the parent agent's response
 
 ### Controlling inference
 
-By default, all custom agents are available for automatic selection (`infer: true`). Set `infer: false` to prevent the runtime from auto-selecting an agent — useful for agents you only want invoked through explicit user requests:
+By default, all custom agents are available for automatic selection (`infer: true`). Set `infer: false` to prevent the runtime from auto-selecting an agent—useful for agents you only want invoked through explicit user requests:
 
 ```typescript
 {
@@ -442,7 +442,7 @@ When a sub-agent runs, the parent session emits lifecycle events. Subscribe to t
 | `subagent.started` | Sub-agent begins execution | `toolCallId`, `agentName`, `agentDisplayName`, `agentDescription` |
 | `subagent.completed` | Sub-agent finishes successfully | `toolCallId`, `agentName`, `agentDisplayName` |
 | `subagent.failed` | Sub-agent encounters an error | `toolCallId`, `agentName`, `agentDisplayName`, `error` |
-| `subagent.deselected` | Runtime switches away from the sub-agent | — |
+| `subagent.deselected` | Runtime switches away from the sub-agent |—|
 
 ### Subscribing to events
 
@@ -889,8 +889,8 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 Tools listed in `defaultAgent.excludedTools`:
 
-1. **Are registered** — their handlers are available for execution
-1. **Are hidden** from the main agent's tool list — the LLM won't see or call them directly
+1. **Are registered**—their handlers are available for execution
+1. **Are hidden** from the main agent's tool list—the LLM won't see or call them directly
 1. **Remain available** to any custom sub-agent that includes them in its `tools` array
 
 ### Interaction with other tool filters
@@ -899,8 +899,8 @@ Tools listed in `defaultAgent.excludedTools`:
 
 | Filter | Scope | Effect |
 |--------|-------|--------|
-| `availableTools` | Session-wide | Allowlist — only these tools exist for anyone |
-| `excludedTools` | Session-wide | Blocklist — these tools are blocked for everyone |
+| `availableTools` | Session-wide | Allowlist—only these tools exist for anyone |
+| `excludedTools` | Session-wide | Blocklist—these tools are blocked for everyone |
 | `defaultAgent.excludedTools` | Main agent only | These tools are hidden from the main agent but available to sub-agents |
 
 Precedence:
@@ -908,7 +908,7 @@ Precedence:
 1. `defaultAgent.excludedTools` is applied on top, further restricting the main agent only
 
 > [!NOTE]
-> If a tool is in both `excludedTools` (session-level) and `defaultAgent.excludedTools`, the session-level exclusion takes precedence — the tool is unavailable to everyone.
+> If a tool is in both `excludedTools` (session-level) and `defaultAgent.excludedTools`, the session-level exclusion takes precedence—the tool is unavailable to everyone.
 
 ## Attaching MCP servers to agents
 

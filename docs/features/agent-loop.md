@@ -14,7 +14,7 @@ graph LR
     SDK -->|events| App
 ```
 
-The **SDK** is a transport layer — it sends your prompt to the **Copilot CLI** over JSON-RPC and surfaces events back to your app. The **CLI** is the orchestrator that runs the agentic tool-use loop, making one or more LLM API calls until the task is done.
+The **SDK** is a transport layer—it sends your prompt to the **Copilot CLI** over JSON-RPC and surfaces events back to your app. The **CLI** is the orchestrator that runs the agentic tool-use loop, making one or more LLM API calls until the task is done.
 
 ## The tool-use loop
 
@@ -34,11 +34,11 @@ flowchart TD
     style F fill:#0d1117,stroke:#f0883e,color:#f0883e
 ```
 
-The model sees the **full conversation history** on each call — system prompt, user message, and all prior tool calls and results.
+The model sees the **full conversation history** on each call—system prompt, user message, and all prior tool calls and results.
 
 **Key insight:** Each iteration of this loop is exactly one LLM API call, visible as one `assistant.turn_start` / `assistant.turn_end` pair in the event log. There are no hidden calls.
 
-## Turns — what they are
+## Turns—what they are
 
 A **turn** is a single LLM API call and its consequences:
 
@@ -99,7 +99,7 @@ flowchart TD
 | Actor | Responsibility |
 |-------|---------------|
 | **Your app** | Sends the initial prompt via `session.send()` |
-| **Copilot CLI** | Runs the tool-use loop — executes tools and feeds results back to the LLM for the next turn |
+| **Copilot CLI** | Runs the tool-use loop—executes tools and feeds results back to the LLM for the next turn |
 | **LLM** | Decides whether to request tools (continue looping) or produce a final response (stop) |
 | **SDK** | Passes events through; does not control the loop |
 
@@ -112,7 +112,7 @@ These are two different completion signals with very different guarantees:
 ### `session.idle`
 
 * **Always emitted** when the tool-use loop ends
-* **Ephemeral** — not persisted to disk, not replayed on session resume
+* **Ephemeral**: not persisted to disk, not replayed on session resume
 * Means: "the agent has stopped processing and is ready for the next message"
 * **Use this** as your reliable "done" signal
 
@@ -125,8 +125,8 @@ const response = await session.sendAndWait({ prompt: "Fix the bug" });
 
 ### `session.task_complete`
 
-* **Optionally emitted** — requires the model to explicitly signal it
-* **Persisted** — saved to the session event log on disk
+* **Optionally emitted**: requires the model to explicitly signal it
+* **Persisted**: saved to the session event log on disk
 * Means: "the agent considers the overall task fulfilled"
 * Carries an optional `summary` field
 
@@ -142,11 +142,11 @@ In **autopilot mode** (headless/autonomous operation), the CLI actively tracks w
 
 > *"You have not yet marked the task as complete using the task_complete tool. If you were planning, stop planning and start implementing. You aren't done until you have fully completed the task."*
 
-This effectively restarts the tool-use loop — the model sees the nudge as a new user message and continues working. The nudge also instructs the model **not** to call `task_complete` prematurely:
+This effectively restarts the tool-use loop—the model sees the nudge as a new user message and continues working. The nudge also instructs the model **not** to call `task_complete` prematurely:
 
-* Don't call it if you have open questions — make decisions and keep working
-* Don't call it if you hit an error — try to resolve it
-* Don't call it if there are remaining steps — complete them first
+* Don't call it if you have open questions—make decisions and keep working
+* Don't call it if you hit an error—try to resolve it
+* Don't call it if there are remaining steps—complete them first
 
 This creates a **two-level completion mechanism** in autopilot:
 1. The model calls `task_complete` with a summary → CLI emits `session.task_complete` → done
@@ -156,7 +156,7 @@ This creates a **two-level completion mechanism** in autopilot:
 
 In **interactive mode** (normal chat), the CLI does not nudge for `task_complete`. The model may skip it entirely. Common reasons:
 
-* **Conversational Q&A**: The model answers a question and simply stops — there's no discrete "task" to complete
+* **Conversational Q&A**: The model answers a question and simply stops—there's no discrete "task" to complete
 * **Model discretion**: The model produces a final text response without calling the task-complete signal
 * **Interrupted sessions**: The session ends before the model reaches a completion point
 
@@ -183,6 +183,6 @@ grep -c "assistant.turn_start" ~/.copilot/session-state/<sessionId>/events.jsonl
 
 ## Further reading
 
-* [Streaming Events Reference](./streaming-events.md) — Full field-level reference for every event type
-* [Session Persistence](./session-persistence.md) — How sessions are saved and resumed
-* [Hooks](./hooks.md) — Intercepting events in the loop (permissions, tools)
+* [Streaming Events Reference](./streaming-events.md): Full field-level reference for every event type
+* [Session Persistence](./session-persistence.md): How sessions are saved and resumed
+* [Hooks](./hooks.md): Intercepting events in the loop (permissions, tools)

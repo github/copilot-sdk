@@ -1,6 +1,6 @@
 # Working with hooks
 
-Hooks let you plug custom logic into every stage of a Copilot session — from the moment it starts, through each user prompt and tool call, to the moment it ends. This guide walks through practical use cases so you can ship permissions, auditing, notifications, and more without modifying the core agent behavior.
+Hooks let you plug custom logic into every stage of a Copilot session—from the moment it starts, through each user prompt and tool call, to the moment it ends. This guide walks through practical use cases so you can ship permissions, auditing, notifications, and more without modifying the core agent behavior.
 
 ## Overview
 
@@ -28,7 +28,7 @@ flowchart LR
 | [`onSessionEnd`](../hooks/session-lifecycle.md#session-end) | Session ends | Clean up, record metrics |
 | [`onErrorOccurred`](../hooks/error-handling.md) | An error is raised | Custom logging, retry logic, alerts |
 
-All hooks are **optional** — register only the ones you need. Returning `null` (or the language equivalent) from any hook tells the SDK to continue with default behavior.
+All hooks are **optional**—register only the ones you need. Returning `null` (or the language equivalent) from any hook tells the SDK to continue with default behavior.
 
 ## Registering hooks
 
@@ -485,7 +485,7 @@ const session = await client.createSession({
 });
 ```
 
-Returning `"ask"` delegates the decision to the user at runtime — useful for destructive actions where you want a human in the loop.
+Returning `"ask"` delegates the decision to the user at runtime—useful for destructive actions where you want a human in the loop.
 
 ## Use case: auditing and compliance
 
@@ -667,7 +667,7 @@ const session = await client.createSession({
 
 ## Use case: notifications and sounds
 
-Hooks fire in your application's process, so you can trigger any side-effect — desktop notifications, sounds, Slack messages, or webhook calls.
+Hooks fire in your application's process, so you can trigger any side-effect—desktop notifications, sounds, Slack messages, or webhook calls.
 
 ### Desktop notification on session events
 
@@ -832,7 +832,7 @@ const session = await client.createSession({
 
 ## Use case: error handling and recovery
 
-The `onErrorOccurred` hook gives you a chance to react to failures — whether that means retrying, notifying a human, or gracefully shutting down.
+The `onErrorOccurred` hook gives you a chance to react to failures—whether that means retrying, notifying a human, or gracefully shutting down.
 
 ### Retry transient model errors
 
@@ -877,7 +877,7 @@ const session = await client.createSession({
 
 ## Use case: session metrics
 
-Track how long sessions run, how many tools are invoked, and why sessions end — useful for dashboards and cost monitoring.
+Track how long sessions run, how many tools are invoked, and why sessions end—useful for dashboards and cost monitoring.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -970,7 +970,7 @@ session = await client.create_session(
 
 ## Combining hooks
 
-Hooks compose naturally. A single `hooks` object can handle permissions **and** auditing **and** notifications — each hook does its own job.
+Hooks compose naturally. A single `hooks` object can handle permissions **and** auditing **and** notifications—each hook does its own job.
 
 ```typescript
 const session = await client.createSession({
@@ -1005,7 +1005,7 @@ const session = await client.createSession({
 
 ## Best practices
 
-1. **Keep hooks fast.** Every hook runs inline — slow hooks delay the conversation. Offload heavy work (database writes, HTTP calls) to a background queue when possible.
+1. **Keep hooks fast.** Every hook runs inline—slow hooks delay the conversation. Offload heavy work (database writes, HTTP calls) to a background queue when possible.
 
 1. **Return `null` when you have nothing to change.** This tells the SDK to proceed with defaults and avoids unnecessary object allocation.
 

@@ -4,7 +4,7 @@ Skills are reusable prompt modules that extend Copilot's capabilities. Load skil
 
 ## Overview
 
-A skill is a named directory containing a `SKILL.md` file — a markdown document that provides instructions to Copilot. When loaded, the skill's content is injected into the session context.
+A skill is a named directory containing a `SKILL.md` file—a markdown document that provides instructions to Copilot. When loaded, the skill's content is injected into the session context.
 
 Skills allow you to:
 * Package domain expertise into reusable modules
@@ -328,8 +328,8 @@ Provide specific line-number references and suggested fixes.
 ```
 
 The frontmatter fields:
-* **`name`** — The skill's identifier (used with `disabledSkills` to selectively disable it). If omitted, the directory name is used.
-* **`description`** — A short description of what the skill does.
+* **`name`**: The skill's identifier (used with `disabledSkills` to selectively disable it). If omitted, the directory name is used.
+* **`description`**: A short description of what the skill does.
 
 The markdown body contains the instructions that are injected into the session context when the skill is loaded.
 
@@ -364,7 +364,7 @@ The markdown body contains the instructions that are injected into the session c
 
 ### Skills + custom agents
 
-Skills listed in an agent's `skills` field are **eagerly preloaded** — their full content is injected into the agent's context at startup, so the agent has access to the skill instructions immediately without needing to invoke a skill tool. Skill names are resolved from the session-level `skillDirectories`.
+Skills listed in an agent's `skills` field are **eagerly preloaded**—their full content is injected into the agent's context at startup, so the agent has access to the skill instructions immediately without needing to invoke a skill tool. Skill names are resolved from the session-level `skillDirectories`.
 
 ```typescript
 const session = await client.createSession({
@@ -379,7 +379,7 @@ const session = await client.createSession({
 });
 ```
 > [!NOTE]
-> Skills are opt-in — when `skills` is omitted, no skill content is injected. Sub-agents do not inherit skills from the parent; you must list them explicitly per agent.
+> Skills are opt-in—when `skills` is omitted, no skill content is injected. Sub-agents do not inherit skills from the parent; you must list them explicitly per agent.
 
 ### Skills + MCP servers
 

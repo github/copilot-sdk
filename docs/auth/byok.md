@@ -294,7 +294,7 @@ provider: {
 ```
 
 > [!NOTE]
-> Foundry Local starts on a **dynamic port** — the port is not fixed. Use `foundry service status` to confirm the port the service is currently listening on, then use that port in your `baseUrl`.
+> Foundry Local starts on a **dynamic port**—the port is not fixed. Use `foundry service status` to confirm the port the service is currently listening on, then use that port in your `baseUrl`.
 
 To get started with Foundry Local:
 
@@ -469,7 +469,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 </details>
 
-Results are cached after the first call, just like the default behavior. The handler completely replaces the CLI's `models.list` RPC — no fallback to the server occurs.
+Results are cached after the first call, just like the default behavior. The handler completely replaces the CLI's `models.list` RPC—no fallback to the server occurs.
 
 ## Limitations
 

@@ -28,7 +28,7 @@ flowchart TB
 
 ### Pattern 1: isolated CLI per user
 
-Each user gets their own CLI server instance. Strongest isolation — a user's sessions, memory, and processes are completely separated.
+Each user gets their own CLI server instance. Strongest isolation—a user's sessions, memory, and processes are completely separated.
 
 ```mermaid
 flowchart TB
@@ -159,7 +159,7 @@ async function resumeSessionWithAuth(
 
 ### Pattern 3: shared sessions (collaborative)
 
-Multiple users interact with the same session — like a shared chat room with Copilot.
+Multiple users interact with the same session—like a shared chat room with Copilot.
 
 ```mermaid
 flowchart TB
@@ -354,7 +354,7 @@ flowchart LR
     style Shared fill:#0d1117,stroke:#3fb950,color:#c9d1d9
 ```
 
-**Sticky sessions** are simpler — pin users to specific CLI servers. No shared storage needed, but load distribution is uneven.
+**Sticky sessions** are simpler—pin users to specific CLI servers. No shared storage needed, but load distribution is uneven.
 
 **Shared storage** enables any CLI to handle any session. Better load distribution, but requires networked storage for `~/.copilot/session-state/`.
 
@@ -629,7 +629,7 @@ flowchart TB
 
 ## Next steps
 
-* **[Session Persistence](../features/session-persistence.md)** — Deep dive on resumable sessions
-* **[Backend Services](./backend-services.md)** — Core server-side setup
-* **[GitHub OAuth](./github-oauth.md)** — Multi-user authentication
-* **[BYOK](../auth/byok.md)** — Use your own model provider
+* **[Session Persistence](../features/session-persistence.md)**: Deep dive on resumable sessions
+* **[Backend Services](./backend-services.md)**: Core server-side setup
+* **[GitHub OAuth](./github-oauth.md)**: Multi-user authentication
+* **[BYOK](../auth/byok.md)**: Use your own model provider

@@ -187,7 +187,7 @@ tools: []
 ### Notes
 
 * The `tools` field defines which tools are allowed.
-* There is no separate `allow` or `disallow` configuration — tool access is controlled directly through this list.
+* There is no separate `allow` or `disallow` configuration—tool access is controlled directly through this list.
 
 ## Quick start: filesystem MCP server
 

@@ -1,12 +1,12 @@
 # Local CLI setup
 
-Use a specific CLI binary instead of the SDK's bundled CLI. This is an advanced option — you supply the CLI path explicitly, and you are responsible for ensuring version compatibility with the SDK.
+Use a specific CLI binary instead of the SDK's bundled CLI. This is an advanced option—you supply the CLI path explicitly, and you are responsible for ensuring version compatibility with the SDK.
 
 **Use when:** You need to pin a specific CLI version, or work with the Go SDK (which does not bundle a CLI).
 
 ## How it works
 
-By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this — for example, to use a system-installed CLI — you can use the `cliPath` option.
+By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this—for example, to use a system-installed CLI—you can use the `cliPath` option.
 
 ```mermaid
 flowchart LR
@@ -180,7 +180,7 @@ export GH_TOKEN="gho_xxxx"               # GitHub CLI compatible
 export GITHUB_TOKEN="gho_xxxx"           # GitHub Actions compatible
 ```
 
-The SDK picks these up automatically — no code changes needed.
+The SDK picks these up automatically—no code changes needed.
 
 ## Managing sessions
 
@@ -210,6 +210,6 @@ Session state is stored locally at `~/.copilot/session-state/{sessionId}/`.
 
 ## Next steps
 
-* **[Default Setup](./bundled-cli.md)** — Use the SDK's built-in CLI (recommended for most use cases)
-* **[Getting Started tutorial](../getting-started.md)** — Build a complete interactive app
-* **[Authentication docs](../auth/authenticate.md)** — All auth methods in detail
+* **[Default Setup](./bundled-cli.md)**: Use the SDK's built-in CLI (recommended for most use cases)
+* **[Getting Started tutorial](../getting-started.md)**: Build a complete interactive app
+* **[Authentication docs](../auth/authenticate.md)**: All auth methods in detail

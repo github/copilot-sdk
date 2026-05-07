@@ -1,6 +1,6 @@
 # Streaming session events
 
-Every action the Copilot agent takes — thinking, writing code, running tools — is emitted as a **session event** you can subscribe to. This guide is a field-level reference for each event type so you know exactly what data to expect without reading the SDK source.
+Every action the Copilot agent takes—thinking, writing code, running tools—is emitted as a **session event** you can subscribe to. This guide is a field-level reference for each event type so you know exactly what data to expect without reading the SDK source.
 
 ## Overview
 
@@ -207,17 +207,17 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 </details>
 
 > [!TIP]
-> **(Python / Go)** These SDKs use a single `Data` class/struct with all possible fields as optional/nullable. Only the fields listed in the tables below are populated for each event type — the rest will be `None` / `nil`.
+> **(Python / Go)** These SDKs use a single `Data` class/struct with all possible fields as optional/nullable. Only the fields listed in the tables below are populated for each event type—the rest will be `None` / `nil`.
 >
 > [!TIP]
 > **(.NET)** The .NET SDK uses separate, strongly-typed data classes per event (e.g., `AssistantMessageDeltaData`), so only the relevant fields exist on each type.
 >
 > [!TIP]
-> **(TypeScript)** The TypeScript SDK uses a discriminated union — when you match on `event.type`, the `data` payload is automatically narrowed to the correct shape.
+> **(TypeScript)** The TypeScript SDK uses a discriminated union—when you match on `event.type`, the `data` payload is automatically narrowed to the correct shape.
 
 ## Assistant events
 
-These events track the agent's response lifecycle — from turn start through streaming chunks to the final message.
+These events track the agent's response lifecycle—from turn start through streaming chunks to the final message.
 
 ### `assistant.turn_start`
 
@@ -320,7 +320,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 
 ### `assistant.streaming_delta`
 
-Ephemeral. Low-level network progress indicator — total bytes received from the streaming API response.
+Ephemeral. Low-level network progress indicator—total bytes received from the streaming API response.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
@@ -328,7 +328,7 @@ Ephemeral. Low-level network progress indicator — total bytes received from th
 
 ## Tool execution events
 
-These events track the full lifecycle of each tool invocation — from the model requesting a tool call through execution to completion.
+These events track the full lifecycle of each tool invocation—from the model requesting a tool call through execution to completion.
 
 ### `tool.execution_start`
 
@@ -363,7 +363,7 @@ Ephemeral. Human-readable progress status from a running tool (e.g., MCP server 
 
 ### `tool.execution_complete`
 
-Emitted when a tool finishes executing — successfully or with an error.
+Emitted when a tool finishes executing—successfully or with an error.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|

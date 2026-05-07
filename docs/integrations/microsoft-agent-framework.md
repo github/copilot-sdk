@@ -4,7 +4,7 @@ Use the Copilot SDK as an agent provider inside the [Microsoft Agent Framework](
 
 ## Overview
 
-The Microsoft Agent Framework is the unified successor to Semantic Kernel and AutoGen. It provides a standard interface for building, orchestrating, and deploying AI agents. Dedicated integration packages let you wrap a Copilot SDK client as a first-class MAF agent — interchangeable with any other agent provider in the framework.
+The Microsoft Agent Framework is the unified successor to Semantic Kernel and AutoGen. It provides a standard interface for building, orchestrating, and deploying AI agents. Dedicated integration packages let you wrap a Copilot SDK client as a first-class MAF agent—interchangeable with any other agent provider in the framework.
 
 | Concept | Description |
 |---------|-------------|
@@ -14,7 +14,7 @@ The Microsoft Agent Framework is the unified successor to Semantic Kernel and Au
 | **A2A protocol** | Agent-to-Agent communication standard supported by the framework |
 
 > [!NOTE]
-> MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly — the standard SDK APIs already provide tool calling, streaming, and custom agents.
+> MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly—the standard SDK APIs already provide tool calling, streaming, and custom agents.
 
 ## Prerequisites
 
@@ -51,7 +51,7 @@ pip install copilot-sdk agent-framework-github-copilot
 <summary><strong>Java</strong></summary>
 
 > [!NOTE]
-> The Java SDK does not have a dedicated MAF integration package. Use the standard Copilot SDK directly — it provides tool calling, streaming, and custom agents out of the box.
+> The Java SDK does not have a dedicated MAF integration package. Use the standard Copilot SDK directly—it provides tool calling, streaming, and custom agents out of the box.
 
 ```xml
 <!-- Maven -->
@@ -643,8 +643,8 @@ catch (AgentException ex)
 
 ## See also
 
-* [Getting Started](../getting-started.md) — initial Copilot SDK setup
-* [Custom Agents](../features/custom-agents.md) — define specialized sub-agents within the SDK
-* [Custom Skills](../features/skills.md) — reusable prompt modules
-* [Microsoft Agent Framework documentation](https://learn.microsoft.com/en-us/agent-framework/agents/providers/github-copilot) — official MAF docs for the Copilot provider
+* [Getting Started](../getting-started.md): initial Copilot SDK setup
+* [Custom Agents](../features/custom-agents.md): define specialized sub-agents within the SDK
+* [Custom Skills](../features/skills.md): reusable prompt modules
+* [Microsoft Agent Framework documentation](https://learn.microsoft.com/en-us/agent-framework/agents/providers/github-copilot): official MAF docs for the Copilot provider
 * [Blog: Build AI Agents with GitHub Copilot SDK and Microsoft Agent Framework](https://devblogs.microsoft.com/semantic-kernel/build-ai-agents-with-github-copilot-sdk-and-microsoft-agent-framework/)

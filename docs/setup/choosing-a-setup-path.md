@@ -1,6 +1,6 @@
 # Setup guides
 
-These guides walk you through configuring the Copilot SDK for your specific use case — from personal side projects to production platforms serving thousands of users.
+These guides walk you through configuring the Copilot SDK for your specific use case—from personal side projects to production platforms serving thousands of users.
 
 ## Architecture at a glance
 
@@ -38,43 +38,43 @@ The setup guides below help you configure each layer for your scenario.
 You're building a personal assistant, side project, or experimental app. You want the simplest path to getting Copilot in your code.
 
 **Start with:**
-1. **[Default Setup](./bundled-cli.md)** — The SDK includes the CLI automatically — just install and go
-1. **[Local CLI](./local-cli.md)** — Use your own CLI binary or running instance (advanced)
+1. **[Default Setup](./bundled-cli.md)**—The SDK includes the CLI automatically—just install and go
+1. **[Local CLI](./local-cli.md)**—Use your own CLI binary or running instance (advanced)
 
 ### 🏢 Internal app developer
 
 You're building tools for your team or company. Users are employees who need to authenticate with their enterprise GitHub accounts or org memberships.
 
 **Start with:**
-1. **[GitHub OAuth](./github-oauth.md)** — Let employees sign in with their GitHub accounts
-1. **[Backend Services](./backend-services.md)** — Run the SDK in your internal services
+1. **[GitHub OAuth](./github-oauth.md)**—Let employees sign in with their GitHub accounts
+1. **[Backend Services](./backend-services.md)**—Run the SDK in your internal services
 
 **If scaling beyond a single server:**
-1. **[Scaling & Multi-Tenancy](./scaling.md)** — Handle multiple users and services
+1. **[Scaling & Multi-Tenancy](./scaling.md)**—Handle multiple users and services
 
 ### 🚀 App developer (ISV)
 
-You're building a product for customers. You need to handle authentication for your users — either through GitHub or by managing identity yourself.
+You're building a product for customers. You need to handle authentication for your users—either through GitHub or by managing identity yourself.
 
 **Start with:**
-1. **[GitHub OAuth](./github-oauth.md)** — Let customers sign in with GitHub
-1. **[BYOK](../auth/byok.md)** — Manage identity yourself with your own model keys
-1. **[Backend Services](./backend-services.md)** — Power your product from server-side code
+1. **[GitHub OAuth](./github-oauth.md)**—Let customers sign in with GitHub
+1. **[BYOK](../auth/byok.md)**—Manage identity yourself with your own model keys
+1. **[Backend Services](./backend-services.md)**—Power your product from server-side code
 
 **For production:**
-1. **[Scaling & Multi-Tenancy](./scaling.md)** — Serve many customers reliably
+1. **[Scaling & Multi-Tenancy](./scaling.md)**—Serve many customers reliably
 
 ### 🏗️ Platform developer
 
-You're embedding Copilot into a platform — APIs, developer tools, or infrastructure that other developers build on. You need fine-grained control over sessions, scaling, and multi-tenancy.
+You're embedding Copilot into a platform—APIs, developer tools, or infrastructure that other developers build on. You need fine-grained control over sessions, scaling, and multi-tenancy.
 
 **Start with:**
-1. **[Backend Services](./backend-services.md)** — Core server-side integration
-1. **[Scaling & Multi-Tenancy](./scaling.md)** — Session isolation, horizontal scaling, persistence
+1. **[Backend Services](./backend-services.md)**—Core server-side integration
+1. **[Scaling & Multi-Tenancy](./scaling.md)**—Session isolation, horizontal scaling, persistence
 
 **Depending on your auth model:**
-1. **[GitHub OAuth](./github-oauth.md)** — For GitHub-authenticated users
-1. **[BYOK](../auth/byok.md)** — For self-managed identity and model access
+1. **[GitHub OAuth](./github-oauth.md)**—For GitHub-authenticated users
+1. **[BYOK](../auth/byok.md)**—For self-managed identity and model access
 
 ## Decision matrix
 

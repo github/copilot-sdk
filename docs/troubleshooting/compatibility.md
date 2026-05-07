@@ -276,7 +276,7 @@ The SDK can only access features exposed through the CLI's JSON-RPC protocol. If
 | v2–v3 | v3 | Full support |
 | v2–v3 | v2 | Supported with automatic v2 adapters |
 
-The SDK negotiates protocol versions with the CLI at startup. The SDK supports protocol versions 2 through 3. When connecting to a v2 CLI server, the SDK automatically adapts `tool.call` and `permission.request` messages to the v3 event model — no code changes required.
+The SDK negotiates protocol versions with the CLI at startup. The SDK supports protocol versions 2 through 3. When connecting to a v2 CLI server, the SDK automatically adapts `tool.call` and `permission.request` messages to the v3 event model—no code changes required.
 
 Check versions at runtime:
 

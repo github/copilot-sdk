@@ -119,15 +119,15 @@ const client = new CopilotClient({
 });
 ```
 
-For **Python**, **Go**, and **.NET**, trace context injection is automatic when the respective OpenTelemetry/Activity API is configured — no callback is needed.
+For **Python**, **Go**, and **.NET**, trace context injection is automatic when the respective OpenTelemetry/Activity API is configured—no callback is needed.
 
 #### CLI → SDK (inbound)
 
 When the CLI invokes a tool handler, the `traceparent` and `tracestate` from the CLI's span are available in all languages:
 
-* **Go**: The `ToolInvocation.TraceContext` field is a `context.Context` with the trace already restored — use it directly as the parent for your spans.
-* **Python**: Trace context is automatically restored around the handler via `trace_context()` — child spans are parented to the CLI's span automatically.
-* **.NET**: Trace context is automatically restored via `RestoreTraceContext()` — child `Activity` instances are parented to the CLI's span automatically.
+* **Go**: The `ToolInvocation.TraceContext` field is a `context.Context` with the trace already restored—use it directly as the parent for your spans.
+* **Python**: Trace context is automatically restored around the handler via `trace_context()`—child spans are parented to the CLI's span automatically.
+* **.NET**: Trace context is automatically restored via `RestoreTraceContext()`—child `Activity` instances are parented to the CLI's span automatically.
 * **Node.js**: Since the SDK has no OpenTelemetry dependency, `traceparent` and `tracestate` are passed as raw strings on the `ToolInvocation` object. Restore the context manually if needed:
 
 <!-- docs-validate: skip -->
@@ -161,10 +161,10 @@ session.registerTool(myTool, async (args, invocation) => {
 
 | Language | Dependency | Notes |
 |---|---|---|
-| Node.js | — | No dependency; provide `onGetTraceContext` callback for outbound propagation |
+| Node.js |—| No dependency; provide `onGetTraceContext` callback for outbound propagation |
 | Python | `opentelemetry-api` | Install with `pip install copilot-sdk[telemetry]` |
 | Go | `go.opentelemetry.io/otel` | Required dependency |
-| .NET | — | Uses built-in `System.Diagnostics.Activity` |
+| .NET |—| Uses built-in `System.Diagnostics.Activity` |
 | Java | `io.opentelemetry:opentelemetry-api` | Add this dependency for SDK-based setup; trace context injection is automatic when the OpenTelemetry Java agent or SDK is configured |
 
 ## References

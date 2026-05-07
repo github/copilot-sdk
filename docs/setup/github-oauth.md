@@ -37,7 +37,7 @@ sequenceDiagram
 * Each user authenticates with their own GitHub account
 * Copilot usage is billed to each user's subscription
 * Supports GitHub organizations and enterprise accounts
-* Your app never handles model API keys — GitHub manages everything
+* Your app never handles model API keys—GitHub manages everything
 
 ## Architecture
 
@@ -367,7 +367,7 @@ const client = createClientForUser(token);
 
 ### Enterprise managed users (EMU)
 
-For GitHub Enterprise Managed Users, the flow is identical — EMU users authenticate through GitHub OAuth like any other user. Their enterprise policies (IP restrictions, SAML SSO) are enforced by GitHub automatically.
+For GitHub Enterprise Managed Users, the flow is identical—EMU users authenticate through GitHub OAuth like any other user. Their enterprise policies (IP restrictions, SAML SSO) are enforced by GitHub automatically.
 
 ```typescript
 // No special SDK configuration needed for EMU
@@ -404,7 +404,7 @@ flowchart LR
     style E fill:#0d1117,stroke:#f0883e,color:#c9d1d9
 ```
 
-**Important:** Your application is responsible for token storage, refresh, and expiration handling. The SDK uses whatever token you provide — it doesn't manage the OAuth lifecycle.
+**Important:** Your application is responsible for token storage, refresh, and expiration handling. The SDK uses whatever token you provide—it doesn't manage the OAuth lifecycle.
 
 ### Token refresh pattern
 
@@ -469,6 +469,6 @@ For a lighter resource footprint, you can run a single external CLI server and p
 
 ## Next steps
 
-* **[Authentication docs](../auth/authenticate.md)** — Full auth method reference
-* **[Backend Services](./backend-services.md)** — Run the SDK server-side
-* **[Scaling & Multi-Tenancy](./scaling.md)** — Handle many users at scale
+* **[Authentication docs](../auth/authenticate.md)**: Full auth method reference
+* **[Backend Services](./backend-services.md)**: Run the SDK server-side
+* **[Scaling & Multi-Tenancy](./scaling.md)**: Handle many users at scale

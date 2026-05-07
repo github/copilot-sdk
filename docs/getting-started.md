@@ -97,7 +97,7 @@ dotnet add package GitHub.Copilot.SDK
 
 First, create a new directory and initialize your project.
 
-**Maven** — add to your `pom.xml`:
+**Maven**—add to your `pom.xml`:
 
 ```xml
 <dependency>
@@ -107,7 +107,7 @@ First, create a new directory and initialize your project.
 </dependency>
 ```
 
-**Gradle** — add to your `build.gradle`:
+**Gradle**—add to your `build.gradle`:
 
 ```groovy
 implementation 'com.github:copilot-sdk-java:${copilotSdkVersion}'
@@ -1571,7 +1571,7 @@ const session = await client.createSession({
 
 Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `last_instructions`.
 
-Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully — content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
+Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully—content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
 
 See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), [Java](../java/README.md), and [C#](../dotnet/README.md).
 
@@ -1749,7 +1749,7 @@ The Copilot SDK supports [OpenTelemetry](https://opentelemetry.io/) for distribu
 
 ### Enabling telemetry
 
-Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the opt-in — no separate "enabled" flag is needed.
+Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the opt-in—no separate "enabled" flag is needed.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -1817,7 +1817,7 @@ var client = new CopilotClient(new CopilotClientOptions
 });
 ```
 
-No extra dependencies — uses built-in `System.Diagnostics.Activity`.
+No extra dependencies—uses built-in `System.Diagnostics.Activity`.
 
 </details>
 
@@ -1864,12 +1864,12 @@ const client = new CopilotClient({
 
 ### Trace context propagation
 
-Trace context is propagated automatically — no manual instrumentation is needed:
+Trace context is propagated automatically—no manual instrumentation is needed:
 
 * **SDK → CLI**: `traceparent` and `tracestate` headers from the current span/activity are included in `session.create`, `session.resume`, and `session.send` RPC calls.
 * **CLI → SDK**: When the CLI invokes tool handlers, the trace context from the CLI's span is propagated so your tool code runs under the correct parent span.
 
-📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)** — TelemetryConfig options, trace context propagation, and per-language dependencies.
+📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)**—TelemetryConfig options, trace context propagation, and per-language dependencies.
 
 ## Learn more
 

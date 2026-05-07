@@ -1,6 +1,6 @@
 # Backend services setup
 
-Run the Copilot SDK in server-side applications — APIs, web backends, microservices, and background workers. The CLI runs as a headless server that your backend code connects to over the network.
+Run the Copilot SDK in server-side applications—APIs, web backends, microservices, and background workers. The CLI runs as a headless server that your backend code connects to over the network.
 
 **Best for:** Web app backends, API services, internal tools, CI/CD integrations, any server-side workload.
 
@@ -32,7 +32,7 @@ flowchart TB
 
 **Key characteristics:**
 * CLI runs as a persistent server process (not spawned per request)
-* SDK connects over TCP — CLI and app can run in different containers
+* SDK connects over TCP—CLI and app can run in different containers
 * Multiple SDK clients can share one CLI server
 * Works with any auth method (GitHub tokens, env vars, BYOK)
 
@@ -67,7 +67,7 @@ copilot --headless
 # Output: Listening on http://localhost:52431
 ```
 
-By default the headless server only accepts connections from loopback (`127.0.0.1`). To accept connections from other hosts — for example from another machine on your network — bind to a non-loopback address with `--host`:
+By default the headless server only accepts connections from loopback (`127.0.0.1`). To accept connections from other hosts—for example from another machine on your network—bind to a non-loopback address with `--host`:
 
 ```bash
 copilot --headless --host 0.0.0.0 --port 4321
@@ -293,7 +293,7 @@ try {
 
 ### Environment variable tokens
 
-The simplest approach — set a token on the CLI server:
+The simplest approach—set a token on the CLI server:
 
 ```mermaid
 flowchart LR
@@ -544,6 +544,6 @@ setInterval(() => cleanupSessions(24 * 60 * 60 * 1000), 60 * 60 * 1000);
 
 ## Next steps
 
-* **[Scaling & Multi-Tenancy](./scaling.md)** — Handle more users, add redundancy
-* **[Session Persistence](../features/session-persistence.md)** — Resume sessions across restarts
-* **[GitHub OAuth](./github-oauth.md)** — Add user authentication
+* **[Scaling & Multi-Tenancy](./scaling.md)**: Handle more users, add redundancy
+* **[Session Persistence](../features/session-persistence.md)**: Resume sessions across restarts
+* **[GitHub OAuth](./github-oauth.md)**: Add user authentication
