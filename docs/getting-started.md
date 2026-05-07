@@ -1543,7 +1543,8 @@ const session = await client.createSession({
 });
 ```
 
-> **Tip:** You can also set `agent: "pr-reviewer"` in the session config to pre-select this agent from the start. See the [Custom Agents guide](./features/custom-agents.md#selecting-an-agent-at-session-creation) for details.
+> [!TIP]
+> You can also set `agent: "pr-reviewer"` in the session config to pre-select this agent from the start. See the [Custom Agents guide](./features/custom-agents.md#selecting-an-agent-at-session-creation) for details.
 
 ### Customize the system message
 
@@ -1606,7 +1607,8 @@ By default the headless server only accepts connections from loopback (`127.0.0.
 copilot --headless --host 0.0.0.0 --port 4321
 ```
 
-> **Warning:** Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. Pair it with network controls (firewall, private network, reverse proxy) and authentication appropriate for your environment.
+> [!WARNING]
+> Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. Pair it with network controls (firewall, private network, reverse proxy) and authentication appropriate for your environment.
 
 ### Connecting the SDK to the external server
 

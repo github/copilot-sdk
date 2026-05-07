@@ -293,7 +293,8 @@ provider: {
 }
 ```
 
-> **Note:** Foundry Local starts on a **dynamic port** — the port is not fixed. Use `foundry service status` to confirm the port the service is currently listening on, then use that port in your `baseUrl`.
+> [!NOTE]
+> Foundry Local starts on a **dynamic port** — the port is not fixed. Use `foundry service status` to confirm the port the service is currently listening on, then use that port in your `baseUrl`.
 
 To get started with Foundry Local:
 
@@ -334,7 +335,8 @@ provider: {
 }
 ```
 
-> **Note:** The `bearerToken` option accepts a **static token string** only. The SDK does not refresh this token automatically. If your token expires, requests will fail and you'll need to create a new session with a fresh token.
+> [!NOTE]
+> The `bearerToken` option accepts a **static token string** only. The SDK does not refresh this token automatically. If your token expires, requests will fail and you'll need to create a new session with a fresh token.
 
 ## Custom model listing
 

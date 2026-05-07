@@ -378,7 +378,8 @@ const session = await client.createSession({
     onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
-> **Note:** Skills are opt-in — when `skills` is omitted, no skill content is injected. Sub-agents do not inherit skills from the parent; you must list them explicitly per agent.
+> [!NOTE]
+> Skills are opt-in — when `skills` is omitted, no skill content is injected. Sub-agents do not inherit skills from the parent; you must list them explicitly per agent.
 
 ### Skills + MCP servers
 

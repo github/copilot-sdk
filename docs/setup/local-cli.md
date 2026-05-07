@@ -77,7 +77,8 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
-> **Note:** The Go SDK does not bundle a CLI, so you must always provide `CLIPath`.
+> [!NOTE]
+> The Go SDK does not bundle a CLI, so you must always provide `CLIPath`.
 
 <!-- docs-validate: hidden -->
 ```go

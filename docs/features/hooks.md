@@ -223,7 +223,8 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-> **Tip:** Every hook handler receives an `invocation` parameter containing the `sessionId`, which is useful for correlating logs and maintaining per-session state.
+> [!TIP]
+> Every hook handler receives an `invocation` parameter containing the `sessionId`, which is useful for correlating logs and maintaining per-session state.
 
 ---
 

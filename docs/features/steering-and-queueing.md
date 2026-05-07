@@ -217,7 +217,8 @@ try (var client = new CopilotClient()) {
 3. The agent sees the steering message as a new user message and adjusts its response
 4. If the turn completes before the steering message is processed, it is automatically moved to the regular queue for the next turn
 
-> **Note:** Steering messages are best-effort within the current turn. If the agent has already committed to a tool call, the steering takes effect after that call completes but still within the same turn.
+> [!NOTE]
+> Steering messages are best-effort within the current turn. If the agent has already committed to a tool call, the steering takes effect after that call completes but still within the same turn.
 
 ## Queueing (enqueue mode)
 
@@ -624,7 +625,8 @@ class InteractiveChat {
 | `"enqueue"` | Queue for next turn | Waits in FIFO queue | Starts a new turn immediately |
 | `"immediate"` | Inject into current turn | Injected before next LLM call | Starts a new turn immediately |
 
-> **Note:** When the session is idle (not processing), both modes behave identically — the message starts a new turn immediately.
+> [!NOTE]
+> When the session is idle (not processing), both modes behave identically — the message starts a new turn immediately.
 
 ## Best practices
 

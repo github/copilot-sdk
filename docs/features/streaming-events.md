@@ -206,11 +206,14 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 
 </details>
 
-> **Tip (Python / Go):** These SDKs use a single `Data` class/struct with all possible fields as optional/nullable. Only the fields listed in the tables below are populated for each event type — the rest will be `None` / `nil`.
+> [!TIP]
+> **(Python / Go)** These SDKs use a single `Data` class/struct with all possible fields as optional/nullable. Only the fields listed in the tables below are populated for each event type — the rest will be `None` / `nil`.
 >
-> **Tip (.NET):** The .NET SDK uses separate, strongly-typed data classes per event (e.g., `AssistantMessageDeltaData`), so only the relevant fields exist on each type.
+> [!TIP]
+> **(.NET)** The .NET SDK uses separate, strongly-typed data classes per event (e.g., `AssistantMessageDeltaData`), so only the relevant fields exist on each type.
 >
-> **Tip (TypeScript):** The TypeScript SDK uses a discriminated union — when you match on `event.type`, the `data` payload is automatically narrowed to the correct shape.
+> [!TIP]
+> **(TypeScript)** The TypeScript SDK uses a discriminated union — when you match on `event.type`, the `data` payload is automatically narrowed to the correct shape.
 
 ---
 

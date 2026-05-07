@@ -418,7 +418,8 @@ Each SDK also provides idiomatic automatic cleanup patterns:
 | **C#** | `IAsyncDisposable` | `await using var session = await client.CreateSessionAsync(config);` |
 | **Go** | `defer` | `defer session.Disconnect()` |
 
-> **Note:** `destroy()` is deprecated in favor of `disconnect()`. Existing code using `destroy()` will continue to work but should be migrated.
+> [!NOTE]
+> `destroy()` is deprecated in favor of `disconnect()`. Existing code using `destroy()` will continue to work but should be migrated.
 
 ### Permanently deleting a session (`deleteSession`)
 
@@ -443,7 +444,8 @@ const client = new CopilotClient({
 
 When a timeout is configured, sessions without activity for that duration are automatically cleaned up. Set to `0` or omit to disable.
 
-> **Note:** This option only applies when the SDK spawns the runtime process. When connecting to an existing server via `cliUrl`, the server's own timeout configuration applies.
+> [!NOTE]
+> This option only applies when the SDK spawns the runtime process. When connecting to an existing server via `cliUrl`, the server's own timeout configuration applies.
 
 ```mermaid
 flowchart LR
@@ -572,7 +574,8 @@ const session = await client.createSession({
 });
 ```
 
-> **Note:** Thresholds are context utilization ratios (0.0-1.0), not absolute token counts. See the [Compatibility Guide](../troubleshooting/compatibility.md) for details.
+> [!NOTE]
+> Thresholds are context utilization ratios (0.0-1.0), not absolute token counts. See the [Compatibility Guide](../troubleshooting/compatibility.md) for details.
 
 ## Limitations and considerations
 

@@ -132,7 +132,8 @@ const client = new CopilotClient({
 # the CLI when running in server mode.
 ```
 
-> **Note:** Python SDK logging configuration is limited. For advanced logging, run the CLI manually with `--log-dir` and connect via `cli_url`.
+> [!NOTE]
+> Python SDK logging configuration is limited. For advanced logging, run the CLI manually with `--log-dir` and connect via `cli_url`.
 
 </details>
 

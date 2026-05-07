@@ -13,7 +13,8 @@ The Microsoft Agent Framework is the unified successor to Semantic Kernel and Au
 | **Orchestrator** | A MAF component that coordinates agents in sequential, concurrent, or handoff workflows |
 | **A2A protocol** | Agent-to-Agent communication standard supported by the framework |
 
-> **Note:** MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly — the standard SDK APIs already provide tool calling, streaming, and custom agents.
+> [!NOTE]
+> MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly — the standard SDK APIs already provide tool calling, streaming, and custom agents.
 
 ## Prerequisites
 
@@ -49,7 +50,8 @@ pip install copilot-sdk agent-framework-github-copilot
 <details>
 <summary><strong>Java</strong></summary>
 
-> **Note:** The Java SDK does not have a dedicated MAF integration package. Use the standard Copilot SDK directly — it provides tool calling, streaming, and custom agents out of the box.
+> [!NOTE]
+> The Java SDK does not have a dedicated MAF integration package. Use the standard Copilot SDK directly — it provides tool calling, streaming, and custom agents out of the box.
 
 ```xml
 <!-- Maven -->

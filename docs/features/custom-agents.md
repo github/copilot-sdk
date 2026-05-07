@@ -254,7 +254,8 @@ try (var client = new CopilotClient()) {
 | `infer` | `boolean` | | Whether the runtime can auto-select this agent (default: `true`) |
 | `skills` | `string[]` | | Skill names to preload into the agent's context at startup |
 
-> **Tip:** A good `description` helps the runtime match user intent to the right agent. Be specific about the agent's expertise and capabilities.
+> [!TIP]
+> A good `description` helps the runtime match user intent to the right agent. Be specific about the agent's expertise and capabilities.
 
 In addition to per-agent configuration above, you can set `agent` on the **session config** itself to pre-select which custom agent is active when the session starts. See [Selecting an Agent at Session Creation](#selecting-an-agent-at-session-creation) below.
 
@@ -757,7 +758,8 @@ const session = await client.createSession({
 });
 ```
 
-> **Note:** When `tools` is `null` or omitted, the agent inherits access to all tools configured on the session. Use explicit tool lists to enforce the principle of least privilege.
+> [!NOTE]
+> When `tools` is `null` or omitted, the agent inherits access to all tools configured on the session. Use explicit tool lists to enforce the principle of least privilege.
 
 ## Agent-exclusive tools
 
@@ -905,7 +907,8 @@ Precedence:
 1. Session-level `availableTools`/`excludedTools` are applied first (globally)
 2. `defaultAgent.excludedTools` is applied on top, further restricting the main agent only
 
-> **Note:** If a tool is in both `excludedTools` (session-level) and `defaultAgent.excludedTools`, the session-level exclusion takes precedence — the tool is unavailable to everyone.
+> [!NOTE]
+> If a tool is in both `excludedTools` (session-level) and `defaultAgent.excludedTools`, the session-level exclusion takes precedence — the tool is unavailable to everyone.
 
 ## Attaching MCP servers to agents
 

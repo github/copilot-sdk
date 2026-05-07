@@ -228,7 +228,8 @@ const result = await session.rpc.history.compact();
 console.log(`Removed ${result.tokensRemoved} tokens, ${result.messagesRemoved} messages`);
 ```
 
-> **Note:** Thresholds are context utilization ratios (0.0-1.0), not absolute token counts.
+> [!NOTE]
+> Thresholds are context utilization ratios (0.0-1.0), not absolute token counts.
 
 ### Plan management
 
