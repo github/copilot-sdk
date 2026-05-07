@@ -888,6 +888,12 @@ class SessionConfig(TypedDict, total=False):
     working_directory: str
     # Custom provider configuration (BYOK - Bring Your Own Key)
     provider: ProviderConfig
+    # Enables or disables internal session telemetry for this session. When False,
+    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
+    # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
+    # session telemetry is always disabled regardless of this setting.
+    # This is independent of the client OpenTelemetry configuration.
+    enable_session_telemetry: bool
     # Enable streaming of assistant message and reasoning chunks
     # When True, assistant.message_delta and assistant.reasoning_delta events
     # with delta_content are sent as the response is generated
@@ -956,6 +962,12 @@ class ResumeSessionConfig(TypedDict, total=False):
     # registered via tools=. Ignored if available_tools is set.
     excluded_tools: list[str]
     provider: ProviderConfig
+    # Enables or disables internal session telemetry for this session. When False,
+    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
+    # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
+    # session telemetry is always disabled regardless of this setting.
+    # This is independent of the client OpenTelemetry configuration.
+    enable_session_telemetry: bool
     # Reasoning effort level for models that support it.
     reasoning_effort: ReasoningEffort
     on_permission_request: _PermissionHandlerFn

@@ -631,6 +631,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.AvailableTools = config.AvailableTools
 	req.ExcludedTools = config.ExcludedTools
 	req.Provider = config.Provider
+	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.ModelCapabilities = config.ModelCapabilities
 	req.WorkingDirectory = config.WorkingDirectory
 	req.MCPServers = config.MCPServers
@@ -790,6 +791,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.SystemMessage = wireSystemMessage
 	req.Tools = config.Tools
 	req.Provider = config.Provider
+	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.ModelCapabilities = config.ModelCapabilities
 	req.AvailableTools = config.AvailableTools
 	req.ExcludedTools = config.ExcludedTools

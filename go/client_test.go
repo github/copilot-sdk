@@ -990,6 +990,35 @@ func TestResumeSessionRequest_ContinuePendingWork(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_EnableSessionTelemetry(t *testing.T) {
+	t.Run("forwards enableSessionTelemetry when false", func(t *testing.T) {
+		req := createSessionRequest{
+			EnableSessionTelemetry: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableSessionTelemetry"] != false {
+			t.Errorf("Expected enableSessionTelemetry to be false, got %v", m["enableSessionTelemetry"])
+		}
+	})
+
+	t.Run("omits enableSessionTelemetry when not set", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableSessionTelemetry"]; ok {
+			t.Error("Expected enableSessionTelemetry to be omitted when not set")
+		}
+	})
+}
+
 func TestCreateSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 	t.Run("defaults to true when nil", func(t *testing.T) {
 		req := createSessionRequest{
@@ -1022,6 +1051,36 @@ func TestCreateSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 		}
 		if m["includeSubAgentStreamingEvents"] != false {
 			t.Errorf("Expected includeSubAgentStreamingEvents to be false, got %v", m["includeSubAgentStreamingEvents"])
+		}
+	})
+}
+
+func TestResumeSessionRequest_EnableSessionTelemetry(t *testing.T) {
+	t.Run("forwards enableSessionTelemetry when false", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:              "s1",
+			EnableSessionTelemetry: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableSessionTelemetry"] != false {
+			t.Errorf("Expected enableSessionTelemetry to be false, got %v", m["enableSessionTelemetry"])
+		}
+	})
+
+	t.Run("omits enableSessionTelemetry when not set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableSessionTelemetry"]; ok {
+			t.Error("Expected enableSessionTelemetry to be omitted when not set")
 		}
 	})
 }

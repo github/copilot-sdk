@@ -575,6 +575,13 @@ type SessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
+	// EnableSessionTelemetry enables or disables internal session telemetry for this session.
+	// When false, disables session telemetry. When nil (the default) or true,
+	// telemetry is enabled for GitHub-authenticated sessions. When a custom
+	// Provider (BYOK) is configured, session telemetry is always disabled
+	// regardless of this setting. This is independent of the OpenTelemetry
+	// configuration in ClientOptions.Telemetry.
+	EnableSessionTelemetry *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -765,6 +772,13 @@ type ResumeSessionConfig struct {
 	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
+	// EnableSessionTelemetry enables or disables internal session telemetry for this session.
+	// When false, disables session telemetry. When nil (the default) or true,
+	// telemetry is enabled for GitHub-authenticated sessions. When a custom
+	// Provider (BYOK) is configured, session telemetry is always disabled
+	// regardless of this setting. This is independent of the OpenTelemetry
+	// configuration in ClientOptions.Telemetry.
+	EnableSessionTelemetry *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -1043,6 +1057,7 @@ type createSessionRequest struct {
 	AvailableTools                 []string                       `json:"availableTools"`
 	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
 	Provider                       *ProviderConfig                `json:"provider,omitempty"`
+	EnableSessionTelemetry         *bool                          `json:"enableSessionTelemetry,omitempty"`
 	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
@@ -1092,6 +1107,7 @@ type resumeSessionRequest struct {
 	AvailableTools                 []string                       `json:"availableTools"`
 	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
 	Provider                       *ProviderConfig                `json:"provider,omitempty"`
+	EnableSessionTelemetry         *bool                          `json:"enableSessionTelemetry,omitempty"`
 	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`

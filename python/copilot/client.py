@@ -1302,6 +1302,7 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        enable_session_telemetry: bool | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
@@ -1350,6 +1351,12 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            enable_session_telemetry: Enables or disables internal session telemetry
+                for this session. When False, disables session telemetry. When omitted
+                or True, telemetry is enabled for GitHub-authenticated sessions. When
+                a custom provider (BYOK) is configured, session telemetry is always
+                disabled regardless of this setting. This is independent of the client
+                OpenTelemetry configuration.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -1483,6 +1490,9 @@ class CopilotClient:
         # Add provider configuration if provided
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+
+        if enable_session_telemetry is not None:
+            payload["enableSessionTelemetry"] = enable_session_telemetry
 
         # Add model capabilities override if provided
         if model_capabilities:
@@ -1644,6 +1654,7 @@ class CopilotClient:
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
+        enable_session_telemetry: bool | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
@@ -1693,6 +1704,12 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
+            enable_session_telemetry: Enables or disables internal session telemetry
+                for this session. When False, disables session telemetry. When omitted
+                or True, telemetry is enabled for GitHub-authenticated sessions. When
+                a custom provider (BYOK) is configured, session telemetry is always
+                disabled regardless of this setting. This is independent of the client
+                OpenTelemetry configuration.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -1789,6 +1806,8 @@ class CopilotClient:
             payload["excludedTools"] = excluded_tools
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
+        if enable_session_telemetry is not None:
+            payload["enableSessionTelemetry"] = enable_session_telemetry
         if model_capabilities:
             payload["modelCapabilities"] = _capabilities_to_dict(model_capabilities)
         if streaming is not None:

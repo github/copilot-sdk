@@ -1859,6 +1859,7 @@ public class SessionConfig
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
+        EnableSessionTelemetry = other.EnableSessionTelemetry;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
@@ -1939,6 +1940,17 @@ public class SessionConfig
     /// Custom model provider configuration for the session.
     /// </summary>
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// Enables or disables internal session telemetry for this session.
+    /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
+    /// telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom <see cref="Provider"/> (BYOK) is configured, session telemetry is
+    /// always disabled regardless of this setting.
+    /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
+    /// OpenTelemetry export for observability.
+    /// </summary>
+    public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
     /// Handler for permission requests from the server.
@@ -2124,6 +2136,7 @@ public class ResumeSessionConfig
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
+        EnableSessionTelemetry = other.EnableSessionTelemetry;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
@@ -2173,6 +2186,17 @@ public class ResumeSessionConfig
     /// Custom model provider configuration for the resumed session.
     /// </summary>
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// Enables or disables internal session telemetry for this session.
+    /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
+    /// telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom <see cref="Provider"/> (BYOK) is configured, session telemetry is
+    /// always disabled regardless of this setting.
+    /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
+    /// OpenTelemetry export for observability.
+    /// </summary>
+    public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
     /// Reasoning effort level for models that support it.

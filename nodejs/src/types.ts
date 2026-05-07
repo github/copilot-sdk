@@ -1284,6 +1284,16 @@ export interface SessionConfig {
     provider?: ProviderConfig;
 
     /**
+     * Enables or disables internal session telemetry for this session.
+     * When `false`, disables session telemetry. When omitted (the default) or `true`,
+     * telemetry is enabled for GitHub-authenticated sessions.
+     * When a custom {@link provider} (BYOK) is configured, session telemetry is always
+     * disabled regardless of this setting.
+     * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
+     */
+    enableSessionTelemetry?: boolean;
+
+    /**
      * Handler for permission requests from the server.
      * When provided, the server will call this handler to request permission for operations.
      */
@@ -1425,6 +1435,7 @@ export type ResumeSessionConfig = Pick<
     | "availableTools"
     | "excludedTools"
     | "provider"
+    | "enableSessionTelemetry"
     | "modelCapabilities"
     | "streaming"
     | "includeSubAgentStreamingEvents"

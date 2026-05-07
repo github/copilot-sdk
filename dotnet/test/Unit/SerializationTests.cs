@@ -127,6 +127,38 @@ public class SerializationTests
     }
 
     [Fact]
+    public void CreateSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableSessionTelemetry", false));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.False(root.GetProperty("enableSessionTelemetry").GetBoolean());
+    }
+
+    [Fact]
+    public void ResumeSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableSessionTelemetry", false));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.False(root.GetProperty("enableSessionTelemetry").GetBoolean());
+    }
+
+    [Fact]
     public void McpHttpServerConfig_CanSerializeOauthOptions_WithSdkOptions()
     {
         var options = GetSerializerOptions();

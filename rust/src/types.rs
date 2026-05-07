@@ -1042,6 +1042,15 @@ pub struct SessionConfig {
     /// routing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
+    /// Enables or disables internal session telemetry for this session.
+    ///
+    /// When `Some(false)`, disables session telemetry. When `None` or
+    /// `Some(true)`, telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom [`provider`](Self::provider) is configured, session
+    /// telemetry is always disabled regardless of this setting. This is
+    /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_session_telemetry: Option<bool>,
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1122,6 +1131,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("agent", &self.agent)
             .field("infinite_sessions", &self.infinite_sessions)
             .field("provider", &self.provider)
+            .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
             .field("config_dir", &self.config_dir)
             .field("working_directory", &self.working_directory)
@@ -1181,6 +1191,7 @@ impl Default for SessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            enable_session_telemetry: None,
             model_capabilities: None,
             config_dir: None,
             working_directory: None,
@@ -1445,6 +1456,14 @@ impl SessionConfig {
         self
     }
 
+    /// Enable or disable internal session telemetry.
+    ///
+    /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
+    pub fn with_enable_session_telemetry(mut self, enable: bool) -> Self {
+        self.enable_session_telemetry = Some(enable);
+        self
+    }
+
     /// Set per-property overrides for model capabilities.
     pub fn with_model_capabilities(
         mut self,
@@ -1560,6 +1579,15 @@ pub struct ResumeSessionConfig {
     /// Re-supply BYOK provider configuration on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
+    /// Enables or disables internal session telemetry for this session.
+    ///
+    /// When `Some(false)`, disables session telemetry. When `None` or
+    /// `Some(true)`, telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom [`provider`](Self::provider) is configured, session
+    /// telemetry is always disabled regardless of this setting. This is
+    /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_session_telemetry: Option<bool>,
     /// Per-property model capability overrides on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
@@ -1635,6 +1663,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("agent", &self.agent)
             .field("infinite_sessions", &self.infinite_sessions)
             .field("provider", &self.provider)
+            .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
             .field("config_dir", &self.config_dir)
             .field("working_directory", &self.working_directory)
@@ -1692,6 +1721,7 @@ impl ResumeSessionConfig {
             agent: None,
             infinite_sessions: None,
             provider: None,
+            enable_session_telemetry: None,
             model_capabilities: None,
             config_dir: None,
             working_directory: None,
@@ -1916,6 +1946,14 @@ impl ResumeSessionConfig {
     /// Re-supply BYOK provider configuration on resume.
     pub fn with_provider(mut self, provider: ProviderConfig) -> Self {
         self.provider = Some(provider);
+        self
+    }
+
+    /// Enable or disable internal session telemetry on resume.
+    ///
+    /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
+    pub fn with_enable_session_telemetry(mut self, enable: bool) -> Self {
+        self.enable_session_telemetry = Some(enable);
         self
     }
 
@@ -3073,6 +3111,7 @@ mod tests {
             .with_config_dir(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
+            .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(false);
 
         assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
@@ -3105,6 +3144,7 @@ mod tests {
         assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
     }
 
@@ -3127,6 +3167,7 @@ mod tests {
             .with_config_dir(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
+            .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
             .with_disable_resume(true)
             .with_continue_pending_work(true);
@@ -3159,6 +3200,7 @@ mod tests {
         assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
+        assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
         assert_eq!(cfg.disable_resume, Some(true));
         assert_eq!(cfg.continue_pending_work, Some(true));
