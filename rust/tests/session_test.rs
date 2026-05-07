@@ -2477,6 +2477,7 @@ fn session_config_serializes_bucket_b_fields() {
         cfg.working_directory = Some(PathBuf::from("/tmp/work"));
         cfg.github_token = Some("ghs_secret".to_string());
         cfg.include_sub_agent_streaming_events = Some(false);
+        cfg.enable_session_telemetry = Some(false);
         cfg
     };
     let json = serde_json::to_value(&cfg).unwrap();
@@ -2485,6 +2486,7 @@ fn session_config_serializes_bucket_b_fields() {
     assert_eq!(json["workingDirectory"], "/tmp/work");
     assert_eq!(json["gitHubToken"], "ghs_secret");
     assert_eq!(json["includeSubAgentStreamingEvents"], false);
+    assert_eq!(json["enableSessionTelemetry"], false);
 
     // Debug never leaks the token.
     let debug = format!("{cfg:?}");
@@ -2495,6 +2497,7 @@ fn session_config_serializes_bucket_b_fields() {
     let empty = serde_json::to_value(SessionConfig::default()).unwrap();
     assert!(empty.get("sessionId").is_none());
     assert!(empty.get("gitHubToken").is_none());
+    assert!(empty.get("enableSessionTelemetry").is_none());
 }
 
 #[test]
@@ -2508,12 +2511,14 @@ fn resume_session_config_serializes_bucket_b_fields() {
     cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(true);
+    cfg.enable_session_telemetry = Some(false);
     let json = serde_json::to_value(&cfg).unwrap();
     assert_eq!(json["sessionId"], "sess-1");
     assert_eq!(json["workingDirectory"], "/tmp/work");
     assert_eq!(json["configDir"], "/tmp/cfg");
     assert_eq!(json["gitHubToken"], "ghs_secret");
     assert_eq!(json["includeSubAgentStreamingEvents"], true);
+    assert_eq!(json["enableSessionTelemetry"], false);
 
     let debug = format!("{cfg:?}");
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");

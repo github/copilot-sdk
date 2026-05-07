@@ -580,7 +580,7 @@ type SessionConfig struct {
 	// telemetry is enabled for GitHub-authenticated sessions. When a custom
 	// Provider (BYOK) is configured, session telemetry is always disabled
 	// regardless of this setting. This is independent of the OpenTelemetry
-	// configuration in CopilotClientOptions.
+	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
@@ -777,7 +777,7 @@ type ResumeSessionConfig struct {
 	// telemetry is enabled for GitHub-authenticated sessions. When a custom
 	// Provider (BYOK) is configured, session telemetry is always disabled
 	// regardless of this setting. This is independent of the OpenTelemetry
-	// configuration in CopilotClientOptions.
+	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
