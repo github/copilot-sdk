@@ -213,23 +213,23 @@ client.stop().get();
 
 The `wireApi` setting determines which OpenAI API format to use:
 
-- **`"completions"`** (default) - Chat Completions API (`/chat/completions`). Use for most models.
-- **`"responses"`** - Responses API. Use for GPT-5 series models that support the newer responses format.
+* **`"completions"`** (default) - Chat Completions API (`/chat/completions`). Use for most models.
+* **`"responses"`** - Responses API. Use for GPT-5 series models that support the newer responses format.
 
 ### Type-specific notes
 
 **OpenAI (`type: "openai"`)**
-- Works with OpenAI API and any OpenAI-compatible endpoint
-- `baseUrl` should include the full path (e.g., `https://api.openai.com/v1`)
+* Works with OpenAI API and any OpenAI-compatible endpoint
+* `baseUrl` should include the full path (e.g., `https://api.openai.com/v1`)
 
 **Azure (`type: "azure"`)**
-- Use for native Azure OpenAI endpoints
-- `baseUrl` should be just the host (e.g., `https://my-resource.openai.azure.com`)
-- Do NOT include `/openai/v1` in the URL—the SDK handles path construction
+* Use for native Azure OpenAI endpoints
+* `baseUrl` should be just the host (e.g., `https://my-resource.openai.azure.com`)
+* Do NOT include `/openai/v1` in the URL—the SDK handles path construction
 
 **Anthropic (`type: "anthropic"`)**
-- For direct Anthropic API access
-- Uses Claude-specific API format
+* For direct Anthropic API access
+* Uses Claude-specific API format
 
 ## Example configurations
 
@@ -485,10 +485,10 @@ You must use an API key or static bearer token that you manage yourself.
 
 Some Copilot features may behave differently with BYOK:
 
-- **Model availability** - Only models supported by your provider are available
-- **Rate limiting** - Subject to your provider's rate limits, not Copilot's
-- **Usage tracking** - Usage is tracked by your provider, not GitHub Copilot
-- **Premium requests** - Do not count against Copilot premium request quotas
+* **Model availability** - Only models supported by your provider are available
+* **Rate limiting** - Subject to your provider's rate limits, not Copilot's
+* **Usage tracking** - Usage is tracked by your provider, not GitHub Copilot
+* **Premium requests** - Do not count against Copilot premium request quotas
 
 ### Provider-specific limitations
 
@@ -611,5 +611,5 @@ foundry model run phi-4-mini
 
 ## Next steps
 
-- [Authentication Overview](./index.md) - Learn about all authentication methods
-- [Getting Started Guide](../getting-started.md) - Build your first Copilot-powered app
+* [Authentication Overview](./index.md) - Learn about all authentication methods
+* [Getting Started Guide](../getting-started.md) - Build your first Copilot-powered app

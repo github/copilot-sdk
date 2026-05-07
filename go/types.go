@@ -90,6 +90,12 @@ type ClientOptions struct {
 	// This option is only used when the SDK spawns the CLI process; it is ignored
 	// when connecting to an external server via CLIUrl.
 	SessionIdleTimeoutSeconds int
+	// Remote enables remote session support (Mission Control integration).
+	// When true, sessions in a GitHub repository working directory are
+	// accessible from GitHub web and mobile.
+	// This option is only used when the SDK spawns the CLI process; it is ignored
+	// when connecting to an external server via CLIUrl.
+	Remote bool
 }
 
 // TelemetryConfig configures OpenTelemetry integration for the Copilot CLI process.
@@ -547,8 +553,7 @@ type SessionConfig struct {
 	// Ignored if AvailableTools is specified.
 	ExcludedTools []string
 	// OnPermissionRequest is a handler for permission requests from the server.
-	// If nil, all permission requests are denied by default.
-	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
+	// This field is required; use PermissionHandler.ApproveAll to allow all permissions.
 	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
@@ -767,8 +772,7 @@ type ResumeSessionConfig struct {
 	// Valid values: "low", "medium", "high", "xhigh"
 	ReasoningEffort string
 	// OnPermissionRequest is a handler for permission requests from the server.
-	// If nil, all permission requests are denied by default.
-	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
+	// This field is required; use PermissionHandler.ApproveAll to allow all permissions.
 	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
@@ -859,6 +863,25 @@ type ProviderConfig struct {
 	Azure *AzureProviderOptions `json:"azure,omitempty"`
 	// Headers are custom HTTP headers included in outbound provider requests.
 	Headers map[string]string `json:"headers,omitempty"`
+	// ModelID is the well-known model name used by the runtime to look up
+	// agent configuration (tools, prompts, reasoning behavior) and default
+	// token limits. Also used as the wire model when WireModel is not set.
+	// Falls back to SessionConfig.Model.
+	ModelID string `json:"modelId,omitempty"`
+	// WireModel is the model name sent to the provider API for inference. Use
+	// this when the provider's model name (e.g. an Azure deployment name or a
+	// custom fine-tune name) differs from ModelID.
+	// Falls back to ModelID, then SessionConfig.Model.
+	WireModel string `json:"wireModel,omitempty"`
+	// MaxInputTokens overrides the resolved model's default max prompt tokens.
+	// The runtime triggers conversation compaction before sending a request
+	// when the prompt (system message, history, tool definitions, user
+	// message) would exceed this limit.
+	MaxInputTokens int `json:"maxPromptTokens,omitempty"`
+	// MaxOutputTokens overrides the resolved model's default max output
+	// tokens. When hit, the model stops generating and returns a truncated
+	// response.
+	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration

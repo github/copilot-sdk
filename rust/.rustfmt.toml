@@ -1,0 +1,15 @@
+# This is not yet in stable, so we should keep an eye on it and enable it when it is.
+# https://rust-lang.github.io/rustfmt/?version=v1.4.32&search=#group_imports
+# In the mean time it is commented out because it will cause warnings.
+#group_imports = "StdExternalCrate"
+
+# This is not yet in stable, so we should keep an eye on it and enable it when it is.
+# https://rust-lang.github.io/rustfmt/?version=v1.5.1&search=#imports_granularity
+# In the mean time it is commented out because it will cause warnings.
+#imports_granularity = "Module"
+
+# This is not yet in stable, so we should keep an eye on it and enable it when it is.
+# https://rust-lang.github.io/rustfmt/?version=v1.4.36&search=order#reorder_impl_items
+# In the mean time it is commented out because it will cause warnings.
+#reorder_impl_items = true
+edition = "2024"

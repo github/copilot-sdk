@@ -43,12 +43,13 @@ TOTAL=${#VERIFY_SCRIPTS[@]}
 # ── SDK icon helpers ────────────────────────────────────────────────
 sdk_icons() {
   local log="$1"
-  local ts py go cs
+  local ts py go cs rs
   ts="$(sdk_status "$log" "TypeScript")"
   py="$(sdk_status "$log" "Python")"
   go="$(sdk_status "$log" "Go ")"
   cs="$(sdk_status "$log" "C#")"
-  printf "TS %s  PY %s  GO %s  C# %s" "$ts" "$py" "$go" "$cs"
+  rs="$(sdk_status "$log" "Rust")"
+  printf "TS %s  PY %s  GO %s  C# %s  RS %s" "$ts" "$py" "$go" "$cs" "$rs"
 }
 
 sdk_status() {

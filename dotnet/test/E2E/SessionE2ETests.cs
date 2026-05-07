@@ -5,6 +5,7 @@
 using GitHub.Copilot.SDK.Test.Harness;
 using GitHub.Copilot.SDK.Rpc;
 using Microsoft.Extensions.AI;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using Xunit;
 using Xunit.Abstractions;
@@ -401,9 +402,9 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
-        var events = new List<string>();
+        var events = new ConcurrentQueue<string>();
 
-        session.On(evt => events.Add(evt.Type));
+        session.On(evt => events.Enqueue(evt.Type));
 
         // Use a slow command so we can verify SendAsync() returns before completion
         await session.SendAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" });
@@ -423,9 +424,9 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     public async Task SendAndWait_Blocks_Until_Session_Idle_And_Returns_Final_Assistant_Message()
     {
         var session = await CreateSessionAsync();
-        var events = new List<string>();
+        var events = new ConcurrentQueue<string>();
 
-        session.On(evt => events.Add(evt.Type));
+        session.On(evt => events.Enqueue(evt.Type));
 
         var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
 

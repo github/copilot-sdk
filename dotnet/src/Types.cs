@@ -72,6 +72,7 @@ public class CopilotClientOptions
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         TcpConnectionToken = other.TcpConnectionToken;
+        Remote = other.Remote;
     }
 
     /// <summary>
@@ -194,6 +195,15 @@ public class CopilotClientOptions
     /// listener is safe by default. Cannot be combined with <see cref="UseStdio"/> = true.
     /// </summary>
     public string? TcpConnectionToken { get; set; }
+
+    /// <summary>
+    /// Enable remote session support (Mission Control integration).
+    /// When true, sessions in a GitHub repository working directory are
+    /// accessible from GitHub web and mobile.
+    /// This option is only used when the SDK spawns the CLI process; it is ignored
+    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// </summary>
+    public bool Remote { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
@@ -1528,6 +1538,40 @@ public class ProviderConfig
     /// </summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string>? Headers { get; set; }
+
+    /// <summary>
+    /// Well-known model name used by the runtime to look up agent configuration
+    /// (tools, prompts, reasoning behavior) and default token limits. Also used
+    /// as the wire model when <see cref="WireModel"/> is not set.
+    /// Falls back to <see cref="SessionConfig.Model"/>.
+    /// </summary>
+    [JsonPropertyName("modelId")]
+    public string? ModelId { get; set; }
+
+    /// <summary>
+    /// Model name sent to the provider API for inference. Use this when the
+    /// provider's model name (e.g. an Azure deployment name or a custom
+    /// fine-tune name) differs from <see cref="ModelId"/>.
+    /// Falls back to <see cref="ModelId"/>, then <see cref="SessionConfig.Model"/>.
+    /// </summary>
+    [JsonPropertyName("wireModel")]
+    public string? WireModel { get; set; }
+
+    /// <summary>
+    /// Overrides the resolved model's default max prompt tokens. The runtime
+    /// triggers conversation compaction before sending a request when the
+    /// prompt (system message, history, tool definitions, user message) would
+    /// exceed this limit.
+    /// </summary>
+    [JsonPropertyName("maxPromptTokens")]
+    public int? MaxInputTokens { get; set; }
+
+    /// <summary>
+    /// Overrides the resolved model's default max output tokens. When hit, the
+    /// model stops generating and returns a truncated response.
+    /// </summary>
+    [JsonPropertyName("maxOutputTokens")]
+    public int? MaxOutputTokens { get; set; }
 }
 
 /// <summary>

@@ -9,6 +9,8 @@ on:
       - "python/copilot/**"
       - "go/**/*.go"
       - "dotnet/src/**"
+      - "rust/src/**"
+      - "rust/Cargo.toml"
       - ".github/workflows/scenario-builds.yml"
   push:
     branches:
@@ -181,6 +183,49 @@ jobs:
           done
           echo ""
           echo "C# builds: $PASS passed, $FAIL failed"
+          if [ "$FAIL" -gt 0 ]; then
+            echo -e "Failures:$FAILURES"
+            exit 1
+          fi
+
+  # ── Rust ────────────────────────────────────────────────────────────
+  build-rust:
+    name: "Rust scenarios"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@1.94.0
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            test/scenarios/**/rust/target
+          key: ${{ runner.os }}-cargo-scenarios-${{ hashFiles('rust/Cargo.toml', 'test/scenarios/**/rust/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-scenarios-
+
+      - name: Build all Rust scenarios
+        run: |
+          PASS=0; FAIL=0; FAILURES=""
+          for manifest in $(find test/scenarios -path '*/rust/Cargo.toml' | sort); do
+            dir=$(dirname "$manifest")
+            scenario="${dir#test/scenarios/}"
+            echo "::group::$scenario"
+            if (cd "$dir" && cargo build --quiet 2>&1); then
+              echo "✅ $scenario"
+              PASS=$((PASS + 1))
+            else
+              echo "❌ $scenario"
+              FAIL=$((FAIL + 1))
+              FAILURES="$FAILURES\n  $scenario"
+            fi
+            echo "::endgroup::"
+          done
+          echo ""
+          echo "Rust builds: $PASS passed, $FAIL failed"
           if [ "$FAIL" -gt 0 ]; then
             echo -e "Failures:$FAILURES"
             exit 1

@@ -176,6 +176,14 @@ class SubprocessConfig:
     This option is only used when the SDK spawns the CLI process.
     """
 
+    remote: bool = False
+    """Enable remote session support (Mission Control integration).
+
+    When ``True``, sessions in a GitHub repository working directory are
+    accessible from GitHub web and mobile.
+    This option is only used when the SDK spawns the CLI process.
+    """
+
 
 @dataclass
 class ExternalServerConfig:
@@ -2275,6 +2283,14 @@ class CopilotClient:
             wire_provider["bearerToken"] = provider["bearer_token"]
         if "headers" in provider:
             wire_provider["headers"] = provider["headers"]
+        if "model_id" in provider:
+            wire_provider["modelId"] = provider["model_id"]
+        if "wire_model" in provider:
+            wire_provider["wireModel"] = provider["wire_model"]
+        if "max_input_tokens" in provider:
+            wire_provider["maxPromptTokens"] = provider["max_input_tokens"]
+        if "max_output_tokens" in provider:
+            wire_provider["maxOutputTokens"] = provider["max_output_tokens"]
         if "azure" in provider:
             azure = provider["azure"]
             wire_azure: dict[str, Any] = {}
@@ -2366,6 +2382,9 @@ class CopilotClient:
 
         if cfg.session_idle_timeout_seconds is not None and cfg.session_idle_timeout_seconds > 0:
             args.extend(["--session-idle-timeout", str(cfg.session_idle_timeout_seconds)])
+
+        if cfg.remote:
+            args.append("--remote")
 
         # If cli_path is a .js file, run it with node
         # Note that we can't rely on the shebang as Windows doesn't support it

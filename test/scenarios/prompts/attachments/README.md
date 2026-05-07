@@ -34,12 +34,14 @@ Demonstrates sending **file attachments** alongside a prompt using the Copilot S
 | TypeScript | `attachments: [{ type: "file", path: sampleFile }]` |
 | Python | `"attachments": [{"type": "file", "path": sample_file}]` |
 | Go | `Attachments: []copilot.Attachment{{Type: "file", Path: sampleFile}}` |
+| Rust | `Attachment::File { path, display_name: None, line_range: None }` |
 
 | Language | Blob Attachment Syntax |
 |----------|------------------------|
 | TypeScript | `attachments: [{ type: "blob", data: base64Data, mimeType: "image/png" }]` |
 | Python | `"attachments": [{"type": "blob", "data": base64_data, "mimeType": "image/png"}]` |
 | Go | `Attachments: []copilot.Attachment{{Type: copilot.AttachmentTypeBlob, Data: &data, MIMEType: &mime}}` |
+| Rust | `Attachment::Blob { data, mime_type, display_name: None }` |
 
 ## Sample Data
 

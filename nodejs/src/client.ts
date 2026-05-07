@@ -42,6 +42,7 @@ import type {
     GetAuthStatusResponse,
     GetStatusResponse,
     ModelInfo,
+    ProviderConfig,
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
@@ -63,6 +64,17 @@ import type {
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
+
+/**
+ * Convert a {@link ProviderConfig} to its JSON-RPC wire shape, remapping
+ * camelCase SDK property names to the wire keys expected by the runtime
+ * (e.g. `maxInputTokens` → `maxPromptTokens`).
+ */
+function toWireProviderConfig(provider: ProviderConfig): Record<string, unknown> {
+    const { maxInputTokens, ...rest } = provider;
+    if (maxInputTokens === undefined) return rest;
+    return { ...rest, maxPromptTokens: maxInputTokens };
+}
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -385,6 +397,7 @@ export class CopilotClient {
             telemetry: options.telemetry,
             copilotHome: options.copilotHome,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
+            remote: options.remote ?? false,
         };
     }
 
@@ -788,7 +801,7 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
-                provider: config.provider,
+                provider: config.provider ? toWireProviderConfig(config.provider) : undefined,
                 modelCapabilities: config.modelCapabilities,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
@@ -931,7 +944,7 @@ export class CopilotClient {
                     name: cmd.name,
                     description: cmd.description,
                 })),
-                provider: config.provider,
+                provider: config.provider ? toWireProviderConfig(config.provider) : undefined,
                 modelCapabilities: config.modelCapabilities,
                 requestPermission:
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
@@ -1488,6 +1501,10 @@ export class CopilotClient {
                     "--session-idle-timeout",
                     this.options.sessionIdleTimeoutSeconds.toString()
                 );
+            }
+
+            if (this.options.remote) {
+                args.push("--remote");
             }
 
             // Suppress debug/trace output that might pollute stdout

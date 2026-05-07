@@ -1,0 +1,7 @@
+# These options are only available in nightly, but it should be fine to use nightly for just formatting.
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+reorder_impl_items = true
+
+# stable options
+edition = "2024"

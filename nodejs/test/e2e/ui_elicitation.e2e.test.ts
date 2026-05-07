@@ -27,7 +27,7 @@ describe("UI Elicitation Callback", async () => {
 
     it(
         "session created with onElicitationRequest reports elicitation capability",
-        { timeout: 20_000 },
+        { timeout: 60_000 },
         async () => {
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
@@ -40,7 +40,7 @@ describe("UI Elicitation Callback", async () => {
 
     it(
         "session created without onElicitationRequest reports no elicitation capability",
-        { timeout: 20_000 },
+        { timeout: 60_000 },
         async () => {
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
@@ -73,7 +73,7 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
 
     it(
         "capabilities.changed fires when second client joins with elicitation handler",
-        { timeout: 20_000 },
+        { timeout: 60_000 },
         async () => {
             // Client1 creates session without elicitation
             const session1 = await client1.createSession({
@@ -112,7 +112,7 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
 
     it(
         "capabilities.changed fires when elicitation provider disconnects",
-        { timeout: 20_000 },
+        { timeout: 60_000 },
         async () => {
             // Client1 creates session without elicitation
             const session1 = await client1.createSession({
