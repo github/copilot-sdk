@@ -1469,7 +1469,6 @@ javac -cp copilot-sdk.jar WeatherAssistant.java && java -cp .:copilot-sdk.jar We
 
 </details>
 
-
 **Example session:**
 
 ```
@@ -1490,8 +1489,6 @@ You: exit
 
 You've built an assistant with a custom tool that Copilot can call!
 
----
-
 ## How tools work
 
 When you define a tool, you're telling Copilot:
@@ -1504,8 +1501,6 @@ Copilot decides when to call your tool based on the user's question. When it doe
 1. The SDK runs your handler function
 1. The result is sent back to Copilot
 1. Copilot incorporates the result into its response
-
----
 
 ## What's next?
 
@@ -1579,8 +1574,6 @@ Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_conte
 Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully — content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
 
 See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), [Java](../java/README.md), and [C#](../dotnet/README.md).
-
----
 
 ## Connecting to an external CLI server
 
@@ -1750,8 +1743,6 @@ var session = client.createSession(
 
 **Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
 
----
-
 ## Telemetry and observability
 
 The Copilot SDK supports [OpenTelemetry](https://opentelemetry.io/) for distributed tracing. Provide a `telemetry` configuration to the client to enable trace export from the CLI process and automatic [W3C Trace Context](https://www.w3.org/TR/trace-context/) propagation between the SDK and CLI.
@@ -1880,8 +1871,6 @@ Trace context is propagated automatically — no manual instrumentation is neede
 
 📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)** — TelemetryConfig options, trace context propagation, and per-language dependencies.
 
----
-
 ## Learn more
 
 * [Authentication Guide](./auth/authenticate.md) - GitHub OAuth, environment variables, and BYOK
@@ -1895,8 +1884,6 @@ Trace context is propagated automatically — no manual instrumentation is neede
 * [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 * [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
 * [OpenTelemetry Instrumentation](./observability/opentelemetry.md) - TelemetryConfig, trace context propagation, and per-language dependencies
-
----
 
 **You did it!** You've learned the core concepts of the GitHub Copilot SDK:
 * ✅ Creating a client and session

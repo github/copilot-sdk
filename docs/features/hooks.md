@@ -226,8 +226,6 @@ try (var client = new CopilotClient()) {
 > [!TIP]
 > Every hook handler receives an `invocation` parameter containing the `sessionId`, which is useful for correlating logs and maintaining per-session state.
 
----
-
 ## Use case: permission control
 
 Use `onPreToolUse` to build a permission layer that decides which tools the agent may run, what arguments are allowed, and whether the user should be prompted before execution.
@@ -489,8 +487,6 @@ const session = await client.createSession({
 
 Returning `"ask"` delegates the decision to the user at runtime — useful for destructive actions where you want a human in the loop.
 
----
-
 ## Use case: auditing and compliance
 
 Combine `onPreToolUse`, `onPostToolUse`, and the session lifecycle hooks to build a complete audit trail that records every action the agent takes.
@@ -669,8 +665,6 @@ const session = await client.createSession({
 });
 ```
 
----
-
 ## Use case: notifications and sounds
 
 Hooks fire in your application's process, so you can trigger any side-effect — desktop notifications, sounds, Slack messages, or webhook calls.
@@ -784,8 +778,6 @@ const session = await client.createSession({
 });
 ```
 
----
-
 ## Use case: prompt enrichment
 
 Use `onSessionStart` and `onUserPromptSubmitted` to automatically inject context so users don't have to repeat themselves.
@@ -838,8 +830,6 @@ const session = await client.createSession({
 });
 ```
 
----
-
 ## Use case: error handling and recovery
 
 The `onErrorOccurred` hook gives you a chance to react to failures — whether that means retrying, notifying a human, or gracefully shutting down.
@@ -884,8 +874,6 @@ const session = await client.createSession({
     onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
-
----
 
 ## Use case: session metrics
 
@@ -979,8 +967,6 @@ session = await client.create_session(
 ```
 
 </details>
-
----
 
 ## Combining hooks
 

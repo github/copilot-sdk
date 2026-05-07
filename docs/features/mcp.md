@@ -166,8 +166,6 @@ Use `"*"` to enable all tools provided by the MCP server:
 tools: ["*"]
 ```
 
----
-
 ### Allow specific tools
 
 Provide a list of tool names to restrict access:
@@ -178,8 +176,6 @@ tools: ["bash", "edit"]
 
 Only the listed tools will be available to the agent.
 
----
-
 ### Disable all tools
 
 Use an empty array to disable all tools:
@@ -187,8 +183,6 @@ Use an empty array to disable all tools:
 ```typescript
 tools: []
 ```
-
----
 
 ### Notes
 

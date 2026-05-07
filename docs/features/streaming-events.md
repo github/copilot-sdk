@@ -215,8 +215,6 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 > [!TIP]
 > **(TypeScript)** The TypeScript SDK uses a discriminated union — when you match on `event.type`, the `data` payload is automatically narrowed to the correct shape.
 
----
-
 ## Assistant events
 
 These events track the agent's response lifecycle — from turn start through streaming chunks to the final message.
@@ -328,8 +326,6 @@ Ephemeral. Low-level network progress indicator — total bytes received from th
 |------------|------|----------|-------------|
 | `totalResponseSizeBytes` | `number` | ✅ | Cumulative bytes received so far |
 
----
-
 ## Tool execution events
 
 These events track the full lifecycle of each tool invocation — from the model requesting a tool call through execution to completion.
@@ -398,8 +394,6 @@ Emitted when the user explicitly requests a tool invocation (rather than the mod
 | `toolCallId` | `string` | ✅ | Unique identifier for this tool call |
 | `toolName` | `string` | ✅ | Name of the tool the user wants to invoke |
 | `arguments` | `object` | | Arguments for the invocation |
-
----
 
 ## Session lifecycle events
 
@@ -498,8 +492,6 @@ The session has ended.
 | `modelMetrics` | `Record<string, ModelMetric>` | ✅ | Per-model usage breakdown |
 | `currentModel` | `string` | | Model selected at shutdown time |
 
----
-
 ## Permission and user input events
 
 These events are emitted when the agent needs approval or input from the user before continuing.
@@ -574,8 +566,6 @@ Ephemeral. An elicitation request was resolved.
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `elicitation.requested` |
 
----
-
 ## Sub-agent and skill events
 
 ### `subagent.started`
@@ -636,8 +626,6 @@ A skill was activated for the current conversation.
 | `allowedTools` | `string[]` | | Tools auto-approved while this skill is active |
 | `pluginName` | `string` | | Plugin the skill originated from |
 | `pluginVersion` | `string` | | Plugin version |
-
----
 
 ## Other events
 
@@ -729,8 +717,6 @@ Ephemeral. A queued command was resolved.
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `command.queued` |
-
----
 
 ## Quick reference: agentic turn flow
 

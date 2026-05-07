@@ -235,8 +235,6 @@ const session = await client.createSession({
 });
 ```
 
----
-
 ## Session end hook {#session-end}
 
 The `onSessionEnd` hook is called when a session ends.

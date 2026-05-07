@@ -11,8 +11,6 @@ This guide covers common issues and debugging techniques for the Copilot SDK acr
 * [Tool Execution Issues](#tool-execution-issues)
 * [Platform-Specific Issues](#platform-specific-issues)
 
----
-
 ## Enable debug logging
 
 The first step in debugging is enabling verbose logging to see what's happening under the hood.
@@ -183,8 +181,6 @@ var client = new CopilotClient(new CopilotClientOptions
 
 </details>
 
----
-
 ## Common issues
 
 ### "CLI not found" / "Copilot: command not found"
@@ -351,8 +347,6 @@ var client = new CopilotClient(new CopilotClientOptions
    });
    ```
 
----
-
 ## MCP server debugging
 
 MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive MCP debugging guidance, see the dedicated **[MCP Debugging Guide](./mcp-debugging.md)**.
@@ -374,8 +368,6 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 ```
 
 See [MCP Debugging Guide](./mcp-debugging.md) for detailed troubleshooting.
-
----
 
 ## Connection issues
 
@@ -430,8 +422,6 @@ const client = new CopilotClient({
    # Check for copilot processes
    ps aux | grep copilot
    ```
-
----
 
 ## Tool execution issues
 
@@ -489,8 +479,6 @@ session.on("error", (event) => {
 });
 ```
 
----
-
 ## Platform-specific issues
 
 ### Windows
@@ -538,8 +526,6 @@ session.on("error", (event) => {
    ```bash
    ldd /path/to/copilot
    ```
-
----
 
 ## Getting help
 

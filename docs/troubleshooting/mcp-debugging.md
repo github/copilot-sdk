@@ -10,8 +10,6 @@ This guide covers debugging techniques specific to MCP (Model Context Protocol) 
 * [Platform-Specific Issues](#platform-specific-issues)
 * [Advanced Debugging](#advanced-debugging)
 
----
-
 ## Quick diagnostics
 
 ### Checklist
@@ -42,8 +40,6 @@ mcpServers: {
   },
 }
 ```
-
----
 
 ## Testing MCP servers independently
 
@@ -106,8 +102,6 @@ Usage:
 ```bash
 ./test-mcp.sh | /path/to/mcp-server
 ```
-
----
 
 ## Common issues
 
@@ -233,8 +227,6 @@ cd /expected/working/dir
 1. **Message framing:**
    * Each message must be a complete JSON object
    * Newline-delimited (one message per line)
-
----
 
 ## Platform-specific issues
 
@@ -391,8 +383,6 @@ apt install libfoo  # Debian/Ubuntu
 yum install libfoo  # RHEL/CentOS
 ```
 
----
-
 ## Advanced debugging
 
 ### Capture all MCP traffic
@@ -449,8 +439,6 @@ Check your server supports the protocol version the SDK uses:
 ```
 
 If versions don't match, update your MCP server library.
-
----
 
 ## Debugging checklist
 
