@@ -291,7 +291,7 @@ jobs:
           fi
           # Find the previous Rust tag for note generation. Prefer rust/v*,
           # fall back to the historical rust-v* tags from the release-plz era.
-          PREV_TAG=$(git tag --list 'rust/v*' --sort=-v:refname | grep -v "^${TAG_NAME}$" | head -n1)
+          PREV_TAG=$(git tag --list 'rust/v*' --sort=-v:refname | grep -vFx "$TAG_NAME" | head -n1)
           if [ -z "$PREV_TAG" ]; then
             PREV_TAG=$(git tag --list 'rust-v*' --sort=-v:refname | head -n1)
           fi
@@ -302,9 +302,13 @@ jobs:
           else
             echo "No previous Rust tag found; generating notes from full history"
           fi
+          PRERELEASE_FLAG=""
+          if [ "${{ github.event.inputs.dist-tag }}" = "prerelease" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
           gh release create "$TAG_NAME" \
             --title "$TAG_NAME" \
-            --generate-notes $NOTES_FLAG \
+            --generate-notes $NOTES_FLAG $PRERELEASE_FLAG \
             --target ${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

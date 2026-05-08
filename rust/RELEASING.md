@@ -74,7 +74,7 @@ credentials can publish locally:
 cd rust
 
 # Set the real version (replace X.Y.Z).
-sed -i '' -E 's/^version = ".*"$/version = "X.Y.Z"/' Cargo.toml
+perl -i -pe 's/^version = ".*"$/version = "X.Y.Z"/' Cargo.toml
 
 # Verify package contents.
 cargo publish --dry-run
@@ -87,7 +87,7 @@ git tag rust/vX.Y.Z
 git push origin rust/vX.Y.Z
 
 # Restore the placeholder.
-sed -i '' -E 's/^version = ".*"$/version = "0.0.0-dev"/' Cargo.toml
+perl -i -pe 's/^version = ".*"$/version = "0.0.0-dev"/' Cargo.toml
 ```
 
 Manual publishes skip the auto-generated GitHub Release. Run
