@@ -351,15 +351,16 @@ function getOrCreateEnum(
         lines.push(`    /// <summary>Gets the <c>${escapeXml(value)}</c> value.</summary>`);
         lines.push(`    public static ${enumName} ${toPascalCaseEnumMember(value)} { get; } = new("${value}");`, "");
     }
+    lines.push(`    private readonly string? _value;`, "");
     lines.push(`    /// <summary>Gets the value associated with this <see cref="${enumName}"/>.</summary>`);
-    lines.push(`    public string Value { get; }`, "");
+    lines.push(`    public string Value => _value ?? string.Empty;`, "");
     lines.push(`    /// <summary>Initializes a new instance of the <see cref="${enumName}"/> struct.</summary>`);
     lines.push(`    /// <param name="value">The value to associate with this <see cref="${enumName}"/>.</param>`);
     lines.push(`    [JsonConstructor]`);
     lines.push(`    public ${enumName}(string value)`);
     lines.push(`    {`);
     lines.push(`        ArgumentException.ThrowIfNullOrWhiteSpace(value);`);
-    lines.push(`        Value = value;`);
+    lines.push(`        _value = value;`);
     lines.push(`    }`, "");
     lines.push(`    /// <summary>Returns a value indicating whether two <see cref="${enumName}"/> instances are equivalent.</summary>`);
     lines.push(`    public static bool operator ==(${enumName} left, ${enumName} right) => left.Equals(right);`, "");
@@ -370,9 +371,9 @@ function getOrCreateEnum(
     lines.push(`    /// <inheritdoc />`);
     lines.push(`    public bool Equals(${enumName} other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);`, "");
     lines.push(`    /// <inheritdoc />`);
-    lines.push(`    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);`, "");
+    lines.push(`    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);`, "");
     lines.push(`    /// <inheritdoc />`);
-    lines.push(`    public override string ToString() => Value ?? string.Empty;`, "");
+    lines.push(`    public override string ToString() => Value;`, "");
     lines.push(`    /// <summary>Provides a <see cref="JsonConverter{${enumName}}"/> for serializing <see cref="${enumName}"/> instances.</summary>`);
     lines.push(`    [EditorBrowsable(EditorBrowsableState.Never)]`);
     lines.push(`    public sealed class Converter : JsonConverter<${enumName}>`);

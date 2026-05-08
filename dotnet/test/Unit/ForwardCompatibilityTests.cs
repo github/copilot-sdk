@@ -207,6 +207,15 @@ public class ForwardCompatibilityTests
     }
 
     [Fact]
+    public void RpcEnum_DefaultValue_HasEmptyStringValue()
+    {
+        GitHub.Copilot.SDK.Rpc.SessionMode mode = default;
+
+        Assert.Equal(string.Empty, mode.Value);
+        Assert.Equal(string.Empty, mode.ToString());
+    }
+
+    [Fact]
     public void FromJson_KnownEventType_WithNullOptionalFields_DoesNotThrow()
     {
         // The CLI may emit null for optional fields. Verify parsing doesn't throw.

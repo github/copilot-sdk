@@ -4891,8 +4891,10 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
     /// <summary>Gets the <c>ado</c> value.</summary>
     public static WorkingDirectoryContextHostType Ado { get; } = new("ado");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="WorkingDirectoryContextHostType"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="WorkingDirectoryContextHostType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="WorkingDirectoryContextHostType"/>.</param>
@@ -4900,7 +4902,7 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
     public WorkingDirectoryContextHostType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="WorkingDirectoryContextHostType"/> instances are equivalent.</summary>
@@ -4916,10 +4918,10 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
     public bool Equals(WorkingDirectoryContextHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{WorkingDirectoryContextHostType}"/> for serializing <see cref="WorkingDirectoryContextHostType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -4956,8 +4958,10 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
     /// <summary>Gets the <c>delete</c> value.</summary>
     public static PlanChangedOperation Delete { get; } = new("delete");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="PlanChangedOperation"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="PlanChangedOperation"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PlanChangedOperation"/>.</param>
@@ -4965,7 +4969,7 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
     public PlanChangedOperation(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="PlanChangedOperation"/> instances are equivalent.</summary>
@@ -4981,10 +4985,10 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
     public bool Equals(PlanChangedOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{PlanChangedOperation}"/> for serializing <see cref="PlanChangedOperation"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5018,8 +5022,10 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
     /// <summary>Gets the <c>update</c> value.</summary>
     public static WorkspaceFileChangedOperation Update { get; } = new("update");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="WorkspaceFileChangedOperation"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="WorkspaceFileChangedOperation"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="WorkspaceFileChangedOperation"/>.</param>
@@ -5027,7 +5033,7 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
     public WorkspaceFileChangedOperation(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="WorkspaceFileChangedOperation"/> instances are equivalent.</summary>
@@ -5043,10 +5049,10 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
     public bool Equals(WorkspaceFileChangedOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{WorkspaceFileChangedOperation}"/> for serializing <see cref="WorkspaceFileChangedOperation"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5080,8 +5086,10 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
     /// <summary>Gets the <c>local</c> value.</summary>
     public static HandoffSourceType Local { get; } = new("local");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="HandoffSourceType"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="HandoffSourceType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="HandoffSourceType"/>.</param>
@@ -5089,7 +5097,7 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
     public HandoffSourceType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="HandoffSourceType"/> instances are equivalent.</summary>
@@ -5105,10 +5113,10 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
     public bool Equals(HandoffSourceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{HandoffSourceType}"/> for serializing <see cref="HandoffSourceType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5142,8 +5150,10 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
     /// <summary>Gets the <c>error</c> value.</summary>
     public static ShutdownType Error { get; } = new("error");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="ShutdownType"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="ShutdownType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ShutdownType"/>.</param>
@@ -5151,7 +5161,7 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
     public ShutdownType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="ShutdownType"/> instances are equivalent.</summary>
@@ -5167,10 +5177,10 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
     public bool Equals(ShutdownType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{ShutdownType}"/> for serializing <see cref="ShutdownType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5210,8 +5220,10 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
     /// <summary>Gets the <c>shell</c> value.</summary>
     public static UserMessageAgentMode Shell { get; } = new("shell");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="UserMessageAgentMode"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="UserMessageAgentMode"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="UserMessageAgentMode"/>.</param>
@@ -5219,7 +5231,7 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
     public UserMessageAgentMode(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="UserMessageAgentMode"/> instances are equivalent.</summary>
@@ -5235,10 +5247,10 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
     public bool Equals(UserMessageAgentMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{UserMessageAgentMode}"/> for serializing <see cref="UserMessageAgentMode"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5275,8 +5287,10 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
     /// <summary>Gets the <c>discussion</c> value.</summary>
     public static UserMessageAttachmentGithubReferenceType Discussion { get; } = new("discussion");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="UserMessageAttachmentGithubReferenceType"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="UserMessageAttachmentGithubReferenceType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="UserMessageAttachmentGithubReferenceType"/>.</param>
@@ -5284,7 +5298,7 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
     public UserMessageAttachmentGithubReferenceType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="UserMessageAttachmentGithubReferenceType"/> instances are equivalent.</summary>
@@ -5300,10 +5314,10 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
     public bool Equals(UserMessageAttachmentGithubReferenceType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{UserMessageAttachmentGithubReferenceType}"/> for serializing <see cref="UserMessageAttachmentGithubReferenceType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5337,8 +5351,10 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
     /// <summary>Gets the <c>custom</c> value.</summary>
     public static AssistantMessageToolRequestType Custom { get; } = new("custom");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestType"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="AssistantMessageToolRequestType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="AssistantMessageToolRequestType"/>.</param>
@@ -5346,7 +5362,7 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
     public AssistantMessageToolRequestType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are equivalent.</summary>
@@ -5362,10 +5378,10 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
     public bool Equals(AssistantMessageToolRequestType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{AssistantMessageToolRequestType}"/> for serializing <see cref="AssistantMessageToolRequestType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5402,8 +5418,10 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
     /// <summary>Gets the <c>mcp_sampling</c> value.</summary>
     public static ModelCallFailureSource McpSampling { get; } = new("mcp_sampling");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="ModelCallFailureSource"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="ModelCallFailureSource"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ModelCallFailureSource"/>.</param>
@@ -5411,7 +5429,7 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
     public ModelCallFailureSource(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="ModelCallFailureSource"/> instances are equivalent.</summary>
@@ -5427,10 +5445,10 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
     public bool Equals(ModelCallFailureSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{ModelCallFailureSource}"/> for serializing <see cref="ModelCallFailureSource"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5467,8 +5485,10 @@ public readonly struct AbortReason : IEquatable<AbortReason>
     /// <summary>Gets the <c>user_abort</c> value.</summary>
     public static AbortReason UserAbort { get; } = new("user_abort");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="AbortReason"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="AbortReason"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="AbortReason"/>.</param>
@@ -5476,7 +5496,7 @@ public readonly struct AbortReason : IEquatable<AbortReason>
     public AbortReason(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="AbortReason"/> instances are equivalent.</summary>
@@ -5492,10 +5512,10 @@ public readonly struct AbortReason : IEquatable<AbortReason>
     public bool Equals(AbortReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{AbortReason}"/> for serializing <see cref="AbortReason"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5529,8 +5549,10 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
     /// <summary>Gets the <c>dark</c> value.</summary>
     public static ToolExecutionCompleteContentResourceLinkIconTheme Dark { get; } = new("dark");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/>.</param>
@@ -5538,7 +5560,7 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
     public ToolExecutionCompleteContentResourceLinkIconTheme(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/> instances are equivalent.</summary>
@@ -5554,10 +5576,10 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
     public bool Equals(ToolExecutionCompleteContentResourceLinkIconTheme other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{ToolExecutionCompleteContentResourceLinkIconTheme}"/> for serializing <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5591,8 +5613,10 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
     /// <summary>Gets the <c>developer</c> value.</summary>
     public static SystemMessageRole Developer { get; } = new("developer");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="SystemMessageRole"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="SystemMessageRole"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="SystemMessageRole"/>.</param>
@@ -5600,7 +5624,7 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
     public SystemMessageRole(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="SystemMessageRole"/> instances are equivalent.</summary>
@@ -5616,10 +5640,10 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
     public bool Equals(SystemMessageRole other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{SystemMessageRole}"/> for serializing <see cref="SystemMessageRole"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5653,8 +5677,10 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
     /// <summary>Gets the <c>failed</c> value.</summary>
     public static SystemNotificationAgentCompletedStatus Failed { get; } = new("failed");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="SystemNotificationAgentCompletedStatus"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="SystemNotificationAgentCompletedStatus"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="SystemNotificationAgentCompletedStatus"/>.</param>
@@ -5662,7 +5688,7 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
     public SystemNotificationAgentCompletedStatus(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="SystemNotificationAgentCompletedStatus"/> instances are equivalent.</summary>
@@ -5678,10 +5704,10 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
     public bool Equals(SystemNotificationAgentCompletedStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{SystemNotificationAgentCompletedStatus}"/> for serializing <see cref="SystemNotificationAgentCompletedStatus"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5715,8 +5741,10 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
     /// <summary>Gets the <c>vote</c> value.</summary>
     public static PermissionRequestMemoryAction Vote { get; } = new("vote");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="PermissionRequestMemoryAction"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="PermissionRequestMemoryAction"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionRequestMemoryAction"/>.</param>
@@ -5724,7 +5752,7 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
     public PermissionRequestMemoryAction(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionRequestMemoryAction"/> instances are equivalent.</summary>
@@ -5740,10 +5768,10 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
     public bool Equals(PermissionRequestMemoryAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{PermissionRequestMemoryAction}"/> for serializing <see cref="PermissionRequestMemoryAction"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5777,8 +5805,10 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
     /// <summary>Gets the <c>downvote</c> value.</summary>
     public static PermissionRequestMemoryDirection Downvote { get; } = new("downvote");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="PermissionRequestMemoryDirection"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="PermissionRequestMemoryDirection"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionRequestMemoryDirection"/>.</param>
@@ -5786,7 +5816,7 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
     public PermissionRequestMemoryDirection(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionRequestMemoryDirection"/> instances are equivalent.</summary>
@@ -5802,10 +5832,10 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
     public bool Equals(PermissionRequestMemoryDirection other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{PermissionRequestMemoryDirection}"/> for serializing <see cref="PermissionRequestMemoryDirection"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5839,8 +5869,10 @@ public readonly struct PermissionPromptRequestMemoryAction : IEquatable<Permissi
     /// <summary>Gets the <c>vote</c> value.</summary>
     public static PermissionPromptRequestMemoryAction Vote { get; } = new("vote");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestMemoryAction"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="PermissionPromptRequestMemoryAction"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionPromptRequestMemoryAction"/>.</param>
@@ -5848,7 +5880,7 @@ public readonly struct PermissionPromptRequestMemoryAction : IEquatable<Permissi
     public PermissionPromptRequestMemoryAction(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionPromptRequestMemoryAction"/> instances are equivalent.</summary>
@@ -5864,10 +5896,10 @@ public readonly struct PermissionPromptRequestMemoryAction : IEquatable<Permissi
     public bool Equals(PermissionPromptRequestMemoryAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{PermissionPromptRequestMemoryAction}"/> for serializing <see cref="PermissionPromptRequestMemoryAction"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5901,8 +5933,10 @@ public readonly struct PermissionPromptRequestMemoryDirection : IEquatable<Permi
     /// <summary>Gets the <c>downvote</c> value.</summary>
     public static PermissionPromptRequestMemoryDirection Downvote { get; } = new("downvote");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestMemoryDirection"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="PermissionPromptRequestMemoryDirection"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionPromptRequestMemoryDirection"/>.</param>
@@ -5910,7 +5944,7 @@ public readonly struct PermissionPromptRequestMemoryDirection : IEquatable<Permi
     public PermissionPromptRequestMemoryDirection(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionPromptRequestMemoryDirection"/> instances are equivalent.</summary>
@@ -5926,10 +5960,10 @@ public readonly struct PermissionPromptRequestMemoryDirection : IEquatable<Permi
     public bool Equals(PermissionPromptRequestMemoryDirection other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{PermissionPromptRequestMemoryDirection}"/> for serializing <see cref="PermissionPromptRequestMemoryDirection"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -5966,8 +6000,10 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
     /// <summary>Gets the <c>write</c> value.</summary>
     public static PermissionPromptRequestPathAccessKind Write { get; } = new("write");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestPathAccessKind"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="PermissionPromptRequestPathAccessKind"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionPromptRequestPathAccessKind"/>.</param>
@@ -5975,7 +6011,7 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
     public PermissionPromptRequestPathAccessKind(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionPromptRequestPathAccessKind"/> instances are equivalent.</summary>
@@ -5991,10 +6027,10 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
     public bool Equals(PermissionPromptRequestPathAccessKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{PermissionPromptRequestPathAccessKind}"/> for serializing <see cref="PermissionPromptRequestPathAccessKind"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -6028,8 +6064,10 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
     /// <summary>Gets the <c>url</c> value.</summary>
     public static ElicitationRequestedMode Url { get; } = new("url");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="ElicitationRequestedMode"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="ElicitationRequestedMode"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ElicitationRequestedMode"/>.</param>
@@ -6037,7 +6075,7 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
     public ElicitationRequestedMode(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="ElicitationRequestedMode"/> instances are equivalent.</summary>
@@ -6053,10 +6091,10 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
     public bool Equals(ElicitationRequestedMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{ElicitationRequestedMode}"/> for serializing <see cref="ElicitationRequestedMode"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -6093,8 +6131,10 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
     /// <summary>Gets the <c>cancel</c> value.</summary>
     public static ElicitationCompletedAction Cancel { get; } = new("cancel");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="ElicitationCompletedAction"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="ElicitationCompletedAction"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ElicitationCompletedAction"/>.</param>
@@ -6102,7 +6142,7 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
     public ElicitationCompletedAction(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="ElicitationCompletedAction"/> instances are equivalent.</summary>
@@ -6118,10 +6158,10 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
     public bool Equals(ElicitationCompletedAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{ElicitationCompletedAction}"/> for serializing <see cref="ElicitationCompletedAction"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -6167,8 +6207,10 @@ public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoade
     /// <summary>Gets the <c>not_configured</c> value.</summary>
     public static McpServersLoadedServerStatus NotConfigured { get; } = new("not_configured");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="McpServersLoadedServerStatus"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="McpServersLoadedServerStatus"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="McpServersLoadedServerStatus"/>.</param>
@@ -6176,7 +6218,7 @@ public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoade
     public McpServersLoadedServerStatus(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="McpServersLoadedServerStatus"/> instances are equivalent.</summary>
@@ -6192,10 +6234,10 @@ public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoade
     public bool Equals(McpServersLoadedServerStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{McpServersLoadedServerStatus}"/> for serializing <see cref="McpServersLoadedServerStatus"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -6241,8 +6283,10 @@ public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatus
     /// <summary>Gets the <c>not_configured</c> value.</summary>
     public static McpServerStatusChangedStatus NotConfigured { get; } = new("not_configured");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="McpServerStatusChangedStatus"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="McpServerStatusChangedStatus"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="McpServerStatusChangedStatus"/>.</param>
@@ -6250,7 +6294,7 @@ public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatus
     public McpServerStatusChangedStatus(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="McpServerStatusChangedStatus"/> instances are equivalent.</summary>
@@ -6266,10 +6310,10 @@ public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatus
     public bool Equals(McpServerStatusChangedStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{McpServerStatusChangedStatus}"/> for serializing <see cref="McpServerStatusChangedStatus"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -6303,8 +6347,10 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
     /// <summary>Gets the <c>user</c> value.</summary>
     public static ExtensionsLoadedExtensionSource User { get; } = new("user");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="ExtensionsLoadedExtensionSource"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="ExtensionsLoadedExtensionSource"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ExtensionsLoadedExtensionSource"/>.</param>
@@ -6312,7 +6358,7 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
     public ExtensionsLoadedExtensionSource(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionsLoadedExtensionSource"/> instances are equivalent.</summary>
@@ -6328,10 +6374,10 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
     public bool Equals(ExtensionsLoadedExtensionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{ExtensionsLoadedExtensionSource}"/> for serializing <see cref="ExtensionsLoadedExtensionSource"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -6371,8 +6417,10 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
     /// <summary>Gets the <c>starting</c> value.</summary>
     public static ExtensionsLoadedExtensionStatus Starting { get; } = new("starting");
 
+    private readonly string? _value;
+
     /// <summary>Gets the value associated with this <see cref="ExtensionsLoadedExtensionStatus"/>.</summary>
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="ExtensionsLoadedExtensionStatus"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ExtensionsLoadedExtensionStatus"/>.</param>
@@ -6380,7 +6428,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
     public ExtensionsLoadedExtensionStatus(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
+        _value = value;
     }
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionsLoadedExtensionStatus"/> instances are equivalent.</summary>
@@ -6396,10 +6444,10 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
     public bool Equals(ExtensionsLoadedExtensionStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value ?? string.Empty);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
 
     /// <inheritdoc />
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     /// <summary>Provides a <see cref="JsonConverter{ExtensionsLoadedExtensionStatus}"/> for serializing <see cref="ExtensionsLoadedExtensionStatus"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
