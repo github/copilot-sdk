@@ -307,14 +307,14 @@ def convert_mcp_call_tool_result(call_result: dict[str, Any]) -> ToolResult:
                 text_parts.append(text)
             blob = resource.get("blob")
             if isinstance(blob, str) and blob:
-                mime_type = resource.get("mimeType", "application/octet-stream")
+                mime_type = resource.get("mimeType")
+                if not isinstance(mime_type, str) or not mime_type:
+                    mime_type = "application/octet-stream"
                 uri = resource.get("uri", "")
                 binary_results.append(
                     ToolBinaryResult(
                         data=blob,
-                        mime_type=mime_type
-                        if isinstance(mime_type, str)
-                        else "application/octet-stream",
+                        mime_type=mime_type,
                         type="resource",
                         description=uri if isinstance(uri, str) else "",
                     )

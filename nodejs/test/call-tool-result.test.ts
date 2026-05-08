@@ -130,12 +130,17 @@ describe("convertMcpCallToolResult", () => {
                     type: "resource",
                     resource: { uri: "file:///data.bin", blob: "binarydata" },
                 },
+                {
+                    type: "resource",
+                    resource: { uri: "file:///empty-mime.bin", blob: "binarydata2", mimeType: "" },
+                },
             ],
         };
 
         const result = convertMcpCallToolResult(input);
 
         expect(result.binaryResultsForLlm![0]!.mimeType).toBe("application/octet-stream");
+        expect(result.binaryResultsForLlm![1]!.mimeType).toBe("application/octet-stream");
     });
 
     it("handles text block with missing text field without corrupting output", () => {

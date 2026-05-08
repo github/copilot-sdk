@@ -3125,7 +3125,8 @@ mod tests {
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
         ConnectionState, CustomAgentConfig, DeliveryMode, GitHubReferenceType,
         InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ensure_attachment_display_names,
+        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -3155,6 +3156,64 @@ mod tests {
     fn tool_with_parameters_handles_non_object_value() {
         let tool = Tool::new("noop").with_parameters(json!(null));
         assert!(tool.parameters.is_empty());
+    }
+
+    #[test]
+    fn tool_result_expanded_serializes_binary_results_for_llm() {
+        let response = ToolResultResponse {
+            result: ToolResult::Expanded(ToolResultExpanded {
+                text_result_for_llm: "rendered chart".to_string(),
+                result_type: "success".to_string(),
+                binary_results_for_llm: Some(vec![ToolBinaryResult {
+                    data: "aW1n".to_string(),
+                    mime_type: "image/png".to_string(),
+                    r#type: "image".to_string(),
+                    description: Some("chart preview".to_string()),
+                }]),
+                session_log: None,
+                error: None,
+                tool_telemetry: None,
+            }),
+        };
+
+        let wire = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(
+            wire,
+            json!({
+                "result": {
+                    "textResultForLlm": "rendered chart",
+                    "resultType": "success",
+                    "binaryResultsForLlm": [
+                        {
+                            "data": "aW1n",
+                            "mimeType": "image/png",
+                            "type": "image",
+                            "description": "chart preview"
+                        }
+                    ]
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn tool_result_expanded_omits_binary_results_for_llm_when_none() {
+        let response = ToolResultResponse {
+            result: ToolResult::Expanded(ToolResultExpanded {
+                text_result_for_llm: "ok".to_string(),
+                result_type: "success".to_string(),
+                binary_results_for_llm: None,
+                session_log: None,
+                error: None,
+                tool_telemetry: None,
+            }),
+        };
+
+        let wire = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(wire["result"]["textResultForLlm"], "ok");
+        assert!(wire["result"].get("binaryResultsForLlm").is_none());
     }
 
     #[test]
