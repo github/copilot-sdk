@@ -2953,7 +2953,7 @@ class CopilotClient:
         if not session:
             raise ValueError(f"unknown session {session_id}")
 
-        return await session._handle_exit_plan_mode_request(params)
+        return dict(await session._handle_exit_plan_mode_request(params))
 
     async def _handle_auto_mode_switch_request(self, params: dict) -> dict:
         """Handle an autoModeSwitch.request callback from the CLI server."""

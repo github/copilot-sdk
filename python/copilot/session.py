@@ -2092,7 +2092,7 @@ class CopilotSession:
             handler_start,
             session_id=self.session_id,
         )
-        return cast(AutoModeSwitchResponse, result)
+        return result
 
     def _register_transform_callbacks(
         self, callbacks: dict[str, SectionTransformFn] | None
