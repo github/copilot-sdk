@@ -381,16 +381,12 @@ function getOrCreateEnum(
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override ${enumName} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)`);
     lines.push(`        {`);
-    lines.push(`            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ${enumName}, but found {reader.TokenType}.");`);
-    lines.push(`            var value = reader.GetString();`);
-    lines.push(`            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();`);
-    lines.push(`            return new(value);`);
+    lines.push(`            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));`);
     lines.push(`        }`, "");
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override void Write(Utf8JsonWriter writer, ${enumName} value, JsonSerializerOptions options)`);
     lines.push(`        {`);
-    lines.push(`            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();`);
-    lines.push(`            writer.WriteStringValue(value.Value);`);
+    lines.push(`            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(${enumName}));`);
     lines.push(`        }`);
     lines.push(`    }`);
     lines.push(`}`, "");

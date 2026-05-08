@@ -4930,17 +4930,13 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
         /// <inheritdoc />
         public override WorkingDirectoryContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading WorkingDirectoryContextHostType, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, WorkingDirectoryContextHostType value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkingDirectoryContextHostType));
         }
     }
 }
@@ -4998,17 +4994,13 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
         /// <inheritdoc />
         public override PlanChangedOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PlanChangedOperation, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PlanChangedOperation value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PlanChangedOperation));
         }
     }
 }
@@ -5063,17 +5055,13 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
         /// <inheritdoc />
         public override WorkspaceFileChangedOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading WorkspaceFileChangedOperation, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, WorkspaceFileChangedOperation value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceFileChangedOperation));
         }
     }
 }
@@ -5128,17 +5116,13 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
         /// <inheritdoc />
         public override HandoffSourceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading HandoffSourceType, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, HandoffSourceType value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HandoffSourceType));
         }
     }
 }
@@ -5193,17 +5177,13 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
         /// <inheritdoc />
         public override ShutdownType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ShutdownType, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ShutdownType value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShutdownType));
         }
     }
 }
@@ -5264,17 +5244,13 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
         /// <inheritdoc />
         public override UserMessageAgentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading UserMessageAgentMode, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UserMessageAgentMode value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageAgentMode));
         }
     }
 }
@@ -5332,17 +5308,13 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
         /// <inheritdoc />
         public override UserMessageAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading UserMessageAttachmentGithubReferenceType, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UserMessageAttachmentGithubReferenceType value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageAttachmentGithubReferenceType));
         }
     }
 }
@@ -5397,17 +5369,13 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
         /// <inheritdoc />
         public override AssistantMessageToolRequestType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading AssistantMessageToolRequestType, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AssistantMessageToolRequestType value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestType));
         }
     }
 }
@@ -5465,17 +5433,13 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
         /// <inheritdoc />
         public override ModelCallFailureSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ModelCallFailureSource, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ModelCallFailureSource value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallFailureSource));
         }
     }
 }
@@ -5533,17 +5497,13 @@ public readonly struct AbortReason : IEquatable<AbortReason>
         /// <inheritdoc />
         public override AbortReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading AbortReason, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AbortReason value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AbortReason));
         }
     }
 }
@@ -5598,17 +5558,13 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
         /// <inheritdoc />
         public override ToolExecutionCompleteContentResourceLinkIconTheme Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ToolExecutionCompleteContentResourceLinkIconTheme, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ToolExecutionCompleteContentResourceLinkIconTheme value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolExecutionCompleteContentResourceLinkIconTheme));
         }
     }
 }
@@ -5663,17 +5619,13 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
         /// <inheritdoc />
         public override SystemMessageRole Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading SystemMessageRole, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SystemMessageRole value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemMessageRole));
         }
     }
 }
@@ -5728,17 +5680,13 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
         /// <inheritdoc />
         public override SystemNotificationAgentCompletedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading SystemNotificationAgentCompletedStatus, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SystemNotificationAgentCompletedStatus value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemNotificationAgentCompletedStatus));
         }
     }
 }
@@ -5793,17 +5741,13 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
         /// <inheritdoc />
         public override PermissionRequestMemoryAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionRequestMemoryAction, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionRequestMemoryAction value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionRequestMemoryAction));
         }
     }
 }
@@ -5858,17 +5802,13 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
         /// <inheritdoc />
         public override PermissionRequestMemoryDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionRequestMemoryDirection, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionRequestMemoryDirection value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionRequestMemoryDirection));
         }
     }
 }
@@ -5923,17 +5863,13 @@ public readonly struct PermissionPromptRequestMemoryAction : IEquatable<Permissi
         /// <inheritdoc />
         public override PermissionPromptRequestMemoryAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionPromptRequestMemoryAction, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionPromptRequestMemoryAction value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionPromptRequestMemoryAction));
         }
     }
 }
@@ -5988,17 +5924,13 @@ public readonly struct PermissionPromptRequestMemoryDirection : IEquatable<Permi
         /// <inheritdoc />
         public override PermissionPromptRequestMemoryDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionPromptRequestMemoryDirection, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionPromptRequestMemoryDirection value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionPromptRequestMemoryDirection));
         }
     }
 }
@@ -6056,17 +5988,13 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
         /// <inheritdoc />
         public override PermissionPromptRequestPathAccessKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionPromptRequestPathAccessKind, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionPromptRequestPathAccessKind value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionPromptRequestPathAccessKind));
         }
     }
 }
@@ -6121,17 +6049,13 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
         /// <inheritdoc />
         public override ElicitationRequestedMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ElicitationRequestedMode, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ElicitationRequestedMode value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ElicitationRequestedMode));
         }
     }
 }
@@ -6189,17 +6113,13 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
         /// <inheritdoc />
         public override ElicitationCompletedAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ElicitationCompletedAction, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ElicitationCompletedAction value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ElicitationCompletedAction));
         }
     }
 }
@@ -6266,17 +6186,13 @@ public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoade
         /// <inheritdoc />
         public override McpServersLoadedServerStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading McpServersLoadedServerStatus, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, McpServersLoadedServerStatus value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServersLoadedServerStatus));
         }
     }
 }
@@ -6343,17 +6259,13 @@ public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatus
         /// <inheritdoc />
         public override McpServerStatusChangedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading McpServerStatusChangedStatus, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, McpServerStatusChangedStatus value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerStatusChangedStatus));
         }
     }
 }
@@ -6408,17 +6320,13 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
         /// <inheritdoc />
         public override ExtensionsLoadedExtensionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ExtensionsLoadedExtensionSource, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExtensionsLoadedExtensionSource value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionsLoadedExtensionSource));
         }
     }
 }
@@ -6479,17 +6387,13 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
         /// <inheritdoc />
         public override ExtensionsLoadedExtensionStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ExtensionsLoadedExtensionStatus, but found {reader.TokenType}.");
-            var value = reader.GetString();
-            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
-            return new(value);
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExtensionsLoadedExtensionStatus value, JsonSerializerOptions options)
         {
-            if (string.IsNullOrWhiteSpace(value.Value)) throw new JsonException();
-            writer.WriteStringValue(value.Value);
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionsLoadedExtensionStatus));
         }
     }
 }

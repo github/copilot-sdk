@@ -247,6 +247,18 @@ public class ForwardCompatibilityTests
     }
 
     [Fact]
+    public void RpcEnum_DefaultValueSerialization_ThrowsJsonException()
+    {
+        GitHub.Copilot.SDK.Rpc.SessionMode mode = default;
+
+        var exception = Assert.Throws<JsonException>(() => JsonSerializer.Serialize(
+            mode,
+            ForwardCompatibilityJsonContext.Default.SessionMode));
+
+        Assert.Contains("SessionMode", exception.Message);
+    }
+
+    [Fact]
     public void FromJson_KnownEventType_WithNullOptionalFields_DoesNotThrow()
     {
         // The CLI may emit null for optional fields. Verify parsing doesn't throw.
