@@ -87,12 +87,8 @@ public class ExecutorWiringTest {
 
     private CopilotClientOptions createOptionsWithExecutor(TrackingExecutor executor) {
         CopilotClientOptions options = new CopilotClientOptions().setCliPath(ctx.getCliPath())
-                .setCwd(ctx.getWorkDir().toString()).setEnvironment(ctx.getEnvironment()).setExecutor(executor);
-
-        String ci = System.getenv("GITHUB_ACTIONS");
-        if (ci != null && !ci.isEmpty()) {
-            options.setGitHubToken("fake-token-for-e2e-tests");
-        }
+                .setCwd(ctx.getWorkDir().toString()).setEnvironment(ctx.getEnvironment()).setExecutor(executor)
+                .setGitHubToken("fake-token-for-e2e-tests");
         return options;
     }
 

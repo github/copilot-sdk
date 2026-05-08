@@ -98,6 +98,10 @@ public class CapiProxy implements AutoCloseable {
                 : new ProcessBuilder("npx", "tsx", "server.ts");
         pb.directory(harnessDir.toFile());
         pb.redirectErrorStream(false);
+        // Tell the replaying proxy to fail fast on unmatched requests rather than
+        // forwarding them to the real API. Without this, unmatched requests hit the
+        // live API with a fake token and crash the proxy's JSON parser.
+        pb.environment().put("GITHUB_ACTIONS", "true");
 
         process = pb.start();
 

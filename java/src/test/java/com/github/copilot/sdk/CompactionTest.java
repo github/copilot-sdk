@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -52,10 +53,17 @@ public class CompactionTest {
     /**
      * Verifies that compaction is triggered with low threshold and emits events.
      *
+     * <p>
+     * Disabled due to flakiness — compaction timing is non-deterministic and the
+     * snapshot cannot reliably match across platforms. The reference implementation
+     * (nodejs) also skips this test. See <a href=
+     * "https://github.com/github/copilot-sdk/issues/1227">copilot-sdk#1227</a>.
+     *
      * @see Snapshot:
      *      compaction/should_trigger_compaction_with_low_threshold_and_emit_events
      */
     @Test
+    @Disabled("Flaky: compaction timing varies by platform — see https://github.com/github/copilot-sdk/issues/1227")
     @Timeout(value = 300, unit = TimeUnit.SECONDS)
     void testShouldTriggerCompactionWithLowThresholdAndEmitEvents() throws Exception {
         ctx.configureForTest("compaction", "should_trigger_compaction_with_low_threshold_and_emit_events");
