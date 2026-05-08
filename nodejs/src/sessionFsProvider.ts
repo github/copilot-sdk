@@ -17,7 +17,7 @@ import type {
 export type SessionFsFileInfo = Omit<SessionFsStatResult, "error">;
 
 /**
- * Interface for session filesystem providers. Implementors use idiomatic
+ * Interface for session filesystem providers. Implementers use idiomatic
  * TypeScript patterns: throw on error, return values directly. Use
  * {@link createSessionFsAdapter} to convert a provider into the
  * {@link SessionFsHandler} expected by the SDK.

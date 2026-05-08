@@ -166,7 +166,7 @@ class TestReadMessageWithLargePayloads:
     """Tests for _read_message() with large JSON-RPC messages"""
 
     def create_jsonrpc_message(self, content_dict: dict) -> bytes:
-        """Create a complete JSON-RPC message with Content-Length header"""
+        """Create a complete JSON-RPC message with a Content-Length header."""
         content = json.dumps(content_dict, separators=(",", ":"))
         content_bytes = content.encode("utf-8")
         header = f"Content-Length: {len(content_bytes)}\r\n\r\n"

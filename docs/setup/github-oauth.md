@@ -113,7 +113,7 @@ async function handleOAuthCallback(code: string): Promise<string> {
 
 ## Step 3: pass the token to the SDK
 
-Create a SDK client for each authenticated user, passing their token:
+Create an SDK client for each authenticated user, passing their token:
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
