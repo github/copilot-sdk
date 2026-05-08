@@ -10,7 +10,7 @@ on:
         description: "Tag to publish under"
         type: choice
         required: true
-        default: "latest"
+        default: "prerelease"
         options:
           - latest
           - prerelease
