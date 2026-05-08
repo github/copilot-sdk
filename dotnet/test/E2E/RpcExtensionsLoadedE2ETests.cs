@@ -165,10 +165,11 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
     }
 
     [Theory]
-    [InlineData(ExtensionSource.User)]
-    [InlineData(ExtensionSource.Project)]
-    public async Task Discovers_Loads_And_Reports_Running_Extension(ExtensionSource source)
+    [InlineData("user")]
+    [InlineData("project")]
+    public async Task Discovers_Loads_And_Reports_Running_Extension(string sourceValue)
     {
+        var source = new ExtensionSource(sourceValue);
         string extName;
         string extId;
         string? workingDirectory;
@@ -184,7 +185,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         }
         else
         {
-            throw new ArgumentOutOfRangeException(nameof(source), source, null);
+            throw new ArgumentOutOfRangeException(nameof(sourceValue), sourceValue, null);
         }
 
         await using var client = CreateExtensionsClient();

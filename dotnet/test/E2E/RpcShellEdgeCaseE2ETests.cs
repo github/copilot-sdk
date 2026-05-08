@@ -113,11 +113,12 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData(ShellKillSignal.SIGTERM)]
-    [InlineData(ShellKillSignal.SIGKILL)]
-    public async Task Shell_Kill_Cleans_Up_After_Terminating_Signal(ShellKillSignal signal)
+    [InlineData("SIGTERM")]
+    [InlineData("SIGKILL")]
+    public async Task Shell_Kill_Cleans_Up_After_Terminating_Signal(string signalValue)
     {
         var session = await CreateSessionAsync();
+        var signal = new ShellKillSignal(signalValue);
         var command = OperatingSystem.IsWindows()
             ? "powershell -NoLogo -NoProfile -Command \"Start-Sleep -Seconds 60\""
             : "sleep 60";

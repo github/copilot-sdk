@@ -114,7 +114,8 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
                 task = await FindAgentTaskAsync(session, started.AgentId);
                 return task?.LatestResponse?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true
                     || task?.Result?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true
-                    || task?.Status is TaskAgentInfoStatus.Completed or TaskAgentInfoStatus.Failed;
+                    || task?.Status == TaskAgentInfoStatus.Completed
+                    || task?.Status == TaskAgentInfoStatus.Failed;
             },
             timeout: TimeSpan.FromSeconds(60),
             timeoutMessage: $"Background agent task '{started.AgentId}' did not produce a final observable state.");

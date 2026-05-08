@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Xunit;
 
 namespace GitHub.Copilot.SDK.Test.Unit;
@@ -188,6 +190,23 @@ public class ForwardCompatibilityTests
     }
 
     [Fact]
+    public void RpcEnum_WithUnknownValue_PreservesValue()
+    {
+        var mode = JsonSerializer.Deserialize(
+            """
+            "future_mode"
+            """,
+            ForwardCompatibilityJsonContext.Default.SessionMode);
+
+        Assert.Equal("future_mode", mode.Value);
+        Assert.Equal(
+            """
+            "future_mode"
+            """,
+            JsonSerializer.Serialize(mode, ForwardCompatibilityJsonContext.Default.SessionMode));
+    }
+
+    [Fact]
     public void FromJson_KnownEventType_WithNullOptionalFields_DoesNotThrow()
     {
         // The CLI may emit null for optional fields. Verify parsing doesn't throw.
@@ -232,3 +251,6 @@ public class ForwardCompatibilityTests
         Assert.Null(result.AgentId);
     }
 }
+
+[JsonSerializable(typeof(GitHub.Copilot.SDK.Rpc.SessionMode))]
+internal partial class ForwardCompatibilityJsonContext : JsonSerializerContext;

@@ -81,7 +81,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var result = await session.Rpc.Mcp.ListAsync();
 
         var server = Assert.Single(result.Servers, server => string.Equals(server.Name, serverName, StringComparison.Ordinal));
-        Assert.True(Enum.IsDefined(server.Status));
+        Assert.False(string.IsNullOrWhiteSpace(server.Status.Value));
     }
 
     [Fact]
