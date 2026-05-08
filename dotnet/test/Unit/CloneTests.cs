@@ -101,6 +101,8 @@ public class CloneTests
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
+            OnExitPlanMode = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
+            OnAutoModeSwitch = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
         };
 
         var clone = original.Clone();
@@ -123,6 +125,8 @@ public class CloneTests
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
+        Assert.Same(original.OnExitPlanMode, clone.OnExitPlanMode);
+        Assert.Same(original.OnAutoModeSwitch, clone.OnAutoModeSwitch);
     }
 
     [Fact]
@@ -294,6 +298,21 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Equal("test-agent", clone.Agent);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesModeSwitchHandlers()
+    {
+        var original = new ResumeSessionConfig
+        {
+            OnExitPlanMode = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
+            OnAutoModeSwitch = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
+        };
+
+        var clone = original.Clone();
+
+        Assert.Same(original.OnExitPlanMode, clone.OnExitPlanMode);
+        Assert.Same(original.OnAutoModeSwitch, clone.OnAutoModeSwitch);
     }
 
     [Fact]

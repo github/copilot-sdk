@@ -64,6 +64,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile PermissionRequestHandler? _permissionHandler;
     private volatile UserInputHandler? _userInputHandler;
     private volatile ElicitationHandler? _elicitationHandler;
+    private volatile ExitPlanModeHandler? _exitPlanModeHandler;
+    private volatile AutoModeSwitchHandler? _autoModeSwitchHandler;
     private ImmutableArray<SessionEventHandler> _eventHandlers = ImmutableArray<SessionEventHandler>.Empty;
 
     private SessionHooks? _hooks;
@@ -760,6 +762,24 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Registers an exit-plan-mode handler for this session.
+    /// </summary>
+    /// <param name="handler">The handler to invoke when an exit-plan-mode request is received.</param>
+    internal void RegisterExitPlanModeHandler(ExitPlanModeHandler? handler)
+    {
+        _exitPlanModeHandler = handler;
+    }
+
+    /// <summary>
+    /// Registers an auto-mode-switch handler for this session.
+    /// </summary>
+    /// <param name="handler">The handler to invoke when an auto-mode-switch request is received.</param>
+    internal void RegisterAutoModeSwitchHandler(AutoModeSwitchHandler? handler)
+    {
+        _autoModeSwitchHandler = handler;
+    }
+
+    /// <summary>
     /// Sets the capabilities reported by the host for this session.
     /// </summary>
     /// <param name="capabilities">The capabilities to set.</param>
@@ -1012,6 +1032,52 @@ public sealed partial class CopilotSession : IAsyncDisposable
         LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.HandleUserInputRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
             userInputTimestamp,
+            SessionId);
+        return response;
+    }
+
+    /// <summary>
+    /// Handles an exit-plan-mode request from the Copilot CLI.
+    /// </summary>
+    /// <param name="request">The exit-plan-mode request from the CLI.</param>
+    /// <returns>A task that resolves with the user's decision.</returns>
+    internal async Task<ExitPlanModeResult> HandleExitPlanModeRequestAsync(ExitPlanModeRequest request)
+    {
+        var handler = _exitPlanModeHandler;
+        if (handler is null)
+        {
+            return new ExitPlanModeResult { Approved = true };
+        }
+
+        var invocation = new ExitPlanModeInvocation { SessionId = SessionId };
+        var timestamp = Stopwatch.GetTimestamp();
+        var response = await handler(request, invocation);
+        LogTiming(_logger, LogLevel.Debug, null,
+            "CopilotSession.HandleExitPlanModeRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
+            timestamp,
+            SessionId);
+        return response;
+    }
+
+    /// <summary>
+    /// Handles an auto-mode-switch request from the Copilot CLI.
+    /// </summary>
+    /// <param name="request">The auto-mode-switch request from the CLI.</param>
+    /// <returns>A task that resolves with the user's decision.</returns>
+    internal async Task<AutoModeSwitchResponse> HandleAutoModeSwitchRequestAsync(AutoModeSwitchRequest request)
+    {
+        var handler = _autoModeSwitchHandler;
+        if (handler is null)
+        {
+            return AutoModeSwitchResponse.No;
+        }
+
+        var invocation = new AutoModeSwitchInvocation { SessionId = SessionId };
+        var timestamp = Stopwatch.GetTimestamp();
+        var response = await handler(request, invocation);
+        LogTiming(_logger, LogLevel.Debug, null,
+            "CopilotSession.HandleAutoModeSwitchRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
+            timestamp,
             SessionId);
         return response;
     }
@@ -1349,7 +1415,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
         _commandHandlers.Clear();
 
         _permissionHandler = null;
+        _userInputHandler = null;
         _elicitationHandler = null;
+        _exitPlanModeHandler = null;
+        _autoModeSwitchHandler = null;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in broadcast event handler")]
@@ -1406,6 +1475,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SessionAbortRequest))]
     [JsonSerializable(typeof(SessionDestroyRequest))]
     [JsonSerializable(typeof(UserMessageAttachment))]
+    [JsonSerializable(typeof(AutoModeSwitchRequest))]
+    [JsonSerializable(typeof(AutoModeSwitchResponse))]
+    [JsonSerializable(typeof(ExitPlanModeRequest))]
+    [JsonSerializable(typeof(ExitPlanModeResult))]
     [JsonSerializable(typeof(PreToolUseHookInput))]
     [JsonSerializable(typeof(PreToolUseHookOutput))]
     [JsonSerializable(typeof(PostToolUseHookInput))]

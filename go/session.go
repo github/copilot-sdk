@@ -50,29 +50,33 @@ type sessionHandler struct {
 //	})
 type Session struct {
 	// SessionID is the unique identifier for this session.
-	SessionID          string
-	workspacePath      string
-	client             *jsonrpc2.Client
-	clientSessionApis  *rpc.ClientSessionApiHandlers
-	handlers           []sessionHandler
-	nextHandlerID      uint64
-	handlerMutex       sync.RWMutex
-	toolHandlers       map[string]ToolHandler
-	toolHandlersM      sync.RWMutex
-	permissionHandler  PermissionHandlerFunc
-	permissionMux      sync.RWMutex
-	userInputHandler   UserInputHandler
-	userInputMux       sync.RWMutex
-	hooks              *SessionHooks
-	hooksMux           sync.RWMutex
-	transformCallbacks map[string]SectionTransformFn
-	transformMu        sync.Mutex
-	commandHandlers    map[string]CommandHandler
-	commandHandlersMu  sync.RWMutex
-	elicitationHandler ElicitationHandler
-	elicitationMu      sync.RWMutex
-	capabilities       SessionCapabilities
-	capabilitiesMu     sync.RWMutex
+	SessionID             string
+	workspacePath         string
+	client                *jsonrpc2.Client
+	clientSessionApis     *rpc.ClientSessionApiHandlers
+	handlers              []sessionHandler
+	nextHandlerID         uint64
+	handlerMutex          sync.RWMutex
+	toolHandlers          map[string]ToolHandler
+	toolHandlersM         sync.RWMutex
+	permissionHandler     PermissionHandlerFunc
+	permissionMux         sync.RWMutex
+	userInputHandler      UserInputHandler
+	userInputMux          sync.RWMutex
+	exitPlanModeHandler   ExitPlanModeHandler
+	exitPlanModeMu        sync.RWMutex
+	autoModeSwitchHandler AutoModeSwitchHandler
+	autoModeSwitchMu      sync.RWMutex
+	hooks                 *SessionHooks
+	hooksMux              sync.RWMutex
+	transformCallbacks    map[string]SectionTransformFn
+	transformMu           sync.Mutex
+	commandHandlers       map[string]CommandHandler
+	commandHandlersMu     sync.RWMutex
+	elicitationHandler    ElicitationHandler
+	elicitationMu         sync.RWMutex
+	capabilities          SessionCapabilities
+	capabilitiesMu        sync.RWMutex
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -357,6 +361,48 @@ func (s *Session) handleUserInputRequest(request UserInputRequest) (UserInputRes
 	}
 
 	return handler(request, invocation)
+}
+
+func (s *Session) registerExitPlanModeHandler(handler ExitPlanModeHandler) {
+	s.exitPlanModeMu.Lock()
+	defer s.exitPlanModeMu.Unlock()
+	s.exitPlanModeHandler = handler
+}
+
+func (s *Session) getExitPlanModeHandler() ExitPlanModeHandler {
+	s.exitPlanModeMu.RLock()
+	defer s.exitPlanModeMu.RUnlock()
+	return s.exitPlanModeHandler
+}
+
+func (s *Session) handleExitPlanModeRequest(request ExitPlanModeRequest) (ExitPlanModeResult, error) {
+	handler := s.getExitPlanModeHandler()
+	if handler == nil {
+		return ExitPlanModeResult{Approved: true}, nil
+	}
+
+	return handler(request, ExitPlanModeInvocation{SessionID: s.SessionID})
+}
+
+func (s *Session) registerAutoModeSwitchHandler(handler AutoModeSwitchHandler) {
+	s.autoModeSwitchMu.Lock()
+	defer s.autoModeSwitchMu.Unlock()
+	s.autoModeSwitchHandler = handler
+}
+
+func (s *Session) getAutoModeSwitchHandler() AutoModeSwitchHandler {
+	s.autoModeSwitchMu.RLock()
+	defer s.autoModeSwitchMu.RUnlock()
+	return s.autoModeSwitchHandler
+}
+
+func (s *Session) handleAutoModeSwitchRequest(request AutoModeSwitchRequest) (AutoModeSwitchResponse, error) {
+	handler := s.getAutoModeSwitchHandler()
+	if handler == nil {
+		return AutoModeSwitchResponseNo, nil
+	}
+
+	return handler(request, AutoModeSwitchInvocation{SessionID: s.SessionID})
 }
 
 // registerHooks registers hook handlers for this session.

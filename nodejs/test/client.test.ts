@@ -464,6 +464,36 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("forwards mode callback request flags in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            onExitPlanMode: () => ({ approved: true }),
+            onAutoModeSwitch: () => "yes",
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({
+                sessionId: session.sessionId,
+                requestExitPlanMode: true,
+                requestAutoModeSwitch: true,
+            })
+        );
+        spy.mockRestore();
+    });
+
     it("sends session.model.switchTo RPC with correct params", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -1383,6 +1413,89 @@ describe("CopilotClient", () => {
                 })
             );
             rpcSpy.mockRestore();
+        });
+
+        it("sends mode callback request flags based on handler presence", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const rpcSpy = vi.spyOn((client as any).connection!, "sendRequest");
+
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                onExitPlanMode: () => ({ approved: true }),
+                onAutoModeSwitch: () => "yes_always",
+            });
+
+            const createCallWithHandlers = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
+            expect(createCallWithHandlers![1]).toEqual(
+                expect.objectContaining({
+                    requestExitPlanMode: true,
+                    requestAutoModeSwitch: true,
+                })
+            );
+
+            rpcSpy.mockClear();
+            await client.createSession({ onPermissionRequest: approveAll });
+            const createCallWithoutHandlers = rpcSpy.mock.calls.find(
+                (c) => c[0] === "session.create"
+            );
+            expect(createCallWithoutHandlers![1]).toEqual(
+                expect.objectContaining({
+                    requestExitPlanMode: false,
+                    requestAutoModeSwitch: false,
+                })
+            );
+            rpcSpy.mockRestore();
+        });
+
+        it("dispatches mode callback requests to registered handlers", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                onExitPlanMode: (request, invocation) => {
+                    expect(invocation.sessionId).toBeDefined();
+                    expect(request.summary).toBe("Review the plan");
+                    expect(request.planContent).toBe("Plan body");
+                    expect(request.actions).toEqual(["interactive", "autopilot"]);
+                    expect(request.recommendedAction).toBe("autopilot");
+                    return {
+                        approved: true,
+                        selectedAction: "interactive",
+                        feedback: "Looks good",
+                    };
+                },
+                onAutoModeSwitch: (request, invocation) => {
+                    expect(invocation.sessionId).toBeDefined();
+                    expect(request.errorCode).toBe("user_weekly_rate_limited");
+                    expect(request.retryAfterSeconds).toBe(3600);
+                    return "yes_always";
+                },
+            });
+
+            const exitResult = await (client as any).handleExitPlanModeRequest({
+                sessionId: session.sessionId,
+                summary: "Review the plan",
+                planContent: "Plan body",
+                actions: ["interactive", "autopilot"],
+                recommendedAction: "autopilot",
+            });
+            expect(exitResult).toEqual({
+                approved: true,
+                selectedAction: "interactive",
+                feedback: "Looks good",
+            });
+
+            const autoResult = await (client as any).handleAutoModeSwitchRequest({
+                sessionId: session.sessionId,
+                errorCode: "user_weekly_rate_limited",
+                retryAfterSeconds: 3600,
+            });
+            expect(autoResult).toEqual({ response: "yes_always" });
         });
 
         it("sends cancel when elicitation handler throws", async () => {

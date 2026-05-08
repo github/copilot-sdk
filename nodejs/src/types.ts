@@ -846,6 +846,63 @@ export type UserInputHandler = (
     invocation: { sessionId: string }
 ) => Promise<UserInputResponse> | UserInputResponse;
 
+/**
+ * Request to exit plan mode and continue with a selected action.
+ */
+export interface ExitPlanModeRequest {
+    /** Summary of the plan or proposed next step. */
+    summary: string;
+    /** Full plan content, when available. */
+    planContent?: string;
+    /** Available actions the user can select. */
+    actions: string[];
+    /** The action recommended by the runtime. */
+    recommendedAction: string;
+}
+
+/**
+ * Response to an exit-plan-mode request.
+ */
+export interface ExitPlanModeResult {
+    /** Whether the user approved exiting plan mode. */
+    approved: boolean;
+    /** Selected action, if the user chose one. */
+    selectedAction?: string;
+    /** Optional feedback provided by the user. */
+    feedback?: string;
+}
+
+/**
+ * Handler for exit-plan-mode requests from the agent.
+ */
+export type ExitPlanModeHandler = (
+    request: ExitPlanModeRequest,
+    invocation: { sessionId: string }
+) => Promise<ExitPlanModeResult> | ExitPlanModeResult;
+
+/**
+ * Request to switch to auto mode after an eligible rate limit.
+ */
+export interface AutoModeSwitchRequest {
+    /** The rate-limit error code that triggered the request. */
+    errorCode?: string;
+    /** Seconds until the rate limit resets, when known. */
+    retryAfterSeconds?: number;
+}
+
+/**
+ * Response to an auto-mode-switch request.
+ */
+export type AutoModeSwitchResponse = "yes" | "yes_always" | "no";
+
+/**
+ * Handler for auto-mode-switch requests from the agent.
+ */
+export type AutoModeSwitchHandler = (
+    request: AutoModeSwitchRequest,
+    invocation: { sessionId: string }
+) => Promise<AutoModeSwitchResponse> | AutoModeSwitchResponse;
+
 // ============================================================================
 // Hook Types
 // ============================================================================
@@ -1313,6 +1370,18 @@ export interface SessionConfig {
     onElicitationRequest?: ElicitationHandler;
 
     /**
+     * Handler for exit-plan-mode requests from the agent.
+     * When provided, enables `exitPlanMode.request` callbacks.
+     */
+    onExitPlanMode?: ExitPlanModeHandler;
+
+    /**
+     * Handler for auto-mode-switch requests from the agent.
+     * When provided, enables `autoModeSwitch.request` callbacks.
+     */
+    onAutoModeSwitch?: AutoModeSwitchHandler;
+
+    /**
      * Hook handlers for intercepting session lifecycle events.
      * When provided, enables hooks callback allowing custom logic at various points.
      */
@@ -1443,6 +1512,8 @@ export type ResumeSessionConfig = Pick<
     | "onPermissionRequest"
     | "onUserInputRequest"
     | "onElicitationRequest"
+    | "onExitPlanMode"
+    | "onAutoModeSwitch"
     | "hooks"
     | "workingDirectory"
     | "configDir"

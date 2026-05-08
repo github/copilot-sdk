@@ -8,12 +8,12 @@ use std::time::Duration;
 use async_trait::async_trait;
 use github_copilot_sdk::Client;
 use github_copilot_sdk::handler::{
-    ApproveAllHandler, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
-    UserInputResponse,
+    ApproveAllHandler, AutoModeSwitchResponse, ExitPlanModeResult, HandlerEvent, HandlerResponse,
+    PermissionResult, SessionHandler, UserInputResponse,
 };
 use github_copilot_sdk::types::{
-    CommandContext, CommandDefinition, CommandHandler, DeliveryMode, MessageOptions, SessionConfig,
-    SessionId, ToolResult,
+    CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ExitPlanModeData,
+    MessageOptions, SessionConfig, SessionId, ToolResult,
 };
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
@@ -1159,6 +1159,109 @@ async fn user_input_request_dispatches_to_handler() {
 }
 
 #[tokio::test]
+async fn exit_plan_mode_request_dispatches_to_handler() {
+    struct ExitHandler;
+    #[async_trait]
+    impl SessionHandler for ExitHandler {
+        async fn on_exit_plan_mode(
+            &self,
+            _session_id: SessionId,
+            data: ExitPlanModeData,
+        ) -> ExitPlanModeResult {
+            assert_eq!(data.summary, "Ready to implement");
+            assert_eq!(data.plan_content.as_deref(), Some("Plan text"));
+            assert_eq!(
+                data.actions,
+                vec!["interactive".to_string(), "autopilot".to_string()]
+            );
+            assert_eq!(data.recommended_action, "autopilot");
+            ExitPlanModeResult {
+                approved: true,
+                selected_action: Some("interactive".to_string()),
+                feedback: Some("Looks good".to_string()),
+            }
+        }
+    }
+
+    let (_session, mut server) = create_session_pair(Arc::new(ExitHandler)).await;
+    server
+        .send_request(
+            310,
+            "exitPlanMode.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "summary": "Ready to implement",
+                "planContent": "Plan text",
+                "actions": ["interactive", "autopilot"],
+                "recommendedAction": "autopilot",
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 310);
+    assert_eq!(response["result"]["approved"], true);
+    assert_eq!(response["result"]["selectedAction"], "interactive");
+    assert_eq!(response["result"]["feedback"], "Looks good");
+}
+
+#[tokio::test]
+async fn auto_mode_switch_request_dispatches_to_handler() {
+    struct AutoModeHandler;
+    #[async_trait]
+    impl SessionHandler for AutoModeHandler {
+        async fn on_auto_mode_switch(
+            &self,
+            _session_id: SessionId,
+            error_code: Option<String>,
+            retry_after_seconds: Option<f64>,
+        ) -> AutoModeSwitchResponse {
+            assert_eq!(error_code.as_deref(), Some("user_weekly_rate_limited"));
+            assert_eq!(retry_after_seconds, Some(3600.5));
+            AutoModeSwitchResponse::YesAlways
+        }
+    }
+
+    let (_session, mut server) = create_session_pair(Arc::new(AutoModeHandler)).await;
+    server
+        .send_request(
+            311,
+            "autoModeSwitch.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "errorCode": "user_weekly_rate_limited",
+                "retryAfterSeconds": 3600.5,
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 311);
+    assert_eq!(response["result"]["response"], "yes_always");
+}
+
+#[tokio::test]
+async fn default_exit_plan_mode_response_omits_optional_fields() {
+    let (_session, mut server) = create_session_pair(Arc::new(ApproveAllHandler)).await;
+    server
+        .send_request(
+            312,
+            "exitPlanMode.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "summary": "Ready to implement",
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 312);
+    assert_eq!(response["result"]["approved"], true);
+    assert!(response["result"].get("selectedAction").is_none());
+    assert!(response["result"].get("feedback").is_none());
+}
+
+#[tokio::test]
 async fn user_input_requested_notification_does_not_double_dispatch() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     // Regression for github/github-app#4249. The CLI sends BOTH a
@@ -1946,6 +2049,8 @@ async fn request_elicitation_sent_in_create_params() {
     let request = read_framed(&mut server_read).await;
     assert_eq!(request["method"], "session.create");
     assert_eq!(request["params"]["requestElicitation"], true);
+    assert_eq!(request["params"]["requestExitPlanMode"], true);
+    assert_eq!(request["params"]["requestAutoModeSwitch"], true);
 
     let id = request["id"].as_u64().unwrap();
     let response = serde_json::json!({

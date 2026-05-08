@@ -327,6 +327,38 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.requestOptions.path === chatCompletionEndpoint &&
           options.body
         ) {
+          const savedError = await findSavedChatCompletionError(
+            state.storedData,
+            options.body,
+            state.workDir,
+            state.toolResultNormalizers,
+          );
+
+          if (savedError) {
+            const headers = {
+              "content-type": "application/json",
+              ...commonResponseHeaders,
+              ...(savedError.retryAfterSeconds !== undefined
+                ? { "retry-after": String(savedError.retryAfterSeconds) }
+                : {}),
+            };
+            options.onResponseStart(savedError.status, headers);
+            options.onData(
+              Buffer.from(
+                JSON.stringify({
+                  error: {
+                    message:
+                      savedError.message ?? "Rate limited by test snapshot",
+                    type: savedError.code ?? "rate_limited",
+                    code: savedError.code ?? "rate_limited",
+                  },
+                }),
+              ),
+            );
+            options.onResponseEnd();
+            return;
+          }
+
           const savedResponse = await findSavedChatCompletionResponse(
             state.storedData,
             options.body,
@@ -445,6 +477,19 @@ async function writeCapturesToDisk(
     state.workDir,
     state.toolResultNormalizers,
   );
+  const preservedErrors = state.storedData?.errors;
+  if (preservedErrors && preservedErrors.length > 0) {
+    data.errors = preservedErrors;
+    data.models = [
+      ...new Set([
+        ...(state.storedData?.models ?? []),
+        ...data.models,
+        ...preservedErrors
+          .map((error) => error.model)
+          .filter((model): model is string => model !== undefined),
+      ]),
+    ];
+  }
   if (data.conversations.length > 0) {
     let yamlText = yaml.stringify(data, { lineWidth: 120 });
 
@@ -606,6 +651,37 @@ async function findSavedChatCompletionResponse(
         replyIndex,
         workDir,
       );
+    }
+  }
+
+  return undefined;
+}
+
+async function findSavedChatCompletionError(
+  storedData: NormalizedData,
+  requestBody: string | undefined,
+  workDir: string,
+  toolResultNormalizers: ToolResultNormalizer[],
+): Promise<NormalizedErrorResponse | undefined> {
+  const normalized = await parseAndNormalizeRequest(
+    requestBody,
+    workDir,
+    toolResultNormalizers,
+  );
+  const requestMessages = normalized.conversations[0]?.messages ?? [];
+  const requestModel = normalized.models[0];
+
+  for (const error of storedData.errors ?? []) {
+    if (error.model && error.model !== requestModel) {
+      continue;
+    }
+    if (
+      requestMessages.length === error.messages.length &&
+      requestMessages.every(
+        (msg, i) => JSON.stringify(msg) === JSON.stringify(error.messages[i]),
+      )
+    ) {
+      return error;
     }
   }
 
@@ -1391,8 +1467,18 @@ interface NormalizedConversation {
   messages: NormalizedMessage[];
 }
 
+interface NormalizedErrorResponse {
+  model?: string;
+  status: number;
+  code?: string;
+  message?: string;
+  retryAfterSeconds?: number;
+  messages: NormalizedMessage[];
+}
+
 export interface NormalizedData {
   models: string[];
+  errors?: NormalizedErrorResponse[];
   conversations: NormalizedConversation[];
 }
 
