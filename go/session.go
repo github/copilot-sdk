@@ -746,7 +746,6 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 	if err := ui.session.assertElicitation(); err != nil {
 		return false, err
 	}
-	defaultTrue := &rpc.UIElicitationFieldValue{Bool: Bool(true)}
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
 		RequestedSchema: rpc.UIElicitationSchema{
@@ -754,7 +753,7 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"confirmed": {
 					Type:    rpc.UIElicitationSchemaPropertyTypeBoolean,
-					Default: defaultTrue,
+					Default: toRPCContent(true),
 				},
 			},
 			Required: []string{"confirmed"},
@@ -828,7 +827,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 			prop.Format = &format
 		}
 		if opts.Default != "" {
-			prop.Default = &rpc.UIElicitationFieldValue{String: &opts.Default}
+			prop.Default = toRPCContent(opts.Default)
 		}
 	}
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{

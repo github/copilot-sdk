@@ -500,7 +500,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 			t.Errorf("session.history.truncate should be implemented; error suggests it isn't: %v", err)
 		}
 
-		_, err = session.RPC.Mcp.Oauth().Login(t.Context(), &rpc.MCPOauthLoginRequest{ServerName: "missing-server"})
+		_, err = session.RPC.Mcp.Oauth().Login(t.Context(), &rpc.McpOauthLoginRequest{ServerName: "missing-server"})
 		if err == nil {
 			t.Fatal("Expected Mcp.Oauth.Login with unknown server to fail")
 		}

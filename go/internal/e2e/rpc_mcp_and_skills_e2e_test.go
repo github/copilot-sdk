@@ -193,11 +193,11 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 		}
 
 		assertRpcError(t, "Mcp.Enable", func() error {
-			_, e := session.RPC.Mcp.Enable(t.Context(), &rpc.MCPEnableRequest{ServerName: "missing-server"})
+			_, e := session.RPC.Mcp.Enable(t.Context(), &rpc.McpEnableRequest{ServerName: "missing-server"})
 			return e
 		}, "no mcp host initialized")
 		assertRpcError(t, "Mcp.Disable", func() error {
-			_, e := session.RPC.Mcp.Disable(t.Context(), &rpc.MCPDisableRequest{ServerName: "missing-server"})
+			_, e := session.RPC.Mcp.Disable(t.Context(), &rpc.McpDisableRequest{ServerName: "missing-server"})
 			return e
 		}, "no mcp host initialized")
 		assertRpcError(t, "Mcp.Reload", func() error {
