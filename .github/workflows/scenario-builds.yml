@@ -28,6 +28,7 @@ jobs:
   # ── TypeScript ──────────────────────────────────────────────────────
   build-typescript:
     name: "TypeScript scenarios"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -74,6 +75,7 @@ jobs:
   # ── Python ──────────────────────────────────────────────────────────
   build-python:
     name: "Python scenarios"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -112,6 +114,7 @@ jobs:
   # ── Go ──────────────────────────────────────────────────────────────
   build-go:
     name: "Go scenarios"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -149,6 +152,7 @@ jobs:
   # ── C# ─────────────────────────────────────────────────────────────
   build-csharp:
     name: "C# scenarios"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -191,6 +195,7 @@ jobs:
   # ── Rust ────────────────────────────────────────────────────────────
   build-rust:
     name: "Rust scenarios"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

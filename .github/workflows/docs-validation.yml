@@ -20,6 +20,7 @@ permissions:
 jobs:
   validate-typescript:
     name: "Validate TypeScript"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -44,6 +45,7 @@ jobs:
 
   validate-python:
     name: "Validate Python"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -76,6 +78,7 @@ jobs:
 
   validate-go:
     name: "Validate Go"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -99,6 +102,7 @@ jobs:
 
   validate-csharp:
     name: "Validate C#"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

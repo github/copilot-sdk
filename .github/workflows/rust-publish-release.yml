@@ -24,6 +24,7 @@ concurrency:
 jobs:
   publish:
     name: Publish to crates.io
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     defaults:
       run:
