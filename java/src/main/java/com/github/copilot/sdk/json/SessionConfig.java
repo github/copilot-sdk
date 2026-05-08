@@ -45,6 +45,7 @@ public class SessionConfig {
     private List<String> availableTools;
     private List<String> excludedTools;
     private ProviderConfig provider;
+    private Boolean enableSessionTelemetry;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
@@ -280,6 +281,38 @@ public class SessionConfig {
      */
     public SessionConfig setProvider(ProviderConfig provider) {
         this.provider = provider;
+        return this;
+    }
+
+    /**
+     * Enables or disables internal session telemetry for this session. When
+     * {@code false}, disables session telemetry. When {@code null} (the default) or
+     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
+     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
+     * always disabled regardless of this setting. This is independent of
+     * {@link com.github.copilot.sdk.json.CopilotClientOptions#getTelemetry()
+     * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
+     * for observability.
+     *
+     * @return whether session telemetry is enabled
+     */
+    public Boolean getEnableSessionTelemetry() {
+        return enableSessionTelemetry;
+    }
+
+    /**
+     * Enables or disables internal session telemetry for this session. When
+     * {@code false}, disables session telemetry. When {@code null} (the default) or
+     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
+     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
+     * always disabled regardless of this setting.
+     *
+     * @param enableSessionTelemetry
+     *            whether to enable session telemetry
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableSessionTelemetry(Boolean enableSessionTelemetry) {
+        this.enableSessionTelemetry = enableSessionTelemetry;
         return this;
     }
 
@@ -835,6 +868,7 @@ public class SessionConfig {
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
+        copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;

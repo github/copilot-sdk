@@ -104,6 +104,7 @@ class JsonRpcClient implements AutoCloseable {
      * Sends a JSON-RPC request and waits for the response.
      */
     public <T> CompletableFuture<T> invoke(String method, Object params, Class<T> responseType) {
+        long timingNanos = System.nanoTime();
         long id = requestIdCounter.incrementAndGet();
         var future = new CompletableFuture<JsonNode>();
         pendingRequests.put(id, future);
@@ -123,13 +124,24 @@ class JsonRpcClient implements AutoCloseable {
 
         return future.thenApply(result -> {
             try {
-                if (responseType == Void.class || responseType == void.class) {
-                    return null;
+                T value = null;
+                if (responseType != Void.class && responseType != void.class) {
+                    value = MAPPER.treeToValue(result, responseType);
                 }
-                return MAPPER.treeToValue(result, responseType);
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "JsonRpc.invoke JSON-RPC request finished. Elapsed={Elapsed}, Method=" + method + ", RequestId="
+                                + id + ", Status=Succeeded",
+                        timingNanos);
+                return value;
             } catch (JsonProcessingException e) {
                 throw new CompletionException(e);
             }
+        }).exceptionally(ex -> {
+            LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+                    "JsonRpc.invoke JSON-RPC request finished. Elapsed={Elapsed}, Method=" + method + ", RequestId="
+                            + id + ", Status=Failed",
+                    timingNanos);
+            throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
         });
     }
 

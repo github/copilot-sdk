@@ -736,7 +736,7 @@ public class SessionEventDeserializationTest {
                 {
                     "type": "abort",
                     "data": {
-                        "reason": "user_requested"
+                        "reason": "user_initiated"
                     }
                 }
                 """;
@@ -1987,14 +1987,14 @@ public class SessionEventDeserializationTest {
                 {
                     "type": "abort",
                     "data": {
-                        "reason": "user_cancelled"
+                        "reason": "user_abort"
                     }
                 }
                 """;
 
         var event = (AbortEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("user_cancelled", event.getData().reason());
+        assertEquals(AbortReason.USER_ABORT, event.getData().reason());
     }
 
     @Test

@@ -188,6 +188,7 @@ public final class CopilotClient implements AutoCloseable {
 
     private Connection startCoreBody() {
         Process process = null;
+        long startNanos = System.nanoTime();
         try {
             JsonRpcClient rpc;
 
@@ -202,6 +203,9 @@ public final class CopilotClient implements AutoCloseable {
                         processInfo.port());
             }
 
+            LoggingHelpers.logTiming(LOG, Level.FINE, "CopilotClient.start transport setup complete. Elapsed={Elapsed}",
+                    startNanos);
+
             Connection connection = new Connection(rpc, process, new ServerRpc(rpc::invoke));
 
             // Register handlers for server-to-client calls
@@ -211,10 +215,16 @@ public final class CopilotClient implements AutoCloseable {
 
             // Verify protocol version
             verifyProtocolVersion(connection);
+            LoggingHelpers.logTiming(LOG, Level.FINE,
+                    "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
 
-            LOG.info("Copilot client connected");
+            LoggingHelpers.logTiming(LOG, Level.FINE, "CopilotClient.start complete. Elapsed={Elapsed}", startNanos);
             return connection;
         } catch (Exception e) {
+            if (!(e instanceof java.util.concurrent.CancellationException)) {
+                LoggingHelpers.logTiming(LOG, Level.WARNING, e, "CopilotClient.start failed. Elapsed={Elapsed}",
+                        startNanos);
+            }
             // Clean up the spawned process if connection setup failed
             if (process != null) {
                 cleanupCliProcess(process);
@@ -417,18 +427,23 @@ public final class CopilotClient implements AutoCloseable {
                             + "new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
         }
         return ensureConnected().thenCompose(connection -> {
+            long totalNanos = System.nanoTime();
             // Pre-generate session ID so the session can be registered before the RPC call,
             // ensuring no events emitted by the CLI during creation are lost.
             String sessionId = config.getSessionId() != null
                     ? config.getSessionId()
                     : java.util.UUID.randomUUID().toString();
 
+            long setupNanos = System.nanoTime();
             var session = new CopilotSession(sessionId, connection.rpc);
             if (options.getExecutor() != null) {
                 session.setExecutor(options.getExecutor());
             }
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
+            LoggingHelpers.logTiming(LOG, Level.FINE,
+                    "CopilotClient.createSession local setup complete. Elapsed={Elapsed}, SessionId=" + sessionId,
+                    setupNanos);
 
             // Extract transform callbacks from the system message config.
             // Callbacks are registered with the session; a wire-safe copy of the
@@ -444,7 +459,12 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
+            long rpcNanos = System.nanoTime();
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotClient.createSession session creation request completed. Elapsed={Elapsed}, SessionId="
+                                + sessionId,
+                        rpcNanos);
                 session.setWorkspacePath(response.workspacePath());
                 session.setCapabilities(response.capabilities());
                 // If the server returned a different sessionId (e.g. a v2 CLI that ignores
@@ -455,9 +475,13 @@ public final class CopilotClient implements AutoCloseable {
                     session.setActiveSessionId(returnedId);
                     sessions.put(returnedId, session);
                 }
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
                 return session;
             }).exceptionally(ex -> {
                 sessions.remove(sessionId);
+                LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+                        "CopilotClient.createSession failed. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
                 throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
             });
         });
@@ -496,13 +520,18 @@ public final class CopilotClient implements AutoCloseable {
                             + "new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
         }
         return ensureConnected().thenCompose(connection -> {
+            long totalNanos = System.nanoTime();
             // Register the session before the RPC call to avoid missing early events.
+            long setupNanos = System.nanoTime();
             var session = new CopilotSession(sessionId, connection.rpc);
             if (options.getExecutor() != null) {
                 session.setExecutor(options.getExecutor());
             }
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
+            LoggingHelpers.logTiming(LOG, Level.FINE,
+                    "CopilotClient.resumeSession local setup complete. Elapsed={Elapsed}, SessionId=" + sessionId,
+                    setupNanos);
 
             // Extract transform callbacks from the system message config.
             var extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
@@ -515,7 +544,12 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
+            long rpcNanos = System.nanoTime();
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotClient.resumeSession session resume request completed. Elapsed={Elapsed}, SessionId="
+                                + sessionId,
+                        rpcNanos);
                 session.setWorkspacePath(response.workspacePath());
                 session.setCapabilities(response.capabilities());
                 // If the server returned a different sessionId than what was requested, re-key.
@@ -525,9 +559,13 @@ public final class CopilotClient implements AutoCloseable {
                     session.setActiveSessionId(returnedId);
                     sessions.put(returnedId, session);
                 }
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
                 return session;
             }).exceptionally(ex -> {
                 sessions.remove(sessionId);
+                LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+                        "CopilotClient.resumeSession failed. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
                 throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
             });
         });

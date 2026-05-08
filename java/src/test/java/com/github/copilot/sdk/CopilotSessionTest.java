@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.generated.SessionEvent;
@@ -306,6 +307,7 @@ public class CopilotSessionTest {
      * @see Snapshot: session/should_resume_a_session_using_a_new_client
      */
     @Test
+    @Tag("isolated-resume")
     void testShouldResumeSessionUsingNewClient() throws Exception {
         ctx.configureForTest("session", "should_resume_a_session_using_a_new_client");
 

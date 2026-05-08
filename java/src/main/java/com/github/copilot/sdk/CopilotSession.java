@@ -497,13 +497,24 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<AssistantMessageEvent> sendAndWait(MessageOptions options, long timeoutMs) {
         ensureNotTerminated();
+        long totalNanos = System.nanoTime();
         var future = new CompletableFuture<AssistantMessageEvent>();
         var lastAssistantMessage = new AtomicReference<AssistantMessageEvent>();
+        var firstAssistantMessageLogged = new java.util.concurrent.atomic.AtomicBoolean(false);
 
         Consumer<SessionEvent> handler = evt -> {
             if (evt instanceof AssistantMessageEvent msg) {
                 lastAssistantMessage.set(msg);
+                if (firstAssistantMessageLogged.compareAndSet(false, true)) {
+                    LoggingHelpers.logTiming(LOG, Level.FINE,
+                            "CopilotSession.sendAndWait first assistant message. Elapsed={Elapsed}, SessionId="
+                                    + sessionId,
+                            totalNanos);
+                }
             } else if (evt instanceof SessionIdleEvent) {
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotSession.sendAndWait idle received. Elapsed={Elapsed}, SessionId=" + sessionId,
+                        totalNanos);
                 future.complete(lastAssistantMessage.get());
             } else if (evt instanceof SessionErrorEvent errorEvent) {
                 String message = errorEvent.getData() != null ? errorEvent.getData().message() : "session error";
@@ -568,8 +579,23 @@ public final class CopilotSession implements AutoCloseable {
             }
             if (!result.isDone()) {
                 if (ex != null) {
+                    if (ex instanceof TimeoutException) {
+                        LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+                                "CopilotSession.sendAndWait failed. Elapsed={Elapsed}, SessionId=" + sessionId
+                                        + ", CompletedBy=timeout",
+                                totalNanos);
+                    } else if (!(ex instanceof java.util.concurrent.CancellationException)) {
+                        LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+                                "CopilotSession.sendAndWait failed. Elapsed={Elapsed}, SessionId=" + sessionId
+                                        + ", CompletedBy=error",
+                                totalNanos);
+                    }
                     result.completeExceptionally(ex);
                 } else {
+                    LoggingHelpers.logTiming(
+                            LOG, Level.FINE, "CopilotSession.sendAndWait complete. Elapsed={Elapsed}, SessionId="
+                                    + sessionId + ", CompletedBy=idle, AssistantMessageReceived=" + (r != null),
+                            totalNanos);
                     result.complete(r);
                 }
             }

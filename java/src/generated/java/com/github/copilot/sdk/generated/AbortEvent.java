@@ -35,8 +35,8 @@ public final class AbortEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AbortEventData(
-        /** Reason the current turn was aborted (e.g., "user initiated") */
-        @JsonProperty("reason") String reason
+        /** Finite reason code describing why the current turn was aborted */
+        @JsonProperty("reason") AbortReason reason
     ) {
     }
 }
