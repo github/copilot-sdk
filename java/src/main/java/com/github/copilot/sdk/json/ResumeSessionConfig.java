@@ -237,8 +237,8 @@ public class ResumeSessionConfig {
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting. This is independent of
      * {@link com.github.copilot.sdk.json.CopilotClientOptions#getTelemetry()
-     * CopilotClientOptions.Telemetry}, which configures OpenTelemetry export for
-     * observability.
+     * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
+     * for observability.
      *
      * @return whether session telemetry is enabled
      */

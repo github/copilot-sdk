@@ -124,14 +124,19 @@ class JsonRpcClient implements AutoCloseable {
 
         return future.thenApply(result -> {
             try {
+                if (responseType == Void.class || responseType == void.class) {
+                    LoggingHelpers.logTiming(LOG, Level.FINE,
+                            "JsonRpc.invoke JSON-RPC request finished. Elapsed={Elapsed}, Method=" + method
+                                    + ", RequestId=" + id + ", Status=Succeeded",
+                            timingNanos);
+                    return null;
+                }
+                T value = MAPPER.treeToValue(result, responseType);
                 LoggingHelpers.logTiming(LOG, Level.FINE,
                         "JsonRpc.invoke JSON-RPC request finished. Elapsed={Elapsed}, Method=" + method + ", RequestId="
                                 + id + ", Status=Succeeded",
                         timingNanos);
-                if (responseType == Void.class || responseType == void.class) {
-                    return null;
-                }
-                return MAPPER.treeToValue(result, responseType);
+                return value;
             } catch (JsonProcessingException e) {
                 throw new CompletionException(e);
             }

@@ -140,7 +140,7 @@ public class StreamingFidelityTest {
      * @see Snapshot: streaming_fidelity/should_produce_deltas_after_session_resume
      */
     @Test
-    @Disabled("Flaky: multi-client session resume times out in snapshot-based test harness")
+    @Disabled("Passes in isolation but times out in full suite due to test interaction (state leakage or process contention)")
     void testShouldProduceDeltasAfterSessionResume() throws Exception {
         ctx.configureForTest("streaming_fidelity", "should_produce_deltas_after_session_resume");
 
@@ -194,7 +194,7 @@ public class StreamingFidelityTest {
      *      streaming_fidelity/should_not_produce_deltas_after_session_resume_with_streaming_disabled
      */
     @Test
-    @Disabled("Flaky: multi-client session resume times out in snapshot-based test harness")
+    @Disabled("Passes in isolation but times out in full suite due to test interaction (state leakage or process contention)")
     void testShouldNotProduceDeltasAfterSessionResumeWithStreamingDisabled() throws Exception {
         ctx.configureForTest("streaming_fidelity",
                 "should_not_produce_deltas_after_session_resume_with_streaming_disabled");
