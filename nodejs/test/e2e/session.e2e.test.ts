@@ -491,10 +491,14 @@ describe("Sessions", async () => {
 
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
-        // Session should work normally with custom config dir
-        await session.send({ prompt: "What is 1+1?" });
-        const assistantMessage = await getFinalAssistantMessage(session);
-        expect(assistantMessage.data.content).toContain("2");
+        try {
+            // Session should work normally with custom config dir
+            await session.send({ prompt: "What is 1+1?" });
+            const assistantMessage = await getFinalAssistantMessage(session);
+            expect(assistantMessage.data.content).toContain("2");
+        } finally {
+            await session.disconnect();
+        }
     });
 
     it("should log messages at all levels and emit matching session events", async () => {
