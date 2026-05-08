@@ -120,6 +120,7 @@ jobs:
   # bundled-CLI release pipeline) hit them downstream.
   bundle:
     name: "Rust SDK Bundled CLI Build"
+    if: github.event.repository.fork == false
     env:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
