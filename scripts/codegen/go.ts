@@ -352,8 +352,7 @@ function getOrCreateGoEnum(
     lines.push(`type ${enumName} string`);
     lines.push(``);
     lines.push(`const (`);
-    const consts = values.map((value) => ({ value, constSuffix: goEnumConstSuffix(value) }))
-        .sort((left, right) => left.constSuffix.localeCompare(right.constSuffix));
+    const consts = values.map((value) => ({ value, constSuffix: goEnumConstSuffix(value) }));
     for (const { value, constSuffix } of consts) {
         lines.push(`\t${enumName}${constSuffix} ${enumName} = "${value}"`);
     }
@@ -981,6 +980,27 @@ function goUnionFieldType(member: JSONSchema7, fieldName: string, parentTypeName
     return `*${memberType}`;
 }
 
+function goUnionFieldMarshalIsSet(fieldName: string, fieldType: string): string {
+    if (fieldType.startsWith("*") || fieldType.startsWith("[]") || fieldType.startsWith("map[")) {
+        return `r.${fieldName} != nil`;
+    }
+    return "true";
+}
+
+function goUnionFieldUnmarshalType(fieldType: string): string {
+    if (fieldType.startsWith("*")) {
+        return fieldType.slice(1);
+    }
+    return fieldType;
+}
+
+function goUnionFieldUnmarshalAssignment(typeName: string, fieldName: string, fieldType: string): string {
+    if (fieldType.startsWith("*")) {
+        return `*r = ${typeName}{${fieldName}: &value}`;
+    }
+    return `*r = ${typeName}{${fieldName}: value}`;
+}
+
 function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): void {
     if (ctx.generatedNames.has(typeName)) return;
     ctx.generatedNames.add(typeName);
@@ -996,6 +1016,7 @@ function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegen
     lines.push(`type ${typeName} struct {`);
 
     const emittedFields = new Set<string>();
+    const fields: { name: string; type: string }[] = [];
     for (const member of members) {
         const fieldNameBase = goUnionFieldName(member, ctx);
         let fieldName = fieldNameBase;
@@ -1004,9 +1025,37 @@ function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegen
             fieldName = `${fieldNameBase}${suffix++}`;
         }
         emittedFields.add(fieldName);
-        lines.push(`\t${fieldName} ${goUnionFieldType(member, fieldName, typeName, ctx)}`);
+        const fieldType = goUnionFieldType(member, fieldName, typeName, ctx);
+        fields.push({ name: fieldName, type: fieldType });
+        lines.push(`\t${fieldName} ${fieldType}`);
     }
 
+    lines.push(`}`);
+    lines.push(``);
+    lines.push(`func (r ${typeName}) MarshalJSON() ([]byte, error) {`);
+    for (const field of fields) {
+        lines.push(`\tif ${goUnionFieldMarshalIsSet(field.name, field.type)} {`);
+        lines.push(`\t\treturn json.Marshal(r.${field.name})`);
+        lines.push(`\t}`);
+    }
+    lines.push(`\treturn []byte("null"), nil`);
+    lines.push(`}`);
+    lines.push(``);
+    lines.push(`func (r *${typeName}) UnmarshalJSON(data []byte) error {`);
+    lines.push(`\tif string(data) == "null" {`);
+    lines.push(`\t\t*r = ${typeName}{}`);
+    lines.push(`\t\treturn nil`);
+    lines.push(`\t}`);
+    for (const field of fields) {
+        lines.push(`\t{`);
+        lines.push(`\t\tvar value ${goUnionFieldUnmarshalType(field.type)}`);
+        lines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
+        lines.push(`\t\t\t${goUnionFieldUnmarshalAssignment(typeName, field.name, field.type)}`);
+        lines.push(`\t\t\treturn nil`);
+        lines.push(`\t\t}`);
+        lines.push(`\t}`);
+    }
+    lines.push(`\treturn errors.New("data did not match any union variant for ${typeName}")`);
     lines.push(`}`);
     ctx.structs.push(lines.join("\n"));
 }
@@ -1180,6 +1229,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
 
     // Imports — time is always needed for SessionEvent.Timestamp
     out.push(`import (`);
+    out.push(`\t"errors"`);
     out.push(`\t"encoding/json"`);
     out.push(`\t"time"`);
     out.push(`)`);
