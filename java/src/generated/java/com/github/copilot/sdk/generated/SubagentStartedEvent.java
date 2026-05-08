@@ -42,7 +42,9 @@ public final class SubagentStartedEvent extends SessionEvent {
         /** Human-readable display name of the sub-agent */
         @JsonProperty("agentDisplayName") String agentDisplayName,
         /** Description of what the sub-agent does */
-        @JsonProperty("agentDescription") String agentDescription
+        @JsonProperty("agentDescription") String agentDescription,
+        /** Model the sub-agent will run with, when known at start. Surfaced in the timeline for auto-selected sub-agents (e.g. rubber-duck). */
+        @JsonProperty("model") String model
     ) {
     }
 }
