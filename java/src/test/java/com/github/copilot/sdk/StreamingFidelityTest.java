@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.generated.SessionEvent;
@@ -140,7 +140,7 @@ public class StreamingFidelityTest {
      * @see Snapshot: streaming_fidelity/should_produce_deltas_after_session_resume
      */
     @Test
-    @Disabled("Passes in isolation but times out in full suite due to test interaction (state leakage or process contention)")
+    @Tag("isolated-resume")
     void testShouldProduceDeltasAfterSessionResume() throws Exception {
         ctx.configureForTest("streaming_fidelity", "should_produce_deltas_after_session_resume");
 
@@ -194,7 +194,7 @@ public class StreamingFidelityTest {
      *      streaming_fidelity/should_not_produce_deltas_after_session_resume_with_streaming_disabled
      */
     @Test
-    @Disabled("Passes in isolation but times out in full suite due to test interaction (state leakage or process contention)")
+    @Tag("isolated-resume")
     void testShouldNotProduceDeltasAfterSessionResumeWithStreamingDisabled() throws Exception {
         ctx.configureForTest("streaming_fidelity",
                 "should_not_produce_deltas_after_session_resume_with_streaming_disabled");
