@@ -348,8 +348,6 @@ function getOrCreateEnum(
     lines.push(`public readonly struct ${enumName} : IEquatable<${enumName}>`);
     lines.push(`{`);
     lines.push(`    private readonly string? _value;`, "");
-    lines.push(`    /// <summary>Gets the value associated with this <see cref="${enumName}"/>.</summary>`);
-    lines.push(`    public string Value => _value ?? string.Empty;`, "");
     lines.push(`    /// <summary>Initializes a new instance of the <see cref="${enumName}"/> struct.</summary>`);
     lines.push(`    /// <param name="value">The value to associate with this <see cref="${enumName}"/>.</param>`);
     lines.push(`    [JsonConstructor]`);
@@ -358,6 +356,8 @@ function getOrCreateEnum(
     lines.push(`        ArgumentException.ThrowIfNullOrWhiteSpace(value);`);
     lines.push(`        _value = value;`);
     lines.push(`    }`, "");
+    lines.push(`    /// <summary>Gets the value associated with this <see cref="${enumName}"/>.</summary>`);
+    lines.push(`    public string Value => _value ?? string.Empty;`, "");
     for (const value of values) {
         lines.push(`    /// <summary>Gets the <c>${escapeXml(value)}</c> value.</summary>`);
         lines.push(`    public static ${enumName} ${toPascalCaseEnumMember(value)} { get; } = new("${value}");`, "");

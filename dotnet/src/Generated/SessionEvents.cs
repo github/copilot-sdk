@@ -4887,9 +4887,6 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="WorkingDirectoryContextHostType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="WorkingDirectoryContextHostType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="WorkingDirectoryContextHostType"/>.</param>
     [JsonConstructor]
@@ -4898,6 +4895,9 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="WorkingDirectoryContextHostType"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>github</c> value.</summary>
     public static WorkingDirectoryContextHostType Github { get; } = new("github");
@@ -4948,9 +4948,6 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="PlanChangedOperation"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="PlanChangedOperation"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PlanChangedOperation"/>.</param>
     [JsonConstructor]
@@ -4959,6 +4956,9 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="PlanChangedOperation"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>create</c> value.</summary>
     public static PlanChangedOperation Create { get; } = new("create");
@@ -5012,9 +5012,6 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="WorkspaceFileChangedOperation"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="WorkspaceFileChangedOperation"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="WorkspaceFileChangedOperation"/>.</param>
     [JsonConstructor]
@@ -5023,6 +5020,9 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="WorkspaceFileChangedOperation"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>create</c> value.</summary>
     public static WorkspaceFileChangedOperation Create { get; } = new("create");
@@ -5073,9 +5073,6 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="HandoffSourceType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="HandoffSourceType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="HandoffSourceType"/>.</param>
     [JsonConstructor]
@@ -5084,6 +5081,9 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="HandoffSourceType"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>remote</c> value.</summary>
     public static HandoffSourceType Remote { get; } = new("remote");
@@ -5134,9 +5134,6 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="ShutdownType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="ShutdownType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ShutdownType"/>.</param>
     [JsonConstructor]
@@ -5145,6 +5142,9 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="ShutdownType"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>routine</c> value.</summary>
     public static ShutdownType Routine { get; } = new("routine");
@@ -5195,9 +5195,6 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="UserMessageAgentMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="UserMessageAgentMode"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="UserMessageAgentMode"/>.</param>
     [JsonConstructor]
@@ -5206,6 +5203,9 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="UserMessageAgentMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>interactive</c> value.</summary>
     public static UserMessageAgentMode Interactive { get; } = new("interactive");
@@ -5262,9 +5262,6 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="UserMessageAttachmentGithubReferenceType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="UserMessageAttachmentGithubReferenceType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="UserMessageAttachmentGithubReferenceType"/>.</param>
     [JsonConstructor]
@@ -5273,6 +5270,9 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="UserMessageAttachmentGithubReferenceType"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>issue</c> value.</summary>
     public static UserMessageAttachmentGithubReferenceType Issue { get; } = new("issue");
@@ -5326,9 +5326,6 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="AssistantMessageToolRequestType"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="AssistantMessageToolRequestType"/>.</param>
     [JsonConstructor]
@@ -5337,6 +5334,9 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestType"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>function</c> value.</summary>
     public static AssistantMessageToolRequestType Function { get; } = new("function");
@@ -5387,9 +5387,6 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="ModelCallFailureSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="ModelCallFailureSource"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ModelCallFailureSource"/>.</param>
     [JsonConstructor]
@@ -5398,6 +5395,9 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="ModelCallFailureSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>top_level</c> value.</summary>
     public static ModelCallFailureSource TopLevel { get; } = new("top_level");
@@ -5451,9 +5451,6 @@ public readonly struct AbortReason : IEquatable<AbortReason>
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="AbortReason"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="AbortReason"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="AbortReason"/>.</param>
     [JsonConstructor]
@@ -5462,6 +5459,9 @@ public readonly struct AbortReason : IEquatable<AbortReason>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="AbortReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>user_initiated</c> value.</summary>
     public static AbortReason UserInitiated { get; } = new("user_initiated");
@@ -5515,9 +5515,6 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/>.</param>
     [JsonConstructor]
@@ -5526,6 +5523,9 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>light</c> value.</summary>
     public static ToolExecutionCompleteContentResourceLinkIconTheme Light { get; } = new("light");
@@ -5576,9 +5576,6 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="SystemMessageRole"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="SystemMessageRole"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="SystemMessageRole"/>.</param>
     [JsonConstructor]
@@ -5587,6 +5584,9 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="SystemMessageRole"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>system</c> value.</summary>
     public static SystemMessageRole System { get; } = new("system");
@@ -5637,9 +5637,6 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="SystemNotificationAgentCompletedStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="SystemNotificationAgentCompletedStatus"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="SystemNotificationAgentCompletedStatus"/>.</param>
     [JsonConstructor]
@@ -5648,6 +5645,9 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="SystemNotificationAgentCompletedStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>completed</c> value.</summary>
     public static SystemNotificationAgentCompletedStatus Completed { get; } = new("completed");
@@ -5698,9 +5698,6 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="PermissionRequestMemoryAction"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="PermissionRequestMemoryAction"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionRequestMemoryAction"/>.</param>
     [JsonConstructor]
@@ -5709,6 +5706,9 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionRequestMemoryAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>store</c> value.</summary>
     public static PermissionRequestMemoryAction Store { get; } = new("store");
@@ -5759,9 +5759,6 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="PermissionRequestMemoryDirection"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="PermissionRequestMemoryDirection"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionRequestMemoryDirection"/>.</param>
     [JsonConstructor]
@@ -5770,6 +5767,9 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionRequestMemoryDirection"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>upvote</c> value.</summary>
     public static PermissionRequestMemoryDirection Upvote { get; } = new("upvote");
@@ -5820,9 +5820,6 @@ public readonly struct PermissionPromptRequestMemoryAction : IEquatable<Permissi
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestMemoryAction"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="PermissionPromptRequestMemoryAction"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionPromptRequestMemoryAction"/>.</param>
     [JsonConstructor]
@@ -5831,6 +5828,9 @@ public readonly struct PermissionPromptRequestMemoryAction : IEquatable<Permissi
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestMemoryAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>store</c> value.</summary>
     public static PermissionPromptRequestMemoryAction Store { get; } = new("store");
@@ -5881,9 +5881,6 @@ public readonly struct PermissionPromptRequestMemoryDirection : IEquatable<Permi
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestMemoryDirection"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="PermissionPromptRequestMemoryDirection"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionPromptRequestMemoryDirection"/>.</param>
     [JsonConstructor]
@@ -5892,6 +5889,9 @@ public readonly struct PermissionPromptRequestMemoryDirection : IEquatable<Permi
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestMemoryDirection"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>upvote</c> value.</summary>
     public static PermissionPromptRequestMemoryDirection Upvote { get; } = new("upvote");
@@ -5942,9 +5942,6 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestPathAccessKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="PermissionPromptRequestPathAccessKind"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="PermissionPromptRequestPathAccessKind"/>.</param>
     [JsonConstructor]
@@ -5953,6 +5950,9 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestPathAccessKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>read</c> value.</summary>
     public static PermissionPromptRequestPathAccessKind Read { get; } = new("read");
@@ -6006,9 +6006,6 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="ElicitationRequestedMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="ElicitationRequestedMode"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ElicitationRequestedMode"/>.</param>
     [JsonConstructor]
@@ -6017,6 +6014,9 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="ElicitationRequestedMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>form</c> value.</summary>
     public static ElicitationRequestedMode Form { get; } = new("form");
@@ -6067,9 +6067,6 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="ElicitationCompletedAction"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="ElicitationCompletedAction"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ElicitationCompletedAction"/>.</param>
     [JsonConstructor]
@@ -6078,6 +6075,9 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="ElicitationCompletedAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>accept</c> value.</summary>
     public static ElicitationCompletedAction Accept { get; } = new("accept");
@@ -6131,9 +6131,6 @@ public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoade
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="McpServersLoadedServerStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="McpServersLoadedServerStatus"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="McpServersLoadedServerStatus"/>.</param>
     [JsonConstructor]
@@ -6142,6 +6139,9 @@ public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoade
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="McpServersLoadedServerStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>connected</c> value.</summary>
     public static McpServersLoadedServerStatus Connected { get; } = new("connected");
@@ -6204,9 +6204,6 @@ public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatus
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="McpServerStatusChangedStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="McpServerStatusChangedStatus"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="McpServerStatusChangedStatus"/>.</param>
     [JsonConstructor]
@@ -6215,6 +6212,9 @@ public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatus
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerStatusChangedStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>connected</c> value.</summary>
     public static McpServerStatusChangedStatus Connected { get; } = new("connected");
@@ -6277,9 +6277,6 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="ExtensionsLoadedExtensionSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="ExtensionsLoadedExtensionSource"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ExtensionsLoadedExtensionSource"/>.</param>
     [JsonConstructor]
@@ -6288,6 +6285,9 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="ExtensionsLoadedExtensionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>project</c> value.</summary>
     public static ExtensionsLoadedExtensionSource Project { get; } = new("project");
@@ -6338,9 +6338,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 {
     private readonly string? _value;
 
-    /// <summary>Gets the value associated with this <see cref="ExtensionsLoadedExtensionStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
     /// <summary>Initializes a new instance of the <see cref="ExtensionsLoadedExtensionStatus"/> struct.</summary>
     /// <param name="value">The value to associate with this <see cref="ExtensionsLoadedExtensionStatus"/>.</param>
     [JsonConstructor]
@@ -6349,6 +6346,9 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the value associated with this <see cref="ExtensionsLoadedExtensionStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>running</c> value.</summary>
     public static ExtensionsLoadedExtensionStatus Running { get; } = new("running");
