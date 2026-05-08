@@ -63,12 +63,13 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     }
 
     [Theory]
-    [InlineData(SessionMode.Interactive)]
-    [InlineData(SessionMode.Plan)]
-    [InlineData(SessionMode.Autopilot)]
-    public async Task Should_Set_And_Get_Each_Session_Mode_Value(SessionMode mode)
+    [InlineData("interactive")]
+    [InlineData("plan")]
+    [InlineData("autopilot")]
+    public async Task Should_Set_And_Get_Each_Session_Mode_Value(string modeValue)
     {
         await using var session = await CreateSessionAsync();
+        var mode = new SessionMode(modeValue);
 
         await session.Rpc.Mode.SetAsync(mode);
         Assert.Equal(mode, await session.Rpc.Mode.GetAsync());

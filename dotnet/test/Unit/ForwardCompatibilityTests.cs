@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Xunit;
 
 namespace GitHub.Copilot.SDK.Test.Unit;
@@ -167,6 +169,96 @@ public class ForwardCompatibilityTests
     }
 
     [Fact]
+    public void FromJson_KnownEventType_WithUnknownEnumInData_PreservesValue()
+    {
+        var json = """
+        {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "parentId": null,
+            "type": "abort",
+            "data": {
+                "reason": "future_abort_reason"
+            }
+        }
+        """;
+
+        var result = SessionEvent.FromJson(json);
+
+        var abort = Assert.IsType<AbortEvent>(result);
+        Assert.Equal("future_abort_reason", abort.Data.Reason.Value);
+    }
+
+    [Fact]
+    public void FromJson_KnownEventType_WithNonStringEnumInData_ThrowsJsonException()
+    {
+        var json = """
+        {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "parentId": null,
+            "type": "abort",
+            "data": {
+                "reason": false
+            }
+        }
+        """;
+
+        var exception = Assert.Throws<JsonException>(() => SessionEvent.FromJson(json));
+        Assert.Contains("AbortReason", exception.Message);
+    }
+
+    [Fact]
+    public void RpcEnum_WithUnknownValue_PreservesValue()
+    {
+        var mode = JsonSerializer.Deserialize(
+            """
+            "future_mode"
+            """,
+            ForwardCompatibilityJsonContext.Default.SessionMode);
+
+        Assert.Equal("future_mode", mode.Value);
+        Assert.Equal(
+            """
+            "future_mode"
+            """,
+            JsonSerializer.Serialize(mode, ForwardCompatibilityJsonContext.Default.SessionMode));
+    }
+
+    [Fact]
+    public void RpcEnum_WithNonStringValue_ThrowsJsonException()
+    {
+        var exception = Assert.Throws<JsonException>(() => JsonSerializer.Deserialize(
+            """
+            42
+            """,
+            ForwardCompatibilityJsonContext.Default.SessionMode));
+
+        Assert.Contains("SessionMode", exception.Message);
+    }
+
+    [Fact]
+    public void RpcEnum_DefaultValue_HasEmptyStringValue()
+    {
+        GitHub.Copilot.SDK.Rpc.SessionMode mode = default;
+
+        Assert.Equal(string.Empty, mode.Value);
+        Assert.Equal(string.Empty, mode.ToString());
+    }
+
+    [Fact]
+    public void RpcEnum_DefaultValueSerialization_ThrowsJsonException()
+    {
+        GitHub.Copilot.SDK.Rpc.SessionMode mode = default;
+
+        var exception = Assert.Throws<JsonException>(() => JsonSerializer.Serialize(
+            mode,
+            ForwardCompatibilityJsonContext.Default.SessionMode));
+
+        Assert.Contains("SessionMode", exception.Message);
+    }
+
+    [Fact]
     public void FromJson_KnownEventType_WithNullOptionalFields_DoesNotThrow()
     {
         // The CLI may emit null for optional fields. Verify parsing doesn't throw.
@@ -211,3 +303,6 @@ public class ForwardCompatibilityTests
         Assert.Null(result.AgentId);
     }
 }
+
+[JsonSerializable(typeof(GitHub.Copilot.SDK.Rpc.SessionMode))]
+internal partial class ForwardCompatibilityJsonContext : JsonSerializerContext;

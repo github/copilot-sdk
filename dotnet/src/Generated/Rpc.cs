@@ -8,7 +8,9 @@
 #pragma warning disable CS0612 // Type or member is obsolete
 #pragma warning disable CS0618 // Type or member is obsolete (with message)
 
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -2764,400 +2766,1527 @@ public sealed class SessionFsRenameRequest
 }
 
 /// <summary>Configuration source.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<DiscoveredMcpServerSource>))]
-public enum DiscoveredMcpServerSource
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct DiscoveredMcpServerSource : IEquatable<DiscoveredMcpServerSource>
 {
-    /// <summary>The <c>user</c> variant.</summary>
-    [JsonStringEnumMemberName("user")]
-    User,
-    /// <summary>The <c>workspace</c> variant.</summary>
-    [JsonStringEnumMemberName("workspace")]
-    Workspace,
-    /// <summary>The <c>plugin</c> variant.</summary>
-    [JsonStringEnumMemberName("plugin")]
-    Plugin,
-    /// <summary>The <c>builtin</c> variant.</summary>
-    [JsonStringEnumMemberName("builtin")]
-    Builtin,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="DiscoveredMcpServerSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="DiscoveredMcpServerSource"/>.</param>
+    [JsonConstructor]
+    public DiscoveredMcpServerSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="DiscoveredMcpServerSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static DiscoveredMcpServerSource User { get; } = new("user");
+
+    /// <summary>Gets the <c>workspace</c> value.</summary>
+    public static DiscoveredMcpServerSource Workspace { get; } = new("workspace");
+
+    /// <summary>Gets the <c>plugin</c> value.</summary>
+    public static DiscoveredMcpServerSource Plugin { get; } = new("plugin");
+
+    /// <summary>Gets the <c>builtin</c> value.</summary>
+    public static DiscoveredMcpServerSource Builtin { get; } = new("builtin");
+
+    /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerSource"/> instances are equivalent.</summary>
+    public static bool operator ==(DiscoveredMcpServerSource left, DiscoveredMcpServerSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(DiscoveredMcpServerSource left, DiscoveredMcpServerSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is DiscoveredMcpServerSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(DiscoveredMcpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{DiscoveredMcpServerSource}"/> for serializing <see cref="DiscoveredMcpServerSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<DiscoveredMcpServerSource>
+    {
+        /// <inheritdoc />
+        public override DiscoveredMcpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, DiscoveredMcpServerSource value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerSource));
+        }
+    }
 }
 
 
 /// <summary>Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<DiscoveredMcpServerType>))]
-public enum DiscoveredMcpServerType
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerType>
 {
-    /// <summary>The <c>stdio</c> variant.</summary>
-    [JsonStringEnumMemberName("stdio")]
-    Stdio,
-    /// <summary>The <c>http</c> variant.</summary>
-    [JsonStringEnumMemberName("http")]
-    Http,
-    /// <summary>The <c>sse</c> variant.</summary>
-    [JsonStringEnumMemberName("sse")]
-    Sse,
-    /// <summary>The <c>memory</c> variant.</summary>
-    [JsonStringEnumMemberName("memory")]
-    Memory,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="DiscoveredMcpServerType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="DiscoveredMcpServerType"/>.</param>
+    [JsonConstructor]
+    public DiscoveredMcpServerType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="DiscoveredMcpServerType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>stdio</c> value.</summary>
+    public static DiscoveredMcpServerType Stdio { get; } = new("stdio");
+
+    /// <summary>Gets the <c>http</c> value.</summary>
+    public static DiscoveredMcpServerType Http { get; } = new("http");
+
+    /// <summary>Gets the <c>sse</c> value.</summary>
+    public static DiscoveredMcpServerType Sse { get; } = new("sse");
+
+    /// <summary>Gets the <c>memory</c> value.</summary>
+    public static DiscoveredMcpServerType Memory { get; } = new("memory");
+
+    /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerType"/> instances are equivalent.</summary>
+    public static bool operator ==(DiscoveredMcpServerType left, DiscoveredMcpServerType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerType"/> instances are not equivalent.</summary>
+    public static bool operator !=(DiscoveredMcpServerType left, DiscoveredMcpServerType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is DiscoveredMcpServerType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(DiscoveredMcpServerType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{DiscoveredMcpServerType}"/> for serializing <see cref="DiscoveredMcpServerType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<DiscoveredMcpServerType>
+    {
+        /// <inheritdoc />
+        public override DiscoveredMcpServerType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, DiscoveredMcpServerType value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerType));
+        }
+    }
 }
 
 
 /// <summary>Path conventions used by this filesystem.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionFsSetProviderConventions>))]
-public enum SessionFsSetProviderConventions
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSetProviderConventions>
 {
-    /// <summary>The <c>windows</c> variant.</summary>
-    [JsonStringEnumMemberName("windows")]
-    Windows,
-    /// <summary>The <c>posix</c> variant.</summary>
-    [JsonStringEnumMemberName("posix")]
-    Posix,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionFsSetProviderConventions"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionFsSetProviderConventions"/>.</param>
+    [JsonConstructor]
+    public SessionFsSetProviderConventions(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionFsSetProviderConventions"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>windows</c> value.</summary>
+    public static SessionFsSetProviderConventions Windows { get; } = new("windows");
+
+    /// <summary>Gets the <c>posix</c> value.</summary>
+    public static SessionFsSetProviderConventions Posix { get; } = new("posix");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionFsSetProviderConventions"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionFsSetProviderConventions left, SessionFsSetProviderConventions right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionFsSetProviderConventions"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionFsSetProviderConventions left, SessionFsSetProviderConventions right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionFsSetProviderConventions other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionFsSetProviderConventions other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionFsSetProviderConventions}"/> for serializing <see cref="SessionFsSetProviderConventions"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionFsSetProviderConventions>
+    {
+        /// <inheritdoc />
+        public override SessionFsSetProviderConventions Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionFsSetProviderConventions value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSetProviderConventions));
+        }
+    }
 }
 
 
 /// <summary>Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionLogLevel>))]
-public enum SessionLogLevel
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
 {
-    /// <summary>The <c>info</c> variant.</summary>
-    [JsonStringEnumMemberName("info")]
-    Info,
-    /// <summary>The <c>warning</c> variant.</summary>
-    [JsonStringEnumMemberName("warning")]
-    Warning,
-    /// <summary>The <c>error</c> variant.</summary>
-    [JsonStringEnumMemberName("error")]
-    Error,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionLogLevel"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionLogLevel"/>.</param>
+    [JsonConstructor]
+    public SessionLogLevel(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionLogLevel"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>info</c> value.</summary>
+    public static SessionLogLevel Info { get; } = new("info");
+
+    /// <summary>Gets the <c>warning</c> value.</summary>
+    public static SessionLogLevel Warning { get; } = new("warning");
+
+    /// <summary>Gets the <c>error</c> value.</summary>
+    public static SessionLogLevel Error { get; } = new("error");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionLogLevel"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionLogLevel left, SessionLogLevel right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionLogLevel"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionLogLevel left, SessionLogLevel right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionLogLevel other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionLogLevel other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionLogLevel}"/> for serializing <see cref="SessionLogLevel"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionLogLevel>
+    {
+        /// <inheritdoc />
+        public override SessionLogLevel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionLogLevel value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionLogLevel));
+        }
+    }
 }
 
 
 /// <summary>Authentication type.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<AuthInfoType>))]
-public enum AuthInfoType
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 {
-    /// <summary>The <c>hmac</c> variant.</summary>
-    [JsonStringEnumMemberName("hmac")]
-    Hmac,
-    /// <summary>The <c>env</c> variant.</summary>
-    [JsonStringEnumMemberName("env")]
-    Env,
-    /// <summary>The <c>user</c> variant.</summary>
-    [JsonStringEnumMemberName("user")]
-    User,
-    /// <summary>The <c>gh-cli</c> variant.</summary>
-    [JsonStringEnumMemberName("gh-cli")]
-    GhCli,
-    /// <summary>The <c>api-key</c> variant.</summary>
-    [JsonStringEnumMemberName("api-key")]
-    ApiKey,
-    /// <summary>The <c>token</c> variant.</summary>
-    [JsonStringEnumMemberName("token")]
-    Token,
-    /// <summary>The <c>copilot-api-token</c> variant.</summary>
-    [JsonStringEnumMemberName("copilot-api-token")]
-    CopilotApiToken,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AuthInfoType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AuthInfoType"/>.</param>
+    [JsonConstructor]
+    public AuthInfoType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AuthInfoType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>hmac</c> value.</summary>
+    public static AuthInfoType Hmac { get; } = new("hmac");
+
+    /// <summary>Gets the <c>env</c> value.</summary>
+    public static AuthInfoType Env { get; } = new("env");
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static AuthInfoType User { get; } = new("user");
+
+    /// <summary>Gets the <c>gh-cli</c> value.</summary>
+    public static AuthInfoType GhCli { get; } = new("gh-cli");
+
+    /// <summary>Gets the <c>api-key</c> value.</summary>
+    public static AuthInfoType ApiKey { get; } = new("api-key");
+
+    /// <summary>Gets the <c>token</c> value.</summary>
+    public static AuthInfoType Token { get; } = new("token");
+
+    /// <summary>Gets the <c>copilot-api-token</c> value.</summary>
+    public static AuthInfoType CopilotApiToken { get; } = new("copilot-api-token");
+
+    /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are equivalent.</summary>
+    public static bool operator ==(AuthInfoType left, AuthInfoType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are not equivalent.</summary>
+    public static bool operator !=(AuthInfoType left, AuthInfoType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AuthInfoType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AuthInfoType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AuthInfoType}"/> for serializing <see cref="AuthInfoType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AuthInfoType>
+    {
+        /// <inheritdoc />
+        public override AuthInfoType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AuthInfoType value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthInfoType));
+        }
+    }
 }
 
 
 /// <summary>The agent mode. Valid values: "interactive", "plan", "autopilot".</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionMode>))]
-public enum SessionMode
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionMode : IEquatable<SessionMode>
 {
-    /// <summary>The <c>interactive</c> variant.</summary>
-    [JsonStringEnumMemberName("interactive")]
-    Interactive,
-    /// <summary>The <c>plan</c> variant.</summary>
-    [JsonStringEnumMemberName("plan")]
-    Plan,
-    /// <summary>The <c>autopilot</c> variant.</summary>
-    [JsonStringEnumMemberName("autopilot")]
-    Autopilot,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionMode"/>.</param>
+    [JsonConstructor]
+    public SessionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>interactive</c> value.</summary>
+    public static SessionMode Interactive { get; } = new("interactive");
+
+    /// <summary>Gets the <c>plan</c> value.</summary>
+    public static SessionMode Plan { get; } = new("plan");
+
+    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    public static SessionMode Autopilot { get; } = new("autopilot");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionMode left, SessionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionMode left, SessionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionMode}"/> for serializing <see cref="SessionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionMode>
+    {
+        /// <inheritdoc />
+        public override SessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionMode value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMode));
+        }
+    }
 }
 
 
 /// <summary>Defines the allowed values.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<WorkspacesGetWorkspaceResultWorkspaceHostType>))]
-public enum WorkspacesGetWorkspaceResultWorkspaceHostType
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkspacesGetWorkspaceResultWorkspaceHostType : IEquatable<WorkspacesGetWorkspaceResultWorkspaceHostType>
 {
-    /// <summary>The <c>github</c> variant.</summary>
-    [JsonStringEnumMemberName("github")]
-    Github,
-    /// <summary>The <c>ado</c> variant.</summary>
-    [JsonStringEnumMemberName("ado")]
-    Ado,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/>.</param>
+    [JsonConstructor]
+    public WorkspacesGetWorkspaceResultWorkspaceHostType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>github</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceHostType Github { get; } = new("github");
+
+    /// <summary>Gets the <c>ado</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceHostType Ado { get; } = new("ado");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkspacesGetWorkspaceResultWorkspaceHostType left, WorkspacesGetWorkspaceResultWorkspaceHostType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkspacesGetWorkspaceResultWorkspaceHostType left, WorkspacesGetWorkspaceResultWorkspaceHostType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkspacesGetWorkspaceResultWorkspaceHostType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkspacesGetWorkspaceResultWorkspaceHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkspacesGetWorkspaceResultWorkspaceHostType}"/> for serializing <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkspacesGetWorkspaceResultWorkspaceHostType>
+    {
+        /// <inheritdoc />
+        public override WorkspacesGetWorkspaceResultWorkspaceHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkspacesGetWorkspaceResultWorkspaceHostType value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesGetWorkspaceResultWorkspaceHostType));
+        }
+    }
 }
 
 
 /// <summary>Defines the allowed values.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>))]
-public enum WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel : IEquatable<WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>
 {
-    /// <summary>The <c>local</c> variant.</summary>
-    [JsonStringEnumMemberName("local")]
-    Local,
-    /// <summary>The <c>user</c> variant.</summary>
-    [JsonStringEnumMemberName("user")]
-    User,
-    /// <summary>The <c>repo_and_user</c> variant.</summary>
-    [JsonStringEnumMemberName("repo_and_user")]
-    RepoAndUser,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/>.</param>
+    [JsonConstructor]
+    public WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>local</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel Local { get; } = new("local");
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel User { get; } = new("user");
+
+    /// <summary>Gets the <c>repo_and_user</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel RepoAndUser { get; } = new("repo_and_user");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel left, WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel left, WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel}"/> for serializing <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>
+    {
+        /// <inheritdoc />
+        public override WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel));
+        }
+    }
 }
 
 
 /// <summary>Where this source lives — used for UI grouping.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<InstructionsSourcesLocation>))]
-public enum InstructionsSourcesLocation
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSourcesLocation>
 {
-    /// <summary>The <c>user</c> variant.</summary>
-    [JsonStringEnumMemberName("user")]
-    User,
-    /// <summary>The <c>repository</c> variant.</summary>
-    [JsonStringEnumMemberName("repository")]
-    Repository,
-    /// <summary>The <c>working-directory</c> variant.</summary>
-    [JsonStringEnumMemberName("working-directory")]
-    WorkingDirectory,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="InstructionsSourcesLocation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="InstructionsSourcesLocation"/>.</param>
+    [JsonConstructor]
+    public InstructionsSourcesLocation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="InstructionsSourcesLocation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static InstructionsSourcesLocation User { get; } = new("user");
+
+    /// <summary>Gets the <c>repository</c> value.</summary>
+    public static InstructionsSourcesLocation Repository { get; } = new("repository");
+
+    /// <summary>Gets the <c>working-directory</c> value.</summary>
+    public static InstructionsSourcesLocation WorkingDirectory { get; } = new("working-directory");
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesLocation"/> instances are equivalent.</summary>
+    public static bool operator ==(InstructionsSourcesLocation left, InstructionsSourcesLocation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesLocation"/> instances are not equivalent.</summary>
+    public static bool operator !=(InstructionsSourcesLocation left, InstructionsSourcesLocation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is InstructionsSourcesLocation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(InstructionsSourcesLocation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{InstructionsSourcesLocation}"/> for serializing <see cref="InstructionsSourcesLocation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<InstructionsSourcesLocation>
+    {
+        /// <inheritdoc />
+        public override InstructionsSourcesLocation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, InstructionsSourcesLocation value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesLocation));
+        }
+    }
 }
 
 
 /// <summary>Category of instruction source — used for merge logic.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<InstructionsSourcesType>))]
-public enum InstructionsSourcesType
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesType>
 {
-    /// <summary>The <c>home</c> variant.</summary>
-    [JsonStringEnumMemberName("home")]
-    Home,
-    /// <summary>The <c>repo</c> variant.</summary>
-    [JsonStringEnumMemberName("repo")]
-    Repo,
-    /// <summary>The <c>model</c> variant.</summary>
-    [JsonStringEnumMemberName("model")]
-    Model,
-    /// <summary>The <c>vscode</c> variant.</summary>
-    [JsonStringEnumMemberName("vscode")]
-    Vscode,
-    /// <summary>The <c>nested-agents</c> variant.</summary>
-    [JsonStringEnumMemberName("nested-agents")]
-    NestedAgents,
-    /// <summary>The <c>child-instructions</c> variant.</summary>
-    [JsonStringEnumMemberName("child-instructions")]
-    ChildInstructions,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="InstructionsSourcesType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="InstructionsSourcesType"/>.</param>
+    [JsonConstructor]
+    public InstructionsSourcesType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="InstructionsSourcesType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>home</c> value.</summary>
+    public static InstructionsSourcesType Home { get; } = new("home");
+
+    /// <summary>Gets the <c>repo</c> value.</summary>
+    public static InstructionsSourcesType Repo { get; } = new("repo");
+
+    /// <summary>Gets the <c>model</c> value.</summary>
+    public static InstructionsSourcesType Model { get; } = new("model");
+
+    /// <summary>Gets the <c>vscode</c> value.</summary>
+    public static InstructionsSourcesType Vscode { get; } = new("vscode");
+
+    /// <summary>Gets the <c>nested-agents</c> value.</summary>
+    public static InstructionsSourcesType NestedAgents { get; } = new("nested-agents");
+
+    /// <summary>Gets the <c>child-instructions</c> value.</summary>
+    public static InstructionsSourcesType ChildInstructions { get; } = new("child-instructions");
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesType"/> instances are equivalent.</summary>
+    public static bool operator ==(InstructionsSourcesType left, InstructionsSourcesType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesType"/> instances are not equivalent.</summary>
+    public static bool operator !=(InstructionsSourcesType left, InstructionsSourcesType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is InstructionsSourcesType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(InstructionsSourcesType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{InstructionsSourcesType}"/> for serializing <see cref="InstructionsSourcesType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<InstructionsSourcesType>
+    {
+        /// <inheritdoc />
+        public override InstructionsSourcesType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, InstructionsSourcesType value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesType));
+        }
+    }
 }
 
 
 /// <summary>How the agent is currently being managed by the runtime.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<TaskAgentInfoExecutionMode>))]
-public enum TaskAgentInfoExecutionMode
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskAgentInfoExecutionMode : IEquatable<TaskAgentInfoExecutionMode>
 {
-    /// <summary>The <c>sync</c> variant.</summary>
-    [JsonStringEnumMemberName("sync")]
-    Sync,
-    /// <summary>The <c>background</c> variant.</summary>
-    [JsonStringEnumMemberName("background")]
-    Background,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskAgentInfoExecutionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskAgentInfoExecutionMode"/>.</param>
+    [JsonConstructor]
+    public TaskAgentInfoExecutionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskAgentInfoExecutionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>sync</c> value.</summary>
+    public static TaskAgentInfoExecutionMode Sync { get; } = new("sync");
+
+    /// <summary>Gets the <c>background</c> value.</summary>
+    public static TaskAgentInfoExecutionMode Background { get; } = new("background");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoExecutionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskAgentInfoExecutionMode left, TaskAgentInfoExecutionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoExecutionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskAgentInfoExecutionMode left, TaskAgentInfoExecutionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskAgentInfoExecutionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskAgentInfoExecutionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskAgentInfoExecutionMode}"/> for serializing <see cref="TaskAgentInfoExecutionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskAgentInfoExecutionMode>
+    {
+        /// <inheritdoc />
+        public override TaskAgentInfoExecutionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskAgentInfoExecutionMode value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskAgentInfoExecutionMode));
+        }
+    }
 }
 
 
 /// <summary>Current lifecycle status of the task.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<TaskAgentInfoStatus>))]
-public enum TaskAgentInfoStatus
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskAgentInfoStatus : IEquatable<TaskAgentInfoStatus>
 {
-    /// <summary>The <c>running</c> variant.</summary>
-    [JsonStringEnumMemberName("running")]
-    Running,
-    /// <summary>The <c>idle</c> variant.</summary>
-    [JsonStringEnumMemberName("idle")]
-    Idle,
-    /// <summary>The <c>completed</c> variant.</summary>
-    [JsonStringEnumMemberName("completed")]
-    Completed,
-    /// <summary>The <c>failed</c> variant.</summary>
-    [JsonStringEnumMemberName("failed")]
-    Failed,
-    /// <summary>The <c>cancelled</c> variant.</summary>
-    [JsonStringEnumMemberName("cancelled")]
-    Cancelled,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskAgentInfoStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskAgentInfoStatus"/>.</param>
+    [JsonConstructor]
+    public TaskAgentInfoStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskAgentInfoStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>running</c> value.</summary>
+    public static TaskAgentInfoStatus Running { get; } = new("running");
+
+    /// <summary>Gets the <c>idle</c> value.</summary>
+    public static TaskAgentInfoStatus Idle { get; } = new("idle");
+
+    /// <summary>Gets the <c>completed</c> value.</summary>
+    public static TaskAgentInfoStatus Completed { get; } = new("completed");
+
+    /// <summary>Gets the <c>failed</c> value.</summary>
+    public static TaskAgentInfoStatus Failed { get; } = new("failed");
+
+    /// <summary>Gets the <c>cancelled</c> value.</summary>
+    public static TaskAgentInfoStatus Cancelled { get; } = new("cancelled");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskAgentInfoStatus left, TaskAgentInfoStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskAgentInfoStatus left, TaskAgentInfoStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskAgentInfoStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskAgentInfoStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskAgentInfoStatus}"/> for serializing <see cref="TaskAgentInfoStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskAgentInfoStatus>
+    {
+        /// <inheritdoc />
+        public override TaskAgentInfoStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskAgentInfoStatus value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskAgentInfoStatus));
+        }
+    }
 }
 
 
 /// <summary>Whether the shell runs inside a managed PTY session or as an independent background process.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<TaskShellInfoAttachmentMode>))]
-public enum TaskShellInfoAttachmentMode
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAttachmentMode>
 {
-    /// <summary>The <c>attached</c> variant.</summary>
-    [JsonStringEnumMemberName("attached")]
-    Attached,
-    /// <summary>The <c>detached</c> variant.</summary>
-    [JsonStringEnumMemberName("detached")]
-    Detached,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskShellInfoAttachmentMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskShellInfoAttachmentMode"/>.</param>
+    [JsonConstructor]
+    public TaskShellInfoAttachmentMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskShellInfoAttachmentMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>attached</c> value.</summary>
+    public static TaskShellInfoAttachmentMode Attached { get; } = new("attached");
+
+    /// <summary>Gets the <c>detached</c> value.</summary>
+    public static TaskShellInfoAttachmentMode Detached { get; } = new("detached");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoAttachmentMode"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskShellInfoAttachmentMode left, TaskShellInfoAttachmentMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoAttachmentMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskShellInfoAttachmentMode left, TaskShellInfoAttachmentMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskShellInfoAttachmentMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskShellInfoAttachmentMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskShellInfoAttachmentMode}"/> for serializing <see cref="TaskShellInfoAttachmentMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskShellInfoAttachmentMode>
+    {
+        /// <inheritdoc />
+        public override TaskShellInfoAttachmentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskShellInfoAttachmentMode value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoAttachmentMode));
+        }
+    }
 }
 
 
 /// <summary>Whether the shell command is currently sync-waited or background-managed.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<TaskShellInfoExecutionMode>))]
-public enum TaskShellInfoExecutionMode
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskShellInfoExecutionMode : IEquatable<TaskShellInfoExecutionMode>
 {
-    /// <summary>The <c>sync</c> variant.</summary>
-    [JsonStringEnumMemberName("sync")]
-    Sync,
-    /// <summary>The <c>background</c> variant.</summary>
-    [JsonStringEnumMemberName("background")]
-    Background,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskShellInfoExecutionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskShellInfoExecutionMode"/>.</param>
+    [JsonConstructor]
+    public TaskShellInfoExecutionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskShellInfoExecutionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>sync</c> value.</summary>
+    public static TaskShellInfoExecutionMode Sync { get; } = new("sync");
+
+    /// <summary>Gets the <c>background</c> value.</summary>
+    public static TaskShellInfoExecutionMode Background { get; } = new("background");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoExecutionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskShellInfoExecutionMode left, TaskShellInfoExecutionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoExecutionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskShellInfoExecutionMode left, TaskShellInfoExecutionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskShellInfoExecutionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskShellInfoExecutionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskShellInfoExecutionMode}"/> for serializing <see cref="TaskShellInfoExecutionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskShellInfoExecutionMode>
+    {
+        /// <inheritdoc />
+        public override TaskShellInfoExecutionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskShellInfoExecutionMode value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoExecutionMode));
+        }
+    }
 }
 
 
 /// <summary>Current lifecycle status of the task.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<TaskShellInfoStatus>))]
-public enum TaskShellInfoStatus
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskShellInfoStatus : IEquatable<TaskShellInfoStatus>
 {
-    /// <summary>The <c>running</c> variant.</summary>
-    [JsonStringEnumMemberName("running")]
-    Running,
-    /// <summary>The <c>idle</c> variant.</summary>
-    [JsonStringEnumMemberName("idle")]
-    Idle,
-    /// <summary>The <c>completed</c> variant.</summary>
-    [JsonStringEnumMemberName("completed")]
-    Completed,
-    /// <summary>The <c>failed</c> variant.</summary>
-    [JsonStringEnumMemberName("failed")]
-    Failed,
-    /// <summary>The <c>cancelled</c> variant.</summary>
-    [JsonStringEnumMemberName("cancelled")]
-    Cancelled,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskShellInfoStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskShellInfoStatus"/>.</param>
+    [JsonConstructor]
+    public TaskShellInfoStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskShellInfoStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>running</c> value.</summary>
+    public static TaskShellInfoStatus Running { get; } = new("running");
+
+    /// <summary>Gets the <c>idle</c> value.</summary>
+    public static TaskShellInfoStatus Idle { get; } = new("idle");
+
+    /// <summary>Gets the <c>completed</c> value.</summary>
+    public static TaskShellInfoStatus Completed { get; } = new("completed");
+
+    /// <summary>Gets the <c>failed</c> value.</summary>
+    public static TaskShellInfoStatus Failed { get; } = new("failed");
+
+    /// <summary>Gets the <c>cancelled</c> value.</summary>
+    public static TaskShellInfoStatus Cancelled { get; } = new("cancelled");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskShellInfoStatus left, TaskShellInfoStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskShellInfoStatus left, TaskShellInfoStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskShellInfoStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskShellInfoStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskShellInfoStatus}"/> for serializing <see cref="TaskShellInfoStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskShellInfoStatus>
+    {
+        /// <inheritdoc />
+        public override TaskShellInfoStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskShellInfoStatus value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoStatus));
+        }
+    }
 }
 
 
 /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<McpServerSource>))]
-public enum McpServerSource
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerSource : IEquatable<McpServerSource>
 {
-    /// <summary>The <c>user</c> variant.</summary>
-    [JsonStringEnumMemberName("user")]
-    User,
-    /// <summary>The <c>workspace</c> variant.</summary>
-    [JsonStringEnumMemberName("workspace")]
-    Workspace,
-    /// <summary>The <c>plugin</c> variant.</summary>
-    [JsonStringEnumMemberName("plugin")]
-    Plugin,
-    /// <summary>The <c>builtin</c> variant.</summary>
-    [JsonStringEnumMemberName("builtin")]
-    Builtin,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerSource"/>.</param>
+    [JsonConstructor]
+    public McpServerSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static McpServerSource User { get; } = new("user");
+
+    /// <summary>Gets the <c>workspace</c> value.</summary>
+    public static McpServerSource Workspace { get; } = new("workspace");
+
+    /// <summary>Gets the <c>plugin</c> value.</summary>
+    public static McpServerSource Plugin { get; } = new("plugin");
+
+    /// <summary>Gets the <c>builtin</c> value.</summary>
+    public static McpServerSource Builtin { get; } = new("builtin");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerSource left, McpServerSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerSource}"/> for serializing <see cref="McpServerSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerSource>
+    {
+        /// <inheritdoc />
+        public override McpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerSource value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
+        }
+    }
 }
 
 
 /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<McpServerStatus>))]
-public enum McpServerStatus
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerStatus : IEquatable<McpServerStatus>
 {
-    /// <summary>The <c>connected</c> variant.</summary>
-    [JsonStringEnumMemberName("connected")]
-    Connected,
-    /// <summary>The <c>failed</c> variant.</summary>
-    [JsonStringEnumMemberName("failed")]
-    Failed,
-    /// <summary>The <c>needs-auth</c> variant.</summary>
-    [JsonStringEnumMemberName("needs-auth")]
-    NeedsAuth,
-    /// <summary>The <c>pending</c> variant.</summary>
-    [JsonStringEnumMemberName("pending")]
-    Pending,
-    /// <summary>The <c>disabled</c> variant.</summary>
-    [JsonStringEnumMemberName("disabled")]
-    Disabled,
-    /// <summary>The <c>not_configured</c> variant.</summary>
-    [JsonStringEnumMemberName("not_configured")]
-    NotConfigured,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerStatus"/>.</param>
+    [JsonConstructor]
+    public McpServerStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>connected</c> value.</summary>
+    public static McpServerStatus Connected { get; } = new("connected");
+
+    /// <summary>Gets the <c>failed</c> value.</summary>
+    public static McpServerStatus Failed { get; } = new("failed");
+
+    /// <summary>Gets the <c>needs-auth</c> value.</summary>
+    public static McpServerStatus NeedsAuth { get; } = new("needs-auth");
+
+    /// <summary>Gets the <c>pending</c> value.</summary>
+    public static McpServerStatus Pending { get; } = new("pending");
+
+    /// <summary>Gets the <c>disabled</c> value.</summary>
+    public static McpServerStatus Disabled { get; } = new("disabled");
+
+    /// <summary>Gets the <c>not_configured</c> value.</summary>
+    public static McpServerStatus NotConfigured { get; } = new("not_configured");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerStatus left, McpServerStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerStatus left, McpServerStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerStatus}"/> for serializing <see cref="McpServerStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerStatus>
+    {
+        /// <inheritdoc />
+        public override McpServerStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerStatus value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerStatus));
+        }
+    }
 }
 
 
 /// <summary>Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ExtensionSource>))]
-public enum ExtensionSource
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ExtensionSource : IEquatable<ExtensionSource>
 {
-    /// <summary>The <c>project</c> variant.</summary>
-    [JsonStringEnumMemberName("project")]
-    Project,
-    /// <summary>The <c>user</c> variant.</summary>
-    [JsonStringEnumMemberName("user")]
-    User,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ExtensionSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ExtensionSource"/>.</param>
+    [JsonConstructor]
+    public ExtensionSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ExtensionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>project</c> value.</summary>
+    public static ExtensionSource Project { get; } = new("project");
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static ExtensionSource User { get; } = new("user");
+
+    /// <summary>Returns a value indicating whether two <see cref="ExtensionSource"/> instances are equivalent.</summary>
+    public static bool operator ==(ExtensionSource left, ExtensionSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ExtensionSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(ExtensionSource left, ExtensionSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ExtensionSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ExtensionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ExtensionSource}"/> for serializing <see cref="ExtensionSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ExtensionSource>
+    {
+        /// <inheritdoc />
+        public override ExtensionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ExtensionSource value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionSource));
+        }
+    }
 }
 
 
 /// <summary>Current status: running, disabled, failed, or starting.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ExtensionStatus>))]
-public enum ExtensionStatus
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
 {
-    /// <summary>The <c>running</c> variant.</summary>
-    [JsonStringEnumMemberName("running")]
-    Running,
-    /// <summary>The <c>disabled</c> variant.</summary>
-    [JsonStringEnumMemberName("disabled")]
-    Disabled,
-    /// <summary>The <c>failed</c> variant.</summary>
-    [JsonStringEnumMemberName("failed")]
-    Failed,
-    /// <summary>The <c>starting</c> variant.</summary>
-    [JsonStringEnumMemberName("starting")]
-    Starting,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ExtensionStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ExtensionStatus"/>.</param>
+    [JsonConstructor]
+    public ExtensionStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ExtensionStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>running</c> value.</summary>
+    public static ExtensionStatus Running { get; } = new("running");
+
+    /// <summary>Gets the <c>disabled</c> value.</summary>
+    public static ExtensionStatus Disabled { get; } = new("disabled");
+
+    /// <summary>Gets the <c>failed</c> value.</summary>
+    public static ExtensionStatus Failed { get; } = new("failed");
+
+    /// <summary>Gets the <c>starting</c> value.</summary>
+    public static ExtensionStatus Starting { get; } = new("starting");
+
+    /// <summary>Returns a value indicating whether two <see cref="ExtensionStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ExtensionStatus left, ExtensionStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ExtensionStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ExtensionStatus left, ExtensionStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ExtensionStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ExtensionStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ExtensionStatus}"/> for serializing <see cref="ExtensionStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ExtensionStatus>
+    {
+        /// <inheritdoc />
+        public override ExtensionStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ExtensionStatus value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionStatus));
+        }
+    }
 }
 
 
 /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<UIElicitationResponseAction>))]
-public enum UIElicitationResponseAction
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationResponseAction>
 {
-    /// <summary>The <c>accept</c> variant.</summary>
-    [JsonStringEnumMemberName("accept")]
-    Accept,
-    /// <summary>The <c>decline</c> variant.</summary>
-    [JsonStringEnumMemberName("decline")]
-    Decline,
-    /// <summary>The <c>cancel</c> variant.</summary>
-    [JsonStringEnumMemberName("cancel")]
-    Cancel,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="UIElicitationResponseAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="UIElicitationResponseAction"/>.</param>
+    [JsonConstructor]
+    public UIElicitationResponseAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="UIElicitationResponseAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>accept</c> value.</summary>
+    public static UIElicitationResponseAction Accept { get; } = new("accept");
+
+    /// <summary>Gets the <c>decline</c> value.</summary>
+    public static UIElicitationResponseAction Decline { get; } = new("decline");
+
+    /// <summary>Gets the <c>cancel</c> value.</summary>
+    public static UIElicitationResponseAction Cancel { get; } = new("cancel");
+
+    /// <summary>Returns a value indicating whether two <see cref="UIElicitationResponseAction"/> instances are equivalent.</summary>
+    public static bool operator ==(UIElicitationResponseAction left, UIElicitationResponseAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="UIElicitationResponseAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(UIElicitationResponseAction left, UIElicitationResponseAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is UIElicitationResponseAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(UIElicitationResponseAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{UIElicitationResponseAction}"/> for serializing <see cref="UIElicitationResponseAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<UIElicitationResponseAction>
+    {
+        /// <inheritdoc />
+        public override UIElicitationResponseAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, UIElicitationResponseAction value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIElicitationResponseAction));
+        }
+    }
 }
 
 
 /// <summary>Signal to send (default: SIGTERM).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ShellKillSignal>))]
-public enum ShellKillSignal
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
 {
-    /// <summary>The <c>SIGTERM</c> variant.</summary>
-    [JsonStringEnumMemberName("SIGTERM")]
-    SIGTERM,
-    /// <summary>The <c>SIGKILL</c> variant.</summary>
-    [JsonStringEnumMemberName("SIGKILL")]
-    SIGKILL,
-    /// <summary>The <c>SIGINT</c> variant.</summary>
-    [JsonStringEnumMemberName("SIGINT")]
-    SIGINT,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ShellKillSignal"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ShellKillSignal"/>.</param>
+    [JsonConstructor]
+    public ShellKillSignal(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ShellKillSignal"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>SIGTERM</c> value.</summary>
+    public static ShellKillSignal SIGTERM { get; } = new("SIGTERM");
+
+    /// <summary>Gets the <c>SIGKILL</c> value.</summary>
+    public static ShellKillSignal SIGKILL { get; } = new("SIGKILL");
+
+    /// <summary>Gets the <c>SIGINT</c> value.</summary>
+    public static ShellKillSignal SIGINT { get; } = new("SIGINT");
+
+    /// <summary>Returns a value indicating whether two <see cref="ShellKillSignal"/> instances are equivalent.</summary>
+    public static bool operator ==(ShellKillSignal left, ShellKillSignal right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ShellKillSignal"/> instances are not equivalent.</summary>
+    public static bool operator !=(ShellKillSignal left, ShellKillSignal right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ShellKillSignal other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ShellKillSignal other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ShellKillSignal}"/> for serializing <see cref="ShellKillSignal"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ShellKillSignal>
+    {
+        /// <inheritdoc />
+        public override ShellKillSignal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ShellKillSignal value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellKillSignal));
+        }
+    }
 }
 
 
 /// <summary>Error classification.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionFsErrorCode>))]
-public enum SessionFsErrorCode
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
 {
-    /// <summary>The <c>ENOENT</c> variant.</summary>
-    [JsonStringEnumMemberName("ENOENT")]
-    ENOENT,
-    /// <summary>The <c>UNKNOWN</c> variant.</summary>
-    [JsonStringEnumMemberName("UNKNOWN")]
-    UNKNOWN,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionFsErrorCode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionFsErrorCode"/>.</param>
+    [JsonConstructor]
+    public SessionFsErrorCode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionFsErrorCode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>ENOENT</c> value.</summary>
+    public static SessionFsErrorCode ENOENT { get; } = new("ENOENT");
+
+    /// <summary>Gets the <c>UNKNOWN</c> value.</summary>
+    public static SessionFsErrorCode UNKNOWN { get; } = new("UNKNOWN");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionFsErrorCode"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionFsErrorCode left, SessionFsErrorCode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionFsErrorCode"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionFsErrorCode left, SessionFsErrorCode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionFsErrorCode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionFsErrorCode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionFsErrorCode}"/> for serializing <see cref="SessionFsErrorCode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionFsErrorCode>
+    {
+        /// <inheritdoc />
+        public override SessionFsErrorCode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionFsErrorCode value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsErrorCode));
+        }
+    }
 }
 
 
 /// <summary>Entry type.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionFsReaddirWithTypesEntryType>))]
-public enum SessionFsReaddirWithTypesEntryType
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFsReaddirWithTypesEntryType>
 {
-    /// <summary>The <c>file</c> variant.</summary>
-    [JsonStringEnumMemberName("file")]
-    File,
-    /// <summary>The <c>directory</c> variant.</summary>
-    [JsonStringEnumMemberName("directory")]
-    Directory,
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionFsReaddirWithTypesEntryType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionFsReaddirWithTypesEntryType"/>.</param>
+    [JsonConstructor]
+    public SessionFsReaddirWithTypesEntryType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionFsReaddirWithTypesEntryType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>file</c> value.</summary>
+    public static SessionFsReaddirWithTypesEntryType File { get; } = new("file");
+
+    /// <summary>Gets the <c>directory</c> value.</summary>
+    public static SessionFsReaddirWithTypesEntryType Directory { get; } = new("directory");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionFsReaddirWithTypesEntryType"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionFsReaddirWithTypesEntryType left, SessionFsReaddirWithTypesEntryType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionFsReaddirWithTypesEntryType"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionFsReaddirWithTypesEntryType left, SessionFsReaddirWithTypesEntryType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionFsReaddirWithTypesEntryType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionFsReaddirWithTypesEntryType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionFsReaddirWithTypesEntryType}"/> for serializing <see cref="SessionFsReaddirWithTypesEntryType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionFsReaddirWithTypesEntryType>
+    {
+        /// <inheritdoc />
+        public override SessionFsReaddirWithTypesEntryType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionFsReaddirWithTypesEntryType value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsReaddirWithTypesEntryType));
+        }
+    }
 }
 
 
