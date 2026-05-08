@@ -381,6 +381,7 @@ function getOrCreateEnum(
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override ${enumName} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)`);
     lines.push(`        {`);
+    lines.push(`            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ${enumName}, but found {reader.TokenType}.");`);
     lines.push(`            var value = reader.GetString();`);
     lines.push(`            if (string.IsNullOrWhiteSpace(value)) throw new JsonException();`);
     lines.push(`            return new(value);`);

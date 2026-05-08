@@ -4930,6 +4930,7 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
         /// <inheritdoc />
         public override WorkingDirectoryContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading WorkingDirectoryContextHostType, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -4997,6 +4998,7 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
         /// <inheritdoc />
         public override PlanChangedOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PlanChangedOperation, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5061,6 +5063,7 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
         /// <inheritdoc />
         public override WorkspaceFileChangedOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading WorkspaceFileChangedOperation, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5125,6 +5128,7 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
         /// <inheritdoc />
         public override HandoffSourceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading HandoffSourceType, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5189,6 +5193,7 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
         /// <inheritdoc />
         public override ShutdownType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ShutdownType, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5259,6 +5264,7 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
         /// <inheritdoc />
         public override UserMessageAgentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading UserMessageAgentMode, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5326,6 +5332,7 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
         /// <inheritdoc />
         public override UserMessageAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading UserMessageAttachmentGithubReferenceType, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5390,6 +5397,7 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
         /// <inheritdoc />
         public override AssistantMessageToolRequestType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading AssistantMessageToolRequestType, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5457,6 +5465,7 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
         /// <inheritdoc />
         public override ModelCallFailureSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ModelCallFailureSource, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5524,6 +5533,7 @@ public readonly struct AbortReason : IEquatable<AbortReason>
         /// <inheritdoc />
         public override AbortReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading AbortReason, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5588,6 +5598,7 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
         /// <inheritdoc />
         public override ToolExecutionCompleteContentResourceLinkIconTheme Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ToolExecutionCompleteContentResourceLinkIconTheme, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5652,6 +5663,7 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
         /// <inheritdoc />
         public override SystemMessageRole Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading SystemMessageRole, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5716,6 +5728,7 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
         /// <inheritdoc />
         public override SystemNotificationAgentCompletedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading SystemNotificationAgentCompletedStatus, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5780,6 +5793,7 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
         /// <inheritdoc />
         public override PermissionRequestMemoryAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionRequestMemoryAction, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5844,6 +5858,7 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
         /// <inheritdoc />
         public override PermissionRequestMemoryDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionRequestMemoryDirection, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5908,6 +5923,7 @@ public readonly struct PermissionPromptRequestMemoryAction : IEquatable<Permissi
         /// <inheritdoc />
         public override PermissionPromptRequestMemoryAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionPromptRequestMemoryAction, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -5972,6 +5988,7 @@ public readonly struct PermissionPromptRequestMemoryDirection : IEquatable<Permi
         /// <inheritdoc />
         public override PermissionPromptRequestMemoryDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionPromptRequestMemoryDirection, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -6039,6 +6056,7 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
         /// <inheritdoc />
         public override PermissionPromptRequestPathAccessKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading PermissionPromptRequestPathAccessKind, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -6103,6 +6121,7 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
         /// <inheritdoc />
         public override ElicitationRequestedMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ElicitationRequestedMode, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -6170,6 +6189,7 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
         /// <inheritdoc />
         public override ElicitationCompletedAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ElicitationCompletedAction, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -6246,6 +6266,7 @@ public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoade
         /// <inheritdoc />
         public override McpServersLoadedServerStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading McpServersLoadedServerStatus, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -6322,6 +6343,7 @@ public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatus
         /// <inheritdoc />
         public override McpServerStatusChangedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading McpServerStatusChangedStatus, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -6386,6 +6408,7 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
         /// <inheritdoc />
         public override ExtensionsLoadedExtensionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ExtensionsLoadedExtensionSource, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);
@@ -6456,6 +6479,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
         /// <inheritdoc />
         public override ExtensionsLoadedExtensionStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            if (reader.TokenType != JsonTokenType.String) throw new JsonException($"Expected a string token when reading ExtensionsLoadedExtensionStatus, but found {reader.TokenType}.");
             var value = reader.GetString();
             if (string.IsNullOrWhiteSpace(value)) throw new JsonException();
             return new(value);

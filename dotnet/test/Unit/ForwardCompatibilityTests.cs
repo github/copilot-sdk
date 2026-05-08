@@ -190,6 +190,25 @@ public class ForwardCompatibilityTests
     }
 
     [Fact]
+    public void FromJson_KnownEventType_WithNonStringEnumInData_ThrowsJsonException()
+    {
+        var json = """
+        {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "parentId": null,
+            "type": "abort",
+            "data": {
+                "reason": false
+            }
+        }
+        """;
+
+        var exception = Assert.Throws<JsonException>(() => SessionEvent.FromJson(json));
+        Assert.Contains("AbortReason", exception.Message);
+    }
+
+    [Fact]
     public void RpcEnum_WithUnknownValue_PreservesValue()
     {
         var mode = JsonSerializer.Deserialize(
@@ -204,6 +223,18 @@ public class ForwardCompatibilityTests
             "future_mode"
             """,
             JsonSerializer.Serialize(mode, ForwardCompatibilityJsonContext.Default.SessionMode));
+    }
+
+    [Fact]
+    public void RpcEnum_WithNonStringValue_ThrowsJsonException()
+    {
+        var exception = Assert.Throws<JsonException>(() => JsonSerializer.Deserialize(
+            """
+            42
+            """,
+            ForwardCompatibilityJsonContext.Default.SessionMode));
+
+        Assert.Contains("SessionMode", exception.Message);
     }
 
     [Fact]
