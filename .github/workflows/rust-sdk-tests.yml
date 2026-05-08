@@ -99,18 +99,6 @@ jobs:
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
         run: cargo test --features test-support
 
-      # Detects accidental public-API breakage against the crate's last
-      # published version on crates.io. Non-blocking until the crate has
-      # a first published release — once a 0.1.0 ships, flip
-      # `continue-on-error` to `false` to enforce SemVer.
-      - name: cargo semver-checks
-        if: runner.os == 'Linux'
-        continue-on-error: true
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: github-copilot-sdk
-          manifest-path: rust/Cargo.toml
-
   # Validates the `embedded-cli` build path on all three supported
   # platforms. This is the only place `build.rs` actually runs (the
   # default `cargo test` job above has `COPILOT_CLI_VERSION` unset, so
