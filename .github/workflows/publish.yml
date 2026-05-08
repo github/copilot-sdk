@@ -149,11 +149,7 @@ jobs:
 
   publish-rust:
     name: Publish Rust SDK
-    # Rust ships only on stable cuts. No prereleases land on crates.io
-    # while the crate is pre-1.0 — Cargo's resolver and crates.io's
-    # version-ranked homepage both behave better when the crate's
-    # published versions are all real stables. See rust/RELEASING.md.
-    if: github.event.inputs.dist-tag == 'latest'
+    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -168,21 +164,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "rust"
-      - name: Guard against >=1.0 publish
-        # The Rust crate is pre-1.0. Refuse to publish anything that
-        # doesn't start with "0." — protects against the shared
-        # version line auto-promoting to 1.x via the npm prerelease
-        # channel. Lift this guard when the crate is genuinely ready
-        # for 1.0.
-        run: |
-          VERSION="${{ needs.version.outputs.version }}"
-          if [[ ! "$VERSION" =~ ^0\. ]]; then
-            echo "❌ Refusing to publish github-copilot-sdk@$VERSION to crates.io." >> $GITHUB_STEP_SUMMARY
-            echo "The Rust crate is pre-1.0. Pass a 'version=0.X.Y' workflow input to override," >> $GITHUB_STEP_SUMMARY
-            echo "or skip Rust by triggering with dist-tag=prerelease/unstable." >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-          echo "Publishing github-copilot-sdk@$VERSION" >> $GITHUB_STEP_SUMMARY
       - name: Set version
         run: sed -i -E 's/^version = ".*"$/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
       - name: Package (dry run)
@@ -237,17 +218,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     needs: [version, publish-nodejs, publish-dotnet, publish-python, publish-rust]
-    # publish-rust is skipped on prerelease runs (Rust ships only on
-    # latest). Use always() + explicit result checks so a skipped Rust
-    # job doesn't cascade-skip the cross-language release.
-    if: |
-      always() &&
-      github.ref == 'refs/heads/main' &&
-      github.event.inputs.dist-tag != 'unstable' &&
-      needs.publish-nodejs.result == 'success' &&
-      needs.publish-dotnet.result == 'success' &&
-      needs.publish-python.result == 'success' &&
-      (needs.publish-rust.result == 'success' || needs.publish-rust.result == 'skipped')
+    if: github.ref == 'refs/heads/main' && github.event.inputs.dist-tag != 'unstable'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -300,11 +271,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Tag Rust SDK and create Rust GitHub Release
-        # Rust ships only on stable cuts and gets its own version-scoped
-        # GitHub Release with notes derived from PR titles since the
-        # previous Rust tag. The cross-language `vX.Y.Z` release above
-        # still exists; this one is the canonical reference for Rust users.
-        if: github.event.inputs.dist-tag == 'latest'
+        # Rust gets its own version-scoped GitHub Release with notes
+        # derived from PR titles since the previous Rust tag. The
+        # cross-language `vX.Y.Z` release above still exists; this one
+        # is the canonical reference for Rust users.
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
         run: |
           set -e
           git config user.name "github-actions[bot]"

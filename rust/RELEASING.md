@@ -9,41 +9,22 @@ workflow.
 1. Land your changes on `main`.
 2. Trigger the **Publish SDK packages** workflow
    (`.github/workflows/publish.yml`) via `workflow_dispatch`.
-3. Pick `dist-tag=latest`. Rust ships **only** on stable cuts — no
-   prereleases land on crates.io.
+3. Pick `dist-tag`:
+   - `latest` — stable release (e.g. `1.0.0`).
+   - `prerelease` — beta release (e.g. `1.0.0-beta.4`). Lands on
+     crates.io as a prerelease; users must opt in with an explicit
+     prerelease version requirement to install it.
+   - `unstable` — skipped for Rust (Cargo doesn't have a clean
+     equivalent of npm's `unstable` dist-tag).
 4. The workflow publishes all four SDKs at the shared computed
    version, tags `rust/vX.Y.Z`, and creates a Rust-scoped GitHub
    Release with auto-generated notes since the previous Rust tag.
-
-## The pre-1.0 hard rule
-
-`publish-rust` refuses to publish anything that doesn't match `^0\.`.
-This is intentional: the crate is pre-1.0, the public API is still
-moving, and crates.io's version-ranked homepage behaves better when
-all published versions are real stables.
-
-## First unified release: explicit `version` override
-
-Today, `get-version.js` computes `next latest = 1.0.0` because the
-Node/NuGet/PyPI prerelease channel has been cooking 1.0 betas. That
-trips the Rust guard.
-
-For the first unified Rust release, pass an explicit `version` input
-(e.g. `0.3.0` or `0.4.0`) when triggering the workflow. That override
-applies to all four SDKs on that run, so the others will publish the
-same `0.X.Y` instead of `1.0.0`. Coordinate with the broader release
-plan before doing this.
-
-After that, subsequent `dist-tag=latest` runs will produce clean
-`0.X.Y` numbers without an override, until the team commits to 1.0
-across the board — at which point the `^0\.` guard is lifted in one
-PR.
 
 ## Version, tag, and release notes
 
 - **Crate version:** the in-tree `rust/Cargo.toml` carries `0.0.0-dev`
   as a placeholder. CI overrides it at publish time with the version
-  computed (or overridden) by `publish.yml`.
+  computed by `publish.yml` (or an explicit `version` workflow input).
 - **Tag:** `rust/vX.Y.Z` (matches the `go/vX.Y.Z` style used elsewhere
   in this repo). The historical `rust-v0.1.0` tag from the
   release-plz era stays valid as a starting point for auto-generated
@@ -53,6 +34,19 @@ PR.
   Write descriptive PR titles for any change that touches the Rust
   surface; that's the only place those changes will be visible to
   Rust users.
+
+## Cargo prerelease semantics
+
+`cargo add github-copilot-sdk` and `version = "1"` requirements skip
+prereleases by default. Users who want to opt in to a beta must
+write an explicit prerelease requirement:
+
+```toml
+github-copilot-sdk = "1.0.0-beta.4"
+```
+
+This matches Cargo's standard semver behavior and means a
+prerelease-channel publish won't surprise stable users.
 
 ## Yanking a release
 
@@ -79,8 +73,8 @@ credentials can publish locally:
 ```sh
 cd rust
 
-# Set the real version (replace 0.X.Y).
-sed -i '' -E 's/^version = ".*"$/version = "0.X.Y"/' Cargo.toml
+# Set the real version (replace X.Y.Z).
+sed -i '' -E 's/^version = ".*"$/version = "X.Y.Z"/' Cargo.toml
 
 # Verify package contents.
 cargo publish --dry-run
@@ -89,13 +83,13 @@ cargo publish --dry-run
 cargo publish
 
 # Tag and push.
-git tag rust/v0.X.Y
-git push origin rust/v0.X.Y
+git tag rust/vX.Y.Z
+git push origin rust/vX.Y.Z
 
 # Restore the placeholder.
 sed -i '' -E 's/^version = ".*"$/version = "0.0.0-dev"/' Cargo.toml
 ```
 
 Manual publishes skip the auto-generated GitHub Release. Run
-`gh release create rust/v0.X.Y --generate-notes` after pushing the
+`gh release create rust/vX.Y.Z --generate-notes` after pushing the
 tag.
