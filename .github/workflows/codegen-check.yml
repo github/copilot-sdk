@@ -23,6 +23,7 @@ permissions:
 jobs:
   check:
     name: "Verify generated files are up-to-date"
+    if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

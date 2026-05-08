@@ -30,6 +30,7 @@ permissions:
 jobs:
   test:
     name: "Go SDK Tests"
+    if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
     strategy:

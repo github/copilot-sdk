@@ -32,6 +32,7 @@ permissions:
 jobs:
   test:
     name: "Node.js SDK Tests"
+    if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
     strategy:
