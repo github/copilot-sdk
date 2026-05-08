@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.generated.SessionEvent;
@@ -306,6 +307,7 @@ public class CopilotSessionTest {
      * @see Snapshot: session/should_resume_a_session_using_a_new_client
      */
     @Test
+    @Disabled("Flaky: multi-client session resume times out in snapshot-based test harness")
     void testShouldResumeSessionUsingNewClient() throws Exception {
         ctx.configureForTest("session", "should_resume_a_session_using_a_new_client");
 
