@@ -1,6 +1,6 @@
 [package]
 name = "github-copilot-sdk"
-version = "0.1.0"
+version = "0.0.0-dev"
 edition = "2024"
 rust-version = "1.94.0"
 description = "Rust SDK for programmatic control of the GitHub Copilot CLI via JSON-RPC. Technical preview, pre-1.0."
@@ -13,7 +13,6 @@ readme = "README.md"
 license = "MIT"
 exclude = [
     "RELEASING.md",
-    "release-plz.toml",
     "rust-toolchain.toml",
     ".rustfmt.toml",
     ".rustfmt.nightly.toml",
