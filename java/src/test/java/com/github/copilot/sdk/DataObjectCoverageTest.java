@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.sdk.json.GetForegroundSessionResponse;
+import com.github.copilot.sdk.json.McpHttpServerConfig;
+import com.github.copilot.sdk.json.McpStdioServerConfig;
+import com.github.copilot.sdk.json.ModelCapabilitiesOverride;
 import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.PostToolUseHookInput;
@@ -177,5 +180,54 @@ class DataObjectCoverageTest {
         result.setRules(rules);
         assertEquals(2, result.getRules().size());
         assertEquals("bash:read", result.getRules().get(0));
+    }
+
+    @Test
+    void mcpHttpServerConfigCoversGettersAndFluentSetters() {
+        var headers = java.util.Map.of("Authorization", "Bearer token");
+        var tools = java.util.List.of("*", "search");
+
+        var cfg = new McpHttpServerConfig().setUrl("https://mcp.example.com/sse").setHeaders(headers).setTools(tools)
+                .setTimeout(45);
+
+        assertEquals("http", cfg.getType());
+        assertEquals("https://mcp.example.com/sse", cfg.getUrl());
+        assertEquals("Bearer token", cfg.getHeaders().get("Authorization"));
+        assertEquals(tools, cfg.getTools());
+        assertEquals(45, cfg.getTimeout());
+    }
+
+    @Test
+    void mcpStdioServerConfigCoversGettersAndFluentSetters() {
+        var args = java.util.List.of("-y", "@modelcontextprotocol/server-filesystem");
+        var env = java.util.Map.of("DEBUG", "1");
+        var tools = java.util.List.of("*");
+
+        var cfg = new McpStdioServerConfig().setCommand("npx").setArgs(args).setEnv(env).setWorkingDirectory("/tmp")
+                .setTools(tools).setTimeout(30);
+
+        assertEquals("stdio", cfg.getType());
+        assertEquals("npx", cfg.getCommand());
+        assertEquals(args, cfg.getArgs());
+        assertEquals("1", cfg.getEnv().get("DEBUG"));
+        assertEquals("/tmp", cfg.getWorkingDirectory());
+        assertEquals(tools, cfg.getTools());
+        assertEquals(30, cfg.getTimeout());
+    }
+
+    @Test
+    void modelCapabilitiesOverrideCoversNestedSupportsAndLimits() {
+        var supports = new ModelCapabilitiesOverride.Supports().setVision(Boolean.TRUE)
+                .setReasoningEffort(Boolean.FALSE);
+        var limits = new ModelCapabilitiesOverride.Limits().setMaxPromptTokens(2048).setMaxOutputTokens(512)
+                .setMaxContextWindowTokens(8192);
+
+        var override = new ModelCapabilitiesOverride().setSupports(supports).setLimits(limits);
+
+        assertTrue(override.getSupports().getVision());
+        assertFalse(override.getSupports().getReasoningEffort());
+        assertEquals(2048, override.getLimits().getMaxPromptTokens());
+        assertEquals(512, override.getLimits().getMaxOutputTokens());
+        assertEquals(8192, override.getLimits().getMaxContextWindowTokens());
     }
 }
