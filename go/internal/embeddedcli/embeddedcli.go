@@ -79,7 +79,7 @@ func install() (path string) {
 		start := time.Now()
 		defer func() {
 			duration := time.Since(start)
-			fmt.Printf("installing embedded CLI at %s; installation took %s\n", path, duration)
+			fmt.Printf("installing embedded CLI at %s installation took %s\n", path, duration)
 		}()
 	}
 	installDir := config.Dir
