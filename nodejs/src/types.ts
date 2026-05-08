@@ -322,9 +322,13 @@ export function convertMcpCallToolResult(callResult: McpCallToolResult): ToolRes
                     textParts.push(block.resource.text);
                 }
                 if (block.resource?.blob) {
+                    const mimeType = block.resource.mimeType;
                     binaryResults.push({
                         data: block.resource.blob,
-                        mimeType: block.resource.mimeType ?? "application/octet-stream",
+                        mimeType:
+                            typeof mimeType === "string" && mimeType
+                                ? mimeType
+                                : "application/octet-stream",
                         type: "resource",
                         description: block.resource.uri,
                     });
