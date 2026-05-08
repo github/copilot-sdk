@@ -1777,8 +1777,12 @@ func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputRespons
 
 // handleExitPlanModeRequest handles an exitPlanMode.request callback from the CLI server.
 func (c *Client) handleExitPlanModeRequest(req exitPlanModeRequest) (*ExitPlanModeResult, *jsonrpc2.Error) {
-	if req.SessionID == "" || req.Summary == "" || req.RecommendedAction == "" {
+	if req.SessionID == "" {
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid exit plan mode request payload"}
+	}
+	recommendedAction := req.RecommendedAction
+	if recommendedAction == "" {
+		recommendedAction = "autopilot"
 	}
 
 	c.sessionsMux.Lock()
@@ -1792,7 +1796,7 @@ func (c *Client) handleExitPlanModeRequest(req exitPlanModeRequest) (*ExitPlanMo
 		Summary:           req.Summary,
 		PlanContent:       req.PlanContent,
 		Actions:           req.Actions,
-		RecommendedAction: req.RecommendedAction,
+		RecommendedAction: recommendedAction,
 	})
 	if err != nil {
 		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}

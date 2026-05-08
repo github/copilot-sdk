@@ -1022,20 +1022,24 @@ func TestModeCallbackRequestHandlers(t *testing.T) {
 	session := &Session{SessionID: "s1"}
 	client := &Client{sessions: map[string]*Session{"s1": session}}
 
+	expectedSummary := "Review the plan"
+	expectedPlanContent := "Plan body"
+	expectedActions := []string{"interactive", "autopilot"}
+	expectedRecommendedAction := "autopilot"
 	session.registerExitPlanModeHandler(func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error) {
 		if invocation.SessionID != "s1" {
 			t.Fatalf("Expected session ID s1, got %s", invocation.SessionID)
 		}
-		if request.Summary != "Review the plan" {
+		if request.Summary != expectedSummary {
 			t.Fatalf("Expected summary, got %q", request.Summary)
 		}
-		if request.PlanContent != "Plan body" {
+		if request.PlanContent != expectedPlanContent {
 			t.Fatalf("Expected plan content, got %q", request.PlanContent)
 		}
-		if !reflect.DeepEqual(request.Actions, []string{"interactive", "autopilot"}) {
+		if !reflect.DeepEqual(request.Actions, expectedActions) {
 			t.Fatalf("Expected actions to round-trip, got %#v", request.Actions)
 		}
-		if request.RecommendedAction != "autopilot" {
+		if request.RecommendedAction != expectedRecommendedAction {
 			t.Fatalf("Expected recommended action, got %q", request.RecommendedAction)
 		}
 		return ExitPlanModeResult{
@@ -1072,6 +1076,20 @@ func TestModeCallbackRequestHandlers(t *testing.T) {
 	}
 	if !exitResult.Approved || exitResult.SelectedAction != "interactive" || exitResult.Feedback != "Looks good" {
 		t.Fatalf("Unexpected exit-plan-mode result: %#v", exitResult)
+	}
+
+	expectedSummary = ""
+	expectedPlanContent = ""
+	expectedActions = nil
+	expectedRecommendedAction = "autopilot"
+	exitResult, rpcErr = client.handleExitPlanModeRequest(exitPlanModeRequest{
+		SessionID: "s1",
+	})
+	if rpcErr != nil {
+		t.Fatalf("Unexpected RPC error for minimal exit-plan-mode request: %v", rpcErr)
+	}
+	if !exitResult.Approved {
+		t.Fatalf("Unexpected minimal exit-plan-mode result: %#v", exitResult)
 	}
 
 	autoResult, rpcErr := client.handleAutoModeSwitchRequest(autoModeSwitchRequest{

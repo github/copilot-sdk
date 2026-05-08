@@ -196,7 +196,8 @@ class TestModeHandlers:
 
             model_change = await model_change_event
             assert model_change.data.cause == "rate_limit_auto_switch"
-            await idle_event
+            idle = await idle_event
+            assert isinstance(idle.data, SessionIdleData)
 
             assert len(auto_mode_switch_requests) == 1
             request = auto_mode_switch_requests[0]
