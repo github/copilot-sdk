@@ -2770,18 +2770,6 @@ public sealed class SessionFsRenameRequest
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct DiscoveredMcpServerSource : IEquatable<DiscoveredMcpServerSource>
 {
-    /// <summary>Gets the <c>user</c> value.</summary>
-    public static DiscoveredMcpServerSource User { get; } = new("user");
-
-    /// <summary>Gets the <c>workspace</c> value.</summary>
-    public static DiscoveredMcpServerSource Workspace { get; } = new("workspace");
-
-    /// <summary>Gets the <c>plugin</c> value.</summary>
-    public static DiscoveredMcpServerSource Plugin { get; } = new("plugin");
-
-    /// <summary>Gets the <c>builtin</c> value.</summary>
-    public static DiscoveredMcpServerSource Builtin { get; } = new("builtin");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="DiscoveredMcpServerSource"/>.</summary>
@@ -2795,6 +2783,18 @@ public readonly struct DiscoveredMcpServerSource : IEquatable<DiscoveredMcpServe
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static DiscoveredMcpServerSource User { get; } = new("user");
+
+    /// <summary>Gets the <c>workspace</c> value.</summary>
+    public static DiscoveredMcpServerSource Workspace { get; } = new("workspace");
+
+    /// <summary>Gets the <c>plugin</c> value.</summary>
+    public static DiscoveredMcpServerSource Plugin { get; } = new("plugin");
+
+    /// <summary>Gets the <c>builtin</c> value.</summary>
+    public static DiscoveredMcpServerSource Builtin { get; } = new("builtin");
 
     /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerSource"/> instances are equivalent.</summary>
     public static bool operator ==(DiscoveredMcpServerSource left, DiscoveredMcpServerSource right) => left.Equals(right);
@@ -2838,18 +2838,6 @@ public readonly struct DiscoveredMcpServerSource : IEquatable<DiscoveredMcpServe
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerType>
 {
-    /// <summary>Gets the <c>stdio</c> value.</summary>
-    public static DiscoveredMcpServerType Stdio { get; } = new("stdio");
-
-    /// <summary>Gets the <c>http</c> value.</summary>
-    public static DiscoveredMcpServerType Http { get; } = new("http");
-
-    /// <summary>Gets the <c>sse</c> value.</summary>
-    public static DiscoveredMcpServerType Sse { get; } = new("sse");
-
-    /// <summary>Gets the <c>memory</c> value.</summary>
-    public static DiscoveredMcpServerType Memory { get; } = new("memory");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="DiscoveredMcpServerType"/>.</summary>
@@ -2863,6 +2851,18 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>stdio</c> value.</summary>
+    public static DiscoveredMcpServerType Stdio { get; } = new("stdio");
+
+    /// <summary>Gets the <c>http</c> value.</summary>
+    public static DiscoveredMcpServerType Http { get; } = new("http");
+
+    /// <summary>Gets the <c>sse</c> value.</summary>
+    public static DiscoveredMcpServerType Sse { get; } = new("sse");
+
+    /// <summary>Gets the <c>memory</c> value.</summary>
+    public static DiscoveredMcpServerType Memory { get; } = new("memory");
 
     /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerType"/> instances are equivalent.</summary>
     public static bool operator ==(DiscoveredMcpServerType left, DiscoveredMcpServerType right) => left.Equals(right);
@@ -2906,12 +2906,6 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSetProviderConventions>
 {
-    /// <summary>Gets the <c>windows</c> value.</summary>
-    public static SessionFsSetProviderConventions Windows { get; } = new("windows");
-
-    /// <summary>Gets the <c>posix</c> value.</summary>
-    public static SessionFsSetProviderConventions Posix { get; } = new("posix");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="SessionFsSetProviderConventions"/>.</summary>
@@ -2925,6 +2919,12 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>windows</c> value.</summary>
+    public static SessionFsSetProviderConventions Windows { get; } = new("windows");
+
+    /// <summary>Gets the <c>posix</c> value.</summary>
+    public static SessionFsSetProviderConventions Posix { get; } = new("posix");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsSetProviderConventions"/> instances are equivalent.</summary>
     public static bool operator ==(SessionFsSetProviderConventions left, SessionFsSetProviderConventions right) => left.Equals(right);
@@ -2968,15 +2968,6 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
 {
-    /// <summary>Gets the <c>info</c> value.</summary>
-    public static SessionLogLevel Info { get; } = new("info");
-
-    /// <summary>Gets the <c>warning</c> value.</summary>
-    public static SessionLogLevel Warning { get; } = new("warning");
-
-    /// <summary>Gets the <c>error</c> value.</summary>
-    public static SessionLogLevel Error { get; } = new("error");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="SessionLogLevel"/>.</summary>
@@ -2990,6 +2981,15 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>info</c> value.</summary>
+    public static SessionLogLevel Info { get; } = new("info");
+
+    /// <summary>Gets the <c>warning</c> value.</summary>
+    public static SessionLogLevel Warning { get; } = new("warning");
+
+    /// <summary>Gets the <c>error</c> value.</summary>
+    public static SessionLogLevel Error { get; } = new("error");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionLogLevel"/> instances are equivalent.</summary>
     public static bool operator ==(SessionLogLevel left, SessionLogLevel right) => left.Equals(right);
@@ -3033,6 +3033,20 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 {
+    private readonly string? _value;
+
+    /// <summary>Gets the value associated with this <see cref="AuthInfoType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Initializes a new instance of the <see cref="AuthInfoType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AuthInfoType"/>.</param>
+    [JsonConstructor]
+    public AuthInfoType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
     /// <summary>Gets the <c>hmac</c> value.</summary>
     public static AuthInfoType Hmac { get; } = new("hmac");
 
@@ -3053,20 +3067,6 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 
     /// <summary>Gets the <c>copilot-api-token</c> value.</summary>
     public static AuthInfoType CopilotApiToken { get; } = new("copilot-api-token");
-
-    private readonly string? _value;
-
-    /// <summary>Gets the value associated with this <see cref="AuthInfoType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Initializes a new instance of the <see cref="AuthInfoType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AuthInfoType"/>.</param>
-    [JsonConstructor]
-    public AuthInfoType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
 
     /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are equivalent.</summary>
     public static bool operator ==(AuthInfoType left, AuthInfoType right) => left.Equals(right);
@@ -3110,15 +3110,6 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionMode : IEquatable<SessionMode>
 {
-    /// <summary>Gets the <c>interactive</c> value.</summary>
-    public static SessionMode Interactive { get; } = new("interactive");
-
-    /// <summary>Gets the <c>plan</c> value.</summary>
-    public static SessionMode Plan { get; } = new("plan");
-
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
-    public static SessionMode Autopilot { get; } = new("autopilot");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="SessionMode"/>.</summary>
@@ -3132,6 +3123,15 @@ public readonly struct SessionMode : IEquatable<SessionMode>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>interactive</c> value.</summary>
+    public static SessionMode Interactive { get; } = new("interactive");
+
+    /// <summary>Gets the <c>plan</c> value.</summary>
+    public static SessionMode Plan { get; } = new("plan");
+
+    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    public static SessionMode Autopilot { get; } = new("autopilot");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are equivalent.</summary>
     public static bool operator ==(SessionMode left, SessionMode right) => left.Equals(right);
@@ -3175,12 +3175,6 @@ public readonly struct SessionMode : IEquatable<SessionMode>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct WorkspacesGetWorkspaceResultWorkspaceHostType : IEquatable<WorkspacesGetWorkspaceResultWorkspaceHostType>
 {
-    /// <summary>Gets the <c>github</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceHostType Github { get; } = new("github");
-
-    /// <summary>Gets the <c>ado</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceHostType Ado { get; } = new("ado");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/>.</summary>
@@ -3194,6 +3188,12 @@ public readonly struct WorkspacesGetWorkspaceResultWorkspaceHostType : IEquatabl
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>github</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceHostType Github { get; } = new("github");
+
+    /// <summary>Gets the <c>ado</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceHostType Ado { get; } = new("ado");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances are equivalent.</summary>
     public static bool operator ==(WorkspacesGetWorkspaceResultWorkspaceHostType left, WorkspacesGetWorkspaceResultWorkspaceHostType right) => left.Equals(right);
@@ -3237,15 +3237,6 @@ public readonly struct WorkspacesGetWorkspaceResultWorkspaceHostType : IEquatabl
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel : IEquatable<WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>
 {
-    /// <summary>Gets the <c>local</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel Local { get; } = new("local");
-
-    /// <summary>Gets the <c>user</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel User { get; } = new("user");
-
-    /// <summary>Gets the <c>repo_and_user</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel RepoAndUser { get; } = new("repo_and_user");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/>.</summary>
@@ -3259,6 +3250,15 @@ public readonly struct WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel : I
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>local</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel Local { get; } = new("local");
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel User { get; } = new("user");
+
+    /// <summary>Gets the <c>repo_and_user</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel RepoAndUser { get; } = new("repo_and_user");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> instances are equivalent.</summary>
     public static bool operator ==(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel left, WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel right) => left.Equals(right);
@@ -3302,15 +3302,6 @@ public readonly struct WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel : I
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSourcesLocation>
 {
-    /// <summary>Gets the <c>user</c> value.</summary>
-    public static InstructionsSourcesLocation User { get; } = new("user");
-
-    /// <summary>Gets the <c>repository</c> value.</summary>
-    public static InstructionsSourcesLocation Repository { get; } = new("repository");
-
-    /// <summary>Gets the <c>working-directory</c> value.</summary>
-    public static InstructionsSourcesLocation WorkingDirectory { get; } = new("working-directory");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="InstructionsSourcesLocation"/>.</summary>
@@ -3324,6 +3315,15 @@ public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSour
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static InstructionsSourcesLocation User { get; } = new("user");
+
+    /// <summary>Gets the <c>repository</c> value.</summary>
+    public static InstructionsSourcesLocation Repository { get; } = new("repository");
+
+    /// <summary>Gets the <c>working-directory</c> value.</summary>
+    public static InstructionsSourcesLocation WorkingDirectory { get; } = new("working-directory");
 
     /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesLocation"/> instances are equivalent.</summary>
     public static bool operator ==(InstructionsSourcesLocation left, InstructionsSourcesLocation right) => left.Equals(right);
@@ -3367,6 +3367,20 @@ public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSour
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesType>
 {
+    private readonly string? _value;
+
+    /// <summary>Gets the value associated with this <see cref="InstructionsSourcesType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Initializes a new instance of the <see cref="InstructionsSourcesType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="InstructionsSourcesType"/>.</param>
+    [JsonConstructor]
+    public InstructionsSourcesType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
     /// <summary>Gets the <c>home</c> value.</summary>
     public static InstructionsSourcesType Home { get; } = new("home");
 
@@ -3384,20 +3398,6 @@ public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesT
 
     /// <summary>Gets the <c>child-instructions</c> value.</summary>
     public static InstructionsSourcesType ChildInstructions { get; } = new("child-instructions");
-
-    private readonly string? _value;
-
-    /// <summary>Gets the value associated with this <see cref="InstructionsSourcesType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Initializes a new instance of the <see cref="InstructionsSourcesType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="InstructionsSourcesType"/>.</param>
-    [JsonConstructor]
-    public InstructionsSourcesType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
 
     /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesType"/> instances are equivalent.</summary>
     public static bool operator ==(InstructionsSourcesType left, InstructionsSourcesType right) => left.Equals(right);
@@ -3441,12 +3441,6 @@ public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesT
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct TaskAgentInfoExecutionMode : IEquatable<TaskAgentInfoExecutionMode>
 {
-    /// <summary>Gets the <c>sync</c> value.</summary>
-    public static TaskAgentInfoExecutionMode Sync { get; } = new("sync");
-
-    /// <summary>Gets the <c>background</c> value.</summary>
-    public static TaskAgentInfoExecutionMode Background { get; } = new("background");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="TaskAgentInfoExecutionMode"/>.</summary>
@@ -3460,6 +3454,12 @@ public readonly struct TaskAgentInfoExecutionMode : IEquatable<TaskAgentInfoExec
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>sync</c> value.</summary>
+    public static TaskAgentInfoExecutionMode Sync { get; } = new("sync");
+
+    /// <summary>Gets the <c>background</c> value.</summary>
+    public static TaskAgentInfoExecutionMode Background { get; } = new("background");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoExecutionMode"/> instances are equivalent.</summary>
     public static bool operator ==(TaskAgentInfoExecutionMode left, TaskAgentInfoExecutionMode right) => left.Equals(right);
@@ -3503,6 +3503,20 @@ public readonly struct TaskAgentInfoExecutionMode : IEquatable<TaskAgentInfoExec
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct TaskAgentInfoStatus : IEquatable<TaskAgentInfoStatus>
 {
+    private readonly string? _value;
+
+    /// <summary>Gets the value associated with this <see cref="TaskAgentInfoStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskAgentInfoStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskAgentInfoStatus"/>.</param>
+    [JsonConstructor]
+    public TaskAgentInfoStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
     /// <summary>Gets the <c>running</c> value.</summary>
     public static TaskAgentInfoStatus Running { get; } = new("running");
 
@@ -3517,20 +3531,6 @@ public readonly struct TaskAgentInfoStatus : IEquatable<TaskAgentInfoStatus>
 
     /// <summary>Gets the <c>cancelled</c> value.</summary>
     public static TaskAgentInfoStatus Cancelled { get; } = new("cancelled");
-
-    private readonly string? _value;
-
-    /// <summary>Gets the value associated with this <see cref="TaskAgentInfoStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Initializes a new instance of the <see cref="TaskAgentInfoStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="TaskAgentInfoStatus"/>.</param>
-    [JsonConstructor]
-    public TaskAgentInfoStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
 
     /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoStatus"/> instances are equivalent.</summary>
     public static bool operator ==(TaskAgentInfoStatus left, TaskAgentInfoStatus right) => left.Equals(right);
@@ -3574,12 +3574,6 @@ public readonly struct TaskAgentInfoStatus : IEquatable<TaskAgentInfoStatus>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAttachmentMode>
 {
-    /// <summary>Gets the <c>attached</c> value.</summary>
-    public static TaskShellInfoAttachmentMode Attached { get; } = new("attached");
-
-    /// <summary>Gets the <c>detached</c> value.</summary>
-    public static TaskShellInfoAttachmentMode Detached { get; } = new("detached");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="TaskShellInfoAttachmentMode"/>.</summary>
@@ -3593,6 +3587,12 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>attached</c> value.</summary>
+    public static TaskShellInfoAttachmentMode Attached { get; } = new("attached");
+
+    /// <summary>Gets the <c>detached</c> value.</summary>
+    public static TaskShellInfoAttachmentMode Detached { get; } = new("detached");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoAttachmentMode"/> instances are equivalent.</summary>
     public static bool operator ==(TaskShellInfoAttachmentMode left, TaskShellInfoAttachmentMode right) => left.Equals(right);
@@ -3636,12 +3636,6 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct TaskShellInfoExecutionMode : IEquatable<TaskShellInfoExecutionMode>
 {
-    /// <summary>Gets the <c>sync</c> value.</summary>
-    public static TaskShellInfoExecutionMode Sync { get; } = new("sync");
-
-    /// <summary>Gets the <c>background</c> value.</summary>
-    public static TaskShellInfoExecutionMode Background { get; } = new("background");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="TaskShellInfoExecutionMode"/>.</summary>
@@ -3655,6 +3649,12 @@ public readonly struct TaskShellInfoExecutionMode : IEquatable<TaskShellInfoExec
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>sync</c> value.</summary>
+    public static TaskShellInfoExecutionMode Sync { get; } = new("sync");
+
+    /// <summary>Gets the <c>background</c> value.</summary>
+    public static TaskShellInfoExecutionMode Background { get; } = new("background");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoExecutionMode"/> instances are equivalent.</summary>
     public static bool operator ==(TaskShellInfoExecutionMode left, TaskShellInfoExecutionMode right) => left.Equals(right);
@@ -3698,6 +3698,20 @@ public readonly struct TaskShellInfoExecutionMode : IEquatable<TaskShellInfoExec
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct TaskShellInfoStatus : IEquatable<TaskShellInfoStatus>
 {
+    private readonly string? _value;
+
+    /// <summary>Gets the value associated with this <see cref="TaskShellInfoStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskShellInfoStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskShellInfoStatus"/>.</param>
+    [JsonConstructor]
+    public TaskShellInfoStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
     /// <summary>Gets the <c>running</c> value.</summary>
     public static TaskShellInfoStatus Running { get; } = new("running");
 
@@ -3712,20 +3726,6 @@ public readonly struct TaskShellInfoStatus : IEquatable<TaskShellInfoStatus>
 
     /// <summary>Gets the <c>cancelled</c> value.</summary>
     public static TaskShellInfoStatus Cancelled { get; } = new("cancelled");
-
-    private readonly string? _value;
-
-    /// <summary>Gets the value associated with this <see cref="TaskShellInfoStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Initializes a new instance of the <see cref="TaskShellInfoStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="TaskShellInfoStatus"/>.</param>
-    [JsonConstructor]
-    public TaskShellInfoStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
 
     /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoStatus"/> instances are equivalent.</summary>
     public static bool operator ==(TaskShellInfoStatus left, TaskShellInfoStatus right) => left.Equals(right);
@@ -3769,18 +3769,6 @@ public readonly struct TaskShellInfoStatus : IEquatable<TaskShellInfoStatus>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct McpServerSource : IEquatable<McpServerSource>
 {
-    /// <summary>Gets the <c>user</c> value.</summary>
-    public static McpServerSource User { get; } = new("user");
-
-    /// <summary>Gets the <c>workspace</c> value.</summary>
-    public static McpServerSource Workspace { get; } = new("workspace");
-
-    /// <summary>Gets the <c>plugin</c> value.</summary>
-    public static McpServerSource Plugin { get; } = new("plugin");
-
-    /// <summary>Gets the <c>builtin</c> value.</summary>
-    public static McpServerSource Builtin { get; } = new("builtin");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
@@ -3794,6 +3782,18 @@ public readonly struct McpServerSource : IEquatable<McpServerSource>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static McpServerSource User { get; } = new("user");
+
+    /// <summary>Gets the <c>workspace</c> value.</summary>
+    public static McpServerSource Workspace { get; } = new("workspace");
+
+    /// <summary>Gets the <c>plugin</c> value.</summary>
+    public static McpServerSource Plugin { get; } = new("plugin");
+
+    /// <summary>Gets the <c>builtin</c> value.</summary>
+    public static McpServerSource Builtin { get; } = new("builtin");
 
     /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
     public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);
@@ -3837,6 +3837,20 @@ public readonly struct McpServerSource : IEquatable<McpServerSource>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct McpServerStatus : IEquatable<McpServerStatus>
 {
+    private readonly string? _value;
+
+    /// <summary>Gets the value associated with this <see cref="McpServerStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerStatus"/>.</param>
+    [JsonConstructor]
+    public McpServerStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
     /// <summary>Gets the <c>connected</c> value.</summary>
     public static McpServerStatus Connected { get; } = new("connected");
 
@@ -3854,20 +3868,6 @@ public readonly struct McpServerStatus : IEquatable<McpServerStatus>
 
     /// <summary>Gets the <c>not_configured</c> value.</summary>
     public static McpServerStatus NotConfigured { get; } = new("not_configured");
-
-    private readonly string? _value;
-
-    /// <summary>Gets the value associated with this <see cref="McpServerStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Initializes a new instance of the <see cref="McpServerStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="McpServerStatus"/>.</param>
-    [JsonConstructor]
-    public McpServerStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
 
     /// <summary>Returns a value indicating whether two <see cref="McpServerStatus"/> instances are equivalent.</summary>
     public static bool operator ==(McpServerStatus left, McpServerStatus right) => left.Equals(right);
@@ -3911,12 +3911,6 @@ public readonly struct McpServerStatus : IEquatable<McpServerStatus>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ExtensionSource : IEquatable<ExtensionSource>
 {
-    /// <summary>Gets the <c>project</c> value.</summary>
-    public static ExtensionSource Project { get; } = new("project");
-
-    /// <summary>Gets the <c>user</c> value.</summary>
-    public static ExtensionSource User { get; } = new("user");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="ExtensionSource"/>.</summary>
@@ -3930,6 +3924,12 @@ public readonly struct ExtensionSource : IEquatable<ExtensionSource>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>project</c> value.</summary>
+    public static ExtensionSource Project { get; } = new("project");
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static ExtensionSource User { get; } = new("user");
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionSource"/> instances are equivalent.</summary>
     public static bool operator ==(ExtensionSource left, ExtensionSource right) => left.Equals(right);
@@ -3973,18 +3973,6 @@ public readonly struct ExtensionSource : IEquatable<ExtensionSource>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
 {
-    /// <summary>Gets the <c>running</c> value.</summary>
-    public static ExtensionStatus Running { get; } = new("running");
-
-    /// <summary>Gets the <c>disabled</c> value.</summary>
-    public static ExtensionStatus Disabled { get; } = new("disabled");
-
-    /// <summary>Gets the <c>failed</c> value.</summary>
-    public static ExtensionStatus Failed { get; } = new("failed");
-
-    /// <summary>Gets the <c>starting</c> value.</summary>
-    public static ExtensionStatus Starting { get; } = new("starting");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="ExtensionStatus"/>.</summary>
@@ -3998,6 +3986,18 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>running</c> value.</summary>
+    public static ExtensionStatus Running { get; } = new("running");
+
+    /// <summary>Gets the <c>disabled</c> value.</summary>
+    public static ExtensionStatus Disabled { get; } = new("disabled");
+
+    /// <summary>Gets the <c>failed</c> value.</summary>
+    public static ExtensionStatus Failed { get; } = new("failed");
+
+    /// <summary>Gets the <c>starting</c> value.</summary>
+    public static ExtensionStatus Starting { get; } = new("starting");
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionStatus"/> instances are equivalent.</summary>
     public static bool operator ==(ExtensionStatus left, ExtensionStatus right) => left.Equals(right);
@@ -4041,15 +4041,6 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationResponseAction>
 {
-    /// <summary>Gets the <c>accept</c> value.</summary>
-    public static UIElicitationResponseAction Accept { get; } = new("accept");
-
-    /// <summary>Gets the <c>decline</c> value.</summary>
-    public static UIElicitationResponseAction Decline { get; } = new("decline");
-
-    /// <summary>Gets the <c>cancel</c> value.</summary>
-    public static UIElicitationResponseAction Cancel { get; } = new("cancel");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="UIElicitationResponseAction"/>.</summary>
@@ -4063,6 +4054,15 @@ public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationRes
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>accept</c> value.</summary>
+    public static UIElicitationResponseAction Accept { get; } = new("accept");
+
+    /// <summary>Gets the <c>decline</c> value.</summary>
+    public static UIElicitationResponseAction Decline { get; } = new("decline");
+
+    /// <summary>Gets the <c>cancel</c> value.</summary>
+    public static UIElicitationResponseAction Cancel { get; } = new("cancel");
 
     /// <summary>Returns a value indicating whether two <see cref="UIElicitationResponseAction"/> instances are equivalent.</summary>
     public static bool operator ==(UIElicitationResponseAction left, UIElicitationResponseAction right) => left.Equals(right);
@@ -4106,15 +4106,6 @@ public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationRes
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
 {
-    /// <summary>Gets the <c>SIGTERM</c> value.</summary>
-    public static ShellKillSignal SIGTERM { get; } = new("SIGTERM");
-
-    /// <summary>Gets the <c>SIGKILL</c> value.</summary>
-    public static ShellKillSignal SIGKILL { get; } = new("SIGKILL");
-
-    /// <summary>Gets the <c>SIGINT</c> value.</summary>
-    public static ShellKillSignal SIGINT { get; } = new("SIGINT");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="ShellKillSignal"/>.</summary>
@@ -4128,6 +4119,15 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>SIGTERM</c> value.</summary>
+    public static ShellKillSignal SIGTERM { get; } = new("SIGTERM");
+
+    /// <summary>Gets the <c>SIGKILL</c> value.</summary>
+    public static ShellKillSignal SIGKILL { get; } = new("SIGKILL");
+
+    /// <summary>Gets the <c>SIGINT</c> value.</summary>
+    public static ShellKillSignal SIGINT { get; } = new("SIGINT");
 
     /// <summary>Returns a value indicating whether two <see cref="ShellKillSignal"/> instances are equivalent.</summary>
     public static bool operator ==(ShellKillSignal left, ShellKillSignal right) => left.Equals(right);
@@ -4171,12 +4171,6 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
 {
-    /// <summary>Gets the <c>ENOENT</c> value.</summary>
-    public static SessionFsErrorCode ENOENT { get; } = new("ENOENT");
-
-    /// <summary>Gets the <c>UNKNOWN</c> value.</summary>
-    public static SessionFsErrorCode UNKNOWN { get; } = new("UNKNOWN");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="SessionFsErrorCode"/>.</summary>
@@ -4190,6 +4184,12 @@ public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>ENOENT</c> value.</summary>
+    public static SessionFsErrorCode ENOENT { get; } = new("ENOENT");
+
+    /// <summary>Gets the <c>UNKNOWN</c> value.</summary>
+    public static SessionFsErrorCode UNKNOWN { get; } = new("UNKNOWN");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsErrorCode"/> instances are equivalent.</summary>
     public static bool operator ==(SessionFsErrorCode left, SessionFsErrorCode right) => left.Equals(right);
@@ -4233,12 +4233,6 @@ public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFsReaddirWithTypesEntryType>
 {
-    /// <summary>Gets the <c>file</c> value.</summary>
-    public static SessionFsReaddirWithTypesEntryType File { get; } = new("file");
-
-    /// <summary>Gets the <c>directory</c> value.</summary>
-    public static SessionFsReaddirWithTypesEntryType Directory { get; } = new("directory");
-
     private readonly string? _value;
 
     /// <summary>Gets the value associated with this <see cref="SessionFsReaddirWithTypesEntryType"/>.</summary>
@@ -4252,6 +4246,12 @@ public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFs
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
+
+    /// <summary>Gets the <c>file</c> value.</summary>
+    public static SessionFsReaddirWithTypesEntryType File { get; } = new("file");
+
+    /// <summary>Gets the <c>directory</c> value.</summary>
+    public static SessionFsReaddirWithTypesEntryType Directory { get; } = new("directory");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsReaddirWithTypesEntryType"/> instances are equivalent.</summary>
     public static bool operator ==(SessionFsReaddirWithTypesEntryType left, SessionFsReaddirWithTypesEntryType right) => left.Equals(right);

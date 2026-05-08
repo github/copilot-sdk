@@ -347,10 +347,6 @@ function getOrCreateEnum(
     lines.push(`[DebuggerDisplay("{Value,nq}")]`);
     lines.push(`public readonly struct ${enumName} : IEquatable<${enumName}>`);
     lines.push(`{`);
-    for (const value of values) {
-        lines.push(`    /// <summary>Gets the <c>${escapeXml(value)}</c> value.</summary>`);
-        lines.push(`    public static ${enumName} ${toPascalCaseEnumMember(value)} { get; } = new("${value}");`, "");
-    }
     lines.push(`    private readonly string? _value;`, "");
     lines.push(`    /// <summary>Gets the value associated with this <see cref="${enumName}"/>.</summary>`);
     lines.push(`    public string Value => _value ?? string.Empty;`, "");
@@ -362,6 +358,10 @@ function getOrCreateEnum(
     lines.push(`        ArgumentException.ThrowIfNullOrWhiteSpace(value);`);
     lines.push(`        _value = value;`);
     lines.push(`    }`, "");
+    for (const value of values) {
+        lines.push(`    /// <summary>Gets the <c>${escapeXml(value)}</c> value.</summary>`);
+        lines.push(`    public static ${enumName} ${toPascalCaseEnumMember(value)} { get; } = new("${value}");`, "");
+    }
     lines.push(`    /// <summary>Returns a value indicating whether two <see cref="${enumName}"/> instances are equivalent.</summary>`);
     lines.push(`    public static bool operator ==(${enumName} left, ${enumName} right) => left.Equals(right);`, "");
     lines.push(`    /// <summary>Returns a value indicating whether two <see cref="${enumName}"/> instances are not equivalent.</summary>`);
