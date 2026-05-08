@@ -1,0 +1,23 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: exit_plan_mode
+              arguments: '{"summary":"Greeting file implementation plan","actions":["interactive","autopilot","exit_only"],"recommendedAction":"interactive"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          Plan approved! Exited plan mode.
+
+          You are now in interactive mode (edits require manual approval). Proceed with implementing the plan.
+      - role: assistant
+        content: Plan approved; I will wait for the next instruction before making changes.

@@ -930,6 +930,42 @@ func TestCreateSessionRequest_RequestElicitation(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_ModeCallbackFlags(t *testing.T) {
+	t.Run("sends mode callback flags when handlers are provided", func(t *testing.T) {
+		req := createSessionRequest{
+			RequestExitPlanMode:   Bool(true),
+			RequestAutoModeSwitch: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestExitPlanMode"] != true {
+			t.Errorf("Expected requestExitPlanMode to be true, got %v", m["requestExitPlanMode"])
+		}
+		if m["requestAutoModeSwitch"] != true {
+			t.Errorf("Expected requestAutoModeSwitch to be true, got %v", m["requestAutoModeSwitch"])
+		}
+	})
+
+	t.Run("omits mode callback flags when handlers are not provided", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestExitPlanMode"]; ok {
+			t.Error("Expected requestExitPlanMode to be omitted when not set")
+		}
+		if _, ok := m["requestAutoModeSwitch"]; ok {
+			t.Error("Expected requestAutoModeSwitch to be omitted when not set")
+		}
+	})
+}
+
 func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 	t.Run("sends requestElicitation flag when OnElicitationRequest is provided", func(t *testing.T) {
 		req := resumeSessionRequest{
@@ -958,6 +994,115 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 			t.Error("Expected requestElicitation to be omitted when not set")
 		}
 	})
+}
+
+func TestResumeSessionRequest_ModeCallbackFlags(t *testing.T) {
+	req := resumeSessionRequest{
+		SessionID:             "s1",
+		RequestExitPlanMode:   Bool(true),
+		RequestAutoModeSwitch: Bool(true),
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Failed to unmarshal: %v", err)
+	}
+	if m["requestExitPlanMode"] != true {
+		t.Errorf("Expected requestExitPlanMode to be true, got %v", m["requestExitPlanMode"])
+	}
+	if m["requestAutoModeSwitch"] != true {
+		t.Errorf("Expected requestAutoModeSwitch to be true, got %v", m["requestAutoModeSwitch"])
+	}
+}
+
+func TestModeCallbackRequestHandlers(t *testing.T) {
+	session := &Session{SessionID: "s1"}
+	client := &Client{sessions: map[string]*Session{"s1": session}}
+
+	expectedSummary := "Review the plan"
+	expectedPlanContent := "Plan body"
+	expectedActions := []string{"interactive", "autopilot"}
+	expectedRecommendedAction := "autopilot"
+	session.registerExitPlanModeHandler(func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error) {
+		if invocation.SessionID != "s1" {
+			t.Fatalf("Expected session ID s1, got %s", invocation.SessionID)
+		}
+		if request.Summary != expectedSummary {
+			t.Fatalf("Expected summary, got %q", request.Summary)
+		}
+		if request.PlanContent != expectedPlanContent {
+			t.Fatalf("Expected plan content, got %q", request.PlanContent)
+		}
+		if !reflect.DeepEqual(request.Actions, expectedActions) {
+			t.Fatalf("Expected actions to round-trip, got %#v", request.Actions)
+		}
+		if request.RecommendedAction != expectedRecommendedAction {
+			t.Fatalf("Expected recommended action, got %q", request.RecommendedAction)
+		}
+		return ExitPlanModeResult{
+			Approved:       true,
+			SelectedAction: "interactive",
+			Feedback:       "Looks good",
+		}, nil
+	})
+
+	errorCode := "user_weekly_rate_limited"
+	retryAfter := float64(3600)
+	session.registerAutoModeSwitchHandler(func(request AutoModeSwitchRequest, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error) {
+		if invocation.SessionID != "s1" {
+			t.Fatalf("Expected session ID s1, got %s", invocation.SessionID)
+		}
+		if request.ErrorCode == nil || *request.ErrorCode != errorCode {
+			t.Fatalf("Expected error code %q, got %#v", errorCode, request.ErrorCode)
+		}
+		if request.RetryAfterSeconds == nil || *request.RetryAfterSeconds != retryAfter {
+			t.Fatalf("Expected retry-after %v, got %#v", retryAfter, request.RetryAfterSeconds)
+		}
+		return AutoModeSwitchResponseYesAlways, nil
+	})
+
+	exitResult, rpcErr := client.handleExitPlanModeRequest(exitPlanModeRequest{
+		SessionID:         "s1",
+		Summary:           "Review the plan",
+		PlanContent:       "Plan body",
+		Actions:           []string{"interactive", "autopilot"},
+		RecommendedAction: "autopilot",
+	})
+	if rpcErr != nil {
+		t.Fatalf("Unexpected RPC error: %v", rpcErr)
+	}
+	if !exitResult.Approved || exitResult.SelectedAction != "interactive" || exitResult.Feedback != "Looks good" {
+		t.Fatalf("Unexpected exit-plan-mode result: %#v", exitResult)
+	}
+
+	expectedSummary = ""
+	expectedPlanContent = ""
+	expectedActions = nil
+	expectedRecommendedAction = "autopilot"
+	exitResult, rpcErr = client.handleExitPlanModeRequest(exitPlanModeRequest{
+		SessionID: "s1",
+	})
+	if rpcErr != nil {
+		t.Fatalf("Unexpected RPC error for minimal exit-plan-mode request: %v", rpcErr)
+	}
+	if !exitResult.Approved {
+		t.Fatalf("Unexpected minimal exit-plan-mode result: %#v", exitResult)
+	}
+
+	autoResult, rpcErr := client.handleAutoModeSwitchRequest(autoModeSwitchRequest{
+		SessionID:         "s1",
+		ErrorCode:         &errorCode,
+		RetryAfterSeconds: &retryAfter,
+	})
+	if rpcErr != nil {
+		t.Fatalf("Unexpected RPC error: %v", rpcErr)
+	}
+	if autoResult.Response != AutoModeSwitchResponseYesAlways {
+		t.Fatalf("Expected yes_always, got %q", autoResult.Response)
+	}
 }
 
 func TestResumeSessionRequest_ContinuePendingWork(t *testing.T) {

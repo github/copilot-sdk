@@ -699,6 +699,129 @@ public class UserInputInvocation
 /// </summary>
 public delegate Task<UserInputResponse> UserInputHandler(UserInputRequest request, UserInputInvocation invocation);
 
+/// <summary>
+/// Request to exit plan mode and continue with a selected action.
+/// </summary>
+public class ExitPlanModeRequest
+{
+    /// <summary>
+    /// Summary of the plan or proposed next step.
+    /// </summary>
+    [JsonPropertyName("summary")]
+    public string Summary { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Full plan content, when available.
+    /// </summary>
+    [JsonPropertyName("planContent")]
+    public string? PlanContent { get; set; }
+
+    /// <summary>
+    /// Available actions the user can select.
+    /// </summary>
+    [JsonPropertyName("actions")]
+    public IList<string> Actions { get => field ??= []; set; }
+
+    /// <summary>
+    /// The action recommended by the runtime.
+    /// </summary>
+    [JsonPropertyName("recommendedAction")]
+    public string RecommendedAction { get; set; } = "autopilot";
+}
+
+/// <summary>
+/// Response to an exit-plan-mode request.
+/// </summary>
+public class ExitPlanModeResult
+{
+    /// <summary>
+    /// Whether the user approved exiting plan mode.
+    /// </summary>
+    [JsonPropertyName("approved")]
+    public bool Approved { get; set; } = true;
+
+    /// <summary>
+    /// Selected action, if the user chose one.
+    /// </summary>
+    [JsonPropertyName("selectedAction")]
+    public string? SelectedAction { get; set; }
+
+    /// <summary>
+    /// Optional feedback provided by the user.
+    /// </summary>
+    [JsonPropertyName("feedback")]
+    public string? Feedback { get; set; }
+}
+
+/// <summary>
+/// Context for an exit-plan-mode request invocation.
+/// </summary>
+public class ExitPlanModeInvocation
+{
+    /// <summary>
+    /// Identifier of the session that triggered the request.
+    /// </summary>
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Handler for exit-plan-mode requests from the agent.
+/// </summary>
+public delegate Task<ExitPlanModeResult> ExitPlanModeHandler(ExitPlanModeRequest request, ExitPlanModeInvocation invocation);
+
+/// <summary>
+/// Request to switch to auto mode after an eligible rate limit.
+/// </summary>
+public class AutoModeSwitchRequest
+{
+    /// <summary>
+    /// The rate-limit error code that triggered the request.
+    /// </summary>
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
+    /// <summary>
+    /// Seconds until the rate limit resets, when known.
+    /// </summary>
+    [JsonPropertyName("retryAfterSeconds")]
+    public double? RetryAfterSeconds { get; set; }
+}
+
+/// <summary>
+/// Response to an auto-mode-switch request.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<AutoModeSwitchResponse>))]
+public enum AutoModeSwitchResponse
+{
+    /// <summary>Approve the switch for this rate-limit cycle.</summary>
+    [JsonStringEnumMemberName("yes")]
+    Yes,
+
+    /// <summary>Approve and remember the choice for this session.</summary>
+    [JsonStringEnumMemberName("yes_always")]
+    YesAlways,
+
+    /// <summary>Decline the switch.</summary>
+    [JsonStringEnumMemberName("no")]
+    No
+}
+
+/// <summary>
+/// Context for an auto-mode-switch request invocation.
+/// </summary>
+public class AutoModeSwitchInvocation
+{
+    /// <summary>
+    /// Identifier of the session that triggered the request.
+    /// </summary>
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Handler for auto-mode-switch requests from the agent.
+/// </summary>
+public delegate Task<AutoModeSwitchResponse> AutoModeSwitchHandler(AutoModeSwitchRequest request, AutoModeSwitchInvocation invocation);
+
 // ============================================================================
 // Command Handler Types
 // ============================================================================
@@ -1883,8 +2006,10 @@ public class SessionConfig
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
+        OnAutoModeSwitch = other.OnAutoModeSwitch;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
+        OnExitPlanMode = other.OnExitPlanMode;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
@@ -2006,6 +2131,18 @@ public class SessionConfig
     /// and report elicitation as a supported capability.
     /// </summary>
     public ElicitationHandler? OnElicitationRequest { get; set; }
+
+    /// <summary>
+    /// Handler for exit-plan-mode requests from the server.
+    /// When provided, the server will route <c>exitPlanMode.request</c> callbacks to this handler.
+    /// </summary>
+    public ExitPlanModeHandler? OnExitPlanMode { get; set; }
+
+    /// <summary>
+    /// Handler for auto-mode-switch requests from the server.
+    /// When provided, the server will route <c>autoModeSwitch.request</c> callbacks to this handler.
+    /// </summary>
+    public AutoModeSwitchHandler? OnAutoModeSwitch { get; set; }
 
     /// <summary>
     /// Hook handlers for session lifecycle events.
@@ -2160,8 +2297,10 @@ public class ResumeSessionConfig
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
+        OnAutoModeSwitch = other.OnAutoModeSwitch;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
+        OnExitPlanMode = other.OnExitPlanMode;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
@@ -2263,6 +2402,18 @@ public class ResumeSessionConfig
     /// and report elicitation as a supported capability.
     /// </summary>
     public ElicitationHandler? OnElicitationRequest { get; set; }
+
+    /// <summary>
+    /// Handler for exit-plan-mode requests from the server.
+    /// When provided, the server will route <c>exitPlanMode.request</c> callbacks to this handler.
+    /// </summary>
+    public ExitPlanModeHandler? OnExitPlanMode { get; set; }
+
+    /// <summary>
+    /// Handler for auto-mode-switch requests from the server.
+    /// When provided, the server will route <c>autoModeSwitch.request</c> callbacks to this handler.
+    /// </summary>
+    public AutoModeSwitchHandler? OnAutoModeSwitch { get; set; }
 
     /// <summary>
     /// Hook handlers for session lifecycle events.
@@ -2900,7 +3051,11 @@ public class SystemMessageTransformRpcResponse
     NumberHandling = JsonNumberHandling.AllowReadingFromString,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AzureOptions))]
+[JsonSerializable(typeof(AutoModeSwitchRequest))]
+[JsonSerializable(typeof(AutoModeSwitchResponse))]
 [JsonSerializable(typeof(CustomAgentConfig))]
+[JsonSerializable(typeof(ExitPlanModeRequest))]
+[JsonSerializable(typeof(ExitPlanModeResult))]
 [JsonSerializable(typeof(GetAuthStatusResponse))]
 [JsonSerializable(typeof(GetForegroundSessionResponse))]
 [JsonSerializable(typeof(GetModelsResponse))]

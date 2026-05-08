@@ -655,6 +655,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.OnElicitationRequest != nil {
 		req.RequestElicitation = Bool(true)
 	}
+	if config.OnExitPlanMode != nil {
+		req.RequestExitPlanMode = Bool(true)
+	}
+	if config.OnAutoModeSwitch != nil {
+		req.RequestAutoModeSwitch = Bool(true)
+	}
 
 	if config.Streaming {
 		req.Streaming = Bool(true)
@@ -710,6 +716,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 	if config.OnElicitationRequest != nil {
 		session.registerElicitationHandler(config.OnElicitationRequest)
+	}
+	if config.OnExitPlanMode != nil {
+		session.registerExitPlanModeHandler(config.OnExitPlanMode)
+	}
+	if config.OnAutoModeSwitch != nil {
+		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitch)
 	}
 
 	c.sessionsMux.Lock()
@@ -847,6 +859,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.OnElicitationRequest != nil {
 		req.RequestElicitation = Bool(true)
 	}
+	if config.OnExitPlanMode != nil {
+		req.RequestExitPlanMode = Bool(true)
+	}
+	if config.OnAutoModeSwitch != nil {
+		req.RequestAutoModeSwitch = Bool(true)
+	}
 
 	traceparent, tracestate := getTraceContext(ctx)
 	req.Traceparent = traceparent
@@ -875,6 +893,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.OnElicitationRequest != nil {
 		session.registerElicitationHandler(config.OnElicitationRequest)
+	}
+	if config.OnExitPlanMode != nil {
+		session.registerExitPlanModeHandler(config.OnExitPlanMode)
+	}
+	if config.OnAutoModeSwitch != nil {
+		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitch)
 	}
 
 	c.sessionsMux.Lock()
@@ -1697,6 +1721,8 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("tool.call", jsonrpc2.RequestHandlerFor(c.handleToolCallRequestV2))
 	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
+	c.client.SetRequestHandler("exitPlanMode.request", jsonrpc2.RequestHandlerFor(c.handleExitPlanModeRequest))
+	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
 	rpc.RegisterClientSessionApiHandlers(c.client, func(sessionID string) *rpc.ClientSessionApiHandlers {
@@ -1747,6 +1773,60 @@ func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputRespons
 	}
 
 	return &userInputResponse{Answer: response.Answer, WasFreeform: response.WasFreeform}, nil
+}
+
+// handleExitPlanModeRequest handles an exitPlanMode.request callback from the CLI server.
+func (c *Client) handleExitPlanModeRequest(req exitPlanModeRequest) (*ExitPlanModeResult, *jsonrpc2.Error) {
+	if req.SessionID == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid exit plan mode request payload"}
+	}
+	recommendedAction := req.RecommendedAction
+	if recommendedAction == "" {
+		recommendedAction = "autopilot"
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	}
+
+	response, err := session.handleExitPlanModeRequest(ExitPlanModeRequest{
+		Summary:           req.Summary,
+		PlanContent:       req.PlanContent,
+		Actions:           req.Actions,
+		RecommendedAction: recommendedAction,
+	})
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+
+	return &response, nil
+}
+
+// handleAutoModeSwitchRequest handles an autoModeSwitch.request callback from the CLI server.
+func (c *Client) handleAutoModeSwitchRequest(req autoModeSwitchRequest) (*autoModeSwitchResponse, *jsonrpc2.Error) {
+	if req.SessionID == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid auto mode switch request payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	}
+
+	response, err := session.handleAutoModeSwitchRequest(AutoModeSwitchRequest{
+		ErrorCode:         req.ErrorCode,
+		RetryAfterSeconds: req.RetryAfterSeconds,
+	})
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+
+	return &autoModeSwitchResponse{Response: response}, nil
 }
 
 // handleHooksInvoke handles a hooks invocation from the CLI server.

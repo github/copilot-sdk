@@ -562,6 +562,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
+        session.RegisterExitPlanModeHandler(config.OnExitPlanMode);
+        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitch);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -605,6 +607,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableSessionTelemetry,
                 (bool?)true,
                 config.OnUserInputRequest != null ? true : null,
+                config.OnExitPlanMode != null ? true : null,
+                config.OnAutoModeSwitch != null ? true : null,
                 hasHooks ? true : null,
                 config.WorkingDirectory,
                 config.Streaming is true ? true : null,
@@ -714,6 +718,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
+        session.RegisterExitPlanModeHandler(config.OnExitPlanMode);
+        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitch);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -757,6 +763,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableSessionTelemetry,
                 (bool?)true,
                 config.OnUserInputRequest != null ? true : null,
+                config.OnExitPlanMode != null ? true : null,
+                config.OnAutoModeSwitch != null ? true : null,
                 hasHooks ? true : null,
                 config.WorkingDirectory,
                 config.ConfigDir,
@@ -1645,6 +1653,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.SetLocalRpcMethod("tool.call", handler.OnToolCallV2);
         rpc.SetLocalRpcMethod("permission.request", handler.OnPermissionRequestV2);
         rpc.SetLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
+        rpc.SetLocalRpcMethod("exitPlanMode.request", handler.OnExitPlanModeRequest);
+        rpc.SetLocalRpcMethod("autoModeSwitch.request", handler.OnAutoModeSwitchRequest);
         rpc.SetLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.SetLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
         ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
@@ -1761,6 +1771,39 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             var result = await session.HandleUserInputRequestAsync(request);
             return new UserInputRequestResponse(result.Answer, result.WasFreeform);
+        }
+
+        public async ValueTask<ExitPlanModeResult> OnExitPlanModeRequest(
+            string sessionId,
+            string summary,
+            string? planContent = null,
+            IList<string>? actions = null,
+            string? recommendedAction = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            var request = new ExitPlanModeRequest
+            {
+                Summary = summary,
+                PlanContent = planContent,
+                Actions = actions ?? [],
+                RecommendedAction = recommendedAction ?? "autopilot"
+            };
+
+            return await session.HandleExitPlanModeRequestAsync(request);
+        }
+
+        public async ValueTask<AutoModeSwitchRequestResponse> OnAutoModeSwitchRequest(
+            string sessionId,
+            string? errorCode = null,
+            double? retryAfterSeconds = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            var response = await session.HandleAutoModeSwitchRequestAsync(new AutoModeSwitchRequest
+            {
+                ErrorCode = errorCode,
+                RetryAfterSeconds = retryAfterSeconds
+            });
+            return new AutoModeSwitchRequestResponse(response);
         }
 
         public async ValueTask<HooksInvokeResponse> OnHooksInvoke(string sessionId, string hookType, JsonElement input)
@@ -1916,6 +1959,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? EnableSessionTelemetry,
         bool? RequestPermission,
         bool? RequestUserInput,
+        bool? RequestExitPlanMode,
+        bool? RequestAutoModeSwitch,
         bool? Hooks,
         string? WorkingDirectory,
         bool? Streaming,
@@ -1973,6 +2018,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? EnableSessionTelemetry,
         bool? RequestPermission,
         bool? RequestUserInput,
+        bool? RequestExitPlanMode,
+        bool? RequestAutoModeSwitch,
         bool? Hooks,
         string? WorkingDirectory,
         string? ConfigDir,
@@ -2035,6 +2082,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string Answer,
         bool WasFreeform);
 
+    internal record AutoModeSwitchRequestResponse(
+        AutoModeSwitchResponse Response);
+
     internal record HooksInvokeResponse(
         object? Output);
 
@@ -2052,9 +2102,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonSerializable(typeof(CreateSessionRequest))]
     [JsonSerializable(typeof(CreateSessionResponse))]
+    [JsonSerializable(typeof(AutoModeSwitchRequest))]
+    [JsonSerializable(typeof(AutoModeSwitchRequestResponse))]
+    [JsonSerializable(typeof(AutoModeSwitchResponse))]
     [JsonSerializable(typeof(CustomAgentConfig))]
     [JsonSerializable(typeof(DeleteSessionRequest))]
     [JsonSerializable(typeof(DeleteSessionResponse))]
+    [JsonSerializable(typeof(ExitPlanModeRequest))]
+    [JsonSerializable(typeof(ExitPlanModeResult))]
     [JsonSerializable(typeof(GetLastSessionIdResponse))]
     [JsonSerializable(typeof(HooksInvokeResponse))]
     [JsonSerializable(typeof(ListSessionsRequest))]

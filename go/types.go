@@ -286,6 +286,55 @@ type UserInputInvocation struct {
 	SessionID string
 }
 
+// ExitPlanModeRequest represents a request to exit plan mode and continue with a selected action.
+type ExitPlanModeRequest struct {
+	Summary           string   `json:"summary"`
+	PlanContent       string   `json:"planContent,omitempty"`
+	Actions           []string `json:"actions"`
+	RecommendedAction string   `json:"recommendedAction"`
+}
+
+// ExitPlanModeResult is the response to an exit-plan-mode request.
+type ExitPlanModeResult struct {
+	Approved       bool   `json:"approved"`
+	SelectedAction string `json:"selectedAction,omitempty"`
+	Feedback       string `json:"feedback,omitempty"`
+}
+
+// ExitPlanModeInvocation provides context about an exit-plan-mode request.
+type ExitPlanModeInvocation struct {
+	SessionID string
+}
+
+// ExitPlanModeHandler handles exit-plan-mode requests from the agent.
+type ExitPlanModeHandler func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error)
+
+// AutoModeSwitchRequest represents a request to switch to auto mode after an eligible rate limit.
+type AutoModeSwitchRequest struct {
+	ErrorCode         *string  `json:"errorCode,omitempty"`
+	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
+}
+
+// AutoModeSwitchResponse is the user's response to an auto-mode-switch request.
+type AutoModeSwitchResponse string
+
+const (
+	// AutoModeSwitchResponseYes approves the switch for this rate-limit cycle.
+	AutoModeSwitchResponseYes AutoModeSwitchResponse = "yes"
+	// AutoModeSwitchResponseYesAlways approves and remembers the choice for this session.
+	AutoModeSwitchResponseYesAlways AutoModeSwitchResponse = "yes_always"
+	// AutoModeSwitchResponseNo declines the switch.
+	AutoModeSwitchResponseNo AutoModeSwitchResponse = "no"
+)
+
+// AutoModeSwitchInvocation provides context about an auto-mode-switch request.
+type AutoModeSwitchInvocation struct {
+	SessionID string
+}
+
+// AutoModeSwitchHandler handles auto-mode-switch requests from the agent.
+type AutoModeSwitchHandler func(request AutoModeSwitchRequest, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error)
+
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
 	Timestamp int64  `json:"timestamp"`
@@ -621,6 +670,12 @@ type SessionConfig struct {
 	// When provided, the server may call back to this client for form-based UI dialogs
 	// (e.g. from MCP tools). Also enables the elicitation capability on the session.
 	OnElicitationRequest ElicitationHandler
+	// OnExitPlanMode is a handler for exit-plan-mode requests from the server.
+	// When provided, enables exitPlanMode.request callbacks for the session.
+	OnExitPlanMode ExitPlanModeHandler
+	// OnAutoModeSwitch is a handler for auto-mode-switch requests from the server.
+	// When provided, enables autoModeSwitch.request callbacks for the session.
+	OnAutoModeSwitch AutoModeSwitchHandler
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -859,6 +914,12 @@ type ResumeSessionConfig struct {
 	// OnElicitationRequest is a handler for elicitation requests from the server.
 	// See SessionConfig.OnElicitationRequest.
 	OnElicitationRequest ElicitationHandler
+	// OnExitPlanMode is a handler for exit-plan-mode requests from the server.
+	// See SessionConfig.OnExitPlanMode.
+	OnExitPlanMode ExitPlanModeHandler
+	// OnAutoModeSwitch is a handler for auto-mode-switch requests from the server.
+	// See SessionConfig.OnAutoModeSwitch.
+	OnAutoModeSwitch AutoModeSwitchHandler
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -1061,6 +1122,8 @@ type createSessionRequest struct {
 	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
+	RequestExitPlanMode            *bool                          `json:"requestExitPlanMode,omitempty"`
+	RequestAutoModeSwitch          *bool                          `json:"requestAutoModeSwitch,omitempty"`
 	Hooks                          *bool                          `json:"hooks,omitempty"`
 	WorkingDirectory               string                         `json:"workingDirectory,omitempty"`
 	Streaming                      *bool                          `json:"streaming,omitempty"`
@@ -1111,6 +1174,8 @@ type resumeSessionRequest struct {
 	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
+	RequestExitPlanMode            *bool                          `json:"requestExitPlanMode,omitempty"`
+	RequestAutoModeSwitch          *bool                          `json:"requestAutoModeSwitch,omitempty"`
 	Hooks                          *bool                          `json:"hooks,omitempty"`
 	WorkingDirectory               string                         `json:"workingDirectory,omitempty"`
 	ConfigDir                      string                         `json:"configDir,omitempty"`
@@ -1300,4 +1365,22 @@ type userInputRequest struct {
 type userInputResponse struct {
 	Answer      string `json:"answer"`
 	WasFreeform bool   `json:"wasFreeform"`
+}
+
+type exitPlanModeRequest struct {
+	SessionID         string   `json:"sessionId"`
+	Summary           string   `json:"summary"`
+	PlanContent       string   `json:"planContent,omitempty"`
+	Actions           []string `json:"actions"`
+	RecommendedAction string   `json:"recommendedAction"`
+}
+
+type autoModeSwitchRequest struct {
+	SessionID         string   `json:"sessionId"`
+	ErrorCode         *string  `json:"errorCode,omitempty"`
+	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
+}
+
+type autoModeSwitchResponse struct {
+	Response AutoModeSwitchResponse `json:"response"`
 }

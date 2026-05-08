@@ -13,10 +13,14 @@ import pytest
 from copilot import CopilotClient
 from copilot.client import SubprocessConfig
 from copilot.session import (
+    AutoModeSwitchRequest,
+    AutoModeSwitchResponse,
     CommandContext,
     CommandDefinition,
     ElicitationContext,
     ElicitationResult,
+    ExitPlanModeRequest,
+    ExitPlanModeResult,
     PermissionHandler,
 )
 from e2e.testharness import CLI_PATH
@@ -457,6 +461,142 @@ class TestOnElicitationContext:
 
             payload = captured["session.create"]
             assert payload["requestElicitation"] is False
+            assert payload["requestExitPlanMode"] is False
+            assert payload["requestAutoModeSwitch"] is False
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_sends_mode_callback_flags_when_handlers_provided(self):
+        """Verifies mode callback flags are sent when handlers are provided."""
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured: dict = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            def exit_handler(
+                request: ExitPlanModeRequest, invocation: dict[str, str]
+            ) -> ExitPlanModeResult:
+                return {"approved": True}
+
+            def auto_handler(
+                request: AutoModeSwitchRequest, invocation: dict[str, str]
+            ) -> AutoModeSwitchResponse:
+                return "yes_always"
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_exit_plan_mode=exit_handler,
+                on_auto_mode_switch=auto_handler,
+            )
+            assert session is not None
+
+            payload = captured["session.create"]
+            assert payload["requestExitPlanMode"] is True
+            assert payload["requestAutoModeSwitch"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_sends_mode_callback_flags_on_resume_when_handlers_provided(self):
+        """Verifies mode callback flags are sent on session.resume."""
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+            captured: dict = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"]}
+                raise RuntimeError(f"Unexpected method: {method}")
+
+            client._client.request = mock_request
+
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                on_exit_plan_mode=lambda request, invocation: {"approved": True},
+                on_auto_mode_switch=lambda request, invocation: "yes",
+            )
+
+            payload = captured["session.resume"]
+            assert payload["requestExitPlanMode"] is True
+            assert payload["requestAutoModeSwitch"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_dispatches_mode_callback_requests_to_registered_handlers(self):
+        """Verifies direct mode requests are dispatched to registered handlers."""
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+
+            async def exit_handler(
+                request: ExitPlanModeRequest, invocation: dict[str, str]
+            ) -> ExitPlanModeResult:
+                assert invocation["session_id"] == session.session_id
+                assert request["summary"] == "Review the plan"
+                assert request["planContent"] == "Plan body"
+                assert request["actions"] == ["interactive", "autopilot"]
+                assert request["recommendedAction"] == "autopilot"
+                return {
+                    "approved": True,
+                    "selectedAction": "interactive",
+                    "feedback": "Looks good",
+                }
+
+            async def auto_handler(
+                request: AutoModeSwitchRequest, invocation: dict[str, str]
+            ) -> AutoModeSwitchResponse:
+                assert invocation["session_id"] == session.session_id
+                assert request["errorCode"] == "user_weekly_rate_limited"
+                assert request["retryAfterSeconds"] == 3600
+                return "yes_always"
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_exit_plan_mode=exit_handler,
+                on_auto_mode_switch=auto_handler,
+            )
+
+            exit_result = await client._handle_exit_plan_mode_request(
+                {
+                    "sessionId": session.session_id,
+                    "summary": "Review the plan",
+                    "planContent": "Plan body",
+                    "actions": ["interactive", "autopilot"],
+                    "recommendedAction": "autopilot",
+                }
+            )
+            assert exit_result == {
+                "approved": True,
+                "selectedAction": "interactive",
+                "feedback": "Looks good",
+            }
+
+            auto_result = await client._handle_auto_mode_switch_request(
+                {
+                    "sessionId": session.session_id,
+                    "errorCode": "user_weekly_rate_limited",
+                    "retryAfterSeconds": 3600,
+                }
+            )
+            assert auto_result == {"response": "yes_always"}
         finally:
             await client.force_stop()
 

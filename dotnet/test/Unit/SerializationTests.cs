@@ -111,6 +111,23 @@ public class SerializationTests
     }
 
     [Fact]
+    public void CreateSessionRequest_CanSerializeModeRequestFlags_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("RequestExitPlanMode", true),
+            ("RequestAutoModeSwitch", true));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.True(root.GetProperty("requestExitPlanMode").GetBoolean());
+        Assert.True(root.GetProperty("requestAutoModeSwitch").GetBoolean());
+    }
+
+    [Fact]
     public void ResumeSessionRequest_CanSerializeInstructionDirectories_WithSdkOptions()
     {
         var options = GetSerializerOptions();
@@ -156,6 +173,34 @@ public class SerializationTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         Assert.False(root.GetProperty("enableSessionTelemetry").GetBoolean());
+    }
+
+    [Fact]
+    public void ResumeSessionRequest_CanSerializeModeRequestFlags_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("RequestExitPlanMode", true),
+            ("RequestAutoModeSwitch", true));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.True(root.GetProperty("requestExitPlanMode").GetBoolean());
+        Assert.True(root.GetProperty("requestAutoModeSwitch").GetBoolean());
+    }
+
+    [Fact]
+    public void AutoModeSwitchResponse_CanSerialize_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+
+        var json = JsonSerializer.Serialize(AutoModeSwitchResponse.YesAlways, options);
+
+        Assert.Equal("\"yes_always\"", json);
     }
 
     [Fact]

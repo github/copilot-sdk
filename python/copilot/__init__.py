@@ -14,6 +14,9 @@ from .client import (
     SubprocessConfig,
 )
 from .session import (
+    AutoModeSwitchHandler,
+    AutoModeSwitchRequest,
+    AutoModeSwitchResponse,
     CommandContext,
     CommandDefinition,
     CopilotSession,
@@ -22,6 +25,9 @@ from .session import (
     ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
+    ExitPlanModeHandler,
+    ExitPlanModeRequest,
+    ExitPlanModeResult,
     InputOptions,
     ProviderConfig,
     SessionCapabilities,
@@ -40,6 +46,9 @@ __version__ = "0.1.0"
 
 __all__ = [
     "CommandContext",
+    "AutoModeSwitchHandler",
+    "AutoModeSwitchRequest",
+    "AutoModeSwitchResponse",
     "CommandDefinition",
     "CopilotClient",
     "CopilotSession",
@@ -48,6 +57,9 @@ __all__ = [
     "ElicitationParams",
     "ElicitationContext",
     "ElicitationResult",
+    "ExitPlanModeHandler",
+    "ExitPlanModeRequest",
+    "ExitPlanModeResult",
     "ExternalServerConfig",
     "InputOptions",
     "ModelCapabilitiesOverride",

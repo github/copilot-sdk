@@ -132,11 +132,10 @@ public surface.
     auto-mode-switch recovery path. Lets UI render contextual copy.
   - `AutoModeSwitchRequestedData.retry_after_seconds: Option<f64>` —
     seconds until the rate limit resets, when known. Clients can
-    render a humanized reset time alongside the prompt. (The request-
+    render a humanized reset time alongside the prompt. The request-
     callback path's `retry_after_seconds` parameter on
     [`SessionHandler::on_auto_mode_switch`](crate::handler::SessionHandler::on_auto_mode_switch)
-    uses `Option<u64>` for HTTP `Retry-After` `delta-seconds`
-    semantics.)
+    uses the same `Option<f64>` representation.
 
 #### Types
 - Newtype `SessionId`, plus generated RPC types under `github_copilot_sdk::generated`.

@@ -280,6 +280,45 @@ UserInputHandler = Callable[
     UserInputResponse | Awaitable[UserInputResponse],
 ]
 
+
+class ExitPlanModeRequest(TypedDict, total=False):
+    """Request to exit plan mode and continue with a selected action."""
+
+    summary: Required[str]
+    planContent: NotRequired[str]
+    actions: Required[list[str]]
+    recommendedAction: Required[str]
+
+
+class ExitPlanModeResult(TypedDict, total=False):
+    """Response to an exit-plan-mode request."""
+
+    approved: Required[bool]
+    selectedAction: NotRequired[str]
+    feedback: NotRequired[str]
+
+
+ExitPlanModeHandler = Callable[
+    [ExitPlanModeRequest, dict[str, str]],
+    ExitPlanModeResult | Awaitable[ExitPlanModeResult],
+]
+
+
+class AutoModeSwitchRequest(TypedDict, total=False):
+    """Request to switch to auto mode after an eligible rate limit."""
+
+    errorCode: NotRequired[str]
+    retryAfterSeconds: NotRequired[float]
+
+
+AutoModeSwitchResponse = Literal["yes", "yes_always", "no"]
+
+
+AutoModeSwitchHandler = Callable[
+    [AutoModeSwitchRequest, dict[str, str]],
+    AutoModeSwitchResponse | Awaitable[AutoModeSwitchResponse],
+]
+
 # ============================================================================
 # Command Types
 # ============================================================================
@@ -940,6 +979,10 @@ class SessionConfig(TypedDict, total=False):
     # Handler for elicitation requests from the server.
     # When provided, the server calls back to this client for form-based UI dialogs.
     on_elicitation_request: ElicitationHandler
+    # Handler for exit-plan-mode requests from the server.
+    on_exit_plan_mode: ExitPlanModeHandler
+    # Handler for auto-mode-switch requests from the server.
+    on_auto_mode_switch: AutoModeSwitchHandler
     # Handler factory for session-scoped sessionFs operations.
     create_session_fs_handler: CreateSessionFsHandler
 
@@ -1024,6 +1067,10 @@ class ResumeSessionConfig(TypedDict, total=False):
     commands: list[CommandDefinition]
     # Handler for elicitation requests from the server.
     on_elicitation_request: ElicitationHandler
+    # Handler for exit-plan-mode requests from the server.
+    on_exit_plan_mode: ExitPlanModeHandler
+    # Handler for auto-mode-switch requests from the server.
+    on_auto_mode_switch: AutoModeSwitchHandler
     # Handler factory for session-scoped sessionFs operations.
     create_session_fs_handler: CreateSessionFsHandler
 
@@ -1086,6 +1133,10 @@ class CopilotSession:
         self._permission_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
         self._user_input_handler_lock = threading.Lock()
+        self._exit_plan_mode_handler: ExitPlanModeHandler | None = None
+        self._exit_plan_mode_handler_lock = threading.Lock()
+        self._auto_mode_switch_handler: AutoModeSwitchHandler | None = None
+        self._auto_mode_switch_handler_lock = threading.Lock()
         self._hooks: SessionHooks | None = None
         self._hooks_lock = threading.Lock()
         self._transform_callbacks: dict[str, SectionTransformFn] | None = None
@@ -1808,6 +1859,16 @@ class CopilotSession:
         with self._elicitation_handler_lock:
             self._elicitation_handler = handler
 
+    def _register_exit_plan_mode_handler(self, handler: ExitPlanModeHandler | None) -> None:
+        """Register the exit-plan-mode handler for this session."""
+        with self._exit_plan_mode_handler_lock:
+            self._exit_plan_mode_handler = handler
+
+    def _register_auto_mode_switch_handler(self, handler: AutoModeSwitchHandler | None) -> None:
+        """Register the auto-mode-switch handler for this session."""
+        with self._auto_mode_switch_handler_lock:
+            self._auto_mode_switch_handler = handler
+
     def _set_capabilities(self, capabilities: SessionCapabilities | None) -> None:
         """Set the host capabilities for this session.
 
@@ -1976,6 +2037,62 @@ class CopilotSession:
             return cast(UserInputResponse, result)
         except Exception:
             raise
+
+    async def _handle_exit_plan_mode_request(self, request: dict) -> ExitPlanModeResult:
+        """Handle an exitPlanMode.request callback from the runtime."""
+        with self._exit_plan_mode_handler_lock:
+            handler = self._exit_plan_mode_handler
+
+        if not handler:
+            return {"approved": True}
+
+        handler_start = time.perf_counter()
+        typed_request = ExitPlanModeRequest(
+            summary=request.get("summary", ""),
+            actions=request.get("actions") or [],
+            recommendedAction=request.get("recommendedAction", "autopilot"),
+        )
+        if request.get("planContent") is not None:
+            typed_request["planContent"] = request["planContent"]
+
+        result = handler(typed_request, {"session_id": self.session_id})
+        if inspect.isawaitable(result):
+            result = await result
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotSession._handle_exit_plan_mode_request dispatch",
+            handler_start,
+            session_id=self.session_id,
+        )
+        return cast(ExitPlanModeResult, result)
+
+    async def _handle_auto_mode_switch_request(self, request: dict) -> AutoModeSwitchResponse:
+        """Handle an autoModeSwitch.request callback from the runtime."""
+        with self._auto_mode_switch_handler_lock:
+            handler = self._auto_mode_switch_handler
+
+        if not handler:
+            return "no"
+
+        handler_start = time.perf_counter()
+        typed_request = AutoModeSwitchRequest()
+        if request.get("errorCode") is not None:
+            typed_request["errorCode"] = request["errorCode"]
+        if request.get("retryAfterSeconds") is not None:
+            typed_request["retryAfterSeconds"] = request["retryAfterSeconds"]
+
+        result = handler(typed_request, {"session_id": self.session_id})
+        if inspect.isawaitable(result):
+            result = await result
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotSession._handle_auto_mode_switch_request dispatch",
+            handler_start,
+            session_id=self.session_id,
+        )
+        return result
 
     def _register_transform_callbacks(
         self, callbacks: dict[str, SectionTransformFn] | None
@@ -2158,6 +2275,10 @@ class CopilotSession:
                 self._command_handlers.clear()
             with self._elicitation_handler_lock:
                 self._elicitation_handler = None
+            with self._exit_plan_mode_handler_lock:
+                self._exit_plan_mode_handler = None
+            with self._auto_mode_switch_handler_lock:
+                self._auto_mode_switch_handler = None
 
     async def destroy(self) -> None:
         """

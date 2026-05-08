@@ -48,12 +48,14 @@ from .generated.session_events import (
     session_event_from_dict,
 )
 from .session import (
+    AutoModeSwitchHandler,
     CommandDefinition,
     CopilotSession,
     CreateSessionFsHandler,
     CustomAgentConfig,
     DefaultAgentConfig,
     ElicitationHandler,
+    ExitPlanModeHandler,
     InfiniteSessionConfig,
     MCPServerConfig,
     ProviderConfig,
@@ -1319,6 +1321,8 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        on_exit_plan_mode: ExitPlanModeHandler | None = None,
+        on_auto_mode_switch: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
     ) -> CopilotSession:
@@ -1457,6 +1461,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
+        payload["requestExitPlanMode"] = bool(on_exit_plan_mode)
+        payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch)
 
         # Serialize commands (name + description only) into payload
         if commands:
@@ -1583,6 +1589,10 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
             session._register_elicitation_handler(on_elicitation_request)
+        if on_exit_plan_mode:
+            session._register_exit_plan_mode_handler(on_exit_plan_mode)
+        if on_auto_mode_switch:
+            session._register_auto_mode_switch_handler(on_auto_mode_switch)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -1671,6 +1681,8 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        on_exit_plan_mode: ExitPlanModeHandler | None = None,
+        on_auto_mode_switch: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
         continue_pending_work: bool | None = None,
@@ -1828,6 +1840,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
+        payload["requestExitPlanMode"] = bool(on_exit_plan_mode)
+        payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch)
 
         # Serialize commands (name + description only) into payload
         if commands:
@@ -1917,6 +1931,10 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
             session._register_elicitation_handler(on_elicitation_request)
+        if on_exit_plan_mode:
+            session._register_exit_plan_mode_handler(on_exit_plan_mode)
+        if on_auto_mode_switch:
+            session._register_auto_mode_switch_handler(on_auto_mode_switch)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -2731,6 +2749,12 @@ class CopilotClient:
         self._client.set_request_handler("tool.call", self._handle_tool_call_request_v2)
         self._client.set_request_handler("permission.request", self._handle_permission_request_v2)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
+        self._client.set_request_handler(
+            "exitPlanMode.request", self._handle_exit_plan_mode_request
+        )
+        self._client.set_request_handler(
+            "autoModeSwitch.request", self._handle_auto_mode_switch_request
+        )
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
@@ -2849,6 +2873,12 @@ class CopilotClient:
         self._client.set_request_handler("tool.call", self._handle_tool_call_request_v2)
         self._client.set_request_handler("permission.request", self._handle_permission_request_v2)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
+        self._client.set_request_handler(
+            "exitPlanMode.request", self._handle_exit_plan_mode_request
+        )
+        self._client.set_request_handler(
+            "autoModeSwitch.request", self._handle_auto_mode_switch_request
+        )
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
@@ -2905,6 +2935,39 @@ class CopilotClient:
 
         result = await session._handle_user_input_request(params)
         return {"answer": result["answer"], "wasFreeform": result["wasFreeform"]}
+
+    async def _handle_exit_plan_mode_request(self, params: dict) -> dict:
+        """Handle an exitPlanMode.request callback from the CLI server."""
+        session_id = params.get("sessionId")
+        summary = params.get("summary")
+        actions = params.get("actions")
+        recommended_action = params.get("recommendedAction")
+
+        if not session_id or not isinstance(summary, str):
+            raise ValueError("invalid exit plan mode request payload")
+        if not isinstance(actions, list) or not isinstance(recommended_action, str):
+            raise ValueError("invalid exit plan mode request payload")
+
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if not session:
+            raise ValueError(f"unknown session {session_id}")
+
+        return dict(await session._handle_exit_plan_mode_request(params))
+
+    async def _handle_auto_mode_switch_request(self, params: dict) -> dict:
+        """Handle an autoModeSwitch.request callback from the CLI server."""
+        session_id = params.get("sessionId")
+        if not session_id:
+            raise ValueError("invalid auto mode switch request payload")
+
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if not session:
+            raise ValueError(f"unknown session {session_id}")
+
+        response = await session._handle_auto_mode_switch_request(params)
+        return {"response": response}
 
     async def _handle_hooks_invoke(self, params: dict) -> dict:
         """

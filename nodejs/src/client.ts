@@ -36,8 +36,12 @@ import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
 import { createSessionFsAdapter } from "./sessionFsProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
+    AutoModeSwitchRequest,
+    AutoModeSwitchResponse,
     ConnectionState,
     CopilotClientOptions,
+    ExitPlanModeRequest,
+    ExitPlanModeResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
@@ -752,6 +756,12 @@ export class CopilotClient {
         if (config.onElicitationRequest) {
             session.registerElicitationHandler(config.onElicitationRequest);
         }
+        if (config.onExitPlanMode) {
+            session.registerExitPlanModeHandler(config.onExitPlanMode);
+        }
+        if (config.onAutoModeSwitch) {
+            session.registerAutoModeSwitchHandler(config.onAutoModeSwitch);
+        }
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
@@ -807,6 +817,8 @@ export class CopilotClient {
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                requestExitPlanMode: !!config.onExitPlanMode,
+                requestAutoModeSwitch: !!config.onAutoModeSwitch,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
@@ -896,6 +908,12 @@ export class CopilotClient {
         if (config.onElicitationRequest) {
             session.registerElicitationHandler(config.onElicitationRequest);
         }
+        if (config.onExitPlanMode) {
+            session.registerExitPlanModeHandler(config.onExitPlanMode);
+        }
+        if (config.onAutoModeSwitch) {
+            session.registerAutoModeSwitchHandler(config.onAutoModeSwitch);
+        }
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
@@ -952,6 +970,8 @@ export class CopilotClient {
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                requestExitPlanMode: !!config.onExitPlanMode,
+                requestAutoModeSwitch: !!config.onAutoModeSwitch,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 configDir: config.configDir,
@@ -1806,6 +1826,21 @@ export class CopilotClient {
         );
 
         this.connection.onRequest(
+            "exitPlanMode.request",
+            async (
+                params: ExitPlanModeRequest & { sessionId: string }
+            ): Promise<ExitPlanModeResult> => await this.handleExitPlanModeRequest(params)
+        );
+
+        this.connection.onRequest(
+            "autoModeSwitch.request",
+            async (
+                params: AutoModeSwitchRequest & { sessionId: string }
+            ): Promise<{ response: AutoModeSwitchResponse }> =>
+                await this.handleAutoModeSwitchRequest(params)
+        );
+
+        this.connection.onRequest(
             "hooks.invoke",
             async (params: {
                 sessionId: string;
@@ -1918,6 +1953,51 @@ export class CopilotClient {
             allowFreeform: params.allowFreeform,
         });
         return result;
+    }
+
+    private async handleExitPlanModeRequest(
+        params: ExitPlanModeRequest & { sessionId: string }
+    ): Promise<ExitPlanModeResult> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            typeof params.summary !== "string" ||
+            !Array.isArray(params.actions) ||
+            typeof params.recommendedAction !== "string"
+        ) {
+            throw new Error("Invalid exit plan mode request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        return await session._handleExitPlanModeRequest({
+            summary: params.summary,
+            planContent: params.planContent,
+            actions: params.actions,
+            recommendedAction: params.recommendedAction,
+        });
+    }
+
+    private async handleAutoModeSwitchRequest(
+        params: AutoModeSwitchRequest & { sessionId: string }
+    ): Promise<{ response: AutoModeSwitchResponse }> {
+        if (!params || typeof params.sessionId !== "string") {
+            throw new Error("Invalid auto mode switch request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        const response = await session._handleAutoModeSwitchRequest({
+            errorCode: params.errorCode,
+            retryAfterSeconds: params.retryAfterSeconds,
+        });
+        return { response };
     }
 
     private async handleHooksInvoke(params: {
