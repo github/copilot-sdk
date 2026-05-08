@@ -53,10 +53,11 @@ public class CompactionTest {
     /**
      * Verifies that compaction is triggered with low threshold and emits events.
      *
-     * <p>Disabled due to flakiness — compaction timing is non-deterministic and the
+     * <p>
+     * Disabled due to flakiness — compaction timing is non-deterministic and the
      * snapshot cannot reliably match across platforms. The reference implementation
-     * (nodejs) also skips this test. See
-     * <a href="https://github.com/github/copilot-sdk/issues/1227">copilot-sdk#1227</a>.
+     * (nodejs) also skips this test. See <a href=
+     * "https://github.com/github/copilot-sdk/issues/1227">copilot-sdk#1227</a>.
      *
      * @see Snapshot:
      *      compaction/should_trigger_compaction_with_low_threshold_and_emit_events
