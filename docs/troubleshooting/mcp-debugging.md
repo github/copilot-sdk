@@ -335,7 +335,7 @@ Windows Defender or other AV may block:
 #### Gatekeeper blocking
 
 ```bash
-# If server is blocked
+# If the server is blocked
 xattr -d com.apple.quarantine /path/to/mcp-server
 ```
 

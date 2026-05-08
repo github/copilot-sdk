@@ -365,7 +365,7 @@ internal sealed partial class JsonRpc : IDisposable
         // line; we walk the lines and require an exact "Content-Length: " prefix at the
         // start of one of them. A substring match anywhere in the header block would
         // false-positive on values like "X-Trace: Content-Length: 5" and desync the stream.
-        // A missing or unparseable Content-Length means the framing is broken — there's
+        // A missing or unparsable Content-Length means the framing is broken — there's
         // no safe way to resync, so throw and let the read loop terminate the connection.
         int contentLength = -1;
         ReadOnlySpan<byte> prefix = "Content-Length: "u8;

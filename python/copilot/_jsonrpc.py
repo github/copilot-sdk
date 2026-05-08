@@ -137,7 +137,7 @@ class JsonRpcClient:
         self, method: str, params: dict | None = None, timeout: float | None = None
     ) -> Any:
         """
-        Send a JSON-RPC request and wait for response
+        Send a JSON-RPC request and wait for the response.
 
         Args:
             method: Method name
@@ -149,8 +149,8 @@ class JsonRpcClient:
             The result from the response
 
         Raises:
-            JsonRpcError: If server returns an error
-            asyncio.TimeoutError: If request times out (only when timeout is set)
+            JsonRpcError: If the server returns an error
+            asyncio.TimeoutError: If the request times out (only when timeout is set)
         """
         request_start = time.perf_counter()
         request_id = str(uuid.uuid4())
@@ -198,7 +198,7 @@ class JsonRpcClient:
 
     async def notify(self, method: str, params: dict | None = None):
         """
-        Send a JSON-RPC notification (no response expected)
+        Send a JSON-RPC notification (no response expected).
 
         Args:
             method: Method name
@@ -212,7 +212,7 @@ class JsonRpcClient:
         await self._send_message(message)
 
     def set_notification_handler(self, handler: Callable[[str, dict], None]):
-        """Set handler for incoming notifications from server"""
+        """Set the handler for incoming notifications from the server."""
         self.notification_handler = handler
 
     def set_request_handler(self, method: str, handler: RequestHandler):
@@ -222,7 +222,7 @@ class JsonRpcClient:
             self.request_handlers[method] = handler
 
     async def _send_message(self, message: dict):
-        """Send a JSON-RPC message with Content-Length header"""
+        """Send a JSON-RPC message with a Content-Length header."""
         loop = self._loop or asyncio.get_event_loop()
 
         def write():
@@ -311,10 +311,10 @@ class JsonRpcClient:
 
     def _read_message(self) -> dict | None:
         """
-        Read a single JSON-RPC message with Content-Length header (blocking)
+        Read a single JSON-RPC message with a Content-Length header (blocking).
 
         Returns:
-            Parsed JSON message or None if connection closed
+            Parsed JSON message, or None if the connection is closed.
         """
         # Read header line
         header_line = self.process.stdout.readline()
@@ -362,7 +362,7 @@ class JsonRpcClient:
                     loop.call_soon_threadsafe(future.set_exception, exc)
                 return
 
-        # Check if it's a notification from server
+        # Check if it's a notification from the server
         if "method" in message and "id" not in message:
             if self.notification_handler and self._loop:
                 method = message["method"]

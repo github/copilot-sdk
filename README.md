@@ -90,7 +90,7 @@ Advanced: You can override the bundled CLI using `cliPath` or `cliUrl` if you wa
 
 ### What tools are enabled by default?
 
-By default, the SDK will operate the Copilot CLI in the equivalent of `--allow-all` being passed to the CLI, enabling all first-party tools, which means that the agents can perform a wide range of actions, including file system operations, Git operations, and web requests. You can customize tool availability by configuring the SDK client options to enable and disable specific tools. Refer to the individual SDK documentation for details on tool configuration and Copilot CLI for the list of tools available.
+By default, the SDK operates the Copilot CLI as if `--allow-all` were passed, enabling all first-party tools. This means that agents can perform a wide range of actions, including file system operations, Git operations, and web requests. You can customize tool availability by configuring the SDK client options to enable and disable specific tools. Refer to the individual SDK documentation for details on tool configuration and to the Copilot CLI documentation for the list of available tools.
 
 ### Can I use custom agents, skills or tools?
 

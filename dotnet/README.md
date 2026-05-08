@@ -35,7 +35,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     OnPermissionRequest = PermissionHandler.ApproveAll,
 });
 
-// Wait for response using session.idle event
+// Wait for the response using the session.idle event
 var done = new TaskCompletionSource();
 
 session.On(evt =>

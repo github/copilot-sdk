@@ -38,7 +38,7 @@ const session = await client.createSession({
     onPermissionRequest: approveAll,
 });
 
-// Wait for response using typed event handlers
+// Wait for the response using typed event handlers
 const done = new Promise<void>((resolve) => {
     session.on("assistant.message", (event) => {
         console.log(event.data.content);
