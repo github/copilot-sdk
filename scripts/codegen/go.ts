@@ -67,6 +67,14 @@ function toGoFieldName(jsonName: string): string {
         .join("");
 }
 
+function compareGoFieldNames(left: string, right: string): number {
+    return left.localeCompare(right);
+}
+
+function sortByGoFieldName<T>(entries: [string, T][]): [string, T][] {
+    return entries.sort(([left], [right]) => compareGoFieldNames(toGoFieldName(left), toGoFieldName(right)));
+}
+
 function splitGoIdentifierWords(name: string): string[] {
     return name
         .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
@@ -299,6 +307,10 @@ function emitGoEnvelopeStructField(property: GoEventEnvelopeProperty, includeCom
     return lines;
 }
 
+function sortedGoEventEnvelopeProperties(properties: GoEventEnvelopeProperty[]): GoEventEnvelopeProperty[] {
+    return [...properties].sort((left, right) => compareGoFieldNames(left.fieldName, right.fieldName));
+}
+
 /**
  * Find a const-valued discriminator property shared by all anyOf variants.
  */
@@ -352,7 +364,9 @@ function getOrCreateGoEnum(
     lines.push(`type ${enumName} string`);
     lines.push(``);
     lines.push(`const (`);
-    const consts = values.map((value) => ({ value, constSuffix: goEnumConstSuffix(value) }));
+    const consts = values
+        .map((value) => ({ value, constSuffix: goEnumConstSuffix(value) }))
+        .sort((left, right) => `${enumName}${left.constSuffix}`.localeCompare(`${enumName}${right.constSuffix}`));
     for (const { value, constSuffix } of consts) {
         lines.push(`\t${enumName}${constSuffix} ${enumName} = "${value}"`);
     }
@@ -605,7 +619,7 @@ function emitGoStruct(
     }
     lines.push(`type ${typeName} struct {`);
 
-    for (const [propName, propSchema] of Object.entries(schema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [propName, propSchema] of sortByGoFieldName(Object.entries(schema.properties || {}))) {
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
@@ -694,17 +708,15 @@ function emitGoFlatDiscriminatedUnion(
     }
     lines.push(`type ${typeName} struct {`);
 
-    // Emit discriminator field first
-    lines.push(`\t// ${discGoName} discriminator`);
-    lines.push(`\t${discGoName} ${discEnumName} \`json:"${discriminatorProp}"\``);
-
-    // Emit remaining fields
-    for (const [propName, info] of [...allProps.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-        if (propName === discriminatorProp) continue;
+    for (const [propName, info] of sortByGoFieldName([...allProps.entries()])) {
         const goName = toGoFieldName(propName);
-        const goType = resolveGoPropertyType(info.schema, typeName, propName, info.requiredInAll, ctx);
+        const goType = propName === discriminatorProp
+            ? discEnumName
+            : resolveGoPropertyType(info.schema, typeName, propName, info.requiredInAll, ctx);
         const omit = info.requiredInAll ? "" : ",omitempty";
-        if (info.schema.description) {
+        if (propName === discriminatorProp) {
+            lines.push(`\t// ${discGoName} discriminator`);
+        } else if (info.schema.description) {
             pushGoCommentForContext(lines, info.schema.description, ctx, "\t");
         }
         if (isSchemaDeprecated(info.schema)) {
@@ -912,7 +924,7 @@ function emitGoFlattenedObjectUnion(
     }
     lines.push(`type ${typeName} struct {`);
 
-    for (const [propName, info] of [...allProps.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [propName, info] of sortByGoFieldName([...allProps.entries()])) {
         const goName = toGoFieldName(propName);
         const mergedSchema = mergeGoFlattenedPropertySchema(typeName, propName, info.schemas, ctx);
         const requiredInAll = info.requiredInAll && info.presentCount === objectVariants.length;
@@ -1027,7 +1039,11 @@ function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegen
         emittedFields.add(fieldName);
         const fieldType = goUnionFieldType(member, fieldName, typeName, ctx);
         fields.push({ name: fieldName, type: fieldType });
-        lines.push(`\t${fieldName} ${fieldType}`);
+    }
+
+    fields.sort((left, right) => compareGoFieldNames(left.name, right.name));
+    for (const field of fields) {
+        lines.push(`\t${field.name} ${field.type}`);
     }
 
     lines.push(`}`);
@@ -1160,6 +1176,42 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
         wrapComments: false,
     };
     const envelopeProperties = getGoSharedEventEnvelopeProperties(schema, ctx);
+    const sessionEventStructFields = [
+        ...envelopeProperties.map((property) => ({
+            fieldName: property.fieldName,
+            lines: emitGoEnvelopeStructField(property, true, ctx.wrapComments !== false),
+        })),
+        {
+            fieldName: "Data",
+            lines: [
+                ...goCommentLines("Typed event payload. Use a type switch to access per-event fields.", "\t", ctx.wrapComments !== false),
+                `\tData SessionEventData \`json:"-"\``,
+            ],
+        },
+        {
+            fieldName: "Type",
+            lines: [
+                ...goCommentLines("The event type discriminator.", "\t", ctx.wrapComments !== false),
+                `\tType SessionEventType \`json:"type"\``,
+            ],
+        },
+    ].sort((left, right) => compareGoFieldNames(left.fieldName, right.fieldName));
+    const rawEventUnmarshalFields = [
+        ...envelopeProperties.map((property) => ({
+            fieldName: property.fieldName,
+            lines: emitGoEnvelopeStructField(property, false, ctx.wrapComments !== false),
+        })),
+        { fieldName: "Data", lines: [`\tData json.RawMessage \`json:"data"\``] },
+        { fieldName: "Type", lines: [`\tType SessionEventType \`json:"type"\``] },
+    ].sort((left, right) => compareGoFieldNames(left.fieldName, right.fieldName));
+    const rawEventMarshalFields = [
+        ...envelopeProperties.map((property) => ({
+            fieldName: property.fieldName,
+            lines: emitGoEnvelopeStructField(property, false, ctx.wrapComments !== false),
+        })),
+        { fieldName: "Data", lines: [`\tData any \`json:"data"\``] },
+        { fieldName: "Type", lines: [`\tType SessionEventType \`json:"type"\``] },
+    ].sort((left, right) => compareGoFieldNames(left.fieldName, right.fieldName));
 
     // Generate per-event data structs
     const dataStructs: string[] = [];
@@ -1174,7 +1226,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
         }
         lines.push(`type ${variant.dataClassName} struct {`);
 
-        for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
+        for (const [propName, propSchema] of sortByGoFieldName(Object.entries(variant.dataSchema.properties || {}))) {
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
             const isReq = required.has(propName);
@@ -1204,18 +1256,21 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     eventTypeEnum.push(`type SessionEventType string`);
     eventTypeEnum.push(``);
     eventTypeEnum.push(`const (`);
-    for (const variant of variants) {
-        const constName =
-            "SessionEventType" +
-            variant.typeName
+    const eventTypeConsts = variants
+        .map((variant) => ({
+            constName: "SessionEventType" + variant.typeName
                 .split(/[._]/)
                 .map((w) =>
                     goInitialisms.has(w.toLowerCase())
                         ? w.toUpperCase()
                         : w.charAt(0).toUpperCase() + w.slice(1)
                 )
-                .join("");
-        eventTypeEnum.push(`\t${constName} SessionEventType = "${variant.typeName}"`);
+                .join(""),
+            typeName: variant.typeName,
+        }))
+        .sort((left, right) => left.constName.localeCompare(right.constName));
+    for (const { constName, typeName } of eventTypeConsts) {
+        eventTypeEnum.push(`\t${constName} SessionEventType = "${typeName}"`);
     }
     eventTypeEnum.push(`)`);
 
@@ -1257,13 +1312,9 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     // SessionEvent struct
     out.push(`// SessionEvent represents a single session event with a typed data payload.`);
     out.push(`type SessionEvent struct {`);
-    for (const property of envelopeProperties) {
-        out.push(...emitGoEnvelopeStructField(property, true, ctx.wrapComments !== false));
+    for (const field of sessionEventStructFields) {
+        out.push(...field.lines);
     }
-    out.push(`\t// The event type discriminator.`);
-    out.push(`\tType SessionEventType \`json:"type"\``);
-    out.push(`\t// Typed event payload. Use a type switch to access per-event fields.`);
-    out.push(`\tData SessionEventData \`json:"-"\``);
     out.push(`}`);
     out.push(``);
 
@@ -1286,13 +1337,11 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     // Custom UnmarshalJSON
     out.push(`func (e *SessionEvent) UnmarshalJSON(data []byte) error {`);
     out.push(`\ttype rawEvent struct {`);
-    for (const property of envelopeProperties) {
-        for (const line of emitGoEnvelopeStructField(property, false, ctx.wrapComments !== false)) {
+    for (const field of rawEventUnmarshalFields) {
+        for (const line of field.lines) {
             out.push(`\t${line}`);
         }
     }
-    out.push(`\t\tType      SessionEventType \`json:"type"\``);
-    out.push(`\t\tData      json.RawMessage  \`json:"data"\``);
     out.push(`\t}`);
     out.push(`\tvar raw rawEvent`);
     out.push(`\tif err := json.Unmarshal(data, &raw); err != nil {`);
@@ -1332,13 +1381,11 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     // Custom MarshalJSON
     out.push(`func (e SessionEvent) MarshalJSON() ([]byte, error) {`);
     out.push(`\ttype rawEvent struct {`);
-    for (const property of envelopeProperties) {
-        for (const line of emitGoEnvelopeStructField(property, false, ctx.wrapComments !== false)) {
+    for (const field of rawEventMarshalFields) {
+        for (const line of field.lines) {
             out.push(`\t${line}`);
         }
     }
-    out.push(`\t\tType      SessionEventType \`json:"type"\``);
-    out.push(`\t\tData      any              \`json:"data"\``);
     out.push(`\t}`);
     out.push(`\treturn json.Marshal(rawEvent{`);
     for (const property of envelopeProperties) {
@@ -1361,13 +1408,13 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     }
 
     // Nested structs
-    for (const s of ctx.structs.sort()) {
+    for (const s of ctx.structs.sort((left, right) => goDeclaredTypeName(left).localeCompare(goDeclaredTypeName(right)))) {
         out.push(s);
         out.push(``);
     }
 
     // Enums
-    for (const e of ctx.enums.sort()) {
+    for (const e of ctx.enums.sort((left, right) => goDeclaredTypeName(left).localeCompare(goDeclaredTypeName(right)))) {
         out.push(e);
         out.push(``);
     }
@@ -1388,14 +1435,14 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     };
     out.push(`// Type aliases for convenience.`);
     out.push(`type (`);
-    for (const [alias, target] of Object.entries(TYPE_ALIASES)) {
+    for (const [alias, target] of Object.entries(TYPE_ALIASES).sort(([left], [right]) => left.localeCompare(right))) {
         out.push(`\t${alias} = ${target}`);
     }
     out.push(`)`);
     out.push(``);
     out.push(`// Constant aliases for convenience.`);
     out.push(`const (`);
-    for (const [alias, target] of Object.entries(CONST_ALIASES)) {
+    for (const [alias, target] of Object.entries(CONST_ALIASES).sort(([left], [right]) => left.localeCompare(right))) {
         out.push(`\t${alias} = ${target}`);
     }
     out.push(`)`);
