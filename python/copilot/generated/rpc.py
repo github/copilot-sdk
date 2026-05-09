@@ -884,18 +884,19 @@ class SessionMode(Enum):
 class ModelBilling:
     """Billing information"""
 
-    multiplier: float
+    multiplier: float | None = None
     """Billing cost multiplier relative to the base rate"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelBilling':
         assert isinstance(obj, dict)
-        multiplier = from_float(obj.get("multiplier"))
+        multiplier = from_union([from_float, from_none], obj.get("multiplier"))
         return ModelBilling(multiplier)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["multiplier"] = to_float(self.multiplier)
+        if self.multiplier is not None:
+            result["multiplier"] = from_union([to_float, from_none], self.multiplier)
         return result
 
 @dataclass
@@ -1097,6 +1098,8 @@ class NameSetRequest:
 class ApprovalKind(Enum):
     COMMANDS = "commands"
     CUSTOM_TOOL = "custom-tool"
+    EXTENSION_MANAGEMENT = "extension-management"
+    EXTENSION_PERMISSION_ACCESS = "extension-permission-access"
     MCP = "mcp"
     MCP_SAMPLING = "mcp-sampling"
     MEMORY = "memory"
@@ -1119,6 +1122,12 @@ class PermissionDecisionApproveForLocationApprovalCommandsKind(Enum):
 
 class PermissionDecisionApproveForLocationApprovalCustomToolKind(Enum):
     CUSTOM_TOOL = "custom-tool"
+
+class PermissionDecisionApproveForLocationApprovalExtensionManagementKind(Enum):
+    EXTENSION_MANAGEMENT = "extension-management"
+
+class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(Enum):
+    EXTENSION_PERMISSION_ACCESS = "extension-permission-access"
 
 class PermissionDecisionApproveForLocationApprovalMCPKind(Enum):
     MCP = "mcp"
@@ -2088,6 +2097,57 @@ class TasksRemoveResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class TasksSendMessageRequest:
+    id: str
+    """Agent task identifier"""
+
+    message: str
+    """Message content to send to the agent"""
+
+    from_agent_id: str | None = None
+    """Agent ID of the sender, if sent on behalf of another agent"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksSendMessageRequest':
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        message = from_str(obj.get("message"))
+        from_agent_id = from_union([from_str, from_none], obj.get("fromAgentId"))
+        return TasksSendMessageRequest(id, message, from_agent_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        result["message"] = from_str(self.message)
+        if self.from_agent_id is not None:
+            result["fromAgentId"] = from_union([from_str, from_none], self.from_agent_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksSendMessageResult:
+    sent: bool
+    """Whether the message was successfully delivered or steered"""
+
+    error: str | None = None
+    """Error message if delivery failed"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksSendMessageResult':
+        assert isinstance(obj, dict)
+        sent = from_bool(obj.get("sent"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        return TasksSendMessageResult(sent, error)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sent"] = from_bool(self.sent)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class TasksStartAgentRequest:
     agent_type: str
     """Type of agent to start (e.g., 'explore', 'task', 'general-purpose')"""
@@ -2437,11 +2497,6 @@ class WorkspacesCreateFileRequest:
 class HostType(Enum):
     ADO = "ado"
     GITHUB = "github"
-
-class SessionSyncLevel(Enum):
-    LOCAL = "local"
-    REPO_AND_USER = "repo_and_user"
-    USER = "user"
 
 @dataclass
 class WorkspacesListFilesResult:
@@ -3295,6 +3350,8 @@ class PermissionDecisionApproveForIonApproval:
     command_identifiers: list[str] | None = None
     server_name: str | None = None
     tool_name: str | None = None
+    operation: str | None = None
+    extension_name: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForIonApproval':
@@ -3303,7 +3360,9 @@ class PermissionDecisionApproveForIonApproval:
         command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
         server_name = from_union([from_str, from_none], obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApproveForIonApproval(kind, command_identifiers, server_name, tool_name)
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        return PermissionDecisionApproveForIonApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3314,6 +3373,10 @@ class PermissionDecisionApproveForIonApproval:
             result["serverName"] = from_union([from_str, from_none], self.server_name)
         if self.tool_name is not None:
             result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
         return result
 
 @dataclass
@@ -3324,6 +3387,8 @@ class PermissionDecisionApproveForLocationApproval:
     command_identifiers: list[str] | None = None
     server_name: str | None = None
     tool_name: str | None = None
+    operation: str | None = None
+    extension_name: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApproval':
@@ -3332,7 +3397,9 @@ class PermissionDecisionApproveForLocationApproval:
         command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
         server_name = from_union([from_str, from_none], obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApproveForLocationApproval(kind, command_identifiers, server_name, tool_name)
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        return PermissionDecisionApproveForLocationApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3343,6 +3410,10 @@ class PermissionDecisionApproveForLocationApproval:
             result["serverName"] = from_union([from_str, from_none], self.server_name)
         if self.tool_name is not None:
             result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
         return result
 
 @dataclass
@@ -3353,6 +3424,8 @@ class PermissionDecisionApproveForSessionApproval:
     command_identifiers: list[str] | None = None
     server_name: str | None = None
     tool_name: str | None = None
+    operation: str | None = None
+    extension_name: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApproval':
@@ -3361,7 +3434,9 @@ class PermissionDecisionApproveForSessionApproval:
         command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
         server_name = from_union([from_str, from_none], obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApproveForSessionApproval(kind, command_identifiers, server_name, tool_name)
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        return PermissionDecisionApproveForSessionApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3372,6 +3447,10 @@ class PermissionDecisionApproveForSessionApproval:
             result["serverName"] = from_union([from_str, from_none], self.server_name)
         if self.tool_name is not None:
             result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
         return result
 
 @dataclass
@@ -3444,6 +3523,80 @@ class PermissionDecisionApproveForSessionApprovalCustomTool:
         result: dict = {}
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCustomToolKind, self.kind)
         result["toolName"] = from_str(self.tool_name)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForLocationApprovalExtensionManagement:
+    kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
+    operation: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionManagement':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalExtensionManagementKind(obj.get("kind"))
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        return PermissionDecisionApproveForLocationApprovalExtensionManagement(kind, operation)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionManagementKind, self.kind)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForSessionApprovalExtensionManagement:
+    kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
+    operation: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionManagement':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalExtensionManagementKind(obj.get("kind"))
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        return PermissionDecisionApproveForSessionApprovalExtensionManagement(kind, operation)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionManagementKind, self.kind)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess:
+    extension_name: str
+    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess':
+        assert isinstance(obj, dict)
+        extension_name = from_str(obj.get("extensionName"))
+        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
+        return PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess(extension_name, kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["extensionName"] = from_str(self.extension_name)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess:
+    extension_name: str
+    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess':
+        assert isinstance(obj, dict)
+        extension_name = from_str(obj.get("extensionName"))
+        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
+        return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess(extension_name, kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["extensionName"] = from_str(self.extension_name)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
         return result
 
 @dataclass
@@ -4219,7 +4372,6 @@ class Workspace:
     name: str | None = None
     remote_steerable: bool | None = None
     repository: str | None = None
-    session_sync_level: SessionSyncLevel | None = None
     summary: str | None = None
     summary_count: int | None = None
     updated_at: datetime | None = None
@@ -4241,12 +4393,11 @@ class Workspace:
         name = from_union([from_str, from_none], obj.get("name"))
         remote_steerable = from_union([from_bool, from_none], obj.get("remote_steerable"))
         repository = from_union([from_str, from_none], obj.get("repository"))
-        session_sync_level = from_union([SessionSyncLevel, from_none], obj.get("session_sync_level"))
         summary = from_union([from_str, from_none], obj.get("summary"))
         summary_count = from_union([from_int, from_none], obj.get("summary_count"))
         updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
         user_named = from_union([from_bool, from_none], obj.get("user_named"))
-        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, session_sync_level, summary, summary_count, updated_at, user_named)
+        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, summary, summary_count, updated_at, user_named)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -4275,8 +4426,6 @@ class Workspace:
             result["remote_steerable"] = from_union([from_bool, from_none], self.remote_steerable)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
-        if self.session_sync_level is not None:
-            result["session_sync_level"] = from_union([lambda x: to_enum(SessionSyncLevel, x), from_none], self.session_sync_level)
         if self.summary is not None:
             result["summary"] = from_union([from_str, from_none], self.summary)
         if self.summary_count is not None:
@@ -5718,6 +5867,8 @@ class RPC:
     permission_decision_approve_for_location_approval: PermissionDecisionApproveForLocationApproval
     permission_decision_approve_for_location_approval_commands: PermissionDecisionApproveForLocationApprovalCommands
     permission_decision_approve_for_location_approval_custom_tool: PermissionDecisionApproveForLocationApprovalCustomTool
+    permission_decision_approve_for_location_approval_extension_management: PermissionDecisionApproveForLocationApprovalExtensionManagement
+    permission_decision_approve_for_location_approval_extension_permission_access: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess
     permission_decision_approve_for_location_approval_mcp: PermissionDecisionApproveForLocationApprovalMCP
     permission_decision_approve_for_location_approval_mcp_sampling: PermissionDecisionApproveForLocationApprovalMCPSampling
     permission_decision_approve_for_location_approval_memory: PermissionDecisionApproveForLocationApprovalMemory
@@ -5727,6 +5878,8 @@ class RPC:
     permission_decision_approve_for_session_approval: PermissionDecisionApproveForSessionApproval
     permission_decision_approve_for_session_approval_commands: PermissionDecisionApproveForSessionApprovalCommands
     permission_decision_approve_for_session_approval_custom_tool: PermissionDecisionApproveForSessionApprovalCustomTool
+    permission_decision_approve_for_session_approval_extension_management: PermissionDecisionApproveForSessionApprovalExtensionManagement
+    permission_decision_approve_for_session_approval_extension_permission_access: PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess
     permission_decision_approve_for_session_approval_mcp: PermissionDecisionApproveForSessionApprovalMCP
     permission_decision_approve_for_session_approval_mcp_sampling: PermissionDecisionApproveForSessionApprovalMCPSampling
     permission_decision_approve_for_session_approval_memory: PermissionDecisionApproveForSessionApprovalMemory
@@ -5804,6 +5957,8 @@ class RPC:
     tasks_promote_to_background_result: TasksPromoteToBackgroundResult
     tasks_remove_request: TasksRemoveRequest
     tasks_remove_result: TasksRemoveResult
+    tasks_send_message_request: TasksSendMessageRequest
+    tasks_send_message_result: TasksSendMessageResult
     tasks_start_agent_request: TasksStartAgentRequest
     tasks_start_agent_result: TasksStartAgentResult
     tool: Tool
@@ -5947,6 +6102,8 @@ class RPC:
         permission_decision_approve_for_location_approval = PermissionDecisionApproveForLocationApproval.from_dict(obj.get("PermissionDecisionApproveForLocationApproval"))
         permission_decision_approve_for_location_approval_commands = PermissionDecisionApproveForLocationApprovalCommands.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalCommands"))
         permission_decision_approve_for_location_approval_custom_tool = PermissionDecisionApproveForLocationApprovalCustomTool.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalCustomTool"))
+        permission_decision_approve_for_location_approval_extension_management = PermissionDecisionApproveForLocationApprovalExtensionManagement.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalExtensionManagement"))
+        permission_decision_approve_for_location_approval_extension_permission_access = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess"))
         permission_decision_approve_for_location_approval_mcp = PermissionDecisionApproveForLocationApprovalMCP.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalMcp"))
         permission_decision_approve_for_location_approval_mcp_sampling = PermissionDecisionApproveForLocationApprovalMCPSampling.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalMcpSampling"))
         permission_decision_approve_for_location_approval_memory = PermissionDecisionApproveForLocationApprovalMemory.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalMemory"))
@@ -5956,6 +6113,8 @@ class RPC:
         permission_decision_approve_for_session_approval = PermissionDecisionApproveForSessionApproval.from_dict(obj.get("PermissionDecisionApproveForSessionApproval"))
         permission_decision_approve_for_session_approval_commands = PermissionDecisionApproveForSessionApprovalCommands.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalCommands"))
         permission_decision_approve_for_session_approval_custom_tool = PermissionDecisionApproveForSessionApprovalCustomTool.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalCustomTool"))
+        permission_decision_approve_for_session_approval_extension_management = PermissionDecisionApproveForSessionApprovalExtensionManagement.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalExtensionManagement"))
+        permission_decision_approve_for_session_approval_extension_permission_access = PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess"))
         permission_decision_approve_for_session_approval_mcp = PermissionDecisionApproveForSessionApprovalMCP.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalMcp"))
         permission_decision_approve_for_session_approval_mcp_sampling = PermissionDecisionApproveForSessionApprovalMCPSampling.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalMcpSampling"))
         permission_decision_approve_for_session_approval_memory = PermissionDecisionApproveForSessionApprovalMemory.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalMemory"))
@@ -6033,6 +6192,8 @@ class RPC:
         tasks_promote_to_background_result = TasksPromoteToBackgroundResult.from_dict(obj.get("TasksPromoteToBackgroundResult"))
         tasks_remove_request = TasksRemoveRequest.from_dict(obj.get("TasksRemoveRequest"))
         tasks_remove_result = TasksRemoveResult.from_dict(obj.get("TasksRemoveResult"))
+        tasks_send_message_request = TasksSendMessageRequest.from_dict(obj.get("TasksSendMessageRequest"))
+        tasks_send_message_result = TasksSendMessageResult.from_dict(obj.get("TasksSendMessageResult"))
         tasks_start_agent_request = TasksStartAgentRequest.from_dict(obj.get("TasksStartAgentRequest"))
         tasks_start_agent_result = TasksStartAgentResult.from_dict(obj.get("TasksStartAgentResult"))
         tool = Tool.from_dict(obj.get("Tool"))
@@ -6072,7 +6233,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, embedded_blob_resource_contents, embedded_text_resource_contents, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, remote_enable_result, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, embedded_blob_resource_contents, embedded_text_resource_contents, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, remote_enable_result, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -6176,6 +6337,8 @@ class RPC:
         result["PermissionDecisionApproveForLocationApproval"] = to_class(PermissionDecisionApproveForLocationApproval, self.permission_decision_approve_for_location_approval)
         result["PermissionDecisionApproveForLocationApprovalCommands"] = to_class(PermissionDecisionApproveForLocationApprovalCommands, self.permission_decision_approve_for_location_approval_commands)
         result["PermissionDecisionApproveForLocationApprovalCustomTool"] = to_class(PermissionDecisionApproveForLocationApprovalCustomTool, self.permission_decision_approve_for_location_approval_custom_tool)
+        result["PermissionDecisionApproveForLocationApprovalExtensionManagement"] = to_class(PermissionDecisionApproveForLocationApprovalExtensionManagement, self.permission_decision_approve_for_location_approval_extension_management)
+        result["PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess"] = to_class(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess, self.permission_decision_approve_for_location_approval_extension_permission_access)
         result["PermissionDecisionApproveForLocationApprovalMcp"] = to_class(PermissionDecisionApproveForLocationApprovalMCP, self.permission_decision_approve_for_location_approval_mcp)
         result["PermissionDecisionApproveForLocationApprovalMcpSampling"] = to_class(PermissionDecisionApproveForLocationApprovalMCPSampling, self.permission_decision_approve_for_location_approval_mcp_sampling)
         result["PermissionDecisionApproveForLocationApprovalMemory"] = to_class(PermissionDecisionApproveForLocationApprovalMemory, self.permission_decision_approve_for_location_approval_memory)
@@ -6185,6 +6348,8 @@ class RPC:
         result["PermissionDecisionApproveForSessionApproval"] = to_class(PermissionDecisionApproveForSessionApproval, self.permission_decision_approve_for_session_approval)
         result["PermissionDecisionApproveForSessionApprovalCommands"] = to_class(PermissionDecisionApproveForSessionApprovalCommands, self.permission_decision_approve_for_session_approval_commands)
         result["PermissionDecisionApproveForSessionApprovalCustomTool"] = to_class(PermissionDecisionApproveForSessionApprovalCustomTool, self.permission_decision_approve_for_session_approval_custom_tool)
+        result["PermissionDecisionApproveForSessionApprovalExtensionManagement"] = to_class(PermissionDecisionApproveForSessionApprovalExtensionManagement, self.permission_decision_approve_for_session_approval_extension_management)
+        result["PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess"] = to_class(PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess, self.permission_decision_approve_for_session_approval_extension_permission_access)
         result["PermissionDecisionApproveForSessionApprovalMcp"] = to_class(PermissionDecisionApproveForSessionApprovalMCP, self.permission_decision_approve_for_session_approval_mcp)
         result["PermissionDecisionApproveForSessionApprovalMcpSampling"] = to_class(PermissionDecisionApproveForSessionApprovalMCPSampling, self.permission_decision_approve_for_session_approval_mcp_sampling)
         result["PermissionDecisionApproveForSessionApprovalMemory"] = to_class(PermissionDecisionApproveForSessionApprovalMemory, self.permission_decision_approve_for_session_approval_memory)
@@ -6262,6 +6427,8 @@ class RPC:
         result["TasksPromoteToBackgroundResult"] = to_class(TasksPromoteToBackgroundResult, self.tasks_promote_to_background_result)
         result["TasksRemoveRequest"] = to_class(TasksRemoveRequest, self.tasks_remove_request)
         result["TasksRemoveResult"] = to_class(TasksRemoveResult, self.tasks_remove_result)
+        result["TasksSendMessageRequest"] = to_class(TasksSendMessageRequest, self.tasks_send_message_request)
+        result["TasksSendMessageResult"] = to_class(TasksSendMessageResult, self.tasks_send_message_result)
         result["TasksStartAgentRequest"] = to_class(TasksStartAgentRequest, self.tasks_start_agent_request)
         result["TasksStartAgentResult"] = to_class(TasksStartAgentResult, self.tasks_start_agent_result)
         result["Tool"] = to_class(Tool, self.tool)
@@ -6632,6 +6799,11 @@ class TasksApi:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksRemoveResult.from_dict(await self._client.request("session.tasks.remove", params_dict, **_timeout_kwargs(timeout)))
+
+    async def send_message(self, params: TasksSendMessageRequest, *, timeout: float | None = None) -> TasksSendMessageResult:
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return TasksSendMessageResult.from_dict(await self._client.request("session.tasks.sendMessage", params_dict, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.

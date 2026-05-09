@@ -167,7 +167,9 @@ export type PermissionDecisionApproveForSessionApproval =
   | PermissionDecisionApproveForSessionApprovalMcp
   | PermissionDecisionApproveForSessionApprovalMcpSampling
   | PermissionDecisionApproveForSessionApprovalMemory
-  | PermissionDecisionApproveForSessionApprovalCustomTool;
+  | PermissionDecisionApproveForSessionApprovalCustomTool
+  | PermissionDecisionApproveForSessionApprovalExtensionManagement
+  | PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess;
 /**
  * The approval to persist for this location
  *
@@ -181,7 +183,9 @@ export type PermissionDecisionApproveForLocationApproval =
   | PermissionDecisionApproveForLocationApprovalMcp
   | PermissionDecisionApproveForLocationApprovalMcpSampling
   | PermissionDecisionApproveForLocationApprovalMemory
-  | PermissionDecisionApproveForLocationApprovalCustomTool;
+  | PermissionDecisionApproveForLocationApprovalCustomTool
+  | PermissionDecisionApproveForLocationApprovalExtensionManagement
+  | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess;
 /**
  * Error classification
  *
@@ -1138,7 +1142,7 @@ export interface ModelBilling {
   /**
    * Billing cost multiplier relative to the base rate
    */
-  multiplier: number;
+  multiplier?: number;
 }
 /**
  * Override individual model capabilities resolved by the runtime
@@ -1294,6 +1298,16 @@ export interface PermissionDecisionApproveForSessionApprovalCustomTool {
   toolName: string;
 }
 
+export interface PermissionDecisionApproveForSessionApprovalExtensionManagement {
+  kind: "extension-management";
+  operation?: string;
+}
+
+export interface PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess {
+  kind: "extension-permission-access";
+  extensionName: string;
+}
+
 export interface PermissionDecisionApproveForLocation {
   /**
    * Approved and persisted for this project location
@@ -1337,6 +1351,16 @@ export interface PermissionDecisionApproveForLocationApprovalMemory {
 export interface PermissionDecisionApproveForLocationApprovalCustomTool {
   kind: "custom-tool";
   toolName: string;
+}
+
+export interface PermissionDecisionApproveForLocationApprovalExtensionManagement {
+  kind: "extension-management";
+  operation?: string;
+}
+
+export interface PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess {
+  kind: "extension-permission-access";
+  extensionName: string;
 }
 
 export interface PermissionDecisionApprovePermanently {
@@ -2086,6 +2110,34 @@ export interface TasksRemoveResult {
 }
 
 /** @experimental */
+export interface TasksSendMessageRequest {
+  /**
+   * Agent task identifier
+   */
+  id: string;
+  /**
+   * Message content to send to the agent
+   */
+  message: string;
+  /**
+   * Agent ID of the sender, if sent on behalf of another agent
+   */
+  fromAgentId?: string;
+}
+
+/** @experimental */
+export interface TasksSendMessageResult {
+  /**
+   * Whether the message was successfully delivered or steered
+   */
+  sent: boolean;
+  /**
+   * Error message if delivery failed
+   */
+  error?: string;
+}
+
+/** @experimental */
 export interface TasksStartAgentRequest {
   /**
    * Type of agent to start (e.g., 'explore', 'task', 'general-purpose')
@@ -2476,7 +2528,6 @@ export interface WorkspacesGetWorkspaceResult {
     mc_task_id?: string;
     mc_session_id?: string;
     mc_last_event_id?: string;
-    session_sync_level?: "local" | "user" | "repo_and_user";
     chronicle_sync_dismissed?: boolean;
   } | null;
 }
@@ -2648,6 +2699,8 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.tasks.cancel", { sessionId, ...params }),
             remove: async (params: TasksRemoveRequest): Promise<TasksRemoveResult> =>
                 connection.sendRequest("session.tasks.remove", { sessionId, ...params }),
+            sendMessage: async (params: TasksSendMessageRequest): Promise<TasksSendMessageResult> =>
+                connection.sendRequest("session.tasks.sendMessage", { sessionId, ...params }),
         },
         /** @experimental */
         skills: {
