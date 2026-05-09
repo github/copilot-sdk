@@ -5,6 +5,7 @@ package copilot
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -27,6 +28,8 @@ func (r RawSessionEventData) MarshalJSON() ([]byte, error) { return r.Raw, nil }
 type SessionEvent struct {
 	// Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
 	AgentID *string `json:"agentId,omitempty"`
+	// Typed event payload. Use a type switch to access per-event fields.
+	Data SessionEventData `json:"-"`
 	// When true, the event is transient and not persisted to the session event log on disk
 	Ephemeral *bool `json:"ephemeral,omitempty"`
 	// Unique event identifier (UUID v4), generated when the event is emitted
@@ -37,8 +40,6 @@ type SessionEvent struct {
 	Timestamp time.Time `json:"timestamp"`
 	// The event type discriminator.
 	Type SessionEventType `json:"type"`
-	// Typed event payload. Use a type switch to access per-event fields.
-	Data SessionEventData `json:"-"`
 }
 
 // UnmarshalSessionEvent parses JSON bytes into a SessionEvent.
@@ -56,12 +57,12 @@ func (r *SessionEvent) Marshal() ([]byte, error) {
 func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	type rawEvent struct {
 		AgentID   *string          `json:"agentId,omitempty"`
+		Data      json.RawMessage  `json:"data"`
 		Ephemeral *bool            `json:"ephemeral,omitempty"`
 		ID        string           `json:"id"`
 		ParentID  *string          `json:"parentId"`
 		Timestamp time.Time        `json:"timestamp"`
 		Type      SessionEventType `json:"type"`
-		Data      json.RawMessage  `json:"data"`
 	}
 	var raw rawEvent
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -75,164 +76,32 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	e.Type = raw.Type
 
 	switch raw.Type {
-	case SessionEventTypeSessionStart:
-		var d SessionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionResume:
-		var d SessionResumeData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionRemoteSteerableChanged:
-		var d SessionRemoteSteerableChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionError:
-		var d SessionErrorData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionIdle:
-		var d SessionIdleData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTitleChanged:
-		var d SessionTitleChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionScheduleCreated:
-		var d SessionScheduleCreatedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionScheduleCancelled:
-		var d SessionScheduleCancelledData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionInfo:
-		var d SessionInfoData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionWarning:
-		var d SessionWarningData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionModelChange:
-		var d SessionModelChangeData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionModeChanged:
-		var d SessionModeChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionPlanChanged:
-		var d SessionPlanChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionWorkspaceFileChanged:
-		var d SessionWorkspaceFileChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionHandoff:
-		var d SessionHandoffData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTruncation:
-		var d SessionTruncationData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionSnapshotRewind:
-		var d SessionSnapshotRewindData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionShutdown:
-		var d SessionShutdownData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionContextChanged:
-		var d SessionContextChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionUsageInfo:
-		var d SessionUsageInfoData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionCompactionStart:
-		var d SessionCompactionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionCompactionComplete:
-		var d SessionCompactionCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTaskComplete:
-		var d SessionTaskCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserMessage:
-		var d UserMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePendingMessagesModified:
-		var d PendingMessagesModifiedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantTurnStart:
-		var d AssistantTurnStartData
+	case SessionEventTypeAbort:
+		var d AbortData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
 	case SessionEventTypeAssistantIntent:
 		var d AssistantIntentData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantMessage:
+		var d AssistantMessageData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantMessageDelta:
+		var d AssistantMessageDeltaData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantMessageStart:
+		var d AssistantMessageStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -255,26 +124,14 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeAssistantMessage:
-		var d AssistantMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantMessageStart:
-		var d AssistantMessageStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantMessageDelta:
-		var d AssistantMessageDeltaData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
 	case SessionEventTypeAssistantTurnEnd:
 		var d AssistantTurnEndData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantTurnStart:
+		var d AssistantTurnStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -285,194 +142,8 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeModelCallFailure:
-		var d ModelCallFailureData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAbort:
-		var d AbortData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolUserRequested:
-		var d ToolUserRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionStart:
-		var d ToolExecutionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionPartialResult:
-		var d ToolExecutionPartialResultData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionProgress:
-		var d ToolExecutionProgressData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionComplete:
-		var d ToolExecutionCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSkillInvoked:
-		var d SkillInvokedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentStarted:
-		var d SubagentStartedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentCompleted:
-		var d SubagentCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentFailed:
-		var d SubagentFailedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentSelected:
-		var d SubagentSelectedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentDeselected:
-		var d SubagentDeselectedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeHookStart:
-		var d HookStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeHookEnd:
-		var d HookEndData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSystemMessage:
-		var d SystemMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSystemNotification:
-		var d SystemNotificationData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePermissionRequested:
-		var d PermissionRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePermissionCompleted:
-		var d PermissionCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserInputRequested:
-		var d UserInputRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserInputCompleted:
-		var d UserInputCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeElicitationRequested:
-		var d ElicitationRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeElicitationCompleted:
-		var d ElicitationCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSamplingRequested:
-		var d SamplingRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSamplingCompleted:
-		var d SamplingCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeMcpOauthRequired:
-		var d McpOauthRequiredData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeMcpOauthCompleted:
-		var d McpOauthCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeExternalToolRequested:
-		var d ExternalToolRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeExternalToolCompleted:
-		var d ExternalToolCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandQueued:
-		var d CommandQueuedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandExecute:
-		var d CommandExecuteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandCompleted:
-		var d CommandCompletedData
+	case SessionEventTypeAutoModeSwitchCompleted:
+		var d AutoModeSwitchCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -483,8 +154,26 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeAutoModeSwitchCompleted:
-		var d AutoModeSwitchCompletedData
+	case SessionEventTypeCapabilitiesChanged:
+		var d CapabilitiesChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeCommandCompleted:
+		var d CommandCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeCommandExecute:
+		var d CommandExecuteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeCommandQueued:
+		var d CommandQueuedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -495,14 +184,14 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeCapabilitiesChanged:
-		var d CapabilitiesChangedData
+	case SessionEventTypeElicitationCompleted:
+		var d ElicitationCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeExitPlanModeRequested:
-		var d ExitPlanModeRequestedData
+	case SessionEventTypeElicitationRequested:
+		var d ElicitationRequestedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -513,8 +202,80 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionToolsUpdated:
-		var d SessionToolsUpdatedData
+	case SessionEventTypeExitPlanModeRequested:
+		var d ExitPlanModeRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeExternalToolCompleted:
+		var d ExternalToolCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeExternalToolRequested:
+		var d ExternalToolRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeHookEnd:
+		var d HookEndData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeHookStart:
+		var d HookStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMcpOauthCompleted:
+		var d McpOauthCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMcpOauthRequired:
+		var d McpOauthRequiredData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeModelCallFailure:
+		var d ModelCallFailureData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePendingMessagesModified:
+		var d PendingMessagesModifiedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionCompleted:
+		var d PermissionCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionRequested:
+		var d PermissionRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSamplingCompleted:
+		var d SamplingCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSamplingRequested:
+		var d SamplingRequestedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -525,14 +286,56 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionSkillsLoaded:
-		var d SessionSkillsLoadedData
+	case SessionEventTypeSessionCompactionComplete:
+		var d SessionCompactionCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCompactionStart:
+		var d SessionCompactionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionContextChanged:
+		var d SessionContextChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
 	case SessionEventTypeSessionCustomAgentsUpdated:
 		var d SessionCustomAgentsUpdatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionError:
+		var d SessionErrorData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionExtensionsLoaded:
+		var d SessionExtensionsLoadedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionHandoff:
+		var d SessionHandoffData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionIdle:
+		var d SessionIdleData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionInfo:
+		var d SessionInfoData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -549,8 +352,206 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionExtensionsLoaded:
-		var d SessionExtensionsLoadedData
+	case SessionEventTypeSessionModeChanged:
+		var d SessionModeChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionModelChange:
+		var d SessionModelChangeData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionPlanChanged:
+		var d SessionPlanChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionRemoteSteerableChanged:
+		var d SessionRemoteSteerableChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionResume:
+		var d SessionResumeData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionScheduleCancelled:
+		var d SessionScheduleCancelledData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionScheduleCreated:
+		var d SessionScheduleCreatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionShutdown:
+		var d SessionShutdownData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionSkillsLoaded:
+		var d SessionSkillsLoadedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionSnapshotRewind:
+		var d SessionSnapshotRewindData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionStart:
+		var d SessionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionTaskComplete:
+		var d SessionTaskCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionTitleChanged:
+		var d SessionTitleChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionToolsUpdated:
+		var d SessionToolsUpdatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionTruncation:
+		var d SessionTruncationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionUsageInfo:
+		var d SessionUsageInfoData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionWarning:
+		var d SessionWarningData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionWorkspaceFileChanged:
+		var d SessionWorkspaceFileChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSkillInvoked:
+		var d SkillInvokedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentCompleted:
+		var d SubagentCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentDeselected:
+		var d SubagentDeselectedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentFailed:
+		var d SubagentFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentSelected:
+		var d SubagentSelectedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentStarted:
+		var d SubagentStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSystemMessage:
+		var d SystemMessageData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSystemNotification:
+		var d SystemNotificationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolExecutionComplete:
+		var d ToolExecutionCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolExecutionPartialResult:
+		var d ToolExecutionPartialResultData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolExecutionProgress:
+		var d ToolExecutionProgressData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolExecutionStart:
+		var d ToolExecutionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolUserRequested:
+		var d ToolUserRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeUserInputCompleted:
+		var d UserInputCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeUserInputRequested:
+		var d UserInputRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeUserMessage:
+		var d UserMessageData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -564,21 +565,21 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 func (e SessionEvent) MarshalJSON() ([]byte, error) {
 	type rawEvent struct {
 		AgentID   *string          `json:"agentId,omitempty"`
+		Data      any              `json:"data"`
 		Ephemeral *bool            `json:"ephemeral,omitempty"`
 		ID        string           `json:"id"`
 		ParentID  *string          `json:"parentId"`
 		Timestamp time.Time        `json:"timestamp"`
 		Type      SessionEventType `json:"type"`
-		Data      any              `json:"data"`
 	}
 	return json.Marshal(rawEvent{
 		AgentID:   e.AgentID,
+		Data:      e.Data,
 		Ephemeral: e.Ephemeral,
 		ID:        e.ID,
 		ParentID:  e.ParentID,
 		Timestamp: e.Timestamp,
 		Type:      e.Type,
-		Data:      e.Data,
 	})
 }
 
@@ -586,86 +587,86 @@ func (e SessionEvent) MarshalJSON() ([]byte, error) {
 type SessionEventType string
 
 const (
-	SessionEventTypeSessionStart                  SessionEventType = "session.start"
-	SessionEventTypeSessionResume                 SessionEventType = "session.resume"
-	SessionEventTypeSessionRemoteSteerableChanged SessionEventType = "session.remote_steerable_changed"
-	SessionEventTypeSessionError                  SessionEventType = "session.error"
-	SessionEventTypeSessionIdle                   SessionEventType = "session.idle"
-	SessionEventTypeSessionTitleChanged           SessionEventType = "session.title_changed"
-	SessionEventTypeSessionScheduleCreated        SessionEventType = "session.schedule_created"
-	SessionEventTypeSessionScheduleCancelled      SessionEventType = "session.schedule_cancelled"
-	SessionEventTypeSessionInfo                   SessionEventType = "session.info"
-	SessionEventTypeSessionWarning                SessionEventType = "session.warning"
-	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
-	SessionEventTypeSessionModeChanged            SessionEventType = "session.mode_changed"
-	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
-	SessionEventTypeSessionWorkspaceFileChanged   SessionEventType = "session.workspace_file_changed"
-	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"
-	SessionEventTypeSessionTruncation             SessionEventType = "session.truncation"
-	SessionEventTypeSessionSnapshotRewind         SessionEventType = "session.snapshot_rewind"
-	SessionEventTypeSessionShutdown               SessionEventType = "session.shutdown"
-	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
-	SessionEventTypeSessionUsageInfo              SessionEventType = "session.usage_info"
-	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
-	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
-	SessionEventTypeSessionTaskComplete           SessionEventType = "session.task_complete"
-	SessionEventTypeUserMessage                   SessionEventType = "user.message"
-	SessionEventTypePendingMessagesModified       SessionEventType = "pending_messages.modified"
-	SessionEventTypeAssistantTurnStart            SessionEventType = "assistant.turn_start"
+	SessionEventTypeAbort                         SessionEventType = "abort"
 	SessionEventTypeAssistantIntent               SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage              SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta         SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart         SessionEventType = "assistant.message_start"
 	SessionEventTypeAssistantReasoning            SessionEventType = "assistant.reasoning"
 	SessionEventTypeAssistantReasoningDelta       SessionEventType = "assistant.reasoning_delta"
 	SessionEventTypeAssistantStreamingDelta       SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantMessage              SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageStart         SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantMessageDelta         SessionEventType = "assistant.message_delta"
 	SessionEventTypeAssistantTurnEnd              SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnStart            SessionEventType = "assistant.turn_start"
 	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
-	SessionEventTypeModelCallFailure              SessionEventType = "model.call_failure"
-	SessionEventTypeAbort                         SessionEventType = "abort"
-	SessionEventTypeToolUserRequested             SessionEventType = "tool.user_requested"
-	SessionEventTypeToolExecutionStart            SessionEventType = "tool.execution_start"
-	SessionEventTypeToolExecutionPartialResult    SessionEventType = "tool.execution_partial_result"
-	SessionEventTypeToolExecutionProgress         SessionEventType = "tool.execution_progress"
-	SessionEventTypeToolExecutionComplete         SessionEventType = "tool.execution_complete"
-	SessionEventTypeSkillInvoked                  SessionEventType = "skill.invoked"
-	SessionEventTypeSubagentStarted               SessionEventType = "subagent.started"
-	SessionEventTypeSubagentCompleted             SessionEventType = "subagent.completed"
-	SessionEventTypeSubagentFailed                SessionEventType = "subagent.failed"
-	SessionEventTypeSubagentSelected              SessionEventType = "subagent.selected"
-	SessionEventTypeSubagentDeselected            SessionEventType = "subagent.deselected"
-	SessionEventTypeHookStart                     SessionEventType = "hook.start"
-	SessionEventTypeHookEnd                       SessionEventType = "hook.end"
-	SessionEventTypeSystemMessage                 SessionEventType = "system.message"
-	SessionEventTypeSystemNotification            SessionEventType = "system.notification"
-	SessionEventTypePermissionRequested           SessionEventType = "permission.requested"
-	SessionEventTypePermissionCompleted           SessionEventType = "permission.completed"
-	SessionEventTypeUserInputRequested            SessionEventType = "user_input.requested"
-	SessionEventTypeUserInputCompleted            SessionEventType = "user_input.completed"
-	SessionEventTypeElicitationRequested          SessionEventType = "elicitation.requested"
-	SessionEventTypeElicitationCompleted          SessionEventType = "elicitation.completed"
-	SessionEventTypeSamplingRequested             SessionEventType = "sampling.requested"
-	SessionEventTypeSamplingCompleted             SessionEventType = "sampling.completed"
-	SessionEventTypeMcpOauthRequired              SessionEventType = "mcp.oauth_required"
-	SessionEventTypeMcpOauthCompleted             SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeExternalToolRequested         SessionEventType = "external_tool.requested"
-	SessionEventTypeExternalToolCompleted         SessionEventType = "external_tool.completed"
-	SessionEventTypeCommandQueued                 SessionEventType = "command.queued"
-	SessionEventTypeCommandExecute                SessionEventType = "command.execute"
-	SessionEventTypeCommandCompleted              SessionEventType = "command.completed"
-	SessionEventTypeAutoModeSwitchRequested       SessionEventType = "auto_mode_switch.requested"
 	SessionEventTypeAutoModeSwitchCompleted       SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeCommandsChanged               SessionEventType = "commands.changed"
+	SessionEventTypeAutoModeSwitchRequested       SessionEventType = "auto_mode_switch.requested"
 	SessionEventTypeCapabilitiesChanged           SessionEventType = "capabilities.changed"
-	SessionEventTypeExitPlanModeRequested         SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeCommandCompleted              SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute                SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued                 SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged               SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted          SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested          SessionEventType = "elicitation.requested"
 	SessionEventTypeExitPlanModeCompleted         SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeSessionToolsUpdated           SessionEventType = "session.tools_updated"
+	SessionEventTypeExitPlanModeRequested         SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted         SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested         SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                       SessionEventType = "hook.end"
+	SessionEventTypeHookStart                     SessionEventType = "hook.start"
+	SessionEventTypeMcpOauthCompleted             SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMcpOauthRequired              SessionEventType = "mcp.oauth_required"
+	SessionEventTypeModelCallFailure              SessionEventType = "model.call_failure"
+	SessionEventTypePendingMessagesModified       SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted           SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested           SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted             SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested             SessionEventType = "sampling.requested"
 	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
-	SessionEventTypeSessionSkillsLoaded           SessionEventType = "session.skills_loaded"
+	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
 	SessionEventTypeSessionCustomAgentsUpdated    SessionEventType = "session.custom_agents_updated"
+	SessionEventTypeSessionError                  SessionEventType = "session.error"
+	SessionEventTypeSessionExtensionsLoaded       SessionEventType = "session.extensions_loaded"
+	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"
+	SessionEventTypeSessionIdle                   SessionEventType = "session.idle"
+	SessionEventTypeSessionInfo                   SessionEventType = "session.info"
 	SessionEventTypeSessionMcpServersLoaded       SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionMcpServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
-	SessionEventTypeSessionExtensionsLoaded       SessionEventType = "session.extensions_loaded"
+	SessionEventTypeSessionModeChanged            SessionEventType = "session.mode_changed"
+	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
+	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionRemoteSteerableChanged SessionEventType = "session.remote_steerable_changed"
+	SessionEventTypeSessionResume                 SessionEventType = "session.resume"
+	SessionEventTypeSessionScheduleCancelled      SessionEventType = "session.schedule_cancelled"
+	SessionEventTypeSessionScheduleCreated        SessionEventType = "session.schedule_created"
+	SessionEventTypeSessionShutdown               SessionEventType = "session.shutdown"
+	SessionEventTypeSessionSkillsLoaded           SessionEventType = "session.skills_loaded"
+	SessionEventTypeSessionSnapshotRewind         SessionEventType = "session.snapshot_rewind"
+	SessionEventTypeSessionStart                  SessionEventType = "session.start"
+	SessionEventTypeSessionTaskComplete           SessionEventType = "session.task_complete"
+	SessionEventTypeSessionTitleChanged           SessionEventType = "session.title_changed"
+	SessionEventTypeSessionToolsUpdated           SessionEventType = "session.tools_updated"
+	SessionEventTypeSessionTruncation             SessionEventType = "session.truncation"
+	SessionEventTypeSessionUsageInfo              SessionEventType = "session.usage_info"
+	SessionEventTypeSessionWarning                SessionEventType = "session.warning"
+	SessionEventTypeSessionWorkspaceFileChanged   SessionEventType = "session.workspace_file_changed"
+	SessionEventTypeSkillInvoked                  SessionEventType = "skill.invoked"
+	SessionEventTypeSubagentCompleted             SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentDeselected            SessionEventType = "subagent.deselected"
+	SessionEventTypeSubagentFailed                SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected              SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentStarted               SessionEventType = "subagent.started"
+	SessionEventTypeSystemMessage                 SessionEventType = "system.message"
+	SessionEventTypeSystemNotification            SessionEventType = "system.notification"
+	SessionEventTypeToolExecutionComplete         SessionEventType = "tool.execution_complete"
+	SessionEventTypeToolExecutionPartialResult    SessionEventType = "tool.execution_partial_result"
+	SessionEventTypeToolExecutionProgress         SessionEventType = "tool.execution_progress"
+	SessionEventTypeToolExecutionStart            SessionEventType = "tool.execution_start"
+	SessionEventTypeToolUserRequested             SessionEventType = "tool.user_requested"
+	SessionEventTypeUserInputCompleted            SessionEventType = "user_input.completed"
+	SessionEventTypeUserInputRequested            SessionEventType = "user_input.requested"
+	SessionEventTypeUserMessage                   SessionEventType = "user.message"
 )
 
 // Agent intent description for current activity or plan
@@ -856,7 +857,7 @@ type ElicitationCompletedData struct {
 	// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 	Action *ElicitationCompletedAction `json:"action,omitempty"`
 	// The submitted form data when action is 'accept'; keys match the requested schema fields
-	Content map[string]any `json:"content,omitempty"`
+	Content map[string]*ElicitationCompletedContent `json:"content,omitempty"`
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
 }
@@ -1796,36 +1797,6 @@ type SessionWorkspaceFileChangedData struct {
 
 func (*SessionWorkspaceFileChangedData) sessionEventData() {}
 
-// A content block within a tool result, which may be text, terminal output, image, audio, or a resource
-type ToolExecutionCompleteContent struct {
-	// Type discriminator
-	Type ToolExecutionCompleteContentType `json:"type"`
-	// Working directory where the command was executed
-	Cwd *string `json:"cwd,omitempty"`
-	// Base64-encoded image data
-	Data *string `json:"data,omitempty"`
-	// Human-readable description of the resource
-	Description *string `json:"description,omitempty"`
-	// Process exit code, if the command has completed
-	ExitCode *float64 `json:"exitCode,omitempty"`
-	// Icons associated with this resource
-	Icons []ToolExecutionCompleteContentResourceLinkIcon `json:"icons,omitempty"`
-	// MIME type of the image (e.g., image/png, image/jpeg)
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Resource name identifier
-	Name *string `json:"name,omitempty"`
-	// The embedded resource contents, either text or base64-encoded binary
-	Resource any `json:"resource,omitempty"`
-	// Size of the resource in bytes
-	Size *float64 `json:"size,omitempty"`
-	// The text content
-	Text *string `json:"text,omitempty"`
-	// Human-readable display title for the resource
-	Title *string `json:"title,omitempty"`
-	// URI identifying the resource
-	URI *string `json:"uri,omitempty"`
-}
-
 // A tool invocation request from the assistant
 type AssistantMessageToolRequest struct {
 	// Arguments to pass to the tool, format depends on the tool
@@ -1846,52 +1817,234 @@ type AssistantMessageToolRequest struct {
 	Type *AssistantMessageToolRequestType `json:"type,omitempty"`
 }
 
-// A user message attachment — a file, directory, code selection, blob, or GitHub reference
-type UserMessageAttachment struct {
-	// Type discriminator
-	Type UserMessageAttachmentType `json:"type"`
-	// Base64-encoded content
-	Data *string `json:"data,omitempty"`
-	// User-facing display name for the attachment
-	DisplayName *string `json:"displayName,omitempty"`
-	// Absolute path to the file containing the selection
-	FilePath *string `json:"filePath,omitempty"`
-	// Optional line range to scope the attachment to a specific section of the file
-	LineRange *UserMessageAttachmentFileLineRange `json:"lineRange,omitempty"`
-	// MIME type of the inline data
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Issue, pull request, or discussion number
-	Number *float64 `json:"number,omitempty"`
-	// Absolute file path
-	Path *string `json:"path,omitempty"`
-	// Type of GitHub reference
-	ReferenceType *UserMessageAttachmentGithubReferenceType `json:"referenceType,omitempty"`
-	// Position range of the selection within the file
-	Selection *UserMessageAttachmentSelectionDetails `json:"selection,omitempty"`
-	// Current state of the referenced item (e.g., open, closed, merged)
-	State *string `json:"state,omitempty"`
-	// The selected text content
-	Text *string `json:"text,omitempty"`
-	// Title of the referenced item
-	Title *string `json:"title,omitempty"`
-	// URL to the referenced item on GitHub
-	URL *string `json:"url,omitempty"`
+// Per-request cost and usage data from the CAPI copilot_usage response field
+type AssistantUsageCopilotUsage struct {
+	// Itemized token usage breakdown
+	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
+	// Total cost in nano-AI units for this request
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
 
-// Aggregate code change metrics for the session
-type ShutdownCodeChanges struct {
-	// List of file paths that were modified during the session
-	FilesModified []string `json:"filesModified"`
-	// Total number of lines added during the session
-	LinesAdded float64 `json:"linesAdded"`
-	// Total number of lines removed during the session
-	LinesRemoved float64 `json:"linesRemoved"`
+// Token usage detail for a single billing category
+type AssistantUsageCopilotUsageTokenDetail struct {
+	// Number of tokens in this billing batch
+	BatchSize float64 `json:"batchSize"`
+	// Cost per batch of tokens
+	CostPerBatch float64 `json:"costPerBatch"`
+	// Total token count for this entry
+	TokenCount float64 `json:"tokenCount"`
+	// Token category (e.g., "input", "output")
+	TokenType string `json:"tokenType"`
+}
+
+type AssistantUsageQuotaSnapshot struct {
+	// Total requests allowed by the entitlement
+	EntitlementRequests float64 `json:"entitlementRequests"`
+	// Whether the user has an unlimited usage entitlement
+	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
+	// Number of requests over the entitlement limit
+	Overage float64 `json:"overage"`
+	// Whether overage is allowed when quota is exhausted
+	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
+	// Percentage of quota remaining (0.0 to 1.0)
+	RemainingPercentage float64 `json:"remainingPercentage"`
+	// Date when the quota resets
+	ResetDate *time.Time `json:"resetDate,omitempty"`
+	// Whether usage is still permitted after quota exhaustion
+	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
+	// Number of requests already consumed
+	UsedRequests float64 `json:"usedRequests"`
+}
+
+// UI capability changes
+type CapabilitiesChangedUI struct {
+	// Whether elicitation is now supported
+	Elicitation *bool `json:"elicitation,omitempty"`
+}
+
+type CommandsChangedCommand struct {
+	Description *string `json:"description,omitempty"`
+	Name        string  `json:"name"`
+}
+
+// Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
+type CompactionCompleteCompactionTokensUsed struct {
+	// Cached input tokens reused in the compaction LLM call
+	CacheReadTokens *float64 `json:"cacheReadTokens,omitempty"`
+	// Tokens written to prompt cache in the compaction LLM call
+	CacheWriteTokens *float64 `json:"cacheWriteTokens,omitempty"`
+	// Per-request cost and usage data from the CAPI copilot_usage response field
+	CopilotUsage *CompactionCompleteCompactionTokensUsedCopilotUsage `json:"copilotUsage,omitempty"`
+	// Duration of the compaction LLM call in milliseconds
+	Duration *float64 `json:"duration,omitempty"`
+	// Input tokens consumed by the compaction LLM call
+	InputTokens *float64 `json:"inputTokens,omitempty"`
+	// Model identifier used for the compaction LLM call
+	Model *string `json:"model,omitempty"`
+	// Output tokens produced by the compaction LLM call
+	OutputTokens *float64 `json:"outputTokens,omitempty"`
+}
+
+// Per-request cost and usage data from the CAPI copilot_usage response field
+type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
+	// Itemized token usage breakdown
+	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
+	// Total cost in nano-AI units for this request
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
+}
+
+// Token usage detail for a single billing category
+type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
+	// Number of tokens in this billing batch
+	BatchSize float64 `json:"batchSize"`
+	// Cost per batch of tokens
+	CostPerBatch float64 `json:"costPerBatch"`
+	// Total token count for this entry
+	TokenCount float64 `json:"tokenCount"`
+	// Token category (e.g., "input", "output")
+	TokenType string `json:"tokenType"`
+}
+
+type CustomAgentsUpdatedAgent struct {
+	// Description of what the agent does
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier for the agent
+	ID string `json:"id"`
+	// Model override for this agent, if set
+	Model *string `json:"model,omitempty"`
+	// Internal name of the agent
+	Name string `json:"name"`
+	// Source location: user, project, inherited, remote, or plugin
+	Source string `json:"source"`
+	// List of tool names available to this agent, or null when all tools are available
+	Tools []string `json:"tools"`
+	// Whether the agent can be selected by the user
+	UserInvocable bool `json:"userInvocable"`
+}
+
+type ElicitationCompletedContent struct {
+	Bool        *bool
+	Double      *float64
+	String      *string
+	StringArray []string
+}
+
+func (r ElicitationCompletedContent) MarshalJSON() ([]byte, error) {
+	if r.Bool != nil {
+		return json.Marshal(r.Bool)
+	}
+	if r.Double != nil {
+		return json.Marshal(r.Double)
+	}
+	if r.String != nil {
+		return json.Marshal(r.String)
+	}
+	if r.StringArray != nil {
+		return json.Marshal(r.StringArray)
+	}
+	return []byte("null"), nil
+}
+
+func (r *ElicitationCompletedContent) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*r = ElicitationCompletedContent{}
+		return nil
+	}
+	{
+		var value bool
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = ElicitationCompletedContent{Bool: &value}
+			return nil
+		}
+	}
+	{
+		var value float64
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = ElicitationCompletedContent{Double: &value}
+			return nil
+		}
+	}
+	{
+		var value string
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = ElicitationCompletedContent{String: &value}
+			return nil
+		}
+	}
+	{
+		var value []string
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = ElicitationCompletedContent{StringArray: value}
+			return nil
+		}
+	}
+	return errors.New("data did not match any union variant for ElicitationCompletedContent")
+}
+
+// JSON Schema describing the form fields to present to the user (form mode only)
+type ElicitationRequestedSchema struct {
+	// Form field definitions, keyed by field name
+	Properties map[string]any `json:"properties"`
+	// List of required field names
+	Required []string `json:"required,omitempty"`
+	// Schema type indicator (always 'object')
+	Type ElicitationRequestedSchemaType `json:"type"`
+}
+
+type ExtensionsLoadedExtension struct {
+	// Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper')
+	ID string `json:"id"`
+	// Extension name (directory name)
+	Name string `json:"name"`
+	// Discovery source
+	Source ExtensionsLoadedExtensionSource `json:"source"`
+	// Current status: running, disabled, failed, or starting
+	Status ExtensionsLoadedExtensionStatus `json:"status"`
+}
+
+// Repository context for the handed-off session
+type HandoffRepository struct {
+	// Git branch name, if applicable
+	Branch *string `json:"branch,omitempty"`
+	// Repository name
+	Name string `json:"name"`
+	// Repository owner (user or organization)
+	Owner string `json:"owner"`
+}
+
+// Error details when the hook failed
+type HookEndError struct {
+	// Human-readable error message
+	Message string `json:"message"`
+	// Error stack trace, when available
+	Stack *string `json:"stack,omitempty"`
+}
+
+// Static OAuth client configuration, if the server specifies one
+type McpOauthRequiredStaticClientConfig struct {
+	// OAuth client ID for the server
+	ClientID string `json:"clientId"`
+	// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
+	GrantType *McpOauthRequiredStaticClientConfigGrantType `json:"grantType,omitempty"`
+	// Whether this is a public OAuth client
+	PublicClient *bool `json:"publicClient,omitempty"`
+}
+
+type McpServersLoadedServer struct {
+	// Error message if the server failed to connect
+	Error *string `json:"error,omitempty"`
+	// Server name (config key)
+	Name string `json:"name"`
+	// Configuration source: user, workspace, plugin, or builtin
+	Source *string `json:"source,omitempty"`
+	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	Status McpServersLoadedServerStatus `json:"status"`
 }
 
 // Derived user-facing permission prompt details for UI consumers
 type PermissionPromptRequest struct {
-	// Kind discriminator
-	Kind PermissionPromptRequestKind `json:"kind"`
 	// Underlying permission kind that needs path approval
 	AccessKind *PermissionPromptRequestPathAccessKind `json:"accessKind,omitempty"`
 	// Whether this is a store or vote memory operation
@@ -1922,6 +2075,8 @@ type PermissionPromptRequest struct {
 	HookMessage *string `json:"hookMessage,omitempty"`
 	// Human-readable description of what the command intends to do
 	Intention *string `json:"intention,omitempty"`
+	// Kind discriminator
+	Kind PermissionPromptRequestKind `json:"kind"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
 	// The extension management operation (scaffold, reload)
@@ -1954,8 +2109,6 @@ type PermissionPromptRequest struct {
 
 // Details of the permission being requested
 type PermissionRequest struct {
-	// Kind discriminator
-	Kind PermissionRequestKind `json:"kind"`
 	// Whether this is a store or vote memory operation
 	Action *PermissionRequestMemoryAction `json:"action,omitempty"`
 	// Arguments to pass to the MCP tool
@@ -1986,6 +2139,8 @@ type PermissionRequest struct {
 	HookMessage *string `json:"hookMessage,omitempty"`
 	// Human-readable description of what the command intends to do
 	Intention *string `json:"intention,omitempty"`
+	// Kind discriminator
+	Kind PermissionRequestKind `json:"kind"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
 	// The extension management operation (scaffold, reload)
@@ -2020,100 +2175,68 @@ type PermissionRequest struct {
 	Warning *string `json:"warning,omitempty"`
 }
 
-// End position of the selection
-type UserMessageAttachmentSelectionDetailsEnd struct {
-	// End character offset within the line (0-based)
-	Character float64 `json:"character"`
-	// End line number (0-based)
-	Line float64 `json:"line"`
+type PermissionRequestShellCommand struct {
+	// Command identifier (e.g., executable name)
+	Identifier string `json:"identifier"`
+	// Whether this command is read-only (no side effects)
+	ReadOnly bool `json:"readOnly"`
 }
 
-// Error details when the hook failed
-type HookEndError struct {
-	// Human-readable error message
-	Message string `json:"message"`
-	// Error stack trace, when available
-	Stack *string `json:"stack,omitempty"`
+type PermissionRequestShellPossibleURL struct {
+	// URL that may be accessed by the command
+	URL string `json:"url"`
 }
 
-// Error details when the tool execution failed
-type ToolExecutionCompleteError struct {
-	// Machine-readable error code
-	Code *string `json:"code,omitempty"`
-	// Human-readable error message
-	Message string `json:"message"`
+// The result of the permission request
+type PermissionResult struct {
+	// The approval to add as a session-scoped rule
+	Approval *UserToolSessionApproval `json:"approval,omitempty"`
+	// Optional feedback from the user explaining the denial
+	Feedback *string `json:"feedback,omitempty"`
+	// Whether to force-reject the current agent turn
+	ForceReject *bool `json:"forceReject,omitempty"`
+	// Whether to interrupt the current agent turn
+	Interrupt *bool `json:"interrupt,omitempty"`
+	// Kind discriminator
+	Kind PermissionResultKind `json:"kind"`
+	// The location key (git root or cwd) to persist the approval to
+	LocationKey *string `json:"locationKey,omitempty"`
+	// Human-readable explanation of why the path was excluded
+	Message *string `json:"message,omitempty"`
+	// File path that triggered the exclusion
+	Path *string `json:"path,omitempty"`
+	// Optional explanation of why the request was cancelled
+	Reason *string `json:"reason,omitempty"`
+	// Rules that denied the request
+	Rules []PermissionRule `json:"rules,omitempty"`
 }
 
-// Icon image for a resource
-type ToolExecutionCompleteContentResourceLinkIcon struct {
-	// MIME type of the icon image
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Available icon sizes (e.g., ['16x16', '32x32'])
-	Sizes []string `json:"sizes,omitempty"`
-	// URL or path to the icon image
-	Src string `json:"src"`
-	// Theme variant this icon is intended for
-	Theme *ToolExecutionCompleteContentResourceLinkIconTheme `json:"theme,omitempty"`
+type PermissionRule struct {
+	// Optional rule argument matched against the request
+	Argument *string `json:"argument"`
+	// The rule kind, such as Shell or GitHubMCP
+	Kind string `json:"kind"`
 }
 
-// JSON Schema describing the form fields to present to the user (form mode only)
-type ElicitationRequestedSchema struct {
-	// Form field definitions, keyed by field name
-	Properties map[string]any `json:"properties"`
-	// List of required field names
-	Required []string `json:"required,omitempty"`
-	// Schema type indicator (always 'object')
-	Type string `json:"type"`
+// Aggregate code change metrics for the session
+type ShutdownCodeChanges struct {
+	// List of file paths that were modified during the session
+	FilesModified []string `json:"filesModified"`
+	// Total number of lines added during the session
+	LinesAdded float64 `json:"linesAdded"`
+	// Total number of lines removed during the session
+	LinesRemoved float64 `json:"linesRemoved"`
 }
 
-// Metadata about the prompt template and its construction
-type SystemMessageMetadata struct {
-	// Version identifier of the prompt template used
-	PromptVersion *string `json:"promptVersion,omitempty"`
-	// Template variables used when constructing the prompt
-	Variables map[string]any `json:"variables,omitempty"`
-}
-
-// Optional line range to scope the attachment to a specific section of the file
-type UserMessageAttachmentFileLineRange struct {
-	// End line number (1-based, inclusive)
-	End float64 `json:"end"`
-	// Start line number (1-based)
-	Start float64 `json:"start"`
-}
-
-// Per-request cost and usage data from the CAPI copilot_usage response field
-type AssistantUsageCopilotUsage struct {
-	// Itemized token usage breakdown
-	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
-	// Total cost in nano-AI units for this request
-	TotalNanoAiu float64 `json:"totalNanoAiu"`
-}
-
-// Per-request cost and usage data from the CAPI copilot_usage response field
-type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
-	// Itemized token usage breakdown
-	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
-	// Total cost in nano-AI units for this request
-	TotalNanoAiu float64 `json:"totalNanoAiu"`
-}
-
-// Position range of the selection within the file
-type UserMessageAttachmentSelectionDetails struct {
-	// End position of the selection
-	End UserMessageAttachmentSelectionDetailsEnd `json:"end"`
-	// Start position of the selection
-	Start UserMessageAttachmentSelectionDetailsStart `json:"start"`
-}
-
-// Repository context for the handed-off session
-type HandoffRepository struct {
-	// Git branch name, if applicable
-	Branch *string `json:"branch,omitempty"`
-	// Repository name
-	Name string `json:"name"`
-	// Repository owner (user or organization)
-	Owner string `json:"owner"`
+type ShutdownModelMetric struct {
+	// Request count and cost metrics
+	Requests ShutdownModelMetricRequests `json:"requests"`
+	// Token count details per type
+	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitempty"`
+	// Accumulated nano-AI units cost for this model
+	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
+	// Token usage breakdown
+	Usage ShutdownModelMetricUsage `json:"usage"`
 }
 
 // Request count and cost metrics
@@ -2124,28 +2247,55 @@ type ShutdownModelMetricRequests struct {
 	Count float64 `json:"count"`
 }
 
-// Start position of the selection
-type UserMessageAttachmentSelectionDetailsStart struct {
-	// Start character offset within the line (0-based)
-	Character float64 `json:"character"`
-	// Start line number (0-based)
-	Line float64 `json:"line"`
+type ShutdownModelMetricTokenDetail struct {
+	// Accumulated token count for this token type
+	TokenCount float64 `json:"tokenCount"`
 }
 
-// Static OAuth client configuration, if the server specifies one
-type McpOauthRequiredStaticClientConfig struct {
-	// OAuth client ID for the server
-	ClientID string `json:"clientId"`
-	// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
-	GrantType *string `json:"grantType,omitempty"`
-	// Whether this is a public OAuth client
-	PublicClient *bool `json:"publicClient,omitempty"`
+// Token usage breakdown
+type ShutdownModelMetricUsage struct {
+	// Total tokens read from prompt cache across all requests
+	CacheReadTokens float64 `json:"cacheReadTokens"`
+	// Total tokens written to prompt cache across all requests
+	CacheWriteTokens float64 `json:"cacheWriteTokens"`
+	// Total input tokens consumed across all requests to this model
+	InputTokens float64 `json:"inputTokens"`
+	// Total output tokens produced across all requests to this model
+	OutputTokens float64 `json:"outputTokens"`
+	// Total reasoning tokens produced across all requests to this model
+	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
+}
+
+type ShutdownTokenDetail struct {
+	// Accumulated token count for this token type
+	TokenCount float64 `json:"tokenCount"`
+}
+
+type SkillsLoadedSkill struct {
+	// Description of what the skill does
+	Description string `json:"description"`
+	// Whether the skill is currently enabled
+	Enabled bool `json:"enabled"`
+	// Unique identifier for the skill
+	Name string `json:"name"`
+	// Absolute path to the skill file, if available
+	Path *string `json:"path,omitempty"`
+	// Source location type of the skill (e.g., project, personal, plugin)
+	Source string `json:"source"`
+	// Whether the skill can be invoked by the user as a slash command
+	UserInvocable bool `json:"userInvocable"`
+}
+
+// Metadata about the prompt template and its construction
+type SystemMessageMetadata struct {
+	// Version identifier of the prompt template used
+	PromptVersion *string `json:"promptVersion,omitempty"`
+	// Template variables used when constructing the prompt
+	Variables map[string]any `json:"variables,omitempty"`
 }
 
 // Structured metadata identifying what triggered this notification
 type SystemNotification struct {
-	// Type discriminator
-	Type SystemNotificationType `json:"type"`
 	// Unique identifier of the background agent
 	AgentID *string `json:"agentId,omitempty"`
 	// Type of the agent (e.g., explore, task, general-purpose)
@@ -2174,98 +2324,70 @@ type SystemNotification struct {
 	TriggerFile *string `json:"triggerFile,omitempty"`
 	// Tool command that triggered discovery (currently always 'view')
 	TriggerTool *string `json:"triggerTool,omitempty"`
+	// Type discriminator
+	Type SystemNotificationType `json:"type"`
 }
 
-// The approval to add as a session-scoped rule
-type UserToolSessionApproval struct {
-	// Kind discriminator
-	Kind UserToolSessionApprovalKind `json:"kind"`
-	// Command identifiers approved by the user
-	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
-	// MCP server name
-	ServerName *string `json:"serverName,omitempty"`
-	// Optional MCP tool name, or null for all tools on the server
-	ToolName *string `json:"toolName,omitempty"`
+// A content block within a tool result, which may be text, terminal output, image, audio, or a resource
+type ToolExecutionCompleteContent struct {
+	// Working directory where the command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Base64-encoded image data
+	Data *string `json:"data,omitempty"`
+	// Human-readable description of the resource
+	Description *string `json:"description,omitempty"`
+	// Process exit code, if the command has completed
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Icons associated with this resource
+	Icons []ToolExecutionCompleteContentResourceLinkIcon `json:"icons,omitempty"`
+	// MIME type of the image (e.g., image/png, image/jpeg)
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Resource name identifier
+	Name *string `json:"name,omitempty"`
+	// The embedded resource contents, either text or base64-encoded binary
+	Resource *ToolExecutionCompleteContentResourceDetails `json:"resource,omitempty"`
+	// Size of the resource in bytes
+	Size *float64 `json:"size,omitempty"`
+	// The text content
+	Text *string `json:"text,omitempty"`
+	// Human-readable display title for the resource
+	Title *string `json:"title,omitempty"`
+	// Type discriminator
+	Type ToolExecutionCompleteContentType `json:"type"`
+	// URI identifying the resource
+	URI *string `json:"uri,omitempty"`
 }
 
-// The result of the permission request
-type PermissionResult struct {
-	// Kind discriminator
-	Kind PermissionResultKind `json:"kind"`
-	// The approval to add as a session-scoped rule
-	Approval *UserToolSessionApproval `json:"approval,omitempty"`
-	// Optional feedback from the user explaining the denial
-	Feedback *string `json:"feedback,omitempty"`
-	// Whether to force-reject the current agent turn
-	ForceReject *bool `json:"forceReject,omitempty"`
-	// Whether to interrupt the current agent turn
-	Interrupt *bool `json:"interrupt,omitempty"`
-	// The location key (git root or cwd) to persist the approval to
-	LocationKey *string `json:"locationKey,omitempty"`
-	// Human-readable explanation of why the path was excluded
-	Message *string `json:"message,omitempty"`
-	// File path that triggered the exclusion
-	Path *string `json:"path,omitempty"`
-	// Optional explanation of why the request was cancelled
-	Reason *string `json:"reason,omitempty"`
-	// Rules that denied the request
-	Rules []PermissionRule `json:"rules,omitempty"`
+// The embedded resource contents, either text or base64-encoded binary
+type ToolExecutionCompleteContentResourceDetails struct {
+	// Base64-encoded binary content of the resource
+	Blob *string `json:"blob,omitempty"`
+	// MIME type of the text content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content of the resource
+	Text *string `json:"text,omitempty"`
+	// URI identifying the resource
+	URI string `json:"uri"`
 }
 
-// Token usage breakdown
-type ShutdownModelMetricUsage struct {
-	// Total tokens read from prompt cache across all requests
-	CacheReadTokens float64 `json:"cacheReadTokens"`
-	// Total tokens written to prompt cache across all requests
-	CacheWriteTokens float64 `json:"cacheWriteTokens"`
-	// Total input tokens consumed across all requests to this model
-	InputTokens float64 `json:"inputTokens"`
-	// Total output tokens produced across all requests to this model
-	OutputTokens float64 `json:"outputTokens"`
-	// Total reasoning tokens produced across all requests to this model
-	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
+// Icon image for a resource
+type ToolExecutionCompleteContentResourceLinkIcon struct {
+	// MIME type of the icon image
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Available icon sizes (e.g., ['16x16', '32x32'])
+	Sizes []string `json:"sizes,omitempty"`
+	// URL or path to the icon image
+	Src string `json:"src"`
+	// Theme variant this icon is intended for
+	Theme *ToolExecutionCompleteContentResourceLinkIconTheme `json:"theme,omitempty"`
 }
 
-// Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
-type CompactionCompleteCompactionTokensUsed struct {
-	// Cached input tokens reused in the compaction LLM call
-	CacheReadTokens *float64 `json:"cacheReadTokens,omitempty"`
-	// Tokens written to prompt cache in the compaction LLM call
-	CacheWriteTokens *float64 `json:"cacheWriteTokens,omitempty"`
-	// Per-request cost and usage data from the CAPI copilot_usage response field
-	CopilotUsage *CompactionCompleteCompactionTokensUsedCopilotUsage `json:"copilotUsage,omitempty"`
-	// Duration of the compaction LLM call in milliseconds
-	Duration *float64 `json:"duration,omitempty"`
-	// Input tokens consumed by the compaction LLM call
-	InputTokens *float64 `json:"inputTokens,omitempty"`
-	// Model identifier used for the compaction LLM call
-	Model *string `json:"model,omitempty"`
-	// Output tokens produced by the compaction LLM call
-	OutputTokens *float64 `json:"outputTokens,omitempty"`
-}
-
-// Token usage detail for a single billing category
-type AssistantUsageCopilotUsageTokenDetail struct {
-	// Number of tokens in this billing batch
-	BatchSize float64 `json:"batchSize"`
-	// Cost per batch of tokens
-	CostPerBatch float64 `json:"costPerBatch"`
-	// Total token count for this entry
-	TokenCount float64 `json:"tokenCount"`
-	// Token category (e.g., "input", "output")
-	TokenType string `json:"tokenType"`
-}
-
-// Token usage detail for a single billing category
-type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
-	// Number of tokens in this billing batch
-	BatchSize float64 `json:"batchSize"`
-	// Cost per batch of tokens
-	CostPerBatch float64 `json:"costPerBatch"`
-	// Total token count for this entry
-	TokenCount float64 `json:"tokenCount"`
-	// Token category (e.g., "input", "output")
-	TokenType string `json:"tokenType"`
+// Error details when the tool execution failed
+type ToolExecutionCompleteError struct {
+	// Machine-readable error code
+	Code *string `json:"code,omitempty"`
+	// Human-readable error message
+	Message string `json:"message"`
 }
 
 // Tool execution result on success
@@ -2278,10 +2400,80 @@ type ToolExecutionCompleteResult struct {
 	DetailedContent *string `json:"detailedContent,omitempty"`
 }
 
-// UI capability changes
-type CapabilitiesChangedUI struct {
-	// Whether elicitation is now supported
-	Elicitation *bool `json:"elicitation,omitempty"`
+// A user message attachment — a file, directory, code selection, blob, or GitHub reference
+type UserMessageAttachment struct {
+	// Base64-encoded content
+	Data *string `json:"data,omitempty"`
+	// User-facing display name for the attachment
+	DisplayName *string `json:"displayName,omitempty"`
+	// Absolute path to the file containing the selection
+	FilePath *string `json:"filePath,omitempty"`
+	// Optional line range to scope the attachment to a specific section of the file
+	LineRange *UserMessageAttachmentFileLineRange `json:"lineRange,omitempty"`
+	// MIME type of the inline data
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Issue, pull request, or discussion number
+	Number *float64 `json:"number,omitempty"`
+	// Absolute file path
+	Path *string `json:"path,omitempty"`
+	// Type of GitHub reference
+	ReferenceType *UserMessageAttachmentGithubReferenceType `json:"referenceType,omitempty"`
+	// Position range of the selection within the file
+	Selection *UserMessageAttachmentSelectionDetails `json:"selection,omitempty"`
+	// Current state of the referenced item (e.g., open, closed, merged)
+	State *string `json:"state,omitempty"`
+	// The selected text content
+	Text *string `json:"text,omitempty"`
+	// Title of the referenced item
+	Title *string `json:"title,omitempty"`
+	// Type discriminator
+	Type UserMessageAttachmentType `json:"type"`
+	// URL to the referenced item on GitHub
+	URL *string `json:"url,omitempty"`
+}
+
+// Optional line range to scope the attachment to a specific section of the file
+type UserMessageAttachmentFileLineRange struct {
+	// End line number (1-based, inclusive)
+	End float64 `json:"end"`
+	// Start line number (1-based)
+	Start float64 `json:"start"`
+}
+
+// Position range of the selection within the file
+type UserMessageAttachmentSelectionDetails struct {
+	// End position of the selection
+	End UserMessageAttachmentSelectionDetailsEnd `json:"end"`
+	// Start position of the selection
+	Start UserMessageAttachmentSelectionDetailsStart `json:"start"`
+}
+
+// End position of the selection
+type UserMessageAttachmentSelectionDetailsEnd struct {
+	// End character offset within the line (0-based)
+	Character float64 `json:"character"`
+	// End line number (0-based)
+	Line float64 `json:"line"`
+}
+
+// Start position of the selection
+type UserMessageAttachmentSelectionDetailsStart struct {
+	// Start character offset within the line (0-based)
+	Character float64 `json:"character"`
+	// Start line number (0-based)
+	Line float64 `json:"line"`
+}
+
+// The approval to add as a session-scoped rule
+type UserToolSessionApproval struct {
+	// Command identifiers approved by the user
+	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
+	// Kind discriminator
+	Kind UserToolSessionApprovalKind `json:"kind"`
+	// MCP server name
+	ServerName *string `json:"serverName,omitempty"`
+	// Optional MCP tool name, or null for all tools on the server
+	ToolName *string `json:"toolName,omitempty"`
 }
 
 // Working directory and git context at session start
@@ -2304,154 +2496,30 @@ type WorkingDirectoryContext struct {
 	RepositoryHost *string `json:"repositoryHost,omitempty"`
 }
 
-type AssistantUsageQuotaSnapshot struct {
-	// Total requests allowed by the entitlement
-	EntitlementRequests float64 `json:"entitlementRequests"`
-	// Whether the user has an unlimited usage entitlement
-	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
-	// Number of requests over the entitlement limit
-	Overage float64 `json:"overage"`
-	// Whether overage is allowed when quota is exhausted
-	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
-	// Percentage of quota remaining (0.0 to 1.0)
-	RemainingPercentage float64 `json:"remainingPercentage"`
-	// Date when the quota resets
-	ResetDate *time.Time `json:"resetDate,omitempty"`
-	// Whether usage is still permitted after quota exhaustion
-	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
-	// Number of requests already consumed
-	UsedRequests float64 `json:"usedRequests"`
-}
-
-type CommandsChangedCommand struct {
-	Description *string `json:"description,omitempty"`
-	Name        string  `json:"name"`
-}
-
-type CustomAgentsUpdatedAgent struct {
-	// Description of what the agent does
-	Description string `json:"description"`
-	// Human-readable display name
-	DisplayName string `json:"displayName"`
-	// Unique identifier for the agent
-	ID string `json:"id"`
-	// Model override for this agent, if set
-	Model *string `json:"model,omitempty"`
-	// Internal name of the agent
-	Name string `json:"name"`
-	// Source location: user, project, inherited, remote, or plugin
-	Source string `json:"source"`
-	// List of tool names available to this agent, or null when all tools are available
-	Tools []string `json:"tools"`
-	// Whether the agent can be selected by the user
-	UserInvocable bool `json:"userInvocable"`
-}
-
-type ExtensionsLoadedExtension struct {
-	// Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper')
-	ID string `json:"id"`
-	// Extension name (directory name)
-	Name string `json:"name"`
-	// Discovery source
-	Source ExtensionsLoadedExtensionSource `json:"source"`
-	// Current status: running, disabled, failed, or starting
-	Status ExtensionsLoadedExtensionStatus `json:"status"`
-}
-
-type McpServersLoadedServer struct {
-	// Error message if the server failed to connect
-	Error *string `json:"error,omitempty"`
-	// Server name (config key)
-	Name string `json:"name"`
-	// Configuration source: user, workspace, plugin, or builtin
-	Source *string `json:"source,omitempty"`
-	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status McpServersLoadedServerStatus `json:"status"`
-}
-
-type PermissionRequestShellCommand struct {
-	// Command identifier (e.g., executable name)
-	Identifier string `json:"identifier"`
-	// Whether this command is read-only (no side effects)
-	ReadOnly bool `json:"readOnly"`
-}
-
-type PermissionRequestShellPossibleURL struct {
-	// URL that may be accessed by the command
-	URL string `json:"url"`
-}
-
-type PermissionRule struct {
-	// Optional rule argument matched against the request
-	Argument *string `json:"argument"`
-	// The rule kind, such as Shell or GitHubMCP
-	Kind string `json:"kind"`
-}
-
-type ShutdownModelMetric struct {
-	// Request count and cost metrics
-	Requests ShutdownModelMetricRequests `json:"requests"`
-	// Token count details per type
-	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitempty"`
-	// Accumulated nano-AI units cost for this model
-	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
-	// Token usage breakdown
-	Usage ShutdownModelMetricUsage `json:"usage"`
-}
-
-type ShutdownModelMetricTokenDetail struct {
-	// Accumulated token count for this token type
-	TokenCount float64 `json:"tokenCount"`
-}
-
-type ShutdownTokenDetail struct {
-	// Accumulated token count for this token type
-	TokenCount float64 `json:"tokenCount"`
-}
-
-type SkillsLoadedSkill struct {
-	// Description of what the skill does
-	Description string `json:"description"`
-	// Whether the skill is currently enabled
-	Enabled bool `json:"enabled"`
-	// Unique identifier for the skill
-	Name string `json:"name"`
-	// Absolute path to the skill file, if available
-	Path *string `json:"path,omitempty"`
-	// Source location type of the skill (e.g., project, personal, plugin)
-	Source string `json:"source"`
-	// Whether the skill can be invoked by the user as a slash command
-	UserInvocable bool `json:"userInvocable"`
-}
-
-// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-type McpServersLoadedServerStatus string
+// Finite reason code describing why the current turn was aborted
+type AbortReason string
 
 const (
-	McpServersLoadedServerStatusConnected     McpServersLoadedServerStatus = "connected"
-	McpServersLoadedServerStatusFailed        McpServersLoadedServerStatus = "failed"
-	McpServersLoadedServerStatusNeedsAuth     McpServersLoadedServerStatus = "needs-auth"
-	McpServersLoadedServerStatusPending       McpServersLoadedServerStatus = "pending"
-	McpServersLoadedServerStatusDisabled      McpServersLoadedServerStatus = "disabled"
-	McpServersLoadedServerStatusNotConfigured McpServersLoadedServerStatus = "not_configured"
+	AbortReasonRemoteCommand AbortReason = "remote_command"
+	AbortReasonUserAbort     AbortReason = "user_abort"
+	AbortReasonUserInitiated AbortReason = "user_initiated"
 )
 
-// Current status: running, disabled, failed, or starting
-type ExtensionsLoadedExtensionStatus string
+// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
+type AssistantMessageToolRequestType string
 
 const (
-	ExtensionsLoadedExtensionStatusRunning  ExtensionsLoadedExtensionStatus = "running"
-	ExtensionsLoadedExtensionStatusDisabled ExtensionsLoadedExtensionStatus = "disabled"
-	ExtensionsLoadedExtensionStatusFailed   ExtensionsLoadedExtensionStatus = "failed"
-	ExtensionsLoadedExtensionStatusStarting ExtensionsLoadedExtensionStatus = "starting"
+	AssistantMessageToolRequestTypeCustom   AssistantMessageToolRequestType = "custom"
+	AssistantMessageToolRequestTypeFunction AssistantMessageToolRequestType = "function"
 )
 
-// Discovery source
-type ExtensionsLoadedExtensionSource string
+// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
+type ElicitationCompletedAction string
 
 const (
-	ExtensionsLoadedExtensionSourceProject ExtensionsLoadedExtensionSource = "project"
-	ExtensionsLoadedExtensionSourceUser    ExtensionsLoadedExtensionSource = "user"
+	ElicitationCompletedActionAccept  ElicitationCompletedAction = "accept"
+	ElicitationCompletedActionCancel  ElicitationCompletedAction = "cancel"
+	ElicitationCompletedActionDecline ElicitationCompletedAction = "decline"
 )
 
 // Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
@@ -2462,89 +2530,56 @@ const (
 	ElicitationRequestedModeURL  ElicitationRequestedMode = "url"
 )
 
-// Finite reason code describing why the current turn was aborted
-type AbortReason string
+// Schema type indicator (always 'object')
+type ElicitationRequestedSchemaType string
 
 const (
-	AbortReasonUserInitiated AbortReason = "user_initiated"
-	AbortReasonRemoteCommand AbortReason = "remote_command"
-	AbortReasonUserAbort     AbortReason = "user_abort"
+	ElicitationRequestedSchemaTypeObject ElicitationRequestedSchemaType = "object"
 )
 
-// Hosting platform type of the repository (github or ado)
-type WorkingDirectoryContextHostType string
+// Discovery source
+type ExtensionsLoadedExtensionSource string
 
 const (
-	WorkingDirectoryContextHostTypeGithub WorkingDirectoryContextHostType = "github"
-	WorkingDirectoryContextHostTypeAdo    WorkingDirectoryContextHostType = "ado"
+	ExtensionsLoadedExtensionSourceProject ExtensionsLoadedExtensionSource = "project"
+	ExtensionsLoadedExtensionSourceUser    ExtensionsLoadedExtensionSource = "user"
 )
 
-// Kind discriminator for PermissionPromptRequest.
-type PermissionPromptRequestKind string
+// Current status: running, disabled, failed, or starting
+type ExtensionsLoadedExtensionStatus string
 
 const (
-	PermissionPromptRequestKindCommands                  PermissionPromptRequestKind = "commands"
-	PermissionPromptRequestKindWrite                     PermissionPromptRequestKind = "write"
-	PermissionPromptRequestKindRead                      PermissionPromptRequestKind = "read"
-	PermissionPromptRequestKindMcp                       PermissionPromptRequestKind = "mcp"
-	PermissionPromptRequestKindURL                       PermissionPromptRequestKind = "url"
-	PermissionPromptRequestKindMemory                    PermissionPromptRequestKind = "memory"
-	PermissionPromptRequestKindCustomTool                PermissionPromptRequestKind = "custom-tool"
-	PermissionPromptRequestKindPath                      PermissionPromptRequestKind = "path"
-	PermissionPromptRequestKindHook                      PermissionPromptRequestKind = "hook"
-	PermissionPromptRequestKindExtensionManagement       PermissionPromptRequestKind = "extension-management"
-	PermissionPromptRequestKindExtensionPermissionAccess PermissionPromptRequestKind = "extension-permission-access"
+	ExtensionsLoadedExtensionStatusDisabled ExtensionsLoadedExtensionStatus = "disabled"
+	ExtensionsLoadedExtensionStatusFailed   ExtensionsLoadedExtensionStatus = "failed"
+	ExtensionsLoadedExtensionStatusRunning  ExtensionsLoadedExtensionStatus = "running"
+	ExtensionsLoadedExtensionStatusStarting ExtensionsLoadedExtensionStatus = "starting"
 )
 
-// Kind discriminator for PermissionRequest.
-type PermissionRequestKind string
+// Origin type of the session being handed off
+type HandoffSourceType string
 
 const (
-	PermissionRequestKindShell                     PermissionRequestKind = "shell"
-	PermissionRequestKindWrite                     PermissionRequestKind = "write"
-	PermissionRequestKindRead                      PermissionRequestKind = "read"
-	PermissionRequestKindMcp                       PermissionRequestKind = "mcp"
-	PermissionRequestKindURL                       PermissionRequestKind = "url"
-	PermissionRequestKindMemory                    PermissionRequestKind = "memory"
-	PermissionRequestKindCustomTool                PermissionRequestKind = "custom-tool"
-	PermissionRequestKindHook                      PermissionRequestKind = "hook"
-	PermissionRequestKindExtensionManagement       PermissionRequestKind = "extension-management"
-	PermissionRequestKindExtensionPermissionAccess PermissionRequestKind = "extension-permission-access"
+	HandoffSourceTypeLocal  HandoffSourceType = "local"
+	HandoffSourceTypeRemote HandoffSourceType = "remote"
 )
 
-// Kind discriminator for PermissionResult.
-type PermissionResultKind string
+// Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
+type McpOauthRequiredStaticClientConfigGrantType string
 
 const (
-	PermissionResultKindApproved                                       PermissionResultKind = "approved"
-	PermissionResultKindApprovedForSession                             PermissionResultKind = "approved-for-session"
-	PermissionResultKindApprovedForLocation                            PermissionResultKind = "approved-for-location"
-	PermissionResultKindCancelled                                      PermissionResultKind = "cancelled"
-	PermissionResultKindDeniedByRules                                  PermissionResultKind = "denied-by-rules"
-	PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
-	PermissionResultKindDeniedInteractivelyByUser                      PermissionResultKind = "denied-interactively-by-user"
-	PermissionResultKindDeniedByContentExclusionPolicy                 PermissionResultKind = "denied-by-content-exclusion-policy"
-	PermissionResultKindDeniedByPermissionRequestHook                  PermissionResultKind = "denied-by-permission-request-hook"
+	McpOauthRequiredStaticClientConfigGrantTypeClientCredentials McpOauthRequiredStaticClientConfigGrantType = "client_credentials"
 )
 
-// Kind discriminator for UserToolSessionApproval.
-type UserToolSessionApprovalKind string
+// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+type McpServersLoadedServerStatus string
 
 const (
-	UserToolSessionApprovalKindCommands   UserToolSessionApprovalKind = "commands"
-	UserToolSessionApprovalKindRead       UserToolSessionApprovalKind = "read"
-	UserToolSessionApprovalKindWrite      UserToolSessionApprovalKind = "write"
-	UserToolSessionApprovalKindMcp        UserToolSessionApprovalKind = "mcp"
-	UserToolSessionApprovalKindMemory     UserToolSessionApprovalKind = "memory"
-	UserToolSessionApprovalKindCustomTool UserToolSessionApprovalKind = "custom-tool"
-)
-
-// Message role: "system" for system prompts, "developer" for developer-injected instructions
-type SystemMessageRole string
-
-const (
-	SystemMessageRoleSystem    SystemMessageRole = "system"
-	SystemMessageRoleDeveloper SystemMessageRole = "developer"
+	McpServersLoadedServerStatusConnected     McpServersLoadedServerStatus = "connected"
+	McpServersLoadedServerStatusDisabled      McpServersLoadedServerStatus = "disabled"
+	McpServersLoadedServerStatusFailed        McpServersLoadedServerStatus = "failed"
+	McpServersLoadedServerStatusNeedsAuth     McpServersLoadedServerStatus = "needs-auth"
+	McpServersLoadedServerStatusNotConfigured McpServersLoadedServerStatus = "not_configured"
+	McpServersLoadedServerStatusPending       McpServersLoadedServerStatus = "pending"
 )
 
 // New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
@@ -2552,107 +2587,53 @@ type McpServerStatusChangedStatus string
 
 const (
 	McpServerStatusChangedStatusConnected     McpServerStatusChangedStatus = "connected"
+	McpServerStatusChangedStatusDisabled      McpServerStatusChangedStatus = "disabled"
 	McpServerStatusChangedStatusFailed        McpServerStatusChangedStatus = "failed"
 	McpServerStatusChangedStatusNeedsAuth     McpServerStatusChangedStatus = "needs-auth"
-	McpServerStatusChangedStatusPending       McpServerStatusChangedStatus = "pending"
-	McpServerStatusChangedStatusDisabled      McpServerStatusChangedStatus = "disabled"
 	McpServerStatusChangedStatusNotConfigured McpServerStatusChangedStatus = "not_configured"
+	McpServerStatusChangedStatusPending       McpServerStatusChangedStatus = "pending"
 )
 
-// Origin type of the session being handed off
-type HandoffSourceType string
+// Where the failed model call originated
+type ModelCallFailureSource string
 
 const (
-	HandoffSourceTypeRemote HandoffSourceType = "remote"
-	HandoffSourceTypeLocal  HandoffSourceType = "local"
+	ModelCallFailureSourceMcpSampling ModelCallFailureSource = "mcp_sampling"
+	ModelCallFailureSourceSubagent    ModelCallFailureSource = "subagent"
+	ModelCallFailureSourceTopLevel    ModelCallFailureSource = "top_level"
 )
 
-// The agent mode that was active when this message was sent
-type UserMessageAgentMode string
+// Kind discriminator for PermissionPromptRequest.
+type PermissionPromptRequestKind string
 
 const (
-	UserMessageAgentModeInteractive UserMessageAgentMode = "interactive"
-	UserMessageAgentModePlan        UserMessageAgentMode = "plan"
-	UserMessageAgentModeAutopilot   UserMessageAgentMode = "autopilot"
-	UserMessageAgentModeShell       UserMessageAgentMode = "shell"
+	PermissionPromptRequestKindCommands                  PermissionPromptRequestKind = "commands"
+	PermissionPromptRequestKindCustomTool                PermissionPromptRequestKind = "custom-tool"
+	PermissionPromptRequestKindExtensionManagement       PermissionPromptRequestKind = "extension-management"
+	PermissionPromptRequestKindExtensionPermissionAccess PermissionPromptRequestKind = "extension-permission-access"
+	PermissionPromptRequestKindHook                      PermissionPromptRequestKind = "hook"
+	PermissionPromptRequestKindMcp                       PermissionPromptRequestKind = "mcp"
+	PermissionPromptRequestKindMemory                    PermissionPromptRequestKind = "memory"
+	PermissionPromptRequestKindPath                      PermissionPromptRequestKind = "path"
+	PermissionPromptRequestKindRead                      PermissionPromptRequestKind = "read"
+	PermissionPromptRequestKindURL                       PermissionPromptRequestKind = "url"
+	PermissionPromptRequestKindWrite                     PermissionPromptRequestKind = "write"
 )
 
-// The type of operation performed on the plan file
-type PlanChangedOperation string
+// Whether this is a store or vote memory operation
+type PermissionPromptRequestMemoryAction string
 
 const (
-	PlanChangedOperationCreate PlanChangedOperation = "create"
-	PlanChangedOperationUpdate PlanChangedOperation = "update"
-	PlanChangedOperationDelete PlanChangedOperation = "delete"
+	PermissionPromptRequestMemoryActionStore PermissionPromptRequestMemoryAction = "store"
+	PermissionPromptRequestMemoryActionVote  PermissionPromptRequestMemoryAction = "vote"
 )
 
-// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
-type ElicitationCompletedAction string
+// Vote direction (vote only)
+type PermissionPromptRequestMemoryDirection string
 
 const (
-	ElicitationCompletedActionAccept  ElicitationCompletedAction = "accept"
-	ElicitationCompletedActionDecline ElicitationCompletedAction = "decline"
-	ElicitationCompletedActionCancel  ElicitationCompletedAction = "cancel"
-)
-
-// Theme variant this icon is intended for
-type ToolExecutionCompleteContentResourceLinkIconTheme string
-
-const (
-	ToolExecutionCompleteContentResourceLinkIconThemeLight ToolExecutionCompleteContentResourceLinkIconTheme = "light"
-	ToolExecutionCompleteContentResourceLinkIconThemeDark  ToolExecutionCompleteContentResourceLinkIconTheme = "dark"
-)
-
-// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
-type AssistantMessageToolRequestType string
-
-const (
-	AssistantMessageToolRequestTypeFunction AssistantMessageToolRequestType = "function"
-	AssistantMessageToolRequestTypeCustom   AssistantMessageToolRequestType = "custom"
-)
-
-// Type discriminator for SystemNotification.
-type SystemNotificationType string
-
-const (
-	SystemNotificationTypeAgentCompleted         SystemNotificationType = "agent_completed"
-	SystemNotificationTypeAgentIdle              SystemNotificationType = "agent_idle"
-	SystemNotificationTypeNewInboxMessage        SystemNotificationType = "new_inbox_message"
-	SystemNotificationTypeShellCompleted         SystemNotificationType = "shell_completed"
-	SystemNotificationTypeShellDetachedCompleted SystemNotificationType = "shell_detached_completed"
-	SystemNotificationTypeInstructionDiscovered  SystemNotificationType = "instruction_discovered"
-)
-
-// Type discriminator for ToolExecutionCompleteContent.
-type ToolExecutionCompleteContentType string
-
-const (
-	ToolExecutionCompleteContentTypeText         ToolExecutionCompleteContentType = "text"
-	ToolExecutionCompleteContentTypeTerminal     ToolExecutionCompleteContentType = "terminal"
-	ToolExecutionCompleteContentTypeImage        ToolExecutionCompleteContentType = "image"
-	ToolExecutionCompleteContentTypeAudio        ToolExecutionCompleteContentType = "audio"
-	ToolExecutionCompleteContentTypeResourceLink ToolExecutionCompleteContentType = "resource_link"
-	ToolExecutionCompleteContentTypeResource     ToolExecutionCompleteContentType = "resource"
-)
-
-// Type discriminator for UserMessageAttachment.
-type UserMessageAttachmentType string
-
-const (
-	UserMessageAttachmentTypeFile            UserMessageAttachmentType = "file"
-	UserMessageAttachmentTypeDirectory       UserMessageAttachmentType = "directory"
-	UserMessageAttachmentTypeSelection       UserMessageAttachmentType = "selection"
-	UserMessageAttachmentTypeGithubReference UserMessageAttachmentType = "github_reference"
-	UserMessageAttachmentTypeBlob            UserMessageAttachmentType = "blob"
-)
-
-// Type of GitHub reference
-type UserMessageAttachmentGithubReferenceType string
-
-const (
-	UserMessageAttachmentGithubReferenceTypeIssue      UserMessageAttachmentGithubReferenceType = "issue"
-	UserMessageAttachmentGithubReferenceTypePr         UserMessageAttachmentGithubReferenceType = "pr"
-	UserMessageAttachmentGithubReferenceTypeDiscussion UserMessageAttachmentGithubReferenceType = "discussion"
+	PermissionPromptRequestMemoryDirectionDownvote PermissionPromptRequestMemoryDirection = "downvote"
+	PermissionPromptRequestMemoryDirectionUpvote   PermissionPromptRequestMemoryDirection = "upvote"
 )
 
 // Underlying permission kind that needs path approval
@@ -2664,61 +2645,20 @@ const (
 	PermissionPromptRequestPathAccessKindWrite PermissionPromptRequestPathAccessKind = "write"
 )
 
-// Vote direction (vote only)
-type PermissionPromptRequestMemoryDirection string
+// Kind discriminator for PermissionRequest.
+type PermissionRequestKind string
 
 const (
-	PermissionPromptRequestMemoryDirectionUpvote   PermissionPromptRequestMemoryDirection = "upvote"
-	PermissionPromptRequestMemoryDirectionDownvote PermissionPromptRequestMemoryDirection = "downvote"
-)
-
-// Vote direction (vote only)
-type PermissionRequestMemoryDirection string
-
-const (
-	PermissionRequestMemoryDirectionUpvote   PermissionRequestMemoryDirection = "upvote"
-	PermissionRequestMemoryDirectionDownvote PermissionRequestMemoryDirection = "downvote"
-)
-
-// Where the failed model call originated
-type ModelCallFailureSource string
-
-const (
-	ModelCallFailureSourceTopLevel    ModelCallFailureSource = "top_level"
-	ModelCallFailureSourceSubagent    ModelCallFailureSource = "subagent"
-	ModelCallFailureSourceMcpSampling ModelCallFailureSource = "mcp_sampling"
-)
-
-// Whether the agent completed successfully or failed
-type SystemNotificationAgentCompletedStatus string
-
-const (
-	SystemNotificationAgentCompletedStatusCompleted SystemNotificationAgentCompletedStatus = "completed"
-	SystemNotificationAgentCompletedStatusFailed    SystemNotificationAgentCompletedStatus = "failed"
-)
-
-// Whether the file was newly created or updated
-type WorkspaceFileChangedOperation string
-
-const (
-	WorkspaceFileChangedOperationCreate WorkspaceFileChangedOperation = "create"
-	WorkspaceFileChangedOperationUpdate WorkspaceFileChangedOperation = "update"
-)
-
-// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
-type ShutdownType string
-
-const (
-	ShutdownTypeRoutine ShutdownType = "routine"
-	ShutdownTypeError   ShutdownType = "error"
-)
-
-// Whether this is a store or vote memory operation
-type PermissionPromptRequestMemoryAction string
-
-const (
-	PermissionPromptRequestMemoryActionStore PermissionPromptRequestMemoryAction = "store"
-	PermissionPromptRequestMemoryActionVote  PermissionPromptRequestMemoryAction = "vote"
+	PermissionRequestKindCustomTool                PermissionRequestKind = "custom-tool"
+	PermissionRequestKindExtensionManagement       PermissionRequestKind = "extension-management"
+	PermissionRequestKindExtensionPermissionAccess PermissionRequestKind = "extension-permission-access"
+	PermissionRequestKindHook                      PermissionRequestKind = "hook"
+	PermissionRequestKindMcp                       PermissionRequestKind = "mcp"
+	PermissionRequestKindMemory                    PermissionRequestKind = "memory"
+	PermissionRequestKindRead                      PermissionRequestKind = "read"
+	PermissionRequestKindShell                     PermissionRequestKind = "shell"
+	PermissionRequestKindURL                       PermissionRequestKind = "url"
+	PermissionRequestKindWrite                     PermissionRequestKind = "write"
 )
 
 // Whether this is a store or vote memory operation
@@ -2729,19 +2669,165 @@ const (
 	PermissionRequestMemoryActionVote  PermissionRequestMemoryAction = "vote"
 )
 
+// Vote direction (vote only)
+type PermissionRequestMemoryDirection string
+
+const (
+	PermissionRequestMemoryDirectionDownvote PermissionRequestMemoryDirection = "downvote"
+	PermissionRequestMemoryDirectionUpvote   PermissionRequestMemoryDirection = "upvote"
+)
+
+// Kind discriminator for PermissionResult.
+type PermissionResultKind string
+
+const (
+	PermissionResultKindApproved                                       PermissionResultKind = "approved"
+	PermissionResultKindApprovedForLocation                            PermissionResultKind = "approved-for-location"
+	PermissionResultKindApprovedForSession                             PermissionResultKind = "approved-for-session"
+	PermissionResultKindCancelled                                      PermissionResultKind = "cancelled"
+	PermissionResultKindDeniedByContentExclusionPolicy                 PermissionResultKind = "denied-by-content-exclusion-policy"
+	PermissionResultKindDeniedByPermissionRequestHook                  PermissionResultKind = "denied-by-permission-request-hook"
+	PermissionResultKindDeniedByRules                                  PermissionResultKind = "denied-by-rules"
+	PermissionResultKindDeniedInteractivelyByUser                      PermissionResultKind = "denied-interactively-by-user"
+	PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+)
+
+// The type of operation performed on the plan file
+type PlanChangedOperation string
+
+const (
+	PlanChangedOperationCreate PlanChangedOperation = "create"
+	PlanChangedOperationDelete PlanChangedOperation = "delete"
+	PlanChangedOperationUpdate PlanChangedOperation = "update"
+)
+
+// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
+type ShutdownType string
+
+const (
+	ShutdownTypeError   ShutdownType = "error"
+	ShutdownTypeRoutine ShutdownType = "routine"
+)
+
+// Message role: "system" for system prompts, "developer" for developer-injected instructions
+type SystemMessageRole string
+
+const (
+	SystemMessageRoleDeveloper SystemMessageRole = "developer"
+	SystemMessageRoleSystem    SystemMessageRole = "system"
+)
+
+// Whether the agent completed successfully or failed
+type SystemNotificationAgentCompletedStatus string
+
+const (
+	SystemNotificationAgentCompletedStatusCompleted SystemNotificationAgentCompletedStatus = "completed"
+	SystemNotificationAgentCompletedStatusFailed    SystemNotificationAgentCompletedStatus = "failed"
+)
+
+// Type discriminator for SystemNotification.
+type SystemNotificationType string
+
+const (
+	SystemNotificationTypeAgentCompleted         SystemNotificationType = "agent_completed"
+	SystemNotificationTypeAgentIdle              SystemNotificationType = "agent_idle"
+	SystemNotificationTypeInstructionDiscovered  SystemNotificationType = "instruction_discovered"
+	SystemNotificationTypeNewInboxMessage        SystemNotificationType = "new_inbox_message"
+	SystemNotificationTypeShellCompleted         SystemNotificationType = "shell_completed"
+	SystemNotificationTypeShellDetachedCompleted SystemNotificationType = "shell_detached_completed"
+)
+
+// Theme variant this icon is intended for
+type ToolExecutionCompleteContentResourceLinkIconTheme string
+
+const (
+	ToolExecutionCompleteContentResourceLinkIconThemeDark  ToolExecutionCompleteContentResourceLinkIconTheme = "dark"
+	ToolExecutionCompleteContentResourceLinkIconThemeLight ToolExecutionCompleteContentResourceLinkIconTheme = "light"
+)
+
+// Type discriminator for ToolExecutionCompleteContent.
+type ToolExecutionCompleteContentType string
+
+const (
+	ToolExecutionCompleteContentTypeAudio        ToolExecutionCompleteContentType = "audio"
+	ToolExecutionCompleteContentTypeImage        ToolExecutionCompleteContentType = "image"
+	ToolExecutionCompleteContentTypeResource     ToolExecutionCompleteContentType = "resource"
+	ToolExecutionCompleteContentTypeResourceLink ToolExecutionCompleteContentType = "resource_link"
+	ToolExecutionCompleteContentTypeTerminal     ToolExecutionCompleteContentType = "terminal"
+	ToolExecutionCompleteContentTypeText         ToolExecutionCompleteContentType = "text"
+)
+
+// The agent mode that was active when this message was sent
+type UserMessageAgentMode string
+
+const (
+	UserMessageAgentModeAutopilot   UserMessageAgentMode = "autopilot"
+	UserMessageAgentModeInteractive UserMessageAgentMode = "interactive"
+	UserMessageAgentModePlan        UserMessageAgentMode = "plan"
+	UserMessageAgentModeShell       UserMessageAgentMode = "shell"
+)
+
+// Type of GitHub reference
+type UserMessageAttachmentGithubReferenceType string
+
+const (
+	UserMessageAttachmentGithubReferenceTypeDiscussion UserMessageAttachmentGithubReferenceType = "discussion"
+	UserMessageAttachmentGithubReferenceTypeIssue      UserMessageAttachmentGithubReferenceType = "issue"
+	UserMessageAttachmentGithubReferenceTypePr         UserMessageAttachmentGithubReferenceType = "pr"
+)
+
+// Type discriminator for UserMessageAttachment.
+type UserMessageAttachmentType string
+
+const (
+	UserMessageAttachmentTypeBlob            UserMessageAttachmentType = "blob"
+	UserMessageAttachmentTypeDirectory       UserMessageAttachmentType = "directory"
+	UserMessageAttachmentTypeFile            UserMessageAttachmentType = "file"
+	UserMessageAttachmentTypeGithubReference UserMessageAttachmentType = "github_reference"
+	UserMessageAttachmentTypeSelection       UserMessageAttachmentType = "selection"
+)
+
+// Kind discriminator for UserToolSessionApproval.
+type UserToolSessionApprovalKind string
+
+const (
+	UserToolSessionApprovalKindCommands   UserToolSessionApprovalKind = "commands"
+	UserToolSessionApprovalKindCustomTool UserToolSessionApprovalKind = "custom-tool"
+	UserToolSessionApprovalKindMcp        UserToolSessionApprovalKind = "mcp"
+	UserToolSessionApprovalKindMemory     UserToolSessionApprovalKind = "memory"
+	UserToolSessionApprovalKindRead       UserToolSessionApprovalKind = "read"
+	UserToolSessionApprovalKindWrite      UserToolSessionApprovalKind = "write"
+)
+
+// Hosting platform type of the repository (github or ado)
+type WorkingDirectoryContextHostType string
+
+const (
+	WorkingDirectoryContextHostTypeAdo    WorkingDirectoryContextHostType = "ado"
+	WorkingDirectoryContextHostTypeGithub WorkingDirectoryContextHostType = "github"
+)
+
+// Whether the file was newly created or updated
+type WorkspaceFileChangedOperation string
+
+const (
+	WorkspaceFileChangedOperationCreate WorkspaceFileChangedOperation = "create"
+	WorkspaceFileChangedOperationUpdate WorkspaceFileChangedOperation = "update"
+)
+
 // Type aliases for convenience.
 type (
-	PermissionRequestCommand = PermissionRequestShellCommand
-	PossibleURL              = PermissionRequestShellPossibleURL
 	Attachment               = UserMessageAttachment
 	AttachmentType           = UserMessageAttachmentType
+	PermissionRequestCommand = PermissionRequestShellCommand
+	PossibleURL              = PermissionRequestShellPossibleURL
 )
 
 // Constant aliases for convenience.
 const (
-	AttachmentTypeFile            = UserMessageAttachmentTypeFile
-	AttachmentTypeDirectory       = UserMessageAttachmentTypeDirectory
-	AttachmentTypeSelection       = UserMessageAttachmentTypeSelection
-	AttachmentTypeGithubReference = UserMessageAttachmentTypeGithubReference
 	AttachmentTypeBlob            = UserMessageAttachmentTypeBlob
+	AttachmentTypeDirectory       = UserMessageAttachmentTypeDirectory
+	AttachmentTypeFile            = UserMessageAttachmentTypeFile
+	AttachmentTypeGithubReference = UserMessageAttachmentTypeGithubReference
+	AttachmentTypeSelection       = UserMessageAttachmentTypeSelection
 )

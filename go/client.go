@@ -63,7 +63,7 @@ func validateSessionFsConfig(config *SessionFsConfig) error {
 	if config.SessionStatePath == "" {
 		return errors.New("SessionFs.SessionStatePath is required")
 	}
-	if config.Conventions != rpc.SessionFSSetProviderConventionsPosix && config.Conventions != rpc.SessionFSSetProviderConventionsWindows {
+	if config.Conventions != rpc.SessionFsSetProviderConventionsPosix && config.Conventions != rpc.SessionFsSetProviderConventionsWindows {
 		return errors.New("SessionFs.Conventions must be either 'posix' or 'windows'")
 	}
 	return nil
@@ -372,7 +372,7 @@ func (c *Client) Start(ctx context.Context) error {
 
 	// If a session filesystem provider was configured, register it.
 	if c.options.SessionFs != nil {
-		_, err := c.RPC.SessionFs.SetProvider(ctx, &rpc.SessionFSSetProviderRequest{
+		_, err := c.RPC.SessionFs.SetProvider(ctx, &rpc.SessionFsSetProviderRequest{
 			InitialCwd:       c.options.SessionFs.InitialCwd,
 			SessionStatePath: c.options.SessionFs.SessionStatePath,
 			Conventions:      c.options.SessionFs.Conventions,

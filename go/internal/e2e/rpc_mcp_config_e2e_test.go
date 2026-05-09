@@ -22,11 +22,11 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 		serverName := fmt.Sprintf("sdk-test-%s", randomHex(t))
 
 		nodeCmd := "node"
-		baseConfig := rpc.MCPServerConfig{
+		baseConfig := rpc.McpServerConfig{
 			Command: &nodeCmd,
 			Args:    []string{"-v"},
 		}
-		updatedConfig := rpc.MCPServerConfig{
+		updatedConfig := rpc.McpServerConfig{
 			Command: &nodeCmd,
 			Args:    []string{"--version"},
 		}
@@ -41,10 +41,10 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 
 		// Best-effort cleanup if a subtest assertion fails mid-flight.
 		t.Cleanup(func() {
-			_, _ = client.RPC.Mcp.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName})
+			_, _ = client.RPC.Mcp.Config().Remove(t.Context(), &rpc.McpConfigRemoveRequest{Name: serverName})
 		})
 
-		if _, err := client.RPC.Mcp.Config().Add(t.Context(), &rpc.MCPConfigAddRequest{
+		if _, err := client.RPC.Mcp.Config().Add(t.Context(), &rpc.McpConfigAddRequest{
 			Name:   serverName,
 			Config: baseConfig,
 		}); err != nil {
@@ -59,7 +59,7 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 			t.Fatalf("Expected %q to be present after Add", serverName)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Update(t.Context(), &rpc.MCPConfigUpdateRequest{
+		if _, err := client.RPC.Mcp.Config().Update(t.Context(), &rpc.McpConfigUpdateRequest{
 			Name:   serverName,
 			Config: updatedConfig,
 		}); err != nil {
@@ -81,14 +81,14 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 			t.Errorf("Expected args[0]='--version', got %v", updated.Args)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Disable(t.Context(), &rpc.MCPConfigDisableRequest{Names: []string{serverName}}); err != nil {
+		if _, err := client.RPC.Mcp.Config().Disable(t.Context(), &rpc.McpConfigDisableRequest{Names: []string{serverName}}); err != nil {
 			t.Fatalf("Mcp.Config.Disable failed: %v", err)
 		}
-		if _, err := client.RPC.Mcp.Config().Enable(t.Context(), &rpc.MCPConfigEnableRequest{Names: []string{serverName}}); err != nil {
+		if _, err := client.RPC.Mcp.Config().Enable(t.Context(), &rpc.McpConfigEnableRequest{Names: []string{serverName}}); err != nil {
 			t.Fatalf("Mcp.Config.Enable failed: %v", err)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName}); err != nil {
+		if _, err := client.RPC.Mcp.Config().Remove(t.Context(), &rpc.McpConfigRemoveRequest{Name: serverName}); err != nil {
 			t.Fatalf("Mcp.Config.Remove failed: %v", err)
 		}
 
@@ -111,19 +111,19 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 
 		serverName := fmt.Sprintf("sdk-http-oauth-%s", randomHex(t))
 
-		httpType := rpc.MCPServerConfigTypeHTTP
+		httpType := rpc.McpServerConfigTypeHTTP
 		urlBase := "https://example.com/mcp"
 		urlUpdated := "https://example.com/updated-mcp"
 		clientID := "client-id"
 		clientIDUpdated := "updated-client-id"
-		grantClientCreds := rpc.MCPServerConfigHTTPOauthGrantTypeClientCredentials
-		grantAuthCode := rpc.MCPServerConfigHTTPOauthGrantTypeAuthorizationCode
+		grantClientCreds := rpc.McpServerConfigHTTPOauthGrantTypeClientCredentials
+		grantAuthCode := rpc.McpServerConfigHTTPOauthGrantTypeAuthorizationCode
 		var publicFalse = false
 		var publicTrue = true
 		var timeoutBase int64 = 3000
 		var timeoutUpdated int64 = 4000
 
-		baseConfig := rpc.MCPServerConfig{
+		baseConfig := rpc.McpServerConfig{
 			Type:              &httpType,
 			URL:               &urlBase,
 			Headers:           map[string]string{"Authorization": "Bearer token"},
@@ -133,7 +133,7 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 			Tools:             []string{"*"},
 			Timeout:           &timeoutBase,
 		}
-		updatedConfig := rpc.MCPServerConfig{
+		updatedConfig := rpc.McpServerConfig{
 			Type:              &httpType,
 			URL:               &urlUpdated,
 			OauthClientID:     &clientIDUpdated,
@@ -144,10 +144,10 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 		}
 
 		t.Cleanup(func() {
-			_, _ = client.RPC.Mcp.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName})
+			_, _ = client.RPC.Mcp.Config().Remove(t.Context(), &rpc.McpConfigRemoveRequest{Name: serverName})
 		})
 
-		if _, err := client.RPC.Mcp.Config().Add(t.Context(), &rpc.MCPConfigAddRequest{
+		if _, err := client.RPC.Mcp.Config().Add(t.Context(), &rpc.McpConfigAddRequest{
 			Name:   serverName,
 			Config: baseConfig,
 		}); err != nil {
@@ -181,7 +181,7 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 			t.Errorf("Expected oauthGrantType='client_credentials', got %v", added.OauthGrantType)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Update(t.Context(), &rpc.MCPConfigUpdateRequest{
+		if _, err := client.RPC.Mcp.Config().Update(t.Context(), &rpc.McpConfigUpdateRequest{
 			Name:   serverName,
 			Config: updatedConfig,
 		}); err != nil {
@@ -214,7 +214,7 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 			t.Errorf("Expected timeout=4000, got %v", updated.Timeout)
 		}
 
-		if _, err := client.RPC.Mcp.Config().Remove(t.Context(), &rpc.MCPConfigRemoveRequest{Name: serverName}); err != nil {
+		if _, err := client.RPC.Mcp.Config().Remove(t.Context(), &rpc.McpConfigRemoveRequest{Name: serverName}); err != nil {
 			t.Fatalf("Mcp.Config.Remove failed: %v", err)
 		}
 

@@ -241,7 +241,7 @@ func TestClient_SessionFsConfig(t *testing.T) {
 		NewClient(&ClientOptions{
 			SessionFs: &SessionFsConfig{
 				SessionStatePath: "/session-state",
-				Conventions:      rpc.SessionFSSetProviderConventionsPosix,
+				Conventions:      rpc.SessionFsSetProviderConventionsPosix,
 			},
 		})
 	})
@@ -261,7 +261,7 @@ func TestClient_SessionFsConfig(t *testing.T) {
 		NewClient(&ClientOptions{
 			SessionFs: &SessionFsConfig{
 				InitialCwd:  "/",
-				Conventions: rpc.SessionFSSetProviderConventionsPosix,
+				Conventions: rpc.SessionFsSetProviderConventionsPosix,
 			},
 		})
 	})

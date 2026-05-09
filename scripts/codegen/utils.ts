@@ -8,10 +8,10 @@
 
 import { execFile } from "child_process";
 import fs from "fs/promises";
+import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
-import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 
 export const execFileAsync = promisify(execFile);
 
@@ -65,7 +65,7 @@ export async function getApiSchemaPath(cliArg?: string): Promise<string> {
 // ── Schema processing ───────────────────────────────────────────────────────
 
 /**
- * Post-process JSON Schema for quicktype compatibility.
+ * Post-process JSON Schema for code generators that expect enum-style literals.
  * Converts boolean const values to enum.
  */
 export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
@@ -136,12 +136,12 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
 
 /**
  * Strip boolean literal constraints (`const: true/false`, `enum: [true]`, `enum: [false]`)
- * from a schema, recursively. quicktype's Python and Go renderers attempt to derive
+ * from a schema, recursively. quicktype's Python renderer attempts to derive
  * identifier names from enum values; deriving a name from a boolean throws inside
  * `snakeNameStyle` (TypeError: s.codePointAt is not a function).
  *
- * The literal narrowing isn't expressible in Python/Go anyway, so we drop it and
- * keep just `type: "boolean"`. TypeScript/C# codegen runs on the original schema.
+ * The literal narrowing isn't expressible in Python anyway, so we drop it and
+ * keep just `type: "boolean"`. Other codegen runs on the original schema.
  */
 export function stripBooleanLiterals<T>(schema: T): T {
     if (typeof schema !== "object" || schema === null) return schema;

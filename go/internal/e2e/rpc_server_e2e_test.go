@@ -160,7 +160,7 @@ func TestRpcServerE2E(t *testing.T) {
 		skillsDir := createMcpSkillsRpcDirectory(t, ctx.WorkDir, "server-rpc-skills", skillName, "Skill discovered by server-scoped RPC tests.")
 
 		workingDir := ctx.WorkDir
-		mcp, err := client.RPC.Mcp.Discover(t.Context(), &rpc.MCPDiscoverRequest{WorkingDirectory: &workingDir})
+		mcp, err := client.RPC.Mcp.Discover(t.Context(), &rpc.McpDiscoverRequest{WorkingDirectory: &workingDir})
 		if err != nil {
 			t.Fatalf("Mcp.Discover failed: %v", err)
 		}

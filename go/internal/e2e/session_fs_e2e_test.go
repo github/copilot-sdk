@@ -22,7 +22,7 @@ func TestSessionFsE2E(t *testing.T) {
 	sessionFsConfig := &copilot.SessionFsConfig{
 		InitialCwd:       "/",
 		SessionStatePath: sessionStatePath,
-		Conventions:      rpc.SessionFSSetProviderConventionsPosix,
+		Conventions:      rpc.SessionFsSetProviderConventionsPosix,
 	}
 	createSessionFsHandler := func(session *copilot.Session) copilot.SessionFsProvider {
 		return &testSessionFsHandler{
@@ -163,11 +163,11 @@ func TestSessionFsE2E(t *testing.T) {
 		t.Cleanup(func() { client2.ForceStop() })
 
 		if err := client2.Start(t.Context()); err == nil {
-			t.Fatal("Expected Start to fail when sessionFs provider is set after sessions already exist")
+			t.Fatal("Expected Start to fail when SessionFs provider is set after sessions already exist")
 		}
 	})
 
-	t.Run("should map large output handling into sessionFs", func(t *testing.T) {
+	t.Run("should map large output handling into SessionFs", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		suppliedFileContent := strings.Repeat("x", 100_000)
@@ -213,7 +213,7 @@ func TestSessionFsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should succeed with compaction while using sessionFs", func(t *testing.T) {
+	t.Run("should succeed with compaction while using SessionFs", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -252,7 +252,7 @@ func TestSessionFsE2E(t *testing.T) {
 			t.Fatalf("Timed out waiting for checkpoint rewrite: %v", err)
 		}
 	})
-	t.Run("should write workspace metadata via sessionFs", func(t *testing.T) {
+	t.Run("should write workspace metadata via SessionFs", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -277,17 +277,10 @@ func TestSessionFsE2E(t *testing.T) {
 			t.Fatalf("Expected response to contain 56, got %q", content)
 		}
 
-		// WorkspaceManager should have created workspace.yaml via sessionFs
+		// WorkspaceManager should have created workspace.yaml via SessionFs
 		workspaceYamlPath := p(session.SessionID, sessionStatePath+"/workspace.yaml")
-		if err := waitForFile(workspaceYamlPath, 5*time.Second); err != nil {
-			t.Fatalf("Timed out waiting for workspace.yaml: %v", err)
-		}
-		yaml, err := os.ReadFile(workspaceYamlPath)
-		if err != nil {
-			t.Fatalf("Failed to read workspace.yaml: %v", err)
-		}
-		if !strings.Contains(string(yaml), "id:") {
-			t.Fatalf("Expected workspace.yaml to contain 'id:', got %q", string(yaml))
+		if err := waitForFileContent(workspaceYamlPath, "id:", 5*time.Second); err != nil {
+			t.Fatalf("Timed out waiting for workspace.yaml content: %v", err)
 		}
 
 		// Checkpoint index should also exist
@@ -301,7 +294,7 @@ func TestSessionFsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should persist plan.md via sessionFs", func(t *testing.T) {
+	t.Run("should persist plan.md via SessionFs", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -439,18 +432,18 @@ func (h *testSessionFsHandler) Readdir(path string) ([]string, error) {
 	return names, nil
 }
 
-func (h *testSessionFsHandler) ReaddirWithTypes(path string) ([]rpc.SessionFSReaddirWithTypesEntry, error) {
+func (h *testSessionFsHandler) ReaddirWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
 	}
-	result := make([]rpc.SessionFSReaddirWithTypesEntry, 0, len(entries))
+	result := make([]rpc.SessionFsReaddirWithTypesEntry, 0, len(entries))
 	for _, entry := range entries {
-		entryType := rpc.SessionFSReaddirWithTypesEntryTypeFile
+		entryType := rpc.SessionFsReaddirWithTypesEntryTypeFile
 		if entry.IsDir() {
-			entryType = rpc.SessionFSReaddirWithTypesEntryTypeDirectory
+			entryType = rpc.SessionFsReaddirWithTypesEntryTypeDirectory
 		}
-		result = append(result, rpc.SessionFSReaddirWithTypesEntry{
+		result = append(result, rpc.SessionFsReaddirWithTypesEntry{
 			Name: entry.Name(),
 			Type: entryType,
 		})
@@ -596,7 +589,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 	}
 	var found bool
 	for _, entry := range typedEntries {
-		if entry.Name == "file.txt" && entry.Type == rpc.SessionFSReaddirWithTypesEntryTypeFile {
+		if entry.Name == "file.txt" && entry.Type == rpc.SessionFsReaddirWithTypesEntryTypeFile {
 			found = true
 			break
 		}
