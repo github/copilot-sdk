@@ -1031,7 +1031,7 @@ type ModelPolicy struct {
 
 // ModelBilling contains model billing information
 type ModelBilling struct {
-	Multiplier float64 `json:"multiplier"`
+	Multiplier *float64 `json:"multiplier,omitempty"`
 }
 
 // ModelInfo contains information about an available model

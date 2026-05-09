@@ -1476,6 +1476,29 @@ impl<'a> SessionRpcTasks<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Wire method: `session.tasks.sendMessage`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn send_message(
+        &self,
+        params: TasksSendMessageRequest,
+    ) -> Result<TasksSendMessageResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_SENDMESSAGE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `session.tools.*` RPCs.

@@ -1842,7 +1842,7 @@ export interface ModelPolicy {
  * Model billing information
  */
 export interface ModelBilling {
-    multiplier: number;
+    multiplier?: number;
 }
 
 /**

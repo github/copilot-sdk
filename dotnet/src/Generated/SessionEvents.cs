@@ -1195,6 +1195,11 @@ public partial class SessionStartData
     [JsonPropertyName("copilotVersion")]
     public required string CopilotVersion { get; set; }
 
+    /// <summary>When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("detachedFromSpawningParentSessionId")]
+    public string? DetachedFromSpawningParentSessionId { get; set; }
+
     /// <summary>Identifier of the software producing the events (e.g., "copilot-agent").</summary>
     [JsonPropertyName("producer")]
     public required string Producer { get; set; }
@@ -4166,6 +4171,51 @@ public partial class PermissionRequestHook : PermissionRequest
     public required string ToolName { get; set; }
 }
 
+/// <summary>Extension management permission request.</summary>
+/// <remarks>The <c>extension-management</c> variant of <see cref="PermissionRequest"/>.</remarks>
+public partial class PermissionRequestExtensionManagement : PermissionRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-management";
+
+    /// <summary>Name of the extension being managed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>The extension management operation (scaffold, reload).</summary>
+    [JsonPropertyName("operation")]
+    public required string Operation { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>Extension permission access request.</summary>
+/// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionRequest"/>.</remarks>
+public partial class PermissionRequestExtensionPermissionAccess : PermissionRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-permission-access";
+
+    /// <summary>Capabilities the extension is requesting.</summary>
+    [JsonPropertyName("capabilities")]
+    public required string[] Capabilities { get; set; }
+
+    /// <summary>Name of the extension requesting permission access.</summary>
+    [JsonPropertyName("extensionName")]
+    public required string ExtensionName { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
 /// <summary>Details of the permission being requested.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [JsonPolymorphic(
@@ -4179,6 +4229,8 @@ public partial class PermissionRequestHook : PermissionRequest
 [JsonDerivedType(typeof(PermissionRequestMemory), "memory")]
 [JsonDerivedType(typeof(PermissionRequestCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionRequestHook), "hook")]
+[JsonDerivedType(typeof(PermissionRequestExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionRequestExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionRequest
 {
     /// <summary>The type discriminator.</summary>
@@ -4452,6 +4504,51 @@ public partial class PermissionPromptRequestHook : PermissionPromptRequest
     public required string ToolName { get; set; }
 }
 
+/// <summary>Extension management permission prompt.</summary>
+/// <remarks>The <c>extension-management</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestExtensionManagement : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-management";
+
+    /// <summary>Name of the extension being managed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>The extension management operation (scaffold, reload).</summary>
+    [JsonPropertyName("operation")]
+    public required string Operation { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>Extension permission access prompt.</summary>
+/// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public partial class PermissionPromptRequestExtensionPermissionAccess : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-permission-access";
+
+    /// <summary>Capabilities the extension is requesting.</summary>
+    [JsonPropertyName("capabilities")]
+    public required string[] Capabilities { get; set; }
+
+    /// <summary>Name of the extension requesting permission access.</summary>
+    [JsonPropertyName("extensionName")]
+    public required string ExtensionName { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
 /// <summary>Derived user-facing permission prompt details for UI consumers.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [JsonPolymorphic(
@@ -4466,6 +4563,8 @@ public partial class PermissionPromptRequestHook : PermissionPromptRequest
 [JsonDerivedType(typeof(PermissionPromptRequestCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionPromptRequestPath), "path")]
 [JsonDerivedType(typeof(PermissionPromptRequestHook), "hook")]
+[JsonDerivedType(typeof(PermissionPromptRequestExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionPromptRequestExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionPromptRequest
 {
     /// <summary>The type discriminator.</summary>
@@ -6484,6 +6583,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionPromptRequest))]
 [JsonSerializable(typeof(PermissionPromptRequestCommands))]
 [JsonSerializable(typeof(PermissionPromptRequestCustomTool))]
+[JsonSerializable(typeof(PermissionPromptRequestExtensionManagement))]
+[JsonSerializable(typeof(PermissionPromptRequestExtensionPermissionAccess))]
 [JsonSerializable(typeof(PermissionPromptRequestHook))]
 [JsonSerializable(typeof(PermissionPromptRequestMcp))]
 [JsonSerializable(typeof(PermissionPromptRequestMemory))]
@@ -6493,6 +6594,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionPromptRequestWrite))]
 [JsonSerializable(typeof(PermissionRequest))]
 [JsonSerializable(typeof(PermissionRequestCustomTool))]
+[JsonSerializable(typeof(PermissionRequestExtensionManagement))]
+[JsonSerializable(typeof(PermissionRequestExtensionPermissionAccess))]
 [JsonSerializable(typeof(PermissionRequestHook))]
 [JsonSerializable(typeof(PermissionRequestMcp))]
 [JsonSerializable(typeof(PermissionRequestMemory))]

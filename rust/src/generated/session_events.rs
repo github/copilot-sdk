@@ -410,6 +410,9 @@ pub struct SessionStartData {
     pub context: Option<WorkingDirectoryContext>,
     /// Version string of the Copilot application
     pub copilot_version: String,
+    /// When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detached_from_spawning_parent_session_id: Option<String>,
     /// Identifier of the software producing the events (e.g., "copilot-agent")
     pub producer: String,
     /// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
@@ -1786,6 +1789,37 @@ pub struct PermissionRequestHook {
     pub tool_name: String,
 }
 
+/// Extension management permission request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRequestExtensionManagement {
+    /// Name of the extension being managed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Permission kind discriminator
+    pub kind: PermissionRequestExtensionManagementKind,
+    /// The extension management operation (scaffold, reload)
+    pub operation: String,
+    /// Tool call ID that triggered this permission request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+/// Extension permission access request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRequestExtensionPermissionAccess {
+    /// Capabilities the extension is requesting
+    pub capabilities: Vec<String>,
+    /// Name of the extension requesting permission access
+    pub extension_name: String,
+    /// Permission kind discriminator
+    pub kind: PermissionRequestExtensionPermissionAccessKind,
+    /// Tool call ID that triggered this permission request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
 /// Shell command permission prompt
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1958,6 +1992,37 @@ pub struct PermissionPromptRequestHook {
     pub tool_call_id: Option<String>,
     /// Name of the tool the hook is gating
     pub tool_name: String,
+}
+
+/// Extension management permission prompt
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionPromptRequestExtensionManagement {
+    /// Name of the extension being managed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Prompt kind discriminator
+    pub kind: PermissionPromptRequestExtensionManagementKind,
+    /// The extension management operation (scaffold, reload)
+    pub operation: String,
+    /// Tool call ID that triggered this permission request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+/// Extension permission access prompt
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionPromptRequestExtensionPermissionAccess {
+    /// Capabilities the extension is requesting
+    pub capabilities: Vec<String>,
+    /// Name of the extension requesting permission access
+    pub extension_name: String,
+    /// Prompt kind discriminator
+    pub kind: PermissionPromptRequestExtensionPermissionAccessKind,
+    /// Tool call ID that triggered this permission request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
 }
 
 /// Permission request notification requiring client approval with request details
@@ -2766,6 +2831,20 @@ pub enum PermissionRequestHookKind {
     Hook,
 }
 
+/// Permission kind discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestExtensionManagementKind {
+    #[serde(rename = "extension-management")]
+    ExtensionManagement,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestExtensionPermissionAccessKind {
+    #[serde(rename = "extension-permission-access")]
+    ExtensionPermissionAccess,
+}
+
 /// Details of the permission being requested
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -2778,6 +2857,8 @@ pub enum PermissionRequest {
     Memory(PermissionRequestMemory),
     CustomTool(PermissionRequestCustomTool),
     Hook(PermissionRequestHook),
+    ExtensionManagement(PermissionRequestExtensionManagement),
+    ExtensionPermissionAccess(PermissionRequestExtensionPermissionAccess),
 }
 
 /// Prompt kind discriminator
@@ -2881,6 +2962,20 @@ pub enum PermissionPromptRequestHookKind {
     Hook,
 }
 
+/// Prompt kind discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionPromptRequestExtensionManagementKind {
+    #[serde(rename = "extension-management")]
+    ExtensionManagement,
+}
+
+/// Prompt kind discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionPromptRequestExtensionPermissionAccessKind {
+    #[serde(rename = "extension-permission-access")]
+    ExtensionPermissionAccess,
+}
+
 /// Derived user-facing permission prompt details for UI consumers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -2894,6 +2989,8 @@ pub enum PermissionPromptRequest {
     CustomTool(PermissionPromptRequestCustomTool),
     Path(PermissionPromptRequestPath),
     Hook(PermissionPromptRequestHook),
+    ExtensionManagement(PermissionPromptRequestExtensionManagement),
+    ExtensionPermissionAccess(PermissionPromptRequestExtensionPermissionAccess),
 }
 
 /// The permission request was approved

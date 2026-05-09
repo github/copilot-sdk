@@ -77,7 +77,7 @@ public sealed class ModelBilling
 {
     /// <summary>Billing cost multiplier relative to the base rate.</summary>
     [JsonPropertyName("multiplier")]
-    public double Multiplier { get; set; }
+    public double? Multiplier { get; set; }
 }
 
 /// <summary>Vision-specific limits.</summary>
@@ -846,10 +846,6 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("repository")]
     public string? Repository { get; set; }
 
-    /// <summary>Gets or sets the <c>session_sync_level</c> value.</summary>
-    [JsonPropertyName("session_sync_level")]
-    public WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel? SessionSyncLevel { get; set; }
-
     /// <summary>Gets or sets the <c>summary</c> value.</summary>
     [JsonPropertyName("summary")]
     public string? Summary { get; set; }
@@ -1395,6 +1391,40 @@ internal sealed class TasksRemoveRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>RPC data type for TasksSendMessage operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TasksSendMessageResult
+{
+    /// <summary>Error message if delivery failed.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>Whether the message was successfully delivered or steered.</summary>
+    [JsonPropertyName("sent")]
+    public bool Sent { get; set; }
+}
+
+/// <summary>RPC data type for TasksSendMessage operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class TasksSendMessageRequest
+{
+    /// <summary>Agent ID of the sender, if sent on behalf of another agent.</summary>
+    [JsonPropertyName("fromAgentId")]
+    public string? FromAgentId { get; set; }
+
+    /// <summary>Agent task identifier.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Message content to send to the agent.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>RPC data type for Skill operations.</summary>
 public sealed class Skill
 {
@@ -1876,6 +1906,8 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMcpSampling), "mcp-sampling")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMemory), "memory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalCustomTool), "custom-tool")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionDecisionApproveForSessionApproval
 {
     /// <summary>The type discriminator.</summary>
@@ -1960,6 +1992,31 @@ public partial class PermissionDecisionApproveForSessionApprovalCustomTool : Per
     public required string ToolName { get; set; }
 }
 
+/// <summary>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalExtensionManagement : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-management";
+
+    /// <summary>Gets or sets the <c>operation</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("operation")]
+    public string? Operation { get; set; }
+}
+
+/// <summary>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+public partial class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-permission-access";
+
+    /// <summary>Gets or sets the <c>extensionName</c> value.</summary>
+    [JsonPropertyName("extensionName")]
+    public required string ExtensionName { get; set; }
+}
+
 /// <summary>The <c>approve-for-session</c> variant of <see cref="PermissionDecision"/>.</summary>
 public partial class PermissionDecisionApproveForSession : PermissionDecision
 {
@@ -1990,6 +2047,8 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMcpSampling), "mcp-sampling")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMemory), "memory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalCustomTool), "custom-tool")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionDecisionApproveForLocationApproval
 {
     /// <summary>The type discriminator.</summary>
@@ -2072,6 +2131,31 @@ public partial class PermissionDecisionApproveForLocationApprovalCustomTool : Pe
     /// <summary>Gets or sets the <c>toolName</c> value.</summary>
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
+}
+
+/// <summary>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalExtensionManagement : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-management";
+
+    /// <summary>Gets or sets the <c>operation</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("operation")]
+    public string? Operation { get; set; }
+}
+
+/// <summary>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+public partial class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-permission-access";
+
+    /// <summary>Gets or sets the <c>extensionName</c> value.</summary>
+    [JsonPropertyName("extensionName")]
+    public required string ExtensionName { get; set; }
 }
 
 /// <summary>The <c>approve-for-location</c> variant of <see cref="PermissionDecision"/>.</summary>
@@ -3227,71 +3311,6 @@ public readonly struct WorkspacesGetWorkspaceResultWorkspaceHostType : IEquatabl
         public override void Write(Utf8JsonWriter writer, WorkspacesGetWorkspaceResultWorkspaceHostType value, JsonSerializerOptions options)
         {
             GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesGetWorkspaceResultWorkspaceHostType));
-        }
-    }
-}
-
-
-/// <summary>Defines the allowed values.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel : IEquatable<WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/>.</param>
-    [JsonConstructor]
-    public WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>local</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel Local { get; } = new("local");
-
-    /// <summary>Gets the <c>user</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel User { get; } = new("user");
-
-    /// <summary>Gets the <c>repo_and_user</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel RepoAndUser { get; } = new("repo_and_user");
-
-    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> instances are equivalent.</summary>
-    public static bool operator ==(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel left, WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> instances are not equivalent.</summary>
-    public static bool operator !=(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel left, WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel}"/> for serializing <see cref="WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>
-    {
-        /// <inheritdoc />
-        public override WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel));
         }
     }
 }
@@ -4976,6 +4995,13 @@ public sealed class TasksApi
         var request = new TasksRemoveRequest { SessionId = _sessionId, Id = id };
         return await CopilotClient.InvokeRpcAsync<TasksRemoveResult>(_rpc, "session.tasks.remove", [request], cancellationToken);
     }
+
+    /// <summary>Calls "session.tasks.sendMessage".</summary>
+    public async Task<TasksSendMessageResult> SendMessageAsync(string id, string message, string? fromAgentId = null, CancellationToken cancellationToken = default)
+    {
+        var request = new TasksSendMessageRequest { SessionId = _sessionId, Id = id, Message = message, FromAgentId = fromAgentId };
+        return await CopilotClient.InvokeRpcAsync<TasksSendMessageResult>(_rpc, "session.tasks.sendMessage", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Skills APIs.</summary>
@@ -5617,6 +5643,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(TasksPromoteToBackgroundResult))]
 [JsonSerializable(typeof(TasksRemoveRequest))]
 [JsonSerializable(typeof(TasksRemoveResult))]
+[JsonSerializable(typeof(TasksSendMessageRequest))]
+[JsonSerializable(typeof(TasksSendMessageResult))]
 [JsonSerializable(typeof(TasksStartAgentRequest))]
 [JsonSerializable(typeof(TasksStartAgentResult))]
 [JsonSerializable(typeof(Tool))]

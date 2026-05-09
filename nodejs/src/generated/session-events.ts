@@ -180,7 +180,9 @@ export type PermissionRequest =
   | PermissionRequestUrl
   | PermissionRequestMemory
   | PermissionRequestCustomTool
-  | PermissionRequestHook;
+  | PermissionRequestHook
+  | PermissionRequestExtensionManagement
+  | PermissionRequestExtensionPermissionAccess;
 /**
  * Whether this is a store or vote memory operation
  */
@@ -201,7 +203,9 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestMemory
   | PermissionPromptRequestCustomTool
   | PermissionPromptRequestPath
-  | PermissionPromptRequestHook;
+  | PermissionPromptRequestHook
+  | PermissionPromptRequestExtensionManagement
+  | PermissionPromptRequestExtensionPermissionAccess;
 /**
  * Whether this is a store or vote memory operation
  */
@@ -312,6 +316,10 @@ export interface StartData {
    * Version string of the Copilot application
    */
   copilotVersion: string;
+  /**
+   * When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
+   */
+  detachedFromSpawningParentSessionId?: string;
   /**
    * Identifier of the software producing the events (e.g., "copilot-agent")
    */
@@ -3711,6 +3719,48 @@ export interface PermissionRequestHook {
   toolName: string;
 }
 /**
+ * Extension management permission request
+ */
+export interface PermissionRequestExtensionManagement {
+  /**
+   * Name of the extension being managed
+   */
+  extensionName?: string;
+  /**
+   * Permission kind discriminator
+   */
+  kind: "extension-management";
+  /**
+   * The extension management operation (scaffold, reload)
+   */
+  operation: string;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * Extension permission access request
+ */
+export interface PermissionRequestExtensionPermissionAccess {
+  /**
+   * Capabilities the extension is requesting
+   */
+  capabilities: string[];
+  /**
+   * Name of the extension requesting permission access
+   */
+  extensionName: string;
+  /**
+   * Permission kind discriminator
+   */
+  kind: "extension-permission-access";
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
  * Shell command permission prompt
  */
 export interface PermissionPromptRequestCommands {
@@ -3946,6 +3996,48 @@ export interface PermissionPromptRequestHook {
    * Name of the tool the hook is gating
    */
   toolName: string;
+}
+/**
+ * Extension management permission prompt
+ */
+export interface PermissionPromptRequestExtensionManagement {
+  /**
+   * Name of the extension being managed
+   */
+  extensionName?: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "extension-management";
+  /**
+   * The extension management operation (scaffold, reload)
+   */
+  operation: string;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * Extension permission access prompt
+ */
+export interface PermissionPromptRequestExtensionPermissionAccess {
+  /**
+   * Capabilities the extension is requesting
+   */
+  capabilities: string[];
+  /**
+   * Name of the extension requesting permission access
+   */
+  extensionName: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "extension-permission-access";
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
 }
 export interface PermissionCompletedEvent {
   /**

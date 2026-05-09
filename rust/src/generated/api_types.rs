@@ -96,6 +96,8 @@ pub mod rpc_methods {
     pub const SESSION_TASKS_CANCEL: &str = "session.tasks.cancel";
     /// `session.tasks.remove`
     pub const SESSION_TASKS_REMOVE: &str = "session.tasks.remove";
+    /// `session.tasks.sendMessage`
+    pub const SESSION_TASKS_SENDMESSAGE: &str = "session.tasks.sendMessage";
     /// `session.skills.list`
     pub const SESSION_SKILLS_LIST: &str = "session.skills.list";
     /// `session.skills.enable`
@@ -823,7 +825,8 @@ pub struct McpServerList {
 #[serde(rename_all = "camelCase")]
 pub struct ModelBilling {
     /// Billing cost multiplier relative to the base rate
-    pub multiplier: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiplier: Option<f64>,
 }
 
 /// Vision-specific limits
@@ -1083,6 +1086,21 @@ pub struct PermissionDecisionApproveForLocationApprovalCustomTool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalExtensionManagement {
+    pub kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess {
+    pub extension_name: String,
+    pub kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PermissionDecisionApproveForLocation {
     /// The approval to persist for this location
     pub approval: PermissionDecisionApproveForLocationApproval,
@@ -1137,6 +1155,21 @@ pub struct PermissionDecisionApproveForSessionApprovalMemory {
 pub struct PermissionDecisionApproveForSessionApprovalCustomTool {
     pub kind: PermissionDecisionApproveForSessionApprovalCustomToolKind,
     pub tool_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForSessionApprovalExtensionManagement {
+    pub kind: PermissionDecisionApproveForSessionApprovalExtensionManagementKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess {
+    pub extension_name: String,
+    pub kind: PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1777,6 +1810,28 @@ pub struct TasksRemoveResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TasksSendMessageRequest {
+    /// Agent ID of the sender, if sent on behalf of another agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_agent_id: Option<String>,
+    /// Agent task identifier
+    pub id: String,
+    /// Message content to send to the agent
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TasksSendMessageResult {
+    /// Error message if delivery failed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Whether the message was successfully delivered or steered
+    pub sent: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TasksStartAgentRequest {
     /// Type of agent to start (e.g., 'explore', 'task', 'general-purpose')
     pub agent_type: String,
@@ -2154,8 +2209,6 @@ pub struct WorkspacesGetWorkspaceResultWorkspace {
     pub remote_steerable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
-    #[serde(rename = "session_sync_level", skip_serializing_if = "Option::is_none")]
-    pub session_sync_level: Option<WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
     #[serde(rename = "summary_count", skip_serializing_if = "Option::is_none")]
@@ -2365,8 +2418,6 @@ pub struct SessionWorkspacesGetWorkspaceResultWorkspace {
     pub remote_steerable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
-    #[serde(rename = "session_sync_level", skip_serializing_if = "Option::is_none")]
-    pub session_sync_level: Option<SessionWorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
     #[serde(rename = "summary_count", skip_serializing_if = "Option::is_none")]
@@ -2522,6 +2573,16 @@ pub struct SessionTasksCancelResult {
 pub struct SessionTasksRemoveResult {
     /// Whether the task was removed. Returns false if the task does not exist or is still running/idle (cancel it first).
     pub removed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTasksSendMessageResult {
+    /// Error message if delivery failed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Whether the message was successfully delivered or steered
+    pub sent: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3108,6 +3169,18 @@ pub enum PermissionDecisionApproveForLocationApprovalCustomToolKind {
     CustomTool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalExtensionManagementKind {
+    #[serde(rename = "extension-management")]
+    ExtensionManagement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind {
+    #[serde(rename = "extension-permission-access")]
+    ExtensionPermissionAccess,
+}
+
 /// The approval to persist for this location
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -3119,6 +3192,10 @@ pub enum PermissionDecisionApproveForLocationApproval {
     McpSampling(PermissionDecisionApproveForLocationApprovalMcpSampling),
     Memory(PermissionDecisionApproveForLocationApprovalMemory),
     CustomTool(PermissionDecisionApproveForLocationApprovalCustomTool),
+    ExtensionManagement(PermissionDecisionApproveForLocationApprovalExtensionManagement),
+    ExtensionPermissionAccess(
+        PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess,
+    ),
 }
 
 /// Approved and persisted for this project location
@@ -3170,6 +3247,18 @@ pub enum PermissionDecisionApproveForSessionApprovalCustomToolKind {
     CustomTool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForSessionApprovalExtensionManagementKind {
+    #[serde(rename = "extension-management")]
+    ExtensionManagement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind {
+    #[serde(rename = "extension-permission-access")]
+    ExtensionPermissionAccess,
+}
+
 /// The approval to add as a session-scoped rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -3181,6 +3270,8 @@ pub enum PermissionDecisionApproveForSessionApproval {
     McpSampling(PermissionDecisionApproveForSessionApprovalMcpSampling),
     Memory(PermissionDecisionApproveForSessionApprovalMemory),
     CustomTool(PermissionDecisionApproveForSessionApprovalCustomTool),
+    ExtensionManagement(PermissionDecisionApproveForSessionApprovalExtensionManagement),
+    ExtensionPermissionAccess(PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess),
 }
 
 /// Approved and remembered for the rest of the session
@@ -3461,37 +3552,11 @@ pub enum WorkspacesGetWorkspaceResultWorkspaceHostType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel {
-    #[serde(rename = "local")]
-    Local,
-    #[serde(rename = "user")]
-    User,
-    #[serde(rename = "repo_and_user")]
-    RepoAndUser,
-    /// Unknown variant for forward compatibility.
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionWorkspacesGetWorkspaceResultWorkspaceHostType {
     #[serde(rename = "github")]
     Github,
     #[serde(rename = "ado")]
     Ado,
-    /// Unknown variant for forward compatibility.
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SessionWorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel {
-    #[serde(rename = "local")]
-    Local,
-    #[serde(rename = "user")]
-    User,
-    #[serde(rename = "repo_and_user")]
-    RepoAndUser,
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,

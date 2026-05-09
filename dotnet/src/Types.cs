@@ -2867,7 +2867,7 @@ public class ModelBilling
     /// Billing cost multiplier relative to the base model rate.
     /// </summary>
     [JsonPropertyName("multiplier")]
-    public double Multiplier { get; set; }
+    public double? Multiplier { get; set; }
 }
 
 /// <summary>
