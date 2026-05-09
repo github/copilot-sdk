@@ -147,6 +147,38 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
+  publish-rust:
+    name: Publish Rust SDK
+    if: github.event.inputs.dist-tag != 'unstable'
+    needs: version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+      - name: Set version
+        run: sed -i -E 's/^version = ".*"$/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
+      - name: Package (dry run)
+        run: cargo publish --dry-run --allow-dirty
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: rust-package
+          path: rust/target/package/*.crate
+      - name: Publish to crates.io
+        if: github.ref == 'refs/heads/main'
+        run: cargo publish --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
   publish-python:
     name: Publish Python SDK
     if: github.event.inputs.dist-tag != 'unstable'
@@ -185,7 +217,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: [version, publish-nodejs, publish-dotnet, publish-python]
+    needs: [version, publish-nodejs, publish-dotnet, publish-python, publish-rust]
     if: github.ref == 'refs/heads/main' && github.event.inputs.dist-tag != 'unstable'
     runs-on: ubuntu-latest
     steps:
@@ -236,5 +268,47 @@ jobs:
           else
             echo "Tag $TAG_NAME already exists, skipping"
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag Rust SDK and create Rust GitHub Release
+        # Rust gets its own version-scoped GitHub Release with notes
+        # derived from PR titles since the previous Rust tag. The
+        # cross-language `vX.Y.Z` release above still exists; this one
+        # is the canonical reference for Rust users.
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch --tags
+          VERSION="${{ needs.version.outputs.version }}"
+          TAG_NAME="rust/v${VERSION}"
+          if git tag "$TAG_NAME" ${{ github.sha }} 2>/dev/null; then
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "$TAG_NAME"
+            echo "Created and pushed tag $TAG_NAME"
+          else
+            echo "Tag $TAG_NAME already exists, skipping tag push"
+          fi
+          # Find the previous Rust tag for note generation. Prefer rust/v*,
+          # fall back to the historical rust-v* tags from the release-plz era.
+          PREV_TAG=$(git tag --list 'rust/v*' --sort=-v:refname | grep -vFx "$TAG_NAME" | head -n1)
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git tag --list 'rust-v*' --sort=-v:refname | head -n1)
+          fi
+          NOTES_FLAG=""
+          if [ -n "$PREV_TAG" ]; then
+            NOTES_FLAG="--notes-start-tag $PREV_TAG"
+            echo "Generating notes from $PREV_TAG..$TAG_NAME"
+          else
+            echo "No previous Rust tag found; generating notes from full history"
+          fi
+          PRERELEASE_FLAG=""
+          if [ "${{ github.event.inputs.dist-tag }}" = "prerelease" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
+            --generate-notes $NOTES_FLAG $PRERELEASE_FLAG \
+            --target ${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
