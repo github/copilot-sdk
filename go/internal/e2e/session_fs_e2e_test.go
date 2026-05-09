@@ -279,15 +279,8 @@ func TestSessionFsE2E(t *testing.T) {
 
 		// WorkspaceManager should have created workspace.yaml via SessionFs
 		workspaceYamlPath := p(session.SessionID, sessionStatePath+"/workspace.yaml")
-		if err := waitForFile(workspaceYamlPath, 5*time.Second); err != nil {
-			t.Fatalf("Timed out waiting for workspace.yaml: %v", err)
-		}
-		yaml, err := os.ReadFile(workspaceYamlPath)
-		if err != nil {
-			t.Fatalf("Failed to read workspace.yaml: %v", err)
-		}
-		if !strings.Contains(string(yaml), "id:") {
-			t.Fatalf("Expected workspace.yaml to contain 'id:', got %q", string(yaml))
+		if err := waitForFileContent(workspaceYamlPath, "id:", 5*time.Second); err != nil {
+			t.Fatalf("Timed out waiting for workspace.yaml content: %v", err)
 		}
 
 		// Checkpoint index should also exist
