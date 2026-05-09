@@ -739,7 +739,7 @@ type Model struct {
 // Billing information
 type ModelBilling struct {
 	// Billing cost multiplier relative to the base rate
-	Multiplier float64 `json:"multiplier"`
+	Multiplier *float64 `json:"multiplier,omitempty"`
 }
 
 // Model capabilities and limits
@@ -891,8 +891,10 @@ type PermissionDecisionApproveForLocation struct {
 // The approval to persist for this location
 type PermissionDecisionApproveForLocationApproval struct {
 	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
+	ExtensionName      *string  `json:"extensionName,omitempty"`
 	// Kind discriminator
 	Kind       PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+	Operation  *string                                          `json:"operation,omitempty"`
 	ServerName *string                                          `json:"serverName,omitempty"`
 	ToolName   *string                                          `json:"toolName,omitempty"`
 }
@@ -905,6 +907,16 @@ type PermissionDecisionApproveForLocationApprovalCommands struct {
 type PermissionDecisionApproveForLocationApprovalCustomTool struct {
 	Kind     PermissionDecisionApproveForLocationApprovalCustomToolKind `json:"kind"`
 	ToolName string                                                     `json:"toolName"`
+}
+
+type PermissionDecisionApproveForLocationApprovalExtensionManagement struct {
+	Kind      PermissionDecisionApproveForLocationApprovalExtensionManagementKind `json:"kind"`
+	Operation *string                                                             `json:"operation,omitempty"`
+}
+
+type PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess struct {
+	ExtensionName string                                                                    `json:"extensionName"`
+	Kind          PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind `json:"kind"`
 }
 
 type PermissionDecisionApproveForLocationApprovalMcp struct {
@@ -942,8 +954,10 @@ type PermissionDecisionApproveForSession struct {
 // The approval to add as a session-scoped rule
 type PermissionDecisionApproveForSessionApproval struct {
 	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
+	ExtensionName      *string  `json:"extensionName,omitempty"`
 	// Kind discriminator
 	Kind       PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+	Operation  *string                                         `json:"operation,omitempty"`
 	ServerName *string                                         `json:"serverName,omitempty"`
 	ToolName   *string                                         `json:"toolName,omitempty"`
 }
@@ -956,6 +970,16 @@ type PermissionDecisionApproveForSessionApprovalCommands struct {
 type PermissionDecisionApproveForSessionApprovalCustomTool struct {
 	Kind     PermissionDecisionApproveForSessionApprovalCustomToolKind `json:"kind"`
 	ToolName string                                                    `json:"toolName"`
+}
+
+type PermissionDecisionApproveForSessionApprovalExtensionManagement struct {
+	Kind      PermissionDecisionApproveForSessionApprovalExtensionManagementKind `json:"kind"`
+	Operation *string                                                            `json:"operation,omitempty"`
+}
+
+type PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess struct {
+	ExtensionName string                                                                   `json:"extensionName"`
+	Kind          PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind `json:"kind"`
 }
 
 type PermissionDecisionApproveForSessionApprovalMcp struct {
@@ -1573,6 +1597,26 @@ type TasksRemoveResult struct {
 	Removed bool `json:"removed"`
 }
 
+// Experimental: TasksSendMessageRequest is part of an experimental API and may change or be
+// removed.
+type TasksSendMessageRequest struct {
+	// Agent ID of the sender, if sent on behalf of another agent
+	FromAgentID *string `json:"fromAgentId,omitempty"`
+	// Agent task identifier
+	ID string `json:"id"`
+	// Message content to send to the agent
+	Message string `json:"message"`
+}
+
+// Experimental: TasksSendMessageResult is part of an experimental API and may change or be
+// removed.
+type TasksSendMessageResult struct {
+	// Error message if delivery failed
+	Error *string `json:"error,omitempty"`
+	// Whether the message was successfully delivered or steered
+	Sent bool `json:"sent"`
+}
+
 // Experimental: TasksStartAgentRequest is part of an experimental API and may change or be
 // removed.
 type TasksStartAgentRequest struct {
@@ -1923,24 +1967,23 @@ type WorkspacesGetWorkspaceResult struct {
 }
 
 type WorkspacesGetWorkspaceResultWorkspace struct {
-	Branch                 *string                                                `json:"branch,omitempty"`
-	ChronicleSyncDismissed *bool                                                  `json:"chronicle_sync_dismissed,omitempty"`
-	CreatedAt              *time.Time                                             `json:"created_at,omitempty"`
-	Cwd                    *string                                                `json:"cwd,omitempty"`
-	GitRoot                *string                                                `json:"git_root,omitempty"`
-	HostType               *WorkspacesGetWorkspaceResultWorkspaceHostType         `json:"host_type,omitempty"`
-	ID                     string                                                 `json:"id"`
-	McLastEventID          *string                                                `json:"mc_last_event_id,omitempty"`
-	McSessionID            *string                                                `json:"mc_session_id,omitempty"`
-	McTaskID               *string                                                `json:"mc_task_id,omitempty"`
-	Name                   *string                                                `json:"name,omitempty"`
-	RemoteSteerable        *bool                                                  `json:"remote_steerable,omitempty"`
-	Repository             *string                                                `json:"repository,omitempty"`
-	SessionSyncLevel       *WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel `json:"session_sync_level,omitempty"`
-	Summary                *string                                                `json:"summary,omitempty"`
-	SummaryCount           *int64                                                 `json:"summary_count,omitempty"`
-	UpdatedAt              *time.Time                                             `json:"updated_at,omitempty"`
-	UserNamed              *bool                                                  `json:"user_named,omitempty"`
+	Branch                 *string                                        `json:"branch,omitempty"`
+	ChronicleSyncDismissed *bool                                          `json:"chronicle_sync_dismissed,omitempty"`
+	CreatedAt              *time.Time                                     `json:"created_at,omitempty"`
+	Cwd                    *string                                        `json:"cwd,omitempty"`
+	GitRoot                *string                                        `json:"git_root,omitempty"`
+	HostType               *WorkspacesGetWorkspaceResultWorkspaceHostType `json:"host_type,omitempty"`
+	ID                     string                                         `json:"id"`
+	McLastEventID          *string                                        `json:"mc_last_event_id,omitempty"`
+	McSessionID            *string                                        `json:"mc_session_id,omitempty"`
+	McTaskID               *string                                        `json:"mc_task_id,omitempty"`
+	Name                   *string                                        `json:"name,omitempty"`
+	RemoteSteerable        *bool                                          `json:"remote_steerable,omitempty"`
+	Repository             *string                                        `json:"repository,omitempty"`
+	Summary                *string                                        `json:"summary,omitempty"`
+	SummaryCount           *int64                                         `json:"summary_count,omitempty"`
+	UpdatedAt              *time.Time                                     `json:"updated_at,omitempty"`
+	UserNamed              *bool                                          `json:"user_named,omitempty"`
 }
 
 type WorkspacesListFilesResult struct {
@@ -2173,17 +2216,31 @@ const (
 	PermissionDecisionApproveForLocationApprovalCustomToolKindCustomTool PermissionDecisionApproveForLocationApprovalCustomToolKind = "custom-tool"
 )
 
+type PermissionDecisionApproveForLocationApprovalExtensionManagementKind string
+
+const (
+	PermissionDecisionApproveForLocationApprovalExtensionManagementKindExtensionManagement PermissionDecisionApproveForLocationApprovalExtensionManagementKind = "extension-management"
+)
+
+type PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind string
+
+const (
+	PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKindExtensionPermissionAccess PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind = "extension-permission-access"
+)
+
 // Kind discriminator for PermissionDecisionApproveForLocationApproval.
 type PermissionDecisionApproveForLocationApprovalKind string
 
 const (
-	PermissionDecisionApproveForLocationApprovalKindCommands    PermissionDecisionApproveForLocationApprovalKind = "commands"
-	PermissionDecisionApproveForLocationApprovalKindCustomTool  PermissionDecisionApproveForLocationApprovalKind = "custom-tool"
-	PermissionDecisionApproveForLocationApprovalKindMcp         PermissionDecisionApproveForLocationApprovalKind = "mcp"
-	PermissionDecisionApproveForLocationApprovalKindMcpSampling PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
-	PermissionDecisionApproveForLocationApprovalKindMemory      PermissionDecisionApproveForLocationApprovalKind = "memory"
-	PermissionDecisionApproveForLocationApprovalKindRead        PermissionDecisionApproveForLocationApprovalKind = "read"
-	PermissionDecisionApproveForLocationApprovalKindWrite       PermissionDecisionApproveForLocationApprovalKind = "write"
+	PermissionDecisionApproveForLocationApprovalKindCommands                  PermissionDecisionApproveForLocationApprovalKind = "commands"
+	PermissionDecisionApproveForLocationApprovalKindCustomTool                PermissionDecisionApproveForLocationApprovalKind = "custom-tool"
+	PermissionDecisionApproveForLocationApprovalKindExtensionManagement       PermissionDecisionApproveForLocationApprovalKind = "extension-management"
+	PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess PermissionDecisionApproveForLocationApprovalKind = "extension-permission-access"
+	PermissionDecisionApproveForLocationApprovalKindMcp                       PermissionDecisionApproveForLocationApprovalKind = "mcp"
+	PermissionDecisionApproveForLocationApprovalKindMcpSampling               PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
+	PermissionDecisionApproveForLocationApprovalKindMemory                    PermissionDecisionApproveForLocationApprovalKind = "memory"
+	PermissionDecisionApproveForLocationApprovalKindRead                      PermissionDecisionApproveForLocationApprovalKind = "read"
+	PermissionDecisionApproveForLocationApprovalKindWrite                     PermissionDecisionApproveForLocationApprovalKind = "write"
 )
 
 type PermissionDecisionApproveForLocationApprovalMcpKind string
@@ -2235,17 +2292,31 @@ const (
 	PermissionDecisionApproveForSessionApprovalCustomToolKindCustomTool PermissionDecisionApproveForSessionApprovalCustomToolKind = "custom-tool"
 )
 
+type PermissionDecisionApproveForSessionApprovalExtensionManagementKind string
+
+const (
+	PermissionDecisionApproveForSessionApprovalExtensionManagementKindExtensionManagement PermissionDecisionApproveForSessionApprovalExtensionManagementKind = "extension-management"
+)
+
+type PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind string
+
+const (
+	PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKindExtensionPermissionAccess PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind = "extension-permission-access"
+)
+
 // Kind discriminator for PermissionDecisionApproveForSessionApproval.
 type PermissionDecisionApproveForSessionApprovalKind string
 
 const (
-	PermissionDecisionApproveForSessionApprovalKindCommands    PermissionDecisionApproveForSessionApprovalKind = "commands"
-	PermissionDecisionApproveForSessionApprovalKindCustomTool  PermissionDecisionApproveForSessionApprovalKind = "custom-tool"
-	PermissionDecisionApproveForSessionApprovalKindMcp         PermissionDecisionApproveForSessionApprovalKind = "mcp"
-	PermissionDecisionApproveForSessionApprovalKindMcpSampling PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
-	PermissionDecisionApproveForSessionApprovalKindMemory      PermissionDecisionApproveForSessionApprovalKind = "memory"
-	PermissionDecisionApproveForSessionApprovalKindRead        PermissionDecisionApproveForSessionApprovalKind = "read"
-	PermissionDecisionApproveForSessionApprovalKindWrite       PermissionDecisionApproveForSessionApprovalKind = "write"
+	PermissionDecisionApproveForSessionApprovalKindCommands                  PermissionDecisionApproveForSessionApprovalKind = "commands"
+	PermissionDecisionApproveForSessionApprovalKindCustomTool                PermissionDecisionApproveForSessionApprovalKind = "custom-tool"
+	PermissionDecisionApproveForSessionApprovalKindExtensionManagement       PermissionDecisionApproveForSessionApprovalKind = "extension-management"
+	PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess PermissionDecisionApproveForSessionApprovalKind = "extension-permission-access"
+	PermissionDecisionApproveForSessionApprovalKindMcp                       PermissionDecisionApproveForSessionApprovalKind = "mcp"
+	PermissionDecisionApproveForSessionApprovalKindMcpSampling               PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
+	PermissionDecisionApproveForSessionApprovalKindMemory                    PermissionDecisionApproveForSessionApprovalKind = "memory"
+	PermissionDecisionApproveForSessionApprovalKindRead                      PermissionDecisionApproveForSessionApprovalKind = "read"
+	PermissionDecisionApproveForSessionApprovalKindWrite                     PermissionDecisionApproveForSessionApprovalKind = "write"
 )
 
 type PermissionDecisionApproveForSessionApprovalMcpKind string
@@ -2541,14 +2612,6 @@ type WorkspacesGetWorkspaceResultWorkspaceHostType string
 const (
 	WorkspacesGetWorkspaceResultWorkspaceHostTypeAdo    WorkspacesGetWorkspaceResultWorkspaceHostType = "ado"
 	WorkspacesGetWorkspaceResultWorkspaceHostTypeGithub WorkspacesGetWorkspaceResultWorkspaceHostType = "github"
-)
-
-type WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel string
-
-const (
-	WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevelLocal       WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel = "local"
-	WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevelRepoAndUser WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel = "repo_and_user"
-	WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevelUser        WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel = "user"
 )
 
 type serverApi struct {
@@ -3553,6 +3616,26 @@ func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*Tas
 		return nil, err
 	}
 	var result TasksRemoveResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) SendMessage(ctx context.Context, params *TasksSendMessageRequest) (*TasksSendMessageResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.FromAgentID != nil {
+			req["fromAgentId"] = *params.FromAgentID
+		}
+		req["id"] = params.ID
+		req["message"] = params.Message
+	}
+	raw, err := a.client.Request("session.tasks.sendMessage", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksSendMessageResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

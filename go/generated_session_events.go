@@ -1287,6 +1287,8 @@ type SessionStartData struct {
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
 	// Version string of the Copilot application
 	CopilotVersion string `json:"copilotVersion"`
+	// When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
+	DetachedFromSpawningParentSessionID *string `json:"detachedFromSpawningParentSessionId,omitempty"`
 	// Identifier of the software producing the events (e.g., "copilot-agent")
 	Producer string `json:"producer"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
@@ -2051,6 +2053,8 @@ type PermissionPromptRequest struct {
 	Args *any `json:"args,omitempty"`
 	// Whether the UI can offer session-wide approval for this command pattern
 	CanOfferSessionApproval *bool `json:"canOfferSessionApproval,omitempty"`
+	// Capabilities the extension is requesting
+	Capabilities []string `json:"capabilities,omitempty"`
 	// Source references for the stored fact (store only)
 	Citations *string `json:"citations,omitempty"`
 	// Command identifiers covered by this approval prompt
@@ -2059,6 +2063,8 @@ type PermissionPromptRequest struct {
 	Diff *string `json:"diff,omitempty"`
 	// Vote direction (vote only)
 	Direction *PermissionPromptRequestMemoryDirection `json:"direction,omitempty"`
+	// Name of the extension being managed
+	ExtensionName *string `json:"extensionName,omitempty"`
 	// The fact being stored or voted on
 	Fact *string `json:"fact,omitempty"`
 	// Path of the file being written to
@@ -2073,6 +2079,8 @@ type PermissionPromptRequest struct {
 	Kind PermissionPromptRequestKind `json:"kind"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
+	// The extension management operation (scaffold, reload)
+	Operation *string `json:"operation,omitempty"`
 	// Path of the file or directory being read
 	Path *string `json:"path,omitempty"`
 	// File paths that require explicit approval
@@ -2107,6 +2115,8 @@ type PermissionRequest struct {
 	Args any `json:"args,omitempty"`
 	// Whether the UI can offer session-wide approval for this command pattern
 	CanOfferSessionApproval *bool `json:"canOfferSessionApproval,omitempty"`
+	// Capabilities the extension is requesting
+	Capabilities []string `json:"capabilities,omitempty"`
 	// Source references for the stored fact (store only)
 	Citations *string `json:"citations,omitempty"`
 	// Parsed command identifiers found in the command text
@@ -2115,6 +2125,8 @@ type PermissionRequest struct {
 	Diff *string `json:"diff,omitempty"`
 	// Vote direction (vote only)
 	Direction *PermissionRequestMemoryDirection `json:"direction,omitempty"`
+	// Name of the extension being managed
+	ExtensionName *string `json:"extensionName,omitempty"`
 	// The fact being stored or voted on
 	Fact *string `json:"fact,omitempty"`
 	// Path of the file being written to
@@ -2131,6 +2143,8 @@ type PermissionRequest struct {
 	Kind PermissionRequestKind `json:"kind"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
+	// The extension management operation (scaffold, reload)
+	Operation *string `json:"operation,omitempty"`
 	// Path of the file or directory being read
 	Path *string `json:"path,omitempty"`
 	// File paths that may be read or written by the command
@@ -2593,15 +2607,17 @@ const (
 type PermissionPromptRequestKind string
 
 const (
-	PermissionPromptRequestKindCommands   PermissionPromptRequestKind = "commands"
-	PermissionPromptRequestKindCustomTool PermissionPromptRequestKind = "custom-tool"
-	PermissionPromptRequestKindHook       PermissionPromptRequestKind = "hook"
-	PermissionPromptRequestKindMcp        PermissionPromptRequestKind = "mcp"
-	PermissionPromptRequestKindMemory     PermissionPromptRequestKind = "memory"
-	PermissionPromptRequestKindPath       PermissionPromptRequestKind = "path"
-	PermissionPromptRequestKindRead       PermissionPromptRequestKind = "read"
-	PermissionPromptRequestKindURL        PermissionPromptRequestKind = "url"
-	PermissionPromptRequestKindWrite      PermissionPromptRequestKind = "write"
+	PermissionPromptRequestKindCommands                  PermissionPromptRequestKind = "commands"
+	PermissionPromptRequestKindCustomTool                PermissionPromptRequestKind = "custom-tool"
+	PermissionPromptRequestKindExtensionManagement       PermissionPromptRequestKind = "extension-management"
+	PermissionPromptRequestKindExtensionPermissionAccess PermissionPromptRequestKind = "extension-permission-access"
+	PermissionPromptRequestKindHook                      PermissionPromptRequestKind = "hook"
+	PermissionPromptRequestKindMcp                       PermissionPromptRequestKind = "mcp"
+	PermissionPromptRequestKindMemory                    PermissionPromptRequestKind = "memory"
+	PermissionPromptRequestKindPath                      PermissionPromptRequestKind = "path"
+	PermissionPromptRequestKindRead                      PermissionPromptRequestKind = "read"
+	PermissionPromptRequestKindURL                       PermissionPromptRequestKind = "url"
+	PermissionPromptRequestKindWrite                     PermissionPromptRequestKind = "write"
 )
 
 // Whether this is a store or vote memory operation
@@ -2633,14 +2649,16 @@ const (
 type PermissionRequestKind string
 
 const (
-	PermissionRequestKindCustomTool PermissionRequestKind = "custom-tool"
-	PermissionRequestKindHook       PermissionRequestKind = "hook"
-	PermissionRequestKindMcp        PermissionRequestKind = "mcp"
-	PermissionRequestKindMemory     PermissionRequestKind = "memory"
-	PermissionRequestKindRead       PermissionRequestKind = "read"
-	PermissionRequestKindShell      PermissionRequestKind = "shell"
-	PermissionRequestKindURL        PermissionRequestKind = "url"
-	PermissionRequestKindWrite      PermissionRequestKind = "write"
+	PermissionRequestKindCustomTool                PermissionRequestKind = "custom-tool"
+	PermissionRequestKindExtensionManagement       PermissionRequestKind = "extension-management"
+	PermissionRequestKindExtensionPermissionAccess PermissionRequestKind = "extension-permission-access"
+	PermissionRequestKindHook                      PermissionRequestKind = "hook"
+	PermissionRequestKindMcp                       PermissionRequestKind = "mcp"
+	PermissionRequestKindMemory                    PermissionRequestKind = "memory"
+	PermissionRequestKindRead                      PermissionRequestKind = "read"
+	PermissionRequestKindShell                     PermissionRequestKind = "shell"
+	PermissionRequestKindURL                       PermissionRequestKind = "url"
+	PermissionRequestKindWrite                     PermissionRequestKind = "write"
 )
 
 // Whether this is a store or vote memory operation
