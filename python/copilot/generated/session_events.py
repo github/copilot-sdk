@@ -1747,16 +1747,19 @@ class PermissionPromptRequest:
     action: PermissionPromptRequestMemoryAction | None = None
     args: Any | None = None
     can_offer_session_approval: bool | None = None
+    capabilities: list[str] | None = None
     citations: str | None = None
     command_identifiers: list[str] | None = None
     diff: str | None = None
     direction: PermissionPromptRequestMemoryDirection | None = None
+    extension_name: str | None = None
     fact: str | None = None
     file_name: str | None = None
     full_command_text: str | None = None
     hook_message: str | None = None
     intention: str | None = None
     new_file_contents: str | None = None
+    operation: str | None = None
     path: str | None = None
     paths: list[str] | None = None
     reason: str | None = None
@@ -1778,16 +1781,19 @@ class PermissionPromptRequest:
         action = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestMemoryAction, x)], obj.get("action", "store"))
         args = from_union([from_none, lambda x: x], obj.get("args"))
         can_offer_session_approval = from_union([from_none, from_bool], obj.get("canOfferSessionApproval"))
+        capabilities = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("capabilities"))
         citations = from_union([from_none, from_str], obj.get("citations"))
         command_identifiers = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("commandIdentifiers"))
         diff = from_union([from_none, from_str], obj.get("diff"))
         direction = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestMemoryDirection, x)], obj.get("direction"))
+        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
         fact = from_union([from_none, from_str], obj.get("fact"))
         file_name = from_union([from_none, from_str], obj.get("fileName"))
         full_command_text = from_union([from_none, from_str], obj.get("fullCommandText"))
         hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
         intention = from_union([from_none, from_str], obj.get("intention"))
         new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
+        operation = from_union([from_none, from_str], obj.get("operation"))
         path = from_union([from_none, from_str], obj.get("path"))
         paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("paths"))
         reason = from_union([from_none, from_str], obj.get("reason"))
@@ -1806,16 +1812,19 @@ class PermissionPromptRequest:
             action=action,
             args=args,
             can_offer_session_approval=can_offer_session_approval,
+            capabilities=capabilities,
             citations=citations,
             command_identifiers=command_identifiers,
             diff=diff,
             direction=direction,
+            extension_name=extension_name,
             fact=fact,
             file_name=file_name,
             full_command_text=full_command_text,
             hook_message=hook_message,
             intention=intention,
             new_file_contents=new_file_contents,
+            operation=operation,
             path=path,
             paths=paths,
             reason=reason,
@@ -1841,6 +1850,8 @@ class PermissionPromptRequest:
             result["args"] = from_union([from_none, lambda x: x], self.args)
         if self.can_offer_session_approval is not None:
             result["canOfferSessionApproval"] = from_union([from_none, from_bool], self.can_offer_session_approval)
+        if self.capabilities is not None:
+            result["capabilities"] = from_union([from_none, lambda x: from_list(from_str, x)], self.capabilities)
         if self.citations is not None:
             result["citations"] = from_union([from_none, from_str], self.citations)
         if self.command_identifiers is not None:
@@ -1849,6 +1860,8 @@ class PermissionPromptRequest:
             result["diff"] = from_union([from_none, from_str], self.diff)
         if self.direction is not None:
             result["direction"] = from_union([from_none, lambda x: to_enum(PermissionPromptRequestMemoryDirection, x)], self.direction)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
         if self.fact is not None:
             result["fact"] = from_union([from_none, from_str], self.fact)
         if self.file_name is not None:
@@ -1861,6 +1874,8 @@ class PermissionPromptRequest:
             result["intention"] = from_union([from_none, from_str], self.intention)
         if self.new_file_contents is not None:
             result["newFileContents"] = from_union([from_none, from_str], self.new_file_contents)
+        if self.operation is not None:
+            result["operation"] = from_union([from_none, from_str], self.operation)
         if self.path is not None:
             result["path"] = from_union([from_none, from_str], self.path)
         if self.paths is not None:
@@ -1895,10 +1910,12 @@ class PermissionRequest:
     action: PermissionRequestMemoryAction | None = None
     args: Any = None
     can_offer_session_approval: bool | None = None
+    capabilities: list[str] | None = None
     citations: str | None = None
     commands: list[PermissionRequestShellCommand] | None = None
     diff: str | None = None
     direction: PermissionRequestMemoryDirection | None = None
+    extension_name: str | None = None
     fact: str | None = None
     file_name: str | None = None
     full_command_text: str | None = None
@@ -1906,6 +1923,7 @@ class PermissionRequest:
     hook_message: str | None = None
     intention: str | None = None
     new_file_contents: str | None = None
+    operation: str | None = None
     path: str | None = None
     possible_paths: list[str] | None = None
     possible_urls: list[PermissionRequestShellPossibleUrl] | None = None
@@ -1928,10 +1946,12 @@ class PermissionRequest:
         action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action", "store"))
         args = obj.get("args")
         can_offer_session_approval = from_union([from_none, from_bool], obj.get("canOfferSessionApproval"))
+        capabilities = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("capabilities"))
         citations = from_union([from_none, from_str], obj.get("citations"))
         commands = from_union([from_none, lambda x: from_list(PermissionRequestShellCommand.from_dict, x)], obj.get("commands"))
         diff = from_union([from_none, from_str], obj.get("diff"))
         direction = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryDirection, x)], obj.get("direction"))
+        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
         fact = from_union([from_none, from_str], obj.get("fact"))
         file_name = from_union([from_none, from_str], obj.get("fileName"))
         full_command_text = from_union([from_none, from_str], obj.get("fullCommandText"))
@@ -1939,6 +1959,7 @@ class PermissionRequest:
         hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
         intention = from_union([from_none, from_str], obj.get("intention"))
         new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
+        operation = from_union([from_none, from_str], obj.get("operation"))
         path = from_union([from_none, from_str], obj.get("path"))
         possible_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("possiblePaths"))
         possible_urls = from_union([from_none, lambda x: from_list(PermissionRequestShellPossibleUrl.from_dict, x)], obj.get("possibleUrls"))
@@ -1958,10 +1979,12 @@ class PermissionRequest:
             action=action,
             args=args,
             can_offer_session_approval=can_offer_session_approval,
+            capabilities=capabilities,
             citations=citations,
             commands=commands,
             diff=diff,
             direction=direction,
+            extension_name=extension_name,
             fact=fact,
             file_name=file_name,
             full_command_text=full_command_text,
@@ -1969,6 +1992,7 @@ class PermissionRequest:
             hook_message=hook_message,
             intention=intention,
             new_file_contents=new_file_contents,
+            operation=operation,
             path=path,
             possible_paths=possible_paths,
             possible_urls=possible_urls,
@@ -1994,6 +2018,8 @@ class PermissionRequest:
             result["args"] = self.args
         if self.can_offer_session_approval is not None:
             result["canOfferSessionApproval"] = from_union([from_none, from_bool], self.can_offer_session_approval)
+        if self.capabilities is not None:
+            result["capabilities"] = from_union([from_none, lambda x: from_list(from_str, x)], self.capabilities)
         if self.citations is not None:
             result["citations"] = from_union([from_none, from_str], self.citations)
         if self.commands is not None:
@@ -2002,6 +2028,8 @@ class PermissionRequest:
             result["diff"] = from_union([from_none, from_str], self.diff)
         if self.direction is not None:
             result["direction"] = from_union([from_none, lambda x: to_enum(PermissionRequestMemoryDirection, x)], self.direction)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
         if self.fact is not None:
             result["fact"] = from_union([from_none, from_str], self.fact)
         if self.file_name is not None:
@@ -2016,6 +2044,8 @@ class PermissionRequest:
             result["intention"] = from_union([from_none, from_str], self.intention)
         if self.new_file_contents is not None:
             result["newFileContents"] = from_union([from_none, from_str], self.new_file_contents)
+        if self.operation is not None:
+            result["operation"] = from_union([from_none, from_str], self.operation)
         if self.path is not None:
             result["path"] = from_union([from_none, from_str], self.path)
         if self.possible_paths is not None:
@@ -3008,6 +3038,7 @@ class SessionStartData:
     version: float
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
+    detached_from_spawning_parent_session_id: str | None = None
     reasoning_effort: str | None = None
     remote_steerable: bool | None = None
     selected_model: str | None = None
@@ -3022,6 +3053,7 @@ class SessionStartData:
         version = from_float(obj.get("version"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
+        detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
@@ -3033,6 +3065,7 @@ class SessionStartData:
             version=version,
             already_in_use=already_in_use,
             context=context,
+            detached_from_spawning_parent_session_id=detached_from_spawning_parent_session_id,
             reasoning_effort=reasoning_effort,
             remote_steerable=remote_steerable,
             selected_model=selected_model,
@@ -3049,6 +3082,8 @@ class SessionStartData:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
+        if self.detached_from_spawning_parent_session_id is not None:
+            result["detachedFromSpawningParentSessionId"] = from_union([from_none, from_str], self.detached_from_spawning_parent_session_id)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.remote_steerable is not None:
@@ -4674,6 +4709,8 @@ class PermissionPromptRequestKind(Enum):
     CUSTOM_TOOL = "custom-tool"
     PATH = "path"
     HOOK = "hook"
+    EXTENSION_MANAGEMENT = "extension-management"
+    EXTENSION_PERMISSION_ACCESS = "extension-permission-access"
 
 
 class PermissionPromptRequestMemoryAction(Enum):
@@ -4705,6 +4742,8 @@ class PermissionRequestKind(Enum):
     MEMORY = "memory"
     CUSTOM_TOOL = "custom-tool"
     HOOK = "hook"
+    EXTENSION_MANAGEMENT = "extension-management"
+    EXTENSION_PERMISSION_ACCESS = "extension-permission-access"
 
 
 class PermissionRequestMemoryAction(Enum):
