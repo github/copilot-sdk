@@ -540,19 +540,20 @@ class ModelPolicy:
 class ModelBilling:
     """Model billing information"""
 
-    multiplier: float
+    multiplier: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> ModelBilling:
         assert isinstance(obj, dict)
         multiplier = obj.get("multiplier")
         if multiplier is None:
-            raise ValueError("Missing required field 'multiplier' in ModelBilling")
+            return ModelBilling()
         return ModelBilling(multiplier=float(multiplier))
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["multiplier"] = self.multiplier
+        if self.multiplier is not None:
+            result["multiplier"] = self.multiplier
         return result
 
 
