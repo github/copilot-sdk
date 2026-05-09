@@ -76,164 +76,32 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	e.Type = raw.Type
 
 	switch raw.Type {
-	case SessionEventTypeSessionStart:
-		var d SessionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionResume:
-		var d SessionResumeData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionRemoteSteerableChanged:
-		var d SessionRemoteSteerableChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionError:
-		var d SessionErrorData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionIdle:
-		var d SessionIdleData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTitleChanged:
-		var d SessionTitleChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionScheduleCreated:
-		var d SessionScheduleCreatedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionScheduleCancelled:
-		var d SessionScheduleCancelledData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionInfo:
-		var d SessionInfoData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionWarning:
-		var d SessionWarningData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionModelChange:
-		var d SessionModelChangeData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionModeChanged:
-		var d SessionModeChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionPlanChanged:
-		var d SessionPlanChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionWorkspaceFileChanged:
-		var d SessionWorkspaceFileChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionHandoff:
-		var d SessionHandoffData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTruncation:
-		var d SessionTruncationData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionSnapshotRewind:
-		var d SessionSnapshotRewindData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionShutdown:
-		var d SessionShutdownData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionContextChanged:
-		var d SessionContextChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionUsageInfo:
-		var d SessionUsageInfoData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionCompactionStart:
-		var d SessionCompactionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionCompactionComplete:
-		var d SessionCompactionCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTaskComplete:
-		var d SessionTaskCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserMessage:
-		var d UserMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePendingMessagesModified:
-		var d PendingMessagesModifiedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantTurnStart:
-		var d AssistantTurnStartData
+	case SessionEventTypeAbort:
+		var d AbortData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
 	case SessionEventTypeAssistantIntent:
 		var d AssistantIntentData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantMessage:
+		var d AssistantMessageData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantMessageDelta:
+		var d AssistantMessageDeltaData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantMessageStart:
+		var d AssistantMessageStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -256,26 +124,14 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeAssistantMessage:
-		var d AssistantMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantMessageStart:
-		var d AssistantMessageStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantMessageDelta:
-		var d AssistantMessageDeltaData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
 	case SessionEventTypeAssistantTurnEnd:
 		var d AssistantTurnEndData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantTurnStart:
+		var d AssistantTurnStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -286,194 +142,8 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeModelCallFailure:
-		var d ModelCallFailureData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAbort:
-		var d AbortData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolUserRequested:
-		var d ToolUserRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionStart:
-		var d ToolExecutionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionPartialResult:
-		var d ToolExecutionPartialResultData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionProgress:
-		var d ToolExecutionProgressData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionComplete:
-		var d ToolExecutionCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSkillInvoked:
-		var d SkillInvokedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentStarted:
-		var d SubagentStartedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentCompleted:
-		var d SubagentCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentFailed:
-		var d SubagentFailedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentSelected:
-		var d SubagentSelectedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentDeselected:
-		var d SubagentDeselectedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeHookStart:
-		var d HookStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeHookEnd:
-		var d HookEndData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSystemMessage:
-		var d SystemMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSystemNotification:
-		var d SystemNotificationData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePermissionRequested:
-		var d PermissionRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePermissionCompleted:
-		var d PermissionCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserInputRequested:
-		var d UserInputRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserInputCompleted:
-		var d UserInputCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeElicitationRequested:
-		var d ElicitationRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeElicitationCompleted:
-		var d ElicitationCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSamplingRequested:
-		var d SamplingRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSamplingCompleted:
-		var d SamplingCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeMcpOauthRequired:
-		var d McpOauthRequiredData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeMcpOauthCompleted:
-		var d McpOauthCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeExternalToolRequested:
-		var d ExternalToolRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeExternalToolCompleted:
-		var d ExternalToolCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandQueued:
-		var d CommandQueuedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandExecute:
-		var d CommandExecuteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandCompleted:
-		var d CommandCompletedData
+	case SessionEventTypeAutoModeSwitchCompleted:
+		var d AutoModeSwitchCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -484,8 +154,26 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeAutoModeSwitchCompleted:
-		var d AutoModeSwitchCompletedData
+	case SessionEventTypeCapabilitiesChanged:
+		var d CapabilitiesChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeCommandCompleted:
+		var d CommandCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeCommandExecute:
+		var d CommandExecuteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeCommandQueued:
+		var d CommandQueuedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -496,14 +184,14 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeCapabilitiesChanged:
-		var d CapabilitiesChangedData
+	case SessionEventTypeElicitationCompleted:
+		var d ElicitationCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeExitPlanModeRequested:
-		var d ExitPlanModeRequestedData
+	case SessionEventTypeElicitationRequested:
+		var d ElicitationRequestedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -514,8 +202,80 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionToolsUpdated:
-		var d SessionToolsUpdatedData
+	case SessionEventTypeExitPlanModeRequested:
+		var d ExitPlanModeRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeExternalToolCompleted:
+		var d ExternalToolCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeExternalToolRequested:
+		var d ExternalToolRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeHookEnd:
+		var d HookEndData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeHookStart:
+		var d HookStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMcpOauthCompleted:
+		var d McpOauthCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMcpOauthRequired:
+		var d McpOauthRequiredData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeModelCallFailure:
+		var d ModelCallFailureData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePendingMessagesModified:
+		var d PendingMessagesModifiedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionCompleted:
+		var d PermissionCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypePermissionRequested:
+		var d PermissionRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSamplingCompleted:
+		var d SamplingCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSamplingRequested:
+		var d SamplingRequestedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -526,14 +286,56 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionSkillsLoaded:
-		var d SessionSkillsLoadedData
+	case SessionEventTypeSessionCompactionComplete:
+		var d SessionCompactionCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCompactionStart:
+		var d SessionCompactionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionContextChanged:
+		var d SessionContextChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
 	case SessionEventTypeSessionCustomAgentsUpdated:
 		var d SessionCustomAgentsUpdatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionError:
+		var d SessionErrorData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionExtensionsLoaded:
+		var d SessionExtensionsLoadedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionHandoff:
+		var d SessionHandoffData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionIdle:
+		var d SessionIdleData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionInfo:
+		var d SessionInfoData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -550,8 +352,206 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionExtensionsLoaded:
-		var d SessionExtensionsLoadedData
+	case SessionEventTypeSessionModeChanged:
+		var d SessionModeChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionModelChange:
+		var d SessionModelChangeData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionPlanChanged:
+		var d SessionPlanChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionRemoteSteerableChanged:
+		var d SessionRemoteSteerableChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionResume:
+		var d SessionResumeData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionScheduleCancelled:
+		var d SessionScheduleCancelledData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionScheduleCreated:
+		var d SessionScheduleCreatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionShutdown:
+		var d SessionShutdownData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionSkillsLoaded:
+		var d SessionSkillsLoadedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionSnapshotRewind:
+		var d SessionSnapshotRewindData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionStart:
+		var d SessionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionTaskComplete:
+		var d SessionTaskCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionTitleChanged:
+		var d SessionTitleChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionToolsUpdated:
+		var d SessionToolsUpdatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionTruncation:
+		var d SessionTruncationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionUsageInfo:
+		var d SessionUsageInfoData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionWarning:
+		var d SessionWarningData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionWorkspaceFileChanged:
+		var d SessionWorkspaceFileChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSkillInvoked:
+		var d SkillInvokedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentCompleted:
+		var d SubagentCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentDeselected:
+		var d SubagentDeselectedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentFailed:
+		var d SubagentFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentSelected:
+		var d SubagentSelectedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentStarted:
+		var d SubagentStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSystemMessage:
+		var d SystemMessageData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSystemNotification:
+		var d SystemNotificationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolExecutionComplete:
+		var d ToolExecutionCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolExecutionPartialResult:
+		var d ToolExecutionPartialResultData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolExecutionProgress:
+		var d ToolExecutionProgressData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolExecutionStart:
+		var d ToolExecutionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolUserRequested:
+		var d ToolUserRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeUserInputCompleted:
+		var d UserInputCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeUserInputRequested:
+		var d UserInputRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeUserMessage:
+		var d UserMessageData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -574,12 +574,12 @@ func (e SessionEvent) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(rawEvent{
 		AgentID:   e.AgentID,
+		Data:      e.Data,
 		Ephemeral: e.Ephemeral,
 		ID:        e.ID,
 		ParentID:  e.ParentID,
 		Timestamp: e.Timestamp,
 		Type:      e.Type,
-		Data:      e.Data,
 	})
 }
 

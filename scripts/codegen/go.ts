@@ -75,6 +75,14 @@ function sortByGoFieldName<T>(entries: [string, T][]): [string, T][] {
     return entries.sort(([left], [right]) => compareGoFieldNames(toGoFieldName(left), toGoFieldName(right)));
 }
 
+function sortByPascalName<T>(entries: [string, T][]): [string, T][] {
+    return entries.sort(([left], [right]) => toPascalCase(left).localeCompare(toPascalCase(right)));
+}
+
+function compareRpcMethodsByGoName(left: RpcMethod, right: RpcMethod): number {
+    return clientHandlerMethodName(left.rpcMethod).localeCompare(clientHandlerMethodName(right.rpcMethod));
+}
+
 function splitGoIdentifierWords(name: string): string[] {
     return name
         .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
@@ -161,7 +169,7 @@ async function formatGoFile(filePath: string): Promise<void> {
 
 function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     const results: RpcMethod[] = [];
-    for (const value of Object.values(node)) {
+    for (const [, value] of sortByPascalName(Object.entries(node))) {
         if (isRpcMethod(value)) {
             results.push(value);
         } else if (typeof value === "object" && value !== null) {
@@ -1132,7 +1140,8 @@ function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definit
         definitions: definitionCollections,
     };
     const schemaKeysByTypeName = new Map<string, string>();
-    const entries = Object.entries(definitions);
+    const entries = Object.entries(definitions)
+        .sort(([left], [right]) => goDefinitionName(left).localeCompare(goDefinitionName(right)));
 
     for (const [definitionName, definition] of entries) {
         const typeName = goDefinitionName(definitionName);
@@ -1347,25 +1356,28 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     out.push(`\tif err := json.Unmarshal(data, &raw); err != nil {`);
     out.push(`\t\treturn err`);
     out.push(`\t}`);
-    for (const property of envelopeProperties) {
+    for (const property of sortedGoEventEnvelopeProperties(envelopeProperties)) {
         out.push(`\te.${property.fieldName} = raw.${property.fieldName}`);
     }
     out.push(`\te.Type = raw.Type`);
     out.push(``);
     out.push(`\tswitch raw.Type {`);
-    for (const variant of variants) {
-        const constName =
-            "SessionEventType" +
-            variant.typeName
+    const eventCases = variants
+        .map((variant) => ({
+            constName: "SessionEventType" + variant.typeName
                 .split(/[._]/)
                 .map((w) =>
                     goInitialisms.has(w.toLowerCase())
                         ? w.toUpperCase()
                         : w.charAt(0).toUpperCase() + w.slice(1)
                 )
-                .join("");
+                .join(""),
+            dataClassName: variant.dataClassName,
+        }))
+        .sort((left, right) => left.constName.localeCompare(right.constName));
+    for (const { constName, dataClassName } of eventCases) {
         out.push(`\tcase ${constName}:`);
-        out.push(`\t\tvar d ${variant.dataClassName}`);
+        out.push(`\t\tvar d ${dataClassName}`);
         out.push(`\t\tif err := json.Unmarshal(raw.Data, &d); err != nil {`);
         out.push(`\t\t\treturn err`);
         out.push(`\t\t}`);
@@ -1388,11 +1400,14 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     }
     out.push(`\t}`);
     out.push(`\treturn json.Marshal(rawEvent{`);
-    for (const property of envelopeProperties) {
-        out.push(`\t\t${property.fieldName}: e.${property.fieldName},`);
+    const rawEventValues = [
+        ...envelopeProperties.map((property) => property.fieldName),
+        "Data",
+        "Type",
+    ].sort(compareGoFieldNames);
+    for (const fieldName of rawEventValues) {
+        out.push(`\t\t${fieldName}: e.${fieldName},`);
     }
-    out.push(`\t\tType:      e.Type,`);
-    out.push(`\t\tData:      e.Data,`);
     out.push(`\t})`);
     out.push(`}`);
     out.push(``);
@@ -1478,7 +1493,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         ...collectRpcMethods(schema.server || {}),
         ...collectRpcMethods(schema.session || {}),
         ...collectRpcMethods(schema.clientSession || {}),
-    ];
+    ].sort((left, right) => left.rpcMethod.localeCompare(right.rpcMethod));
 
     // Build a combined definition map, including shared API definitions plus
     // method-specific request/result wrapper types.
@@ -1678,7 +1693,8 @@ function emitApiGroup(
     groupExperimental: boolean,
     groupDeprecated: boolean = false
 ): void {
-    const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
+    const subGroups = sortByPascalName(Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v)));
+    const methods = sortByPascalName(Object.entries(node).filter(([, v]) => isRpcMethod(v)));
 
     if (groupDeprecated) {
         pushGoComment(lines, `Deprecated: ${apiName} contains deprecated APIs that will be removed in a future version.`);
@@ -1689,7 +1705,7 @@ function emitApiGroup(
     lines.push(`type ${apiName} ${serviceName}`);
     lines.push(``);
 
-    for (const [key, value] of Object.entries(node)) {
+    for (const [key, value] of methods) {
         if (!isRpcMethod(value)) continue;
         emitMethod(lines, apiName, key, value, isSession, resolveType, fieldNames, groupExperimental, false, groupDeprecated);
     }
@@ -1711,8 +1727,8 @@ function emitApiGroup(
 }
 
 function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, classPrefix: string = ""): void {
-    const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
-    const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
+    const groups = sortByPascalName(Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v)));
+    const topLevelMethods = sortByPascalName(Object.entries(node).filter(([, v]) => isRpcMethod(v)));
 
     const wrapperName = classPrefix + (isSession ? "SessionRpc" : "ServerRpc");
     const apiSuffix = "Api";
@@ -1797,7 +1813,9 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     const effectiveParams = getMethodParamsSchema(method);
     const paramProps = effectiveParams?.properties || {};
     const requiredParams = new Set(effectiveParams?.required || []);
-    const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
+    const nonSessionParams = Object.keys(paramProps)
+        .filter((k) => k !== "sessionId")
+        .sort((left, right) => compareGoFieldNames(toGoFieldName(left), toGoFieldName(right)));
     const hasParams = isSession ? nonSessionParams.length > 0 : hasSchemaPayload(effectiveParams);
     const paramsType = hasParams ? resolveType(goParamsTypeName(method)) : "";
 
@@ -1864,12 +1882,12 @@ interface ClientGroup {
 
 function collectClientGroups(node: Record<string, unknown>): ClientGroup[] {
     const groups: ClientGroup[] = [];
-    for (const [groupName, groupNode] of Object.entries(node)) {
+    for (const [groupName, groupNode] of sortByPascalName(Object.entries(node))) {
         if (typeof groupNode === "object" && groupNode !== null) {
             groups.push({
                 groupName,
                 groupNode: groupNode as Record<string, unknown>,
-                methods: collectRpcMethods(groupNode as Record<string, unknown>),
+                methods: collectRpcMethods(groupNode as Record<string, unknown>).sort(compareRpcMethodsByGoName),
             });
         }
     }

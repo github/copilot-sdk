@@ -2555,34 +2555,6 @@ type serverApi struct {
 	client *jsonrpc2.Client
 }
 
-type ServerModelsApi serverApi
-
-func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
-	raw, err := a.client.Request("models.list", params)
-	if err != nil {
-		return nil, err
-	}
-	var result ModelList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-type ServerToolsApi serverApi
-
-func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*ToolList, error) {
-	raw, err := a.client.Request("tools.list", params)
-	if err != nil {
-		return nil, err
-	}
-	var result ToolList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 type ServerAccountApi serverApi
 
 func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
@@ -2613,60 +2585,12 @@ func (a *ServerMcpApi) Discover(ctx context.Context, params *McpDiscoverRequest)
 
 type ServerMcpConfigApi serverApi
 
-func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
-	raw, err := a.client.Request("mcp.config.list", nil)
-	if err != nil {
-		return nil, err
-	}
-	var result McpConfigList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 func (a *ServerMcpConfigApi) Add(ctx context.Context, params *McpConfigAddRequest) (*McpConfigAddResult, error) {
 	raw, err := a.client.Request("mcp.config.add", params)
 	if err != nil {
 		return nil, err
 	}
 	var result McpConfigAddResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *ServerMcpConfigApi) Update(ctx context.Context, params *McpConfigUpdateRequest) (*McpConfigUpdateResult, error) {
-	raw, err := a.client.Request("mcp.config.update", params)
-	if err != nil {
-		return nil, err
-	}
-	var result McpConfigUpdateResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *McpConfigRemoveRequest) (*McpConfigRemoveResult, error) {
-	raw, err := a.client.Request("mcp.config.remove", params)
-	if err != nil {
-		return nil, err
-	}
-	var result McpConfigRemoveResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *McpConfigEnableRequest) (*McpConfigEnableResult, error) {
-	raw, err := a.client.Request("mcp.config.enable", params)
-	if err != nil {
-		return nil, err
-	}
-	var result McpConfigEnableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -2685,8 +2609,99 @@ func (a *ServerMcpConfigApi) Disable(ctx context.Context, params *McpConfigDisab
 	return &result, nil
 }
 
+func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *McpConfigEnableRequest) (*McpConfigEnableResult, error) {
+	raw, err := a.client.Request("mcp.config.enable", params)
+	if err != nil {
+		return nil, err
+	}
+	var result McpConfigEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
+	raw, err := a.client.Request("mcp.config.list", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result McpConfigList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *McpConfigRemoveRequest) (*McpConfigRemoveResult, error) {
+	raw, err := a.client.Request("mcp.config.remove", params)
+	if err != nil {
+		return nil, err
+	}
+	var result McpConfigRemoveResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerMcpConfigApi) Update(ctx context.Context, params *McpConfigUpdateRequest) (*McpConfigUpdateResult, error) {
+	raw, err := a.client.Request("mcp.config.update", params)
+	if err != nil {
+		return nil, err
+	}
+	var result McpConfigUpdateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 func (s *ServerMcpApi) Config() *ServerMcpConfigApi {
 	return (*ServerMcpConfigApi)(s)
+}
+
+type ServerModelsApi serverApi
+
+func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
+	raw, err := a.client.Request("models.list", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type ServerSessionFsApi serverApi
+
+func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFsSetProviderRequest) (*SessionFsSetProviderResult, error) {
+	raw, err := a.client.Request("sessionFs.setProvider", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionFsSetProviderResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerSessionsApi contains experimental APIs that may change or be removed.
+type ServerSessionsApi serverApi
+
+func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkRequest) (*SessionsForkResult, error) {
+	raw, err := a.client.Request("sessions.fork", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionsForkResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 type ServerSkillsApi serverApi
@@ -2721,29 +2736,14 @@ func (s *ServerSkillsApi) Config() *ServerSkillsConfigApi {
 	return (*ServerSkillsConfigApi)(s)
 }
 
-type ServerSessionFsApi serverApi
+type ServerToolsApi serverApi
 
-func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFsSetProviderRequest) (*SessionFsSetProviderResult, error) {
-	raw, err := a.client.Request("sessionFs.setProvider", params)
+func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*ToolList, error) {
+	raw, err := a.client.Request("tools.list", params)
 	if err != nil {
 		return nil, err
 	}
-	var result SessionFsSetProviderResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: ServerSessionsApi contains experimental APIs that may change or be removed.
-type ServerSessionsApi serverApi
-
-func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkRequest) (*SessionsForkResult, error) {
-	raw, err := a.client.Request("sessions.fork", params)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionsForkResult
+	var result ToolList
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -2755,13 +2755,13 @@ type ServerRpc struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common serverApi
 
-	Models    *ServerModelsApi
-	Tools     *ServerToolsApi
 	Account   *ServerAccountApi
 	Mcp       *ServerMcpApi
-	Skills    *ServerSkillsApi
+	Models    *ServerModelsApi
 	SessionFs *ServerSessionFsApi
 	Sessions  *ServerSessionsApi
+	Skills    *ServerSkillsApi
+	Tools     *ServerToolsApi
 }
 
 func (a *ServerRpc) Ping(ctx context.Context, params *PingRequest) (*PingResult, error) {
@@ -2779,13 +2779,13 @@ func (a *ServerRpc) Ping(ctx context.Context, params *PingRequest) (*PingResult,
 func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r := &ServerRpc{}
 	r.common = serverApi{client: client}
-	r.Models = (*ServerModelsApi)(&r.common)
-	r.Tools = (*ServerToolsApi)(&r.common)
 	r.Account = (*ServerAccountApi)(&r.common)
 	r.Mcp = (*ServerMcpApi)(&r.common)
-	r.Skills = (*ServerSkillsApi)(&r.common)
+	r.Models = (*ServerModelsApi)(&r.common)
 	r.SessionFs = (*ServerSessionFsApi)(&r.common)
 	r.Sessions = (*ServerSessionsApi)(&r.common)
+	r.Skills = (*ServerSkillsApi)(&r.common)
+	r.Tools = (*ServerToolsApi)(&r.common)
 	return r
 }
 
@@ -2825,6 +2825,77 @@ type sessionApi struct {
 	sessionID string
 }
 
+// Experimental: AgentApi contains experimental APIs that may change or be removed.
+type AgentApi sessionApi
+
+func (a *AgentApi) Deselect(ctx context.Context) (*AgentDeselectResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.deselect", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AgentDeselectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.getCurrent", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AgentGetCurrentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AgentList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AgentReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*AgentSelectResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request("session.agent.select", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AgentSelectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type AuthApi sessionApi
 
 func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
@@ -2840,41 +2911,248 @@ func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 	return &result, nil
 }
 
-type ModelApi sessionApi
+type CommandsApi sessionApi
 
-func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
+func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *CommandsHandlePendingCommandRequest) (*CommandsHandlePendingCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.model.getCurrent", req)
+	if params != nil {
+		if params.Error != nil {
+			req["error"] = *params.Error
+		}
+		req["requestId"] = params.RequestID
+	}
+	raw, err := a.client.Request("session.commands.handlePendingCommand", req)
 	if err != nil {
 		return nil, err
 	}
-	var result CurrentModel
+	var result CommandsHandlePendingCommandResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (*ModelSwitchToResult, error) {
+// Experimental: ExtensionsApi contains experimental APIs that may change or be removed.
+type ExtensionsApi sessionApi
+
+func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRequest) (*ExtensionsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
-		req["modelId"] = params.ModelID
-		if params.ReasoningEffort != nil {
-			req["reasoningEffort"] = *params.ReasoningEffort
-		}
-		if params.ModelCapabilities != nil {
-			req["modelCapabilities"] = *params.ModelCapabilities
-		}
+		req["id"] = params.ID
 	}
-	raw, err := a.client.Request("session.model.switchTo", req)
+	raw, err := a.client.Request("session.extensions.disable", req)
 	if err != nil {
 		return nil, err
 	}
-	var result ModelSwitchToResult
+	var result ExtensionsDisableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequest) (*ExtensionsEnableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.extensions.enable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ExtensionsEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.extensions.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ExtensionList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ExtensionsApi) Reload(ctx context.Context) (*ExtensionsReloadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.extensions.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ExtensionsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: FleetApi contains experimental APIs that may change or be removed.
+type FleetApi sessionApi
+
+func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*FleetStartResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Prompt != nil {
+			req["prompt"] = *params.Prompt
+		}
+	}
+	raw, err := a.client.Request("session.fleet.start", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FleetStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: HistoryApi contains experimental APIs that may change or be removed.
+type HistoryApi sessionApi
+
+func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.history.compact", req)
+	if err != nil {
+		return nil, err
+	}
+	var result HistoryCompactResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateRequest) (*HistoryTruncateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["eventId"] = params.EventID
+	}
+	raw, err := a.client.Request("session.history.truncate", req)
+	if err != nil {
+		return nil, err
+	}
+	var result HistoryTruncateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type InstructionsApi sessionApi
+
+func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourcesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.instructions.getSources", req)
+	if err != nil {
+		return nil, err
+	}
+	var result InstructionsGetSourcesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: McpApi contains experimental APIs that may change or be removed.
+type McpApi sessionApi
+
+func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*McpDisableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.disable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpDisableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*McpEnableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.enable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *McpApi) List(ctx context.Context) (*McpServerList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.mcp.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpServerList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *McpApi) Reload(ctx context.Context) (*McpReloadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.mcp.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: McpOauthApi contains experimental APIs that may change or be removed.
+type McpOauthApi sessionApi
+
+func (a *McpOauthApi) Login(ctx context.Context, params *McpOauthLoginRequest) (*McpOauthLoginResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.CallbackSuccessMessage != nil {
+			req["callbackSuccessMessage"] = *params.CallbackSuccessMessage
+		}
+		if params.ClientName != nil {
+			req["clientName"] = *params.ClientName
+		}
+		if params.ForceReauth != nil {
+			req["forceReauth"] = *params.ForceReauth
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.oauth.login", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpOauthLoginResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Oauth returns experimental APIs that may change or be removed.
+func (s *McpApi) Oauth() *McpOauthApi {
+	return (*McpOauthApi)(s)
 }
 
 type ModeApi sessionApi
@@ -2902,6 +3180,43 @@ func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResu
 		return nil, err
 	}
 	var result ModeSetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type ModelApi sessionApi
+
+func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.model.getCurrent", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CurrentModel
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (*ModelSwitchToResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.ModelCapabilities != nil {
+			req["modelCapabilities"] = *params.ModelCapabilities
+		}
+		req["modelId"] = params.ModelID
+		if params.ReasoningEffort != nil {
+			req["reasoningEffort"] = *params.ReasoningEffort
+		}
+	}
+	raw, err := a.client.Request("session.model.switchTo", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelSwitchToResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -2939,7 +3254,68 @@ func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*NameSetResu
 	return &result, nil
 }
 
+type PermissionsApi sessionApi
+
+func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, params *PermissionDecisionRequest) (*PermissionRequestResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request("session.permissions.handlePendingPermissionRequest", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*PermissionsResetSessionApprovalsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.permissions.resetSessionApprovals", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionsResetSessionApprovalsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsSetApproveAllRequest) (*PermissionsSetApproveAllResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["enabled"] = params.Enabled
+	}
+	raw, err := a.client.Request("session.permissions.setApproveAll", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionsSetApproveAllResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type PlanApi sessionApi
+
+func (a *PlanApi) Delete(ctx context.Context) (*PlanDeleteResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.plan.delete", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PlanDeleteResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
@@ -2970,430 +3346,6 @@ func (a *PlanApi) Update(ctx context.Context, params *PlanUpdateRequest) (*PlanU
 	return &result, nil
 }
 
-func (a *PlanApi) Delete(ctx context.Context) (*PlanDeleteResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.plan.delete", req)
-	if err != nil {
-		return nil, err
-	}
-	var result PlanDeleteResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-type WorkspacesApi sessionApi
-
-func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspaceResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.workspaces.getWorkspace", req)
-	if err != nil {
-		return nil, err
-	}
-	var result WorkspacesGetWorkspaceResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.workspaces.listFiles", req)
-	if err != nil {
-		return nil, err
-	}
-	var result WorkspacesListFilesResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *WorkspacesApi) ReadFile(ctx context.Context, params *WorkspacesReadFileRequest) (*WorkspacesReadFileResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["path"] = params.Path
-	}
-	raw, err := a.client.Request("session.workspaces.readFile", req)
-	if err != nil {
-		return nil, err
-	}
-	var result WorkspacesReadFileResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreateFileRequest) (*WorkspacesCreateFileResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["path"] = params.Path
-		req["content"] = params.Content
-	}
-	raw, err := a.client.Request("session.workspaces.createFile", req)
-	if err != nil {
-		return nil, err
-	}
-	var result WorkspacesCreateFileResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-type InstructionsApi sessionApi
-
-func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourcesResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.instructions.getSources", req)
-	if err != nil {
-		return nil, err
-	}
-	var result InstructionsGetSourcesResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: FleetApi contains experimental APIs that may change or be removed.
-type FleetApi sessionApi
-
-func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*FleetStartResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Prompt != nil {
-			req["prompt"] = *params.Prompt
-		}
-	}
-	raw, err := a.client.Request("session.fleet.start", req)
-	if err != nil {
-		return nil, err
-	}
-	var result FleetStartResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: AgentApi contains experimental APIs that may change or be removed.
-type AgentApi sessionApi
-
-func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.agent.list", req)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.agent.getCurrent", req)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentGetCurrentResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*AgentSelectResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["name"] = params.Name
-	}
-	raw, err := a.client.Request("session.agent.select", req)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentSelectResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *AgentApi) Deselect(ctx context.Context) (*AgentDeselectResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.agent.deselect", req)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentDeselectResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.agent.reload", req)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentReloadResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: TasksApi contains experimental APIs that may change or be removed.
-type TasksApi sessionApi
-
-func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentRequest) (*TasksStartAgentResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["agentType"] = params.AgentType
-		req["prompt"] = params.Prompt
-		req["name"] = params.Name
-		if params.Description != nil {
-			req["description"] = *params.Description
-		}
-		if params.Model != nil {
-			req["model"] = *params.Model
-		}
-	}
-	raw, err := a.client.Request("session.tasks.startAgent", req)
-	if err != nil {
-		return nil, err
-	}
-	var result TasksStartAgentResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.tasks.list", req)
-	if err != nil {
-		return nil, err
-	}
-	var result TaskList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromoteToBackgroundRequest) (*TasksPromoteToBackgroundResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["id"] = params.ID
-	}
-	raw, err := a.client.Request("session.tasks.promoteToBackground", req)
-	if err != nil {
-		return nil, err
-	}
-	var result TasksPromoteToBackgroundResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*TasksCancelResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["id"] = params.ID
-	}
-	raw, err := a.client.Request("session.tasks.cancel", req)
-	if err != nil {
-		return nil, err
-	}
-	var result TasksCancelResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*TasksRemoveResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["id"] = params.ID
-	}
-	raw, err := a.client.Request("session.tasks.remove", req)
-	if err != nil {
-		return nil, err
-	}
-	var result TasksRemoveResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: SkillsApi contains experimental APIs that may change or be removed.
-type SkillsApi sessionApi
-
-func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.skills.list", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SkillList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*SkillsEnableResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["name"] = params.Name
-	}
-	raw, err := a.client.Request("session.skills.enable", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SkillsEnableResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (*SkillsDisableResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["name"] = params.Name
-	}
-	raw, err := a.client.Request("session.skills.disable", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SkillsDisableResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *SkillsApi) Reload(ctx context.Context) (*SkillsReloadResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.skills.reload", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SkillsReloadResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: McpApi contains experimental APIs that may change or be removed.
-type McpApi sessionApi
-
-func (a *McpApi) List(ctx context.Context) (*McpServerList, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.mcp.list", req)
-	if err != nil {
-		return nil, err
-	}
-	var result McpServerList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*McpEnableResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request("session.mcp.enable", req)
-	if err != nil {
-		return nil, err
-	}
-	var result McpEnableResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*McpDisableResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request("session.mcp.disable", req)
-	if err != nil {
-		return nil, err
-	}
-	var result McpDisableResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *McpApi) Reload(ctx context.Context) (*McpReloadResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.mcp.reload", req)
-	if err != nil {
-		return nil, err
-	}
-	var result McpReloadResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: McpOauthApi contains experimental APIs that may change or be removed.
-type McpOauthApi sessionApi
-
-func (a *McpOauthApi) Login(ctx context.Context, params *McpOauthLoginRequest) (*McpOauthLoginResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["serverName"] = params.ServerName
-		if params.ForceReauth != nil {
-			req["forceReauth"] = *params.ForceReauth
-		}
-		if params.ClientName != nil {
-			req["clientName"] = *params.ClientName
-		}
-		if params.CallbackSuccessMessage != nil {
-			req["callbackSuccessMessage"] = *params.CallbackSuccessMessage
-		}
-	}
-	raw, err := a.client.Request("session.mcp.oauth.login", req)
-	if err != nil {
-		return nil, err
-	}
-	var result McpOauthLoginResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: Oauth returns experimental APIs that may change or be removed.
-func (s *McpApi) Oauth() *McpOauthApi {
-	return (*McpOauthApi)(s)
-}
-
 // Experimental: PluginsApi contains experimental APIs that may change or be removed.
 type PluginsApi sessionApi
 
@@ -3410,190 +3362,29 @@ func (a *PluginsApi) List(ctx context.Context) (*PluginList, error) {
 	return &result, nil
 }
 
-// Experimental: ExtensionsApi contains experimental APIs that may change or be removed.
-type ExtensionsApi sessionApi
+// Experimental: RemoteApi contains experimental APIs that may change or be removed.
+type RemoteApi sessionApi
 
-func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
+func (a *RemoteApi) Disable(ctx context.Context) (*RemoteDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.extensions.list", req)
+	raw, err := a.client.Request("session.remote.disable", req)
 	if err != nil {
 		return nil, err
 	}
-	var result ExtensionList
+	var result RemoteDisableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequest) (*ExtensionsEnableResult, error) {
+func (a *RemoteApi) Enable(ctx context.Context) (*RemoteEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["id"] = params.ID
-	}
-	raw, err := a.client.Request("session.extensions.enable", req)
+	raw, err := a.client.Request("session.remote.enable", req)
 	if err != nil {
 		return nil, err
 	}
-	var result ExtensionsEnableResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRequest) (*ExtensionsDisableResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["id"] = params.ID
-	}
-	raw, err := a.client.Request("session.extensions.disable", req)
-	if err != nil {
-		return nil, err
-	}
-	var result ExtensionsDisableResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *ExtensionsApi) Reload(ctx context.Context) (*ExtensionsReloadResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.extensions.reload", req)
-	if err != nil {
-		return nil, err
-	}
-	var result ExtensionsReloadResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-type ToolsApi sessionApi
-
-func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePendingToolCallRequest) (*HandlePendingToolCallResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["requestId"] = params.RequestID
-		if params.Result != nil {
-			req["result"] = *params.Result
-		}
-		if params.Error != nil {
-			req["error"] = *params.Error
-		}
-	}
-	raw, err := a.client.Request("session.tools.handlePendingToolCall", req)
-	if err != nil {
-		return nil, err
-	}
-	var result HandlePendingToolCallResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-type CommandsApi sessionApi
-
-func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *CommandsHandlePendingCommandRequest) (*CommandsHandlePendingCommandResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["requestId"] = params.RequestID
-		if params.Error != nil {
-			req["error"] = *params.Error
-		}
-	}
-	raw, err := a.client.Request("session.commands.handlePendingCommand", req)
-	if err != nil {
-		return nil, err
-	}
-	var result CommandsHandlePendingCommandResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-type UIApi sessionApi
-
-func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (*UIElicitationResponse, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["message"] = params.Message
-		req["requestedSchema"] = params.RequestedSchema
-	}
-	raw, err := a.client.Request("session.ui.elicitation", req)
-	if err != nil {
-		return nil, err
-	}
-	var result UIElicitationResponse
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["requestId"] = params.RequestID
-		req["result"] = params.Result
-	}
-	raw, err := a.client.Request("session.ui.handlePendingElicitation", req)
-	if err != nil {
-		return nil, err
-	}
-	var result UIElicitationResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-type PermissionsApi sessionApi
-
-func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, params *PermissionDecisionRequest) (*PermissionRequestResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["requestId"] = params.RequestID
-		req["result"] = params.Result
-	}
-	raw, err := a.client.Request("session.permissions.handlePendingPermissionRequest", req)
-	if err != nil {
-		return nil, err
-	}
-	var result PermissionRequestResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsSetApproveAllRequest) (*PermissionsSetApproveAllResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["enabled"] = params.Enabled
-	}
-	raw, err := a.client.Request("session.permissions.setApproveAll", req)
-	if err != nil {
-		return nil, err
-	}
-	var result PermissionsSetApproveAllResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*PermissionsResetSessionApprovalsResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.permissions.resetSessionApprovals", req)
-	if err != nil {
-		return nil, err
-	}
-	var result PermissionsResetSessionApprovalsResult
+	var result RemoteEnableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -3643,32 +3434,209 @@ func (a *ShellApi) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKi
 	return &result, nil
 }
 
-// Experimental: HistoryApi contains experimental APIs that may change or be removed.
-type HistoryApi sessionApi
+// Experimental: SkillsApi contains experimental APIs that may change or be removed.
+type SkillsApi sessionApi
 
-func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error) {
+func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (*SkillsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.history.compact", req)
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request("session.skills.disable", req)
 	if err != nil {
 		return nil, err
 	}
-	var result HistoryCompactResult
+	var result SkillsDisableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateRequest) (*HistoryTruncateResult, error) {
+func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*SkillsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
-		req["eventId"] = params.EventID
+		req["name"] = params.Name
 	}
-	raw, err := a.client.Request("session.history.truncate", req)
+	raw, err := a.client.Request("session.skills.enable", req)
 	if err != nil {
 		return nil, err
 	}
-	var result HistoryTruncateResult
+	var result SkillsEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.skills.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SkillList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *SkillsApi) Reload(ctx context.Context) (*SkillsReloadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.skills.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SkillsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: TasksApi contains experimental APIs that may change or be removed.
+type TasksApi sessionApi
+
+func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*TasksCancelResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.tasks.cancel", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.tasks.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TaskList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromoteToBackgroundRequest) (*TasksPromoteToBackgroundResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.tasks.promoteToBackground", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksPromoteToBackgroundResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*TasksRemoveResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.tasks.remove", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksRemoveResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentRequest) (*TasksStartAgentResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["agentType"] = params.AgentType
+		if params.Description != nil {
+			req["description"] = *params.Description
+		}
+		if params.Model != nil {
+			req["model"] = *params.Model
+		}
+		req["name"] = params.Name
+		req["prompt"] = params.Prompt
+	}
+	raw, err := a.client.Request("session.tasks.startAgent", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksStartAgentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type ToolsApi sessionApi
+
+func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePendingToolCallRequest) (*HandlePendingToolCallResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Error != nil {
+			req["error"] = *params.Error
+		}
+		req["requestId"] = params.RequestID
+		if params.Result != nil {
+			req["result"] = *params.Result
+		}
+	}
+	raw, err := a.client.Request("session.tools.handlePendingToolCall", req)
+	if err != nil {
+		return nil, err
+	}
+	var result HandlePendingToolCallResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type UIApi sessionApi
+
+func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (*UIElicitationResponse, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["message"] = params.Message
+		req["requestedSchema"] = params.RequestedSchema
+	}
+	raw, err := a.client.Request("session.ui.elicitation", req)
+	if err != nil {
+		return nil, err
+	}
+	var result UIElicitationResponse
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request("session.ui.handlePendingElicitation", req)
+	if err != nil {
+		return nil, err
+	}
+	var result UIElicitationResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -3691,29 +3659,61 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 	return &result, nil
 }
 
-// Experimental: RemoteApi contains experimental APIs that may change or be removed.
-type RemoteApi sessionApi
+type WorkspacesApi sessionApi
 
-func (a *RemoteApi) Enable(ctx context.Context) (*RemoteEnableResult, error) {
+func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreateFileRequest) (*WorkspacesCreateFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.remote.enable", req)
+	if params != nil {
+		req["content"] = params.Content
+		req["path"] = params.Path
+	}
+	raw, err := a.client.Request("session.workspaces.createFile", req)
 	if err != nil {
 		return nil, err
 	}
-	var result RemoteEnableResult
+	var result WorkspacesCreateFileResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (a *RemoteApi) Disable(ctx context.Context) (*RemoteDisableResult, error) {
+func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspaceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.remote.disable", req)
+	raw, err := a.client.Request("session.workspaces.getWorkspace", req)
 	if err != nil {
 		return nil, err
 	}
-	var result RemoteDisableResult
+	var result WorkspacesGetWorkspaceResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.workspaces.listFiles", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkspacesListFilesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *WorkspacesApi) ReadFile(ctx context.Context, params *WorkspacesReadFileRequest) (*WorkspacesReadFileResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["path"] = params.Path
+	}
+	raw, err := a.client.Request("session.workspaces.readFile", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkspacesReadFileResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -3725,53 +3725,40 @@ type SessionRpc struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common sessionApi
 
-	Auth         *AuthApi
-	Model        *ModelApi
-	Mode         *ModeApi
-	Name         *NameApi
-	Plan         *PlanApi
-	Workspaces   *WorkspacesApi
-	Instructions *InstructionsApi
-	Fleet        *FleetApi
 	Agent        *AgentApi
-	Tasks        *TasksApi
-	Skills       *SkillsApi
-	Mcp          *McpApi
-	Plugins      *PluginsApi
-	Extensions   *ExtensionsApi
-	Tools        *ToolsApi
+	Auth         *AuthApi
 	Commands     *CommandsApi
-	UI           *UIApi
-	Permissions  *PermissionsApi
-	Shell        *ShellApi
+	Extensions   *ExtensionsApi
+	Fleet        *FleetApi
 	History      *HistoryApi
-	Usage        *UsageApi
+	Instructions *InstructionsApi
+	Mcp          *McpApi
+	Mode         *ModeApi
+	Model        *ModelApi
+	Name         *NameApi
+	Permissions  *PermissionsApi
+	Plan         *PlanApi
+	Plugins      *PluginsApi
 	Remote       *RemoteApi
-}
-
-func (a *SessionRpc) Suspend(ctx context.Context) (*SuspendResult, error) {
-	req := map[string]any{"sessionId": a.common.sessionID}
-	raw, err := a.common.client.Request("session.suspend", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SuspendResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
+	Shell        *ShellApi
+	Skills       *SkillsApi
+	Tasks        *TasksApi
+	Tools        *ToolsApi
+	UI           *UIApi
+	Usage        *UsageApi
+	Workspaces   *WorkspacesApi
 }
 
 func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
-		req["message"] = params.Message
-		if params.Level != nil {
-			req["level"] = *params.Level
-		}
 		if params.Ephemeral != nil {
 			req["ephemeral"] = *params.Ephemeral
 		}
+		if params.Level != nil {
+			req["level"] = *params.Level
+		}
+		req["message"] = params.Message
 		if params.URL != nil {
 			req["url"] = *params.URL
 		}
@@ -3787,45 +3774,58 @@ func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, e
 	return &result, nil
 }
 
+func (a *SessionRpc) Suspend(ctx context.Context) (*SuspendResult, error) {
+	req := map[string]any{"sessionId": a.common.sessionID}
+	raw, err := a.common.client.Request("session.suspend", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SuspendResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r := &SessionRpc{}
 	r.common = sessionApi{client: client, sessionID: sessionID}
-	r.Auth = (*AuthApi)(&r.common)
-	r.Model = (*ModelApi)(&r.common)
-	r.Mode = (*ModeApi)(&r.common)
-	r.Name = (*NameApi)(&r.common)
-	r.Plan = (*PlanApi)(&r.common)
-	r.Workspaces = (*WorkspacesApi)(&r.common)
-	r.Instructions = (*InstructionsApi)(&r.common)
-	r.Fleet = (*FleetApi)(&r.common)
 	r.Agent = (*AgentApi)(&r.common)
-	r.Tasks = (*TasksApi)(&r.common)
-	r.Skills = (*SkillsApi)(&r.common)
-	r.Mcp = (*McpApi)(&r.common)
-	r.Plugins = (*PluginsApi)(&r.common)
-	r.Extensions = (*ExtensionsApi)(&r.common)
-	r.Tools = (*ToolsApi)(&r.common)
+	r.Auth = (*AuthApi)(&r.common)
 	r.Commands = (*CommandsApi)(&r.common)
-	r.UI = (*UIApi)(&r.common)
-	r.Permissions = (*PermissionsApi)(&r.common)
-	r.Shell = (*ShellApi)(&r.common)
+	r.Extensions = (*ExtensionsApi)(&r.common)
+	r.Fleet = (*FleetApi)(&r.common)
 	r.History = (*HistoryApi)(&r.common)
-	r.Usage = (*UsageApi)(&r.common)
+	r.Instructions = (*InstructionsApi)(&r.common)
+	r.Mcp = (*McpApi)(&r.common)
+	r.Mode = (*ModeApi)(&r.common)
+	r.Model = (*ModelApi)(&r.common)
+	r.Name = (*NameApi)(&r.common)
+	r.Permissions = (*PermissionsApi)(&r.common)
+	r.Plan = (*PlanApi)(&r.common)
+	r.Plugins = (*PluginsApi)(&r.common)
 	r.Remote = (*RemoteApi)(&r.common)
+	r.Shell = (*ShellApi)(&r.common)
+	r.Skills = (*SkillsApi)(&r.common)
+	r.Tasks = (*TasksApi)(&r.common)
+	r.Tools = (*ToolsApi)(&r.common)
+	r.UI = (*UIApi)(&r.common)
+	r.Usage = (*UsageApi)(&r.common)
+	r.Workspaces = (*WorkspacesApi)(&r.common)
 	return r
 }
 
 type SessionFsHandler interface {
-	ReadFile(request *SessionFsReadFileRequest) (*SessionFsReadFileResult, error)
-	WriteFile(request *SessionFsWriteFileRequest) (*SessionFsError, error)
 	AppendFile(request *SessionFsAppendFileRequest) (*SessionFsError, error)
 	Exists(request *SessionFsExistsRequest) (*SessionFsExistsResult, error)
-	Stat(request *SessionFsStatRequest) (*SessionFsStatResult, error)
 	Mkdir(request *SessionFsMkdirRequest) (*SessionFsError, error)
 	Readdir(request *SessionFsReaddirRequest) (*SessionFsReaddirResult, error)
 	ReaddirWithTypes(request *SessionFsReaddirWithTypesRequest) (*SessionFsReaddirWithTypesResult, error)
-	Rm(request *SessionFsRmRequest) (*SessionFsError, error)
+	ReadFile(request *SessionFsReadFileRequest) (*SessionFsReadFileResult, error)
 	Rename(request *SessionFsRenameRequest) (*SessionFsError, error)
+	Rm(request *SessionFsRmRequest) (*SessionFsError, error)
+	Stat(request *SessionFsStatRequest) (*SessionFsStatResult, error)
+	WriteFile(request *SessionFsWriteFileRequest) (*SessionFsError, error)
 }
 
 // ClientSessionApiHandlers provides all client session API handler groups for a session.
@@ -3847,44 +3847,6 @@ func clientSessionHandlerError(err error) *jsonrpc2.Error {
 // RegisterClientSessionApiHandlers registers handlers for server-to-client session API
 // calls.
 func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionApiHandlers) {
-	client.SetRequestHandler("sessionFs.readFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsReadFileRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
-		}
-		result, err := handlers.SessionFs.ReadFile(&request)
-		if err != nil {
-			return nil, clientSessionHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
-	client.SetRequestHandler("sessionFs.writeFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsWriteFileRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
-		}
-		result, err := handlers.SessionFs.WriteFile(&request)
-		if err != nil {
-			return nil, clientSessionHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
 	client.SetRequestHandler("sessionFs.appendFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request SessionFsAppendFileRequest
 		if err := json.Unmarshal(params, &request); err != nil {
@@ -3914,25 +3876,6 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.SessionFs.Exists(&request)
-		if err != nil {
-			return nil, clientSessionHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
-	client.SetRequestHandler("sessionFs.stat", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsStatRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		handlers := getHandlers(request.SessionID)
-		if handlers == nil || handlers.SessionFs == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
-		}
-		result, err := handlers.SessionFs.Stat(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -3999,8 +3942,8 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		}
 		return raw, nil
 	})
-	client.SetRequestHandler("sessionFs.rm", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsRmRequest
+	client.SetRequestHandler("sessionFs.readFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFsReadFileRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
@@ -4008,7 +3951,7 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		if handlers == nil || handlers.SessionFs == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.Rm(&request)
+		result, err := handlers.SessionFs.ReadFile(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -4028,6 +3971,63 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.SessionFs.Rename(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.rm", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFsRmRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.Rm(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.stat", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFsStatRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.Stat(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.writeFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFsWriteFileRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.WriteFile(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
