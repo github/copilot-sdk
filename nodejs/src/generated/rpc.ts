@@ -2520,7 +2520,6 @@ export interface WorkspacesGetWorkspaceResult {
     branch?: string;
     name?: string;
     user_named?: boolean;
-    summary?: string;
     summary_count?: number;
     created_at?: string;
     updated_at?: string;

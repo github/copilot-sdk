@@ -846,10 +846,6 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("repository")]
     public string? Repository { get; set; }
 
-    /// <summary>Gets or sets the <c>summary</c> value.</summary>
-    [JsonPropertyName("summary")]
-    public string? Summary { get; set; }
-
     /// <summary>Gets or sets the <c>summary_count</c> value.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("summary_count")]

@@ -4372,7 +4372,6 @@ class Workspace:
     name: str | None = None
     remote_steerable: bool | None = None
     repository: str | None = None
-    summary: str | None = None
     summary_count: int | None = None
     updated_at: datetime | None = None
     user_named: bool | None = None
@@ -4393,11 +4392,10 @@ class Workspace:
         name = from_union([from_str, from_none], obj.get("name"))
         remote_steerable = from_union([from_bool, from_none], obj.get("remote_steerable"))
         repository = from_union([from_str, from_none], obj.get("repository"))
-        summary = from_union([from_str, from_none], obj.get("summary"))
         summary_count = from_union([from_int, from_none], obj.get("summary_count"))
         updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
         user_named = from_union([from_bool, from_none], obj.get("user_named"))
-        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, summary, summary_count, updated_at, user_named)
+        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, summary_count, updated_at, user_named)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -4426,8 +4424,6 @@ class Workspace:
             result["remote_steerable"] = from_union([from_bool, from_none], self.remote_steerable)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
-        if self.summary is not None:
-            result["summary"] = from_union([from_str, from_none], self.summary)
         if self.summary_count is not None:
             result["summary_count"] = from_union([from_int, from_none], self.summary_count)
         if self.updated_at is not None:

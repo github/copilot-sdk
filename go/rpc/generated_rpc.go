@@ -2091,7 +2091,6 @@ type WorkspaceClass struct {
 	Name                   *string    `json:"name,omitempty"`
 	RemoteSteerable        *bool      `json:"remote_steerable,omitempty"`
 	Repository             *string    `json:"repository,omitempty"`
-	Summary                *string    `json:"summary,omitempty"`
 	SummaryCount           *int64     `json:"summary_count,omitempty"`
 	UpdatedAt              *time.Time `json:"updated_at,omitempty"`
 	UserNamed              *bool      `json:"user_named,omitempty"`

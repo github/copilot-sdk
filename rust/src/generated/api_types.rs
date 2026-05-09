@@ -2209,8 +2209,6 @@ pub struct WorkspacesGetWorkspaceResultWorkspace {
     pub remote_steerable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
     #[serde(rename = "summary_count", skip_serializing_if = "Option::is_none")]
     pub summary_count: Option<i64>,
     #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
@@ -2418,8 +2416,6 @@ pub struct SessionWorkspacesGetWorkspaceResultWorkspace {
     pub remote_steerable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
     #[serde(rename = "summary_count", skip_serializing_if = "Option::is_none")]
     pub summary_count: Option<i64>,
     #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
