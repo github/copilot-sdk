@@ -160,21 +160,6 @@ async fn should_report_implemented_error_for_invalid_task_agent_model() {
 }
 
 #[tokio::test]
-async fn should_start_background_agent_and_report_task_details() {
-    let request = TasksStartAgentRequest {
-        agent_type: "general-purpose".to_string(),
-        prompt: "Say hi".to_string(),
-        name: "sdk-test-task".to_string(),
-        description: Some("SDK task agent".to_string()),
-        model: None,
-    };
-
-    assert_eq!(request.agent_type, "general-purpose");
-    assert_eq!(request.name, "sdk-test-task");
-    assert_eq!(request.description.as_deref(), Some("SDK task agent"));
-}
-
-#[tokio::test]
 async fn should_return_expected_results_for_missing_pending_handler_requestids() {
     with_e2e_context(
         "rpc_tasks_and_handlers",

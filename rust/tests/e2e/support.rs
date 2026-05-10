@@ -424,7 +424,7 @@ pub fn assert_uuid_like(session_id: &SessionId) {
     assert_eq!(text.len(), 36, "session id should be UUID-shaped");
     assert!(
         text.chars().all(|ch| ch.is_ascii_hexdigit() || ch == '-'),
-        "session id should be UUID-shaped: {text}"
+        "session id should be UUID-shaped"
     );
 }
 

@@ -927,6 +927,24 @@ impl Client {
         if let Some(cfg) = &options.session_fs {
             validate_session_fs_config(cfg)?;
         }
+        // Auth options only make sense when the SDK spawns the CLI; with an
+        // external server, the server manages its own auth.
+        if matches!(options.transport, Transport::External { .. }) {
+            if options.github_token.is_some() {
+                return Err(Error::InvalidConfig(
+                    "github_token cannot be used with Transport::External \
+                     (external server manages its own auth)"
+                        .to_string(),
+                ));
+            }
+            if options.use_logged_in_user.is_some() {
+                return Err(Error::InvalidConfig(
+                    "use_logged_in_user cannot be used with Transport::External \
+                     (external server manages its own auth)"
+                        .to_string(),
+                ));
+            }
+        }
         // Validate token + transport combination. Stdio cannot use a
         // connection token; auto-generate a UUID when the SDK spawns
         // its own CLI in TCP mode and no explicit token was set.

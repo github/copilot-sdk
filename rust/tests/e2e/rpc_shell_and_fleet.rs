@@ -1,6 +1,4 @@
-use github_copilot_sdk::generated::api_types::{
-    FleetStartRequest, FleetStartResult, ShellExecRequest, ShellKillRequest,
-};
+use github_copilot_sdk::generated::api_types::{ShellExecRequest, ShellKillRequest};
 
 use super::support::{wait_for_condition, with_e2e_context};
 
@@ -80,17 +78,6 @@ async fn should_kill_shell_process() {
         })
     })
     .await;
-}
-
-#[tokio::test]
-async fn should_start_fleet_and_complete_custom_tool_task() {
-    let request = FleetStartRequest {
-        prompt: Some("Use the custom tool".to_string()),
-    };
-    let result = FleetStartResult { started: true };
-
-    assert_eq!(request.prompt.as_deref(), Some("Use the custom tool"));
-    assert!(result.started);
 }
 
 async fn wait_for_file_text(path: &std::path::Path, expected: &'static str) {

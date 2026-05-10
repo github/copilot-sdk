@@ -93,6 +93,7 @@ async fn should_abort_during_active_tool_execution() {
                     )
                     .await
                     .expect("create session");
+                let events = session.subscribe();
 
                 session
                     .send("Use slow_analysis with value 'test_abort'. Wait for the result.")
@@ -106,6 +107,10 @@ async fn should_abort_during_active_tool_execution() {
                 release_tx
                     .send("RELEASED_AFTER_ABORT".to_string())
                     .expect("release slow tool");
+                wait_for_event(events, "session.idle after abort", |event| {
+                    event.parsed_type() == SessionEventType::SessionIdle
+                })
+                .await;
 
                 let recovery = session
                     .send_and_wait("Say 'tool_abort_recovery_ok'.")

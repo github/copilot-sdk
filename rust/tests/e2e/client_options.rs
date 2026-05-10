@@ -1,7 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 
 use github_copilot_sdk::{
-    Client, ClientOptions, LogLevel, MessageOptions, OtelExporterType, SessionConfig,
+    Client, ClientOptions, Error, LogLevel, MessageOptions, OtelExporterType, SessionConfig,
     TelemetryConfig, Transport,
 };
 use serde_json::json;
@@ -242,8 +242,18 @@ async fn should_throw_when_githubtoken_used_with_cliurl() {
         })
         .with_github_token("token");
 
-    assert!(matches!(options.transport, Transport::External { .. }));
-    assert_eq!(options.github_token.as_deref(), Some("token"));
+    let err = Client::start(options).await.unwrap_err();
+    assert!(
+        matches!(err, Error::InvalidConfig(_)),
+        "expected InvalidConfig, got {err:?}"
+    );
+    let Error::InvalidConfig(msg) = err else {
+        unreachable!()
+    };
+    assert!(
+        msg.contains("github_token"),
+        "error message should mention github_token, got: {msg}"
+    );
 }
 
 #[tokio::test]
@@ -255,8 +265,18 @@ async fn should_throw_when_useloggedinuser_used_with_cliurl() {
         })
         .with_use_logged_in_user(true);
 
-    assert!(matches!(options.transport, Transport::External { .. }));
-    assert_eq!(options.use_logged_in_user, Some(true));
+    let err = Client::start(options).await.unwrap_err();
+    assert!(
+        matches!(err, Error::InvalidConfig(_)),
+        "expected InvalidConfig, got {err:?}"
+    );
+    let Error::InvalidConfig(msg) = err else {
+        unreachable!()
+    };
+    assert!(
+        msg.contains("use_logged_in_user"),
+        "error message should mention use_logged_in_user, got: {msg}"
+    );
 }
 
 fn get_available_tcp_port() -> u16 {

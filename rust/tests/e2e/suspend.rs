@@ -86,19 +86,3 @@ async fn should_allow_resume_and_continue_conversation_after_suspend() {
     )
     .await;
 }
-
-#[tokio::test]
-async fn should_cancel_pending_permission_request_when_suspending() {
-    let config =
-        ResumeSessionConfig::new("suspend-permission".into()).with_continue_pending_work(false);
-
-    assert_eq!(config.continue_pending_work, Some(false));
-}
-
-#[tokio::test]
-async fn should_reject_pending_external_tool_when_suspending() {
-    let config =
-        ResumeSessionConfig::new("suspend-external-tool".into()).with_continue_pending_work(false);
-
-    assert_eq!(config.continue_pending_work, Some(false));
-}

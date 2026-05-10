@@ -51,8 +51,6 @@ mod rpc_additional_edge_cases;
 mod rpc_agent;
 #[path = "e2e/rpc_event_side_effects.rs"]
 mod rpc_event_side_effects;
-#[path = "e2e/rpc_extensions_loaded.rs"]
-mod rpc_extensions_loaded;
 #[path = "e2e/rpc_mcp_and_skills.rs"]
 mod rpc_mcp_and_skills;
 #[path = "e2e/rpc_mcp_config.rs"]

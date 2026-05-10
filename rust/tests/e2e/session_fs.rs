@@ -38,7 +38,7 @@ async fn should_route_file_operations_through_the_session_fs_provider() {
                 assert!(assistant_message_content(&answer).contains("300"));
                 let events_path = provider_root
                     .join(session.id().as_ref())
-                    .join("session-state")
+                    .join(provider_relative_path(&session_state_path()))
                     .join("events.jsonl");
                 wait_for_file_containing(&events_path, "300").await;
                 let content = std::fs::read_to_string(events_path).expect("read events");
@@ -214,7 +214,7 @@ async fn should_reject_setprovider_when_sessions_already_exist() {
     let config = session_fs_config();
 
     assert_eq!(config.initial_cwd, "/");
-    assert_eq!(config.session_state_path, "/session-state");
+    assert_eq!(config.session_state_path, session_state_path());
 }
 
 #[tokio::test]
@@ -277,7 +277,7 @@ async fn should_persist_plan_md_via_sessionfs() {
                     .expect("update plan");
                 let plan_path = provider_root
                     .join(session.id().as_ref())
-                    .join("session-state")
+                    .join(provider_relative_path(&session_state_path()))
                     .join("plan.md");
                 wait_for_file_containing(&plan_path, "This is a test.").await;
                 assert!(
@@ -383,7 +383,7 @@ async fn should_write_workspace_metadata_via_sessionfs() {
                 assert!(assistant_message_content(&answer).contains("56"));
                 let workspace_path = provider_root
                     .join(session.id().as_ref())
-                    .join("session-state")
+                    .join(provider_relative_path(&session_state_path()))
                     .join("workspace.yaml");
                 wait_for_file_containing(&workspace_path, session.id().as_ref()).await;
 
@@ -413,7 +413,23 @@ fn session_config(
 }
 
 fn session_fs_config() -> SessionFsConfig {
-    SessionFsConfig::new("/", "/session-state", SessionFsConventions::Posix)
+    SessionFsConfig::new("/", session_state_path(), SessionFsConventions::Posix)
+}
+
+fn session_state_path() -> String {
+    if cfg!(windows) {
+        "/session-state".to_string()
+    } else {
+        std::env::temp_dir()
+            .join("copilot-rust-sessionfs-state")
+            .join("session-state")
+            .to_string_lossy()
+            .replace('\\', "/")
+    }
+}
+
+fn provider_relative_path(path: &str) -> PathBuf {
+    PathBuf::from(path.trim_start_matches(['/', '\\']))
 }
 
 async fn wait_for_file_containing(path: &Path, needle: &str) {
