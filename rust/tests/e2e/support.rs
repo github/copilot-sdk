@@ -32,10 +32,18 @@ where
     let mut ctx = E2eContext::new(category, snapshot_name)
         .await
         .unwrap_or_else(|err| panic!("create E2E context: {err}"));
-    test(&mut ctx).await;
-    ctx.cleanup(false)
+
+    let timed_out = tokio::time::timeout(default_test_timeout(), test(&mut ctx))
+        .await
+        .is_err();
+    ctx.cleanup(timed_out)
         .await
         .unwrap_or_else(|err| panic!("clean up E2E context: {err}"));
+    assert!(
+        !timed_out,
+        "timed out after {:?} running E2E test {category}/{snapshot_name}",
+        default_test_timeout()
+    );
 }
 
 pub struct E2eContext {
@@ -433,6 +441,14 @@ fn default_event_timeout() -> Duration {
         Duration::from_secs(120)
     } else {
         Duration::from_secs(60)
+    }
+}
+
+fn default_test_timeout() -> Duration {
+    if cfg!(windows) {
+        Duration::from_secs(300)
+    } else {
+        Duration::from_secs(180)
     }
 }
 
