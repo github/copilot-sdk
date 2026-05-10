@@ -3,11 +3,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::task::JoinHandle;
 use tracing::{Instrument, debug, error, warn};
 
 use crate::{Error, ProtocolError};
@@ -184,6 +185,8 @@ pub struct JsonRpcClient {
     pending_requests: Arc<RwLock<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+    read_task: Mutex<Option<JoinHandle<()>>>,
+    write_task: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl JsonRpcClient {
@@ -202,7 +205,7 @@ impl JsonRpcClient {
         let (write_tx, write_rx) = mpsc::unbounded_channel::<WriteCommand>();
 
         let writer_span = tracing::error_span!("jsonrpc_write_loop");
-        tokio::spawn(Self::write_loop(writer, write_rx).instrument(writer_span));
+        let write_task = tokio::spawn(Self::write_loop(writer, write_rx).instrument(writer_span));
 
         let client = Self {
             request_id: AtomicU64::new(1),
@@ -210,6 +213,8 @@ impl JsonRpcClient {
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
             notification_tx,
             request_tx,
+            read_task: Mutex::new(None),
+            write_task: Mutex::new(Some(write_task)),
         };
 
         let pending_requests = client.pending_requests.clone();
@@ -217,7 +222,7 @@ impl JsonRpcClient {
         let request_tx_clone = client.request_tx.clone();
         let reader_span = tracing::error_span!("jsonrpc_read_loop");
 
-        tokio::spawn(
+        let read_task = tokio::spawn(
             async move {
                 Self::read_loop(
                     reader,
@@ -229,8 +234,19 @@ impl JsonRpcClient {
             }
             .instrument(reader_span),
         );
+        *client.read_task.lock() = Some(read_task);
 
         client
+    }
+
+    pub(crate) fn force_close(&self) {
+        if let Some(task) = self.read_task.lock().take() {
+            task.abort();
+        }
+        if let Some(task) = self.write_task.lock().take() {
+            task.abort();
+        }
+        self.pending_requests.write().clear();
     }
 
     /// Writer-actor task. Owns the `AsyncWrite`, drains the command queue,

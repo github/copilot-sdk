@@ -1544,6 +1544,9 @@ pub struct ResumeSessionConfig {
     /// Application name sent as User-Agent context.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
+    /// Desired reasoning effort to apply after resuming the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// Enable streaming token deltas.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
@@ -1679,6 +1682,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
             .field("client_name", &self.client_name)
+            .field("reasoning_effort", &self.reasoning_effort)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
@@ -1738,6 +1742,7 @@ impl ResumeSessionConfig {
         Self {
             session_id,
             client_name: None,
+            reasoning_effort: None,
             streaming: None,
             system_message: None,
             tools: None,
@@ -1851,6 +1856,12 @@ impl ResumeSessionConfig {
     /// Set the application name sent as `User-Agent` context.
     pub fn with_client_name(mut self, name: impl Into<String>) -> Self {
         self.client_name = Some(name.into());
+        self
+    }
+
+    /// Set the reasoning effort to apply on resume.
+    pub fn with_reasoning_effort(mut self, effort: impl Into<String>) -> Self {
+        self.reasoning_effort = Some(effort.into());
         self
     }
 
