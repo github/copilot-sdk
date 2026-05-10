@@ -1186,9 +1186,10 @@ async fn should_send_with_selection_attachment() {
     with_e2e_context("session", "should_send_with_selection_attachment", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
-            let file_path = ctx.work_dir().join("selected-file.cs");
+            let file_path = std::path::PathBuf::from("selected-file.cs");
+            let absolute_file_path = ctx.work_dir().join(&file_path);
             std::fs::write(
-                &file_path,
+                &absolute_file_path,
                 "class C { string Value = \"SELECTION_SENTINEL\"; }",
             )
             .expect("write selection file");
