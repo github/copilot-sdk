@@ -216,20 +216,34 @@ class TestRpcSessionState:
         finally:
             await session.disconnect()
 
-    async def test_should_report_error_when_forking_session_without_persisted_events(
+    async def test_should_handle_forking_session_without_persisted_events(
         self, ctx: E2ETestContext
     ):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )
         try:
-            with pytest.raises(Exception) as excinfo:
-                await ctx.client.rpc.sessions.fork(
+            try:
+                fork = await ctx.client.rpc.sessions.fork(
                     SessionsForkRequest(session_id=session.session_id)
                 )
-            text = str(excinfo.value).lower()
-            assert "not found or has no persisted events" in text
-            assert "unhandled method sessions.fork" not in text
+            except Exception as exc:
+                text = str(exc).lower()
+                assert "not found or has no persisted events" in text
+                assert "unhandled method sessions.fork" not in text
+                return
+
+            assert fork.session_id.strip()
+            assert fork.session_id != session.session_id
+
+            forked_session = await ctx.client.resume_session(
+                fork.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            try:
+                assert _conversation_messages(await forked_session.get_messages()) == []
+            finally:
+                await forked_session.disconnect()
         finally:
             await session.disconnect()
 

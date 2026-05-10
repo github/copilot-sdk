@@ -297,23 +297,50 @@ func TestRpcSessionStateE2E(t *testing.T) {
 		forkedSession.Disconnect()
 	})
 
-	t.Run("should report error when forking session without persisted events", func(t *testing.T) {
+	t.Run("should handle forking session without persisted events", func(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		defer session.Disconnect()
 
-		_, err = client.RPC.Sessions.Fork(t.Context(), &rpc.SessionsForkRequest{SessionID: session.SessionID})
-		if err == nil {
-			t.Fatal("Expected fork on empty session to fail")
+		fork, err := client.RPC.Sessions.Fork(t.Context(), &rpc.SessionsForkRequest{SessionID: session.SessionID})
+		if err != nil {
+			errText := strings.ToLower(err.Error())
+			if !strings.Contains(errText, "not found or has no persisted events") {
+				t.Errorf("Expected error mentioning 'not found or has no persisted events', got %v", err)
+			}
+			if strings.Contains(errText, "unhandled method sessions.fork") {
+				t.Errorf("sessions.fork should be implemented; error suggests it isn't: %v", err)
+			}
+			return
 		}
-		if !strings.Contains(strings.ToLower(err.Error()), "not found or has no persisted events") {
-			t.Errorf("Expected error mentioning 'not found or has no persisted events', got %v", err)
+		if fork == nil {
+			t.Fatal("Expected non-nil fork result")
 		}
-		if strings.Contains(strings.ToLower(err.Error()), "unhandled method sessions.fork") {
-			t.Errorf("sessions.fork should be implemented; error suggests it isn't: %v", err)
+		if strings.TrimSpace(fork.SessionID) == "" {
+			t.Fatal("Expected non-empty fork session id")
+		}
+		if fork.SessionID == session.SessionID {
+			t.Errorf("Expected fork session id to differ from source %q", session.SessionID)
+		}
+
+		forkedSession, err := client.ResumeSession(t.Context(), fork.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to resume forked session: %v", err)
+		}
+		defer forkedSession.Disconnect()
+
+		forkedMessages, err := forkedSession.GetMessages(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to read forked messages: %v", err)
+		}
+		if forkedConversation := conversationMessages(forkedMessages); len(forkedConversation) != 0 {
+			t.Errorf("Expected empty forked conversation, got %v", forkedConversation)
 		}
 	})
 
