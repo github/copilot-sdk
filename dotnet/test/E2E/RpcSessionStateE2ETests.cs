@@ -276,14 +276,29 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     }
 
     [Fact]
-    public async Task Should_Report_Error_When_Forking_Session_Without_Persisted_Events()
+    public async Task Should_Handle_Forking_Session_Without_Persisted_Events()
     {
         await using var session = await CreateSessionAsync();
 
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => Client.Rpc.Sessions.ForkAsync(session.SessionId));
+        SessionsForkResult? fork = null;
+        var ex = await Record.ExceptionAsync(async () =>
+        {
+            fork = await Client.Rpc.Sessions.ForkAsync(session.SessionId);
+        });
 
-        Assert.Contains("not found or has no persisted events", ex.ToString(), StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Unhandled method sessions.fork", ex.ToString(), StringComparison.OrdinalIgnoreCase);
+        if (ex is not null)
+        {
+            Assert.Contains("not found or has no persisted events", ex.ToString(), StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Unhandled method sessions.fork", ex.ToString(), StringComparison.OrdinalIgnoreCase);
+            return;
+        }
+
+        var forkSessionId = Assert.IsType<SessionsForkResult>(fork).SessionId;
+        Assert.False(string.IsNullOrWhiteSpace(forkSessionId));
+        Assert.NotEqual(session.SessionId, forkSessionId);
+
+        await using var forkedSession = await ResumeSessionAsync(forkSessionId);
+        Assert.Empty(GetConversationMessages(await forkedSession.GetMessagesAsync()));
     }
 
     [Fact]

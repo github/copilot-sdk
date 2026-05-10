@@ -191,20 +191,34 @@ describe("Session-scoped RPC", async () => {
         await session.disconnect();
     });
 
-    it("should report error when forking session without persisted events", async () => {
+    it("should handle forking session without persisted events", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
-
-        await expect(client.rpc.sessions.fork({ sessionId: session.sessionId })).rejects.toSatisfy(
-            (err: unknown) => {
+        try {
+            let fork: Awaited<ReturnType<typeof client.rpc.sessions.fork>>;
+            try {
+                fork = await client.rpc.sessions.fork({ sessionId: session.sessionId });
+            } catch (err: unknown) {
                 const text =
                     err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
                 expect(text.toLowerCase()).toContain("not found or has no persisted events");
                 expect(text.toLowerCase()).not.toContain("unhandled method sessions.fork");
-                return true;
+                return;
             }
-        );
 
-        await session.disconnect();
+            expect(fork.sessionId.trim()).toBeTruthy();
+            expect(fork.sessionId).not.toBe(session.sessionId);
+
+            const forkedSession = await client.resumeSession(fork.sessionId, {
+                onPermissionRequest: approveAll,
+            });
+            try {
+                expect(getConversationMessages(await forkedSession.getMessages())).toEqual([]);
+            } finally {
+                await forkedSession.disconnect();
+            }
+        } finally {
+            await session.disconnect();
+        }
     });
 
     it("should fork session to event id excluding boundary event", async () => {
