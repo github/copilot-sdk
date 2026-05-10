@@ -16,9 +16,9 @@ use github_copilot_sdk::{
     SessionLifecycleEvent, Transport,
 };
 use serde_json::json;
-use tokio::sync::Mutex;
+use tokio::sync::Semaphore;
 
-static E2E_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static E2E_CONCURRENCY: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(e2e_concurrency()));
 
 pub const DEFAULT_TEST_TOKEN: &str = "rust-e2e-token";
 
@@ -28,7 +28,10 @@ pub async fn with_e2e_context<F>(category: &str, snapshot_name: &str, test: F)
 where
     F: for<'a> FnOnce(&'a mut E2eContext) -> TestFuture<'a>,
 {
-    let _guard = E2E_LOCK.lock().await;
+    let _permit = E2E_CONCURRENCY
+        .acquire()
+        .await
+        .expect("E2E concurrency semaphore should stay open");
     let mut ctx = E2eContext::new(category, snapshot_name)
         .await
         .unwrap_or_else(|err| panic!("create E2E context: {err}"));
@@ -450,6 +453,14 @@ fn default_test_timeout() -> Duration {
     } else {
         Duration::from_secs(180)
     }
+}
+
+fn e2e_concurrency() -> usize {
+    std::env::var("RUST_E2E_CONCURRENCY")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&value| value > 0)
+        .unwrap_or(4)
 }
 
 pub fn get_system_message(exchange: &serde_json::Value) -> String {

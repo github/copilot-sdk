@@ -237,7 +237,13 @@ async fn disconnecting_client_removes_its_tools() {
                     .expect("ephemeral answer");
                 assert!(assistant_message_content(&ephemeral).contains("EPHEMERAL_test2"));
 
+                let tools_removed = wait_for_event(
+                    session1.subscribe(),
+                    "ephemeral tool removal",
+                    |event| event.parsed_type() == SessionEventType::SessionToolsUpdated,
+                );
                 client2.force_stop();
+                tools_removed.await;
                 let after = session1
                     .send_and_wait(
                         "Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.",

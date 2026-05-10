@@ -96,9 +96,10 @@ jobs:
       - name: cargo test
         timeout-minutes: 90
         env:
+          RUST_E2E_CONCURRENCY: 4
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
-        run: cargo test --features test-support -- --test-threads=1 --nocapture
+        run: cargo test --features test-support -- --nocapture
 
   # Validates the `embedded-cli` build path on all three supported
   # platforms. This is the only place `build.rs` actually runs (the
