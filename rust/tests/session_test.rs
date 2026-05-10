@@ -137,12 +137,11 @@ async fn create_session_pair_with_capabilities(
     capabilities: Value,
 ) -> (github_copilot_sdk::session::Session, FakeServer) {
     let (client, server_read, server_write) = make_client();
-    let session_id = format!("test-session-{}", rand_id());
 
     let mut server = FakeServer {
         read: server_read,
         write: server_write,
-        session_id: session_id.clone(),
+        session_id: String::new(),
     };
 
     let create_handle = tokio::spawn({
@@ -158,8 +157,9 @@ async fn create_session_pair_with_capabilities(
 
     let create_req = server.read_request().await;
     assert_eq!(create_req["method"], "session.create");
+    server.session_id = requested_session_id(&create_req).to_string();
     let mut result = serde_json::json!({
-        "sessionId": session_id,
+        "sessionId": server.session_id.clone(),
         "workspacePath": "/tmp/workspace"
     });
     if !capabilities.is_null() {
@@ -174,6 +174,12 @@ async fn create_session_pair_with_capabilities(
 fn rand_id() -> u64 {
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
     COUNTER.fetch_add(1, Ordering::Relaxed) as u64
+}
+
+fn requested_session_id(request: &Value) -> &str {
+    request["params"]["sessionId"]
+        .as_str()
+        .expect("session request should include sessionId")
 }
 
 #[tokio::test]
@@ -263,15 +269,16 @@ async fn create_session_sends_correct_rpc() {
     assert_eq!(request["params"]["model"], "gpt-4");
 
     let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": { "sessionId": "s1", "workspacePath": "/ws" },
+        "result": { "sessionId": session_id.clone(), "workspacePath": "/ws" },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
-    assert_eq!(session.id(), "s1");
+    assert_eq!(session.id(), session_id.as_str());
     assert_eq!(session.workspace_path(), Some(Path::new("/ws")));
 }
 
@@ -1404,7 +1411,8 @@ async fn router_routes_to_correct_session() {
 
     // Create two sessions on the same client
     let mut sessions = Vec::new();
-    for (tx, sid) in [(tx1, "s-one"), (tx2, "s-two")] {
+    let mut session_ids = Vec::new();
+    for tx in [tx1, tx2] {
         let h = tokio::spawn({
             let client = client.clone();
             async move {
@@ -1418,11 +1426,13 @@ async fn router_routes_to_correct_session() {
         });
         let req = read_framed(&mut server_read).await;
         let id = req["id"].as_u64().unwrap();
+        let session_id = requested_session_id(&req).to_string();
         let resp = serde_json::json!({
             "jsonrpc": "2.0", "id": id,
-            "result": { "sessionId": sid },
+            "result": { "sessionId": session_id.clone() },
         });
         write_framed(&mut server_write, &serde_json::to_vec(&resp).unwrap()).await;
+        session_ids.push(session_id);
         sessions.push(timeout(TIMEOUT, h).await.unwrap().unwrap());
     }
 
@@ -1431,7 +1441,7 @@ async fn router_routes_to_correct_session() {
         "jsonrpc": "2.0",
         "method": "session.event",
         "params": {
-            "sessionId": "s-two",
+            "sessionId": session_ids[1].clone(),
             "event": { "id": "e1", "timestamp": "2025-01-01T00:00:00Z", "type": "assistant.message", "data": {} },
         },
     });
@@ -1447,7 +1457,7 @@ async fn router_routes_to_correct_session() {
         "jsonrpc": "2.0",
         "method": "session.event",
         "params": {
-            "sessionId": "s-one",
+            "sessionId": session_ids[0].clone(),
             "event": { "id": "e2", "timestamp": "2025-01-01T00:00:00Z", "type": "session.idle", "data": {} },
         },
     });
@@ -1982,11 +1992,12 @@ async fn capabilities_captured_from_create_response() {
 
     let request = read_framed(&mut server_read).await;
     let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request);
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
         "result": {
-            "sessionId": "cap-session",
+            "sessionId": session_id,
             "capabilities": {
                 "ui": { "elicitation": true }
             }
@@ -2053,10 +2064,11 @@ async fn request_elicitation_sent_in_create_params() {
     assert_eq!(request["params"]["requestAutoModeSwitch"], true);
 
     let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request);
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": { "sessionId": "s-elicit" },
+        "result": { "sessionId": session_id },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
@@ -2083,18 +2095,20 @@ async fn env_value_mode_hardcoded_direct_on_create_and_resume() {
     assert_eq!(request["params"]["envValueMode"], "direct");
 
     let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": { "sessionId": "s-env-create" },
+        "result": { "sessionId": session_id.clone() },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
 
     let resume_handle = tokio::spawn({
         let client = client.clone();
+        let session_id = session_id.clone();
         async move {
-            let cfg = ResumeSessionConfig::new(SessionId::from("s-env-create"))
+            let cfg = ResumeSessionConfig::new(SessionId::from(session_id))
                 .with_handler(Arc::new(NoopHandler));
             client.resume_session(cfg).await.unwrap()
         }
@@ -2108,7 +2122,7 @@ async fn env_value_mode_hardcoded_direct_on_create_and_resume() {
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": { "sessionId": "s-env-create" },
+        "result": { "sessionId": session_id },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
@@ -2153,12 +2167,11 @@ async fn create_session_pair_with_hooks(
     hooks: Arc<dyn github_copilot_sdk::hooks::SessionHooks>,
 ) -> (github_copilot_sdk::session::Session, FakeServer) {
     let (client, server_read, server_write) = make_client();
-    let session_id = format!("test-session-{}", rand_id());
 
     let mut server = FakeServer {
         read: server_read,
         write: server_write,
-        session_id: session_id.clone(),
+        session_id: String::new(),
     };
 
     let create_handle = tokio::spawn({
@@ -2180,11 +2193,12 @@ async fn create_session_pair_with_hooks(
     assert_eq!(create_req["method"], "session.create");
     // Verify hooks: true is auto-set in the config
     assert_eq!(create_req["params"]["hooks"], true);
+    server.session_id = requested_session_id(&create_req).to_string();
     server
         .respond(
             &create_req,
             serde_json::json!({
-                "sessionId": session_id,
+                "sessionId": server.session_id,
                 "workspacePath": "/tmp/workspace"
             }),
         )
@@ -2286,12 +2300,11 @@ async fn create_session_pair_with_transforms(
     transforms: Arc<dyn github_copilot_sdk::transforms::SystemMessageTransform>,
 ) -> (github_copilot_sdk::session::Session, FakeServer) {
     let (client, server_read, server_write) = make_client();
-    let session_id = format!("test-session-{}", rand_id());
 
     let mut server = FakeServer {
         read: server_read,
         write: server_write,
-        session_id: session_id.clone(),
+        session_id: String::new(),
     };
 
     let create_handle = tokio::spawn({
@@ -2313,11 +2326,12 @@ async fn create_session_pair_with_transforms(
     assert_eq!(create_req["method"], "session.create");
     // Verify transforms inject customize mode and section overrides
     assert_eq!(create_req["params"]["systemMessage"]["mode"], "customize");
+    server.session_id = requested_session_id(&create_req).to_string();
     server
         .respond(
             &create_req,
             serde_json::json!({
-                "sessionId": session_id,
+                "sessionId": server.session_id,
                 "workspacePath": "/tmp/workspace"
             }),
         )
@@ -2473,13 +2487,11 @@ async fn client_stop_sends_session_destroy_for_each_active_session() {
     // One client, two registered sessions. Client::stop must send
     // session.destroy for each before returning Ok.
     let (client, server_read, server_write) = make_client();
-    let session_id_a = format!("test-session-{}", rand_id());
-    let session_id_b = format!("test-session-{}", rand_id());
 
     let mut server = FakeServer {
         read: server_read,
         write: server_write,
-        session_id: session_id_a.clone(),
+        session_id: String::new(),
     };
 
     // Spawn both create_session calls.
@@ -2494,10 +2506,11 @@ async fn client_stop_sends_session_destroy_for_each_active_session() {
     });
     let create_a_req = server.read_request().await;
     assert_eq!(create_a_req["method"], "session.create");
+    let session_id_a = requested_session_id(&create_a_req).to_string();
     server
         .respond(
             &create_a_req,
-            serde_json::json!({ "sessionId": session_id_a, "workspacePath": "/tmp/ws-a" }),
+            serde_json::json!({ "sessionId": session_id_a.clone(), "workspacePath": "/tmp/ws-a" }),
         )
         .await;
     let _session_a = timeout(TIMEOUT, create_a).await.unwrap();
@@ -2513,10 +2526,11 @@ async fn client_stop_sends_session_destroy_for_each_active_session() {
     });
     let create_b_req = server.read_request().await;
     assert_eq!(create_b_req["method"], "session.create");
+    let session_id_b = requested_session_id(&create_b_req).to_string();
     server
         .respond(
             &create_b_req,
-            serde_json::json!({ "sessionId": session_id_b, "workspacePath": "/tmp/ws-b" }),
+            serde_json::json!({ "sessionId": session_id_b.clone(), "workspacePath": "/tmp/ws-b" }),
         )
         .await;
     let _session_b = timeout(TIMEOUT, create_b).await.unwrap();
@@ -2657,12 +2671,11 @@ async fn create_session_pair_with_commands(
     commands: Vec<CommandDefinition>,
 ) -> (github_copilot_sdk::session::Session, FakeServer, Value) {
     let (client, server_read, server_write) = make_client();
-    let session_id = format!("test-session-{}", rand_id());
 
     let mut server = FakeServer {
         read: server_read,
         write: server_write,
-        session_id: session_id.clone(),
+        session_id: String::new(),
     };
 
     let create_handle = tokio::spawn({
@@ -2682,11 +2695,12 @@ async fn create_session_pair_with_commands(
 
     let create_req = server.read_request().await;
     assert_eq!(create_req["method"], "session.create");
+    server.session_id = requested_session_id(&create_req).to_string();
     server
         .respond(
             &create_req,
             serde_json::json!({
-                "sessionId": session_id,
+                "sessionId": server.session_id,
                 "workspacePath": "/tmp/workspace"
             }),
         )
@@ -2954,12 +2968,11 @@ async fn create_session_pair_with_fs_provider(
     provider: Arc<dyn SessionFsProvider>,
 ) -> (github_copilot_sdk::session::Session, FakeServer) {
     let (client, server_read, server_write) = make_client();
-    let session_id = format!("test-session-{}", rand_id());
 
     let mut server = FakeServer {
         read: server_read,
         write: server_write,
-        session_id: session_id.clone(),
+        session_id: String::new(),
     };
 
     let create_handle = tokio::spawn({
@@ -2979,11 +2992,12 @@ async fn create_session_pair_with_fs_provider(
 
     let create_req = server.read_request().await;
     assert_eq!(create_req["method"], "session.create");
+    server.session_id = requested_session_id(&create_req).to_string();
     server
         .respond(
             &create_req,
             serde_json::json!({
-                "sessionId": session_id,
+                "sessionId": server.session_id,
                 "workspacePath": "/tmp/workspace"
             }),
         )
@@ -3217,10 +3231,11 @@ async fn on_get_trace_context_called_on_session_create() {
     assert_eq!(req["method"], "session.create");
     assert_eq!(req["params"]["traceparent"], "00-aaaa-bbbb-01");
     assert_eq!(req["params"]["tracestate"], "vendor=value");
+    server.session_id = requested_session_id(&req).to_string();
     server
         .respond(
             &req,
-            serde_json::json!({"sessionId": "trace-create", "workspacePath": "/tmp/ws"}),
+            serde_json::json!({"sessionId": server.session_id.clone(), "workspacePath": "/tmp/ws"}),
         )
         .await;
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
@@ -3297,10 +3312,11 @@ async fn on_get_trace_context_called_on_session_send() {
         }
     });
     let create_req = server.read_request().await;
+    server.session_id = requested_session_id(&create_req).to_string();
     server
         .respond(
             &create_req,
-            serde_json::json!({"sessionId": "trace-send", "workspacePath": "/tmp/ws"}),
+            serde_json::json!({"sessionId": server.session_id.clone(), "workspacePath": "/tmp/ws"}),
         )
         .await;
     let session = Arc::new(timeout(TIMEOUT, create_handle).await.unwrap().unwrap());
@@ -3349,10 +3365,11 @@ async fn message_options_trace_context_overrides_callback() {
         }
     });
     let create_req = server.read_request().await;
+    server.session_id = requested_session_id(&create_req).to_string();
     server
         .respond(
             &create_req,
-            serde_json::json!({"sessionId": "trace-override", "workspacePath": "/tmp/ws"}),
+            serde_json::json!({"sessionId": server.session_id.clone(), "workspacePath": "/tmp/ws"}),
         )
         .await;
     let session = Arc::new(timeout(TIMEOUT, create_handle).await.unwrap().unwrap());
