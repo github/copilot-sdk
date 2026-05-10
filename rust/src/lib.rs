@@ -937,7 +937,7 @@ impl Client {
                         .to_string(),
                 ));
             }
-            if options.use_logged_in_user.is_some() {
+            if options.use_logged_in_user == Some(true) {
                 return Err(Error::InvalidConfig(
                     "use_logged_in_user cannot be used with Transport::External \
                      (external server manages its own auth)"
