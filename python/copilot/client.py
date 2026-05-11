@@ -27,6 +27,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import KW_ONLY, dataclass, field
+from datetime import UTC
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Literal, TypedDict, cast, overload
@@ -35,6 +36,15 @@ from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context, trace_context
+from .cloud.cloud_session import CloudSession
+from .cloud.mission_control_client import MissionControlClient
+from .cloud.types import (
+    CloudConnectOptions,
+    CloudRepository,
+    CloudSessionMetadata,
+    CloudSessionOptions,
+    MissionControlTask,
+)
 from .generated.rpc import (
     ClientSessionApiHandlers,
     ConnectRequest,
@@ -88,6 +98,17 @@ def _validate_session_fs_config(config: SessionFsConfig) -> None:
         raise ValueError("session_fs.session_state_path is required")
     if config.get("conventions") not in ("posix", "windows"):
         raise ValueError("session_fs.conventions must be either 'posix' or 'windows'")
+
+
+def _strip_trailing_slash(value: str) -> str:
+    return value.rstrip("/")
+
+
+def _normalize_token(value: str | None) -> str | None:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    return trimmed if trimmed else None
 
 
 class TelemetryConfig(TypedDict, total=False):
@@ -2068,6 +2089,253 @@ class CopilotClient:
 
         result = await self._client.request("auth.getStatus", {})
         return GetAuthStatusResponse.from_dict(result)
+
+    # ------------------------------------------------------------------
+    # Cloud sessions
+    # ------------------------------------------------------------------
+
+    def _create_mission_control_client(
+        self,
+        options: CloudSessionOptions | CloudConnectOptions,
+    ) -> MissionControlClient:
+        """Build a MissionControlClient from cloud session options and env."""
+        cfg = self._config
+        if isinstance(cfg, SubprocessConfig) and cfg.env is not None:
+            env: dict[str, str] = cfg.env
+        else:
+            env = dict(os.environ)
+
+        copilot_api_base_url = _strip_trailing_slash(
+            options.get("copilot_api_base_url")
+            or env.get("COPILOT_API_BASE_URL")
+            or env.get("COPILOT_API_URL")
+            or "https://api.githubcopilot.com"
+        )
+        base_url = (
+            options.get("mission_control_base_url")
+            or env.get("COPILOT_MC_BASE_URL")
+            or f"{copilot_api_base_url}/agents"
+        )
+
+        github_token = cfg.github_token if isinstance(cfg, SubprocessConfig) else None
+        auth_token = (
+            _normalize_token(options.get("auth_token"))
+            or _normalize_token(env.get("COPILOT_MC_ACCESS_TOKEN"))
+            or _normalize_token(github_token)
+        )
+
+        frontend_base_url = (
+            options.get("frontend_base_url")
+            or env.get("COPILOT_MC_FRONTEND_URL")
+            or "https://github.com"
+        )
+
+        return MissionControlClient(
+            base_url=base_url,
+            auth_token=auth_token,
+            integration_id=options.get("integration_id"),
+            frontend_base_url=frontend_base_url,
+        )
+
+    @staticmethod
+    def _create_cloud_session_metadata(
+        task: MissionControlTask,
+        mc_client: MissionControlClient,
+        repository: CloudRepository | None = None,
+        owner: str | None = None,
+    ) -> CloudSessionMetadata:
+        from datetime import datetime
+
+        return CloudSessionMetadata(
+            task_id=task.id,
+            mission_control_session_id=(task.sessions[-1].id if task.sessions else None),
+            frontend_url=mc_client.get_frontend_url(task.id),
+            owner=owner,
+            repository=repository,
+            created_at=datetime.fromisoformat(task.created_at),
+            updated_at=datetime.fromisoformat(task.updated_at),
+            state=task.state,
+            status=task.status,
+        )
+
+    @staticmethod
+    def _create_fallback_cloud_session_metadata(
+        task_id: str,
+        mc_client: MissionControlClient,
+        repository: CloudRepository | None = None,
+        owner: str | None = None,
+    ) -> CloudSessionMetadata:
+        from datetime import datetime
+
+        now = datetime.now(UTC)
+        return CloudSessionMetadata(
+            task_id=task_id,
+            frontend_url=mc_client.get_frontend_url(task_id),
+            owner=owner,
+            repository=repository,
+            created_at=now,
+            updated_at=now,
+        )
+
+    async def create_cloud_session(
+        self,
+        options: CloudSessionOptions | None = None,
+    ) -> CloudSession:
+        """Create a sandbox-backed cloud session through Mission Control.
+
+        This does not create a local runtime session. The agent runs inside the
+        provisioned cloud sandbox; this SDK instance polls Mission Control for
+        events and sends user actions through the task steer API.
+
+        Args:
+            options: Cloud session options. Either ``repository`` or ``owner``
+                must be provided. If ``repository`` is omitted, ``owner`` is
+                required for billing/authorization.
+
+        Returns:
+            A connected :class:`~copilot.cloud.CloudSession` instance.
+
+        Raises:
+            ValueError: If neither ``repository`` nor ``owner`` is provided.
+            CloudSessionError: On Mission Control API errors.
+        """
+        from .cloud.mission_control_client import _CreateCloudTaskParams, _CreateCloudTaskRepository
+
+        if options is None:
+            options = CloudSessionOptions()
+
+        started_at = time.monotonic()
+        mc_client = self._create_mission_control_client(options)
+        owner = _normalize_token(options.get("owner"))
+        repository = options.get("repository")
+
+        if not repository and not owner:
+            raise ValueError("CloudSessionOptions.owner is required when repository is omitted")
+
+        on_progress = options.get("on_progress")
+        if on_progress:
+            from .cloud.types import CloudProgressEvent
+
+            on_progress(CloudProgressEvent(phase="creating_task", elapsed_ms=0))
+            on_progress(
+                CloudProgressEvent(
+                    phase="provisioning_sandbox",
+                    elapsed_ms=(time.monotonic() - started_at) * 1000,
+                )
+            )
+
+        task_repo = (
+            _CreateCloudTaskRepository(owner=repository["owner"], name=repository["name"])
+            if repository
+            else None
+        )
+        task = await mc_client.create_cloud_task(
+            _CreateCloudTaskParams(owner=owner, repository=task_repo)
+        )
+
+        on_cloud_task_created = options.get("on_cloud_task_created")
+        if on_cloud_task_created:
+            on_cloud_task_created(task)
+
+        if on_progress:
+            on_progress(
+                CloudProgressEvent(
+                    phase="waiting_for_session",
+                    elapsed_ms=(time.monotonic() - started_at) * 1000,
+                    task_id=task.id,
+                )
+            )
+
+        session = CloudSession(
+            client=mc_client,
+            metadata=self._create_cloud_session_metadata(task, mc_client, repository, owner),
+            poll_interval_ms=options.get("poll_interval_ms"),
+            initial_event_timeout_ms=options.get("initial_event_timeout_ms"),
+            initial_event_poll_interval_ms=options.get("initial_event_poll_interval_ms"),
+            on_event_poll_error=options.get("on_event_poll_error"),
+        )
+        await session.connect()
+
+        if on_progress:
+            on_progress(
+                CloudProgressEvent(
+                    phase="connected",
+                    elapsed_ms=(time.monotonic() - started_at) * 1000,
+                    task_id=task.id,
+                )
+            )
+
+        return session
+
+    async def connect_cloud_session(
+        self,
+        task_or_session_id: str,
+        options: CloudConnectOptions | None = None,
+    ) -> CloudSession:
+        """Attach to an existing Mission Control cloud task.
+
+        The identifier is treated as a task ID. If Mission Control can return
+        task metadata, it populates the session metadata; otherwise the SDK
+        still attaches by polling task events for the provided identifier.
+
+        Args:
+            task_or_session_id: The Mission Control task ID to connect to.
+            options: Connection options.
+
+        Returns:
+            A connected :class:`~copilot.cloud.CloudSession` instance.
+        """
+        if options is None:
+            options = CloudConnectOptions()
+
+        started_at = time.monotonic()
+        mc_client = self._create_mission_control_client(options)
+
+        on_progress = options.get("on_progress")
+        if on_progress:
+            from .cloud.types import CloudProgressEvent
+
+            on_progress(
+                CloudProgressEvent(
+                    phase="waiting_for_session",
+                    elapsed_ms=0,
+                    task_id=task_or_session_id,
+                )
+            )
+
+        task = await mc_client.get_task(task_or_session_id)
+        owner = _normalize_token(options.get("owner"))
+        repository = options.get("repository")
+
+        if task:
+            metadata = self._create_cloud_session_metadata(task, mc_client, repository, owner)
+        else:
+            metadata = self._create_fallback_cloud_session_metadata(
+                task_or_session_id, mc_client, repository, owner
+            )
+
+        session = CloudSession(
+            client=mc_client,
+            metadata=metadata,
+            poll_interval_ms=options.get("poll_interval_ms"),
+            initial_event_timeout_ms=options.get("initial_event_timeout_ms"),
+            initial_event_poll_interval_ms=options.get("initial_event_poll_interval_ms"),
+            on_event_poll_error=options.get("on_event_poll_error"),
+        )
+        await session.connect()
+
+        if on_progress:
+            from .cloud.types import CloudProgressEvent
+
+            on_progress(
+                CloudProgressEvent(
+                    phase="connected",
+                    elapsed_ms=(time.monotonic() - started_at) * 1000,
+                    task_id=metadata.task_id,
+                )
+            )
+
+        return session
 
     async def list_models(self) -> list[ModelInfo]:
         """
