@@ -180,7 +180,7 @@ public class SessionEventHandlingTest {
 
         SessionStartEvent startEvent = createSessionStartEvent();
         startEvent.setData(new SessionStartEvent.SessionStartEventData("my-session-123", null, null, null, null, null,
-                null, null, null, null));
+                null, null, null, null, null));
         dispatchEvent(startEvent);
 
         AssistantMessageEvent msgEvent = createAssistantMessageEvent("Test content");
@@ -857,15 +857,15 @@ public class SessionEventHandlingTest {
     private SessionStartEvent createSessionStartEvent(String sessionId) {
         var event = new SessionStartEvent();
         var data = new SessionStartEvent.SessionStartEventData(sessionId, null, null, null, null, null, null, null,
-                null, null);
+                null, null, null);
         event.setData(data);
         return event;
     }
 
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
         var event = new AssistantMessageEvent();
-        var data = new AssistantMessageEvent.AssistantMessageEventData(null, content, null, null, null, null, null,
-                null, null, null, null, null);
+        var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, content, null, null, null, null,
+                null, null, null, null, null, null, null, null);
         event.setData(data);
         return event;
     }

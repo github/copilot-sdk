@@ -55,7 +55,9 @@ public final class SessionStartEvent extends SessionEvent {
         /** Whether the session was already in use by another client at start time */
         @JsonProperty("alreadyInUse") Boolean alreadyInUse,
         /** Whether this session supports remote steering via Mission Control */
-        @JsonProperty("remoteSteerable") Boolean remoteSteerable
+        @JsonProperty("remoteSteerable") Boolean remoteSteerable,
+        /** When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id. */
+        @JsonProperty("detachedFromSpawningParentSessionId") String detachedFromSpawningParentSessionId
     ) {
     }
 }

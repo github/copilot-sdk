@@ -54,6 +54,10 @@ import com.github.copilot.sdk.generated.SessionErrorEvent;
 import com.github.copilot.sdk.generated.SessionEvent;
 import com.github.copilot.sdk.generated.SessionIdleEvent;
 import com.github.copilot.sdk.json.AgentInfo;
+import com.github.copilot.sdk.json.AutoModeSwitchHandler;
+import com.github.copilot.sdk.json.AutoModeSwitchInvocation;
+import com.github.copilot.sdk.json.AutoModeSwitchRequest;
+import com.github.copilot.sdk.json.AutoModeSwitchResponse;
 import com.github.copilot.sdk.json.CommandContext;
 import com.github.copilot.sdk.json.CommandDefinition;
 import com.github.copilot.sdk.json.CommandHandler;
@@ -62,6 +66,10 @@ import com.github.copilot.sdk.json.ElicitationHandler;
 import com.github.copilot.sdk.json.ElicitationParams;
 import com.github.copilot.sdk.json.ElicitationResult;
 import com.github.copilot.sdk.json.ElicitationResultAction;
+import com.github.copilot.sdk.json.ExitPlanModeHandler;
+import com.github.copilot.sdk.json.ExitPlanModeInvocation;
+import com.github.copilot.sdk.json.ExitPlanModeRequest;
+import com.github.copilot.sdk.json.ExitPlanModeResult;
 import com.github.copilot.sdk.json.ElicitationSchema;
 import com.github.copilot.sdk.json.GetMessagesResponse;
 import com.github.copilot.sdk.json.HookInvocation;
@@ -156,6 +164,8 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
+    private final AtomicReference<ExitPlanModeHandler> exitPlanModeHandler = new AtomicReference<>();
+    private final AtomicReference<AutoModeSwitchHandler> autoModeSwitchHandler = new AtomicReference<>();
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
@@ -1318,6 +1328,32 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Registers an exit-plan-mode handler for this session.
+     * <p>
+     * Called internally when creating or resuming a session with an exit-plan-mode
+     * handler.
+     *
+     * @param handler
+     *            the handler to invoke when an exit-plan-mode request is received
+     */
+    void registerExitPlanModeHandler(ExitPlanModeHandler handler) {
+        exitPlanModeHandler.set(handler);
+    }
+
+    /**
+     * Registers an auto-mode-switch handler for this session.
+     * <p>
+     * Called internally when creating or resuming a session with an
+     * auto-mode-switch handler.
+     *
+     * @param handler
+     *            the handler to invoke when an auto-mode-switch request is received
+     */
+    void registerAutoModeSwitchHandler(AutoModeSwitchHandler handler) {
+        autoModeSwitchHandler.set(handler);
+    }
+
+    /**
      * Sets the capabilities reported by the host for this session.
      * <p>
      * Called internally after session create/resume response.
@@ -1352,6 +1388,60 @@ public final class CopilotSession implements AutoCloseable {
             });
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "Failed to process user input request", e);
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Handles an exit-plan-mode request from the Copilot CLI.
+     * <p>
+     * Called internally when the server sends an {@code exitPlanMode.request}.
+     *
+     * @param request
+     *            the exit-plan-mode request
+     * @return a future that resolves with the user's decision
+     */
+    CompletableFuture<ExitPlanModeResult> handleExitPlanModeRequest(ExitPlanModeRequest request) {
+        ExitPlanModeHandler handler = exitPlanModeHandler.get();
+        if (handler == null) {
+            return CompletableFuture.completedFuture(new ExitPlanModeResult().setApproved(true));
+        }
+
+        try {
+            var invocation = new ExitPlanModeInvocation().setSessionId(sessionId);
+            return handler.handle(request, invocation).exceptionally(ex -> {
+                LOG.log(Level.SEVERE, "Exit plan mode handler threw an exception", ex);
+                throw new RuntimeException("Exit plan mode handler error", ex);
+            });
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "Failed to process exit plan mode request", e);
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Handles an auto-mode-switch request from the Copilot CLI.
+     * <p>
+     * Called internally when the server sends an {@code autoModeSwitch.request}.
+     *
+     * @param request
+     *            the auto-mode-switch request
+     * @return a future that resolves with the user's decision
+     */
+    CompletableFuture<AutoModeSwitchResponse> handleAutoModeSwitchRequest(AutoModeSwitchRequest request) {
+        AutoModeSwitchHandler handler = autoModeSwitchHandler.get();
+        if (handler == null) {
+            return CompletableFuture.completedFuture(AutoModeSwitchResponse.NO);
+        }
+
+        try {
+            var invocation = new AutoModeSwitchInvocation().setSessionId(sessionId);
+            return handler.handle(request, invocation).exceptionally(ex -> {
+                LOG.log(Level.SEVERE, "Auto mode switch handler threw an exception", ex);
+                throw new RuntimeException("Auto mode switch handler error", ex);
+            });
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "Failed to process auto mode switch request", e);
             return CompletableFuture.failedFuture(e);
         }
     }
@@ -1850,6 +1940,8 @@ public final class CopilotSession implements AutoCloseable {
         permissionHandler.set(null);
         userInputHandler.set(null);
         elicitationHandler.set(null);
+        exitPlanModeHandler.set(null);
+        autoModeSwitchHandler.set(null);
         hooksHandler.set(null);
     }
 

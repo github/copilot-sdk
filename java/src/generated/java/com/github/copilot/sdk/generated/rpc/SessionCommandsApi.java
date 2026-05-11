@@ -42,4 +42,17 @@ public final class SessionCommandsApi {
         return caller.invoke("session.commands.handlePendingCommand", _p, SessionCommandsHandlePendingCommandResult.class);
     }
 
+    /**
+     * Invokes {@code session.commands.respondToQueuedCommand}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionCommandsRespondToQueuedCommandResult> respondToQueuedCommand(SessionCommandsRespondToQueuedCommandParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.commands.respondToQueuedCommand", _p, SessionCommandsRespondToQueuedCommandResult.class);
+    }
+
 }

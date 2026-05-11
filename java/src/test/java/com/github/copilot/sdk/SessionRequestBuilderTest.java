@@ -12,11 +12,13 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.sdk.json.AutoModeSwitchResponse;
 import com.github.copilot.sdk.json.CreateSessionRequest;
 import com.github.copilot.sdk.json.DefaultAgentConfig;
 import com.github.copilot.sdk.json.ElicitationHandler;
 import com.github.copilot.sdk.json.ElicitationResult;
 import com.github.copilot.sdk.json.ElicitationResultAction;
+import com.github.copilot.sdk.json.ExitPlanModeResult;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.ResumeSessionRequest;
 import com.github.copilot.sdk.json.SessionConfig;
@@ -534,5 +536,127 @@ public class SessionRequestBuilderTest {
         var mapper = JsonRpcClient.getObjectMapper();
         var json = mapper.writeValueAsString(request);
         assertFalse(json.contains("enableSessionTelemetry"), "enableSessionTelemetry should be omitted when null");
+    }
+
+    // =========================================================================
+    // Mode handler request flags
+    // =========================================================================
+
+    @Test
+    void testBuildCreateRequestWithExitPlanModeHandler() {
+        var config = new SessionConfig().setOnExitPlanMode(
+                (request, invocation) -> CompletableFuture.completedFuture(new ExitPlanModeResult()));
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertTrue(request.getRequestExitPlanMode());
+    }
+
+    @Test
+    void testBuildCreateRequestWithAutoModeSwitchHandler() {
+        var config = new SessionConfig().setOnAutoModeSwitch(
+                (request, invocation) -> CompletableFuture.completedFuture(AutoModeSwitchResponse.NO));
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertTrue(request.getRequestAutoModeSwitch());
+    }
+
+    @Test
+    void testBuildCreateRequestWithoutModeHandlers() {
+        var config = new SessionConfig();
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertNull(request.getRequestExitPlanMode());
+        assertNull(request.getRequestAutoModeSwitch());
+    }
+
+    @Test
+    void testBuildResumeRequestWithExitPlanModeHandler() {
+        var config = new ResumeSessionConfig().setOnExitPlanMode(
+                (request, invocation) -> CompletableFuture.completedFuture(new ExitPlanModeResult()));
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("session-1", config);
+
+        assertTrue(request.getRequestExitPlanMode());
+    }
+
+    @Test
+    void testBuildResumeRequestWithAutoModeSwitchHandler() {
+        var config = new ResumeSessionConfig().setOnAutoModeSwitch(
+                (request, invocation) -> CompletableFuture.completedFuture(AutoModeSwitchResponse.NO));
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("session-1", config);
+
+        assertTrue(request.getRequestAutoModeSwitch());
+    }
+
+    @Test
+    void configureSessionWithExitPlanModeHandler_registersHandler() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        var config = new SessionConfig().setOnExitPlanMode(
+                (request, invocation) -> CompletableFuture.completedFuture(new ExitPlanModeResult()));
+
+        SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void configureSessionWithAutoModeSwitchHandler_registersHandler() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        var config = new SessionConfig().setOnAutoModeSwitch(
+                (request, invocation) -> CompletableFuture.completedFuture(AutoModeSwitchResponse.NO));
+
+        SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void configureResumedSessionWithExitPlanModeHandler_registersHandler() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        var config = new ResumeSessionConfig().setOnExitPlanMode(
+                (request, invocation) -> CompletableFuture.completedFuture(new ExitPlanModeResult()));
+
+        SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void configureResumedSessionWithAutoModeSwitchHandler_registersHandler() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        var config = new ResumeSessionConfig().setOnAutoModeSwitch(
+                (request, invocation) -> CompletableFuture.completedFuture(AutoModeSwitchResponse.NO));
+
+        SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void testCreateRequestSerializesModeFlags() throws Exception {
+        var config = new SessionConfig()
+                .setOnExitPlanMode((r, i) -> CompletableFuture.completedFuture(new ExitPlanModeResult()))
+                .setOnAutoModeSwitch((r, i) -> CompletableFuture.completedFuture(AutoModeSwitchResponse.NO));
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+
+        assertTrue(json.contains("\"requestExitPlanMode\":true"));
+        assertTrue(json.contains("\"requestAutoModeSwitch\":true"));
+    }
+
+    @Test
+    void testResumeRequestSerializesModeFlags() throws Exception {
+        var config = new ResumeSessionConfig()
+                .setOnExitPlanMode((r, i) -> CompletableFuture.completedFuture(new ExitPlanModeResult()))
+                .setOnAutoModeSwitch((r, i) -> CompletableFuture.completedFuture(AutoModeSwitchResponse.NO));
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("session-1", config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+
+        assertTrue(json.contains("\"requestExitPlanMode\":true"));
+        assertTrue(json.contains("\"requestAutoModeSwitch\":true"));
     }
 }
