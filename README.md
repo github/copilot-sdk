@@ -6,6 +6,7 @@
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/github-copilot-sdk?label=PyPI)](https://pypi.org/project/github-copilot-sdk/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/GitHub.Copilot.SDK?label=NuGet)](https://www.nuget.org/packages/GitHub.Copilot.SDK)
 [![Go Reference](https://pkg.go.dev/badge/github.com/github/copilot-sdk/go.svg)](https://pkg.go.dev/github.com/github/copilot-sdk/go)
+[![Maven Central](https://img.shields.io/maven-central/v/com.github/copilot-sdk-java?label=Maven%20Central)](https://central.sonatype.com/artifact/com.github/copilot-sdk-java)
 
 Agents for every app.
 
