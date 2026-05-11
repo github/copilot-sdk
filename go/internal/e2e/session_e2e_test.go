@@ -38,7 +38,7 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
 
-		if len(messages) == 0 || messages[0].Type != "session.start" {
+		if len(messages) == 0 || messages[0].Type() != "session.start" {
 			t.Fatalf("Expected first message to be session.start, got %v", messages)
 		}
 
@@ -533,10 +533,10 @@ func TestSessionE2E(t *testing.T) {
 		hasUserMessage := false
 		hasSessionResume := false
 		for _, msg := range messages {
-			if msg.Type == "user.message" {
+			if msg.Type() == "user.message" {
 				hasUserMessage = true
 			}
-			if msg.Type == "session.resume" {
+			if msg.Type() == "session.resume" {
 				hasSessionResume = true
 			}
 		}
@@ -671,7 +671,7 @@ func TestSessionE2E(t *testing.T) {
 		// Verify messages contain an abort event
 		hasAbortEvent := false
 		for _, msg := range messages {
-			if msg.Type == copilot.SessionEventTypeAbort {
+			if msg.Type() == copilot.SessionEventTypeAbort {
 				hasAbortEvent = true
 				break
 			}
@@ -701,7 +701,7 @@ func TestSessionE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnEvent: func(event copilot.SessionEvent) {
-				if event.Type == "session.start" {
+				if event.Type() == "session.start" {
 					select {
 					case sessionStartCh <- true:
 					default:
@@ -727,7 +727,7 @@ func TestSessionE2E(t *testing.T) {
 			receivedEventsMu.Lock()
 			receivedEvents = append(receivedEvents, event)
 			receivedEventsMu.Unlock()
-			if event.Type == "session.idle" {
+			if event.Type() == "session.idle" {
 				select {
 				case idle <- true:
 				default:
@@ -760,7 +760,7 @@ func TestSessionE2E(t *testing.T) {
 		hasAssistantMessage := false
 		hasSessionIdle := false
 		for _, evt := range eventsSnapshot {
-			switch evt.Type {
+			switch evt.Type() {
 			case "user.message":
 				hasUserMessage = true
 			case "assistant.message":
@@ -1082,7 +1082,7 @@ func TestSetModelWithReasoningEffortE2E(t *testing.T) {
 
 	modelChanged := make(chan copilot.SessionEvent, 1)
 	session.On(func(event copilot.SessionEvent) {
-		if event.Type == copilot.SessionEventTypeSessionModelChange {
+		if event.Type() == copilot.SessionEventTypeSessionModelChange {
 			select {
 			case modelChanged <- event:
 			default:
@@ -1139,10 +1139,9 @@ func TestSessionBlobAttachmentE2E(t *testing.T) {
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Describe this image",
 			Attachments: []copilot.Attachment{
-				{
-					Type:        copilot.AttachmentTypeBlob,
-					Data:        &data,
-					MIMEType:    &mimeType,
+				&copilot.UserMessageAttachmentBlob{
+					Data:        data,
+					MIMEType:    mimeType,
 					DisplayName: &displayName,
 				},
 			},
@@ -1266,7 +1265,7 @@ func waitForEvent(t *testing.T, mu *sync.Mutex, events *[]copilot.SessionEvent, 
 	for time.Now().Before(deadline) {
 		mu.Lock()
 		for _, evt := range *events {
-			if evt.Type == eventType && getEventMessage(evt) == message {
+			if evt.Type() == eventType && getEventMessage(evt) == message {
 				mu.Unlock()
 				return evt
 			}
@@ -1323,10 +1322,9 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		path := filePath
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Read the attached file and reply with its contents.",
-			Attachments: []copilot.Attachment{{
-				Type:        copilot.AttachmentTypeFile,
-				DisplayName: &displayName,
-				Path:        &path,
+			Attachments: []copilot.Attachment{&copilot.UserMessageAttachmentFile{
+				DisplayName: displayName,
+				Path:        path,
 				LineRange:   &copilot.UserMessageAttachmentFileLineRange{Start: 1, End: 1},
 			}},
 		})
@@ -1334,14 +1332,14 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment := lastUserAttachment(t, session)
-		if attachment.Type != copilot.AttachmentTypeFile {
-			t.Errorf("Expected attachment type %q, got %q", copilot.AttachmentTypeFile, attachment.Type)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.UserMessageAttachmentFile)
+		if !ok {
+			t.Fatalf("Expected file attachment, got %T", lastUserAttachment(t, session))
 		}
-		if attachment.DisplayName == nil || *attachment.DisplayName != "attached-file.txt" {
+		if attachment.DisplayName != "attached-file.txt" {
 			t.Errorf("Expected DisplayName 'attached-file.txt', got %v", attachment.DisplayName)
 		}
-		if attachment.Path == nil || *attachment.Path != filePath {
+		if attachment.Path != filePath {
 			t.Errorf("Expected Path %q, got %v", filePath, attachment.Path)
 		}
 		if attachment.LineRange == nil || attachment.LineRange.Start != 1 || attachment.LineRange.End != 1 {
@@ -1371,24 +1369,23 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		path := directoryPath
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "List the attached directory.",
-			Attachments: []copilot.Attachment{{
-				Type:        copilot.AttachmentTypeDirectory,
-				DisplayName: &displayName,
-				Path:        &path,
+			Attachments: []copilot.Attachment{&copilot.UserMessageAttachmentDirectory{
+				DisplayName: displayName,
+				Path:        path,
 			}},
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment := lastUserAttachment(t, session)
-		if attachment.Type != copilot.AttachmentTypeDirectory {
-			t.Errorf("Expected attachment type %q, got %q", copilot.AttachmentTypeDirectory, attachment.Type)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.UserMessageAttachmentDirectory)
+		if !ok {
+			t.Fatalf("Expected directory attachment, got %T", lastUserAttachment(t, session))
 		}
-		if attachment.DisplayName == nil || *attachment.DisplayName != "attached-directory" {
+		if attachment.DisplayName != "attached-directory" {
 			t.Errorf("Expected DisplayName 'attached-directory', got %v", attachment.DisplayName)
 		}
-		if attachment.Path == nil || *attachment.Path != directoryPath {
+		if attachment.Path != directoryPath {
 			t.Errorf("Expected Path %q, got %v", directoryPath, attachment.Path)
 		}
 	})
@@ -1413,12 +1410,11 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		text := `string Value = "SELECTION_SENTINEL";`
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Summarize the selected code.",
-			Attachments: []copilot.Attachment{{
-				Type:        copilot.AttachmentTypeSelection,
-				DisplayName: &displayName,
-				FilePath:    &filePathCopy,
-				Text:        &text,
-				Selection: &copilot.UserMessageAttachmentSelectionDetails{
+			Attachments: []copilot.Attachment{&copilot.UserMessageAttachmentSelection{
+				DisplayName: displayName,
+				FilePath:    filePathCopy,
+				Text:        text,
+				Selection: copilot.UserMessageAttachmentSelectionDetails{
 					Start: copilot.UserMessageAttachmentSelectionDetailsStart{Line: 1, Character: 10},
 					End:   copilot.UserMessageAttachmentSelectionDetailsEnd{Line: 1, Character: 45},
 				},
@@ -1428,21 +1424,18 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment := lastUserAttachment(t, session)
-		if attachment.Type != copilot.AttachmentTypeSelection {
-			t.Errorf("Expected attachment type %q, got %q", copilot.AttachmentTypeSelection, attachment.Type)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.UserMessageAttachmentSelection)
+		if !ok {
+			t.Fatalf("Expected selection attachment, got %T", lastUserAttachment(t, session))
 		}
-		if attachment.DisplayName == nil || *attachment.DisplayName != "selected-file.cs" {
+		if attachment.DisplayName != "selected-file.cs" {
 			t.Errorf("Expected DisplayName 'selected-file.cs', got %v", attachment.DisplayName)
 		}
-		if attachment.FilePath == nil || *attachment.FilePath != filePath {
+		if attachment.FilePath != filePath {
 			t.Errorf("Expected FilePath %q, got %v", filePath, attachment.FilePath)
 		}
-		if attachment.Text == nil || *attachment.Text != text {
+		if attachment.Text != text {
 			t.Errorf("Expected Text %q, got %v", text, attachment.Text)
-		}
-		if attachment.Selection == nil {
-			t.Fatal("Expected non-nil Selection")
 		}
 		if attachment.Selection.Start.Line != 1 || attachment.Selection.Start.Character != 10 {
 			t.Errorf("Expected Selection.Start {1,10}, got %+v", attachment.Selection.Start)
@@ -1469,36 +1462,35 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 		url := "https://github.com/github/copilot-sdk/issues/1234"
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.",
-			Attachments: []copilot.Attachment{{
-				Type:          copilot.AttachmentTypeGithubReference,
-				Number:        &number,
-				ReferenceType: &referenceType,
-				State:         &state,
-				Title:         &title,
-				URL:           &url,
+			Attachments: []copilot.Attachment{&copilot.UserMessageAttachmentGithubReference{
+				Number:        number,
+				ReferenceType: referenceType,
+				State:         state,
+				Title:         title,
+				URL:           url,
 			}},
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		attachment := lastUserAttachment(t, session)
-		if attachment.Type != copilot.AttachmentTypeGithubReference {
-			t.Errorf("Expected attachment type %q, got %q", copilot.AttachmentTypeGithubReference, attachment.Type)
+		attachment, ok := lastUserAttachment(t, session).(*copilot.UserMessageAttachmentGithubReference)
+		if !ok {
+			t.Fatalf("Expected GitHub reference attachment, got %T", lastUserAttachment(t, session))
 		}
-		if attachment.Number == nil || *attachment.Number != 1234 {
+		if attachment.Number != 1234 {
 			t.Errorf("Expected Number=1234, got %v", attachment.Number)
 		}
-		if attachment.ReferenceType == nil || *attachment.ReferenceType != copilot.UserMessageAttachmentGithubReferenceTypeIssue {
+		if attachment.ReferenceType != copilot.UserMessageAttachmentGithubReferenceTypeIssue {
 			t.Errorf("Expected ReferenceType=Issue, got %v", attachment.ReferenceType)
 		}
-		if attachment.State == nil || *attachment.State != "open" {
+		if attachment.State != "open" {
 			t.Errorf("Expected State='open', got %v", attachment.State)
 		}
-		if attachment.Title == nil || *attachment.Title != title {
+		if attachment.Title != title {
 			t.Errorf("Expected Title=%q, got %v", title, attachment.Title)
 		}
-		if attachment.URL == nil || *attachment.URL != url {
+		if attachment.URL != url {
 			t.Errorf("Expected URL=%q, got %v", url, attachment.URL)
 		}
 	})
@@ -1512,7 +1504,7 @@ func lastUserAttachment(t *testing.T, session *copilot.Session) copilot.Attachme
 		t.Fatalf("GetMessages failed: %v", err)
 	}
 	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Type != copilot.SessionEventTypeUserMessage {
+		if messages[i].Type() != copilot.SessionEventTypeUserMessage {
 			continue
 		}
 		data, ok := messages[i].Data.(*copilot.UserMessageData)
@@ -1525,7 +1517,7 @@ func lastUserAttachment(t *testing.T, session *copilot.Session) copilot.Attachme
 		return data.Attachments[0]
 	}
 	t.Fatal("No user.message event with attachments found")
-	return copilot.Attachment{}
+	return nil
 }
 
 // TestSessionMessageOptions mirrors C# Should_Send_With_Mode_Property and Should_Send_With_Custom_RequestHeaders.
@@ -1562,7 +1554,7 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 		}
 		var userMsg *copilot.UserMessageData
 		for i := len(messages) - 1; i >= 0; i-- {
-			if messages[i].Type == copilot.SessionEventTypeUserMessage {
+			if messages[i].Type() == copilot.SessionEventTypeUserMessage {
 				userMsg = messages[i].Data.(*copilot.UserMessageData)
 				break
 			}
@@ -1650,7 +1642,7 @@ func TestSessionSetModelOnExistingE2E(t *testing.T) {
 
 		modelChanged := make(chan copilot.SessionEvent, 1)
 		session.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeSessionModelChange {
+			if event.Type() == copilot.SessionEventTypeSessionModelChange {
 				select {
 				case modelChanged <- event:
 				default:

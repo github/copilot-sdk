@@ -37,10 +37,10 @@ func TestCompactionE2E(t *testing.T) {
 		var compactionCompleteEvents []copilot.SessionEvent
 
 		session.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeSessionCompactionStart {
+			switch event.Data.(type) {
+			case *copilot.SessionCompactionStartData:
 				compactionStartEvents = append(compactionStartEvents, event)
-			}
-			if event.Type == copilot.SessionEventTypeSessionCompactionComplete {
+			case *copilot.SessionCompactionCompleteData:
 				compactionCompleteEvents = append(compactionCompleteEvents, event)
 			}
 		})
@@ -107,7 +107,8 @@ func TestCompactionE2E(t *testing.T) {
 
 		var compactionEvents []copilot.SessionEvent
 		session.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeSessionCompactionStart || event.Type == copilot.SessionEventTypeSessionCompactionComplete {
+			switch event.Data.(type) {
+			case *copilot.SessionCompactionStartData, *copilot.SessionCompactionCompleteData:
 				compactionEvents = append(compactionEvents, event)
 			}
 		})

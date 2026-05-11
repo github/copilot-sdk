@@ -22,6 +22,10 @@ func newTestSession() (*Session, func()) {
 	return s, func() { close(s.eventCh) }
 }
 
+func newTestEvent() SessionEvent {
+	return SessionEvent{Data: &SessionIdleData{}}
+}
+
 func TestSession_On(t *testing.T) {
 	t.Run("multiple handlers all receive events", func(t *testing.T) {
 		session, cleanup := newTestSession()
@@ -34,7 +38,7 @@ func TestSession_On(t *testing.T) {
 		session.On(func(event SessionEvent) { received2 = true; wg.Done() })
 		session.On(func(event SessionEvent) { received3 = true; wg.Done() })
 
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		if !received1 || !received2 || !received3 {
@@ -56,7 +60,7 @@ func TestSession_On(t *testing.T) {
 		session.On(func(event SessionEvent) { count3.Add(1); wg.Done() })
 
 		// First event - all handlers receive it
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		// Unsubscribe handler 2
@@ -64,7 +68,7 @@ func TestSession_On(t *testing.T) {
 
 		// Second event - only handlers 1 and 3 should receive it
 		wg.Add(2)
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		if count1.Load() != 2 {
@@ -88,7 +92,7 @@ func TestSession_On(t *testing.T) {
 		wg.Add(1)
 		unsub := session.On(func(event SessionEvent) { count.Add(1); wg.Done() })
 
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		unsub()
@@ -98,7 +102,7 @@ func TestSession_On(t *testing.T) {
 		// Dispatch again and wait for it to be processed via a sentinel handler
 		wg.Add(1)
 		session.On(func(event SessionEvent) { wg.Done() })
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		if count.Load() != 1 {
@@ -117,7 +121,7 @@ func TestSession_On(t *testing.T) {
 		session.On(func(event SessionEvent) { order = append(order, 2); wg.Done() })
 		session.On(func(event SessionEvent) { order = append(order, 3); wg.Done() })
 
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
 		wg.Wait()
 
 		if len(order) != 3 || order[0] != 1 || order[1] != 2 || order[2] != 3 {
@@ -172,7 +176,7 @@ func TestSession_On(t *testing.T) {
 		})
 
 		for i := 0; i < totalEvents; i++ {
-			session.dispatchEvent(SessionEvent{Type: "test"})
+			session.dispatchEvent(newTestEvent())
 		}
 
 		done.Wait()
@@ -198,8 +202,8 @@ func TestSession_On(t *testing.T) {
 			}
 		})
 
-		session.dispatchEvent(SessionEvent{Type: "test"})
-		session.dispatchEvent(SessionEvent{Type: "test"})
+		session.dispatchEvent(newTestEvent())
+		session.dispatchEvent(newTestEvent())
 
 		done.Wait()
 
@@ -401,7 +405,6 @@ func TestSession_Capabilities(t *testing.T) {
 		// Dispatch a capabilities.changed event with elicitation=true
 		elicitTrue := true
 		session.dispatchEvent(SessionEvent{
-			Type: SessionEventTypeCapabilitiesChanged,
 			Data: &CapabilitiesChangedData{
 				UI: &CapabilitiesChangedUI{Elicitation: &elicitTrue},
 			},
@@ -420,7 +423,6 @@ func TestSession_Capabilities(t *testing.T) {
 		// Dispatch with elicitation=false
 		elicitFalse := false
 		session.dispatchEvent(SessionEvent{
-			Type: SessionEventTypeCapabilitiesChanged,
 			Data: &CapabilitiesChangedData{
 				UI: &CapabilitiesChangedUI{Elicitation: &elicitFalse},
 			},

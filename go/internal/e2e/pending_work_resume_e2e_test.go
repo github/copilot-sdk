@@ -65,7 +65,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		// Subscribe to the permission.requested event before sending the prompt.
 		permissionEventCh := make(chan *copilot.SessionEvent, 1)
 		unsub := session1.On(func(evt copilot.SessionEvent) {
-			if evt.Type == copilot.SessionEventTypePermissionRequested {
+			if evt.Type() == copilot.SessionEventTypePermissionRequested {
 				select {
 				case permissionEventCh <- &evt:
 				default:
@@ -129,9 +129,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 
 		permResult, err := session2.RPC.Permissions.HandlePendingPermissionRequest(t.Context(), &rpc.PermissionDecisionRequest{
 			RequestID: permData.RequestID,
-			Result: rpc.PermissionDecision{
-				Kind: rpc.PermissionDecisionKindApproveOnce,
-			},
+			Result:    &rpc.PermissionDecisionApproveOnce{},
 		})
 		if err != nil {
 			t.Fatalf("Failed to handle pending permission request: %v", err)
@@ -534,7 +532,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		}
 		var resumeEvent *copilot.SessionResumeData
 		for _, msg := range messages {
-			if msg.Type == copilot.SessionEventTypeSessionResume {
+			if msg.Type() == copilot.SessionEventTypeSessionResume {
 				if d, ok := msg.Data.(*copilot.SessionResumeData); ok {
 					resumeEvent = d
 					break
@@ -631,7 +629,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		}
 		var resumeEvent *copilot.SessionResumeData
 		for _, msg := range messages {
-			if msg.Type == copilot.SessionEventTypeSessionResume {
+			if msg.Type() == copilot.SessionEventTypeSessionResume {
 				if d, ok := msg.Data.(*copilot.SessionResumeData); ok {
 					resumeEvent = d
 					break
@@ -720,7 +718,7 @@ func waitForExternalToolRequests(session *copilot.Session, names []string) *coll
 		c.want[n] = struct{}{}
 	}
 	session.On(func(evt copilot.SessionEvent) {
-		if evt.Type != copilot.SessionEventTypeExternalToolRequested {
+		if evt.Type() != copilot.SessionEventTypeExternalToolRequested {
 			return
 		}
 		d, ok := evt.Data.(*copilot.ExternalToolRequestedData)

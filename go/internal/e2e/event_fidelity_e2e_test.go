@@ -61,7 +61,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		// Verify the event itself has a valid ID and timestamp
 		for _, evt := range snapshot {
-			if evt.Type == copilot.SessionEventTypeAssistantUsage {
+			if _, ok := evt.Data.(*copilot.AssistantUsageData); ok {
 				if evt.ID == "" {
 					t.Error("Expected assistant.usage event to have a non-empty ID")
 				}
@@ -135,7 +135,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		pendingModified := make(chan *copilot.SessionEvent, 1)
 		session.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypePendingMessagesModified {
+			if _, ok := event.Data.(*copilot.PendingMessagesModifiedData); ok {
 				select {
 				case pendingModified <- &event:
 				default:
@@ -195,7 +195,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		types := make([]copilot.SessionEventType, 0, len(messages))
 		for _, m := range messages {
-			types = append(types, m.Type)
+			types = append(types, m.Type())
 		}
 
 		sessionStartIdx := -1
@@ -253,7 +253,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		// Verify user.message mentions the file
 		for _, msg := range messages {
-			if msg.Type == copilot.SessionEventTypeUserMessage {
+			if msg.Type() == copilot.SessionEventTypeUserMessage {
 				if d, ok := msg.Data.(*copilot.UserMessageData); ok {
 					if !strings.Contains(d.Content, "order.txt") {
 						t.Errorf("Expected user.message to mention 'order.txt', got %q", d.Content)
@@ -265,7 +265,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		// Verify assistant.message references the number
 		for i := len(messages) - 1; i >= 0; i-- {
-			if messages[i].Type == copilot.SessionEventTypeAssistantMessage {
+			if messages[i].Type() == copilot.SessionEventTypeAssistantMessage {
 				if d, ok := messages[i].Data.(*copilot.AssistantMessageData); ok {
 					if !strings.Contains(d.Content, "42") {
 						t.Errorf("Expected assistant.message to contain '42', got %q", d.Content)
@@ -308,7 +308,7 @@ func TestEventFidelityE2E(t *testing.T) {
 		snapshot := snapshotEventFidelityEvents(&mu, &events)
 		types := make([]copilot.SessionEventType, 0, len(snapshot))
 		for _, event := range snapshot {
-			types = append(types, event.Type)
+			types = append(types, event.Type())
 		}
 
 		if !containsEventFidelityType(types, copilot.SessionEventTypeUserMessage) {
@@ -358,10 +358,10 @@ func TestEventFidelityE2E(t *testing.T) {
 		snapshot := snapshotEventFidelityEvents(&mu, &events)
 		for _, event := range snapshot {
 			if event.ID == "" {
-				t.Fatalf("Expected event id to be populated for %q", event.Type)
+				t.Fatalf("Expected event id to be populated for %q", event.Type())
 			}
 			if event.Timestamp.IsZero() {
-				t.Fatalf("Expected event timestamp to be populated for %q", event.Type)
+				t.Fatalf("Expected event timestamp to be populated for %q", event.Type())
 			}
 		}
 
@@ -482,7 +482,7 @@ func snapshotEventFidelityEvents(mu *sync.Mutex, events *[]copilot.SessionEvent)
 func eventFidelityTypes(events []copilot.SessionEvent) []copilot.SessionEventType {
 	types := make([]copilot.SessionEventType, 0, len(events))
 	for _, event := range events {
-		types = append(types, event.Type)
+		types = append(types, event.Type())
 	}
 	return types
 }

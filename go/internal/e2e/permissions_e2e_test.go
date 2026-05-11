@@ -63,7 +63,7 @@ func TestPermissionsE2E(t *testing.T) {
 		}
 		writeCount := 0
 		for _, req := range permissionRequests {
-			if req.Kind == "write" {
+			if _, ok := req.(*copilot.PermissionRequestWrite); ok {
 				writeCount++
 			}
 		}
@@ -105,7 +105,7 @@ func TestPermissionsE2E(t *testing.T) {
 		mu.Lock()
 		shellCount := 0
 		for _, req := range permissionRequests {
-			if req.Kind == "shell" {
+			if _, ok := req.(*copilot.PermissionRequestShell); ok {
 				shellCount++
 			}
 		}
@@ -176,15 +176,13 @@ func TestPermissionsE2E(t *testing.T) {
 		permissionDenied := false
 
 		session.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeToolExecutionComplete {
-				if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok &&
-					!d.Success &&
-					d.Error != nil &&
-					strings.Contains(d.Error.Message, "Permission denied") {
-					mu.Lock()
-					permissionDenied = true
-					mu.Unlock()
-				}
+			if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok &&
+				!d.Success &&
+				d.Error != nil &&
+				strings.Contains(d.Error.Message, "Permission denied") {
+				mu.Lock()
+				permissionDenied = true
+				mu.Unlock()
 			}
 		})
 
@@ -228,15 +226,13 @@ func TestPermissionsE2E(t *testing.T) {
 		permissionDenied := false
 
 		session2.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeToolExecutionComplete {
-				if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok &&
-					!d.Success &&
-					d.Error != nil &&
-					strings.Contains(d.Error.Message, "Permission denied") {
-					mu.Lock()
-					permissionDenied = true
-					mu.Unlock()
-				}
+			if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok &&
+				!d.Success &&
+				d.Error != nil &&
+				strings.Contains(d.Error.Message, "Permission denied") {
+				mu.Lock()
+				permissionDenied = true
+				mu.Unlock()
 			}
 		})
 
@@ -388,7 +384,7 @@ func TestPermissionsE2E(t *testing.T) {
 		var receivedToolCallID atomicBool
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				if req.Kind == copilot.PermissionRequestKindShell && req.ToolCallID != nil && *req.ToolCallID != "" {
+				if shellReq, ok := req.(*copilot.PermissionRequestShell); ok && shellReq.ToolCallID != nil && *shellReq.ToolCallID != "" {
 					receivedToolCallID.Set(true)
 				}
 				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
@@ -429,12 +425,13 @@ func TestPermissionsE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				if req.Kind != copilot.PermissionRequestKindShell {
+				shellReq, ok := req.(*copilot.PermissionRequestShell)
+				if !ok {
 					return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
 				}
 				toolCallID := ""
-				if req.ToolCallID != nil {
-					toolCallID = *req.ToolCallID
+				if shellReq.ToolCallID != nil {
+					toolCallID = *shellReq.ToolCallID
 				}
 				addLifecycle("permission-start", toolCallID)
 				select {
@@ -655,14 +652,12 @@ func TestPermissionsE2E(t *testing.T) {
 		hasFirst := false
 		hasSecond := false
 		for _, req := range reqs {
-			if req.Kind == copilot.PermissionRequestKindCustomTool {
-				if req.ToolName != nil {
-					if *req.ToolName == "first_permission_tool" {
-						hasFirst = true
-					}
-					if *req.ToolName == "second_permission_tool" {
-						hasSecond = true
-					}
+			if customReq, ok := req.(*copilot.PermissionRequestCustomTool); ok {
+				if customReq.ToolName == "first_permission_tool" {
+					hasFirst = true
+				}
+				if customReq.ToolName == "second_permission_tool" {
+					hasSecond = true
 				}
 			}
 		}

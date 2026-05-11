@@ -53,7 +53,7 @@ func TestCommandsE2E(t *testing.T) {
 		// Listen for commands.changed event on client1
 		commandsChangedCh := make(chan copilot.SessionEvent, 1)
 		unsubscribe := session1.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeCommandsChanged {
+			if _, ok := event.Data.(*copilot.CommandsChangedData); ok {
 				select {
 				case commandsChangedCh <- event:
 				default:
@@ -416,7 +416,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 		schema := rpc.UIElicitationSchema{
 			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
-				"name": {Type: rpc.UIElicitationSchemaPropertyTypeString},
+				"name": &rpc.UIElicitationSchemaPropertyString{},
 			},
 			Required: []string{"name"},
 		}
@@ -549,12 +549,10 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 		// Listen for capabilities.changed with elicitation enabled
 		capEnabledCh := make(chan copilot.SessionEvent, 1)
 		unsubscribe := session1.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeCapabilitiesChanged {
-				if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && *d.UI.Elicitation {
-					select {
-					case capEnabledCh <- event:
-					default:
-					}
+			if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && *d.UI.Elicitation {
+				select {
+				case capEnabledCh <- event:
+				default:
 				}
 			}
 		})
@@ -612,12 +610,10 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 		// Listen for capability enabled
 		capEnabledCh := make(chan struct{}, 1)
 		unsubEnabled := session1.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeCapabilitiesChanged {
-				if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && *d.UI.Elicitation {
-					select {
-					case capEnabledCh <- struct{}{}:
-					default:
-					}
+			if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && *d.UI.Elicitation {
+				select {
+				case capEnabledCh <- struct{}{}:
+				default:
 				}
 			}
 		})
@@ -652,12 +648,10 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 		// Now listen for elicitation to become disabled
 		capDisabledCh := make(chan struct{}, 1)
 		unsubDisabled := session1.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeCapabilitiesChanged {
-				if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && !*d.UI.Elicitation {
-					select {
-					case capDisabledCh <- struct{}{}:
-					default:
-					}
+			if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && !*d.UI.Elicitation {
+				select {
+				case capDisabledCh <- struct{}{}:
+				default:
 				}
 			}
 		})

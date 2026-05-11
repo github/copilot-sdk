@@ -524,10 +524,10 @@ func TestToolsE2E(t *testing.T) {
 		mu.Lock()
 		customToolReqs := 0
 		for _, req := range permissionRequests {
-			if req.Kind == "custom-tool" {
+			if customReq, ok := req.(*copilot.PermissionRequestCustomTool); ok {
 				customToolReqs++
-				if req.ToolName == nil || *req.ToolName != "encrypt_string" {
-					t.Errorf("Expected toolName 'encrypt_string', got '%v'", req.ToolName)
+				if customReq.ToolName != "encrypt_string" {
+					t.Errorf("Expected toolName 'encrypt_string', got '%v'", req)
 				}
 			}
 		}

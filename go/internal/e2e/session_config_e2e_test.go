@@ -206,7 +206,7 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetMessages failed: %v", err)
 		}
-		if len(messages) == 0 || messages[0].Type != copilot.SessionEventTypeSessionStart {
+		if len(messages) == 0 || messages[0].Type() != copilot.SessionEventTypeSessionStart {
 			t.Fatalf("Expected first event to be session.start, got %+v", messages)
 		}
 		startData := messages[0].Data.(*copilot.SessionStartData)

@@ -235,12 +235,12 @@ func waitForMatchingEventAllowingRateLimit(session *copilot.Session, eventType c
 	result := make(chan *copilot.SessionEvent, 1)
 	errCh := make(chan error, 1)
 	unsubscribe := session.On(func(event copilot.SessionEvent) {
-		if event.Type == eventType && predicate(event) {
+		if event.Type() == eventType && predicate(event) {
 			select {
 			case result <- &event:
 			default:
 			}
-		} else if event.Type == copilot.SessionEventTypeSessionError {
+		} else if event.Type() == copilot.SessionEventTypeSessionError {
 			if data, ok := event.Data.(*copilot.SessionErrorData); ok && data.ErrorType == "rate_limit" {
 				return
 			}

@@ -60,7 +60,7 @@ func GetNextEventOfType(session *copilot.Session, eventType copilot.SessionEvent
 	errCh := make(chan error, 1)
 
 	unsubscribe := session.On(func(event copilot.SessionEvent) {
-		switch event.Type {
+		switch event.Type() {
 		case eventType:
 			select {
 			case result <- &event:
@@ -98,7 +98,7 @@ func getExistingFinalResponse(ctx context.Context, session *copilot.Session, alr
 	// Find last user message
 	finalUserMessageIndex := -1
 	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Type == "user.message" {
+		if messages[i].Type() == "user.message" {
 			finalUserMessageIndex = i
 			break
 		}
@@ -113,7 +113,7 @@ func getExistingFinalResponse(ctx context.Context, session *copilot.Session, alr
 
 	// Check for errors
 	for _, msg := range currentTurnMessages {
-		if msg.Type == "session.error" {
+		if msg.Type() == "session.error" {
 			errMsg := "session error"
 			if d, ok := msg.Data.(*copilot.SessionErrorData); ok {
 				errMsg = d.Message
@@ -128,7 +128,7 @@ func getExistingFinalResponse(ctx context.Context, session *copilot.Session, alr
 		sessionIdleIndex = len(currentTurnMessages)
 	} else {
 		for i, msg := range currentTurnMessages {
-			if msg.Type == "session.idle" {
+			if msg.Type() == "session.idle" {
 				sessionIdleIndex = i
 				break
 			}
@@ -138,7 +138,7 @@ func getExistingFinalResponse(ctx context.Context, session *copilot.Session, alr
 	if sessionIdleIndex != -1 {
 		// Find last assistant.message before session.idle
 		for i := sessionIdleIndex - 1; i >= 0; i-- {
-			if currentTurnMessages[i].Type == "assistant.message" {
+			if currentTurnMessages[i].Type() == "assistant.message" {
 				return &currentTurnMessages[i], nil
 			}
 		}
