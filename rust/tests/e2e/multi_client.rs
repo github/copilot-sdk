@@ -1,13 +1,16 @@
 use std::net::TcpListener;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use github_copilot_sdk::generated::session_events::SessionEventType;
+use github_copilot_sdk::generated::session_events::{
+    PermissionCompletedData, PermissionResult as EventPermissionResult, SessionEventType,
+};
 use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
 use github_copilot_sdk::{
-    Client, PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId, Tool,
-    ToolInvocation, ToolResult, Transport,
+    Client, PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionEvent,
+    SessionId, Tool, ToolInvocation, ToolResult, Transport,
 };
 use serde_json::json;
 
@@ -101,16 +104,169 @@ async fn both_clients_see_tool_request_and_completion_events() {
 
 #[tokio::test]
 async fn one_client_approves_permission_and_both_see_the_result() {
-    let result = PermissionResult::Approved;
+    with_e2e_context(
+        "rust_multi_client",
+        "one_client_approves_permission_and_both_see_the_result",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let port = free_tcp_port();
+                let server = start_tcp_server(ctx, port).await;
+                let permission_requests = Arc::new(AtomicUsize::new(0));
+                let session1 = server
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(DEFAULT_TEST_TOKEN)
+                            .with_handler(permission_handler_with_counter(
+                                PermissionResult::Approved,
+                                Arc::clone(&permission_requests),
+                            )),
+                    )
+                    .await
+                    .expect("create session");
+                let client2 = start_external_client(ctx, port).await;
+                let session2 = client2
+                    .resume_session(
+                        resume_config(session1.id().clone())
+                            .with_request_permission(false)
+                            .with_handler(permission_handler(PermissionResult::NoResult)),
+                    )
+                    .await
+                    .expect("resume session");
 
-    assert!(matches!(result, PermissionResult::Approved));
+                let client1_requested = wait_for_event(
+                    session1.subscribe(),
+                    "client1 permission request",
+                    |event| event.parsed_type() == SessionEventType::PermissionRequested,
+                );
+                let client2_requested = wait_for_event(
+                    session2.subscribe(),
+                    "client2 permission request",
+                    |event| event.parsed_type() == SessionEventType::PermissionRequested,
+                );
+                let client1_completed = wait_for_event(
+                    session1.subscribe(),
+                    "client1 permission approved",
+                    |event| is_permission_approved(event),
+                );
+                let client2_completed = wait_for_event(
+                    session2.subscribe(),
+                    "client2 permission approved",
+                    |event| is_permission_approved(event),
+                );
+
+                let answer = session1
+                    .send_and_wait(
+                        "Create a file called hello.txt containing the text 'hello world'",
+                    )
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(!assistant_message_content(&answer).is_empty());
+                assert!(
+                    permission_requests.load(Ordering::SeqCst) > 0,
+                    "expected client 1 to handle at least one permission request"
+                );
+                let _ = tokio::join!(
+                    client1_requested,
+                    client2_requested,
+                    client1_completed,
+                    client2_completed
+                );
+
+                session2
+                    .disconnect()
+                    .await
+                    .expect("disconnect second session");
+                client2.force_stop();
+                session1
+                    .disconnect()
+                    .await
+                    .expect("disconnect first session");
+                server.stop().await.expect("stop server client");
+            })
+        },
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn one_client_rejects_permission_and_both_see_the_result() {
-    let result = PermissionResult::Denied;
+    with_e2e_context(
+        "rust_multi_client",
+        "one_client_rejects_permission_and_both_see_the_result",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let protected_file = ctx.work_dir().join("protected.txt");
+                std::fs::write(&protected_file, "protected content").expect("write protected file");
+                let port = free_tcp_port();
+                let server = start_tcp_server(ctx, port).await;
+                let session1 = server
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(DEFAULT_TEST_TOKEN)
+                            .with_handler(permission_handler(PermissionResult::Denied)),
+                    )
+                    .await
+                    .expect("create session");
+                let client2 = start_external_client(ctx, port).await;
+                let session2 = client2
+                    .resume_session(
+                        resume_config(session1.id().clone())
+                            .with_request_permission(false)
+                            .with_handler(permission_handler(PermissionResult::NoResult)),
+                    )
+                    .await
+                    .expect("resume session");
 
-    assert!(matches!(result, PermissionResult::Denied));
+                let client1_requested = wait_for_event(
+                    session1.subscribe(),
+                    "client1 permission request",
+                    |event| event.parsed_type() == SessionEventType::PermissionRequested,
+                );
+                let client2_requested = wait_for_event(
+                    session2.subscribe(),
+                    "client2 permission request",
+                    |event| event.parsed_type() == SessionEventType::PermissionRequested,
+                );
+                let client1_completed =
+                    wait_for_event(session1.subscribe(), "client1 permission denied", |event| {
+                        is_permission_denied(event)
+                    });
+                let client2_completed =
+                    wait_for_event(session2.subscribe(), "client2 permission denied", |event| {
+                        is_permission_denied(event)
+                    });
+
+                session1
+                    .send_and_wait("Edit protected.txt and replace 'protected' with 'hacked'.")
+                    .await
+                    .expect("send");
+                let content =
+                    std::fs::read_to_string(&protected_file).expect("read protected file");
+                assert_eq!(content, "protected content");
+                let _ = tokio::join!(
+                    client1_requested,
+                    client2_requested,
+                    client1_completed,
+                    client2_completed
+                );
+
+                session2
+                    .disconnect()
+                    .await
+                    .expect("disconnect second session");
+                client2.force_stop();
+                session1
+                    .disconnect()
+                    .await
+                    .expect("disconnect first session");
+                server.stop().await.expect("stop server client");
+            })
+        },
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -298,6 +454,62 @@ fn free_tcp_port() -> u16 {
 
 fn selective_handler(tools: Vec<EchoTool>) -> Arc<SelectiveToolHandler> {
     Arc::new(SelectiveToolHandler { tools })
+}
+
+fn permission_handler(result: PermissionResult) -> Arc<PermissionDecisionHandler> {
+    Arc::new(PermissionDecisionHandler {
+        result,
+        request_count: None,
+    })
+}
+
+fn permission_handler_with_counter(
+    result: PermissionResult,
+    request_count: Arc<AtomicUsize>,
+) -> Arc<PermissionDecisionHandler> {
+    Arc::new(PermissionDecisionHandler {
+        result,
+        request_count: Some(request_count),
+    })
+}
+
+fn is_permission_approved(event: &SessionEvent) -> bool {
+    event.parsed_type() == SessionEventType::PermissionCompleted
+        && event
+            .typed_data::<PermissionCompletedData>()
+            .is_some_and(|data| matches!(data.result, EventPermissionResult::Approved(_)))
+}
+
+fn is_permission_denied(event: &SessionEvent) -> bool {
+    event.parsed_type() == SessionEventType::PermissionCompleted
+        && event
+            .typed_data::<PermissionCompletedData>()
+            .is_some_and(|data| {
+                matches!(
+                    data.result,
+                    EventPermissionResult::DeniedInteractivelyByUser(_)
+                )
+            })
+}
+
+struct PermissionDecisionHandler {
+    result: PermissionResult,
+    request_count: Option<Arc<AtomicUsize>>,
+}
+
+#[async_trait]
+impl SessionHandler for PermissionDecisionHandler {
+    async fn on_permission_request(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _data: PermissionRequestData,
+    ) -> PermissionResult {
+        if let Some(request_count) = &self.request_count {
+            request_count.fetch_add(1, Ordering::SeqCst);
+        }
+        self.result.clone()
+    }
 }
 
 struct SelectiveToolHandler {

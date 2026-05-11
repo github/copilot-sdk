@@ -777,7 +777,7 @@ impl Client {
         let session_id = config
             .session_id
             .clone()
-            .unwrap_or_else(crate::generate_session_id);
+            .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
         config.session_id = Some(session_id.clone());
         let mut params = serde_json::to_value(&config)?;
         let trace_ctx = self.resolve_trace_context().await;

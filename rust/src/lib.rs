@@ -853,23 +853,6 @@ fn generate_connection_token() -> String {
     hex
 }
 
-fn generate_session_id() -> SessionId {
-    let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes)
-        .expect("OS CSPRNG (getrandom) is unavailable; cannot generate session ID");
-    bytes[6] = (bytes[6] & 0x0f) | 0x40; // UUID version 4.
-    bytes[8] = (bytes[8] & 0x3f) | 0x80; // UUID variant 1.
-    let mut id = String::with_capacity(36);
-    for (index, byte) in bytes.into_iter().enumerate() {
-        if matches!(index, 4 | 6 | 8 | 10) {
-            id.push('-');
-        }
-        use std::fmt::Write;
-        let _ = write!(id, "{byte:02x}");
-    }
-    SessionId::from(id)
-}
-
 /// Connection to a GitHub Copilot CLI server (stdio, TCP, or external).
 ///
 /// Cheaply cloneable — cloning shares the underlying connection.

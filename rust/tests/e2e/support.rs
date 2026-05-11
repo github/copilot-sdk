@@ -432,10 +432,11 @@ pub fn assistant_message_content(event: &SessionEvent) -> String {
 
 pub fn assert_uuid_like(session_id: &SessionId) {
     let text = session_id.as_str();
-    assert_eq!(text.len(), 36, "session id should be UUID-shaped");
-    assert!(
-        text.chars().all(|ch| ch.is_ascii_hexdigit() || ch == '-'),
-        "session id should be UUID-shaped"
+    let parsed = uuid::Uuid::parse_str(text).expect("session id should be UUID-shaped");
+    assert_eq!(
+        parsed.hyphenated().to_string(),
+        text,
+        "session id should use canonical hyphenated UUID formatting"
     );
 }
 
