@@ -116,6 +116,12 @@ public final class ResumeSessionRequest {
     @JsonProperty("requestElicitation")
     private Boolean requestElicitation;
 
+    @JsonProperty("requestExitPlanMode")
+    private Boolean requestExitPlanMode;
+
+    @JsonProperty("requestAutoModeSwitch")
+    private Boolean requestAutoModeSwitch;
+
     @JsonProperty("modelCapabilities")
     private ModelCapabilitiesOverride modelCapabilities;
 
@@ -437,6 +443,28 @@ public final class ResumeSessionRequest {
     /** Sets the requestElicitation flag. @param requestElicitation the flag */
     public void setRequestElicitation(Boolean requestElicitation) {
         this.requestElicitation = requestElicitation;
+    }
+
+    /** Gets the requestExitPlanMode flag. @return the flag */
+    public Boolean getRequestExitPlanMode() {
+        return requestExitPlanMode;
+    }
+
+    /** Sets the requestExitPlanMode flag. @param requestExitPlanMode the flag */
+    public void setRequestExitPlanMode(Boolean requestExitPlanMode) {
+        this.requestExitPlanMode = requestExitPlanMode;
+    }
+
+    /** Gets the requestAutoModeSwitch flag. @return the flag */
+    public Boolean getRequestAutoModeSwitch() {
+        return requestAutoModeSwitch;
+    }
+
+    /**
+     * Sets the requestAutoModeSwitch flag. @param requestAutoModeSwitch the flag
+     */
+    public void setRequestAutoModeSwitch(Boolean requestAutoModeSwitch) {
+        this.requestAutoModeSwitch = requestAutoModeSwitch;
     }
 
     /** Gets the model capabilities override. @return the override */

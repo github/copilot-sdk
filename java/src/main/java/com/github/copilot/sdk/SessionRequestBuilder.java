@@ -138,6 +138,12 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
         }
+        if (config.getOnExitPlanMode() != null) {
+            request.setRequestExitPlanMode(true);
+        }
+        if (config.getOnAutoModeSwitch() != null) {
+            request.setRequestAutoModeSwitch(true);
+        }
         request.setGitHubToken(config.getGitHubToken());
 
         return request;
@@ -216,6 +222,12 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
         }
+        if (config.getOnExitPlanMode() != null) {
+            request.setRequestExitPlanMode(true);
+        }
+        if (config.getOnAutoModeSwitch() != null) {
+            request.setRequestAutoModeSwitch(true);
+        }
         request.setGitHubToken(config.getGitHubToken());
 
         return request;
@@ -252,6 +264,12 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             session.registerElicitationHandler(config.getOnElicitationRequest());
         }
+        if (config.getOnExitPlanMode() != null) {
+            session.registerExitPlanModeHandler(config.getOnExitPlanMode());
+        }
+        if (config.getOnAutoModeSwitch() != null) {
+            session.registerAutoModeSwitchHandler(config.getOnAutoModeSwitch());
+        }
         if (config.getOnEvent() != null) {
             session.on(config.getOnEvent());
         }
@@ -287,6 +305,12 @@ final class SessionRequestBuilder {
         }
         if (config.getOnElicitationRequest() != null) {
             session.registerElicitationHandler(config.getOnElicitationRequest());
+        }
+        if (config.getOnExitPlanMode() != null) {
+            session.registerExitPlanModeHandler(config.getOnExitPlanMode());
+        }
+        if (config.getOnAutoModeSwitch() != null) {
+            session.registerAutoModeSwitchHandler(config.getOnAutoModeSwitch());
         }
         if (config.getOnEvent() != null) {
             session.on(config.getOnEvent());

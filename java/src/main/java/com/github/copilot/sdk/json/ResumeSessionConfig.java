@@ -66,6 +66,8 @@ public class ResumeSessionConfig {
     private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
     private ElicitationHandler onElicitationRequest;
+    private ExitPlanModeHandler onExitPlanMode;
+    private AutoModeSwitchHandler onAutoModeSwitch;
     private String gitHubToken;
 
     /**
@@ -767,6 +769,60 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the exit-plan-mode request handler.
+     *
+     * @return the exit-plan-mode handler, or {@code null}
+     * @since 1.0.8
+     */
+    public ExitPlanModeHandler getOnExitPlanMode() {
+        return onExitPlanMode;
+    }
+
+    /**
+     * Sets a handler for exit-plan-mode requests from the server.
+     * <p>
+     * When provided, the server will route {@code exitPlanMode.request} callbacks
+     * to this handler.
+     *
+     * @param onExitPlanMode
+     *            the exit-plan-mode handler
+     * @return this config for method chaining
+     * @see ExitPlanModeHandler
+     * @since 1.0.8
+     */
+    public ResumeSessionConfig setOnExitPlanMode(ExitPlanModeHandler onExitPlanMode) {
+        this.onExitPlanMode = onExitPlanMode;
+        return this;
+    }
+
+    /**
+     * Gets the auto-mode-switch request handler.
+     *
+     * @return the auto-mode-switch handler, or {@code null}
+     * @since 1.0.8
+     */
+    public AutoModeSwitchHandler getOnAutoModeSwitch() {
+        return onAutoModeSwitch;
+    }
+
+    /**
+     * Sets a handler for auto-mode-switch requests from the server.
+     * <p>
+     * When provided, the server will route {@code autoModeSwitch.request} callbacks
+     * to this handler.
+     *
+     * @param onAutoModeSwitch
+     *            the auto-mode-switch handler
+     * @return this config for method chaining
+     * @see AutoModeSwitchHandler
+     * @since 1.0.8
+     */
+    public ResumeSessionConfig setOnAutoModeSwitch(AutoModeSwitchHandler onAutoModeSwitch) {
+        this.onAutoModeSwitch = onAutoModeSwitch;
+        return this;
+    }
+
+    /**
      * Gets the GitHub token for per-session authentication.
      *
      * @return the GitHub token, or {@code null} if not set
@@ -839,6 +895,8 @@ public class ResumeSessionConfig {
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
+        copy.onExitPlanMode = this.onExitPlanMode;
+        copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.gitHubToken = this.gitHubToken;
         return copy;
     }
