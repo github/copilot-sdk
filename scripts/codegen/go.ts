@@ -1266,13 +1266,17 @@ function pushGoJSONNegativePropertyLines(
     structVar: string,
     fieldNames: Map<string, string>,
     properties: string[],
-    indent: string
-): void {
-    for (const propName of properties) {
+    indent: string,
+    emitFinalReturn: boolean = false
+): string | undefined {
+    const propertyChecks = emitFinalReturn ? properties.slice(0, -1) : properties;
+    for (const propName of propertyChecks) {
         lines.push(`${indent}if ${structVar}.${fieldNames.get(propName)!} != nil {`);
         lines.push(`${indent}\treturn false`);
         lines.push(`${indent}}`);
     }
+    if (!emitFinalReturn || properties.length === 0) return undefined;
+    return `${structVar}.${fieldNames.get(properties[properties.length - 1])!} == nil`;
 }
 
 function pushGoJSONTargetedMatchSpecLines(
@@ -1280,8 +1284,10 @@ function pushGoJSONTargetedMatchSpecLines(
     rootRawExpr: string,
     spec: GoVariantMatchSpec,
     indent: string
-): void {
-    for (const [index, group] of groupGoJSONMatchTerms(spec).entries()) {
+): string | undefined {
+    const groups = groupGoJSONMatchTerms(spec);
+    for (const [index, group] of groups.entries()) {
+        const emitFinalReturn = index === groups.length - 1;
         const groupVarPrefix = `rawGroup${index}`;
         const groupProperties = [
             ...group.positiveTerms.map((term) => goJSONMatchPathProperty(term.path)),
@@ -1294,14 +1300,16 @@ function pushGoJSONTargetedMatchSpecLines(
             for (const term of group.positiveTerms) {
                 pushGoJSONPositiveTermLines(lines, structVar, fieldNames, term, indent, groupVarPrefix);
             }
-            pushGoJSONNegativePropertyLines(lines, structVar, fieldNames, group.negativeProperties, indent);
+            const finalReturn = pushGoJSONNegativePropertyLines(lines, structVar, fieldNames, group.negativeProperties, indent, emitFinalReturn);
+            if (finalReturn) return finalReturn;
             continue;
         }
 
         if (group.parentPath.length === 0) {
             const structVar = goJSONPathVarName(groupVarPrefix, group.parentPath);
             const fieldNames = pushGoJSONRawStructUnmarshalLines(lines, rootRawExpr, structVar, groupProperties, indent);
-            pushGoJSONNegativePropertyLines(lines, structVar, fieldNames, group.negativeProperties, indent);
+            const finalReturn = pushGoJSONNegativePropertyLines(lines, structVar, fieldNames, group.negativeProperties, indent, emitFinalReturn);
+            if (finalReturn) return finalReturn;
             continue;
         }
 
@@ -1312,6 +1320,7 @@ function pushGoJSONTargetedMatchSpecLines(
             lines.push(`${innerIndent}}`);
         });
     }
+    return undefined;
 }
 
 function goVariantMatchFunctionLines(
@@ -1330,8 +1339,8 @@ function goVariantMatchFunctionLines(
         return lines;
     }
 
-    pushGoJSONTargetedMatchSpecLines(lines, "data", spec, "\t");
-    lines.push(`\treturn true`);
+    const finalReturn = pushGoJSONTargetedMatchSpecLines(lines, "data", spec, "\t");
+    lines.push(`\treturn ${finalReturn ?? "true"}`);
     lines.push(`}`);
     return lines;
 }

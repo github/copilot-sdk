@@ -928,10 +928,7 @@ func matchesUIElicitationArrayAnyOfField(data []byte) bool {
 	if rawGroup0Items.Enum != nil {
 		return false
 	}
-	if rawGroup0Items.Type != nil {
-		return false
-	}
-	return true
+	return rawGroup0Items.Type == nil
 }
 
 func matchesUIElicitationArrayEnumField(data []byte) bool {
@@ -967,10 +964,7 @@ func matchesUIElicitationArrayEnumField(data []byte) bool {
 	default:
 		return false
 	}
-	if rawGroup0Items.AnyOf != nil {
-		return false
-	}
-	return true
+	return rawGroup0Items.AnyOf == nil
 }
 
 func matchesUIElicitationSchemaPropertyString(data []byte) bool {
@@ -984,10 +978,7 @@ func matchesUIElicitationSchemaPropertyString(data []byte) bool {
 	if rawGroup0.Enum != nil {
 		return false
 	}
-	if rawGroup0.OneOf != nil {
-		return false
-	}
-	return true
+	return rawGroup0.OneOf == nil
 }
 
 func matchesUIElicitationStringEnumField(data []byte) bool {
@@ -1001,10 +992,7 @@ func matchesUIElicitationStringEnumField(data []byte) bool {
 	if rawGroup0.Enum == nil {
 		return false
 	}
-	if rawGroup0.OneOf != nil {
-		return false
-	}
-	return true
+	return rawGroup0.OneOf == nil
 }
 
 func matchesUIElicitationStringOneOfField(data []byte) bool {
@@ -1018,10 +1006,7 @@ func matchesUIElicitationStringOneOfField(data []byte) bool {
 	if rawGroup0.OneOf == nil {
 		return false
 	}
-	if rawGroup0.Enum != nil {
-		return false
-	}
-	return true
+	return rawGroup0.Enum == nil
 }
 
 func unmarshalUIElicitationSchemaProperty(data []byte) (UIElicitationSchemaProperty, error) {
