@@ -2671,7 +2671,12 @@ function generateGoSessionEventsCode(schema: JSONSchema7): GoGeneratedTypeCode {
     out.push(`}`);
 
     sessionEncoding.push(`// MarshalJSON returns the original raw JSON so round-tripping preserves the payload.`);
-    sessionEncoding.push(`func (r RawSessionEventData) MarshalJSON() ([]byte, error) { return r.Raw, nil }`);
+    sessionEncoding.push(`func (r RawSessionEventData) MarshalJSON() ([]byte, error) {`);
+    sessionEncoding.push(`\tif r.Raw == nil {`);
+    sessionEncoding.push(`\t\treturn []byte("null"), nil`);
+    sessionEncoding.push(`\t}`);
+    sessionEncoding.push(`\treturn r.Raw, nil`);
+    sessionEncoding.push(`}`);
     sessionEncoding.push(``);
 
     // Event type enum

@@ -543,7 +543,12 @@ func (e SessionEvent) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalJSON returns the original raw JSON so round-tripping preserves the payload.
-func (r RawSessionEventData) MarshalJSON() ([]byte, error) { return r.Raw, nil }
+func (r RawSessionEventData) MarshalJSON() ([]byte, error) {
+	if r.Raw == nil {
+		return []byte("null"), nil
+	}
+	return r.Raw, nil
+}
 
 func unmarshalUserMessageAttachment(data []byte) (UserMessageAttachment, error) {
 	if string(data) == "null" {

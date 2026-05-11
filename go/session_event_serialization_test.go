@@ -135,3 +135,28 @@ func TestSessionEventAgentIDRoundTripsUnknownEvent(t *testing.T) {
 		t.Fatalf("expected serialized data to contain only the payload, got nested event object: %v", serializedData)
 	}
 }
+
+func TestRawSessionEventDataWithNilRawMarshalsAsNull(t *testing.T) {
+	event := SessionEvent{
+		Data: &RawSessionEventData{EventType: "future.event"},
+	}
+
+	data, err := event.Marshal()
+	if err != nil {
+		t.Fatalf("failed to marshal session event: %v", err)
+	}
+	if !json.Valid(data) {
+		t.Fatalf("expected valid JSON, got %s", data)
+	}
+
+	var serialized map[string]any
+	if err := json.Unmarshal(data, &serialized); err != nil {
+		t.Fatalf("failed to unmarshal serialized session event: %v", err)
+	}
+	if serialized["type"] != "future.event" {
+		t.Fatalf("expected serialized type to round-trip, got %v", serialized["type"])
+	}
+	if serialized["data"] != nil {
+		t.Fatalf("expected missing raw data to marshal as null, got %v", serialized["data"])
+	}
+}
