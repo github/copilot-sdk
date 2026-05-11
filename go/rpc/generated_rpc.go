@@ -204,10 +204,15 @@ type ExtensionsReloadResult struct {
 }
 
 // Tool call result (string or expanded result object)
-type ExternalToolResult struct {
-	ExternalToolTextResultForLlm *ExternalToolTextResultForLlm
-	String                       *string
+type ExternalToolResult interface {
+	externalToolResult()
 }
+
+type ExternalToolStringResult string
+
+func (ExternalToolStringResult) externalToolResult() {}
+
+func (ExternalToolTextResultForLlm) externalToolResult() {}
 
 // Expanded external tool result payload
 type ExternalToolTextResultForLlm struct {
@@ -353,10 +358,15 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 	Theme *ExternalToolTextResultForLlmContentResourceLinkIconTheme `json:"theme,omitempty"`
 }
 
-type FilterMapping struct {
-	Enum    *FilterMappingString
-	EnumMap map[string]FilterMappingValue
+type FilterMapping interface {
+	filterMapping()
 }
+
+type FilterMappingEnumMap map[string]FilterMappingValue
+
+func (FilterMappingEnumMap) filterMapping() {}
+
+func (FilterMappingString) filterMapping() {}
 
 // Experimental: FleetStartRequest is part of an experimental API and may change or be
 // removed.
@@ -378,7 +388,7 @@ type HandlePendingToolCallRequest struct {
 	// Request ID of the pending tool call
 	RequestID string `json:"requestId"`
 	// Tool call result (string or expanded result object)
-	Result *ExternalToolResult `json:"result,omitempty"`
+	Result ExternalToolResult `json:"result,omitempty"`
 }
 
 type HandlePendingToolCallResult struct {
@@ -608,7 +618,7 @@ type McpServerConfig struct {
 	Command           *string                            `json:"command,omitempty"`
 	Cwd               *string                            `json:"cwd,omitempty"`
 	Env               map[string]string                  `json:"env,omitempty"`
-	FilterMapping     *FilterMapping                     `json:"filterMapping,omitempty"`
+	FilterMapping     FilterMapping                      `json:"filterMapping,omitempty"`
 	Headers           map[string]string                  `json:"headers,omitempty"`
 	IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
 	OauthClientID     *string                            `json:"oauthClientId,omitempty"`
@@ -624,7 +634,7 @@ type McpServerConfig struct {
 }
 
 type McpServerConfigHTTP struct {
-	FilterMapping     *FilterMapping                     `json:"filterMapping,omitempty"`
+	FilterMapping     FilterMapping                      `json:"filterMapping,omitempty"`
 	Headers           map[string]string                  `json:"headers,omitempty"`
 	IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
 	OauthClientID     *string                            `json:"oauthClientId,omitempty"`
@@ -644,7 +654,7 @@ type McpServerConfigLocal struct {
 	Command         string            `json:"command"`
 	Cwd             *string           `json:"cwd,omitempty"`
 	Env             map[string]string `json:"env,omitempty"`
-	FilterMapping   *FilterMapping    `json:"filterMapping,omitempty"`
+	FilterMapping   FilterMapping     `json:"filterMapping,omitempty"`
 	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
@@ -3445,7 +3455,7 @@ func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePend
 		}
 		req["requestId"] = params.RequestID
 		if params.Result != nil {
-			req["result"] = *params.Result
+			req["result"] = params.Result
 		}
 	}
 	raw, err := a.client.Request("session.tools.handlePendingToolCall", req)

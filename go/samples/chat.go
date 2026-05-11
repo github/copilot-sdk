@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/github/copilot-sdk/go"
+	copilot "github.com/github/copilot-sdk/go"
 )
 
 const blue = "\033[34m"
@@ -24,7 +24,6 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		CLIPath:             cliPath,
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 	})
 	if err != nil {
@@ -45,7 +44,8 @@ func main() {
 		}
 	})
 
-	fmt.Println("Chat with Copilot (Ctrl+C to exit)\n")
+	fmt.Println("Chat with Copilot (Ctrl+C to exit)")
+	fmt.Println()
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {

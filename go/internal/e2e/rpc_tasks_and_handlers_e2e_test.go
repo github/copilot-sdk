@@ -90,7 +90,7 @@ func TestRpcTasksAndHandlersE2E(t *testing.T) {
 
 		tool, err := session.RPC.Tools.HandlePendingToolCall(t.Context(), &rpc.HandlePendingToolCallRequest{
 			RequestID: "missing-tool-request",
-			Result:    &rpc.ExternalToolResult{String: copilot.String("tool result")},
+			Result:    rpc.ExternalToolStringResult("tool result"),
 		})
 		if err != nil {
 			t.Fatalf("Tools.HandlePendingToolCall failed: %v", err)

@@ -170,68 +170,178 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (r ExternalToolResult) MarshalJSON() ([]byte, error) {
-	if r.ExternalToolTextResultForLlm != nil {
-		return json.Marshal(r.ExternalToolTextResultForLlm)
-	}
-	if r.String != nil {
-		return json.Marshal(r.String)
-	}
-	return []byte("null"), nil
-}
-
-func (r *ExternalToolResult) UnmarshalJSON(data []byte) error {
+func unmarshalExternalToolResult(data []byte) (ExternalToolResult, error) {
 	if string(data) == "null" {
-		*r = ExternalToolResult{}
-		return nil
-	}
-	{
-		var value ExternalToolTextResultForLlm
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ExternalToolResult{ExternalToolTextResultForLlm: &value}
-			return nil
-		}
+		return nil, nil
 	}
 	{
 		var value string
 		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ExternalToolResult{String: &value}
-			return nil
+			return ExternalToolStringResult(value), nil
 		}
 	}
-	return errors.New("data did not match any union variant for ExternalToolResult")
+	{
+		var value ExternalToolTextResultForLlm
+		if err := json.Unmarshal(data, &value); err == nil {
+			return &value, nil
+		}
+	}
+	return nil, errors.New("data did not match any union variant for ExternalToolResult")
 }
 
-func (r FilterMapping) MarshalJSON() ([]byte, error) {
-	if r.Enum != nil {
-		return json.Marshal(r.Enum)
-	}
-	if r.EnumMap != nil {
-		return json.Marshal(r.EnumMap)
-	}
-	return []byte("null"), nil
-}
-
-func (r *FilterMapping) UnmarshalJSON(data []byte) error {
+func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
 	if string(data) == "null" {
-		*r = FilterMapping{}
-		return nil
+		return nil, nil
+	}
+	{
+		var value FilterMappingEnumMap
+		if err := json.Unmarshal(data, &value); err == nil {
+			return value, nil
+		}
 	}
 	{
 		var value FilterMappingString
 		if err := json.Unmarshal(data, &value); err == nil {
-			*r = FilterMapping{Enum: &value}
-			return nil
+			return value, nil
 		}
 	}
-	{
-		var value map[string]FilterMappingValue
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = FilterMapping{EnumMap: value}
-			return nil
-		}
+	return nil, errors.New("data did not match any union variant for FilterMapping")
+}
+
+func (r *HandlePendingToolCallRequest) UnmarshalJSON(data []byte) error {
+	type rawHandlePendingToolCallRequest struct {
+		Error     *string         `json:"error,omitempty"`
+		RequestID string          `json:"requestId"`
+		Result    json.RawMessage `json:"result,omitempty"`
 	}
-	return errors.New("data did not match any union variant for FilterMapping")
+	var raw rawHandlePendingToolCallRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Error = raw.Error
+	r.RequestID = raw.RequestID
+	if raw.Result != nil {
+		value, err := unmarshalExternalToolResult(raw.Result)
+		if err != nil {
+			return err
+		}
+		r.Result = value
+	}
+	return nil
+}
+
+func (r *McpServerConfig) UnmarshalJSON(data []byte) error {
+	type rawMcpServerConfig struct {
+		Args              []string                           `json:"args,omitempty"`
+		Command           *string                            `json:"command,omitempty"`
+		Cwd               *string                            `json:"cwd,omitempty"`
+		Env               map[string]string                  `json:"env,omitempty"`
+		FilterMapping     json.RawMessage                    `json:"filterMapping,omitempty"`
+		Headers           map[string]string                  `json:"headers,omitempty"`
+		IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
+		OauthClientID     *string                            `json:"oauthClientId,omitempty"`
+		OauthGrantType    *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
+		OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
+		Timeout           *int64                             `json:"timeout,omitempty"`
+		Tools             []string                           `json:"tools,omitempty"`
+		Type              *McpServerConfigType               `json:"type,omitempty"`
+		URL               *string                            `json:"url,omitempty"`
+	}
+	var raw rawMcpServerConfig
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Args = raw.Args
+	r.Command = raw.Command
+	r.Cwd = raw.Cwd
+	r.Env = raw.Env
+	if raw.FilterMapping != nil {
+		value, err := unmarshalFilterMapping(raw.FilterMapping)
+		if err != nil {
+			return err
+		}
+		r.FilterMapping = value
+	}
+	r.Headers = raw.Headers
+	r.IsDefaultServer = raw.IsDefaultServer
+	r.OauthClientID = raw.OauthClientID
+	r.OauthGrantType = raw.OauthGrantType
+	r.OauthPublicClient = raw.OauthPublicClient
+	r.Timeout = raw.Timeout
+	r.Tools = raw.Tools
+	r.Type = raw.Type
+	r.URL = raw.URL
+	return nil
+}
+
+func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
+	type rawMcpServerConfigHTTP struct {
+		FilterMapping     json.RawMessage                    `json:"filterMapping,omitempty"`
+		Headers           map[string]string                  `json:"headers,omitempty"`
+		IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
+		OauthClientID     *string                            `json:"oauthClientId,omitempty"`
+		OauthGrantType    *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
+		OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
+		Timeout           *int64                             `json:"timeout,omitempty"`
+		Tools             []string                           `json:"tools,omitempty"`
+		Type              *McpServerConfigHTTPType           `json:"type,omitempty"`
+		URL               string                             `json:"url"`
+	}
+	var raw rawMcpServerConfigHTTP
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.FilterMapping != nil {
+		value, err := unmarshalFilterMapping(raw.FilterMapping)
+		if err != nil {
+			return err
+		}
+		r.FilterMapping = value
+	}
+	r.Headers = raw.Headers
+	r.IsDefaultServer = raw.IsDefaultServer
+	r.OauthClientID = raw.OauthClientID
+	r.OauthGrantType = raw.OauthGrantType
+	r.OauthPublicClient = raw.OauthPublicClient
+	r.Timeout = raw.Timeout
+	r.Tools = raw.Tools
+	r.Type = raw.Type
+	r.URL = raw.URL
+	return nil
+}
+
+func (r *McpServerConfigLocal) UnmarshalJSON(data []byte) error {
+	type rawMcpServerConfigLocal struct {
+		Args            []string                  `json:"args"`
+		Command         string                    `json:"command"`
+		Cwd             *string                   `json:"cwd,omitempty"`
+		Env             map[string]string         `json:"env,omitempty"`
+		FilterMapping   json.RawMessage           `json:"filterMapping,omitempty"`
+		IsDefaultServer *bool                     `json:"isDefaultServer,omitempty"`
+		Timeout         *int64                    `json:"timeout,omitempty"`
+		Tools           []string                  `json:"tools,omitempty"`
+		Type            *McpServerConfigLocalType `json:"type,omitempty"`
+	}
+	var raw rawMcpServerConfigLocal
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Args = raw.Args
+	r.Command = raw.Command
+	r.Cwd = raw.Cwd
+	r.Env = raw.Env
+	if raw.FilterMapping != nil {
+		value, err := unmarshalFilterMapping(raw.FilterMapping)
+		if err != nil {
+			return err
+		}
+		r.FilterMapping = value
+	}
+	r.IsDefaultServer = raw.IsDefaultServer
+	r.Timeout = raw.Timeout
+	r.Tools = raw.Tools
+	r.Type = raw.Type
+	return nil
 }
 
 func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {

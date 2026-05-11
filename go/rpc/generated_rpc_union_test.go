@@ -6,7 +6,7 @@ import (
 )
 
 func TestExternalToolResultJSONUnion(t *testing.T) {
-	stringResult := ExternalToolResult{String: stringPtr("tool result")}
+	var stringResult ExternalToolResult = ExternalToolStringResult("tool result")
 	raw, err := json.Marshal(stringResult)
 	if err != nil {
 		t.Fatalf("marshal string result: %v", err)
@@ -15,15 +15,16 @@ func TestExternalToolResultJSONUnion(t *testing.T) {
 		t.Fatalf("marshal string result = %s", raw)
 	}
 
-	var decodedString ExternalToolResult
-	if err := json.Unmarshal([]byte(`"tool result"`), &decodedString); err != nil {
+	decodedString, err := unmarshalExternalToolResult([]byte(`"tool result"`))
+	if err != nil {
 		t.Fatalf("unmarshal string result: %v", err)
 	}
-	if decodedString.String == nil || *decodedString.String != "tool result" {
+	decodedStringValue, ok := decodedString.(ExternalToolStringResult)
+	if !ok || string(decodedStringValue) != "tool result" {
 		t.Fatalf("unmarshal string result = %#v", decodedString)
 	}
 
-	objectResult := ExternalToolResult{ExternalToolTextResultForLlm: &ExternalToolTextResultForLlm{TextResultForLlm: "expanded"}}
+	var objectResult ExternalToolResult = &ExternalToolTextResultForLlm{TextResultForLlm: "expanded"}
 	raw, err = json.Marshal(objectResult)
 	if err != nil {
 		t.Fatalf("marshal object result: %v", err)
@@ -32,17 +33,18 @@ func TestExternalToolResultJSONUnion(t *testing.T) {
 		t.Fatalf("marshal object result = %s", raw)
 	}
 
-	var decodedObject ExternalToolResult
-	if err := json.Unmarshal([]byte(`{"textResultForLlm":"expanded"}`), &decodedObject); err != nil {
+	decodedObject, err := unmarshalExternalToolResult([]byte(`{"textResultForLlm":"expanded"}`))
+	if err != nil {
 		t.Fatalf("unmarshal object result: %v", err)
 	}
-	if decodedObject.ExternalToolTextResultForLlm == nil || decodedObject.ExternalToolTextResultForLlm.TextResultForLlm != "expanded" {
+	decodedObjectValue, ok := decodedObject.(*ExternalToolTextResultForLlm)
+	if !ok || decodedObjectValue.TextResultForLlm != "expanded" {
 		t.Fatalf("unmarshal object result = %#v", decodedObject)
 	}
 }
 
 func TestFilterMappingJSONUnion(t *testing.T) {
-	mapping := FilterMapping{EnumMap: map[string]FilterMappingValue{"secret": FilterMappingValueHiddenCharacters}}
+	var mapping FilterMapping = FilterMappingEnumMap{"secret": FilterMappingValueHiddenCharacters}
 	raw, err := json.Marshal(mapping)
 	if err != nil {
 		t.Fatalf("marshal filter mapping map: %v", err)
@@ -51,16 +53,17 @@ func TestFilterMappingJSONUnion(t *testing.T) {
 		t.Fatalf("marshal filter mapping map = %s", raw)
 	}
 
-	var decodedMap FilterMapping
-	if err := json.Unmarshal([]byte(`{"secret":"hidden_characters"}`), &decodedMap); err != nil {
+	decodedMap, err := unmarshalFilterMapping([]byte(`{"secret":"hidden_characters"}`))
+	if err != nil {
 		t.Fatalf("unmarshal filter mapping map: %v", err)
 	}
-	if decodedMap.EnumMap["secret"] != FilterMappingValueHiddenCharacters {
+	decodedMapValue, ok := decodedMap.(FilterMappingEnumMap)
+	if !ok || decodedMapValue["secret"] != FilterMappingValueHiddenCharacters {
 		t.Fatalf("unmarshal filter mapping map = %#v", decodedMap)
 	}
 
-	enumValue := FilterMappingStringMarkdown
-	raw, err = json.Marshal(FilterMapping{Enum: &enumValue})
+	var enumValue FilterMapping = FilterMappingStringMarkdown
+	raw, err = json.Marshal(enumValue)
 	if err != nil {
 		t.Fatalf("marshal filter mapping enum: %v", err)
 	}
@@ -68,11 +71,12 @@ func TestFilterMappingJSONUnion(t *testing.T) {
 		t.Fatalf("marshal filter mapping enum = %s", raw)
 	}
 
-	var decodedEnum FilterMapping
-	if err := json.Unmarshal([]byte(`"markdown"`), &decodedEnum); err != nil {
+	decodedEnum, err := unmarshalFilterMapping([]byte(`"markdown"`))
+	if err != nil {
 		t.Fatalf("unmarshal filter mapping enum: %v", err)
 	}
-	if decodedEnum.Enum == nil || *decodedEnum.Enum != FilterMappingStringMarkdown {
+	decodedEnumValue, ok := decodedEnum.(FilterMappingString)
+	if !ok || decodedEnumValue != FilterMappingStringMarkdown {
 		t.Fatalf("unmarshal filter mapping enum = %#v", decodedEnum)
 	}
 }
@@ -181,8 +185,4 @@ func TestUIElicitationSchemaPropertyJSONUnion(t *testing.T) {
 	if _, ok := roundTrip.Properties["confirmed"].(*UIElicitationSchemaPropertyBoolean); !ok {
 		t.Fatalf("round-trip confirmed property = %T, want *UIElicitationSchemaPropertyBoolean", roundTrip.Properties["confirmed"])
 	}
-}
-
-func stringPtr(value string) *string {
-	return &value
 }

@@ -241,9 +241,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 
 		toolResult, err := session2.RPC.Tools.HandlePendingToolCall(t.Context(), &rpc.HandlePendingToolCallRequest{
 			RequestID: toolEvent.RequestID,
-			Result: &rpc.ExternalToolResult{
-				String: copilot.String("EXTERNAL_RESUMED_BETA"),
-			},
+			Result:    rpc.ExternalToolStringResult("EXTERNAL_RESUMED_BETA"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to handle pending tool call: %v", err)
@@ -363,14 +361,14 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		// Resolve B first to verify ordering doesn't matter.
 		resB, err := session2.RPC.Tools.HandlePendingToolCall(t.Context(), &rpc.HandlePendingToolCallRequest{
 			RequestID: toolEvents["pending_lookup_b"].RequestID,
-			Result:    &rpc.ExternalToolResult{String: copilot.String("PARALLEL_B_BETA")},
+			Result:    rpc.ExternalToolStringResult("PARALLEL_B_BETA"),
 		})
 		if err != nil || !resB.Success {
 			t.Fatalf("HandlePendingToolCall(B) failed: err=%v result=%+v", err, resB)
 		}
 		resA, err := session2.RPC.Tools.HandlePendingToolCall(t.Context(), &rpc.HandlePendingToolCallRequest{
 			RequestID: toolEvents["pending_lookup_a"].RequestID,
-			Result:    &rpc.ExternalToolResult{String: copilot.String("PARALLEL_A_ALPHA")},
+			Result:    rpc.ExternalToolStringResult("PARALLEL_A_ALPHA"),
 		})
 		if err != nil || !resA.Success {
 			t.Fatalf("HandlePendingToolCall(A) failed: err=%v result=%+v", err, resA)
@@ -553,9 +551,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		// handleable via HandlePendingToolCall.
 		toolResult, err := session2.RPC.Tools.HandlePendingToolCall(t.Context(), &rpc.HandlePendingToolCallRequest{
 			RequestID: toolEvent.RequestID,
-			Result: &rpc.ExternalToolResult{
-				String: copilot.String("EXTERNAL_RESUMED_BETA"),
-			},
+			Result:    rpc.ExternalToolStringResult("EXTERNAL_RESUMED_BETA"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to handle pending tool call: %v", err)

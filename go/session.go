@@ -1087,19 +1087,17 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		}
 	}
 
-	rpcResult := rpc.ExternalToolResult{
-		ExternalToolTextResultForLlm: &rpc.ExternalToolTextResultForLlm{
-			TextResultForLlm: textResultForLLM,
-			ToolTelemetry:    result.ToolTelemetry,
-			ResultType:       &effectiveResultType,
-		},
+	rpcResult := &rpc.ExternalToolTextResultForLlm{
+		TextResultForLlm: textResultForLLM,
+		ToolTelemetry:    result.ToolTelemetry,
+		ResultType:       &effectiveResultType,
 	}
 	if result.Error != "" {
-		rpcResult.ExternalToolTextResultForLlm.Error = &result.Error
+		rpcResult.Error = &result.Error
 	}
 	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 		RequestID: requestID,
-		Result:    &rpcResult,
+		Result:    rpcResult,
 	})
 }
 
