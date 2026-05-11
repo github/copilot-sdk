@@ -132,8 +132,9 @@ public class ModeHandlersTest {
                             }))
                     .get(30, TimeUnit.SECONDS);
 
-            var messageId = session.send(new MessageOptions()
-                    .setPrompt("Explain that auto mode recovered from a rate limit in one short sentence."))
+            var messageId = session
+                    .send(new MessageOptions()
+                            .setPrompt("Explain that auto mode recovered from a rate limit in one short sentence."))
                     .get(30, TimeUnit.SECONDS);
 
             assertNotNull(messageId);
