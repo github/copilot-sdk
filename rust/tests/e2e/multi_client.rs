@@ -147,12 +147,12 @@ async fn one_client_approves_permission_and_both_see_the_result() {
                 let client1_completed = wait_for_event(
                     session1.subscribe(),
                     "client1 permission approved",
-                    |event| is_permission_approved(event),
+                    is_permission_approved,
                 );
                 let client2_completed = wait_for_event(
                     session2.subscribe(),
                     "client2 permission approved",
-                    |event| is_permission_approved(event),
+                    is_permission_approved,
                 );
 
                 let answer = session1
@@ -230,14 +230,16 @@ async fn one_client_rejects_permission_and_both_see_the_result() {
                     "client2 permission request",
                     |event| event.parsed_type() == SessionEventType::PermissionRequested,
                 );
-                let client1_completed =
-                    wait_for_event(session1.subscribe(), "client1 permission denied", |event| {
-                        is_permission_denied(event)
-                    });
-                let client2_completed =
-                    wait_for_event(session2.subscribe(), "client2 permission denied", |event| {
-                        is_permission_denied(event)
-                    });
+                let client1_completed = wait_for_event(
+                    session1.subscribe(),
+                    "client1 permission denied",
+                    is_permission_denied,
+                );
+                let client2_completed = wait_for_event(
+                    session2.subscribe(),
+                    "client2 permission denied",
+                    is_permission_denied,
+                );
 
                 session1
                     .send_and_wait("Edit protected.txt and replace 'protected' with 'hacked'.")
