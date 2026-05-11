@@ -137,24 +137,6 @@ type DiscoveredMcpServer struct {
 	Type *DiscoveredMcpServerType `json:"type,omitempty"`
 }
 
-type EmbeddedBlobResourceContents struct {
-	// Base64-encoded binary content of the resource
-	Blob string `json:"blob"`
-	// MIME type of the blob content
-	MIMEType *string `json:"mimeType,omitempty"`
-	// URI identifying the resource
-	URI string `json:"uri"`
-}
-
-type EmbeddedTextResourceContents struct {
-	// MIME type of the text content
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Text content of the resource
-	Text string `json:"text"`
-	// URI identifying the resource
-	URI string `json:"uri"`
-}
-
 type Extension struct {
 	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
 	ID string `json:"id"`
@@ -335,16 +317,38 @@ func (ExternalToolTextResultForLlmContentText) Type() ExternalToolTextResultForL
 }
 
 // The embedded resource contents, either text or base64-encoded binary
-type ExternalToolTextResultForLlmContentResourceDetails struct {
+type ExternalToolTextResultForLlmContentResourceDetails interface {
+	externalToolTextResultForLlmContentResourceDetails()
+}
+
+type RawExternalToolTextResultForLlmContentResourceDetailsData struct {
+	Raw json.RawMessage
+}
+
+func (RawExternalToolTextResultForLlmContentResourceDetailsData) externalToolTextResultForLlmContentResourceDetails() {
+}
+
+type EmbeddedBlobResourceContents struct {
 	// Base64-encoded binary content of the resource
-	Blob *string `json:"blob,omitempty"`
-	// MIME type of the text content
+	Blob string `json:"blob"`
+	// MIME type of the blob content
 	MIMEType *string `json:"mimeType,omitempty"`
-	// Text content of the resource
-	Text *string `json:"text,omitempty"`
 	// URI identifying the resource
 	URI string `json:"uri"`
 }
+
+func (EmbeddedBlobResourceContents) externalToolTextResultForLlmContentResourceDetails() {}
+
+type EmbeddedTextResourceContents struct {
+	// MIME type of the text content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content of the resource
+	Text string `json:"text"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
+func (EmbeddedTextResourceContents) externalToolTextResultForLlmContentResourceDetails() {}
 
 // Icon image for a resource
 type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
@@ -613,25 +617,15 @@ type McpServer struct {
 }
 
 // MCP server configuration (local/stdio or remote/http)
-type McpServerConfig struct {
-	Args              []string                           `json:"args,omitempty"`
-	Command           *string                            `json:"command,omitempty"`
-	Cwd               *string                            `json:"cwd,omitempty"`
-	Env               map[string]string                  `json:"env,omitempty"`
-	FilterMapping     FilterMapping                      `json:"filterMapping,omitempty"`
-	Headers           map[string]string                  `json:"headers,omitempty"`
-	IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
-	OauthClientID     *string                            `json:"oauthClientId,omitempty"`
-	OauthGrantType    *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
-	OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
-	// Timeout in milliseconds for tool calls to this server.
-	Timeout *int64 `json:"timeout,omitempty"`
-	// Tools to include. Defaults to all tools if not specified.
-	Tools []string `json:"tools,omitempty"`
-	// Remote transport type. Defaults to "http" when omitted.
-	Type *McpServerConfigType `json:"type,omitempty"`
-	URL  *string              `json:"url,omitempty"`
+type McpServerConfig interface {
+	mcpServerConfig()
 }
+
+type RawMcpServerConfigData struct {
+	Raw json.RawMessage
+}
+
+func (RawMcpServerConfigData) mcpServerConfig() {}
 
 type McpServerConfigHTTP struct {
 	FilterMapping     FilterMapping                      `json:"filterMapping,omitempty"`
@@ -649,6 +643,8 @@ type McpServerConfigHTTP struct {
 	URL  string                   `json:"url"`
 }
 
+func (McpServerConfigHTTP) mcpServerConfig() {}
+
 type McpServerConfigLocal struct {
 	Args            []string          `json:"args"`
 	Command         string            `json:"command"`
@@ -662,6 +658,8 @@ type McpServerConfigLocal struct {
 	Tools []string                  `json:"tools,omitempty"`
 	Type  *McpServerConfigLocalType `json:"type,omitempty"`
 }
+
+func (McpServerConfigLocal) mcpServerConfig() {}
 
 // Experimental: McpServerList is part of an experimental API and may change or be removed.
 type McpServerList struct {
@@ -2155,15 +2153,6 @@ type McpServerConfigLocalType string
 const (
 	McpServerConfigLocalTypeLocal McpServerConfigLocalType = "local"
 	McpServerConfigLocalTypeStdio McpServerConfigLocalType = "stdio"
-)
-
-type McpServerConfigType string
-
-const (
-	McpServerConfigTypeHTTP  McpServerConfigType = "http"
-	McpServerConfigTypeLocal McpServerConfigType = "local"
-	McpServerConfigTypeSse   McpServerConfigType = "sse"
-	McpServerConfigTypeStdio McpServerConfigType = "stdio"
 )
 
 // Configuration source: user, workspace, plugin, or builtin

@@ -81,6 +81,55 @@ func TestFilterMappingJSONUnion(t *testing.T) {
 	}
 }
 
+func TestMcpServerConfigJSONUnion(t *testing.T) {
+	var localConfig McpServerConfig = &McpServerConfigLocal{
+		Args:    []string{"-v"},
+		Command: "node",
+	}
+	raw, err := json.Marshal(localConfig)
+	if err != nil {
+		t.Fatalf("marshal local config: %v", err)
+	}
+	if string(raw) != `{"args":["-v"],"command":"node"}` {
+		t.Fatalf("marshal local config = %s", raw)
+	}
+
+	decodedLocal, err := unmarshalMcpServerConfig([]byte(`{"args":["-v"],"command":"node"}`))
+	if err != nil {
+		t.Fatalf("unmarshal local config: %v", err)
+	}
+	decodedLocalValue, ok := decodedLocal.(*McpServerConfigLocal)
+	if !ok || decodedLocalValue.Command != "node" || len(decodedLocalValue.Args) != 1 || decodedLocalValue.Args[0] != "-v" {
+		t.Fatalf("unmarshal local config = %#v", decodedLocal)
+	}
+
+	var httpConfig McpServerConfig = &McpServerConfigHTTP{URL: "https://example.com/mcp"}
+	raw, err = json.Marshal(httpConfig)
+	if err != nil {
+		t.Fatalf("marshal HTTP config: %v", err)
+	}
+	if string(raw) != `{"url":"https://example.com/mcp"}` {
+		t.Fatalf("marshal HTTP config = %s", raw)
+	}
+
+	decodedHTTP, err := unmarshalMcpServerConfig([]byte(`{"url":"https://example.com/mcp"}`))
+	if err != nil {
+		t.Fatalf("unmarshal HTTP config: %v", err)
+	}
+	decodedHTTPValue, ok := decodedHTTP.(*McpServerConfigHTTP)
+	if !ok || decodedHTTPValue.URL != "https://example.com/mcp" {
+		t.Fatalf("unmarshal HTTP config = %#v", decodedHTTP)
+	}
+
+	decodedRaw, err := unmarshalMcpServerConfig([]byte(`{"name":"future"}`))
+	if err != nil {
+		t.Fatalf("unmarshal raw config: %v", err)
+	}
+	if _, ok := decodedRaw.(*RawMcpServerConfigData); !ok {
+		t.Fatalf("unmarshal raw config = %T, want *RawMcpServerConfigData", decodedRaw)
+	}
+}
+
 func TestUIElicitationFieldValueJSONUnion(t *testing.T) {
 	raw, err := json.Marshal(UIElicitationBooleanValue(true))
 	if err != nil {

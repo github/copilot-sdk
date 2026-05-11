@@ -310,6 +310,10 @@ interface GoDiscriminatorInfo {
     variants: GoDiscriminatedUnionVariant[];
 }
 
+interface GoRequiredFieldDiscriminatorInfo {
+    variants: GoDiscriminatedUnionVariant[];
+}
+
 interface GoPrimitiveUnionVariant {
     typeName: string;
     goType: string;
@@ -325,6 +329,7 @@ interface GoUntaggedUnionVariant {
 
 type GoUnionPlan =
     | { kind: "discriminated"; typeName: string; schema: JSONSchema7; description?: string; discriminator: GoDiscriminatorInfo }
+    | { kind: "requiredFieldDiscriminated"; typeName: string; schema: JSONSchema7; description?: string; discriminator: GoRequiredFieldDiscriminatorInfo }
     | { kind: "primitive"; typeName: string; schema: JSONSchema7; description?: string; variants: GoPrimitiveUnionVariant[] }
     | { kind: "flattenedObject"; typeName: string; schema: JSONSchema7; description?: string; variants: JSONSchema7[] }
     | { kind: "untagged"; typeName: string; schema: JSONSchema7; description?: string; variants: GoUntaggedUnionVariant[] }
@@ -441,6 +446,45 @@ function findGoDiscriminator(
         }
     }
     return null;
+}
+
+function findGoRequiredFieldDiscriminator(
+    variants: JSONSchema7[],
+    ctx: GoCodegenCtx,
+    unionTypeName: string
+): GoRequiredFieldDiscriminatorInfo | null {
+    if (variants.length === 0) return null;
+
+    const objectVariants = variants.map((variantSource) => ({
+        source: variantSource,
+        schema: goObjectUnionMemberSchema(variantSource, ctx),
+    }));
+    if (objectVariants.some((variant) => variant.schema === undefined)) return null;
+
+    const requiredSets = objectVariants.map((variant) => new Set(variant.schema!.required || []));
+    const propertySets = objectVariants.map((variant) => new Set(Object.keys(variant.schema!.properties || {})));
+    const unionVariants: GoDiscriminatedUnionVariant[] = [];
+    const seenTypeNames = new Set<string>();
+    for (const [index, variant] of objectVariants.entries()) {
+        const required = requiredSets[index];
+        if (required.size === 0) return null;
+
+        const uniqueRequired = [...required]
+            .filter((propName) => !propertySets.some((peerProperties, peerIndex) => peerIndex !== index && peerProperties.has(propName)))
+            .sort(compareGoFieldNames);
+        if (uniqueRequired.length === 0) return null;
+
+        const typeName = goDiscriminatedUnionVariantTypeName(unionTypeName, uniqueRequired[0], variant.source, variant.schema!, ctx);
+        if (seenTypeNames.has(typeName)) return null;
+        seenTypeNames.add(typeName);
+        unionVariants.push({
+            schema: variant.schema!,
+            typeName,
+            discriminatorValues: uniqueRequired,
+        });
+    }
+
+    return { variants: unionVariants };
 }
 
 /**
@@ -1544,6 +1588,102 @@ function emitGoFlatDiscriminatedUnion(
     ctx.structs.push(lines.join("\n"));
 }
 
+function emitGoRequiredFieldDiscriminatedUnion(
+    typeName: string,
+    discriminator: GoRequiredFieldDiscriminatorInfo,
+    ctx: GoCodegenCtx,
+    description?: string
+): void {
+    if (ctx.generatedNames.has(typeName)) return;
+    ctx.generatedNames.add(typeName);
+
+    const unionVariants = [...discriminator.variants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName));
+    const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
+    const rawDataName = `Raw${typeName}${ctx.discriminatedUnionRawVariantSuffix ?? "Data"}`;
+    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
+
+    const lines: string[] = [];
+    if (description) {
+        pushGoCommentForContext(lines, description, ctx);
+    }
+    lines.push(`type ${typeName} interface {`);
+    lines.push(`\t${markerName}()`);
+    lines.push(`}`);
+    lines.push(``);
+
+    for (const variant of unionVariants) {
+        pushGoEncodingBlock(goVariantMatchFunctionLines(variant, unionVariants, "", ctx), ctx);
+    }
+
+    const unmarshalLines: string[] = [];
+    unmarshalLines.push(`func ${unmarshalFuncName}(data []byte) (${typeName}, error) {`);
+    unmarshalLines.push(`\tif string(data) == "null" {`);
+    unmarshalLines.push(`\t\treturn nil, nil`);
+    unmarshalLines.push(`\t}`);
+    for (const variant of unionVariants) {
+        unmarshalLines.push(`\tif ${goVariantMatchFuncName(variant.typeName)}(data) {`);
+        unmarshalLines.push(`\t\tvar d ${variant.typeName}`);
+        unmarshalLines.push(`\t\tif err := json.Unmarshal(data, &d); err != nil {`);
+        unmarshalLines.push(`\t\t\treturn nil, err`);
+        unmarshalLines.push(`\t\t}`);
+        unmarshalLines.push(`\t\treturn &d, nil`);
+        unmarshalLines.push(`\t}`);
+    }
+    unmarshalLines.push(`\treturn &${rawDataName}{Raw: data}, nil`);
+    unmarshalLines.push(`}`);
+    pushGoEncodingBlock(unmarshalLines, ctx);
+
+    lines.push(`type ${rawDataName} struct {`);
+    lines.push(`\tRaw json.RawMessage`);
+    lines.push(`}`);
+    lines.push(``);
+    lines.push(`func (${rawDataName}) ${markerName}() {}`);
+    pushGoEncodingBlock([
+        `func (r ${rawDataName}) MarshalJSON() ([]byte, error) {`,
+        `\tif r.Raw != nil {`,
+        `\t\treturn r.Raw, nil`,
+        `\t}`,
+        `\treturn []byte("null"), nil`,
+        `}`,
+    ], ctx);
+
+    for (const mappedVariant of unionVariants) {
+        const variant = mappedVariant.schema;
+        const variantTypeName = mappedVariant.typeName;
+        if (variant.description) {
+            pushGoCommentForContext(lines, variant.description, ctx);
+        }
+        ctx.generatedNames.add(variantTypeName);
+        lines.push(`type ${variantTypeName} struct {`);
+        const required = new Set(variant.required || []);
+        const fields: GoStructField[] = [];
+        for (const [propName, propSchema] of sortByGoFieldName(Object.entries(variant.properties || {}))) {
+            if (typeof propSchema !== "object") continue;
+            const prop = propSchema as JSONSchema7;
+            const goName = toGoFieldName(propName);
+            const goType = resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx);
+            const omit = required.has(propName) ? "" : ",omitempty";
+            if (prop.description) {
+                pushGoCommentForContext(lines, prop.description, ctx, "\t");
+            }
+            if (isSchemaDeprecated(prop)) {
+                pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
+            }
+            const jsonTag = `json:"${propName}${omit}"`;
+            lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
+            fields.push({ propName, goName, goType, jsonTag });
+        }
+        lines.push(`}`);
+        pushGoStructUnmarshalJSON(lines, variantTypeName, fields, ctx);
+        lines.push(``);
+        lines.push(`func (${variantTypeName}) ${markerName}() {}`);
+        lines.push(``);
+    }
+
+    ctx.structs.push(lines.join("\n"));
+}
+
 function stableStringify(value: unknown): string {
     if (Array.isArray(value)) {
         return `[${value.map((item) => stableStringify(item)).join(",")}]`;
@@ -1644,9 +1784,11 @@ function collectGoDiscriminatedUnionVariantDefinitionTypeNames(
         if (unionMembers.length === 0) continue;
 
         const discriminator = findGoDiscriminator(unionMembers, ctx, typeName);
-        if (!discriminator) continue;
+        const requiredFieldDiscriminator = discriminator ? undefined : findGoRequiredFieldDiscriminator(unionMembers, ctx, typeName);
+        const variants = discriminator?.variants ?? requiredFieldDiscriminator?.variants;
+        if (!variants) continue;
 
-        for (const variant of discriminator.variants) {
+        for (const variant of variants) {
             if (definitionTypeNames.has(variant.typeName)) {
                 skipped.add(variant.typeName);
             }
@@ -2168,6 +2310,11 @@ function planGoUnion(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, i
         return { kind: "primitive", typeName, schema, description, variants: primitiveVariants };
     }
 
+    const requiredFieldDiscriminator = findGoRequiredFieldDiscriminator(members, ctx, typeName);
+    if (requiredFieldDiscriminator) {
+        return { kind: "requiredFieldDiscriminated", typeName, schema, description, discriminator: requiredFieldDiscriminator };
+    }
+
     const resolvedVariants = members.map((member) => resolveGoUnionMember(member, ctx.definitions));
     if (canFlattenGoObjectUnion(resolvedVariants, ctx)) {
         return { kind: "flattenedObject", typeName, schema, description, variants: resolvedVariants };
@@ -2185,6 +2332,9 @@ function emitGoUnionPlan(plan: GoUnionPlan, ctx: GoCodegenCtx): void {
     switch (plan.kind) {
         case "discriminated":
             emitGoFlatDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description);
+            return;
+        case "requiredFieldDiscriminated":
+            emitGoRequiredFieldDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description);
             return;
         case "primitive":
             emitGoPrimitiveUnionInterface(plan.typeName, plan.schema, ctx, plan.variants);

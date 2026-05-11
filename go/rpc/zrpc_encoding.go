@@ -95,6 +95,80 @@ func (r ExternalToolTextResultForLlmContentImage) MarshalJSON() ([]byte, error) 
 	})
 }
 
+func matchesEmbeddedBlobResourceContents(data []byte) bool {
+	var rawGroup0 struct {
+		Blob json.RawMessage `json:"blob"`
+		Text json.RawMessage `json:"text"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Blob == nil {
+		return false
+	}
+	return rawGroup0.Text == nil
+}
+
+func matchesEmbeddedTextResourceContents(data []byte) bool {
+	var rawGroup0 struct {
+		Blob json.RawMessage `json:"blob"`
+		Text json.RawMessage `json:"text"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Text == nil {
+		return false
+	}
+	return rawGroup0.Blob == nil
+}
+
+func unmarshalExternalToolTextResultForLlmContentResourceDetails(data []byte) (ExternalToolTextResultForLlmContentResourceDetails, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	if matchesEmbeddedBlobResourceContents(data) {
+		var d EmbeddedBlobResourceContents
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	if matchesEmbeddedTextResourceContents(data) {
+		var d EmbeddedTextResourceContents
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	return &RawExternalToolTextResultForLlmContentResourceDetailsData{Raw: data}, nil
+}
+
+func (r RawExternalToolTextResultForLlmContentResourceDetailsData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return []byte("null"), nil
+}
+
+func (r *ExternalToolTextResultForLlmContentResource) UnmarshalJSON(data []byte) error {
+	type rawExternalToolTextResultForLlmContentResource struct {
+		Resource json.RawMessage `json:"resource"`
+	}
+	var raw rawExternalToolTextResultForLlmContentResource
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Resource != nil {
+		value, err := unmarshalExternalToolTextResultForLlmContentResourceDetails(raw.Resource)
+		if err != nil {
+			return err
+		}
+		r.Resource = value
+	}
+	return nil
+}
+
 func (r ExternalToolTextResultForLlmContentResource) MarshalJSON() ([]byte, error) {
 	type alias ExternalToolTextResultForLlmContentResource
 	return json.Marshal(struct {
@@ -230,48 +304,68 @@ func (r *HandlePendingToolCallRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (r *McpServerConfig) UnmarshalJSON(data []byte) error {
-	type rawMcpServerConfig struct {
-		Args              []string                           `json:"args,omitempty"`
-		Command           *string                            `json:"command,omitempty"`
-		Cwd               *string                            `json:"cwd,omitempty"`
-		Env               map[string]string                  `json:"env,omitempty"`
-		FilterMapping     json.RawMessage                    `json:"filterMapping,omitempty"`
-		Headers           map[string]string                  `json:"headers,omitempty"`
-		IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
-		OauthClientID     *string                            `json:"oauthClientId,omitempty"`
-		OauthGrantType    *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
-		OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
-		Timeout           *int64                             `json:"timeout,omitempty"`
-		Tools             []string                           `json:"tools,omitempty"`
-		Type              *McpServerConfigType               `json:"type,omitempty"`
-		URL               *string                            `json:"url,omitempty"`
+func matchesMcpServerConfigHTTP(data []byte) bool {
+	var rawGroup0 struct {
+		Args    json.RawMessage `json:"args"`
+		Command json.RawMessage `json:"command"`
+		URL     json.RawMessage `json:"url"`
 	}
-	var raw rawMcpServerConfig
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
 	}
-	r.Args = raw.Args
-	r.Command = raw.Command
-	r.Cwd = raw.Cwd
-	r.Env = raw.Env
-	if raw.FilterMapping != nil {
-		value, err := unmarshalFilterMapping(raw.FilterMapping)
-		if err != nil {
-			return err
+	if rawGroup0.URL == nil {
+		return false
+	}
+	if rawGroup0.Args != nil {
+		return false
+	}
+	return rawGroup0.Command == nil
+}
+
+func matchesMcpServerConfigLocal(data []byte) bool {
+	var rawGroup0 struct {
+		Args    json.RawMessage `json:"args"`
+		Command json.RawMessage `json:"command"`
+		URL     json.RawMessage `json:"url"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Args == nil {
+		return false
+	}
+	if rawGroup0.Command == nil {
+		return false
+	}
+	return rawGroup0.URL == nil
+}
+
+func unmarshalMcpServerConfig(data []byte) (McpServerConfig, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	if matchesMcpServerConfigHTTP(data) {
+		var d McpServerConfigHTTP
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
 		}
-		r.FilterMapping = value
+		return &d, nil
 	}
-	r.Headers = raw.Headers
-	r.IsDefaultServer = raw.IsDefaultServer
-	r.OauthClientID = raw.OauthClientID
-	r.OauthGrantType = raw.OauthGrantType
-	r.OauthPublicClient = raw.OauthPublicClient
-	r.Timeout = raw.Timeout
-	r.Tools = raw.Tools
-	r.Type = raw.Type
-	r.URL = raw.URL
-	return nil
+	if matchesMcpServerConfigLocal(data) {
+		var d McpServerConfigLocal
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	return &RawMcpServerConfigData{Raw: data}, nil
+}
+
+func (r RawMcpServerConfigData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return []byte("null"), nil
 }
 
 func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
@@ -341,6 +435,67 @@ func (r *McpServerConfigLocal) UnmarshalJSON(data []byte) error {
 	r.Timeout = raw.Timeout
 	r.Tools = raw.Tools
 	r.Type = raw.Type
+	return nil
+}
+
+func (r *McpConfigAddRequest) UnmarshalJSON(data []byte) error {
+	type rawMcpConfigAddRequest struct {
+		Config json.RawMessage `json:"config"`
+		Name   string          `json:"name"`
+	}
+	var raw rawMcpConfigAddRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Config != nil {
+		value, err := unmarshalMcpServerConfig(raw.Config)
+		if err != nil {
+			return err
+		}
+		r.Config = value
+	}
+	r.Name = raw.Name
+	return nil
+}
+
+func (r *McpConfigList) UnmarshalJSON(data []byte) error {
+	type rawMcpConfigList struct {
+		Servers map[string]json.RawMessage `json:"servers"`
+	}
+	var raw rawMcpConfigList
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Servers != nil {
+		r.Servers = make(map[string]McpServerConfig, len(raw.Servers))
+		for key, rawValue := range raw.Servers {
+			value, err := unmarshalMcpServerConfig(rawValue)
+			if err != nil {
+				return err
+			}
+			r.Servers[key] = value
+		}
+	}
+	return nil
+}
+
+func (r *McpConfigUpdateRequest) UnmarshalJSON(data []byte) error {
+	type rawMcpConfigUpdateRequest struct {
+		Config json.RawMessage `json:"config"`
+		Name   string          `json:"name"`
+	}
+	var raw rawMcpConfigUpdateRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Config != nil {
+		value, err := unmarshalMcpServerConfig(raw.Config)
+		if err != nil {
+			return err
+		}
+		r.Config = value
+	}
+	r.Name = raw.Name
 	return nil
 }
 

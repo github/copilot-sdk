@@ -2429,16 +2429,37 @@ func (ToolExecutionCompleteContentText) Type() ToolExecutionCompleteContentType 
 }
 
 // The embedded resource contents, either text or base64-encoded binary
-type ToolExecutionCompleteContentResourceDetails struct {
+type ToolExecutionCompleteContentResourceDetails interface {
+	toolExecutionCompleteContentResourceDetails()
+}
+
+type RawToolExecutionCompleteContentResourceDetails struct {
+	Raw json.RawMessage
+}
+
+func (RawToolExecutionCompleteContentResourceDetails) toolExecutionCompleteContentResourceDetails() {}
+
+type EmbeddedBlobResourceContents struct {
 	// Base64-encoded binary content of the resource
-	Blob *string `json:"blob,omitempty"`
-	// MIME type of the text content
+	Blob string `json:"blob"`
+	// MIME type of the blob content
 	MIMEType *string `json:"mimeType,omitempty"`
-	// Text content of the resource
-	Text *string `json:"text,omitempty"`
 	// URI identifying the resource
 	URI string `json:"uri"`
 }
+
+func (EmbeddedBlobResourceContents) toolExecutionCompleteContentResourceDetails() {}
+
+type EmbeddedTextResourceContents struct {
+	// MIME type of the text content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content of the resource
+	Text string `json:"text"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
+func (EmbeddedTextResourceContents) toolExecutionCompleteContentResourceDetails() {}
 
 // Icon image for a resource
 type ToolExecutionCompleteContentResourceLinkIcon struct {

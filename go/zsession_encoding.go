@@ -788,6 +788,80 @@ func (r ToolExecutionCompleteContentImage) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func matchesEmbeddedBlobResourceContents(data []byte) bool {
+	var rawGroup0 struct {
+		Blob json.RawMessage `json:"blob"`
+		Text json.RawMessage `json:"text"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Blob == nil {
+		return false
+	}
+	return rawGroup0.Text == nil
+}
+
+func matchesEmbeddedTextResourceContents(data []byte) bool {
+	var rawGroup0 struct {
+		Blob json.RawMessage `json:"blob"`
+		Text json.RawMessage `json:"text"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Text == nil {
+		return false
+	}
+	return rawGroup0.Blob == nil
+}
+
+func unmarshalToolExecutionCompleteContentResourceDetails(data []byte) (ToolExecutionCompleteContentResourceDetails, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	if matchesEmbeddedBlobResourceContents(data) {
+		var d EmbeddedBlobResourceContents
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	if matchesEmbeddedTextResourceContents(data) {
+		var d EmbeddedTextResourceContents
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	return &RawToolExecutionCompleteContentResourceDetails{Raw: data}, nil
+}
+
+func (r RawToolExecutionCompleteContentResourceDetails) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return []byte("null"), nil
+}
+
+func (r *ToolExecutionCompleteContentResource) UnmarshalJSON(data []byte) error {
+	type rawToolExecutionCompleteContentResource struct {
+		Resource json.RawMessage `json:"resource"`
+	}
+	var raw rawToolExecutionCompleteContentResource
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Resource != nil {
+		value, err := unmarshalToolExecutionCompleteContentResourceDetails(raw.Resource)
+		if err != nil {
+			return err
+		}
+		r.Resource = value
+	}
+	return nil
+}
+
 func (r ToolExecutionCompleteContentResource) MarshalJSON() ([]byte, error) {
 	type alias ToolExecutionCompleteContentResource
 	return json.Marshal(struct {
