@@ -1145,7 +1145,7 @@ func rpcPermissionDecisionFromKind(kind rpc.PermissionDecisionKind) rpc.Permissi
 	case rpc.PermissionDecisionKindUserNotAvailable:
 		return &rpc.PermissionDecisionUserNotAvailable{}
 	default:
-		return &rpc.RawPermissionDecisionData{Discriminator: kind, Raw: []byte(`{}`)}
+		return &rpc.RawPermissionDecisionData{Discriminator: kind}
 	}
 }
 

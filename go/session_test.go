@@ -3,6 +3,7 @@ package copilot
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/github/copilot-sdk/go/rpc"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,24 @@ func newTestSession() (*Session, func()) {
 
 func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
+}
+
+func TestRPCPermissionDecisionFromKindPreservesUnknownKind(t *testing.T) {
+	kind := rpc.PermissionDecisionKind("future-decision")
+	decision := rpcPermissionDecisionFromKind(kind)
+
+	data, err := json.Marshal(decision)
+	if err != nil {
+		t.Fatalf("marshal permission decision: %v", err)
+	}
+
+	var serialized map[string]any
+	if err := json.Unmarshal(data, &serialized); err != nil {
+		t.Fatalf("unmarshal serialized permission decision: %v", err)
+	}
+	if serialized["kind"] != string(kind) {
+		t.Fatalf("expected kind %q to round-trip, got %v in %s", kind, serialized["kind"], data)
+	}
 }
 
 func TestSession_On(t *testing.T) {
