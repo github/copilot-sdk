@@ -38,7 +38,6 @@ public record SessionWorkspacesGetWorkspaceResult(
         @JsonProperty("branch") String branch,
         @JsonProperty("name") String name,
         @JsonProperty("user_named") Boolean userNamed,
-        @JsonProperty("summary") String summary,
         @JsonProperty("summary_count") Long summaryCount,
         @JsonProperty("created_at") OffsetDateTime createdAt,
         @JsonProperty("updated_at") OffsetDateTime updatedAt,
@@ -46,7 +45,6 @@ public record SessionWorkspacesGetWorkspaceResult(
         @JsonProperty("mc_task_id") String mcTaskId,
         @JsonProperty("mc_session_id") String mcSessionId,
         @JsonProperty("mc_last_event_id") String mcLastEventId,
-        @JsonProperty("session_sync_level") SessionWorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel sessionSyncLevel,
         @JsonProperty("chronicle_sync_dismissed") Boolean chronicleSyncDismissed
     ) {
 
@@ -66,27 +64,6 @@ public record SessionWorkspacesGetWorkspaceResult(
                     if (v.value.equals(value)) return v;
                 }
                 throw new IllegalArgumentException("Unknown SessionWorkspacesGetWorkspaceResultWorkspaceHostType value: " + value);
-            }
-        }
-
-        public enum SessionWorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel {
-            /** The {@code local} variant. */
-            LOCAL("local"),
-            /** The {@code user} variant. */
-            USER("user"),
-            /** The {@code repo_and_user} variant. */
-            REPO_AND_USER("repo_and_user");
-
-            private final String value;
-            SessionWorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionWorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel fromValue(String value) {
-                for (SessionWorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionWorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel value: " + value);
             }
         }
     }
