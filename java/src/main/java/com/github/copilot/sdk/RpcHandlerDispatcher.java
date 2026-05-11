@@ -131,6 +131,10 @@ final class RpcHandlerDispatcher {
 
     private void handleToolCall(JsonRpcClient rpc, String requestId, JsonNode params) {
         runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "tool.call");
+            if (requestIdLong == -1) {
+                return;
+            }
             try {
                 String sessionId = params.get("sessionId").asText();
                 String toolCallId = params.get("toolCallId").asText();
@@ -139,7 +143,7 @@ final class RpcHandlerDispatcher {
 
                 CopilotSession session = sessions.get(sessionId);
                 if (session == null) {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -147,7 +151,7 @@ final class RpcHandlerDispatcher {
                 if (tool == null || tool.handler() == null) {
                     var result = ToolResultObject.failure("Tool '" + toolName + "' is not supported.",
                             "tool '" + toolName + "' not supported");
-                    rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
+                    rpc.sendResponse(requestIdLong, Map.of("result", result));
                     return;
                 }
 
@@ -163,7 +167,7 @@ final class RpcHandlerDispatcher {
                             toolResult = ToolResultObject
                                     .success(result instanceof String s ? s : MAPPER.writeValueAsString(result));
                         }
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("result", toolResult));
+                        rpc.sendResponse(requestIdLong, Map.of("result", toolResult));
                     } catch (Exception e) {
                         LOG.log(Level.SEVERE, "Error sending tool result", e);
                     }
@@ -172,7 +176,7 @@ final class RpcHandlerDispatcher {
                         var result = ToolResultObject.failure(
                                 "Invoking this tool produced an error. Detailed information is not available.",
                                 ex.getMessage());
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
+                        rpc.sendResponse(requestIdLong, Map.of("result", result));
                     } catch (Exception e) {
                         LOG.log(Level.SEVERE, "Error sending tool error", e);
                     }
@@ -181,7 +185,7 @@ final class RpcHandlerDispatcher {
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Error handling tool call", e);
                 try {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32603, e.getMessage());
+                    rpc.sendErrorResponse(requestIdLong, -32603, e.getMessage());
                 } catch (IOException ioe) {
                     LOG.log(Level.SEVERE, "Failed to send error response", ioe);
                 }
@@ -191,6 +195,10 @@ final class RpcHandlerDispatcher {
 
     private void handlePermissionRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
         runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "permission.request");
+            if (requestIdLong == -1) {
+                return;
+            }
             try {
                 String sessionId = params.get("sessionId").asText();
                 JsonNode permissionRequest = params.get("permissionRequest");
@@ -199,7 +207,7 @@ final class RpcHandlerDispatcher {
                 if (session == null) {
                     var result = new PermissionRequestResult()
                             .setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
-                    rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
+                    rpc.sendResponse(requestIdLong, Map.of("result", result));
                     return;
                 }
 
@@ -212,7 +220,7 @@ final class RpcHandlerDispatcher {
                             throw new IllegalStateException(
                                     "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.");
                         }
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
+                        rpc.sendResponse(requestIdLong, Map.of("result", result));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending permission result", e);
                     }
@@ -220,7 +228,7 @@ final class RpcHandlerDispatcher {
                     try {
                         var result = new PermissionRequestResult()
                                 .setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
+                        rpc.sendResponse(requestIdLong, Map.of("result", result));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending permission denied", e);
                     }
@@ -235,6 +243,10 @@ final class RpcHandlerDispatcher {
     private void handleUserInputRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
         LOG.fine("Received userInput.request: " + params);
         runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "userInput.request");
+            if (requestIdLong == -1) {
+                return;
+            }
             try {
                 String sessionId = params.get("sessionId").asText();
                 String question = params.get("question").asText();
@@ -246,7 +258,7 @@ final class RpcHandlerDispatcher {
                 LOG.fine("Found session: " + (session != null));
                 if (session == null) {
                     LOG.fine("Session not found, sending error");
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -268,7 +280,7 @@ final class RpcHandlerDispatcher {
                         String answer = response.getAnswer() != null ? response.getAnswer() : "";
                         LOG.fine("Sending userInput response: answer=" + answer + ", wasFreeform="
                                 + response.isWasFreeform());
-                        rpc.sendResponse(Long.parseLong(requestId),
+                        rpc.sendResponse(requestIdLong,
                                 Map.of("answer", answer, "wasFreeform", response.isWasFreeform()));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending user input response", e);
@@ -276,8 +288,7 @@ final class RpcHandlerDispatcher {
                 }).exceptionally(ex -> {
                     LOG.log(Level.WARNING, "User input handler exception", ex);
                     try {
-                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
-                                "User input handler error: " + ex.getMessage());
+                        rpc.sendErrorResponse(requestIdLong, -32603, "User input handler error: " + ex.getMessage());
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending user input error", e);
                     }
@@ -291,12 +302,16 @@ final class RpcHandlerDispatcher {
 
     private void handleExitPlanModeRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
         runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "exitPlanMode.request");
+            if (requestIdLong == -1) {
+                return;
+            }
             try {
                 String sessionId = params.get("sessionId").asText();
 
                 CopilotSession session = sessions.get(sessionId);
                 if (session == null) {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -320,13 +335,13 @@ final class RpcHandlerDispatcher {
 
                 session.handleExitPlanModeRequest(request).thenAccept(result -> {
                     try {
-                        rpc.sendResponse(Long.parseLong(requestId), MAPPER.valueToTree(result));
+                        rpc.sendResponse(requestIdLong, MAPPER.valueToTree(result));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending exit plan mode response", e);
                     }
                 }).exceptionally(ex -> {
                     try {
-                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
+                        rpc.sendErrorResponse(requestIdLong, -32603,
                                 "Exit plan mode handler error: " + ex.getMessage());
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending exit plan mode error", e);
@@ -341,12 +356,16 @@ final class RpcHandlerDispatcher {
 
     private void handleAutoModeSwitchRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
         runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "autoModeSwitch.request");
+            if (requestIdLong == -1) {
+                return;
+            }
             try {
                 String sessionId = params.get("sessionId").asText();
 
                 CopilotSession session = sessions.get(sessionId);
                 if (session == null) {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -360,13 +379,13 @@ final class RpcHandlerDispatcher {
 
                 session.handleAutoModeSwitchRequest(request).thenAccept(response -> {
                     try {
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("response", response));
+                        rpc.sendResponse(requestIdLong, Map.of("response", response));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending auto mode switch response", e);
                     }
                 }).exceptionally(ex -> {
                     try {
-                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
+                        rpc.sendErrorResponse(requestIdLong, -32603,
                                 "Auto mode switch handler error: " + ex.getMessage());
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending auto mode switch error", e);
@@ -381,6 +400,10 @@ final class RpcHandlerDispatcher {
 
     private void handleHooksInvoke(JsonRpcClient rpc, String requestId, JsonNode params) {
         runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "hooks.invoke");
+            if (requestIdLong == -1) {
+                return;
+            }
             try {
                 String sessionId = params.get("sessionId").asText();
                 String hookType = params.get("hookType").asText();
@@ -388,20 +411,19 @@ final class RpcHandlerDispatcher {
 
                 CopilotSession session = sessions.get(sessionId);
                 if (session == null) {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
                 session.handleHooksInvoke(hookType, input).thenAccept(output -> {
                     try {
-                        rpc.sendResponse(Long.parseLong(requestId), Collections.singletonMap("output", output));
+                        rpc.sendResponse(requestIdLong, Collections.singletonMap("output", output));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending hooks response", e);
                     }
                 }).exceptionally(ex -> {
                     try {
-                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
-                                "Hooks handler error: " + ex.getMessage());
+                        rpc.sendErrorResponse(requestIdLong, -32603, "Hooks handler error: " + ex.getMessage());
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending hooks error", e);
                     }
@@ -424,15 +446,11 @@ final class RpcHandlerDispatcher {
 
     private void handleSystemMessageTransform(JsonRpcClient rpc, String requestId, JsonNode params) {
         runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "systemMessage.transform");
+            if (requestIdLong == -1) {
+                return;
+            }
             try {
-                final long requestIdLong;
-                try {
-                    requestIdLong = Long.parseLong(requestId);
-                } catch (NumberFormatException nfe) {
-                    LOG.log(Level.SEVERE, "Invalid requestId for systemMessage.transform: " + requestId, nfe);
-                    return;
-                }
-
                 String sessionId = params.has("sessionId") ? params.get("sessionId").asText() : null;
                 JsonNode sections = params.get("sections");
 
@@ -460,6 +478,25 @@ final class RpcHandlerDispatcher {
                 LOG.log(Level.SEVERE, "Error handling systemMessage.transform", e);
             }
         });
+    }
+
+    /**
+     * Parses a JSON-RPC request ID string into a {@code long}.
+     *
+     * @param requestId
+     *            the request ID string received from the JSON-RPC layer
+     * @param methodName
+     *            the RPC method name, used in the log message on failure
+     * @return the parsed request ID, or {@code -1} if the string is not a valid
+     *         long
+     */
+    private static long parseRequestId(String requestId, String methodName) {
+        try {
+            return Long.parseLong(requestId);
+        } catch (NumberFormatException nfe) {
+            LOG.log(Level.SEVERE, "Invalid requestId for " + methodName + ": " + requestId, nfe);
+            return -1;
+        }
     }
 
     private void runAsync(Runnable task) {

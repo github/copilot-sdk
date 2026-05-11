@@ -59,7 +59,8 @@ public class ModeHandlersTest {
         return ctx.createClient(new CopilotClientOptions().setEnvironment(env));
     }
 
-    private void configureAuthenticatedUser() throws Exception {
+    private void configureAuthenticatedUser(String testName) throws Exception {
+        ctx.configureForTest("mode_handlers", testName);
         ctx.setCopilotUserByToken(TOKEN, "mode-handler-user", "individual_pro", ctx.getProxyUrl(),
                 "https://localhost:1/telemetry", "mode-handler-tracking-id");
     }
@@ -67,7 +68,7 @@ public class ModeHandlersTest {
     @Test
     void shouldInvokeExitPlanModeHandlerWhenModelUsesTool() throws Exception {
         final String summary = "Greeting file implementation plan";
-        configureAuthenticatedUser();
+        configureAuthenticatedUser("should_invoke_exit_plan_mode_handler_when_model_uses_tool");
 
         var handlerCalled = new CompletableFuture<ExitPlanModeRequest>();
 
@@ -118,7 +119,7 @@ public class ModeHandlersTest {
 
     @Test
     void shouldInvokeAutoModeSwitchHandlerWhenRateLimited() throws Exception {
-        configureAuthenticatedUser();
+        configureAuthenticatedUser("should_invoke_auto_mode_switch_handler_when_rate_limited");
 
         var handlerCalled = new CompletableFuture<AutoModeSwitchRequest>();
 
@@ -131,9 +132,12 @@ public class ModeHandlersTest {
                             }))
                     .get(30, TimeUnit.SECONDS);
 
-            session.sendAndWait(new MessageOptions()
+            var messageId = session.send(new MessageOptions()
                     .setPrompt("Explain that auto mode recovered from a rate limit in one short sentence."))
                     .get(30, TimeUnit.SECONDS);
+
+            assertNotNull(messageId);
+            assertFalse(messageId.isEmpty());
 
             var request = handlerCalled.get(30, TimeUnit.SECONDS);
             assertEquals("user_weekly_rate_limited", request.getErrorCode());
