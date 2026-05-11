@@ -167,8 +167,30 @@ function extractFields(generatedTypeCode: string): Map<string, Map<string, GoExt
     return result;
 }
 
+function goTypeIsPointer(goType: string | undefined): boolean {
+    return goType?.startsWith("*") ?? false;
+}
+
+function goTypeIsSlice(goType: string | undefined): boolean {
+    return goType?.startsWith("[]") ?? false;
+}
+
+function goTypeIsMap(goType: string | undefined): boolean {
+    return goType?.startsWith("map[") ?? false;
+}
+
+function goTypeIsNilable(goType: string | undefined, ctx?: GoCodegenCtx): boolean {
+    if (!goType) return false;
+    if (goTypeIsPointer(goType) || goTypeIsSlice(goType) || goTypeIsMap(goType)) return true;
+    return ctx ? goDiscriminatedUnionInfoForType(goType, ctx) !== undefined : false;
+}
+
 function goOptionalFieldNeedsDereference(goType: string | undefined): boolean {
-    return goType === undefined || goType.startsWith("*");
+    return goType === undefined || goTypeIsPointer(goType);
+}
+
+function goTypeWithOptionalPointer(goType: string, ctx?: GoCodegenCtx): string {
+    return goTypeIsNilable(goType, ctx) ? goType : `*${goType}`;
 }
 
 async function formatGoFile(filePath: string): Promise<void> {
@@ -300,6 +322,13 @@ interface GoUntaggedUnionVariant {
     typeDefinition?: string;
     returnExpr: string;
 }
+
+type GoUnionPlan =
+    | { kind: "discriminated"; typeName: string; schema: JSONSchema7; description?: string; discriminator: GoDiscriminatorInfo }
+    | { kind: "primitive"; typeName: string; schema: JSONSchema7; description?: string; variants: GoPrimitiveUnionVariant[] }
+    | { kind: "flattenedObject"; typeName: string; schema: JSONSchema7; description?: string; variants: JSONSchema7[] }
+    | { kind: "untagged"; typeName: string; schema: JSONSchema7; description?: string; variants: GoUntaggedUnionVariant[] }
+    | { kind: "wrapper"; typeName: string; schema: JSONSchema7; description?: string };
 
 interface GoCodegenCtx {
     structs: string[];
@@ -544,13 +573,7 @@ function resolveGoPropertyType(
             // anyOf [T, null/{not:{}}] → nullable T
             const innerType = resolveGoPropertyType(nullableInnerSchema, parentTypeName, jsonPropName, true, ctx);
             // Pointer-wrap if not already a pointer, slice, or map
-            if (goDiscriminatedUnionInfoForType(innerType, ctx)) {
-                return innerType;
-            }
-            if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
-                return innerType;
-            }
-            return `*${innerType}`;
+            return goTypeWithOptionalPointer(innerType, ctx);
         }
         const nonNull = (propSchema.anyOf as JSONSchema7[]).filter((s) => s.type !== "null");
         const hasNull = (propSchema.anyOf as JSONSchema7[]).some((s) => s.type === "null");
@@ -559,39 +582,15 @@ function resolveGoPropertyType(
             // anyOf [T, null] → nullable T
             const innerType = resolveGoPropertyType(nonNull[0], parentTypeName, jsonPropName, true, ctx);
             if (isRequired && !hasNull) return innerType;
-            if (goDiscriminatedUnionInfoForType(innerType, ctx)) return innerType;
-            if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
-                return innerType;
-            }
-            return `*${innerType}`;
+            return goTypeWithOptionalPointer(innerType, ctx);
         }
 
         if (nonNull.length > 1) {
-            // Resolve $refs in variants before discriminator analysis
-            const resolvedVariants = nonNull.map((v) => {
-                if (v.$ref && typeof v.$ref === "string") {
-                    return resolveRef(v.$ref, ctx.definitions) ?? v;
-                }
-                return v;
-            });
-            // Check for discriminated union
             const unionName = (propSchema.title as string) || nestedName;
-            const disc = findGoDiscriminator(nonNull, ctx, unionName);
-            if (disc) {
-                emitGoFlatDiscriminatedUnion(unionName, disc, ctx, propSchema.description);
-                return unionName;
-            }
-            if (goPrimitiveUnionVariants(unionName, propSchema, ctx)) {
-                emitGoPrimitiveUnionInterface(unionName, propSchema, ctx);
-                return unionName;
-            }
-            if (canFlattenGoObjectUnion(resolvedVariants, ctx)) {
-                emitGoFlattenedObjectUnion(unionName, resolvedVariants, ctx, propSchema.description);
-                return isRequired && !hasNull ? unionName : `*${unionName}`;
-            }
-            if (goUntaggedUnionVariants(unionName, propSchema, ctx)) {
-                emitGoUntaggedUnionInterface(unionName, propSchema, ctx);
-                return unionName;
+            const plan = planGoUnion(unionName, propSchema, ctx);
+            if (plan) {
+                emitGoUnionPlan(plan, ctx);
+                return goUnionPlanPropertyType(plan, isRequired, hasNull);
             }
             // Non-discriminated multi-type union → any
             return "any";
@@ -628,8 +627,7 @@ function resolveGoPropertyType(
                 true,
                 ctx
             );
-            if (inner.startsWith("*") || inner.startsWith("[]") || inner.startsWith("map[")) return inner;
-            return `*${inner}`;
+            return goTypeWithOptionalPointer(inner, ctx);
         }
     }
 
@@ -648,18 +646,12 @@ function resolveGoPropertyType(
     if (type === "array") {
         const items = propSchema.items as JSONSchema7 | undefined;
         if (items) {
-            // Discriminated union items
             if (items.anyOf) {
-                const itemVariants = (items.anyOf as JSONSchema7[]).filter((v) => v.type !== "null");
                 const itemTypeName = (items.title as string) || (nestedName + "Item");
-                const disc = findGoDiscriminator(itemVariants, ctx, itemTypeName);
-                if (disc) {
-                    emitGoFlatDiscriminatedUnion(itemTypeName, disc, ctx, items.description);
-                    return `[]${itemTypeName}`;
-                }
-                if (goPrimitiveUnionVariants(itemTypeName, items, ctx)) {
-                    emitGoPrimitiveUnionInterface(itemTypeName, items, ctx);
-                    return `[]${itemTypeName}`;
+                const plan = planGoUnion(itemTypeName, items, ctx);
+                if (plan) {
+                    emitGoUnionPlan(plan, ctx);
+                    return `[]${goUnionPlanPropertyType(plan, true, false)}`;
                 }
             }
             const itemType = resolveGoPropertyType(items, parentTypeName, jsonPropName + "Item", true, ctx);
@@ -691,10 +683,8 @@ function resolveGoPropertyType(
                 if (resolvedValueType?.anyOf || resolvedValueType?.oneOf) {
                     const unionMembers = goNonNullUnionMembers(resolvedValueType)
                         .map((member) => resolveGoUnionMember(member, ctx.definitions));
-                    if (!canFlattenGoObjectUnion(unionMembers, ctx) && !valueType.startsWith("*") && !valueType.startsWith("[]") && !valueType.startsWith("map[")) {
-                        if (!goDiscriminatedUnionInfoForType(valueType, ctx)) {
-                            valueType = `*${valueType}`;
-                        }
+                    if (!canFlattenGoObjectUnion(unionMembers, ctx) && !goTypeIsNilable(valueType, ctx)) {
+                        valueType = `*${valueType}`;
                     }
                 }
                 return `map[string]${valueType}`;
@@ -732,7 +722,7 @@ function goDiscriminatedUnionField(goType: string, ctx: GoCodegenCtx): GoDiscrim
     const single = goDiscriminatedUnionInfoForType(goType, ctx);
     if (single) return { kind: "single", unionInfo: single };
 
-    if (goType.startsWith("[]")) {
+    if (goTypeIsSlice(goType)) {
         const itemType = goType.slice(2);
         const item = goDiscriminatedUnionInfoForType(itemType, ctx);
         if (item) return { kind: "slice", unionInfo: item };
@@ -1842,28 +1832,25 @@ function goPrimitiveUnionFieldName(schema: JSONSchema7): string {
 
 function goUnionFieldType(member: JSONSchema7, fieldName: string, parentTypeName: string, ctx: GoCodegenCtx): string {
     const memberType = resolveGoPropertyType(member, parentTypeName, fieldName, true, ctx);
-    if (memberType.startsWith("*") || memberType.startsWith("[]") || memberType.startsWith("map[")) {
-        return memberType;
-    }
-    return `*${memberType}`;
+    return goTypeWithOptionalPointer(memberType, ctx);
 }
 
-function goUnionFieldMarshalIsSet(fieldName: string, fieldType: string): string {
-    if (fieldType.startsWith("*") || fieldType.startsWith("[]") || fieldType.startsWith("map[")) {
+function goUnionFieldMarshalIsSet(fieldName: string, fieldType: string, ctx: GoCodegenCtx): string {
+    if (goTypeIsNilable(fieldType, ctx)) {
         return `r.${fieldName} != nil`;
     }
     return "true";
 }
 
 function goUnionFieldUnmarshalType(fieldType: string): string {
-    if (fieldType.startsWith("*")) {
+    if (goTypeIsPointer(fieldType)) {
         return fieldType.slice(1);
     }
     return fieldType;
 }
 
 function goUnionFieldUnmarshalAssignment(typeName: string, fieldName: string, fieldType: string): string {
-    if (fieldType.startsWith("*")) {
+    if (goTypeIsPointer(fieldType)) {
         return `*r = ${typeName}{${fieldName}: &value}`;
     }
     return `*r = ${typeName}{${fieldName}: value}`;
@@ -1962,9 +1949,9 @@ function goPrimitiveUnionVariants(typeName: string, schema: JSONSchema7, ctx: Go
     return variants;
 }
 
-function emitGoPrimitiveUnionInterface(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): boolean {
+function emitGoPrimitiveUnionInterface(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, variants?: GoPrimitiveUnionVariant[]): boolean {
     if (ctx.generatedNames.has(typeName)) return true;
-    const variants = goPrimitiveUnionVariants(typeName, schema, ctx);
+    variants ??= goPrimitiveUnionVariants(typeName, schema, ctx);
     if (!variants) return false;
 
     ctx.generatedNames.add(typeName);
@@ -2077,7 +2064,7 @@ function goUntaggedUnionVariant(typeName: string, member: JSONSchema7, ctx: GoCo
         const fieldName = goUnionFieldName(resolved, ctx);
         const variantTypeName = `${typeName}${fieldName}`;
         const goType = resolveGoPropertyType(resolved, typeName, fieldName, true, ctx);
-        if (!goType.startsWith("map[")) return undefined;
+        if (!goTypeIsMap(goType)) return undefined;
         return {
             typeName: variantTypeName,
             goType: variantTypeName,
@@ -2115,9 +2102,9 @@ function goUntaggedUnionVariants(typeName: string, schema: JSONSchema7, ctx: GoC
     return variants;
 }
 
-function emitGoUntaggedUnionInterface(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): boolean {
+function emitGoUntaggedUnionInterface(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, variants?: GoUntaggedUnionVariant[]): boolean {
     if (ctx.generatedNames.has(typeName)) return true;
-    const variants = goUntaggedUnionVariants(typeName, schema, ctx);
+    variants ??= goUntaggedUnionVariants(typeName, schema, ctx);
     if (!variants) return false;
 
     ctx.generatedNames.add(typeName);
@@ -2166,10 +2153,69 @@ function emitGoUntaggedUnionInterface(typeName: string, schema: JSONSchema7, ctx
     return true;
 }
 
+function planGoUnion(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, includeWrapper: boolean = false): GoUnionPlan | undefined {
+    const members = goNonNullUnionMembers(schema);
+    if (members.length === 0) return undefined;
+
+    const description = (schema as JSONSchema7).description;
+    const discriminator = findGoDiscriminator(members, ctx, typeName);
+    if (discriminator) {
+        return { kind: "discriminated", typeName, schema, description, discriminator };
+    }
+
+    const primitiveVariants = goPrimitiveUnionVariants(typeName, schema, ctx);
+    if (primitiveVariants) {
+        return { kind: "primitive", typeName, schema, description, variants: primitiveVariants };
+    }
+
+    const resolvedVariants = members.map((member) => resolveGoUnionMember(member, ctx.definitions));
+    if (canFlattenGoObjectUnion(resolvedVariants, ctx)) {
+        return { kind: "flattenedObject", typeName, schema, description, variants: resolvedVariants };
+    }
+
+    const untaggedVariants = goUntaggedUnionVariants(typeName, schema, ctx);
+    if (untaggedVariants) {
+        return { kind: "untagged", typeName, schema, description, variants: untaggedVariants };
+    }
+
+    return includeWrapper ? { kind: "wrapper", typeName, schema, description } : undefined;
+}
+
+function emitGoUnionPlan(plan: GoUnionPlan, ctx: GoCodegenCtx): void {
+    switch (plan.kind) {
+        case "discriminated":
+            emitGoFlatDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description);
+            return;
+        case "primitive":
+            emitGoPrimitiveUnionInterface(plan.typeName, plan.schema, ctx, plan.variants);
+            return;
+        case "flattenedObject":
+            emitGoFlattenedObjectUnion(plan.typeName, plan.variants, ctx, plan.description);
+            return;
+        case "untagged":
+            emitGoUntaggedUnionInterface(plan.typeName, plan.schema, ctx, plan.variants);
+            return;
+        case "wrapper":
+            emitGoUnionWrapperStruct(plan.typeName, plan.schema, ctx);
+            return;
+    }
+}
+
+function goUnionPlanPropertyType(plan: GoUnionPlan, isRequired: boolean, hasNull: boolean): string {
+    if (plan.kind === "flattenedObject" || plan.kind === "wrapper") {
+        return isRequired && !hasNull ? plan.typeName : `*${plan.typeName}`;
+    }
+    return plan.typeName;
+}
+
 function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): void {
     if (ctx.generatedNames.has(typeName)) return;
-    if (emitGoPrimitiveUnionInterface(typeName, schema, ctx)) return;
-    if (emitGoUntaggedUnionInterface(typeName, schema, ctx)) return;
+    const plan = planGoUnion(typeName, schema, ctx, true);
+    if (plan) emitGoUnionPlan(plan, ctx);
+}
+
+function emitGoUnionWrapperStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): void {
+    if (ctx.generatedNames.has(typeName)) return;
     ctx.generatedNames.add(typeName);
 
     const members = goNonNullUnionMembers(schema);
@@ -2205,7 +2251,7 @@ function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegen
     const encodingLines: string[] = [];
     encodingLines.push(`func (r ${typeName}) MarshalJSON() ([]byte, error) {`);
     for (const field of fields) {
-        encodingLines.push(`\tif ${goUnionFieldMarshalIsSet(field.name, field.type)} {`);
+        encodingLines.push(`\tif ${goUnionFieldMarshalIsSet(field.name, field.type, ctx)} {`);
         encodingLines.push(`\t\treturn json.Marshal(r.${field.name})`);
         encodingLines.push(`\t}`);
     }
@@ -2263,15 +2309,8 @@ function emitGoRpcDefinition(definitionName: string, schema: JSONSchema7, ctx: G
 
     const unionMembers = goNonNullUnionMembers(effectiveSchema);
     if (unionMembers.length > 0) {
-        const resolvedVariants = unionMembers.map((member) => resolveGoUnionMember(member, ctx.definitions));
-        const discriminator = findGoDiscriminator(unionMembers, ctx, typeName);
-        if (discriminator) {
-            emitGoFlatDiscriminatedUnion(typeName, discriminator, ctx, (effectiveSchema as JSONSchema7).description);
-        } else if (canFlattenGoObjectUnion(resolvedVariants, ctx)) {
-            emitGoFlattenedObjectUnion(typeName, resolvedVariants, ctx, (effectiveSchema as JSONSchema7).description);
-        } else {
-            emitGoUnionStruct(typeName, effectiveSchema, ctx);
-        }
+        const plan = planGoUnion(typeName, effectiveSchema, ctx, true);
+        if (plan) emitGoUnionPlan(plan, ctx);
         return typeName;
     }
 
