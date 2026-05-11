@@ -30,13 +30,18 @@ func main() {
 		Model: "claude-haiku-4.5",
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
 			permissionLogMu.Lock()
-			toolName := ""
-			if req.ToolName != nil {
-				toolName = *req.ToolName
+			permissionName := string(req.Kind())
+			switch request := req.(type) {
+			case *copilot.PermissionRequestCustomTool:
+				permissionName = request.ToolName
+			case *copilot.PermissionRequestHook:
+				permissionName = request.ToolName
+			case *copilot.PermissionRequestMcp:
+				permissionName = request.ToolName
 			}
-			permissionLog = append(permissionLog, fmt.Sprintf("approved:%s", toolName))
+			permissionLog = append(permissionLog, fmt.Sprintf("approved:%s", permissionName))
 			permissionLogMu.Unlock()
-			return copilot.PermissionRequestResult{Kind: "approved"}, nil
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
 		},
 		Hooks: &copilot.SessionHooks{
 			OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
@@ -57,10 +62,10 @@ func main() {
 	}
 
 	if response != nil {
-if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-fmt.Println(d.Content)
-}
-}
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	}
 
 	fmt.Println("\n--- Permission request log ---")
 	for _, entry := range permissionLog {

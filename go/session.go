@@ -127,7 +127,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 //	messageID, err := session.Send(context.Background(), copilot.MessageOptions{
 //	    Prompt: "Explain this code",
 //	    Attachments: []copilot.Attachment{
-//	        {Type: "file", Path: "./main.go"},
+//	        &copilot.UserMessageAttachmentFile{DisplayName: "main.go", Path: "./main.go"},
 //	    },
 //	})
 //	if err != nil {
