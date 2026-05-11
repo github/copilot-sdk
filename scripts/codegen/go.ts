@@ -280,22 +280,19 @@ interface GoDiscriminatorInfo {
 }
 
 interface GoPrimitiveUnionVariant {
-    schema: JSONSchema7;
     typeName: string;
-    valueName: string;
     goType: string;
 }
 
 interface GoCodegenCtx {
     structs: string[];
-    encoding?: string[];
+    encoding: string[];
     enums: string[];
     enumsByName: Map<string, string>; // enumName → enumName (dedup by type name, not values)
     discriminatedUnions: Map<string, GoDiscriminatedUnionInfo>;
     generatedNames: Set<string>;
     definitions?: DefinitionCollections;
     wrapComments?: boolean;
-    discriminatedUnionVariantSuffix?: string;
     discriminatedUnionRawVariantSuffix?: string;
     skipDefinitionTypeNames?: Set<string>;
 }
@@ -455,17 +452,14 @@ function goDiscriminatedUnionVariantTypeName(
     variant: JSONSchema7,
     ctx: GoCodegenCtx
 ): string {
-    const suffix = ctx.discriminatedUnionVariantSuffix ?? "Data";
-    if (suffix === "") {
-        if (variantSource.$ref && typeof variantSource.$ref === "string") {
-            return goDefinitionName(refTypeName(variantSource.$ref, ctx.definitions));
-        }
-        const definitionRef = goDefinitionRefForEquivalentSchema(variant, ctx);
-        if (definitionRef) {
-            return goDefinitionName(refTypeName(definitionRef, ctx.definitions));
-        }
+    if (variantSource.$ref && typeof variantSource.$ref === "string") {
+        return goDefinitionName(refTypeName(variantSource.$ref, ctx.definitions));
     }
-    return `${unionTypeName}${goEnumConstSuffix(discriminatorValue)}${suffix}`;
+    const definitionRef = goDefinitionRefForEquivalentSchema(variant, ctx);
+    if (definitionRef) {
+        return goDefinitionName(refTypeName(definitionRef, ctx.definitions));
+    }
+    return `${unionTypeName}${goEnumConstSuffix(discriminatorValue)}`;
 }
 
 function schemaForConstValue(value: unknown): JSONSchema7 {
@@ -733,14 +727,9 @@ function goDiscriminatedUnionField(goType: string, ctx: GoCodegenCtx): GoDiscrim
     return undefined;
 }
 
-function pushGoEncodingBlock(lines: string[], blockLines: string[], ctx: GoCodegenCtx): void {
+function pushGoEncodingBlock(blockLines: string[], ctx: GoCodegenCtx): void {
     if (blockLines.length === 0) return;
-    if (ctx.encoding) {
-        ctx.encoding.push(blockLines.join("\n"));
-        return;
-    }
-    lines.push(``);
-    lines.push(...blockLines);
+    ctx.encoding.push(blockLines.join("\n"));
 }
 
 function pushGoStructUnmarshalJSON(lines: string[], typeName: string, fields: GoStructField[], ctx: GoCodegenCtx): void {
@@ -807,7 +796,7 @@ function pushGoStructUnmarshalJSON(lines: string[], typeName: string, fields: Go
     }
     blockLines.push(`\treturn nil`);
     blockLines.push(`}`);
-    pushGoEncodingBlock(lines, blockLines, ctx);
+    pushGoEncodingBlock(blockLines, ctx);
 }
 
 /**
@@ -1399,7 +1388,7 @@ function emitGoFlatDiscriminatedUnion(
     for (const variant of unionVariants) {
         const groupVariants = ambiguousGroupsByVariantTypeName.get(variant.typeName);
         if (groupVariants) {
-            pushGoEncodingBlock(lines, goVariantMatchFunctionLines(variant, groupVariants, discriminatorProp, ctx), ctx);
+            pushGoEncodingBlock(goVariantMatchFunctionLines(variant, groupVariants, discriminatorProp, ctx), ctx);
         }
     }
 
@@ -1445,7 +1434,7 @@ function emitGoFlatDiscriminatedUnion(
     unmarshalLines.push(`\t\treturn &${rawDataName}{Discriminator: raw.${discGoName}, Raw: data}, nil`);
     unmarshalLines.push(`\t}`);
     unmarshalLines.push(`}`);
-    pushGoEncodingBlock(lines, unmarshalLines, ctx);
+    pushGoEncodingBlock(unmarshalLines, ctx);
 
     lines.push(`type ${rawDataName} struct {`);
     lines.push(`\tDiscriminator ${discEnumName}`);
@@ -1456,7 +1445,7 @@ function emitGoFlatDiscriminatedUnion(
     lines.push(`func (r ${rawDataName}) ${discriminatorMethodName}() ${discEnumName} {`);
     lines.push(`\treturn r.Discriminator`);
     lines.push(`}`);
-    pushGoEncodingBlock(lines, [
+    pushGoEncodingBlock([
         `func (r ${rawDataName}) MarshalJSON() ([]byte, error) {`,
         `\tif r.Raw != nil {`,
         `\t\treturn r.Raw, nil`,
@@ -1519,7 +1508,7 @@ function emitGoFlatDiscriminatedUnion(
             lines.push(`\treturn ${discEnumName}(r.Discriminator)`);
         }
         lines.push(`}`);
-        pushGoEncodingBlock(lines, [
+        pushGoEncodingBlock([
             `func (r ${variantTypeName}) MarshalJSON() ([]byte, error) {`,
             `\ttype alias ${variantTypeName}`,
             `\treturn json.Marshal(struct {`,
@@ -1928,9 +1917,7 @@ function goPrimitiveUnionVariants(typeName: string, schema: JSONSchema7, ctx: Go
         if (seenTypeNames.has(variantTypeName)) return undefined;
         seenTypeNames.add(variantTypeName);
         variants.push({
-            schema: resolveGoUnionMember(member, ctx.definitions),
             typeName: variantTypeName,
-            valueName,
             goType,
         });
     }
@@ -1981,7 +1968,7 @@ function emitGoPrimitiveUnionInterface(typeName: string, schema: JSONSchema7, ct
     }
     unmarshalLines.push(`\treturn nil, errors.New("data did not match any union variant for ${typeName}")`);
     unmarshalLines.push(`}`);
-    pushGoEncodingBlock(lines, unmarshalLines, ctx);
+    pushGoEncodingBlock(unmarshalLines, ctx);
 
     ctx.structs.push(lines.join("\n"));
     return true;
@@ -2048,7 +2035,7 @@ function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegen
     }
     encodingLines.push(`\treturn errors.New("data did not match any union variant for ${typeName}")`);
     encodingLines.push(`}`);
-    pushGoEncodingBlock(lines, encodingLines, ctx);
+    pushGoEncodingBlock(encodingLines, ctx);
     ctx.structs.push(lines.join("\n"));
 }
 
@@ -2165,7 +2152,6 @@ function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definit
         discriminatedUnions: new Map(),
         generatedNames: new Set(),
         definitions: definitionCollections,
-        discriminatedUnionVariantSuffix: "",
     };
     ctx.skipDefinitionTypeNames = collectGoDiscriminatedUnionVariantDefinitionTypeNames(definitions, ctx);
     const schemaKeysByTypeName = new Map<string, string>();
@@ -2212,7 +2198,6 @@ function generateGoSessionEventsCode(schema: JSONSchema7): GoGeneratedTypeCode {
         generatedNames: new Set(),
         definitions: collectDefinitionCollections(schema as Record<string, unknown>),
         wrapComments: false,
-        discriminatedUnionVariantSuffix: "",
         discriminatedUnionRawVariantSuffix: "",
     };
     const envelopeProperties = getGoSharedEventEnvelopeProperties(schema, ctx);

@@ -3,12 +3,13 @@ package copilot
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/github/copilot-sdk/go/rpc"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // newTestSession creates a session with an event channel and starts the consumer goroutine.
