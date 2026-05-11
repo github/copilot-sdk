@@ -64,6 +64,44 @@ impl Drop for WaiterGuard {
     }
 }
 
+struct PendingSessionRegistration {
+    client: Client,
+    session_id: SessionId,
+    shutdown: CancellationToken,
+    disarmed: bool,
+}
+
+impl PendingSessionRegistration {
+    fn new(client: Client, session_id: SessionId, shutdown: CancellationToken) -> Self {
+        Self {
+            client,
+            session_id,
+            shutdown,
+            disarmed: false,
+        }
+    }
+
+    async fn cleanup(mut self, event_loop: JoinHandle<()>) {
+        self.shutdown.cancel();
+        let _ = event_loop.await;
+        self.client.unregister_session(&self.session_id);
+        self.disarmed = true;
+    }
+
+    fn disarm(&mut self) {
+        self.disarmed = true;
+    }
+}
+
+impl Drop for PendingSessionRegistration {
+    fn drop(&mut self) {
+        if !self.disarmed {
+            self.shutdown.cancel();
+            self.client.unregister_session(&self.session_id);
+        }
+    }
+}
+
 /// A session on a GitHub Copilot CLI server.
 ///
 /// Created via [`Client::create_session`] or [`Client::resume_session`].
@@ -736,24 +774,18 @@ impl Client {
         if let Some(ref transforms) = transforms {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
+        let session_id = config
+            .session_id
+            .clone()
+            .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
+        config.session_id = Some(session_id.clone());
         let mut params = serde_json::to_value(&config)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
-        let rpc_start = Instant::now();
-        let result = self.call("session.create", Some(params)).await?;
-        tracing::debug!(
-            elapsed_ms = rpc_start.elapsed().as_millis(),
-            "Client::create_session session creation request completed successfully"
-        );
-        let create_result: CreateSessionResult = serde_json::from_value(result)?;
 
-        let session_id = create_result.session_id;
         let setup_start = Instant::now();
-        let capabilities = Arc::new(parking_lot::RwLock::new(
-            create_result.capabilities.unwrap_or_default(),
-        ));
+        let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let channels = self.register_session(&session_id);
-
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
@@ -771,6 +803,8 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
+        let mut registration =
+            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -780,11 +814,40 @@ impl Client {
             "Client::create_session local setup complete"
         );
 
+        let rpc_start = Instant::now();
+        let result = match self.call("session.create", Some(params)).await {
+            Ok(result) => result,
+            Err(error) => {
+                registration.cleanup(event_loop).await;
+                return Err(error);
+            }
+        };
+        tracing::debug!(
+            elapsed_ms = rpc_start.elapsed().as_millis(),
+            "Client::create_session session creation request completed successfully"
+        );
+        let create_result: CreateSessionResult = match serde_json::from_value(result) {
+            Ok(result) => result,
+            Err(error) => {
+                registration.cleanup(event_loop).await;
+                return Err(error.into());
+            }
+        };
+        if create_result.session_id != session_id {
+            registration.cleanup(event_loop).await;
+            return Err(Error::Session(SessionError::SessionIdMismatch {
+                requested: session_id,
+                returned: create_result.session_id,
+            }));
+        }
+        *capabilities.write() = create_result.capabilities.unwrap_or_default();
+
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
             session_id = %session_id,
             "Client::create_session complete"
         );
+        registration.disarm();
         Ok(Session {
             id: session_id,
             cwd: self.cwd().clone(),
@@ -836,8 +899,46 @@ impl Client {
         let mut params = serde_json::to_value(&config)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
+
+        let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
+        let setup_start = Instant::now();
+        let channels = self.register_session(&session_id);
+        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let shutdown = CancellationToken::new();
+        let (event_tx, _) = tokio::sync::broadcast::channel(512);
+        let event_loop = spawn_event_loop(
+            session_id.clone(),
+            self.clone(),
+            handler,
+            hooks,
+            transforms,
+            command_handlers,
+            session_fs_provider,
+            channels,
+            idle_waiter.clone(),
+            capabilities.clone(),
+            event_tx.clone(),
+            shutdown.clone(),
+        );
+        let mut registration =
+            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
+        tracing::debug!(
+            elapsed_ms = setup_start.elapsed().as_millis(),
+            session_id = %session_id,
+            tools_count,
+            commands_count,
+            has_hooks,
+            "Client::resume_session local setup complete"
+        );
+
         let rpc_start = Instant::now();
-        let result = self.call("session.resume", Some(params)).await?;
+        let result = match self.call("session.resume", Some(params)).await {
+            Ok(result) => result,
+            Err(error) => {
+                registration.cleanup(event_loop).await;
+                return Err(error);
+            }
+        };
         tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -850,6 +951,13 @@ impl Client {
             .and_then(|v| v.as_str())
             .unwrap_or(&session_id)
             .into();
+        if cli_session_id != session_id {
+            registration.cleanup(event_loop).await;
+            return Err(Error::Session(SessionError::SessionIdMismatch {
+                requested: session_id,
+                returned: cli_session_id,
+            }));
+        }
 
         let resume_capabilities: Option<SessionCapabilities> = result
             .get("capabilities")
@@ -869,63 +977,34 @@ impl Client {
         if let Err(e) = self
             .call(
                 "session.skills.reload",
-                Some(serde_json::json!({ "sessionId": cli_session_id })),
+                Some(serde_json::json!({ "sessionId": session_id })),
             )
             .await
         {
             warn!(
                 elapsed_ms = skills_reload_start.elapsed().as_millis(),
-                session_id = %cli_session_id,
+                session_id = %session_id,
                 error = %e,
                 "Client::resume_session skills reload request failed"
             );
         } else {
             tracing::debug!(
                 elapsed_ms = skills_reload_start.elapsed().as_millis(),
-                session_id = %cli_session_id,
+                session_id = %session_id,
                 "Client::resume_session skills reload request completed successfully"
             );
         }
 
-        let capabilities = Arc::new(parking_lot::RwLock::new(
-            resume_capabilities.unwrap_or_default(),
-        ));
-        let setup_start = Instant::now();
-        let channels = self.register_session(&cli_session_id);
-
-        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
-        let shutdown = CancellationToken::new();
-        let (event_tx, _) = tokio::sync::broadcast::channel(512);
-        let event_loop = spawn_event_loop(
-            cli_session_id.clone(),
-            self.clone(),
-            handler,
-            hooks,
-            transforms,
-            command_handlers,
-            session_fs_provider,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-        );
-        tracing::debug!(
-            elapsed_ms = setup_start.elapsed().as_millis(),
-            session_id = %cli_session_id,
-            tools_count,
-            commands_count,
-            has_hooks,
-            "Client::resume_session local setup complete"
-        );
+        *capabilities.write() = resume_capabilities.unwrap_or_default();
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
-            session_id = %cli_session_id,
+            session_id = %session_id,
             "Client::resume_session complete"
         );
+        registration.disarm();
         Ok(Session {
-            id: cli_session_id,
+            id: session_id,
             cwd: self.cwd().clone(),
             workspace_path: None,
             remote_url,
