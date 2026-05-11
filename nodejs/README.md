@@ -128,6 +128,39 @@ Create a new conversation session.
 
 Resume an existing session. Returns the session with `workspacePath` populated if infinite sessions were enabled.
 
+##### `createCloudSession(options?: CloudSessionOptions): Promise<CloudSession>`
+
+Create a sandbox-backed cloud session through Mission Control and attach to it as a remote-control client. The agent runtime runs inside the provisioned sandbox; this SDK instance polls task events and sends prompts or prompt responses through Mission Control.
+
+```typescript
+const client = new CopilotClient({ gitHubToken: process.env.GITHUB_TOKEN });
+
+const session = await client.createCloudSession({
+    repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+    onProgress: (event) => console.log(event.phase),
+});
+
+session.on("assistant.message", (event) => {
+    console.log(event.data.content);
+});
+
+await session.send({ prompt: "Summarize the project" });
+```
+
+Cloud sessions are separate from the `remote` client option. `remote: true` exports a local runtime session to Mission Control; `createCloudSession` provisions a cloud sandbox and controls the runtime running there.
+
+Pass `repository` explicitly when the sandbox should be associated with a repository. For repo-less sandboxes, pass `owner` so Mission Control can bill and authorize the sandbox:
+
+```typescript
+const session = await client.createCloudSession({ owner: "github" });
+```
+
+For now, provide `gitHubToken`, `authToken`, or `COPILOT_MC_ACCESS_TOKEN` for Mission Control authentication. `missionControlBaseUrl`, `copilotApiBaseUrl`, `frontendBaseUrl`, and `pollIntervalMs` are available for enterprise hosts and tests.
+
+##### `connectCloudSession(taskOrSessionId: string, options?: CloudConnectOptions): Promise<CloudSession>`
+
+Attach to an existing Mission Control cloud task and return the same remote-control `CloudSession` facade used by `createCloudSession`.
+
 ##### `ping(message?: string): Promise<{ message: string; timestamp: number }>`
 
 Ping the server to check connectivity.

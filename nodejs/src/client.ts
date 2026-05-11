@@ -31,6 +31,8 @@ import {
     createInternalServerRpc,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
+import { CloudSession } from "./cloud/cloudSession.js";
+import { MissionControlClient } from "./cloud/missionControlClient.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
 import { createSessionFsAdapter } from "./sessionFsProvider.js";
@@ -38,6 +40,10 @@ import { getTraceContext } from "./telemetry.js";
 import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    CloudConnectOptions,
+    CloudRepository,
+    CloudSessionMetadata,
+    CloudSessionOptions,
     ConnectionState,
     CopilotClientOptions,
     ExitPlanModeRequest,
@@ -45,6 +51,7 @@ import type {
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
+    MissionControlTask,
     ModelInfo,
     ProviderConfig,
     ResumeSessionConfig,
@@ -153,6 +160,15 @@ function getNodeExecPath(): string {
         return "node";
     }
     return process.execPath;
+}
+
+function stripTrailingSlash(value: string): string {
+    return value.replace(/\/+$/, "");
+}
+
+function normalizeToken(value: string | undefined): string | undefined {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
 }
 
 /**
@@ -434,6 +450,71 @@ export class CopilotClient {
         }
 
         return { host, port };
+    }
+
+    private createMissionControlClient(
+        options: CloudSessionOptions | CloudConnectOptions
+    ): MissionControlClient {
+        const env = this.options.env;
+        const copilotApiBaseUrl = stripTrailingSlash(
+            options.copilotApiBaseUrl ??
+                env.COPILOT_API_BASE_URL ??
+                env.COPILOT_API_URL ??
+                "https://api.githubcopilot.com"
+        );
+        const baseUrl =
+            options.missionControlBaseUrl ??
+            env.COPILOT_MC_BASE_URL ??
+            `${copilotApiBaseUrl}/agents`;
+        const authToken =
+            normalizeToken(options.authToken) ??
+            normalizeToken(env.COPILOT_MC_ACCESS_TOKEN) ??
+            normalizeToken(this.options.gitHubToken);
+        const frontendBaseUrl =
+            options.frontendBaseUrl ?? env.COPILOT_MC_FRONTEND_URL ?? "https://github.com";
+
+        return new MissionControlClient({
+            baseUrl,
+            authToken,
+            integrationId: options.integrationId,
+            frontendBaseUrl,
+        });
+    }
+
+    private createCloudSessionMetadata(
+        task: MissionControlTask,
+        mcClient: MissionControlClient,
+        repository?: CloudRepository,
+        owner?: string
+    ): CloudSessionMetadata {
+        return {
+            taskId: task.id,
+            missionControlSessionId: task.sessions?.at(-1)?.id,
+            frontendUrl: mcClient.getFrontendUrl(task.id),
+            owner,
+            repository,
+            createdAt: new Date(task.created_at),
+            updatedAt: new Date(task.updated_at),
+            state: task.state,
+            status: task.status,
+        };
+    }
+
+    private createFallbackCloudSessionMetadata(
+        taskId: string,
+        mcClient: MissionControlClient,
+        repository?: CloudRepository,
+        owner?: string
+    ): CloudSessionMetadata {
+        const now = new Date();
+        return {
+            taskId,
+            frontendUrl: mcClient.getFrontendUrl(taskId),
+            owner,
+            repository,
+            createdAt: now,
+            updatedAt: now,
+        };
     }
 
     private validateSessionFsConfig(config: SessionFsConfig): void {
@@ -1073,6 +1154,109 @@ export class CopilotClient {
 
         const result = await this.connection.sendRequest("auth.getStatus", {});
         return result as GetAuthStatusResponse;
+    }
+
+    /**
+     * Create a sandbox-backed cloud session through Mission Control and attach
+     * to it as a remote-control client.
+     *
+     * This does not create a local runtime session. The agent runs inside the
+     * provisioned cloud sandbox; this SDK instance polls Mission Control for
+     * events and sends user actions through the task steer API.
+     */
+    async createCloudSession(options: CloudSessionOptions = {}): Promise<CloudSession> {
+        const startedAt = Date.now();
+        const mcClient = this.createMissionControlClient(options);
+        const owner = normalizeToken(options.owner);
+        const repository = options.repository;
+
+        if (!repository && !owner) {
+            throw new Error("CloudSessionOptions.owner is required when repository is omitted");
+        }
+
+        options.onProgress?.({ phase: "creating_task", elapsedMs: 0 });
+        options.onProgress?.({
+            phase: "provisioning_sandbox",
+            elapsedMs: Date.now() - startedAt,
+        });
+        const task = await mcClient.createCloudTask({
+            owner,
+            repository: repository ? { owner: repository.owner, name: repository.name } : undefined,
+        });
+        options.onCloudTaskCreated?.(task);
+
+        options.onProgress?.({
+            phase: "waiting_for_session",
+            elapsedMs: Date.now() - startedAt,
+            taskId: task.id,
+        });
+
+        const session = new CloudSession({
+            client: mcClient,
+            metadata: this.createCloudSessionMetadata(task, mcClient, repository, owner),
+            pollIntervalMs: options.pollIntervalMs,
+            initialEventTimeoutMs: options.initialEventTimeoutMs,
+            initialEventPollIntervalMs: options.initialEventPollIntervalMs,
+            onEventPollError: options.onEventPollError,
+        });
+        await session.connect();
+
+        options.onProgress?.({
+            phase: "connected",
+            elapsedMs: Date.now() - startedAt,
+            taskId: task.id,
+        });
+
+        return session;
+    }
+
+    /**
+     * Attach to an existing Mission Control cloud task as a remote-control client.
+     *
+     * The identifier is treated as a task ID. If Mission Control can return task
+     * metadata, it is used to populate the session metadata; otherwise the SDK
+     * still attaches by polling task events for the provided identifier.
+     */
+    async connectCloudSession(
+        taskOrSessionId: string,
+        options: CloudConnectOptions = {}
+    ): Promise<CloudSession> {
+        const startedAt = Date.now();
+        const mcClient = this.createMissionControlClient(options);
+        options.onProgress?.({
+            phase: "waiting_for_session",
+            elapsedMs: 0,
+            taskId: taskOrSessionId,
+        });
+
+        const task = await mcClient.getTask(taskOrSessionId);
+        const owner = normalizeToken(options.owner);
+        const metadata = task
+            ? this.createCloudSessionMetadata(task, mcClient, options.repository, owner)
+            : this.createFallbackCloudSessionMetadata(
+                  taskOrSessionId,
+                  mcClient,
+                  options.repository,
+                  owner
+              );
+
+        const session = new CloudSession({
+            client: mcClient,
+            metadata,
+            pollIntervalMs: options.pollIntervalMs,
+            initialEventTimeoutMs: options.initialEventTimeoutMs,
+            initialEventPollIntervalMs: options.initialEventPollIntervalMs,
+            onEventPollError: options.onEventPollError,
+        });
+        await session.connect();
+
+        options.onProgress?.({
+            phase: "connected",
+            elapsedMs: Date.now() - startedAt,
+            taskId: metadata.taskId,
+        });
+
+        return session;
     }
 
     /**

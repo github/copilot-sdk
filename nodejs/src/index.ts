@@ -10,14 +10,34 @@
 
 export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
+export { CloudSession } from "./cloud/cloudSession.js";
+export { CloudSessionError } from "./cloud/missionControlClient.js";
 export {
     defineTool,
     approveAll,
     convertMcpCallToolResult,
     createSessionFsAdapter,
     SYSTEM_PROMPT_SECTIONS,
+    MissionControlCommandType,
 } from "./types.js";
 export type {
+    CloudAskUserResponsePayload,
+    CloudConnectOptions,
+    CloudElicitationResponsePayload,
+    CloudModeSwitchPayload,
+    CloudPermissionResponsePayload,
+    CloudPlanApprovalResponsePayload,
+    CloudProgressEvent,
+    CloudProgressPhase,
+    CloudRepository,
+    CloudSessionEvent,
+    CloudSessionEventHandler,
+    CloudSessionEventPayload,
+    CloudSessionEventType,
+    CloudSessionFailureReason,
+    CloudSessionMetadata,
+    CloudSessionOptions,
+    CloudSessionRequestedEvent,
     CommandContext,
     CommandDefinition,
     CommandHandler,
@@ -47,6 +67,8 @@ export type {
     MCPServerConfig,
     DefaultAgentConfig,
     MessageOptions,
+    MissionControlTask,
+    MissionControlTaskSession,
     ModelBilling,
     ModelCapabilities,
     ModelCapabilitiesOverride,

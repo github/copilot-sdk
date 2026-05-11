@@ -16,6 +16,160 @@ export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 
 /**
+ * Repository context used when creating a cloud sandbox task.
+ */
+export interface CloudRepository {
+    owner: string;
+    name: string;
+    branch?: string;
+}
+
+/**
+ * Progress phases emitted while creating or attaching to a cloud sandbox session.
+ */
+export type CloudProgressPhase =
+    | "creating_task"
+    | "provisioning_sandbox"
+    | "waiting_for_session"
+    | "connected";
+
+export interface CloudProgressEvent {
+    phase: CloudProgressPhase;
+    elapsedMs?: number;
+    taskId?: string;
+}
+
+export type CloudSessionFailureReason =
+    | "policy_blocked"
+    | "validation"
+    | "timeout"
+    | "network"
+    | "server";
+
+export interface MissionControlTaskSession {
+    id: string;
+    task_id: string;
+    agent_task_id?: string;
+    state: string;
+    created_at: string;
+    updated_at: string;
+    name?: string;
+    owner_id: number;
+    repo_id?: number | null;
+}
+
+export interface MissionControlTask {
+    id: string;
+    name: string;
+    state: string;
+    status: string;
+    creator_id: number;
+    owner_id: number;
+    repo_id?: number | null;
+    session_count: number;
+    created_at: string;
+    updated_at: string;
+    sessions?: MissionControlTaskSession[];
+}
+
+export interface CloudSessionMetadata {
+    taskId: string;
+    missionControlSessionId?: string;
+    frontendUrl: string;
+    owner?: string;
+    repository?: CloudRepository;
+    createdAt: Date;
+    updatedAt: Date;
+    state?: string;
+    status?: string;
+}
+
+export interface CloudSessionRequestedEvent {
+    data?: Record<string, unknown>;
+    ephemeral?: boolean;
+    id: string;
+    parentId: string | null;
+    timestamp: string;
+    type: "session.requested";
+}
+
+export type CloudSessionEvent = SessionEvent | CloudSessionRequestedEvent;
+export type CloudSessionEventType = CloudSessionEvent["type"];
+export type CloudSessionEventPayload<T extends CloudSessionEventType> = Extract<
+    CloudSessionEvent,
+    { type: T }
+>;
+export type TypedCloudSessionEventHandler<T extends CloudSessionEventType> = (
+    event: CloudSessionEventPayload<T>
+) => void;
+export type CloudSessionEventHandler = (event: CloudSessionEvent) => void;
+
+export enum MissionControlCommandType {
+    UserMessage = "user_message",
+    AskUserResponse = "ask_user_response",
+    PlanApprovalResponse = "plan_approval_response",
+    PermissionResponse = "permission_response",
+    ElicitationResponse = "elicitation_response",
+    Abort = "abort",
+    ModeSwitch = "mode_switch",
+}
+
+export interface CloudAskUserResponsePayload {
+    promptId: string;
+    answer: string;
+    wasFreeform: boolean;
+    dismissed?: boolean;
+}
+
+export interface CloudPlanApprovalResponsePayload {
+    promptId: string;
+    approved: boolean;
+    selectedAction?: string;
+    autoApproveEdits?: boolean;
+    feedback?: string;
+}
+
+export interface CloudPermissionResponsePayload {
+    promptId: string;
+    approved: boolean;
+    scope: "once" | "session";
+}
+
+export interface CloudElicitationResponsePayload {
+    promptId: string;
+    action: "accept" | "decline" | "cancel";
+    content?: Record<string, ElicitationFieldValue>;
+}
+
+export interface CloudModeSwitchPayload {
+    mode: "interactive" | "plan" | "autopilot";
+}
+
+export interface CloudSessionOptions {
+    /**
+     * Billing/authorization owner for repo-less cloud sandboxes.
+     * Required when repository is omitted.
+     */
+    owner?: string;
+    repository?: CloudRepository;
+    missionControlBaseUrl?: string;
+    copilotApiBaseUrl?: string;
+    frontendBaseUrl?: string;
+    authToken?: string;
+    integrationId?: string;
+    pollIntervalMs?: number;
+    initialEventTimeoutMs?: number;
+    initialEventPollIntervalMs?: number;
+    onProgress?: (event: CloudProgressEvent) => void;
+    onCloudTaskCreated?: (task: MissionControlTask) => void;
+    onEventPollError?: (error: Error) => void;
+}
+
+export interface CloudConnectOptions extends Omit<CloudSessionOptions, "repository"> {
+    repository?: CloudRepository;
+}
+
+/**
  * Options for creating a CopilotClient
  */
 /**
