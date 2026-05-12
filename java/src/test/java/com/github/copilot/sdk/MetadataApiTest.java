@@ -156,7 +156,7 @@ public class MetadataApiTest {
         // Capabilities
         assertNotNull(model.getCapabilities());
         assertTrue(model.getCapabilities().getSupports().isVision());
-        assertEquals(8192, model.getCapabilities().getLimits().getMaxPromptTokens());
+        assertEquals(8192, model.getCapabilities().getLimits().getMaxPromptTokens().getAsInt());
         assertEquals(128000, model.getCapabilities().getLimits().getMaxContextWindowTokens());
 
         // Vision limits

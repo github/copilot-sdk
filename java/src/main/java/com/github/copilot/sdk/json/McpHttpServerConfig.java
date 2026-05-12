@@ -99,7 +99,7 @@ public final class McpHttpServerConfig extends McpServerConfig {
     }
 
     @Override
-    public McpHttpServerConfig setTimeout(Integer timeout) {
+    public McpHttpServerConfig setTimeout(int timeout) {
         super.setTimeout(timeout);
         return this;
     }

@@ -11,8 +11,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.sdk.generated.SessionEvent;
+import java.util.Optional;
 
 /**
  * Configuration for resuming an existing Copilot session.
@@ -244,8 +246,9 @@ public class ResumeSessionConfig {
      *
      * @return whether session telemetry is enabled
      */
-    public Boolean getEnableSessionTelemetry() {
-        return enableSessionTelemetry;
+    @JsonIgnore
+    public Optional<Boolean> getEnableSessionTelemetry() {
+        return Optional.ofNullable(enableSessionTelemetry);
     }
 
     /**
@@ -259,8 +262,18 @@ public class ResumeSessionConfig {
      *            whether to enable session telemetry
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setEnableSessionTelemetry(Boolean enableSessionTelemetry) {
+    public ResumeSessionConfig setEnableSessionTelemetry(boolean enableSessionTelemetry) {
         this.enableSessionTelemetry = enableSessionTelemetry;
+        return this;
+    }
+
+    /**
+     * Clears the enableSessionTelemetry setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableSessionTelemetry() {
+        this.enableSessionTelemetry = null;
         return this;
     }
 
@@ -403,8 +416,9 @@ public class ResumeSessionConfig {
      * @return {@code true} to enable discovery, {@code false} to disable, or
      *         {@code null} to use the runtime default
      */
-    public Boolean getEnableConfigDiscovery() {
-        return enableConfigDiscovery;
+    @JsonIgnore
+    public Optional<Boolean> getEnableConfigDiscovery() {
+        return Optional.ofNullable(enableConfigDiscovery);
     }
 
     /**
@@ -420,8 +434,18 @@ public class ResumeSessionConfig {
      *            {@code null} to use the runtime default
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setEnableConfigDiscovery(Boolean enableConfigDiscovery) {
+    public ResumeSessionConfig setEnableConfigDiscovery(boolean enableConfigDiscovery) {
         this.enableConfigDiscovery = enableConfigDiscovery;
+        return this;
+    }
+
+    /**
+     * Clears the enableConfigDiscovery setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableConfigDiscovery() {
+        this.enableConfigDiscovery = null;
         return this;
     }
 
@@ -431,8 +455,9 @@ public class ResumeSessionConfig {
      * @return {@code true} to include sub-agent streaming events, {@code false} to
      *         suppress them, or {@code null} to use the runtime default
      */
-    public Boolean getIncludeSubAgentStreamingEvents() {
-        return includeSubAgentStreamingEvents;
+    @JsonIgnore
+    public Optional<Boolean> getIncludeSubAgentStreamingEvents() {
+        return Optional.ofNullable(includeSubAgentStreamingEvents);
     }
 
     /**
@@ -443,8 +468,19 @@ public class ResumeSessionConfig {
      *            suppress
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setIncludeSubAgentStreamingEvents(Boolean includeSubAgentStreamingEvents) {
+    public ResumeSessionConfig setIncludeSubAgentStreamingEvents(boolean includeSubAgentStreamingEvents) {
         this.includeSubAgentStreamingEvents = includeSubAgentStreamingEvents;
+        return this;
+    }
+
+    /**
+     * Clears the includeSubAgentStreamingEvents setting, reverting to the default
+     * behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearIncludeSubAgentStreamingEvents() {
+        this.includeSubAgentStreamingEvents = null;
         return this;
     }
 

@@ -11,8 +11,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.sdk.generated.SessionEvent;
+import java.util.Optional;
 
 /**
  * Configuration for creating a new Copilot session.
@@ -298,8 +300,9 @@ public class SessionConfig {
      *
      * @return whether session telemetry is enabled
      */
-    public Boolean getEnableSessionTelemetry() {
-        return enableSessionTelemetry;
+    @JsonIgnore
+    public Optional<Boolean> getEnableSessionTelemetry() {
+        return Optional.ofNullable(enableSessionTelemetry);
     }
 
     /**
@@ -313,8 +316,18 @@ public class SessionConfig {
      *            whether to enable session telemetry
      * @return this config instance for method chaining
      */
-    public SessionConfig setEnableSessionTelemetry(Boolean enableSessionTelemetry) {
+    public SessionConfig setEnableSessionTelemetry(boolean enableSessionTelemetry) {
         this.enableSessionTelemetry = enableSessionTelemetry;
+        return this;
+    }
+
+    /**
+     * Clears the enableSessionTelemetry setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableSessionTelemetry() {
+        this.enableSessionTelemetry = null;
         return this;
     }
 
@@ -661,8 +674,9 @@ public class SessionConfig {
      * @return {@code true} to enable discovery, {@code false} to disable, or
      *         {@code null} to use the runtime default
      */
-    public Boolean getEnableConfigDiscovery() {
-        return enableConfigDiscovery;
+    @JsonIgnore
+    public Optional<Boolean> getEnableConfigDiscovery() {
+        return Optional.ofNullable(enableConfigDiscovery);
     }
 
     /**
@@ -680,8 +694,18 @@ public class SessionConfig {
      *            {@code null} to use the runtime default
      * @return this config instance for method chaining
      */
-    public SessionConfig setEnableConfigDiscovery(Boolean enableConfigDiscovery) {
+    public SessionConfig setEnableConfigDiscovery(boolean enableConfigDiscovery) {
         this.enableConfigDiscovery = enableConfigDiscovery;
+        return this;
+    }
+
+    /**
+     * Clears the enableConfigDiscovery setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableConfigDiscovery() {
+        this.enableConfigDiscovery = null;
         return this;
     }
 
@@ -691,8 +715,9 @@ public class SessionConfig {
      * @return {@code true} to include sub-agent streaming events, {@code false} to
      *         suppress them, or {@code null} to use the runtime default
      */
-    public Boolean getIncludeSubAgentStreamingEvents() {
-        return includeSubAgentStreamingEvents;
+    @JsonIgnore
+    public Optional<Boolean> getIncludeSubAgentStreamingEvents() {
+        return Optional.ofNullable(includeSubAgentStreamingEvents);
     }
 
     /**
@@ -709,8 +734,19 @@ public class SessionConfig {
      *            suppress
      * @return this config instance for method chaining
      */
-    public SessionConfig setIncludeSubAgentStreamingEvents(Boolean includeSubAgentStreamingEvents) {
+    public SessionConfig setIncludeSubAgentStreamingEvents(boolean includeSubAgentStreamingEvents) {
         this.includeSubAgentStreamingEvents = includeSubAgentStreamingEvents;
+        return this;
+    }
+
+    /**
+     * Clears the includeSubAgentStreamingEvents setting, reverting to the default
+     * behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearIncludeSubAgentStreamingEvents() {
+        this.includeSubAgentStreamingEvents = null;
         return this;
     }
 
