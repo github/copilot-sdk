@@ -269,6 +269,8 @@ impl ListModelsHandler for CountingModelsHandler {
             },
             default_reasoning_effort: None,
             id: "custom-handler-model".to_string(),
+            model_picker_category: None,
+            model_picker_price_category: None,
             name: "Custom Handler Model".to_string(),
             policy: None,
             supported_reasoning_efforts: Vec::new(),
