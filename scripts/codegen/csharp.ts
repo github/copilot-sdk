@@ -312,6 +312,14 @@ const COPYRIGHT = `/*-----------------------------------------------------------
 const EXPERIMENTAL_ATTRIBUTE = "[Experimental(Diagnostics.Experimental)]";
 const OBSOLETE_ATTRIBUTE = `[Obsolete("This member is deprecated and will be removed in a future version.")]`;
 
+function experimentalAttribute(indent = ""): string {
+    return `${indent}${EXPERIMENTAL_ATTRIBUTE}`;
+}
+
+function pushExperimentalAttribute(lines: string[], indent = ""): void {
+    lines.push(experimentalAttribute(indent));
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // SESSION EVENTS
 // ══════════════════════════════════════════════════════════════════════════════
@@ -349,7 +357,7 @@ function getOrCreateEnum(
 
     const lines: string[] = [];
     lines.push(...xmlDocEnumComment(description, ""));
-    if (experimental) lines.push(EXPERIMENTAL_ATTRIBUTE);
+    if (experimental) pushExperimentalAttribute(lines);
     if (deprecated) lines.push(OBSOLETE_ATTRIBUTE);
     lines.push(`[JsonConverter(typeof(Converter))]`);
     lines.push(`[DebuggerDisplay("{Value,nq}")]`);
@@ -544,7 +552,7 @@ function generateFlattenedBooleanDiscriminatedClass(
     }
 
     lines.push(...xmlDocCommentWithFallback(description, `Data type discriminated by <c>${escapeXml(discriminatorInfo.property)}</c>.`, ""));
-    if (experimental) lines.push(EXPERIMENTAL_ATTRIBUTE);
+    if (experimental) pushExperimentalAttribute(lines);
     lines.push(`public partial class ${renamedBase}`);
     lines.push(`{`);
     lines.push(`    /// <summary>The boolean discriminator.</summary>`);
@@ -592,7 +600,7 @@ function generatePolymorphicClasses(
     const renamedBase = applyTypeRename(baseClassName);
 
     lines.push(...xmlDocCommentWithFallback(description, `Polymorphic base type discriminated by <c>${escapeXml(discriminatorProperty)}</c>.`, ""));
-    if (experimental) lines.push(EXPERIMENTAL_ATTRIBUTE);
+    if (experimental) pushExperimentalAttribute(lines);
     lines.push(`[JsonPolymorphic(`);
     lines.push(`    TypeDiscriminatorPropertyName = "${discriminatorProperty}",`);
     lines.push(`    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]`);
@@ -639,7 +647,7 @@ function generateDerivedClass(
     const required = new Set(schema.required || []);
 
     lines.push(...xmlDocCommentWithFallback(schema.description, `The <c>${escapeXml(discriminatorValue)}</c> variant of <see cref="${baseClassName}"/>.`, ""));
-    if (isSchemaExperimental(schema)) lines.push(EXPERIMENTAL_ATTRIBUTE);
+    if (isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
     if (isSchemaDeprecated(schema)) lines.push(OBSOLETE_ATTRIBUTE);
     lines.push(`public partial class ${className} : ${baseClassName}`);
     lines.push(`{`);
@@ -683,7 +691,7 @@ function generateNestedClass(
     const required = new Set(schema.required || []);
     const lines: string[] = [];
     lines.push(...xmlDocCommentWithFallback(schema.description, `Nested data type for <c>${className}</c>.`, ""));
-    if (isSchemaExperimental(schema)) lines.push(EXPERIMENTAL_ATTRIBUTE);
+    if (isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
     if (isSchemaDeprecated(schema)) lines.push(OBSOLETE_ATTRIBUTE);
     lines.push(`public partial class ${className}`, `{`);
 
@@ -816,7 +824,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
         lines.push(...rawXmlDocSummary(`Event payload for <see cref="${variant.className}"/>.`, ""));
     }
     if (variant.dataExperimental || isSchemaExperimental(variant.dataSchema)) {
-        lines.push(EXPERIMENTAL_ATTRIBUTE);
+        pushExperimentalAttribute(lines);
     }
     if (isSchemaDeprecated(variant.dataSchema)) {
         lines.push(OBSOLETE_ATTRIBUTE);
@@ -932,7 +940,7 @@ namespace GitHub.Copilot.SDK;
             lines.push(`/// <summary>Represents the <c>${escapeXml(variant.typeName)}</c> event.</summary>`);
         }
         if (variant.eventExperimental) {
-            lines.push(EXPERIMENTAL_ATTRIBUTE);
+            pushExperimentalAttribute(lines);
         }
         lines.push(`public partial class ${variant.className} : SessionEvent`, `{`);
         lines.push(`    /// <inheritdoc />`);
@@ -1188,7 +1196,7 @@ function emitRpcClass(
     const lines: string[] = [];
     lines.push(...xmlDocComment(schema.description || effectiveSchema.description || `RPC data type for ${className.replace(/(Request|Result|Params)$/, "")} operations.`, ""));
     if (experimentalRpcTypes.has(className) || isSchemaExperimental(schema) || isSchemaExperimental(effectiveSchema)) {
-        lines.push(EXPERIMENTAL_ATTRIBUTE);
+        pushExperimentalAttribute(lines);
     }
     if (isSchemaDeprecated(schema) || isSchemaDeprecated(effectiveSchema)) {
         lines.push(OBSOLETE_ATTRIBUTE);
@@ -1306,7 +1314,7 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
     const groupExperimental = isNodeFullyExperimental(node);
     const groupDeprecated = isNodeFullyDeprecated(node);
     if (groupExperimental) {
-        lines.push(EXPERIMENTAL_ATTRIBUTE);
+        pushExperimentalAttribute(lines);
     }
     if (groupDeprecated) {
         lines.push(OBSOLETE_ATTRIBUTE);
@@ -1395,7 +1403,7 @@ function emitServerInstanceMethod(
     lines.push("");
     lines.push(`${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
     if (method.stability === "experimental" && !groupExperimental) {
-        lines.push(`${indent}${EXPERIMENTAL_ATTRIBUTE}`);
+        pushExperimentalAttribute(lines, indent);
     }
     if (method.deprecated && !groupDeprecated) {
         lines.push(`${indent}${OBSOLETE_ATTRIBUTE}`);
@@ -1501,7 +1509,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
 
     lines.push("", `${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
     if (method.stability === "experimental" && !groupExperimental) {
-        lines.push(`${indent}${EXPERIMENTAL_ATTRIBUTE}`);
+        pushExperimentalAttribute(lines, indent);
     }
     if (method.deprecated && !groupDeprecated) {
         lines.push(`${indent}${OBSOLETE_ATTRIBUTE}`);
@@ -1533,7 +1541,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
     const displayName = className.replace(/Api$/, "");
     const groupExperimental = isNodeFullyExperimental(node);
     const groupDeprecated = isNodeFullyDeprecated(node);
-    const experimentalAttr = groupExperimental ? `${EXPERIMENTAL_ATTRIBUTE}\n` : "";
+    const experimentalAttr = groupExperimental ? `${experimentalAttribute()}\n` : "";
     const deprecatedAttr = groupDeprecated ? `${OBSOLETE_ATTRIBUTE}\n` : "";
     const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
 
@@ -1621,7 +1629,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
         const groupDeprecated = isNodeFullyDeprecated(groupNode);
         lines.push(`/// <summary>Handles \`${groupName}\` client session API methods.</summary>`);
         if (groupExperimental) {
-            lines.push(EXPERIMENTAL_ATTRIBUTE);
+            pushExperimentalAttribute(lines);
         }
         if (groupDeprecated) {
             lines.push(OBSOLETE_ATTRIBUTE);
@@ -1635,7 +1643,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             const taskType = resultTaskType(method);
             lines.push(`    /// <summary>Handles "${method.rpcMethod}".</summary>`);
             if (method.stability === "experimental" && !groupExperimental) {
-                lines.push(`    ${EXPERIMENTAL_ATTRIBUTE}`);
+                pushExperimentalAttribute(lines, "    ");
             }
             if (method.deprecated && !groupDeprecated) {
                 lines.push(`    ${OBSOLETE_ATTRIBUTE}`);

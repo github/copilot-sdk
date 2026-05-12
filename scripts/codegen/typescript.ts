@@ -32,6 +32,12 @@ import {
     type RpcMethod,
 } from "./utils.js";
 
+const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
+
+function tsExperimentalJSDoc(indent = ""): string {
+    return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
+}
+
 function toPascalCase(s: string): string {
     return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -240,7 +246,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
         additionalProperties: false,
     });
 
-    const annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), "/** @experimental */");
+    const annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
     const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", annotatedTs);
     console.log(`  ✓ ${outPath}`);
 }
@@ -452,7 +458,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     if (strippedTs) {
         // Add @experimental JSDoc annotations for types from experimental methods or schemas.
-        let annotatedTs = annotateTypeScriptTypes(strippedTs, experimentalTypes, "/** @experimental */");
+        let annotatedTs = annotateTypeScriptTypes(strippedTs, experimentalTypes, TS_EXPERIMENTAL_JSDOC);
         // Add @deprecated JSDoc annotations for types from deprecated methods
         for (const depType of deprecatedTypes) {
             annotatedTs = annotatedTs.replace(
@@ -592,7 +598,7 @@ function emitGroup(
                 lines.push(`${indent}/** @deprecated */`);
             }
             if ((value as RpcMethod).stability === "experimental" && !parentExperimental) {
-                lines.push(`${indent}/** @experimental */`);
+                lines.push(tsExperimentalJSDoc(indent));
             }
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
             lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
@@ -613,7 +619,7 @@ function emitGroup(
                 lines.push(`${indent}/** @deprecated */`);
             }
             if (groupExperimental) {
-                lines.push(`${indent}/** @experimental */`);
+                lines.push(tsExperimentalJSDoc(indent));
             }
             lines.push(`${indent}${key}: {`);
             lines.push(...childLines);

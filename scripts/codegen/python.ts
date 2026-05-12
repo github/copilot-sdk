@@ -44,6 +44,20 @@ import {
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 
+type PyExperimentalSubject = "type" | "enum" | "event";
+
+function pyExperimentalComment(subject: PyExperimentalSubject, indent = ""): string {
+    return `${indent}# Experimental: this ${subject} is part of an experimental API and may change or be removed.`;
+}
+
+function pushPyExperimentalComment(lines: string[], subject: PyExperimentalSubject, indent = ""): void {
+    lines.push(pyExperimentalComment(subject, indent));
+}
+
+function pushPyExperimentalApiGroupComment(lines: string[]): void {
+    lines.push("# Experimental: this API group is experimental and may change or be removed.");
+}
+
 /**
  * Modernize quicktype's Python 3.7 output to Python 3.11+ syntax:
  * - Optional[T] → T | None
@@ -736,7 +750,7 @@ function getOrCreatePyEnum(
 
     const lines: string[] = [];
     if (experimental) {
-        lines.push(`# Experimental: this enum is part of an experimental API and may change or be removed.`);
+        pushPyExperimentalComment(lines, "enum");
     }
     if (deprecated) {
         lines.push(`# Deprecated: this enum is deprecated and will be removed in a future version.`);
@@ -1076,7 +1090,7 @@ function emitPyClass(
 
     const lines: string[] = [];
     if (isSchemaExperimental(schema)) {
-        lines.push(`# Experimental: this type is part of an experimental API and may change or be removed.`);
+        pushPyExperimentalComment(lines, "type");
     }
     if (isSchemaDeprecated(schema)) {
         lines.push(`# Deprecated: this type is deprecated and will be removed in a future version.`);
@@ -1238,7 +1252,7 @@ function emitPyFlatDiscriminatedUnion(
 
     const lines: string[] = [];
     if (experimental) {
-        lines.push(`# Experimental: this type is part of an experimental API and may change or be removed.`);
+        pushPyExperimentalComment(lines, "type");
     }
     lines.push(`@dataclass`);
     lines.push(`class ${typeName}:`);
@@ -1310,7 +1324,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     eventTypeLines.push(`class SessionEventType(Enum):`);
     for (const variant of variants) {
         if (variant.eventExperimental) {
-            eventTypeLines.push(`    # Experimental: this event is part of an experimental API and may change or be removed.`);
+            pushPyExperimentalComment(eventTypeLines, "event", "    ");
         }
         eventTypeLines.push(`    ${toEnumMemberName(variant.typeName)} = ${JSON.stringify(variant.typeName)}`);
     }
@@ -1780,7 +1794,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     for (const typeName of experimentalTypeNames) {
         typesCode = typesCode.replace(
             new RegExp(`^(@dataclass\\n)?class ${typeName}[:(]`, "m"),
-            (match) => `# Experimental: this type is part of an experimental API and may change or be removed.\n${match}`
+            (match) => `${pyExperimentalComment("type")}\n${match}`
         );
     }
 
@@ -1945,7 +1959,7 @@ function emitPyApiGroup(
         lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
     }
     if (groupExperimental) {
-        lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
+        pushPyExperimentalApiGroupComment(lines);
     }
     lines.push(`class ${apiName}:`);
     if (isSession) {
@@ -2134,7 +2148,7 @@ function emitClientSessionApiRegistration(
             lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
         }
         if (groupExperimental) {
-            lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
+            pushPyExperimentalApiGroupComment(lines);
         }
         lines.push(`class ${handlerName}(Protocol):`);
         for (const [methodName, value] of Object.entries(groupNode as Record<string, unknown>)) {

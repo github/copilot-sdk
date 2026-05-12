@@ -108,6 +108,30 @@ function pushGoCommentForContext(lines: string[], text: string, ctx: GoCodegenCt
     pushGoComment(lines, text, indent, ctx.wrapComments !== false);
 }
 
+function goExperimentalTypeComment(typeName: string): string {
+    return `Experimental: ${typeName} is part of an experimental API and may change or be removed.`;
+}
+
+function pushGoExperimentalTypeComment(lines: string[], typeName: string, ctx: GoCodegenCtx): void {
+    pushGoCommentForContext(lines, goExperimentalTypeComment(typeName), ctx);
+}
+
+function pushGoExperimentalEventComment(lines: string[], constName: string, indent = ""): void {
+    pushGoComment(lines, `Experimental: ${constName} identifies an experimental event that may change or be removed.`, indent);
+}
+
+function pushGoExperimentalApiComment(lines: string[], name: string, indent = ""): void {
+    pushGoComment(lines, `Experimental: ${name} contains experimental APIs that may change or be removed.`, indent);
+}
+
+function pushGoExperimentalSubApiComment(lines: string[], name: string, indent = ""): void {
+    pushGoComment(lines, `Experimental: ${name} returns experimental APIs that may change or be removed.`, indent);
+}
+
+function pushGoExperimentalMethodComment(lines: string[], methodName: string, indent = ""): void {
+    pushGoComment(lines, `Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`, indent);
+}
+
 function goCommentLines(text: string, indent = "", wrap = true): string[] {
     const prefix = `${indent}//`;
     const lines: string[] = [];
@@ -512,7 +536,7 @@ function getOrCreateGoEnum(
         pushGoCommentForContext(lines, description, ctx);
     }
     if (experimental) {
-        pushGoCommentForContext(lines, `Experimental: ${enumName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, enumName, ctx);
     }
     if (deprecated) {
         pushGoCommentForContext(lines, `Deprecated: ${enumName} is deprecated and will be removed in a future version.`, ctx);
@@ -881,7 +905,7 @@ function emitGoStruct(
         pushGoCommentForContext(lines, desc, ctx);
     }
     if (isSchemaExperimental(schema)) {
-        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, typeName, ctx);
     }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
@@ -1450,7 +1474,7 @@ function emitGoFlatDiscriminatedUnion(
         pushGoCommentForContext(lines, description, ctx);
     }
     if (experimental) {
-        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, typeName, ctx);
     }
     lines.push(`type ${typeName} interface {`);
     lines.push(`\t${markerName}()`);
@@ -1627,7 +1651,7 @@ function emitGoRequiredFieldDiscriminatedUnion(
         pushGoCommentForContext(lines, description, ctx);
     }
     if (experimental) {
-        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, typeName, ctx);
     }
     lines.push(`type ${typeName} interface {`);
     lines.push(`\t${markerName}()`);
@@ -1929,7 +1953,7 @@ function emitGoFlattenedObjectUnion(
         pushGoCommentForContext(lines, description, ctx);
     }
     if (experimental) {
-        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, typeName, ctx);
     }
     lines.push(`type ${typeName} struct {`);
 
@@ -2132,7 +2156,7 @@ function emitGoPrimitiveUnionInterface(typeName: string, schema: JSONSchema7, ct
         pushGoCommentForContext(lines, schema.description, ctx);
     }
     if (isSchemaExperimental(schema)) {
-        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, typeName, ctx);
     }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
@@ -2288,7 +2312,7 @@ function emitGoUntaggedUnionInterface(typeName: string, schema: JSONSchema7, ctx
         pushGoCommentForContext(lines, schema.description, ctx);
     }
     if (isSchemaExperimental(schema)) {
-        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, typeName, ctx);
     }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
@@ -2406,7 +2430,7 @@ function emitGoUnionWrapperStruct(typeName: string, schema: JSONSchema7, ctx: Go
         pushGoCommentForContext(lines, schema.description, ctx);
     }
     if (isSchemaExperimental(schema)) {
-        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, typeName, ctx);
     }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
@@ -2472,7 +2496,7 @@ function emitGoAlias(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): 
         pushGoCommentForContext(lines, schema.description, ctx);
     }
     if (isSchemaExperimental(schema)) {
-        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+        pushGoExperimentalTypeComment(lines, typeName, ctx);
     }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
@@ -2669,7 +2693,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): GoGeneratedTypeCode {
             pushGoCommentForContext(lines, `${variant.dataClassName} holds the payload for ${variant.typeName} events.`, ctx);
         }
         if (variant.dataExperimental || isSchemaExperimental(variant.dataSchema)) {
-            pushGoCommentForContext(lines, `Experimental: ${variant.dataClassName} is part of an experimental API and may change or be removed.`, ctx);
+            pushGoExperimentalTypeComment(lines, variant.dataClassName, ctx);
         }
         lines.push(`type ${variant.dataClassName} struct {`);
 
@@ -2733,7 +2757,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): GoGeneratedTypeCode {
     for (const { constName, typeName } of eventTypeConsts) {
         const variant = variants.find((candidate) => candidate.typeName === typeName);
         if (variant?.eventExperimental) {
-            eventTypeEnum.push(`\t// Experimental: ${constName} identifies an experimental event that may change or be removed.`);
+            pushGoExperimentalEventComment(eventTypeEnum, constName, "\t");
         }
         eventTypeEnum.push(`\t${constName} SessionEventType = "${typeName}"`);
     }
@@ -3064,7 +3088,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     for (const typeName of experimentalTypeNames) {
         generatedTypeCode = generatedTypeCode.replace(
             new RegExp(`^(type ${typeName} struct)`, "m"),
-            `// Experimental: ${typeName} is part of an experimental API and may change or be removed.\n$1`
+            `// ${goExperimentalTypeComment(typeName)}\n$1`
         );
     }
 
@@ -3180,7 +3204,7 @@ function emitApiGroup(
         pushGoComment(lines, `Deprecated: ${apiName} contains deprecated APIs that will be removed in a future version.`);
     }
     if (groupExperimental) {
-        pushGoComment(lines, `Experimental: ${apiName} contains experimental APIs that may change or be removed.`);
+        pushGoExperimentalApiComment(lines, apiName);
     }
     lines.push(`type ${apiName} ${serviceName}`);
     lines.push(``);
@@ -3197,7 +3221,7 @@ function emitApiGroup(
         emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, subGroupExperimental, subGroupDeprecated);
 
         if (subGroupExperimental) {
-            pushGoComment(lines, `Experimental: ${toPascalCase(subGroupName)} returns experimental APIs that may change or be removed.`);
+            pushGoExperimentalSubApiComment(lines, toPascalCase(subGroupName));
         }
         lines.push(`func (s *${apiName}) ${toPascalCase(subGroupName)}() *${subApiName} {`);
         lines.push(`\treturn (*${subApiName})(s)`);
@@ -3307,7 +3331,7 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         pushGoComment(lines, `Deprecated: ${methodName} is deprecated and will be removed in a future version.`);
     }
     if (method.stability === "experimental" && !groupExperimental) {
-        pushGoComment(lines, `Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`);
+        pushGoExperimentalMethodComment(lines, methodName);
     }
     if (method.visibility === "internal") {
         pushGoComment(lines, `Internal: ${methodName} is part of the SDK's internal handshake/plumbing; external callers should not use it.`);
@@ -3397,7 +3421,7 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
             pushGoComment(lines, `Deprecated: ${interfaceName} contains deprecated APIs that will be removed in a future version.`);
         }
         if (groupExperimental) {
-            pushGoComment(lines, `Experimental: ${interfaceName} contains experimental APIs that may change or be removed.`);
+            pushGoExperimentalApiComment(lines, interfaceName);
         }
         lines.push(`type ${interfaceName} interface {`);
         for (const method of methods) {
@@ -3405,7 +3429,7 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
                 pushGoComment(lines, `Deprecated: ${clientHandlerMethodName(method.rpcMethod)} is deprecated and will be removed in a future version.`, "\t");
             }
             if (method.stability === "experimental" && !groupExperimental) {
-                pushGoComment(lines, `Experimental: ${clientHandlerMethodName(method.rpcMethod)} is an experimental API and may change or be removed in future versions.`, "\t");
+                pushGoExperimentalMethodComment(lines, clientHandlerMethodName(method.rpcMethod), "\t");
             }
             const paramsType = resolveType(goParamsTypeName(method));
             const resultSchema = getMethodResultSchema(method);
