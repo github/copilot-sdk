@@ -1797,39 +1797,17 @@ public sealed class CommandsRespondToQueuedCommandResult
 }
 
 /// <summary>Result of the queued command execution.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>handled</c>.</remarks>
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "handled",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(QueuedCommandResultTrue), "true")]
-[JsonDerivedType(typeof(QueuedCommandResultFalse), "false")]
+/// <remarks>Data type discriminated by <c>handled</c>.</remarks>
 public partial class QueuedCommandResult
 {
-    /// <summary>The type discriminator.</summary>
+    /// <summary>The boolean discriminator.</summary>
     [JsonPropertyName("handled")]
-    public virtual string Handled { get; set; } = string.Empty;
-}
-
-
-/// <summary>The <c>true</c> variant of <see cref="QueuedCommandResult"/>.</summary>
-public partial class QueuedCommandResultTrue : QueuedCommandResult
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Handled => "true";
+    public bool Handled { get; set; }
 
     /// <summary>If true, stop processing remaining queued items.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("stopProcessingQueue")]
     public bool? StopProcessingQueue { get; set; }
-}
-
-/// <summary>The <c>false</c> variant of <see cref="QueuedCommandResult"/>.</summary>
-public partial class QueuedCommandResultFalse : QueuedCommandResult
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Handled => "false";
 }
 
 /// <summary>RPC data type for CommandsRespondToQueuedCommand operations.</summary>
