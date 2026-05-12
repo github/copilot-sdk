@@ -370,6 +370,45 @@ describe("ReplayingCapiProxy", () => {
     expect(result.conversations[0].messages[0].content).toBe("Say hello.");
   });
 
+  test("strips skill metadata frontmatter from skill-context user messages", async () => {
+    const skillDir = path.join(workDir, ".test_skills", "test-skill");
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: `<skill-context name="test-skill">
+Base directory for this skill: ${skillDir}
+
+---
+name: test-skill
+description: A test skill that adds a marker to responses
+---
+
+# Test Skill Instructions
+
+Always include PINEAPPLE_COCONUT_42.
+</skill-context>`,
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "OK!" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(`<skill-context name="test-skill">
+Base directory for this skill: ${workingDirPlaceholder}/.test_skills/test-skill
+
+# Test Skill Instructions
+
+Always include PINEAPPLE_COCONUT_42.
+</skill-context>`);
+  });
+
   test("applies tool result normalizers to tool response content", async () => {
     const requestBody = JSON.stringify({
       messages: [

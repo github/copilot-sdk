@@ -1032,7 +1032,7 @@ function transformOpenAIRequestMessage(
 }
 
 function normalizeUserMessage(content: string): string {
-  return content
+  return normalizeSkillContextFrontmatter(content)
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")
@@ -1042,6 +1042,14 @@ function normalizeUserMessage(content: string): string {
       "${compaction_prompt}",
     )
     .trim();
+}
+
+function normalizeSkillContextFrontmatter(content: string): string {
+  // Runtime versions may include or omit SKILL.md metadata in the prompt context.
+  return content.replace(
+    /(<skill-context\b[^>]*>\s*Base directory for this skill:[^\r\n]*(?:\r?\n)+)---\r?\n(?:(?!<\/skill-context>)[\s\S])*?\r?\n---(?:\r?\n)+/g,
+    "$1",
+  );
 }
 
 function normalizeLargeOutputFilepaths(result: string): string {
