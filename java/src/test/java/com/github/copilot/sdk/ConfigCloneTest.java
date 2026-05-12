@@ -301,7 +301,7 @@ class ConfigCloneTest {
     }
 
     @Test
-    void copilotClientOptionsSetUseLoggedInUserClear() {
+    void copilotClientOptionsClearUseLoggedInUser() {
         var opts = new CopilotClientOptions();
         opts.setUseLoggedInUser(true);
         opts.clearUseLoggedInUser();
