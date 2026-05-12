@@ -53,9 +53,9 @@ func parseGeneratedRPC(t *testing.T) (*ast.File, *token.FileSet) {
 		t.Fatal("locate test file")
 	}
 	fileSet := token.NewFileSet()
-	file, err := parser.ParseFile(fileSet, filepath.Join(filepath.Dir(currentFile), "generated_rpc.go"), nil, 0)
+	file, err := parser.ParseFile(fileSet, filepath.Join(filepath.Dir(currentFile), "zrpc.go"), nil, 0)
 	if err != nil {
-		t.Fatalf("parse generated_rpc.go: %v", err)
+		t.Fatalf("parse zrpc.go: %v", err)
 	}
 	return file, fileSet
 }
