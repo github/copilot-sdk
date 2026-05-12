@@ -27,6 +27,7 @@ import {
     isNodeFullyExperimental,
     isRpcMethod,
     isSchemaDeprecated,
+    isSchemaExperimental,
     isVoidSchema,
     postProcessSchema,
     refTypeName,
@@ -284,6 +285,8 @@ interface GoEventVariant {
     dataClassName: string;
     dataSchema: JSONSchema7;
     dataDescription?: string;
+    eventExperimental: boolean;
+    dataExperimental: boolean;
 }
 
 interface GoEventEnvelopeProperty extends SessionEventEnvelopeProperty {
@@ -364,6 +367,8 @@ function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
                 dataClassName: `${toPascalCase(typeName)}Data`,
                 dataSchema,
                 dataDescription: dataSchema.description,
+                eventExperimental: isSchemaExperimental(variant),
+                dataExperimental: isSchemaExperimental(dataSchema),
             };
         });
 }
@@ -496,7 +501,8 @@ function getOrCreateGoEnum(
     values: string[],
     ctx: GoCodegenCtx,
     description?: string,
-    deprecated?: boolean
+    deprecated?: boolean,
+    experimental?: boolean
 ): string {
     const existing = ctx.enumsByName.get(enumName);
     if (existing) return existing;
@@ -504,6 +510,9 @@ function getOrCreateGoEnum(
     const lines: string[] = [];
     if (description) {
         pushGoCommentForContext(lines, description, ctx);
+    }
+    if (experimental) {
+        pushGoCommentForContext(lines, `Experimental: ${enumName} is part of an experimental API and may change or be removed.`, ctx);
     }
     if (deprecated) {
         pushGoCommentForContext(lines, `Deprecated: ${enumName} is deprecated and will be removed in a future version.`, ctx);
@@ -589,7 +598,7 @@ function resolveGoPropertyType(
         const resolved = resolveRef(propSchema.$ref, ctx.definitions);
         if (resolved) {
             if (resolved.enum) {
-                const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
+                const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved), isSchemaExperimental(resolved));
                 return isRequired ? enumType : `*${enumType}`;
             }
             if (isNamedGoObjectSchema(resolved)) {
@@ -643,7 +652,7 @@ function resolveGoPropertyType(
 
     // Handle enum
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
-        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description, isSchemaDeprecated(propSchema));
+        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
         return isRequired ? enumType : `*${enumType}`;
     }
 
@@ -653,7 +662,7 @@ function resolveGoPropertyType(
         if (typeof propSchema.const !== "string") {
             return resolveGoPropertyType(schemaForConstValue(propSchema.const), parentTypeName, jsonPropName, isRequired, ctx);
         }
-        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, [propSchema.const], ctx, propSchema.description, isSchemaDeprecated(propSchema));
+        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, [propSchema.const], ctx, propSchema.description, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
         return isRequired ? enumType : `*${enumType}`;
     }
 
@@ -870,6 +879,9 @@ function emitGoStruct(
     const desc = description || schema.description;
     if (desc) {
         pushGoCommentForContext(lines, desc, ctx);
+    }
+    if (isSchemaExperimental(schema)) {
+        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
     }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
@@ -1406,7 +1418,8 @@ function emitGoFlatDiscriminatedUnion(
     typeName: string,
     discriminator: GoDiscriminatorInfo,
     ctx: GoCodegenCtx,
-    description?: string
+    description?: string,
+    experimental = false
 ): void {
     if (ctx.generatedNames.has(typeName)) return;
     ctx.generatedNames.add(typeName);
@@ -1422,7 +1435,9 @@ function emitGoFlatDiscriminatedUnion(
         typeName + discGoName,
         discValues,
         ctx,
-        `${discGoName} discriminator for ${typeName}.`
+        `${discGoName} discriminator for ${typeName}.`,
+        false,
+        experimental
     );
 
     const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
@@ -1433,6 +1448,9 @@ function emitGoFlatDiscriminatedUnion(
     const lines: string[] = [];
     if (description) {
         pushGoCommentForContext(lines, description, ctx);
+    }
+    if (experimental) {
+        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
     }
     lines.push(`type ${typeName} interface {`);
     lines.push(`\t${markerName}()`);
@@ -1592,7 +1610,8 @@ function emitGoRequiredFieldDiscriminatedUnion(
     typeName: string,
     discriminator: GoRequiredFieldDiscriminatorInfo,
     ctx: GoCodegenCtx,
-    description?: string
+    description?: string,
+    experimental = false
 ): void {
     if (ctx.generatedNames.has(typeName)) return;
     ctx.generatedNames.add(typeName);
@@ -1606,6 +1625,9 @@ function emitGoRequiredFieldDiscriminatedUnion(
     const lines: string[] = [];
     if (description) {
         pushGoCommentForContext(lines, description, ctx);
+    }
+    if (experimental) {
+        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
     }
     lines.push(`type ${typeName} interface {`);
     lines.push(`\t${markerName}()`);
@@ -1870,7 +1892,8 @@ function emitGoFlattenedObjectUnion(
     typeName: string,
     variants: JSONSchema7[],
     ctx: GoCodegenCtx,
-    description?: string
+    description?: string,
+    experimental = false
 ): void {
     if (ctx.generatedNames.has(typeName)) return;
     ctx.generatedNames.add(typeName);
@@ -1904,6 +1927,9 @@ function emitGoFlattenedObjectUnion(
     const lines: string[] = [];
     if (description) {
         pushGoCommentForContext(lines, description, ctx);
+    }
+    if (experimental) {
+        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
     }
     lines.push(`type ${typeName} struct {`);
 
@@ -2105,6 +2131,9 @@ function emitGoPrimitiveUnionInterface(typeName: string, schema: JSONSchema7, ct
     if (schema.description) {
         pushGoCommentForContext(lines, schema.description, ctx);
     }
+    if (isSchemaExperimental(schema)) {
+        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+    }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
     }
@@ -2258,6 +2287,9 @@ function emitGoUntaggedUnionInterface(typeName: string, schema: JSONSchema7, ctx
     if (schema.description) {
         pushGoCommentForContext(lines, schema.description, ctx);
     }
+    if (isSchemaExperimental(schema)) {
+        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+    }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
     }
@@ -2331,16 +2363,16 @@ function planGoUnion(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, i
 function emitGoUnionPlan(plan: GoUnionPlan, ctx: GoCodegenCtx): void {
     switch (plan.kind) {
         case "discriminated":
-            emitGoFlatDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description);
+            emitGoFlatDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description, isSchemaExperimental(plan.schema));
             return;
         case "requiredFieldDiscriminated":
-            emitGoRequiredFieldDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description);
+            emitGoRequiredFieldDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description, isSchemaExperimental(plan.schema));
             return;
         case "primitive":
             emitGoPrimitiveUnionInterface(plan.typeName, plan.schema, ctx, plan.variants);
             return;
         case "flattenedObject":
-            emitGoFlattenedObjectUnion(plan.typeName, plan.variants, ctx, plan.description);
+            emitGoFlattenedObjectUnion(plan.typeName, plan.variants, ctx, plan.description, isSchemaExperimental(plan.schema));
             return;
         case "untagged":
             emitGoUntaggedUnionInterface(plan.typeName, plan.schema, ctx, plan.variants);
@@ -2372,6 +2404,9 @@ function emitGoUnionWrapperStruct(typeName: string, schema: JSONSchema7, ctx: Go
     const lines: string[] = [];
     if (schema.description) {
         pushGoCommentForContext(lines, schema.description, ctx);
+    }
+    if (isSchemaExperimental(schema)) {
+        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
     }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
@@ -2436,6 +2471,9 @@ function emitGoAlias(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): 
     if (schema.description) {
         pushGoCommentForContext(lines, schema.description, ctx);
     }
+    if (isSchemaExperimental(schema)) {
+        pushGoCommentForContext(lines, `Experimental: ${typeName} is part of an experimental API and may change or be removed.`, ctx);
+    }
     if (isSchemaDeprecated(schema)) {
         pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
     }
@@ -2448,7 +2486,7 @@ function emitGoRpcDefinition(definitionName: string, schema: JSONSchema7, ctx: G
     const effectiveSchema = resolveObjectSchema(schema, ctx.definitions) ?? resolveSchema(schema, ctx.definitions) ?? schema;
 
     if (isStringEnumDefinition(effectiveSchema)) {
-        getOrCreateGoEnum(typeName, effectiveSchema.enum, ctx, effectiveSchema.description, isSchemaDeprecated(effectiveSchema));
+        getOrCreateGoEnum(typeName, effectiveSchema.enum, ctx, effectiveSchema.description, isSchemaDeprecated(effectiveSchema), isSchemaExperimental(effectiveSchema));
         return typeName;
     }
 
@@ -2630,6 +2668,9 @@ function generateGoSessionEventsCode(schema: JSONSchema7): GoGeneratedTypeCode {
         } else {
             pushGoCommentForContext(lines, `${variant.dataClassName} holds the payload for ${variant.typeName} events.`, ctx);
         }
+        if (variant.dataExperimental || isSchemaExperimental(variant.dataSchema)) {
+            pushGoCommentForContext(lines, `Experimental: ${variant.dataClassName} is part of an experimental API and may change or be removed.`, ctx);
+        }
         lines.push(`type ${variant.dataClassName} struct {`);
 
         const fields: GoStructField[] = [];
@@ -2690,6 +2731,10 @@ function generateGoSessionEventsCode(schema: JSONSchema7): GoGeneratedTypeCode {
         }))
         .sort((left, right) => left.constName.localeCompare(right.constName));
     for (const { constName, typeName } of eventTypeConsts) {
+        const variant = variants.find((candidate) => candidate.typeName === typeName);
+        if (variant?.eventExperimental) {
+            eventTypeEnum.push(`\t// Experimental: ${constName} identifies an experimental event that may change or be removed.`);
+        }
         eventTypeEnum.push(`\t${constName} SessionEventType = "${typeName}"`);
     }
     eventTypeEnum.push(`)`);

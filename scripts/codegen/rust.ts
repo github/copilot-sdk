@@ -26,6 +26,7 @@ import {
 	isObjectSchema,
 	isRpcMethod,
 	isSchemaDeprecated,
+	isSchemaExperimental,
 	isVoidSchema,
 	postProcessSchema,
 	refTypeName,
@@ -224,6 +225,7 @@ function tryEmitRustDiscriminatedUnion(
 			lines.push(`/// ${line}`);
 		}
 	}
+	pushRustExperimentalDocs(lines, isSchemaExperimental(schema));
 	lines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
 	lines.push("#[serde(untagged)]");
 	lines.push(`pub enum ${enumName} {`);
@@ -246,6 +248,25 @@ function makeCtx(definitions?: DefinitionCollections): RustCodegenCtx {
 		generatedNames: new Set(),
 		definitions,
 	};
+}
+
+function pushRustExperimentalDocs(
+	lines: string[],
+	experimental: boolean,
+	indent = "",
+): void {
+	if (!experimental) return;
+	lines.push(`${indent}///`);
+	lines.push(`${indent}/// <div class="warning">`);
+	lines.push(`${indent}///`);
+	lines.push(
+		`${indent}/// **Experimental.** This type is part of an experimental wire-protocol surface`,
+	);
+	lines.push(
+		`${indent}/// and may change or be removed in future SDK or CLI releases.`,
+	);
+	lines.push(`${indent}///`);
+	lines.push(`${indent}/// </div>`);
 }
 
 // ── Type resolution ─────────────────────────────────────────────────────────
@@ -276,6 +297,7 @@ function resolveRustType(
 					resolved.enum as string[],
 					ctx,
 					resolved.description,
+					isSchemaExperimental(resolved),
 				);
 				return wrapOption(typeName, isRequired);
 			}
@@ -377,6 +399,7 @@ function resolveRustType(
 			propSchema.enum as string[],
 			ctx,
 			propSchema.description,
+			isSchemaExperimental(propSchema),
 		);
 		return wrapOption(enumName, isRequired);
 	}
@@ -512,6 +535,7 @@ function emitRustStruct(
 			lines.push(`/// ${line}`);
 		}
 	}
+	pushRustExperimentalDocs(lines, isSchemaExperimental(schema));
 	if (isSchemaDeprecated(schema)) {
 		lines.push("#[deprecated]");
 	}
@@ -575,6 +599,7 @@ function emitRustStringEnum(
 	values: string[],
 	ctx: RustCodegenCtx,
 	description?: string,
+	experimental = false,
 ): void {
 	if (ctx.generatedNames.has(enumName)) return;
 	ctx.generatedNames.add(enumName);
@@ -585,6 +610,7 @@ function emitRustStringEnum(
 			lines.push(`/// ${line}`);
 		}
 	}
+	pushRustExperimentalDocs(lines, experimental);
 	lines.push("#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]");
 	lines.push(`pub enum ${enumName} {`);
 
@@ -644,6 +670,10 @@ interface EventVariant {
 	dataSchema: JSONSchema7;
 	/** Description of the event */
 	description?: string;
+	/** Whether the event definition is experimental. */
+	eventExperimental: boolean;
+	/** Whether the event data definition is experimental. */
+	dataExperimental: boolean;
 }
 
 function extractEventVariants(schema: JSONSchema7): EventVariant[] {
@@ -688,6 +718,8 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
 				dataClassName: `${toPascalCase(typeName)}Data`,
 				dataSchema,
 				description: resolvedVariant.description || dataSchema.description,
+				eventExperimental: isSchemaExperimental(resolvedVariant),
+				dataExperimental: isSchemaExperimental(dataSchema),
 			};
 		})
 		.filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
@@ -717,6 +749,11 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	);
 	typeEnumLines.push("pub enum SessionEventType {");
 	for (const variant of variants) {
+		pushRustExperimentalDocs(
+			typeEnumLines,
+			variant.eventExperimental,
+			"    ",
+		);
 		typeEnumLines.push(`    #[serde(rename = "${variant.typeName}")]`);
 		typeEnumLines.push(`    ${variant.variantName},`);
 	}
@@ -738,6 +775,11 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	dataEnumLines.push(`#[serde(tag = "type", content = "data")]`);
 	dataEnumLines.push("pub enum SessionEventData {");
 	for (const variant of variants) {
+		pushRustExperimentalDocs(
+			dataEnumLines,
+			variant.eventExperimental || variant.dataExperimental,
+			"    ",
+		);
 		dataEnumLines.push(`    #[serde(rename = "${variant.typeName}")]`);
 		dataEnumLines.push(`    ${variant.variantName}(${variant.dataClassName}),`);
 	}
@@ -880,6 +922,7 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 				schema.enum as string[],
 				ctx,
 				schema.description,
+				isSchemaExperimental(schema),
 			);
 		} else if (isObjectSchema(schema)) {
 			emitRustStruct(name, schema, ctx, schema.description);
@@ -1349,8 +1392,9 @@ async function rustfmt(filePath: string): Promise<void> {
 async function generate(): Promise<void> {
 	console.log("Loading schemas...");
 
-	const sessionEventsSchemaPath = await getSessionEventsSchemaPath();
-	const apiSchemaPath = await getApiSchemaPath(process.argv[2]);
+	const sessionEventsSchemaPath =
+		process.argv[2] || (await getSessionEventsSchemaPath());
+	const apiSchemaPath = await getApiSchemaPath(process.argv[3]);
 
 	const sessionEventsRaw = JSON.parse(
 		await fs.readFile(sessionEventsSchemaPath, "utf-8"),
