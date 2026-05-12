@@ -1646,6 +1646,18 @@ func unmarshalUserToolSessionApproval(data []byte) (UserToolSessionApproval, err
 			return nil, err
 		}
 		return &d, nil
+	case UserToolSessionApprovalKindExtensionManagement:
+		var d UserToolSessionApprovalExtensionManagement
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case UserToolSessionApprovalKindExtensionPermissionAccess:
+		var d UserToolSessionApprovalExtensionPermissionAccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case UserToolSessionApprovalKindMcp:
 		var d UserToolSessionApprovalMcp
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1699,6 +1711,28 @@ func (r UserToolSessionApprovalCommands) MarshalJSON() ([]byte, error) {
 
 func (r UserToolSessionApprovalCustomTool) MarshalJSON() ([]byte, error) {
 	type alias UserToolSessionApprovalCustomTool
+	return json.Marshal(struct {
+		Kind UserToolSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r UserToolSessionApprovalExtensionManagement) MarshalJSON() ([]byte, error) {
+	type alias UserToolSessionApprovalExtensionManagement
+	return json.Marshal(struct {
+		Kind UserToolSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r UserToolSessionApprovalExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
+	type alias UserToolSessionApprovalExtensionPermissionAccess
 	return json.Marshal(struct {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
