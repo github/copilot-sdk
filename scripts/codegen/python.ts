@@ -1058,7 +1058,8 @@ function emitPyClass(
     typeName: string,
     schema: JSONSchema7,
     ctx: PyCodegenCtx,
-    description?: string
+    description?: string,
+    experimental = isSchemaExperimental(schema)
 ): void {
     if (ctx.generatedNames.has(typeName)) {
         return;
@@ -1089,7 +1090,7 @@ function emitPyClass(
     });
 
     const lines: string[] = [];
-    if (isSchemaExperimental(schema)) {
+    if (experimental) {
         pushPyExperimentalComment(lines, "type");
     }
     if (isSchemaDeprecated(schema)) {
@@ -1314,7 +1315,13 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     };
 
     for (const variant of variants) {
-        emitPyClass(variant.dataClassName, variant.dataSchema, ctx, variant.dataDescription);
+        emitPyClass(
+            variant.dataClassName,
+            variant.dataSchema,
+            ctx,
+            variant.dataDescription,
+            variant.dataExperimental
+        );
     }
     const envelopeProperties = getPySharedEventEnvelopeProperties(schema, ctx);
     const envelopePropertiesWithoutDefaults = envelopeProperties.filter((property) => !property.hasDefault);
