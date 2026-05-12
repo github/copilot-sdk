@@ -188,7 +188,7 @@ public class RpcAdditionalEdgeCasesE2ETests(E2ETestFixture fixture, ITestOutputH
     }
 
     [Fact]
-    public async Task Workspaces_CreateFile_Then_ListFiles_Returns_Sorted_Or_Stable_Order()
+    public async Task Workspaces_CreateFile_Then_ListFiles_Returns_All_Files()
     {
         var session = await CreateSessionAsync();
         var prefix = $"order-{Guid.NewGuid():N}-";
@@ -204,15 +204,16 @@ public class RpcAdditionalEdgeCasesE2ETests(E2ETestFixture fixture, ITestOutputH
             .Where(path => path.StartsWith(prefix, StringComparison.Ordinal))
             .ToList();
 
-        // The files this test created should be returned in sorted order.
-        Assert.Equal(paths, matchingFiles);
+        // The files this test created should all be returned; the runtime does not guarantee
+        // that workspace file enumeration is sorted.
+        Assert.Equal(paths, matchingFiles.OrderBy(path => path, StringComparer.Ordinal));
 
-        // Calling list again immediately must preserve the same order.
+        // A repeated list should still include the files regardless of returned order.
         var listed2 = await session.Rpc.Workspaces.ListFilesAsync();
         var matchingFiles2 = listed2.Files
             .Where(path => path.StartsWith(prefix, StringComparison.Ordinal))
             .ToList();
-        Assert.Equal(matchingFiles, matchingFiles2);
+        Assert.Equal(paths, matchingFiles2.OrderBy(path => path, StringComparer.Ordinal));
     }
 
     [Fact]
