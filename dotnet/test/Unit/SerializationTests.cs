@@ -5,6 +5,7 @@
 using Xunit;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using GitHub.Copilot.SDK.Rpc;
 
 namespace GitHub.Copilot.SDK.Test.Unit;
 
@@ -239,6 +240,28 @@ public class SerializationTests
         Assert.Equal(McpHttpServerConfigOauthGrantType.ClientCredentials, httpConfig.OauthGrantType);
         Assert.Equal("*", Assert.Single(httpConfig.Tools));
         Assert.Equal(3000, httpConfig.Timeout);
+    }
+
+    [Fact]
+    public void QueuedCommandResult_SerializesHandledAsBoolean_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new QueuedCommandResult
+        {
+            Handled = true,
+            StopProcessingQueue = false
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal(JsonValueKind.True, root.GetProperty("handled").ValueKind);
+        Assert.Equal(JsonValueKind.False, root.GetProperty("stopProcessingQueue").ValueKind);
+
+        var deserialized = JsonSerializer.Deserialize<QueuedCommandResult>("""{"handled":false}""", options);
+        Assert.NotNull(deserialized);
+        Assert.False(deserialized.Handled);
+        Assert.Null(deserialized.StopProcessingQueue);
     }
 
     private static JsonSerializerOptions GetSerializerOptions()

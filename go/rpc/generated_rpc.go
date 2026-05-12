@@ -105,6 +105,19 @@ type CommandsHandlePendingCommandResult struct {
 	Success bool `json:"success"`
 }
 
+type CommandsRespondToQueuedCommandRequest struct {
+	// Request ID from the queued command event
+	RequestID string `json:"requestId"`
+	// Result of the queued command execution
+	Result QueuedCommandResult `json:"result"`
+}
+
+type CommandsRespondToQueuedCommandResult struct {
+	// Whether the response was accepted (false if the requestId was not found or already
+	// resolved)
+	Success bool `json:"success"`
+}
+
 // Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
 	// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
@@ -1109,6 +1122,26 @@ type PluginList struct {
 	Plugins []Plugin `json:"plugins"`
 }
 
+type QueuedCommandHandled struct {
+	// The command was handled
+	Handled bool `json:"handled"`
+	// If true, stop processing remaining queued items
+	StopProcessingQueue *bool `json:"stopProcessingQueue,omitempty"`
+}
+
+type QueuedCommandNotHandled struct {
+	// The command was not handled
+	Handled bool `json:"handled"`
+}
+
+// Result of the queued command execution
+type QueuedCommandResult struct {
+	// Handled discriminator
+	Handled QueuedCommandResultHandled `json:"handled"`
+	// If true, stop processing remaining queued items
+	StopProcessingQueue *bool `json:"stopProcessingQueue,omitempty"`
+}
+
 // Experimental: RemoteDisableResult is part of an experimental API and may change or be
 // removed.
 type RemoteDisableResult struct {
@@ -1980,7 +2013,6 @@ type WorkspacesGetWorkspaceResultWorkspace struct {
 	Name                   *string                                        `json:"name,omitempty"`
 	RemoteSteerable        *bool                                          `json:"remote_steerable,omitempty"`
 	Repository             *string                                        `json:"repository,omitempty"`
-	Summary                *string                                        `json:"summary,omitempty"`
 	SummaryCount           *int64                                         `json:"summary_count,omitempty"`
 	UpdatedAt              *time.Time                                     `json:"updated_at,omitempty"`
 	UserNamed              *bool                                          `json:"user_named,omitempty"`
@@ -2394,6 +2426,14 @@ type PermissionDecisionUserNotAvailableKind string
 
 const (
 	PermissionDecisionUserNotAvailableKindUserNotAvailable PermissionDecisionUserNotAvailableKind = "user-not-available"
+)
+
+// Handled discriminator for QueuedCommandResult.
+type QueuedCommandResultHandled string
+
+const (
+	QueuedCommandResultHandledFalse QueuedCommandResultHandled = "false"
+	QueuedCommandResultHandledTrue  QueuedCommandResultHandled = "true"
 )
 
 // Error classification
@@ -2989,6 +3029,23 @@ func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *Commands
 		return nil, err
 	}
 	var result CommandsHandlePendingCommandResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *CommandsApi) RespondToQueuedCommand(ctx context.Context, params *CommandsRespondToQueuedCommandRequest) (*CommandsRespondToQueuedCommandResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request("session.commands.respondToQueuedCommand", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CommandsRespondToQueuedCommandResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

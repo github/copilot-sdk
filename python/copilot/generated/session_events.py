@@ -300,8 +300,11 @@ class AssistantMessageData:
     "Assistant response containing text content, optional tool requests, and interaction metadata"
     content: str
     message_id: str
+    anthropic_advisor_blocks: list[Any] | None = None
+    anthropic_advisor_model: str | None = None
     encrypted_content: str | None = None
     interaction_id: str | None = None
+    model: str | None = None
     output_tokens: float | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
@@ -317,8 +320,11 @@ class AssistantMessageData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         message_id = from_str(obj.get("messageId"))
+        anthropic_advisor_blocks = from_union([from_none, lambda x: from_list(lambda x: x, x)], obj.get("anthropicAdvisorBlocks"))
+        anthropic_advisor_model = from_union([from_none, from_str], obj.get("anthropicAdvisorModel"))
         encrypted_content = from_union([from_none, from_str], obj.get("encryptedContent"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        model = from_union([from_none, from_str], obj.get("model"))
         output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         phase = from_union([from_none, from_str], obj.get("phase"))
@@ -330,8 +336,11 @@ class AssistantMessageData:
         return AssistantMessageData(
             content=content,
             message_id=message_id,
+            anthropic_advisor_blocks=anthropic_advisor_blocks,
+            anthropic_advisor_model=anthropic_advisor_model,
             encrypted_content=encrypted_content,
             interaction_id=interaction_id,
+            model=model,
             output_tokens=output_tokens,
             parent_tool_call_id=parent_tool_call_id,
             phase=phase,
@@ -346,10 +355,16 @@ class AssistantMessageData:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["messageId"] = from_str(self.message_id)
+        if self.anthropic_advisor_blocks is not None:
+            result["anthropicAdvisorBlocks"] = from_union([from_none, lambda x: from_list(lambda x: x, x)], self.anthropic_advisor_blocks)
+        if self.anthropic_advisor_model is not None:
+            result["anthropicAdvisorModel"] = from_union([from_none, from_str], self.anthropic_advisor_model)
         if self.encrypted_content is not None:
             result["encryptedContent"] = from_union([from_none, from_str], self.encrypted_content)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
         if self.output_tokens is not None:
             result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
         if self.parent_tool_call_id is not None:
@@ -4542,6 +4557,8 @@ class UserToolSessionApproval:
     "The approval to add as a session-scoped rule"
     kind: UserToolSessionApprovalKind
     command_identifiers: list[str] | None = None
+    extension_name: str | None = None
+    operation: str | None = None
     server_name: str | None = None
     tool_name: str | None = None
 
@@ -4550,11 +4567,15 @@ class UserToolSessionApproval:
         assert isinstance(obj, dict)
         kind = parse_enum(UserToolSessionApprovalKind, obj.get("kind"))
         command_identifiers = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("commandIdentifiers"))
+        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
+        operation = from_union([from_none, from_str], obj.get("operation"))
         server_name = from_union([from_none, from_str], obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
         return UserToolSessionApproval(
             kind=kind,
             command_identifiers=command_identifiers,
+            extension_name=extension_name,
+            operation=operation,
             server_name=server_name,
             tool_name=tool_name,
         )
@@ -4564,6 +4585,10 @@ class UserToolSessionApproval:
         result["kind"] = to_enum(UserToolSessionApprovalKind, self.kind)
         if self.command_identifiers is not None:
             result["commandIdentifiers"] = from_union([from_none, lambda x: from_list(from_str, x)], self.command_identifiers)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_none, from_str], self.operation)
         if self.server_name is not None:
             result["serverName"] = from_union([from_none, from_str], self.server_name)
         if self.tool_name is not None:
@@ -4854,6 +4879,8 @@ class UserToolSessionApprovalKind(Enum):
     MCP = "mcp"
     MEMORY = "memory"
     CUSTOM_TOOL = "custom-tool"
+    EXTENSION_MANAGEMENT = "extension-management"
+    EXTENSION_PERMISSION_ACCESS = "extension-permission-access"
 
 
 class WorkingDirectoryContextHostType(Enum):

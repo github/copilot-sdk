@@ -130,6 +130,9 @@ pub mod rpc_methods {
     pub const SESSION_TOOLS_HANDLEPENDINGTOOLCALL: &str = "session.tools.handlePendingToolCall";
     /// `session.commands.handlePendingCommand`
     pub const SESSION_COMMANDS_HANDLEPENDINGCOMMAND: &str = "session.commands.handlePendingCommand";
+    /// `session.commands.respondToQueuedCommand`
+    pub const SESSION_COMMANDS_RESPONDTOQUEUEDCOMMAND: &str =
+        "session.commands.respondToQueuedCommand";
     /// `session.ui.elicitation`
     pub const SESSION_UI_ELICITATION: &str = "session.ui.elicitation";
     /// `session.ui.handlePendingElicitation`
@@ -280,6 +283,22 @@ pub struct CommandsHandlePendingCommandRequest {
 #[serde(rename_all = "camelCase")]
 pub struct CommandsHandlePendingCommandResult {
     /// Whether the command was handled successfully
+    pub success: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandsRespondToQueuedCommandRequest {
+    /// Request ID from the queued command event
+    pub request_id: RequestId,
+    /// Result of the queued command execution
+    pub result: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandsRespondToQueuedCommandResult {
+    /// Whether the response was accepted (false if the requestId was not found or already resolved)
     pub success: bool,
 }
 
@@ -1318,6 +1337,23 @@ pub struct PluginList {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct QueuedCommandHandled {
+    /// The command was handled
+    pub handled: bool,
+    /// If true, stop processing remaining queued items
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_processing_queue: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueuedCommandNotHandled {
+    /// The command was not handled
+    pub handled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RemoteEnableResult {
     /// Whether remote steering is enabled
     pub remote_steerable: bool,
@@ -2209,8 +2245,6 @@ pub struct WorkspacesGetWorkspaceResultWorkspace {
     pub remote_steerable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
     #[serde(rename = "summary_count", skip_serializing_if = "Option::is_none")]
     pub summary_count: Option<i64>,
     #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
@@ -2418,8 +2452,6 @@ pub struct SessionWorkspacesGetWorkspaceResultWorkspace {
     pub remote_steerable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
     #[serde(rename = "summary_count", skip_serializing_if = "Option::is_none")]
     pub summary_count: Option<i64>,
     #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
@@ -2681,6 +2713,13 @@ pub struct SessionToolsHandlePendingToolCallResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionCommandsHandlePendingCommandResult {
     /// Whether the command was handled successfully
+    pub success: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCommandsRespondToQueuedCommandResult {
+    /// Whether the response was accepted (false if the requestId was not found or already resolved)
     pub success: bool,
 }
 

@@ -846,10 +846,6 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("repository")]
     public string? Repository { get; set; }
 
-    /// <summary>Gets or sets the <c>summary</c> value.</summary>
-    [JsonPropertyName("summary")]
-    public string? Summary { get; set; }
-
     /// <summary>Gets or sets the <c>summary_count</c> value.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("summary_count")]
@@ -1786,6 +1782,44 @@ internal sealed class CommandsHandlePendingCommandRequest
     /// <summary>Request ID from the command invocation event.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for CommandsRespondToQueuedCommand operations.</summary>
+public sealed class CommandsRespondToQueuedCommandResult
+{
+    /// <summary>Whether the response was accepted (false if the requestId was not found or already resolved).</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>Result of the queued command execution.</summary>
+/// <remarks>Data type discriminated by <c>handled</c>.</remarks>
+public partial class QueuedCommandResult
+{
+    /// <summary>The boolean discriminator.</summary>
+    [JsonPropertyName("handled")]
+    public bool Handled { get; set; }
+
+    /// <summary>If true, stop processing remaining queued items.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("stopProcessingQueue")]
+    public bool? StopProcessingQueue { get; set; }
+}
+
+/// <summary>RPC data type for CommandsRespondToQueuedCommand operations.</summary>
+internal sealed class CommandsRespondToQueuedCommandRequest
+{
+    /// <summary>Request ID from the queued command event.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Result of the queued command execution.</summary>
+    [JsonPropertyName("result")]
+    public QueuedCommandResult Result { get => field ??= new(); set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -5214,6 +5248,13 @@ public sealed class CommandsApi
         var request = new CommandsHandlePendingCommandRequest { SessionId = _sessionId, RequestId = requestId, Error = error };
         return await CopilotClient.InvokeRpcAsync<CommandsHandlePendingCommandResult>(_rpc, "session.commands.handlePendingCommand", [request], cancellationToken);
     }
+
+    /// <summary>Calls "session.commands.respondToQueuedCommand".</summary>
+    public async Task<CommandsRespondToQueuedCommandResult> RespondToQueuedCommandAsync(string requestId, QueuedCommandResult result, CancellationToken cancellationToken = default)
+    {
+        var request = new CommandsRespondToQueuedCommandRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<CommandsRespondToQueuedCommandResult>(_rpc, "session.commands.respondToQueuedCommand", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Ui APIs.</summary>
@@ -5506,6 +5547,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AgentSelectResult))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandRequest))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandResult))]
+[JsonSerializable(typeof(CommandsRespondToQueuedCommandRequest))]
+[JsonSerializable(typeof(CommandsRespondToQueuedCommandResult))]
 [JsonSerializable(typeof(ConnectRequest))]
 [JsonSerializable(typeof(ConnectResult))]
 [JsonSerializable(typeof(CurrentModel))]
@@ -5573,6 +5616,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PlanUpdateRequest))]
 [JsonSerializable(typeof(Plugin))]
 [JsonSerializable(typeof(PluginList))]
+[JsonSerializable(typeof(QueuedCommandResult))]
 [JsonSerializable(typeof(RemoteEnableResult))]
 [JsonSerializable(typeof(ServerSkill))]
 [JsonSerializable(typeof(ServerSkillList))]
