@@ -932,6 +932,12 @@ pub struct Model {
     pub default_reasoning_effort: Option<String>,
     /// Model identifier (e.g., "claude-sonnet-4.5")
     pub id: String,
+    /// Model capability category for grouping in the model picker
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_picker_category: Option<ModelPickerCategory>,
+    /// Relative cost tier for token-based billing users
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_picker_price_category: Option<ModelPickerPriceCategory>,
     /// Display name
     pub name: String,
     /// Policy state (if applicable)
@@ -3147,6 +3153,36 @@ pub enum McpServerConfigLocalType {
     Local,
     #[serde(rename = "stdio")]
     Stdio,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Model capability category for grouping in the model picker
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelPickerCategory {
+    #[serde(rename = "lightweight")]
+    Lightweight,
+    #[serde(rename = "versatile")]
+    Versatile,
+    #[serde(rename = "powerful")]
+    Powerful,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Relative cost tier for token-based billing users
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelPickerPriceCategory {
+    #[serde(rename = "low")]
+    Low,
+    #[serde(rename = "medium")]
+    Medium,
+    #[serde(rename = "high")]
+    High,
+    #[serde(rename = "very_high")]
+    VeryHigh,
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,

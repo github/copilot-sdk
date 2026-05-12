@@ -689,6 +689,10 @@ type Model struct {
 	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
 	// Model identifier (e.g., "claude-sonnet-4.5")
 	ID string `json:"id"`
+	// Model capability category for grouping in the model picker
+	ModelPickerCategory *ModelPickerCategory `json:"modelPickerCategory,omitempty"`
+	// Relative cost tier for token-based billing users
+	ModelPickerPriceCategory *ModelPickerPriceCategory `json:"modelPickerPriceCategory,omitempty"`
 	// Display name
 	Name string `json:"name"`
 	// Policy state (if applicable)
@@ -2207,6 +2211,25 @@ const (
 	McpServerStatusNeedsAuth     McpServerStatus = "needs-auth"
 	McpServerStatusNotConfigured McpServerStatus = "not_configured"
 	McpServerStatusPending       McpServerStatus = "pending"
+)
+
+// Model capability category for grouping in the model picker
+type ModelPickerCategory string
+
+const (
+	ModelPickerCategoryLightweight ModelPickerCategory = "lightweight"
+	ModelPickerCategoryPowerful    ModelPickerCategory = "powerful"
+	ModelPickerCategoryVersatile   ModelPickerCategory = "versatile"
+)
+
+// Relative cost tier for token-based billing users
+type ModelPickerPriceCategory string
+
+const (
+	ModelPickerPriceCategoryHigh     ModelPickerPriceCategory = "high"
+	ModelPickerPriceCategoryLow      ModelPickerPriceCategory = "low"
+	ModelPickerPriceCategoryMedium   ModelPickerPriceCategory = "medium"
+	ModelPickerPriceCategoryVeryHigh ModelPickerPriceCategory = "very_high"
 )
 
 // Kind discriminator for PermissionDecisionApproveForLocationApproval.

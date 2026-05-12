@@ -147,6 +147,20 @@ export type McpServerStatus = "connected" | "failed" | "needs-auth" | "pending" 
  */
 export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
 /**
+ * Model capability category for grouping in the model picker
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelPickerCategory".
+ */
+export type ModelPickerCategory = "lightweight" | "versatile" | "powerful";
+/**
+ * Relative cost tier for token-based billing users
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelPickerPriceCategory".
+ */
+export type ModelPickerPriceCategory = "low" | "medium" | "high" | "very_high";
+/**
  * The agent mode. Valid values: "interactive", "plan", "autopilot".
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1088,6 +1102,8 @@ export interface Model {
    * Default reasoning effort level (only present if model supports reasoning effort)
    */
   defaultReasoningEffort?: string;
+  modelPickerCategory?: ModelPickerCategory;
+  modelPickerPriceCategory?: ModelPickerPriceCategory;
 }
 /**
  * Model capabilities and limits
