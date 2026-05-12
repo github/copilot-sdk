@@ -49,7 +49,7 @@ func main() {
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "What languages are listed in the attached file?",
 		Attachments: []copilot.Attachment{
-			{Type: "file", Path: &sampleFile},
+			copilot.UserMessageAttachmentFile{DisplayName: filepath.Base(sampleFile), Path: sampleFile},
 		},
 	})
 	if err != nil {
@@ -57,8 +57,8 @@ func main() {
 	}
 
 	if response != nil {
-if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-fmt.Println(d.Content)
-}
-}
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	}
 }

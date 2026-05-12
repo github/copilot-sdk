@@ -1,0 +1,1486 @@
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package rpc
+
+import (
+	"encoding/json"
+	"errors"
+)
+
+func unmarshalExternalToolTextResultForLlmContent(data []byte) (ExternalToolTextResultForLlmContent, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case ExternalToolTextResultForLlmContentTypeAudio:
+		var d ExternalToolTextResultForLlmContentAudio
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeImage:
+		var d ExternalToolTextResultForLlmContentImage
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeResource:
+		var d ExternalToolTextResultForLlmContentResource
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeResourceLink:
+		var d ExternalToolTextResultForLlmContentResourceLink
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeTerminal:
+		var d ExternalToolTextResultForLlmContentTerminal
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeText:
+		var d ExternalToolTextResultForLlmContentText
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawExternalToolTextResultForLlmContentData{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawExternalToolTextResultForLlmContentData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r ExternalToolTextResultForLlmContentAudio) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentAudio
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r ExternalToolTextResultForLlmContentImage) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentImage
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func matchesEmbeddedBlobResourceContents(data []byte) bool {
+	var rawGroup0 struct {
+		Blob json.RawMessage `json:"blob"`
+		Text json.RawMessage `json:"text"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Blob == nil {
+		return false
+	}
+	return rawGroup0.Text == nil
+}
+
+func matchesEmbeddedTextResourceContents(data []byte) bool {
+	var rawGroup0 struct {
+		Blob json.RawMessage `json:"blob"`
+		Text json.RawMessage `json:"text"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Text == nil {
+		return false
+	}
+	return rawGroup0.Blob == nil
+}
+
+func unmarshalExternalToolTextResultForLlmContentResourceDetails(data []byte) (ExternalToolTextResultForLlmContentResourceDetails, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	if matchesEmbeddedBlobResourceContents(data) {
+		var d EmbeddedBlobResourceContents
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	if matchesEmbeddedTextResourceContents(data) {
+		var d EmbeddedTextResourceContents
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	return &RawExternalToolTextResultForLlmContentResourceDetailsData{Raw: data}, nil
+}
+
+func (r RawExternalToolTextResultForLlmContentResourceDetailsData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return []byte("null"), nil
+}
+
+func (r *ExternalToolTextResultForLlmContentResource) UnmarshalJSON(data []byte) error {
+	type rawExternalToolTextResultForLlmContentResource struct {
+		Resource json.RawMessage `json:"resource"`
+	}
+	var raw rawExternalToolTextResultForLlmContentResource
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Resource != nil {
+		value, err := unmarshalExternalToolTextResultForLlmContentResourceDetails(raw.Resource)
+		if err != nil {
+			return err
+		}
+		r.Resource = value
+	}
+	return nil
+}
+
+func (r ExternalToolTextResultForLlmContentResource) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentResource
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r ExternalToolTextResultForLlmContentResourceLink) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentResourceLink
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r ExternalToolTextResultForLlmContentTerminal) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentTerminal
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r ExternalToolTextResultForLlmContentText) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentText
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
+	type rawExternalToolTextResultForLlm struct {
+		Contents         []json.RawMessage `json:"contents,omitempty"`
+		Error            *string           `json:"error,omitempty"`
+		ResultType       *string           `json:"resultType,omitempty"`
+		SessionLog       *string           `json:"sessionLog,omitempty"`
+		TextResultForLlm string            `json:"textResultForLlm"`
+		ToolTelemetry    map[string]any    `json:"toolTelemetry,omitempty"`
+	}
+	var raw rawExternalToolTextResultForLlm
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Contents != nil {
+		r.Contents = make([]ExternalToolTextResultForLlmContent, 0, len(raw.Contents))
+		for _, rawItem := range raw.Contents {
+			value, err := unmarshalExternalToolTextResultForLlmContent(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Contents = append(r.Contents, value)
+		}
+	}
+	r.Error = raw.Error
+	r.ResultType = raw.ResultType
+	r.SessionLog = raw.SessionLog
+	r.TextResultForLlm = raw.TextResultForLlm
+	r.ToolTelemetry = raw.ToolTelemetry
+	return nil
+}
+
+func unmarshalExternalToolResult(data []byte) (ExternalToolResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	{
+		var value string
+		if err := json.Unmarshal(data, &value); err == nil {
+			return ExternalToolStringResult(value), nil
+		}
+	}
+	{
+		var value ExternalToolTextResultForLlm
+		if err := json.Unmarshal(data, &value); err == nil {
+			return &value, nil
+		}
+	}
+	return nil, errors.New("data did not match any union variant for ExternalToolResult")
+}
+
+func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	{
+		var value FilterMappingEnumMap
+		if err := json.Unmarshal(data, &value); err == nil {
+			return value, nil
+		}
+	}
+	{
+		var value FilterMappingString
+		if err := json.Unmarshal(data, &value); err == nil {
+			return value, nil
+		}
+	}
+	return nil, errors.New("data did not match any union variant for FilterMapping")
+}
+
+func (r *HandlePendingToolCallRequest) UnmarshalJSON(data []byte) error {
+	type rawHandlePendingToolCallRequest struct {
+		Error     *string         `json:"error,omitempty"`
+		RequestID string          `json:"requestId"`
+		Result    json.RawMessage `json:"result,omitempty"`
+	}
+	var raw rawHandlePendingToolCallRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Error = raw.Error
+	r.RequestID = raw.RequestID
+	if raw.Result != nil {
+		value, err := unmarshalExternalToolResult(raw.Result)
+		if err != nil {
+			return err
+		}
+		r.Result = value
+	}
+	return nil
+}
+
+func matchesMcpServerConfigHTTP(data []byte) bool {
+	var rawGroup0 struct {
+		Args    json.RawMessage `json:"args"`
+		Command json.RawMessage `json:"command"`
+		URL     json.RawMessage `json:"url"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.URL == nil {
+		return false
+	}
+	if rawGroup0.Args != nil {
+		return false
+	}
+	return rawGroup0.Command == nil
+}
+
+func matchesMcpServerConfigLocal(data []byte) bool {
+	var rawGroup0 struct {
+		Args    json.RawMessage `json:"args"`
+		Command json.RawMessage `json:"command"`
+		URL     json.RawMessage `json:"url"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Args == nil {
+		return false
+	}
+	if rawGroup0.Command == nil {
+		return false
+	}
+	return rawGroup0.URL == nil
+}
+
+func unmarshalMcpServerConfig(data []byte) (McpServerConfig, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	if matchesMcpServerConfigHTTP(data) {
+		var d McpServerConfigHTTP
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	if matchesMcpServerConfigLocal(data) {
+		var d McpServerConfigLocal
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	return &RawMcpServerConfigData{Raw: data}, nil
+}
+
+func (r RawMcpServerConfigData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return []byte("null"), nil
+}
+
+func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
+	type rawMcpServerConfigHTTP struct {
+		FilterMapping     json.RawMessage                    `json:"filterMapping,omitempty"`
+		Headers           map[string]string                  `json:"headers,omitempty"`
+		IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
+		OauthClientID     *string                            `json:"oauthClientId,omitempty"`
+		OauthGrantType    *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
+		OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
+		Timeout           *int64                             `json:"timeout,omitempty"`
+		Tools             []string                           `json:"tools,omitempty"`
+		Type              *McpServerConfigHTTPType           `json:"type,omitempty"`
+		URL               string                             `json:"url"`
+	}
+	var raw rawMcpServerConfigHTTP
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.FilterMapping != nil {
+		value, err := unmarshalFilterMapping(raw.FilterMapping)
+		if err != nil {
+			return err
+		}
+		r.FilterMapping = value
+	}
+	r.Headers = raw.Headers
+	r.IsDefaultServer = raw.IsDefaultServer
+	r.OauthClientID = raw.OauthClientID
+	r.OauthGrantType = raw.OauthGrantType
+	r.OauthPublicClient = raw.OauthPublicClient
+	r.Timeout = raw.Timeout
+	r.Tools = raw.Tools
+	r.Type = raw.Type
+	r.URL = raw.URL
+	return nil
+}
+
+func (r *McpServerConfigLocal) UnmarshalJSON(data []byte) error {
+	type rawMcpServerConfigLocal struct {
+		Args            []string                  `json:"args"`
+		Command         string                    `json:"command"`
+		Cwd             *string                   `json:"cwd,omitempty"`
+		Env             map[string]string         `json:"env,omitempty"`
+		FilterMapping   json.RawMessage           `json:"filterMapping,omitempty"`
+		IsDefaultServer *bool                     `json:"isDefaultServer,omitempty"`
+		Timeout         *int64                    `json:"timeout,omitempty"`
+		Tools           []string                  `json:"tools,omitempty"`
+		Type            *McpServerConfigLocalType `json:"type,omitempty"`
+	}
+	var raw rawMcpServerConfigLocal
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Args = raw.Args
+	r.Command = raw.Command
+	r.Cwd = raw.Cwd
+	r.Env = raw.Env
+	if raw.FilterMapping != nil {
+		value, err := unmarshalFilterMapping(raw.FilterMapping)
+		if err != nil {
+			return err
+		}
+		r.FilterMapping = value
+	}
+	r.IsDefaultServer = raw.IsDefaultServer
+	r.Timeout = raw.Timeout
+	r.Tools = raw.Tools
+	r.Type = raw.Type
+	return nil
+}
+
+func (r *McpConfigAddRequest) UnmarshalJSON(data []byte) error {
+	type rawMcpConfigAddRequest struct {
+		Config json.RawMessage `json:"config"`
+		Name   string          `json:"name"`
+	}
+	var raw rawMcpConfigAddRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Config != nil {
+		value, err := unmarshalMcpServerConfig(raw.Config)
+		if err != nil {
+			return err
+		}
+		r.Config = value
+	}
+	r.Name = raw.Name
+	return nil
+}
+
+func (r *McpConfigList) UnmarshalJSON(data []byte) error {
+	type rawMcpConfigList struct {
+		Servers map[string]json.RawMessage `json:"servers"`
+	}
+	var raw rawMcpConfigList
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Servers != nil {
+		r.Servers = make(map[string]McpServerConfig, len(raw.Servers))
+		for key, rawValue := range raw.Servers {
+			value, err := unmarshalMcpServerConfig(rawValue)
+			if err != nil {
+				return err
+			}
+			r.Servers[key] = value
+		}
+	}
+	return nil
+}
+
+func (r *McpConfigUpdateRequest) UnmarshalJSON(data []byte) error {
+	type rawMcpConfigUpdateRequest struct {
+		Config json.RawMessage `json:"config"`
+		Name   string          `json:"name"`
+	}
+	var raw rawMcpConfigUpdateRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Config != nil {
+		value, err := unmarshalMcpServerConfig(raw.Config)
+		if err != nil {
+			return err
+		}
+		r.Config = value
+	}
+	r.Name = raw.Name
+	return nil
+}
+
+func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind PermissionDecisionKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case PermissionDecisionKindApproveForLocation:
+		var d PermissionDecisionApproveForLocation
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionKindApproveForSession:
+		var d PermissionDecisionApproveForSession
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionKindApproveOnce:
+		var d PermissionDecisionApproveOnce
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionKindApprovePermanently:
+		var d PermissionDecisionApprovePermanently
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionKindReject:
+		var d PermissionDecisionReject
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionKindUserNotAvailable:
+		var d PermissionDecisionUserNotAvailable
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawPermissionDecisionData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawPermissionDecisionData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind PermissionDecisionKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func unmarshalPermissionDecisionApproveForLocationApproval(data []byte) (PermissionDecisionApproveForLocationApproval, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case PermissionDecisionApproveForLocationApprovalKindCommands:
+		var d PermissionDecisionApproveForLocationApprovalCommands
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindCustomTool:
+		var d PermissionDecisionApproveForLocationApprovalCustomTool
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindExtensionManagement:
+		var d PermissionDecisionApproveForLocationApprovalExtensionManagement
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess:
+		var d PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindMcp:
+		var d PermissionDecisionApproveForLocationApprovalMcp
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindMcpSampling:
+		var d PermissionDecisionApproveForLocationApprovalMcpSampling
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindMemory:
+		var d PermissionDecisionApproveForLocationApprovalMemory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindRead:
+		var d PermissionDecisionApproveForLocationApprovalRead
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindWrite:
+		var d PermissionDecisionApproveForLocationApprovalWrite
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawPermissionDecisionApproveForLocationApprovalData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawPermissionDecisionApproveForLocationApprovalData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalCommands) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalCommands
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalCustomTool) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalCustomTool
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalExtensionManagement) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalExtensionManagement
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalMcp) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalMcp
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalMcpSampling) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalMcpSampling
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalMemory) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalMemory
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalRead) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalRead
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalWrite) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalWrite
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *PermissionDecisionApproveForLocation) UnmarshalJSON(data []byte) error {
+	type rawPermissionDecisionApproveForLocation struct {
+		Approval    json.RawMessage `json:"approval"`
+		LocationKey string          `json:"locationKey"`
+	}
+	var raw rawPermissionDecisionApproveForLocation
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Approval != nil {
+		value, err := unmarshalPermissionDecisionApproveForLocationApproval(raw.Approval)
+		if err != nil {
+			return err
+		}
+		r.Approval = value
+	}
+	r.LocationKey = raw.LocationKey
+	return nil
+}
+
+func (r PermissionDecisionApproveForLocation) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocation
+	return json.Marshal(struct {
+		Kind PermissionDecisionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalPermissionDecisionApproveForSessionApproval(data []byte) (PermissionDecisionApproveForSessionApproval, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case PermissionDecisionApproveForSessionApprovalKindCommands:
+		var d PermissionDecisionApproveForSessionApprovalCommands
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindCustomTool:
+		var d PermissionDecisionApproveForSessionApprovalCustomTool
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindExtensionManagement:
+		var d PermissionDecisionApproveForSessionApprovalExtensionManagement
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess:
+		var d PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindMcp:
+		var d PermissionDecisionApproveForSessionApprovalMcp
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindMcpSampling:
+		var d PermissionDecisionApproveForSessionApprovalMcpSampling
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindMemory:
+		var d PermissionDecisionApproveForSessionApprovalMemory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindRead:
+		var d PermissionDecisionApproveForSessionApprovalRead
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindWrite:
+		var d PermissionDecisionApproveForSessionApprovalWrite
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawPermissionDecisionApproveForSessionApprovalData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawPermissionDecisionApproveForSessionApprovalData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalCommands) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalCommands
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalCustomTool) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalCustomTool
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalExtensionManagement) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalExtensionManagement
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalMcp) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalMcp
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalMcpSampling) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalMcpSampling
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalMemory) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalMemory
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalRead) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalRead
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalWrite) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalWrite
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *PermissionDecisionApproveForSession) UnmarshalJSON(data []byte) error {
+	type rawPermissionDecisionApproveForSession struct {
+		Approval json.RawMessage `json:"approval,omitempty"`
+		Domain   *string         `json:"domain,omitempty"`
+	}
+	var raw rawPermissionDecisionApproveForSession
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Approval != nil {
+		value, err := unmarshalPermissionDecisionApproveForSessionApproval(raw.Approval)
+		if err != nil {
+			return err
+		}
+		r.Approval = value
+	}
+	r.Domain = raw.Domain
+	return nil
+}
+
+func (r PermissionDecisionApproveForSession) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSession
+	return json.Marshal(struct {
+		Kind PermissionDecisionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveOnce) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveOnce
+	return json.Marshal(struct {
+		Kind PermissionDecisionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApprovePermanently) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApprovePermanently
+	return json.Marshal(struct {
+		Kind PermissionDecisionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionReject) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionReject
+	return json.Marshal(struct {
+		Kind PermissionDecisionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionUserNotAvailable) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionUserNotAvailable
+	return json.Marshal(struct {
+		Kind PermissionDecisionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *PermissionDecisionRequest) UnmarshalJSON(data []byte) error {
+	type rawPermissionDecisionRequest struct {
+		RequestID string          `json:"requestId"`
+		Result    json.RawMessage `json:"result"`
+	}
+	var raw rawPermissionDecisionRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.RequestID = raw.RequestID
+	if raw.Result != nil {
+		value, err := unmarshalPermissionDecision(raw.Result)
+		if err != nil {
+			return err
+		}
+		r.Result = value
+	}
+	return nil
+}
+
+func unmarshalTaskInfo(data []byte) (TaskInfo, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type TaskInfoType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case TaskInfoTypeAgent:
+		var d TaskAgentInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case TaskInfoTypeShell:
+		var d TaskShellInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawTaskInfoData{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawTaskInfoData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type TaskInfoType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r TaskAgentInfo) MarshalJSON() ([]byte, error) {
+	type alias TaskAgentInfo
+	return json.Marshal(struct {
+		Type TaskInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r TaskShellInfo) MarshalJSON() ([]byte, error) {
+	type alias TaskShellInfo
+	return json.Marshal(struct {
+		Type TaskInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r *TaskList) UnmarshalJSON(data []byte) error {
+	type rawTaskList struct {
+		Tasks []json.RawMessage `json:"tasks"`
+	}
+	var raw rawTaskList
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Tasks != nil {
+		r.Tasks = make([]TaskInfo, 0, len(raw.Tasks))
+		for _, rawItem := range raw.Tasks {
+			value, err := unmarshalTaskInfo(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Tasks = append(r.Tasks, value)
+		}
+	}
+	return nil
+}
+
+func unmarshalUIElicitationFieldValue(data []byte) (UIElicitationFieldValue, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	{
+		var value string
+		if err := json.Unmarshal(data, &value); err == nil {
+			return UIElicitationStringValue(value), nil
+		}
+	}
+	{
+		var value float64
+		if err := json.Unmarshal(data, &value); err == nil {
+			return UIElicitationNumberValue(value), nil
+		}
+	}
+	{
+		var value bool
+		if err := json.Unmarshal(data, &value); err == nil {
+			return UIElicitationBooleanValue(value), nil
+		}
+	}
+	{
+		var value []string
+		if err := json.Unmarshal(data, &value); err == nil {
+			return UIElicitationStringArrayValue(value), nil
+		}
+	}
+	return nil, errors.New("data did not match any union variant for UIElicitationFieldValue")
+}
+
+func matchesUIElicitationArrayAnyOfField(data []byte) bool {
+	var rawGroup0 struct {
+		Items json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Items == nil {
+		return false
+	}
+	var rawGroup0Items struct {
+		AnyOf json.RawMessage `json:"anyOf"`
+		Enum  json.RawMessage `json:"enum"`
+		Type  json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(rawGroup0.Items, &rawGroup0Items); err != nil {
+		return false
+	}
+	if rawGroup0Items.AnyOf == nil {
+		return false
+	}
+	if rawGroup0Items.Enum != nil {
+		return false
+	}
+	return rawGroup0Items.Type == nil
+}
+
+func matchesUIElicitationArrayEnumField(data []byte) bool {
+	var rawGroup0 struct {
+		Items json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Items == nil {
+		return false
+	}
+	var rawGroup0Items struct {
+		AnyOf json.RawMessage `json:"anyOf"`
+		Enum  json.RawMessage `json:"enum"`
+		Type  json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(rawGroup0.Items, &rawGroup0Items); err != nil {
+		return false
+	}
+	if rawGroup0Items.Enum == nil {
+		return false
+	}
+	if rawGroup0Items.Type == nil {
+		return false
+	}
+	var rawGroup0String string
+	if err := json.Unmarshal(rawGroup0Items.Type, &rawGroup0String); err != nil {
+		return false
+	}
+	switch rawGroup0String {
+	case "string":
+	default:
+		return false
+	}
+	return rawGroup0Items.AnyOf == nil
+}
+
+func matchesUIElicitationSchemaPropertyString(data []byte) bool {
+	var rawGroup0 struct {
+		Enum  json.RawMessage `json:"enum"`
+		OneOf json.RawMessage `json:"oneOf"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Enum != nil {
+		return false
+	}
+	return rawGroup0.OneOf == nil
+}
+
+func matchesUIElicitationStringEnumField(data []byte) bool {
+	var rawGroup0 struct {
+		Enum  json.RawMessage `json:"enum"`
+		OneOf json.RawMessage `json:"oneOf"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Enum == nil {
+		return false
+	}
+	return rawGroup0.OneOf == nil
+}
+
+func matchesUIElicitationStringOneOfField(data []byte) bool {
+	var rawGroup0 struct {
+		Enum  json.RawMessage `json:"enum"`
+		OneOf json.RawMessage `json:"oneOf"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.OneOf == nil {
+		return false
+	}
+	return rawGroup0.Enum == nil
+}
+
+func unmarshalUIElicitationSchemaProperty(data []byte) (UIElicitationSchemaProperty, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case UIElicitationSchemaPropertyTypeArray:
+		if matchesUIElicitationArrayAnyOfField(data) {
+			var d UIElicitationArrayAnyOfField
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesUIElicitationArrayEnumField(data) {
+			var d UIElicitationArrayEnumField
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		return &RawUIElicitationSchemaPropertyData{Discriminator: raw.Type, Raw: data}, nil
+	case UIElicitationSchemaPropertyTypeBoolean:
+		var d UIElicitationSchemaPropertyBoolean
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case UIElicitationSchemaPropertyTypeInteger:
+		var d UIElicitationSchemaPropertyNumber
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case UIElicitationSchemaPropertyTypeNumber:
+		var d UIElicitationSchemaPropertyNumber
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case UIElicitationSchemaPropertyTypeString:
+		if matchesUIElicitationSchemaPropertyString(data) {
+			var d UIElicitationSchemaPropertyString
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesUIElicitationStringEnumField(data) {
+			var d UIElicitationStringEnumField
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		if matchesUIElicitationStringOneOfField(data) {
+			var d UIElicitationStringOneOfField
+			if err := json.Unmarshal(data, &d); err != nil {
+				return nil, err
+			}
+			return &d, nil
+		}
+		return &RawUIElicitationSchemaPropertyData{Discriminator: raw.Type, Raw: data}, nil
+	default:
+		return &RawUIElicitationSchemaPropertyData{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawUIElicitationSchemaPropertyData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r UIElicitationArrayAnyOfField) MarshalJSON() ([]byte, error) {
+	type alias UIElicitationArrayAnyOfField
+	return json.Marshal(struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r UIElicitationArrayEnumField) MarshalJSON() ([]byte, error) {
+	type alias UIElicitationArrayEnumField
+	return json.Marshal(struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r UIElicitationSchemaPropertyBoolean) MarshalJSON() ([]byte, error) {
+	type alias UIElicitationSchemaPropertyBoolean
+	return json.Marshal(struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r UIElicitationSchemaPropertyNumber) MarshalJSON() ([]byte, error) {
+	type alias UIElicitationSchemaPropertyNumber
+	return json.Marshal(struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r UIElicitationSchemaPropertyString) MarshalJSON() ([]byte, error) {
+	type alias UIElicitationSchemaPropertyString
+	return json.Marshal(struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r UIElicitationStringEnumField) MarshalJSON() ([]byte, error) {
+	type alias UIElicitationStringEnumField
+	return json.Marshal(struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r UIElicitationStringOneOfField) MarshalJSON() ([]byte, error) {
+	type alias UIElicitationStringOneOfField
+	return json.Marshal(struct {
+		Type UIElicitationSchemaPropertyType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r *UIElicitationSchema) UnmarshalJSON(data []byte) error {
+	type rawUIElicitationSchema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required,omitempty"`
+		Type       UIElicitationSchemaType    `json:"type"`
+	}
+	var raw rawUIElicitationSchema
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Properties != nil {
+		r.Properties = make(map[string]UIElicitationSchemaProperty, len(raw.Properties))
+		for key, rawValue := range raw.Properties {
+			value, err := unmarshalUIElicitationSchemaProperty(rawValue)
+			if err != nil {
+				return err
+			}
+			r.Properties[key] = value
+		}
+	}
+	r.Required = raw.Required
+	r.Type = raw.Type
+	return nil
+}
+
+func (r *UIElicitationResponse) UnmarshalJSON(data []byte) error {
+	type rawUIElicitationResponse struct {
+		Action  UIElicitationResponseAction `json:"action"`
+		Content map[string]json.RawMessage  `json:"content,omitempty"`
+	}
+	var raw rawUIElicitationResponse
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Action = raw.Action
+	if raw.Content != nil {
+		r.Content = make(map[string]UIElicitationFieldValue, len(raw.Content))
+		for key, rawValue := range raw.Content {
+			value, err := unmarshalUIElicitationFieldValue(rawValue)
+			if err != nil {
+				return err
+			}
+			r.Content[key] = value
+		}
+	}
+	return nil
+}

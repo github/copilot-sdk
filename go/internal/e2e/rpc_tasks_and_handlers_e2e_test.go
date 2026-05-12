@@ -90,7 +90,7 @@ func TestRpcTasksAndHandlersE2E(t *testing.T) {
 
 		tool, err := session.RPC.Tools.HandlePendingToolCall(t.Context(), &rpc.HandlePendingToolCallRequest{
 			RequestID: "missing-tool-request",
-			Result:    &rpc.ExternalToolResult{String: copilot.String("tool result")},
+			Result:    rpc.ExternalToolStringResult("tool result"),
 		})
 		if err != nil {
 			t.Fatalf("Tools.HandlePendingToolCall failed: %v", err)
@@ -126,10 +126,7 @@ func TestRpcTasksAndHandlersE2E(t *testing.T) {
 		feedback := "not approved"
 		permission, err := session.RPC.Permissions.HandlePendingPermissionRequest(t.Context(), &rpc.PermissionDecisionRequest{
 			RequestID: "missing-permission-request",
-			Result: rpc.PermissionDecision{
-				Kind:     rpc.PermissionDecisionKindReject,
-				Feedback: &feedback,
-			},
+			Result:    &rpc.PermissionDecisionReject{Feedback: &feedback},
 		})
 		if err != nil {
 			t.Fatalf("Permissions.HandlePendingPermissionRequest (reject) failed: %v", err)
@@ -141,10 +138,7 @@ func TestRpcTasksAndHandlersE2E(t *testing.T) {
 		domain := "example.com"
 		permanent, err := session.RPC.Permissions.HandlePendingPermissionRequest(t.Context(), &rpc.PermissionDecisionRequest{
 			RequestID: "missing-permanent-permission-request",
-			Result: rpc.PermissionDecision{
-				Kind:   rpc.PermissionDecisionKindApprovePermanently,
-				Domain: &domain,
-			},
+			Result:    &rpc.PermissionDecisionApprovePermanently{Domain: domain},
 		})
 		if err != nil {
 			t.Fatalf("Permissions.HandlePendingPermissionRequest (approve-permanently) failed: %v", err)

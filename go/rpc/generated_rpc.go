@@ -150,24 +150,6 @@ type DiscoveredMcpServer struct {
 	Type *DiscoveredMcpServerType `json:"type,omitempty"`
 }
 
-type EmbeddedBlobResourceContents struct {
-	// Base64-encoded binary content of the resource
-	Blob string `json:"blob"`
-	// MIME type of the blob content
-	MIMEType *string `json:"mimeType,omitempty"`
-	// URI identifying the resource
-	URI string `json:"uri"`
-}
-
-type EmbeddedTextResourceContents struct {
-	// MIME type of the text content
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Text content of the resource
-	Text string `json:"text"`
-	// URI identifying the resource
-	URI string `json:"uri"`
-}
-
 type Extension struct {
 	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
 	ID string `json:"id"`
@@ -217,42 +199,15 @@ type ExtensionsReloadResult struct {
 }
 
 // Tool call result (string or expanded result object)
-type ExternalToolResult struct {
-	ExternalToolTextResultForLlm *ExternalToolTextResultForLlm
-	String                       *string
+type ExternalToolResult interface {
+	externalToolResult()
 }
 
-func (r ExternalToolResult) MarshalJSON() ([]byte, error) {
-	if r.ExternalToolTextResultForLlm != nil {
-		return json.Marshal(r.ExternalToolTextResultForLlm)
-	}
-	if r.String != nil {
-		return json.Marshal(r.String)
-	}
-	return []byte("null"), nil
-}
+type ExternalToolStringResult string
 
-func (r *ExternalToolResult) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = ExternalToolResult{}
-		return nil
-	}
-	{
-		var value ExternalToolTextResultForLlm
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ExternalToolResult{ExternalToolTextResultForLlm: &value}
-			return nil
-		}
-	}
-	{
-		var value string
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ExternalToolResult{String: &value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for ExternalToolResult")
-}
+func (ExternalToolStringResult) externalToolResult() {}
+
+func (ExternalToolTextResultForLlm) externalToolResult() {}
 
 // Expanded external tool result payload
 type ExternalToolTextResultForLlm struct {
@@ -273,33 +228,19 @@ type ExternalToolTextResultForLlm struct {
 
 // A content block within a tool result, which may be text, terminal output, image, audio,
 // or a resource
-type ExternalToolTextResultForLlmContent struct {
-	// Working directory where the command was executed
-	Cwd *string `json:"cwd,omitempty"`
-	// Base64-encoded image data
-	Data *string `json:"data,omitempty"`
-	// Human-readable description of the resource
-	Description *string `json:"description,omitempty"`
-	// Process exit code, if the command has completed
-	ExitCode *float64 `json:"exitCode,omitempty"`
-	// Icons associated with this resource
-	Icons []ExternalToolTextResultForLlmContentResourceLinkIcon `json:"icons,omitempty"`
-	// MIME type of the image (e.g., image/png, image/jpeg)
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Resource name identifier
-	Name *string `json:"name,omitempty"`
-	// The embedded resource contents, either text or base64-encoded binary
-	Resource *ExternalToolTextResultForLlmContentResourceDetails `json:"resource,omitempty"`
-	// Size of the resource in bytes
-	Size *float64 `json:"size,omitempty"`
-	// The text content
-	Text *string `json:"text,omitempty"`
-	// Human-readable display title for the resource
-	Title *string `json:"title,omitempty"`
-	// Type discriminator
-	Type ExternalToolTextResultForLlmContentType `json:"type"`
-	// URI identifying the resource
-	URI *string `json:"uri,omitempty"`
+type ExternalToolTextResultForLlmContent interface {
+	externalToolTextResultForLlmContent()
+	Type() ExternalToolTextResultForLlmContentType
+}
+
+type RawExternalToolTextResultForLlmContentData struct {
+	Discriminator ExternalToolTextResultForLlmContentType
+	Raw           json.RawMessage
+}
+
+func (RawExternalToolTextResultForLlmContentData) externalToolTextResultForLlmContent() {}
+func (r RawExternalToolTextResultForLlmContentData) Type() ExternalToolTextResultForLlmContentType {
+	return r.Discriminator
 }
 
 // Audio content block with base64-encoded data
@@ -308,8 +249,11 @@ type ExternalToolTextResultForLlmContentAudio struct {
 	Data string `json:"data"`
 	// MIME type of the audio (e.g., audio/wav, audio/mpeg)
 	MIMEType string `json:"mimeType"`
-	// Content block type discriminator
-	Type ExternalToolTextResultForLlmContentAudioType `json:"type"`
+}
+
+func (ExternalToolTextResultForLlmContentAudio) externalToolTextResultForLlmContent() {}
+func (ExternalToolTextResultForLlmContentAudio) Type() ExternalToolTextResultForLlmContentType {
+	return ExternalToolTextResultForLlmContentTypeAudio
 }
 
 // Image content block with base64-encoded data
@@ -318,28 +262,22 @@ type ExternalToolTextResultForLlmContentImage struct {
 	Data string `json:"data"`
 	// MIME type of the image (e.g., image/png, image/jpeg)
 	MIMEType string `json:"mimeType"`
-	// Content block type discriminator
-	Type ExternalToolTextResultForLlmContentImageType `json:"type"`
+}
+
+func (ExternalToolTextResultForLlmContentImage) externalToolTextResultForLlmContent() {}
+func (ExternalToolTextResultForLlmContentImage) Type() ExternalToolTextResultForLlmContentType {
+	return ExternalToolTextResultForLlmContentTypeImage
 }
 
 // Embedded resource content block with inline text or binary data
 type ExternalToolTextResultForLlmContentResource struct {
 	// The embedded resource contents, either text or base64-encoded binary
 	Resource ExternalToolTextResultForLlmContentResourceDetails `json:"resource"`
-	// Content block type discriminator
-	Type ExternalToolTextResultForLlmContentResourceType `json:"type"`
 }
 
-// The embedded resource contents, either text or base64-encoded binary
-type ExternalToolTextResultForLlmContentResourceDetails struct {
-	// Base64-encoded binary content of the resource
-	Blob *string `json:"blob,omitempty"`
-	// MIME type of the text content
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Text content of the resource
-	Text *string `json:"text,omitempty"`
-	// URI identifying the resource
-	URI string `json:"uri"`
+func (ExternalToolTextResultForLlmContentResource) externalToolTextResultForLlmContent() {}
+func (ExternalToolTextResultForLlmContentResource) Type() ExternalToolTextResultForLlmContentType {
+	return ExternalToolTextResultForLlmContentTypeResource
 }
 
 // Resource link content block referencing an external resource
@@ -356,11 +294,74 @@ type ExternalToolTextResultForLlmContentResourceLink struct {
 	Size *float64 `json:"size,omitempty"`
 	// Human-readable display title for the resource
 	Title *string `json:"title,omitempty"`
-	// Content block type discriminator
-	Type ExternalToolTextResultForLlmContentResourceLinkType `json:"type"`
 	// URI identifying the resource
 	URI string `json:"uri"`
 }
+
+func (ExternalToolTextResultForLlmContentResourceLink) externalToolTextResultForLlmContent() {}
+func (ExternalToolTextResultForLlmContentResourceLink) Type() ExternalToolTextResultForLlmContentType {
+	return ExternalToolTextResultForLlmContentTypeResourceLink
+}
+
+// Terminal/shell output content block with optional exit code and working directory
+type ExternalToolTextResultForLlmContentTerminal struct {
+	// Working directory where the command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Process exit code, if the command has completed
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Terminal/shell output text
+	Text string `json:"text"`
+}
+
+func (ExternalToolTextResultForLlmContentTerminal) externalToolTextResultForLlmContent() {}
+func (ExternalToolTextResultForLlmContentTerminal) Type() ExternalToolTextResultForLlmContentType {
+	return ExternalToolTextResultForLlmContentTypeTerminal
+}
+
+// Plain text content block
+type ExternalToolTextResultForLlmContentText struct {
+	// The text content
+	Text string `json:"text"`
+}
+
+func (ExternalToolTextResultForLlmContentText) externalToolTextResultForLlmContent() {}
+func (ExternalToolTextResultForLlmContentText) Type() ExternalToolTextResultForLlmContentType {
+	return ExternalToolTextResultForLlmContentTypeText
+}
+
+// The embedded resource contents, either text or base64-encoded binary
+type ExternalToolTextResultForLlmContentResourceDetails interface {
+	externalToolTextResultForLlmContentResourceDetails()
+}
+
+type RawExternalToolTextResultForLlmContentResourceDetailsData struct {
+	Raw json.RawMessage
+}
+
+func (RawExternalToolTextResultForLlmContentResourceDetailsData) externalToolTextResultForLlmContentResourceDetails() {
+}
+
+type EmbeddedBlobResourceContents struct {
+	// Base64-encoded binary content of the resource
+	Blob string `json:"blob"`
+	// MIME type of the blob content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
+func (EmbeddedBlobResourceContents) externalToolTextResultForLlmContentResourceDetails() {}
+
+type EmbeddedTextResourceContents struct {
+	// MIME type of the text content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content of the resource
+	Text string `json:"text"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
+func (EmbeddedTextResourceContents) externalToolTextResultForLlmContentResourceDetails() {}
 
 // Icon image for a resource
 type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
@@ -374,62 +375,15 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 	Theme *ExternalToolTextResultForLlmContentResourceLinkIconTheme `json:"theme,omitempty"`
 }
 
-// Terminal/shell output content block with optional exit code and working directory
-type ExternalToolTextResultForLlmContentTerminal struct {
-	// Working directory where the command was executed
-	Cwd *string `json:"cwd,omitempty"`
-	// Process exit code, if the command has completed
-	ExitCode *float64 `json:"exitCode,omitempty"`
-	// Terminal/shell output text
-	Text string `json:"text"`
-	// Content block type discriminator
-	Type ExternalToolTextResultForLlmContentTerminalType `json:"type"`
+type FilterMapping interface {
+	filterMapping()
 }
 
-// Plain text content block
-type ExternalToolTextResultForLlmContentText struct {
-	// The text content
-	Text string `json:"text"`
-	// Content block type discriminator
-	Type ExternalToolTextResultForLlmContentTextType `json:"type"`
-}
+type FilterMappingEnumMap map[string]FilterMappingValue
 
-type FilterMapping struct {
-	Enum    *FilterMappingString
-	EnumMap map[string]FilterMappingValue
-}
+func (FilterMappingEnumMap) filterMapping() {}
 
-func (r FilterMapping) MarshalJSON() ([]byte, error) {
-	if r.Enum != nil {
-		return json.Marshal(r.Enum)
-	}
-	if r.EnumMap != nil {
-		return json.Marshal(r.EnumMap)
-	}
-	return []byte("null"), nil
-}
-
-func (r *FilterMapping) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = FilterMapping{}
-		return nil
-	}
-	{
-		var value FilterMappingString
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = FilterMapping{Enum: &value}
-			return nil
-		}
-	}
-	{
-		var value map[string]FilterMappingValue
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = FilterMapping{EnumMap: value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for FilterMapping")
-}
+func (FilterMappingString) filterMapping() {}
 
 // Experimental: FleetStartRequest is part of an experimental API and may change or be
 // removed.
@@ -451,7 +405,7 @@ type HandlePendingToolCallRequest struct {
 	// Request ID of the pending tool call
 	RequestID string `json:"requestId"`
 	// Tool call result (string or expanded result object)
-	Result *ExternalToolResult `json:"result,omitempty"`
+	Result ExternalToolResult `json:"result,omitempty"`
 }
 
 type HandlePendingToolCallResult struct {
@@ -676,28 +630,18 @@ type McpServer struct {
 }
 
 // MCP server configuration (local/stdio or remote/http)
-type McpServerConfig struct {
-	Args              []string                           `json:"args,omitempty"`
-	Command           *string                            `json:"command,omitempty"`
-	Cwd               *string                            `json:"cwd,omitempty"`
-	Env               map[string]string                  `json:"env,omitempty"`
-	FilterMapping     *FilterMapping                     `json:"filterMapping,omitempty"`
-	Headers           map[string]string                  `json:"headers,omitempty"`
-	IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
-	OauthClientID     *string                            `json:"oauthClientId,omitempty"`
-	OauthGrantType    *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
-	OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
-	// Timeout in milliseconds for tool calls to this server.
-	Timeout *int64 `json:"timeout,omitempty"`
-	// Tools to include. Defaults to all tools if not specified.
-	Tools []string `json:"tools,omitempty"`
-	// Remote transport type. Defaults to "http" when omitted.
-	Type *McpServerConfigType `json:"type,omitempty"`
-	URL  *string              `json:"url,omitempty"`
+type McpServerConfig interface {
+	mcpServerConfig()
 }
 
+type RawMcpServerConfigData struct {
+	Raw json.RawMessage
+}
+
+func (RawMcpServerConfigData) mcpServerConfig() {}
+
 type McpServerConfigHTTP struct {
-	FilterMapping     *FilterMapping                     `json:"filterMapping,omitempty"`
+	FilterMapping     FilterMapping                      `json:"filterMapping,omitempty"`
 	Headers           map[string]string                  `json:"headers,omitempty"`
 	IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
 	OauthClientID     *string                            `json:"oauthClientId,omitempty"`
@@ -712,12 +656,14 @@ type McpServerConfigHTTP struct {
 	URL  string                   `json:"url"`
 }
 
+func (McpServerConfigHTTP) mcpServerConfig() {}
+
 type McpServerConfigLocal struct {
 	Args            []string          `json:"args"`
 	Command         string            `json:"command"`
 	Cwd             *string           `json:"cwd,omitempty"`
 	Env             map[string]string `json:"env,omitempty"`
-	FilterMapping   *FilterMapping    `json:"filterMapping,omitempty"`
+	FilterMapping   FilterMapping     `json:"filterMapping,omitempty"`
 	IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
@@ -725,6 +671,8 @@ type McpServerConfigLocal struct {
 	Tools []string                  `json:"tools,omitempty"`
 	Type  *McpServerConfigLocalType `json:"type,omitempty"`
 }
+
+func (McpServerConfigLocal) mcpServerConfig() {}
 
 // Experimental: McpServerList is part of an experimental API and may change or be removed.
 type McpServerList struct {
@@ -879,173 +827,294 @@ type NameSetRequest struct {
 type NameSetResult struct {
 }
 
-type PermissionDecision struct {
-	// The approval to add as a session-scoped rule
-	Approval *PermissionDecisionApproveForSessionApproval `json:"approval,omitempty"`
-	// The URL domain to approve for this session
-	Domain *string `json:"domain,omitempty"`
-	// Optional feedback from the user explaining the denial
-	Feedback *string `json:"feedback,omitempty"`
-	// Kind discriminator
-	Kind PermissionDecisionKind `json:"kind"`
-	// The location key (git root or cwd) to persist the approval to
-	LocationKey *string `json:"locationKey,omitempty"`
+type PermissionDecision interface {
+	permissionDecision()
+	Kind() PermissionDecisionKind
+}
+
+type RawPermissionDecisionData struct {
+	Discriminator PermissionDecisionKind
+	Raw           json.RawMessage
+}
+
+func (RawPermissionDecisionData) permissionDecision() {}
+func (r RawPermissionDecisionData) Kind() PermissionDecisionKind {
+	return r.Discriminator
 }
 
 type PermissionDecisionApproveForLocation struct {
 	// The approval to persist for this location
 	Approval PermissionDecisionApproveForLocationApproval `json:"approval"`
-	// Approved and persisted for this project location
-	Kind PermissionDecisionApproveForLocationKind `json:"kind"`
 	// The location key (git root or cwd) to persist the approval to
 	LocationKey string `json:"locationKey"`
 }
 
-// The approval to persist for this location
-type PermissionDecisionApproveForLocationApproval struct {
-	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
-	ExtensionName      *string  `json:"extensionName,omitempty"`
-	// Kind discriminator
-	Kind       PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
-	Operation  *string                                          `json:"operation,omitempty"`
-	ServerName *string                                          `json:"serverName,omitempty"`
-	ToolName   *string                                          `json:"toolName,omitempty"`
-}
-
-type PermissionDecisionApproveForLocationApprovalCommands struct {
-	CommandIdentifiers []string                                                 `json:"commandIdentifiers"`
-	Kind               PermissionDecisionApproveForLocationApprovalCommandsKind `json:"kind"`
-}
-
-type PermissionDecisionApproveForLocationApprovalCustomTool struct {
-	Kind     PermissionDecisionApproveForLocationApprovalCustomToolKind `json:"kind"`
-	ToolName string                                                     `json:"toolName"`
-}
-
-type PermissionDecisionApproveForLocationApprovalExtensionManagement struct {
-	Kind      PermissionDecisionApproveForLocationApprovalExtensionManagementKind `json:"kind"`
-	Operation *string                                                             `json:"operation,omitempty"`
-}
-
-type PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess struct {
-	ExtensionName string                                                                    `json:"extensionName"`
-	Kind          PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind `json:"kind"`
-}
-
-type PermissionDecisionApproveForLocationApprovalMcp struct {
-	Kind       PermissionDecisionApproveForLocationApprovalMcpKind `json:"kind"`
-	ServerName string                                              `json:"serverName"`
-	ToolName   *string                                             `json:"toolName"`
-}
-
-type PermissionDecisionApproveForLocationApprovalMcpSampling struct {
-	Kind       PermissionDecisionApproveForLocationApprovalMcpSamplingKind `json:"kind"`
-	ServerName string                                                      `json:"serverName"`
-}
-
-type PermissionDecisionApproveForLocationApprovalMemory struct {
-	Kind PermissionDecisionApproveForLocationApprovalMemoryKind `json:"kind"`
-}
-
-type PermissionDecisionApproveForLocationApprovalRead struct {
-	Kind PermissionDecisionApproveForLocationApprovalReadKind `json:"kind"`
-}
-
-type PermissionDecisionApproveForLocationApprovalWrite struct {
-	Kind PermissionDecisionApproveForLocationApprovalWriteKind `json:"kind"`
+func (PermissionDecisionApproveForLocation) permissionDecision() {}
+func (PermissionDecisionApproveForLocation) Kind() PermissionDecisionKind {
+	return PermissionDecisionKindApproveForLocation
 }
 
 type PermissionDecisionApproveForSession struct {
 	// The approval to add as a session-scoped rule
-	Approval *PermissionDecisionApproveForSessionApproval `json:"approval,omitempty"`
+	Approval PermissionDecisionApproveForSessionApproval `json:"approval,omitempty"`
 	// The URL domain to approve for this session
 	Domain *string `json:"domain,omitempty"`
-	// Approved and remembered for the rest of the session
-	Kind PermissionDecisionApproveForSessionKind `json:"kind"`
 }
 
-// The approval to add as a session-scoped rule
-type PermissionDecisionApproveForSessionApproval struct {
-	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
-	ExtensionName      *string  `json:"extensionName,omitempty"`
-	// Kind discriminator
-	Kind       PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
-	Operation  *string                                         `json:"operation,omitempty"`
-	ServerName *string                                         `json:"serverName,omitempty"`
-	ToolName   *string                                         `json:"toolName,omitempty"`
-}
-
-type PermissionDecisionApproveForSessionApprovalCommands struct {
-	CommandIdentifiers []string                                                `json:"commandIdentifiers"`
-	Kind               PermissionDecisionApproveForSessionApprovalCommandsKind `json:"kind"`
-}
-
-type PermissionDecisionApproveForSessionApprovalCustomTool struct {
-	Kind     PermissionDecisionApproveForSessionApprovalCustomToolKind `json:"kind"`
-	ToolName string                                                    `json:"toolName"`
-}
-
-type PermissionDecisionApproveForSessionApprovalExtensionManagement struct {
-	Kind      PermissionDecisionApproveForSessionApprovalExtensionManagementKind `json:"kind"`
-	Operation *string                                                            `json:"operation,omitempty"`
-}
-
-type PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess struct {
-	ExtensionName string                                                                   `json:"extensionName"`
-	Kind          PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind `json:"kind"`
-}
-
-type PermissionDecisionApproveForSessionApprovalMcp struct {
-	Kind       PermissionDecisionApproveForSessionApprovalMcpKind `json:"kind"`
-	ServerName string                                             `json:"serverName"`
-	ToolName   *string                                            `json:"toolName"`
-}
-
-type PermissionDecisionApproveForSessionApprovalMcpSampling struct {
-	Kind       PermissionDecisionApproveForSessionApprovalMcpSamplingKind `json:"kind"`
-	ServerName string                                                     `json:"serverName"`
-}
-
-type PermissionDecisionApproveForSessionApprovalMemory struct {
-	Kind PermissionDecisionApproveForSessionApprovalMemoryKind `json:"kind"`
-}
-
-type PermissionDecisionApproveForSessionApprovalRead struct {
-	Kind PermissionDecisionApproveForSessionApprovalReadKind `json:"kind"`
-}
-
-type PermissionDecisionApproveForSessionApprovalWrite struct {
-	Kind PermissionDecisionApproveForSessionApprovalWriteKind `json:"kind"`
+func (PermissionDecisionApproveForSession) permissionDecision() {}
+func (PermissionDecisionApproveForSession) Kind() PermissionDecisionKind {
+	return PermissionDecisionKindApproveForSession
 }
 
 type PermissionDecisionApproveOnce struct {
-	// The permission request was approved for this one instance
-	Kind PermissionDecisionApproveOnceKind `json:"kind"`
+}
+
+func (PermissionDecisionApproveOnce) permissionDecision() {}
+func (PermissionDecisionApproveOnce) Kind() PermissionDecisionKind {
+	return PermissionDecisionKindApproveOnce
 }
 
 type PermissionDecisionApprovePermanently struct {
 	// The URL domain to approve permanently
 	Domain string `json:"domain"`
-	// Approved and persisted across sessions
-	Kind PermissionDecisionApprovePermanentlyKind `json:"kind"`
+}
+
+func (PermissionDecisionApprovePermanently) permissionDecision() {}
+func (PermissionDecisionApprovePermanently) Kind() PermissionDecisionKind {
+	return PermissionDecisionKindApprovePermanently
 }
 
 type PermissionDecisionReject struct {
 	// Optional feedback from the user explaining the denial
 	Feedback *string `json:"feedback,omitempty"`
-	// Denied by the user during an interactive prompt
-	Kind PermissionDecisionRejectKind `json:"kind"`
+}
+
+func (PermissionDecisionReject) permissionDecision() {}
+func (PermissionDecisionReject) Kind() PermissionDecisionKind {
+	return PermissionDecisionKindReject
+}
+
+type PermissionDecisionUserNotAvailable struct {
+}
+
+func (PermissionDecisionUserNotAvailable) permissionDecision() {}
+func (PermissionDecisionUserNotAvailable) Kind() PermissionDecisionKind {
+	return PermissionDecisionKindUserNotAvailable
+}
+
+// The approval to persist for this location
+type PermissionDecisionApproveForLocationApproval interface {
+	permissionDecisionApproveForLocationApproval()
+	Kind() PermissionDecisionApproveForLocationApprovalKind
+}
+
+type RawPermissionDecisionApproveForLocationApprovalData struct {
+	Discriminator PermissionDecisionApproveForLocationApprovalKind
+	Raw           json.RawMessage
+}
+
+func (RawPermissionDecisionApproveForLocationApprovalData) permissionDecisionApproveForLocationApproval() {
+}
+func (r RawPermissionDecisionApproveForLocationApprovalData) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return r.Discriminator
+}
+
+type PermissionDecisionApproveForLocationApprovalCommands struct {
+	CommandIdentifiers []string `json:"commandIdentifiers"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalCommands) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalCommands) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindCommands
+}
+
+type PermissionDecisionApproveForLocationApprovalCustomTool struct {
+	ToolName string `json:"toolName"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalCustomTool) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalCustomTool) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindCustomTool
+}
+
+type PermissionDecisionApproveForLocationApprovalExtensionManagement struct {
+	Operation *string `json:"operation,omitempty"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalExtensionManagement) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalExtensionManagement) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindExtensionManagement
+}
+
+type PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess struct {
+	ExtensionName string `json:"extensionName"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess
+}
+
+type PermissionDecisionApproveForLocationApprovalMcp struct {
+	ServerName string  `json:"serverName"`
+	ToolName   *string `json:"toolName"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalMcp) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalMcp) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindMcp
+}
+
+type PermissionDecisionApproveForLocationApprovalMcpSampling struct {
+	ServerName string `json:"serverName"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalMcpSampling) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalMcpSampling) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindMcpSampling
+}
+
+type PermissionDecisionApproveForLocationApprovalMemory struct {
+}
+
+func (PermissionDecisionApproveForLocationApprovalMemory) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalMemory) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindMemory
+}
+
+type PermissionDecisionApproveForLocationApprovalRead struct {
+}
+
+func (PermissionDecisionApproveForLocationApprovalRead) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalRead) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindRead
+}
+
+type PermissionDecisionApproveForLocationApprovalWrite struct {
+}
+
+func (PermissionDecisionApproveForLocationApprovalWrite) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalWrite) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindWrite
+}
+
+// The approval to add as a session-scoped rule
+type PermissionDecisionApproveForSessionApproval interface {
+	permissionDecisionApproveForSessionApproval()
+	Kind() PermissionDecisionApproveForSessionApprovalKind
+}
+
+type RawPermissionDecisionApproveForSessionApprovalData struct {
+	Discriminator PermissionDecisionApproveForSessionApprovalKind
+	Raw           json.RawMessage
+}
+
+func (RawPermissionDecisionApproveForSessionApprovalData) permissionDecisionApproveForSessionApproval() {
+}
+func (r RawPermissionDecisionApproveForSessionApprovalData) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return r.Discriminator
+}
+
+type PermissionDecisionApproveForSessionApprovalCommands struct {
+	CommandIdentifiers []string `json:"commandIdentifiers"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalCommands) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalCommands) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindCommands
+}
+
+type PermissionDecisionApproveForSessionApprovalCustomTool struct {
+	ToolName string `json:"toolName"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalCustomTool) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalCustomTool) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindCustomTool
+}
+
+type PermissionDecisionApproveForSessionApprovalExtensionManagement struct {
+	Operation *string `json:"operation,omitempty"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalExtensionManagement) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalExtensionManagement) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindExtensionManagement
+}
+
+type PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess struct {
+	ExtensionName string `json:"extensionName"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess
+}
+
+type PermissionDecisionApproveForSessionApprovalMcp struct {
+	ServerName string  `json:"serverName"`
+	ToolName   *string `json:"toolName"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalMcp) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalMcp) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindMcp
+}
+
+type PermissionDecisionApproveForSessionApprovalMcpSampling struct {
+	ServerName string `json:"serverName"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalMcpSampling) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalMcpSampling) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindMcpSampling
+}
+
+type PermissionDecisionApproveForSessionApprovalMemory struct {
+}
+
+func (PermissionDecisionApproveForSessionApprovalMemory) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalMemory) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindMemory
+}
+
+type PermissionDecisionApproveForSessionApprovalRead struct {
+}
+
+func (PermissionDecisionApproveForSessionApprovalRead) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalRead) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindRead
+}
+
+type PermissionDecisionApproveForSessionApprovalWrite struct {
+}
+
+func (PermissionDecisionApproveForSessionApprovalWrite) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalWrite) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindWrite
 }
 
 type PermissionDecisionRequest struct {
 	// Request ID of the pending permission request
 	RequestID string             `json:"requestId"`
 	Result    PermissionDecision `json:"result"`
-}
-
-type PermissionDecisionUserNotAvailable struct {
-	// Denied because user confirmation was unavailable
-	Kind PermissionDecisionUserNotAvailableKind `json:"kind"`
 }
 
 type PermissionRequestResult struct {
@@ -1136,8 +1205,8 @@ type QueuedCommandNotHandled struct {
 
 // Result of the queued command execution
 type QueuedCommandResult struct {
-	// Handled discriminator
-	Handled QueuedCommandResultHandled `json:"handled"`
+	// The command was handled
+	Handled any `json:"handled"`
 	// If true, stop processing remaining queued items
 	StopProcessingQueue *bool `json:"stopProcessingQueue,omitempty"`
 }
@@ -1462,6 +1531,21 @@ type SkillsReloadResult struct {
 type SuspendResult struct {
 }
 
+type TaskInfo interface {
+	taskInfo()
+	Type() TaskInfoType
+}
+
+type RawTaskInfoData struct {
+	Discriminator TaskInfoType
+	Raw           json.RawMessage
+}
+
+func (RawTaskInfoData) taskInfo() {}
+func (r RawTaskInfoData) Type() TaskInfoType {
+	return r.Discriminator
+}
+
 type TaskAgentInfo struct {
 	// ISO 8601 timestamp when the current active period began
 	ActiveStartedAt *time.Time `json:"activeStartedAt,omitempty"`
@@ -1499,78 +1583,11 @@ type TaskAgentInfo struct {
 	Status TaskAgentInfoStatus `json:"status"`
 	// Tool call ID associated with this agent task
 	ToolCallID string `json:"toolCallId"`
-	// Task kind
-	Type TaskAgentInfoType `json:"type"`
 }
 
-type TaskInfo struct {
-	// ISO 8601 timestamp when the current active period began
-	ActiveStartedAt *time.Time `json:"activeStartedAt,omitempty"`
-	// Accumulated active execution time in milliseconds
-	ActiveTimeMs *int64 `json:"activeTimeMs,omitempty"`
-	// Type of agent running this task
-	AgentType *string `json:"agentType,omitempty"`
-	// Whether the shell runs inside a managed PTY session or as an independent background
-	// process
-	AttachmentMode *TaskShellInfoAttachmentMode `json:"attachmentMode,omitempty"`
-	// Whether the task is currently in the original sync wait and can be moved to background
-	// mode. False once it is already backgrounded, idle, finished, or no longer has a
-	// promotable sync waiter.
-	CanPromoteToBackground *bool `json:"canPromoteToBackground,omitempty"`
-	// Command being executed
-	Command *string `json:"command,omitempty"`
-	// ISO 8601 timestamp when the task finished
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
-	// Short description of the task
-	Description string `json:"description"`
-	// Error message when the task failed
-	Error *string `json:"error,omitempty"`
-	// How the agent is currently being managed by the runtime
-	ExecutionMode *TaskAgentInfoExecutionMode `json:"executionMode,omitempty"`
-	// Unique task identifier
-	ID string `json:"id"`
-	// ISO 8601 timestamp when the agent entered idle state
-	IdleSince *time.Time `json:"idleSince,omitempty"`
-	// Most recent response text from the agent
-	LatestResponse *string `json:"latestResponse,omitempty"`
-	// Path to the detached shell log, when available
-	LogPath *string `json:"logPath,omitempty"`
-	// Model used for the task when specified
-	Model *string `json:"model,omitempty"`
-	// Process ID when available
-	Pid *int64 `json:"pid,omitempty"`
-	// Prompt passed to the agent
-	Prompt *string `json:"prompt,omitempty"`
-	// Result text from the task when available
-	Result *string `json:"result,omitempty"`
-	// ISO 8601 timestamp when the task was started
-	StartedAt time.Time `json:"startedAt"`
-	// Current lifecycle status of the task
-	Status TaskAgentInfoStatus `json:"status"`
-	// Tool call ID associated with this agent task
-	ToolCallID *string `json:"toolCallId,omitempty"`
-	// Type discriminator
-	Type TaskInfoType `json:"type"`
-}
-
-// Experimental: TaskList is part of an experimental API and may change or be removed.
-type TaskList struct {
-	// Currently tracked tasks
-	Tasks []TaskInfo `json:"tasks"`
-}
-
-// Experimental: TasksCancelRequest is part of an experimental API and may change or be
-// removed.
-type TasksCancelRequest struct {
-	// Task identifier
-	ID string `json:"id"`
-}
-
-// Experimental: TasksCancelResult is part of an experimental API and may change or be
-// removed.
-type TasksCancelResult struct {
-	// Whether the task was successfully cancelled
-	Cancelled bool `json:"cancelled"`
+func (TaskAgentInfo) taskInfo() {}
+func (TaskAgentInfo) Type() TaskInfoType {
+	return TaskInfoTypeAgent
 }
 
 type TaskShellInfo struct {
@@ -1597,8 +1614,31 @@ type TaskShellInfo struct {
 	StartedAt time.Time `json:"startedAt"`
 	// Current lifecycle status of the task
 	Status TaskShellInfoStatus `json:"status"`
-	// Task kind
-	Type TaskShellInfoType `json:"type"`
+}
+
+func (TaskShellInfo) taskInfo() {}
+func (TaskShellInfo) Type() TaskInfoType {
+	return TaskInfoTypeShell
+}
+
+// Experimental: TaskList is part of an experimental API and may change or be removed.
+type TaskList struct {
+	// Currently tracked tasks
+	Tasks []TaskInfo `json:"tasks"`
+}
+
+// Experimental: TasksCancelRequest is part of an experimental API and may change or be
+// removed.
+type TasksCancelRequest struct {
+	// Task identifier
+	ID string `json:"id"`
+}
+
+// Experimental: TasksCancelResult is part of an experimental API and may change or be
+// removed.
+type TasksCancelResult struct {
+	// Whether the task was successfully cancelled
+	Cancelled bool `json:"cancelled"`
 }
 
 // Experimental: TasksPromoteToBackgroundRequest is part of an experimental API and may
@@ -1697,16 +1737,6 @@ type ToolsListRequest struct {
 	Model *string `json:"model,omitempty"`
 }
 
-type UIElicitationArrayAnyOfField struct {
-	Default     []string                          `json:"default,omitempty"`
-	Description *string                           `json:"description,omitempty"`
-	Items       UIElicitationArrayAnyOfFieldItems `json:"items"`
-	MaxItems    *float64                          `json:"maxItems,omitempty"`
-	MinItems    *float64                          `json:"minItems,omitempty"`
-	Title       *string                           `json:"title,omitempty"`
-	Type        UIElicitationArrayAnyOfFieldType  `json:"type"`
-}
-
 type UIElicitationArrayAnyOfFieldItems struct {
 	AnyOf []UIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf"`
 }
@@ -1716,79 +1746,30 @@ type UIElicitationArrayAnyOfFieldItemsAnyOf struct {
 	Title string `json:"title"`
 }
 
-type UIElicitationArrayEnumField struct {
-	Default     []string                         `json:"default,omitempty"`
-	Description *string                          `json:"description,omitempty"`
-	Items       UIElicitationArrayEnumFieldItems `json:"items"`
-	MaxItems    *float64                         `json:"maxItems,omitempty"`
-	MinItems    *float64                         `json:"minItems,omitempty"`
-	Title       *string                          `json:"title,omitempty"`
-	Type        UIElicitationArrayEnumFieldType  `json:"type"`
-}
-
 type UIElicitationArrayEnumFieldItems struct {
 	Enum []string                             `json:"enum"`
 	Type UIElicitationArrayEnumFieldItemsType `json:"type"`
 }
 
-type UIElicitationFieldValue struct {
-	Bool        *bool
-	Double      *float64
-	String      *string
-	StringArray []string
+type UIElicitationFieldValue interface {
+	uIElicitationFieldValue()
 }
 
-func (r UIElicitationFieldValue) MarshalJSON() ([]byte, error) {
-	if r.Bool != nil {
-		return json.Marshal(r.Bool)
-	}
-	if r.Double != nil {
-		return json.Marshal(r.Double)
-	}
-	if r.String != nil {
-		return json.Marshal(r.String)
-	}
-	if r.StringArray != nil {
-		return json.Marshal(r.StringArray)
-	}
-	return []byte("null"), nil
-}
+type UIElicitationBooleanValue bool
 
-func (r *UIElicitationFieldValue) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = UIElicitationFieldValue{}
-		return nil
-	}
-	{
-		var value bool
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = UIElicitationFieldValue{Bool: &value}
-			return nil
-		}
-	}
-	{
-		var value float64
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = UIElicitationFieldValue{Double: &value}
-			return nil
-		}
-	}
-	{
-		var value string
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = UIElicitationFieldValue{String: &value}
-			return nil
-		}
-	}
-	{
-		var value []string
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = UIElicitationFieldValue{StringArray: value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for UIElicitationFieldValue")
-}
+func (UIElicitationBooleanValue) uIElicitationFieldValue() {}
+
+type UIElicitationNumberValue float64
+
+func (UIElicitationNumberValue) uIElicitationFieldValue() {}
+
+type UIElicitationStringArrayValue []string
+
+func (UIElicitationStringArrayValue) uIElicitationFieldValue() {}
+
+type UIElicitationStringValue string
+
+func (UIElicitationStringValue) uIElicitationFieldValue() {}
 
 type UIElicitationRequest struct {
 	// Message describing what information is needed from the user
@@ -1802,11 +1783,11 @@ type UIElicitationResponse struct {
 	// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
 	Action UIElicitationResponseAction `json:"action"`
 	// The form values submitted by the user (present when action is 'accept')
-	Content map[string]*UIElicitationFieldValue `json:"content,omitempty"`
+	Content map[string]UIElicitationFieldValue `json:"content,omitempty"`
 }
 
 // The form values submitted by the user (present when action is 'accept')
-type UIElicitationResponseContent map[string]*UIElicitationFieldValue
+type UIElicitationResponseContent map[string]UIElicitationFieldValue
 
 type UIElicitationResult struct {
 	// Whether the response was accepted. False if the request was already resolved by another
@@ -1824,44 +1805,75 @@ type UIElicitationSchema struct {
 	Type UIElicitationSchemaType `json:"type"`
 }
 
-type UIElicitationSchemaProperty struct {
-	Default     *UIElicitationFieldValue                 `json:"default,omitempty"`
-	Description *string                                  `json:"description,omitempty"`
-	Enum        []string                                 `json:"enum,omitempty"`
-	EnumNames   []string                                 `json:"enumNames,omitempty"`
-	Format      *UIElicitationSchemaPropertyStringFormat `json:"format,omitempty"`
-	Items       *UIElicitationSchemaPropertyItems        `json:"items,omitempty"`
-	Maximum     *float64                                 `json:"maximum,omitempty"`
-	MaxItems    *float64                                 `json:"maxItems,omitempty"`
-	MaxLength   *float64                                 `json:"maxLength,omitempty"`
-	Minimum     *float64                                 `json:"minimum,omitempty"`
-	MinItems    *float64                                 `json:"minItems,omitempty"`
-	MinLength   *float64                                 `json:"minLength,omitempty"`
-	OneOf       []UIElicitationStringOneOfFieldOneOf     `json:"oneOf,omitempty"`
-	Title       *string                                  `json:"title,omitempty"`
-	Type        UIElicitationSchemaPropertyType          `json:"type"`
+type UIElicitationSchemaProperty interface {
+	uIElicitationSchemaProperty()
+	Type() UIElicitationSchemaPropertyType
+}
+
+type RawUIElicitationSchemaPropertyData struct {
+	Discriminator UIElicitationSchemaPropertyType
+	Raw           json.RawMessage
+}
+
+func (RawUIElicitationSchemaPropertyData) uIElicitationSchemaProperty() {}
+func (r RawUIElicitationSchemaPropertyData) Type() UIElicitationSchemaPropertyType {
+	return r.Discriminator
+}
+
+type UIElicitationArrayAnyOfField struct {
+	Default     []string                          `json:"default,omitempty"`
+	Description *string                           `json:"description,omitempty"`
+	Items       UIElicitationArrayAnyOfFieldItems `json:"items"`
+	MaxItems    *float64                          `json:"maxItems,omitempty"`
+	MinItems    *float64                          `json:"minItems,omitempty"`
+	Title       *string                           `json:"title,omitempty"`
+}
+
+func (UIElicitationArrayAnyOfField) uIElicitationSchemaProperty() {}
+func (UIElicitationArrayAnyOfField) Type() UIElicitationSchemaPropertyType {
+	return UIElicitationSchemaPropertyTypeArray
+}
+
+type UIElicitationArrayEnumField struct {
+	Default     []string                         `json:"default,omitempty"`
+	Description *string                          `json:"description,omitempty"`
+	Items       UIElicitationArrayEnumFieldItems `json:"items"`
+	MaxItems    *float64                         `json:"maxItems,omitempty"`
+	MinItems    *float64                         `json:"minItems,omitempty"`
+	Title       *string                          `json:"title,omitempty"`
+}
+
+func (UIElicitationArrayEnumField) uIElicitationSchemaProperty() {}
+func (UIElicitationArrayEnumField) Type() UIElicitationSchemaPropertyType {
+	return UIElicitationSchemaPropertyTypeArray
 }
 
 type UIElicitationSchemaPropertyBoolean struct {
-	Default     *bool                                  `json:"default,omitempty"`
-	Description *string                                `json:"description,omitempty"`
-	Title       *string                                `json:"title,omitempty"`
-	Type        UIElicitationSchemaPropertyBooleanType `json:"type"`
+	Default     *bool   `json:"default,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Title       *string `json:"title,omitempty"`
 }
 
-type UIElicitationSchemaPropertyItems struct {
-	AnyOf []UIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf,omitempty"`
-	Enum  []string                                 `json:"enum,omitempty"`
-	Type  *UIElicitationSchemaPropertyItemsType    `json:"type,omitempty"`
+func (UIElicitationSchemaPropertyBoolean) uIElicitationSchemaProperty() {}
+func (UIElicitationSchemaPropertyBoolean) Type() UIElicitationSchemaPropertyType {
+	return UIElicitationSchemaPropertyTypeBoolean
 }
 
 type UIElicitationSchemaPropertyNumber struct {
-	Default     *float64                              `json:"default,omitempty"`
-	Description *string                               `json:"description,omitempty"`
-	Maximum     *float64                              `json:"maximum,omitempty"`
-	Minimum     *float64                              `json:"minimum,omitempty"`
-	Title       *string                               `json:"title,omitempty"`
-	Type        UIElicitationSchemaPropertyNumberType `json:"type"`
+	Default       *float64                              `json:"default,omitempty"`
+	Description   *string                               `json:"description,omitempty"`
+	Maximum       *float64                              `json:"maximum,omitempty"`
+	Minimum       *float64                              `json:"minimum,omitempty"`
+	Title         *string                               `json:"title,omitempty"`
+	Discriminator UIElicitationSchemaPropertyNumberType `json:"type,omitempty"`
+}
+
+func (UIElicitationSchemaPropertyNumber) uIElicitationSchemaProperty() {}
+func (r UIElicitationSchemaPropertyNumber) Type() UIElicitationSchemaPropertyType {
+	if r.Discriminator == "" {
+		return UIElicitationSchemaPropertyTypeNumber
+	}
+	return UIElicitationSchemaPropertyType(r.Discriminator)
 }
 
 type UIElicitationSchemaPropertyString struct {
@@ -1871,16 +1883,24 @@ type UIElicitationSchemaPropertyString struct {
 	MaxLength   *float64                                 `json:"maxLength,omitempty"`
 	MinLength   *float64                                 `json:"minLength,omitempty"`
 	Title       *string                                  `json:"title,omitempty"`
-	Type        UIElicitationSchemaPropertyStringType    `json:"type"`
+}
+
+func (UIElicitationSchemaPropertyString) uIElicitationSchemaProperty() {}
+func (UIElicitationSchemaPropertyString) Type() UIElicitationSchemaPropertyType {
+	return UIElicitationSchemaPropertyTypeString
 }
 
 type UIElicitationStringEnumField struct {
-	Default     *string                          `json:"default,omitempty"`
-	Description *string                          `json:"description,omitempty"`
-	Enum        []string                         `json:"enum"`
-	EnumNames   []string                         `json:"enumNames,omitempty"`
-	Title       *string                          `json:"title,omitempty"`
-	Type        UIElicitationStringEnumFieldType `json:"type"`
+	Default     *string  `json:"default,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Enum        []string `json:"enum"`
+	EnumNames   []string `json:"enumNames,omitempty"`
+	Title       *string  `json:"title,omitempty"`
+}
+
+func (UIElicitationStringEnumField) uIElicitationSchemaProperty() {}
+func (UIElicitationStringEnumField) Type() UIElicitationSchemaPropertyType {
+	return UIElicitationSchemaPropertyTypeString
 }
 
 type UIElicitationStringOneOfField struct {
@@ -1888,7 +1908,11 @@ type UIElicitationStringOneOfField struct {
 	Description *string                              `json:"description,omitempty"`
 	OneOf       []UIElicitationStringOneOfFieldOneOf `json:"oneOf"`
 	Title       *string                              `json:"title,omitempty"`
-	Type        UIElicitationStringOneOfFieldType    `json:"type"`
+}
+
+func (UIElicitationStringOneOfField) uIElicitationSchemaProperty() {}
+func (UIElicitationStringOneOfField) Type() UIElicitationSchemaPropertyType {
+	return UIElicitationSchemaPropertyTypeString
 }
 
 type UIElicitationStringOneOfFieldOneOf struct {
@@ -2084,54 +2108,12 @@ const (
 	ExtensionStatusStarting ExtensionStatus = "starting"
 )
 
-// Content block type discriminator
-type ExternalToolTextResultForLlmContentAudioType string
-
-const (
-	ExternalToolTextResultForLlmContentAudioTypeAudio ExternalToolTextResultForLlmContentAudioType = "audio"
-)
-
-// Content block type discriminator
-type ExternalToolTextResultForLlmContentImageType string
-
-const (
-	ExternalToolTextResultForLlmContentImageTypeImage ExternalToolTextResultForLlmContentImageType = "image"
-)
-
 // Theme variant this icon is intended for
 type ExternalToolTextResultForLlmContentResourceLinkIconTheme string
 
 const (
 	ExternalToolTextResultForLlmContentResourceLinkIconThemeDark  ExternalToolTextResultForLlmContentResourceLinkIconTheme = "dark"
 	ExternalToolTextResultForLlmContentResourceLinkIconThemeLight ExternalToolTextResultForLlmContentResourceLinkIconTheme = "light"
-)
-
-// Content block type discriminator
-type ExternalToolTextResultForLlmContentResourceLinkType string
-
-const (
-	ExternalToolTextResultForLlmContentResourceLinkTypeResourceLink ExternalToolTextResultForLlmContentResourceLinkType = "resource_link"
-)
-
-// Content block type discriminator
-type ExternalToolTextResultForLlmContentResourceType string
-
-const (
-	ExternalToolTextResultForLlmContentResourceTypeResource ExternalToolTextResultForLlmContentResourceType = "resource"
-)
-
-// Content block type discriminator
-type ExternalToolTextResultForLlmContentTerminalType string
-
-const (
-	ExternalToolTextResultForLlmContentTerminalTypeTerminal ExternalToolTextResultForLlmContentTerminalType = "terminal"
-)
-
-// Content block type discriminator
-type ExternalToolTextResultForLlmContentTextType string
-
-const (
-	ExternalToolTextResultForLlmContentTextTypeText ExternalToolTextResultForLlmContentTextType = "text"
 )
 
 // Type discriminator for ExternalToolTextResultForLlmContent.
@@ -2205,15 +2187,6 @@ const (
 	McpServerConfigLocalTypeStdio McpServerConfigLocalType = "stdio"
 )
 
-type McpServerConfigType string
-
-const (
-	McpServerConfigTypeHTTP  McpServerConfigType = "http"
-	McpServerConfigTypeLocal McpServerConfigType = "local"
-	McpServerConfigTypeSse   McpServerConfigType = "sse"
-	McpServerConfigTypeStdio McpServerConfigType = "stdio"
-)
-
 // Configuration source: user, workspace, plugin, or builtin
 type McpServerSource string
 
@@ -2236,30 +2209,6 @@ const (
 	McpServerStatusPending       McpServerStatus = "pending"
 )
 
-type PermissionDecisionApproveForLocationApprovalCommandsKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalCommandsKindCommands PermissionDecisionApproveForLocationApprovalCommandsKind = "commands"
-)
-
-type PermissionDecisionApproveForLocationApprovalCustomToolKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalCustomToolKindCustomTool PermissionDecisionApproveForLocationApprovalCustomToolKind = "custom-tool"
-)
-
-type PermissionDecisionApproveForLocationApprovalExtensionManagementKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalExtensionManagementKindExtensionManagement PermissionDecisionApproveForLocationApprovalExtensionManagementKind = "extension-management"
-)
-
-type PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKindExtensionPermissionAccess PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind = "extension-permission-access"
-)
-
 // Kind discriminator for PermissionDecisionApproveForLocationApproval.
 type PermissionDecisionApproveForLocationApprovalKind string
 
@@ -2273,67 +2222,6 @@ const (
 	PermissionDecisionApproveForLocationApprovalKindMemory                    PermissionDecisionApproveForLocationApprovalKind = "memory"
 	PermissionDecisionApproveForLocationApprovalKindRead                      PermissionDecisionApproveForLocationApprovalKind = "read"
 	PermissionDecisionApproveForLocationApprovalKindWrite                     PermissionDecisionApproveForLocationApprovalKind = "write"
-)
-
-type PermissionDecisionApproveForLocationApprovalMcpKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalMcpKindMcp PermissionDecisionApproveForLocationApprovalMcpKind = "mcp"
-)
-
-type PermissionDecisionApproveForLocationApprovalMcpSamplingKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalMcpSamplingKindMcpSampling PermissionDecisionApproveForLocationApprovalMcpSamplingKind = "mcp-sampling"
-)
-
-type PermissionDecisionApproveForLocationApprovalMemoryKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalMemoryKindMemory PermissionDecisionApproveForLocationApprovalMemoryKind = "memory"
-)
-
-type PermissionDecisionApproveForLocationApprovalReadKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalReadKindRead PermissionDecisionApproveForLocationApprovalReadKind = "read"
-)
-
-type PermissionDecisionApproveForLocationApprovalWriteKind string
-
-const (
-	PermissionDecisionApproveForLocationApprovalWriteKindWrite PermissionDecisionApproveForLocationApprovalWriteKind = "write"
-)
-
-// Approved and persisted for this project location
-type PermissionDecisionApproveForLocationKind string
-
-const (
-	PermissionDecisionApproveForLocationKindApproveForLocation PermissionDecisionApproveForLocationKind = "approve-for-location"
-)
-
-type PermissionDecisionApproveForSessionApprovalCommandsKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalCommandsKindCommands PermissionDecisionApproveForSessionApprovalCommandsKind = "commands"
-)
-
-type PermissionDecisionApproveForSessionApprovalCustomToolKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalCustomToolKindCustomTool PermissionDecisionApproveForSessionApprovalCustomToolKind = "custom-tool"
-)
-
-type PermissionDecisionApproveForSessionApprovalExtensionManagementKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalExtensionManagementKindExtensionManagement PermissionDecisionApproveForSessionApprovalExtensionManagementKind = "extension-management"
-)
-
-type PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKindExtensionPermissionAccess PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind = "extension-permission-access"
 )
 
 // Kind discriminator for PermissionDecisionApproveForSessionApproval.
@@ -2351,57 +2239,6 @@ const (
 	PermissionDecisionApproveForSessionApprovalKindWrite                     PermissionDecisionApproveForSessionApprovalKind = "write"
 )
 
-type PermissionDecisionApproveForSessionApprovalMcpKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalMcpKindMcp PermissionDecisionApproveForSessionApprovalMcpKind = "mcp"
-)
-
-type PermissionDecisionApproveForSessionApprovalMcpSamplingKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalMcpSamplingKindMcpSampling PermissionDecisionApproveForSessionApprovalMcpSamplingKind = "mcp-sampling"
-)
-
-type PermissionDecisionApproveForSessionApprovalMemoryKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalMemoryKindMemory PermissionDecisionApproveForSessionApprovalMemoryKind = "memory"
-)
-
-type PermissionDecisionApproveForSessionApprovalReadKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalReadKindRead PermissionDecisionApproveForSessionApprovalReadKind = "read"
-)
-
-type PermissionDecisionApproveForSessionApprovalWriteKind string
-
-const (
-	PermissionDecisionApproveForSessionApprovalWriteKindWrite PermissionDecisionApproveForSessionApprovalWriteKind = "write"
-)
-
-// Approved and remembered for the rest of the session
-type PermissionDecisionApproveForSessionKind string
-
-const (
-	PermissionDecisionApproveForSessionKindApproveForSession PermissionDecisionApproveForSessionKind = "approve-for-session"
-)
-
-// The permission request was approved for this one instance
-type PermissionDecisionApproveOnceKind string
-
-const (
-	PermissionDecisionApproveOnceKindApproveOnce PermissionDecisionApproveOnceKind = "approve-once"
-)
-
-// Approved and persisted across sessions
-type PermissionDecisionApprovePermanentlyKind string
-
-const (
-	PermissionDecisionApprovePermanentlyKindApprovePermanently PermissionDecisionApprovePermanentlyKind = "approve-permanently"
-)
-
 // Kind discriminator for PermissionDecision.
 type PermissionDecisionKind string
 
@@ -2412,28 +2249,6 @@ const (
 	PermissionDecisionKindApprovePermanently PermissionDecisionKind = "approve-permanently"
 	PermissionDecisionKindReject             PermissionDecisionKind = "reject"
 	PermissionDecisionKindUserNotAvailable   PermissionDecisionKind = "user-not-available"
-)
-
-// Denied by the user during an interactive prompt
-type PermissionDecisionRejectKind string
-
-const (
-	PermissionDecisionRejectKindReject PermissionDecisionRejectKind = "reject"
-)
-
-// Denied because user confirmation was unavailable
-type PermissionDecisionUserNotAvailableKind string
-
-const (
-	PermissionDecisionUserNotAvailableKindUserNotAvailable PermissionDecisionUserNotAvailableKind = "user-not-available"
-)
-
-// Handled discriminator for QueuedCommandResult.
-type QueuedCommandResultHandled string
-
-const (
-	QueuedCommandResultHandledFalse QueuedCommandResultHandled = "false"
-	QueuedCommandResultHandledTrue  QueuedCommandResultHandled = "true"
 )
 
 // Error classification
@@ -2507,13 +2322,6 @@ const (
 	TaskAgentInfoStatusRunning   TaskAgentInfoStatus = "running"
 )
 
-// Task kind
-type TaskAgentInfoType string
-
-const (
-	TaskAgentInfoTypeAgent TaskAgentInfoType = "agent"
-)
-
 // Type discriminator for TaskInfo.
 type TaskInfoType string
 
@@ -2550,29 +2358,10 @@ const (
 	TaskShellInfoStatusRunning   TaskShellInfoStatus = "running"
 )
 
-// Task kind
-type TaskShellInfoType string
-
-const (
-	TaskShellInfoTypeShell TaskShellInfoType = "shell"
-)
-
-type UIElicitationArrayAnyOfFieldType string
-
-const (
-	UIElicitationArrayAnyOfFieldTypeArray UIElicitationArrayAnyOfFieldType = "array"
-)
-
 type UIElicitationArrayEnumFieldItemsType string
 
 const (
 	UIElicitationArrayEnumFieldItemsTypeString UIElicitationArrayEnumFieldItemsType = "string"
-)
-
-type UIElicitationArrayEnumFieldType string
-
-const (
-	UIElicitationArrayEnumFieldTypeArray UIElicitationArrayEnumFieldType = "array"
 )
 
 // The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
@@ -2582,18 +2371,6 @@ const (
 	UIElicitationResponseActionAccept  UIElicitationResponseAction = "accept"
 	UIElicitationResponseActionCancel  UIElicitationResponseAction = "cancel"
 	UIElicitationResponseActionDecline UIElicitationResponseAction = "decline"
-)
-
-type UIElicitationSchemaPropertyBooleanType string
-
-const (
-	UIElicitationSchemaPropertyBooleanTypeBoolean UIElicitationSchemaPropertyBooleanType = "boolean"
-)
-
-type UIElicitationSchemaPropertyItemsType string
-
-const (
-	UIElicitationSchemaPropertyItemsTypeString UIElicitationSchemaPropertyItemsType = "string"
 )
 
 type UIElicitationSchemaPropertyNumberType string
@@ -2612,12 +2389,7 @@ const (
 	UIElicitationSchemaPropertyStringFormatURI      UIElicitationSchemaPropertyStringFormat = "uri"
 )
 
-type UIElicitationSchemaPropertyStringType string
-
-const (
-	UIElicitationSchemaPropertyStringTypeString UIElicitationSchemaPropertyStringType = "string"
-)
-
+// Type discriminator for UIElicitationSchemaProperty.
 type UIElicitationSchemaPropertyType string
 
 const (
@@ -2633,18 +2405,6 @@ type UIElicitationSchemaType string
 
 const (
 	UIElicitationSchemaTypeObject UIElicitationSchemaType = "object"
-)
-
-type UIElicitationStringEnumFieldType string
-
-const (
-	UIElicitationStringEnumFieldTypeString UIElicitationStringEnumFieldType = "string"
-)
-
-type UIElicitationStringOneOfFieldType string
-
-const (
-	UIElicitationStringOneOfFieldTypeString UIElicitationStringOneOfFieldType = "string"
 )
 
 type WorkspacesGetWorkspaceResultWorkspaceHostType string
@@ -3733,7 +3493,7 @@ func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePend
 		}
 		req["requestId"] = params.RequestID
 		if params.Result != nil {
-			req["result"] = *params.Result
+			req["result"] = params.Result
 		}
 	}
 	raw, err := a.client.Request("session.tools.handlePendingToolCall", req)

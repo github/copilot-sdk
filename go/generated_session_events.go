@@ -5,24 +5,14 @@ package copilot
 
 import (
 	"encoding/json"
-	"errors"
 	"time"
 )
 
 // SessionEventData is the interface implemented by all per-event data types.
 type SessionEventData interface {
 	sessionEventData()
+	Type() SessionEventType
 }
-
-// RawSessionEventData holds unparsed JSON data for unrecognized event types.
-type RawSessionEventData struct {
-	Raw json.RawMessage
-}
-
-func (RawSessionEventData) sessionEventData() {}
-
-// MarshalJSON returns the original raw JSON so round-tripping preserves the payload.
-func (r RawSessionEventData) MarshalJSON() ([]byte, error) { return r.Raw, nil }
 
 // SessionEvent represents a single session event with a typed data payload.
 type SessionEvent struct {
@@ -38,549 +28,25 @@ type SessionEvent struct {
 	ParentID *string `json:"parentId"`
 	// ISO 8601 timestamp when the event was created
 	Timestamp time.Time `json:"timestamp"`
-	// The event type discriminator.
-	Type SessionEventType `json:"type"`
 }
 
-// UnmarshalSessionEvent parses JSON bytes into a SessionEvent.
-func UnmarshalSessionEvent(data []byte) (SessionEvent, error) {
-	var r SessionEvent
-	err := json.Unmarshal(data, &r)
-	return r, err
+// Type returns the event type discriminator derived from Data.
+func (e SessionEvent) Type() SessionEventType {
+	if e.Data == nil {
+		return ""
+	}
+	return e.Data.Type()
 }
 
-// Marshal serializes the SessionEvent to JSON.
-func (r *SessionEvent) Marshal() ([]byte, error) {
-	return json.Marshal(r)
+// RawSessionEventData holds unparsed JSON data for unrecognized event types.
+type RawSessionEventData struct {
+	EventType SessionEventType
+	Raw       json.RawMessage
 }
 
-func (e *SessionEvent) UnmarshalJSON(data []byte) error {
-	type rawEvent struct {
-		AgentID   *string          `json:"agentId,omitempty"`
-		Data      json.RawMessage  `json:"data"`
-		Ephemeral *bool            `json:"ephemeral,omitempty"`
-		ID        string           `json:"id"`
-		ParentID  *string          `json:"parentId"`
-		Timestamp time.Time        `json:"timestamp"`
-		Type      SessionEventType `json:"type"`
-	}
-	var raw rawEvent
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	e.AgentID = raw.AgentID
-	e.Ephemeral = raw.Ephemeral
-	e.ID = raw.ID
-	e.ParentID = raw.ParentID
-	e.Timestamp = raw.Timestamp
-	e.Type = raw.Type
-
-	switch raw.Type {
-	case SessionEventTypeAbort:
-		var d AbortData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantIntent:
-		var d AssistantIntentData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantMessage:
-		var d AssistantMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantMessageDelta:
-		var d AssistantMessageDeltaData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantMessageStart:
-		var d AssistantMessageStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantReasoning:
-		var d AssistantReasoningData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantReasoningDelta:
-		var d AssistantReasoningDeltaData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantStreamingDelta:
-		var d AssistantStreamingDeltaData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantTurnEnd:
-		var d AssistantTurnEndData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantTurnStart:
-		var d AssistantTurnStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAssistantUsage:
-		var d AssistantUsageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAutoModeSwitchCompleted:
-		var d AutoModeSwitchCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeAutoModeSwitchRequested:
-		var d AutoModeSwitchRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCapabilitiesChanged:
-		var d CapabilitiesChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandCompleted:
-		var d CommandCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandExecute:
-		var d CommandExecuteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandQueued:
-		var d CommandQueuedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeCommandsChanged:
-		var d CommandsChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeElicitationCompleted:
-		var d ElicitationCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeElicitationRequested:
-		var d ElicitationRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeExitPlanModeCompleted:
-		var d ExitPlanModeCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeExitPlanModeRequested:
-		var d ExitPlanModeRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeExternalToolCompleted:
-		var d ExternalToolCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeExternalToolRequested:
-		var d ExternalToolRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeHookEnd:
-		var d HookEndData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeHookStart:
-		var d HookStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeMcpOauthCompleted:
-		var d McpOauthCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeMcpOauthRequired:
-		var d McpOauthRequiredData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeModelCallFailure:
-		var d ModelCallFailureData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePendingMessagesModified:
-		var d PendingMessagesModifiedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePermissionCompleted:
-		var d PermissionCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypePermissionRequested:
-		var d PermissionRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSamplingCompleted:
-		var d SamplingCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSamplingRequested:
-		var d SamplingRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionBackgroundTasksChanged:
-		var d SessionBackgroundTasksChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionCompactionComplete:
-		var d SessionCompactionCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionCompactionStart:
-		var d SessionCompactionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionContextChanged:
-		var d SessionContextChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionCustomAgentsUpdated:
-		var d SessionCustomAgentsUpdatedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionError:
-		var d SessionErrorData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionExtensionsLoaded:
-		var d SessionExtensionsLoadedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionHandoff:
-		var d SessionHandoffData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionIdle:
-		var d SessionIdleData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionInfo:
-		var d SessionInfoData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionMcpServersLoaded:
-		var d SessionMcpServersLoadedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionMcpServerStatusChanged:
-		var d SessionMcpServerStatusChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionModeChanged:
-		var d SessionModeChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionModelChange:
-		var d SessionModelChangeData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionPlanChanged:
-		var d SessionPlanChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionRemoteSteerableChanged:
-		var d SessionRemoteSteerableChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionResume:
-		var d SessionResumeData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionScheduleCancelled:
-		var d SessionScheduleCancelledData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionScheduleCreated:
-		var d SessionScheduleCreatedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionShutdown:
-		var d SessionShutdownData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionSkillsLoaded:
-		var d SessionSkillsLoadedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionSnapshotRewind:
-		var d SessionSnapshotRewindData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionStart:
-		var d SessionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTaskComplete:
-		var d SessionTaskCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTitleChanged:
-		var d SessionTitleChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionToolsUpdated:
-		var d SessionToolsUpdatedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionTruncation:
-		var d SessionTruncationData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionUsageInfo:
-		var d SessionUsageInfoData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionWarning:
-		var d SessionWarningData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSessionWorkspaceFileChanged:
-		var d SessionWorkspaceFileChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSkillInvoked:
-		var d SkillInvokedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentCompleted:
-		var d SubagentCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentDeselected:
-		var d SubagentDeselectedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentFailed:
-		var d SubagentFailedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentSelected:
-		var d SubagentSelectedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSubagentStarted:
-		var d SubagentStartedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSystemMessage:
-		var d SystemMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeSystemNotification:
-		var d SystemNotificationData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionComplete:
-		var d ToolExecutionCompleteData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionPartialResult:
-		var d ToolExecutionPartialResultData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionProgress:
-		var d ToolExecutionProgressData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolExecutionStart:
-		var d ToolExecutionStartData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeToolUserRequested:
-		var d ToolUserRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserInputCompleted:
-		var d UserInputCompletedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserInputRequested:
-		var d UserInputRequestedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeUserMessage:
-		var d UserMessageData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	default:
-		e.Data = &RawSessionEventData{Raw: raw.Data}
-	}
-	return nil
-}
-
-func (e SessionEvent) MarshalJSON() ([]byte, error) {
-	type rawEvent struct {
-		AgentID   *string          `json:"agentId,omitempty"`
-		Data      any              `json:"data"`
-		Ephemeral *bool            `json:"ephemeral,omitempty"`
-		ID        string           `json:"id"`
-		ParentID  *string          `json:"parentId"`
-		Timestamp time.Time        `json:"timestamp"`
-		Type      SessionEventType `json:"type"`
-	}
-	return json.Marshal(rawEvent{
-		AgentID:   e.AgentID,
-		Data:      e.Data,
-		Ephemeral: e.Ephemeral,
-		ID:        e.ID,
-		ParentID:  e.ParentID,
-		Timestamp: e.Timestamp,
-		Type:      e.Type,
-	})
+func (RawSessionEventData) sessionEventData() {}
+func (r RawSessionEventData) Type() SessionEventType {
+	return r.EventType
 }
 
 // SessionEventType identifies the kind of session event.
@@ -675,7 +141,8 @@ type AssistantIntentData struct {
 	Intent string `json:"intent"`
 }
 
-func (*AssistantIntentData) sessionEventData() {}
+func (*AssistantIntentData) sessionEventData()      {}
+func (*AssistantIntentData) Type() SessionEventType { return SessionEventTypeAssistantIntent }
 
 // Agent mode change details including previous and new modes
 type SessionModeChangedData struct {
@@ -685,7 +152,8 @@ type SessionModeChangedData struct {
 	PreviousMode string `json:"previousMode"`
 }
 
-func (*SessionModeChangedData) sessionEventData() {}
+func (*SessionModeChangedData) sessionEventData()      {}
+func (*SessionModeChangedData) Type() SessionEventType { return SessionEventTypeSessionModeChanged }
 
 // Assistant reasoning content for timeline display with complete thinking text
 type AssistantReasoningData struct {
@@ -695,7 +163,8 @@ type AssistantReasoningData struct {
 	ReasoningID string `json:"reasoningId"`
 }
 
-func (*AssistantReasoningData) sessionEventData() {}
+func (*AssistantReasoningData) sessionEventData()      {}
+func (*AssistantReasoningData) Type() SessionEventType { return SessionEventTypeAssistantReasoning }
 
 // Assistant response containing text content, optional tool requests, and interaction metadata
 type AssistantMessageData struct {
@@ -732,7 +201,8 @@ type AssistantMessageData struct {
 	TurnID *string `json:"turnId,omitempty"`
 }
 
-func (*AssistantMessageData) sessionEventData() {}
+func (*AssistantMessageData) sessionEventData()      {}
+func (*AssistantMessageData) Type() SessionEventType { return SessionEventTypeAssistantMessage }
 
 // Auto mode switch completion notification
 type AutoModeSwitchCompletedData struct {
@@ -743,6 +213,9 @@ type AutoModeSwitchCompletedData struct {
 }
 
 func (*AutoModeSwitchCompletedData) sessionEventData() {}
+func (*AutoModeSwitchCompletedData) Type() SessionEventType {
+	return SessionEventTypeAutoModeSwitchCompleted
+}
 
 // Auto mode switch request notification requiring user approval
 type AutoModeSwitchRequestedData struct {
@@ -755,6 +228,9 @@ type AutoModeSwitchRequestedData struct {
 }
 
 func (*AutoModeSwitchRequestedData) sessionEventData() {}
+func (*AutoModeSwitchRequestedData) Type() SessionEventType {
+	return SessionEventTypeAutoModeSwitchRequested
+}
 
 // Context window breakdown at the start of LLM-powered conversation compaction
 type SessionCompactionStartData struct {
@@ -767,6 +243,9 @@ type SessionCompactionStartData struct {
 }
 
 func (*SessionCompactionStartData) sessionEventData() {}
+func (*SessionCompactionStartData) Type() SessionEventType {
+	return SessionEventTypeSessionCompactionStart
+}
 
 // Conversation compaction results including success status, metrics, and optional error details
 type SessionCompactionCompleteData struct {
@@ -803,6 +282,9 @@ type SessionCompactionCompleteData struct {
 }
 
 func (*SessionCompactionCompleteData) sessionEventData() {}
+func (*SessionCompactionCompleteData) Type() SessionEventType {
+	return SessionEventTypeSessionCompactionComplete
+}
 
 // Conversation truncation statistics including token counts and removed content metrics
 type SessionTruncationData struct {
@@ -824,7 +306,8 @@ type SessionTruncationData struct {
 	TokensRemovedDuringTruncation float64 `json:"tokensRemovedDuringTruncation"`
 }
 
-func (*SessionTruncationData) sessionEventData() {}
+func (*SessionTruncationData) sessionEventData()      {}
+func (*SessionTruncationData) Type() SessionEventType { return SessionEventTypeSessionTruncation }
 
 // Current context window usage statistics including token and message counts
 type SessionUsageInfoData struct {
@@ -844,7 +327,8 @@ type SessionUsageInfoData struct {
 	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
 }
 
-func (*SessionUsageInfoData) sessionEventData() {}
+func (*SessionUsageInfoData) sessionEventData()      {}
+func (*SessionUsageInfoData) Type() SessionEventType { return SessionEventTypeSessionUsageInfo }
 
 // Custom agent selection details including name and available tools
 type SubagentSelectedData struct {
@@ -856,19 +340,21 @@ type SubagentSelectedData struct {
 	Tools []string `json:"tools"`
 }
 
-func (*SubagentSelectedData) sessionEventData() {}
+func (*SubagentSelectedData) sessionEventData()      {}
+func (*SubagentSelectedData) Type() SessionEventType { return SessionEventTypeSubagentSelected }
 
 // Elicitation request completion with the user's response
 type ElicitationCompletedData struct {
 	// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 	Action *ElicitationCompletedAction `json:"action,omitempty"`
 	// The submitted form data when action is 'accept'; keys match the requested schema fields
-	Content map[string]*ElicitationCompletedContent `json:"content,omitempty"`
+	Content map[string]ElicitationCompletedContent `json:"content,omitempty"`
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
 }
 
-func (*ElicitationCompletedData) sessionEventData() {}
+func (*ElicitationCompletedData) sessionEventData()      {}
+func (*ElicitationCompletedData) Type() SessionEventType { return SessionEventTypeElicitationCompleted }
 
 // Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
 type ElicitationRequestedData struct {
@@ -888,19 +374,24 @@ type ElicitationRequestedData struct {
 	URL *string `json:"url,omitempty"`
 }
 
-func (*ElicitationRequestedData) sessionEventData() {}
+func (*ElicitationRequestedData) sessionEventData()      {}
+func (*ElicitationRequestedData) Type() SessionEventType { return SessionEventTypeElicitationRequested }
 
 // Empty payload; the event signals that the custom agent was deselected, returning to the default agent
 type SubagentDeselectedData struct {
 }
 
-func (*SubagentDeselectedData) sessionEventData() {}
+func (*SubagentDeselectedData) sessionEventData()      {}
+func (*SubagentDeselectedData) Type() SessionEventType { return SessionEventTypeSubagentDeselected }
 
 // Empty payload; the event signals that the pending message queue has changed
 type PendingMessagesModifiedData struct {
 }
 
 func (*PendingMessagesModifiedData) sessionEventData() {}
+func (*PendingMessagesModifiedData) Type() SessionEventType {
+	return SessionEventTypePendingMessagesModified
+}
 
 // Error details for timeline display including message and optional diagnostic information
 type SessionErrorData struct {
@@ -922,7 +413,8 @@ type SessionErrorData struct {
 	URL *string `json:"url,omitempty"`
 }
 
-func (*SessionErrorData) sessionEventData() {}
+func (*SessionErrorData) sessionEventData()      {}
+func (*SessionErrorData) Type() SessionEventType { return SessionEventTypeSessionError }
 
 // External tool completion notification signaling UI dismissal
 type ExternalToolCompletedData struct {
@@ -931,6 +423,9 @@ type ExternalToolCompletedData struct {
 }
 
 func (*ExternalToolCompletedData) sessionEventData() {}
+func (*ExternalToolCompletedData) Type() SessionEventType {
+	return SessionEventTypeExternalToolCompleted
+}
 
 // External tool invocation request for client-side tool execution
 type ExternalToolRequestedData struct {
@@ -951,6 +446,9 @@ type ExternalToolRequestedData struct {
 }
 
 func (*ExternalToolRequestedData) sessionEventData() {}
+func (*ExternalToolRequestedData) Type() SessionEventType {
+	return SessionEventTypeExternalToolRequested
+}
 
 // Failed LLM API call metadata for telemetry
 type ModelCallFailureData struct {
@@ -972,7 +470,8 @@ type ModelCallFailureData struct {
 	StatusCode *int64 `json:"statusCode,omitempty"`
 }
 
-func (*ModelCallFailureData) sessionEventData() {}
+func (*ModelCallFailureData) sessionEventData()      {}
+func (*ModelCallFailureData) Type() SessionEventType { return SessionEventTypeModelCallFailure }
 
 // Hook invocation completion details including output, success status, and error information
 type HookEndData struct {
@@ -988,7 +487,8 @@ type HookEndData struct {
 	Success bool `json:"success"`
 }
 
-func (*HookEndData) sessionEventData() {}
+func (*HookEndData) sessionEventData()      {}
+func (*HookEndData) Type() SessionEventType { return SessionEventTypeHookEnd }
 
 // Hook invocation start details including type and input data
 type HookStartData struct {
@@ -1000,7 +500,8 @@ type HookStartData struct {
 	Input any `json:"input,omitempty"`
 }
 
-func (*HookStartData) sessionEventData() {}
+func (*HookStartData) sessionEventData()      {}
+func (*HookStartData) Type() SessionEventType { return SessionEventTypeHookStart }
 
 // Informational message for timeline display with categorization
 type SessionInfoData struct {
@@ -1014,7 +515,8 @@ type SessionInfoData struct {
 	URL *string `json:"url,omitempty"`
 }
 
-func (*SessionInfoData) sessionEventData() {}
+func (*SessionInfoData) sessionEventData()      {}
+func (*SessionInfoData) Type() SessionEventType { return SessionEventTypeSessionInfo }
 
 // LLM API call usage metrics including tokens, costs, quotas, and billing information
 type AssistantUsageData struct {
@@ -1055,7 +557,8 @@ type AssistantUsageData struct {
 	TtftMs *float64 `json:"ttftMs,omitempty"`
 }
 
-func (*AssistantUsageData) sessionEventData() {}
+func (*AssistantUsageData) sessionEventData()      {}
+func (*AssistantUsageData) Type() SessionEventType { return SessionEventTypeAssistantUsage }
 
 // MCP OAuth request completion notification
 type McpOauthCompletedData struct {
@@ -1063,7 +566,8 @@ type McpOauthCompletedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*McpOauthCompletedData) sessionEventData() {}
+func (*McpOauthCompletedData) sessionEventData()      {}
+func (*McpOauthCompletedData) Type() SessionEventType { return SessionEventTypeMcpOauthCompleted }
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
@@ -1079,7 +583,8 @@ type SessionModelChangeData struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 }
 
-func (*SessionModelChangeData) sessionEventData() {}
+func (*SessionModelChangeData) sessionEventData()      {}
+func (*SessionModelChangeData) Type() SessionEventType { return SessionEventTypeSessionModelChange }
 
 // Notifies Mission Control that the session's remote steering capability has changed
 type SessionRemoteSteerableChangedData struct {
@@ -1088,6 +593,9 @@ type SessionRemoteSteerableChangedData struct {
 }
 
 func (*SessionRemoteSteerableChangedData) sessionEventData() {}
+func (*SessionRemoteSteerableChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionRemoteSteerableChanged
+}
 
 // OAuth authentication request for an MCP server
 type McpOauthRequiredData struct {
@@ -1101,7 +609,8 @@ type McpOauthRequiredData struct {
 	StaticClientConfig *McpOauthRequiredStaticClientConfig `json:"staticClientConfig,omitempty"`
 }
 
-func (*McpOauthRequiredData) sessionEventData() {}
+func (*McpOauthRequiredData) sessionEventData()      {}
+func (*McpOauthRequiredData) Type() SessionEventType { return SessionEventTypeMcpOauthRequired }
 
 // Payload indicating the session is idle with no background agents in flight
 type SessionIdleData struct {
@@ -1109,7 +618,8 @@ type SessionIdleData struct {
 	Aborted *bool `json:"aborted,omitempty"`
 }
 
-func (*SessionIdleData) sessionEventData() {}
+func (*SessionIdleData) sessionEventData()      {}
+func (*SessionIdleData) Type() SessionEventType { return SessionEventTypeSessionIdle }
 
 // Permission request completion notification signaling UI dismissal
 type PermissionCompletedData struct {
@@ -1121,21 +631,23 @@ type PermissionCompletedData struct {
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
-func (*PermissionCompletedData) sessionEventData() {}
+func (*PermissionCompletedData) sessionEventData()      {}
+func (*PermissionCompletedData) Type() SessionEventType { return SessionEventTypePermissionCompleted }
 
 // Permission request notification requiring client approval with request details
 type PermissionRequestedData struct {
 	// Details of the permission being requested
 	PermissionRequest PermissionRequest `json:"permissionRequest"`
 	// Derived user-facing permission prompt details for UI consumers
-	PromptRequest *PermissionPromptRequest `json:"promptRequest,omitempty"`
+	PromptRequest PermissionPromptRequest `json:"promptRequest,omitempty"`
 	// Unique identifier for this permission request; used to respond via session.respondToPermission()
 	RequestID string `json:"requestId"`
 	// When true, this permission was already resolved by a permissionRequest hook and requires no client action
 	ResolvedByHook *bool `json:"resolvedByHook,omitempty"`
 }
 
-func (*PermissionRequestedData) sessionEventData() {}
+func (*PermissionRequestedData) sessionEventData()      {}
+func (*PermissionRequestedData) Type() SessionEventType { return SessionEventTypePermissionRequested }
 
 // Plan approval request with plan content and available user actions
 type ExitPlanModeRequestedData struct {
@@ -1152,6 +664,9 @@ type ExitPlanModeRequestedData struct {
 }
 
 func (*ExitPlanModeRequestedData) sessionEventData() {}
+func (*ExitPlanModeRequestedData) Type() SessionEventType {
+	return SessionEventTypeExitPlanModeRequested
+}
 
 // Plan file operation details indicating what changed
 type SessionPlanChangedData struct {
@@ -1159,7 +674,8 @@ type SessionPlanChangedData struct {
 	Operation PlanChangedOperation `json:"operation"`
 }
 
-func (*SessionPlanChangedData) sessionEventData() {}
+func (*SessionPlanChangedData) sessionEventData()      {}
+func (*SessionPlanChangedData) Type() SessionEventType { return SessionEventTypeSessionPlanChanged }
 
 // Plan mode exit completion with the user's approval decision and optional feedback
 type ExitPlanModeCompletedData struct {
@@ -1176,6 +692,9 @@ type ExitPlanModeCompletedData struct {
 }
 
 func (*ExitPlanModeCompletedData) sessionEventData() {}
+func (*ExitPlanModeCompletedData) Type() SessionEventType {
+	return SessionEventTypeExitPlanModeCompleted
+}
 
 // Queued command completion notification signaling UI dismissal
 type CommandCompletedData struct {
@@ -1183,7 +702,8 @@ type CommandCompletedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*CommandCompletedData) sessionEventData() {}
+func (*CommandCompletedData) sessionEventData()      {}
+func (*CommandCompletedData) Type() SessionEventType { return SessionEventTypeCommandCompleted }
 
 // Queued slash command dispatch request for client execution
 type CommandQueuedData struct {
@@ -1193,7 +713,8 @@ type CommandQueuedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*CommandQueuedData) sessionEventData() {}
+func (*CommandQueuedData) sessionEventData()      {}
+func (*CommandQueuedData) Type() SessionEventType { return SessionEventTypeCommandQueued }
 
 // Registered command dispatch request routed to the owning client
 type CommandExecuteData struct {
@@ -1207,7 +728,8 @@ type CommandExecuteData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*CommandExecuteData) sessionEventData() {}
+func (*CommandExecuteData) sessionEventData()      {}
+func (*CommandExecuteData) Type() SessionEventType { return SessionEventTypeCommandExecute }
 
 // SDK command registration change notification
 type CommandsChangedData struct {
@@ -1215,7 +737,8 @@ type CommandsChangedData struct {
 	Commands []CommandsChangedCommand `json:"commands"`
 }
 
-func (*CommandsChangedData) sessionEventData() {}
+func (*CommandsChangedData) sessionEventData()      {}
+func (*CommandsChangedData) Type() SessionEventType { return SessionEventTypeCommandsChanged }
 
 // Sampling request completion notification signaling UI dismissal
 type SamplingCompletedData struct {
@@ -1223,7 +746,8 @@ type SamplingCompletedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*SamplingCompletedData) sessionEventData() {}
+func (*SamplingCompletedData) sessionEventData()      {}
+func (*SamplingCompletedData) Type() SessionEventType { return SessionEventTypeSamplingCompleted }
 
 // Sampling request from an MCP server; contains the server name and a requestId for correlation
 type SamplingRequestedData struct {
@@ -1235,7 +759,8 @@ type SamplingRequestedData struct {
 	ServerName string `json:"serverName"`
 }
 
-func (*SamplingRequestedData) sessionEventData() {}
+func (*SamplingRequestedData) sessionEventData()      {}
+func (*SamplingRequestedData) Type() SessionEventType { return SessionEventTypeSamplingRequested }
 
 // Scheduled prompt cancelled from the schedule manager dialog
 type SessionScheduleCancelledData struct {
@@ -1244,6 +769,9 @@ type SessionScheduleCancelledData struct {
 }
 
 func (*SessionScheduleCancelledData) sessionEventData() {}
+func (*SessionScheduleCancelledData) Type() SessionEventType {
+	return SessionEventTypeSessionScheduleCancelled
+}
 
 // Scheduled prompt registered via /every
 type SessionScheduleCreatedData struct {
@@ -1256,6 +784,9 @@ type SessionScheduleCreatedData struct {
 }
 
 func (*SessionScheduleCreatedData) sessionEventData() {}
+func (*SessionScheduleCreatedData) Type() SessionEventType {
+	return SessionEventTypeSessionScheduleCreated
+}
 
 // Session capability change notification
 type CapabilitiesChangedData struct {
@@ -1263,7 +794,8 @@ type CapabilitiesChangedData struct {
 	UI *CapabilitiesChangedUI `json:"ui,omitempty"`
 }
 
-func (*CapabilitiesChangedData) sessionEventData() {}
+func (*CapabilitiesChangedData) sessionEventData()      {}
+func (*CapabilitiesChangedData) Type() SessionEventType { return SessionEventTypeCapabilitiesChanged }
 
 // Session handoff metadata including source, context, and repository information
 type SessionHandoffData struct {
@@ -1283,7 +815,8 @@ type SessionHandoffData struct {
 	Summary *string `json:"summary,omitempty"`
 }
 
-func (*SessionHandoffData) sessionEventData() {}
+func (*SessionHandoffData) sessionEventData()      {}
+func (*SessionHandoffData) Type() SessionEventType { return SessionEventTypeSessionHandoff }
 
 // Session initialization metadata including context and configuration
 type SessionStartData struct {
@@ -1311,7 +844,8 @@ type SessionStartData struct {
 	Version float64 `json:"version"`
 }
 
-func (*SessionStartData) sessionEventData() {}
+func (*SessionStartData) sessionEventData()      {}
+func (*SessionStartData) Type() SessionEventType { return SessionEventTypeSessionStart }
 
 // Session resume metadata including current context and event count
 type SessionResumeData struct {
@@ -1335,7 +869,8 @@ type SessionResumeData struct {
 	SessionWasActive *bool `json:"sessionWasActive,omitempty"`
 }
 
-func (*SessionResumeData) sessionEventData() {}
+func (*SessionResumeData) sessionEventData()      {}
+func (*SessionResumeData) Type() SessionEventType { return SessionEventTypeSessionResume }
 
 // Session rewind details including target event and count of removed events
 type SessionSnapshotRewindData struct {
@@ -1346,6 +881,9 @@ type SessionSnapshotRewindData struct {
 }
 
 func (*SessionSnapshotRewindData) sessionEventData() {}
+func (*SessionSnapshotRewindData) Type() SessionEventType {
+	return SessionEventTypeSessionSnapshotRewind
+}
 
 // Session termination metrics including usage statistics, code changes, and shutdown reason
 type SessionShutdownData struct {
@@ -1379,7 +917,8 @@ type SessionShutdownData struct {
 	TotalPremiumRequests float64 `json:"totalPremiumRequests"`
 }
 
-func (*SessionShutdownData) sessionEventData() {}
+func (*SessionShutdownData) sessionEventData()      {}
+func (*SessionShutdownData) Type() SessionEventType { return SessionEventTypeSessionShutdown }
 
 // Session title change payload containing the new display title
 type SessionTitleChangedData struct {
@@ -1387,13 +926,17 @@ type SessionTitleChangedData struct {
 	Title string `json:"title"`
 }
 
-func (*SessionTitleChangedData) sessionEventData() {}
+func (*SessionTitleChangedData) sessionEventData()      {}
+func (*SessionTitleChangedData) Type() SessionEventType { return SessionEventTypeSessionTitleChanged }
 
 // SessionBackgroundTasksChangedData holds the payload for session.background_tasks_changed events.
 type SessionBackgroundTasksChangedData struct {
 }
 
 func (*SessionBackgroundTasksChangedData) sessionEventData() {}
+func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionBackgroundTasksChanged
+}
 
 // SessionCustomAgentsUpdatedData holds the payload for session.custom_agents_updated events.
 type SessionCustomAgentsUpdatedData struct {
@@ -1406,6 +949,9 @@ type SessionCustomAgentsUpdatedData struct {
 }
 
 func (*SessionCustomAgentsUpdatedData) sessionEventData() {}
+func (*SessionCustomAgentsUpdatedData) Type() SessionEventType {
+	return SessionEventTypeSessionCustomAgentsUpdated
+}
 
 // SessionExtensionsLoadedData holds the payload for session.extensions_loaded events.
 type SessionExtensionsLoadedData struct {
@@ -1414,6 +960,9 @@ type SessionExtensionsLoadedData struct {
 }
 
 func (*SessionExtensionsLoadedData) sessionEventData() {}
+func (*SessionExtensionsLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionExtensionsLoaded
+}
 
 // SessionMcpServerStatusChangedData holds the payload for session.mcp_server_status_changed events.
 type SessionMcpServerStatusChangedData struct {
@@ -1424,6 +973,9 @@ type SessionMcpServerStatusChangedData struct {
 }
 
 func (*SessionMcpServerStatusChangedData) sessionEventData() {}
+func (*SessionMcpServerStatusChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionMcpServerStatusChanged
+}
 
 // SessionMcpServersLoadedData holds the payload for session.mcp_servers_loaded events.
 type SessionMcpServersLoadedData struct {
@@ -1432,6 +984,9 @@ type SessionMcpServersLoadedData struct {
 }
 
 func (*SessionMcpServersLoadedData) sessionEventData() {}
+func (*SessionMcpServersLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionMcpServersLoaded
+}
 
 // SessionSkillsLoadedData holds the payload for session.skills_loaded events.
 type SessionSkillsLoadedData struct {
@@ -1439,14 +994,16 @@ type SessionSkillsLoadedData struct {
 	Skills []SkillsLoadedSkill `json:"skills"`
 }
 
-func (*SessionSkillsLoadedData) sessionEventData() {}
+func (*SessionSkillsLoadedData) sessionEventData()      {}
+func (*SessionSkillsLoadedData) Type() SessionEventType { return SessionEventTypeSessionSkillsLoaded }
 
 // SessionToolsUpdatedData holds the payload for session.tools_updated events.
 type SessionToolsUpdatedData struct {
 	Model string `json:"model"`
 }
 
-func (*SessionToolsUpdatedData) sessionEventData() {}
+func (*SessionToolsUpdatedData) sessionEventData()      {}
+func (*SessionToolsUpdatedData) Type() SessionEventType { return SessionEventTypeSessionToolsUpdated }
 
 // Skill invocation details including content, allowed tools, and plugin metadata
 type SkillInvokedData struct {
@@ -1466,7 +1023,8 @@ type SkillInvokedData struct {
 	PluginVersion *string `json:"pluginVersion,omitempty"`
 }
 
-func (*SkillInvokedData) sessionEventData() {}
+func (*SkillInvokedData) sessionEventData()      {}
+func (*SkillInvokedData) Type() SessionEventType { return SessionEventTypeSkillInvoked }
 
 // Streaming assistant message delta for incremental response updates
 type AssistantMessageDeltaData struct {
@@ -1480,6 +1038,9 @@ type AssistantMessageDeltaData struct {
 }
 
 func (*AssistantMessageDeltaData) sessionEventData() {}
+func (*AssistantMessageDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantMessageDelta
+}
 
 // Streaming assistant message start metadata
 type AssistantMessageStartData struct {
@@ -1490,6 +1051,9 @@ type AssistantMessageStartData struct {
 }
 
 func (*AssistantMessageStartData) sessionEventData() {}
+func (*AssistantMessageStartData) Type() SessionEventType {
+	return SessionEventTypeAssistantMessageStart
+}
 
 // Streaming reasoning delta for incremental extended thinking updates
 type AssistantReasoningDeltaData struct {
@@ -1500,6 +1064,9 @@ type AssistantReasoningDeltaData struct {
 }
 
 func (*AssistantReasoningDeltaData) sessionEventData() {}
+func (*AssistantReasoningDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantReasoningDelta
+}
 
 // Streaming response progress with cumulative byte count
 type AssistantStreamingDeltaData struct {
@@ -1508,6 +1075,9 @@ type AssistantStreamingDeltaData struct {
 }
 
 func (*AssistantStreamingDeltaData) sessionEventData() {}
+func (*AssistantStreamingDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantStreamingDelta
+}
 
 // Streaming tool execution output for incremental result display
 type ToolExecutionPartialResultData struct {
@@ -1518,6 +1088,9 @@ type ToolExecutionPartialResultData struct {
 }
 
 func (*ToolExecutionPartialResultData) sessionEventData() {}
+func (*ToolExecutionPartialResultData) Type() SessionEventType {
+	return SessionEventTypeToolExecutionPartialResult
+}
 
 // Sub-agent completion details for successful execution
 type SubagentCompletedData struct {
@@ -1537,7 +1110,8 @@ type SubagentCompletedData struct {
 	TotalToolCalls *float64 `json:"totalToolCalls,omitempty"`
 }
 
-func (*SubagentCompletedData) sessionEventData() {}
+func (*SubagentCompletedData) sessionEventData()      {}
+func (*SubagentCompletedData) Type() SessionEventType { return SessionEventTypeSubagentCompleted }
 
 // Sub-agent failure details including error message and agent information
 type SubagentFailedData struct {
@@ -1559,7 +1133,8 @@ type SubagentFailedData struct {
 	TotalToolCalls *float64 `json:"totalToolCalls,omitempty"`
 }
 
-func (*SubagentFailedData) sessionEventData() {}
+func (*SubagentFailedData) sessionEventData()      {}
+func (*SubagentFailedData) Type() SessionEventType { return SessionEventTypeSubagentFailed }
 
 // Sub-agent startup details including parent tool call and agent information
 type SubagentStartedData struct {
@@ -1575,7 +1150,8 @@ type SubagentStartedData struct {
 	ToolCallID string `json:"toolCallId"`
 }
 
-func (*SubagentStartedData) sessionEventData() {}
+func (*SubagentStartedData) sessionEventData()      {}
+func (*SubagentStartedData) Type() SessionEventType { return SessionEventTypeSubagentStarted }
 
 // System-generated notification for runtime events like background task completion
 type SystemNotificationData struct {
@@ -1585,7 +1161,8 @@ type SystemNotificationData struct {
 	Kind SystemNotification `json:"kind"`
 }
 
-func (*SystemNotificationData) sessionEventData() {}
+func (*SystemNotificationData) sessionEventData()      {}
+func (*SystemNotificationData) Type() SessionEventType { return SessionEventTypeSystemNotification }
 
 // System/developer instruction content with role and optional template metadata
 type SystemMessageData struct {
@@ -1599,7 +1176,8 @@ type SystemMessageData struct {
 	Role SystemMessageRole `json:"role"`
 }
 
-func (*SystemMessageData) sessionEventData() {}
+func (*SystemMessageData) sessionEventData()      {}
+func (*SystemMessageData) Type() SessionEventType { return SessionEventTypeSystemMessage }
 
 // Task completion notification with summary from the agent
 type SessionTaskCompleteData struct {
@@ -1609,7 +1187,8 @@ type SessionTaskCompleteData struct {
 	Summary *string `json:"summary,omitempty"`
 }
 
-func (*SessionTaskCompleteData) sessionEventData() {}
+func (*SessionTaskCompleteData) sessionEventData()      {}
+func (*SessionTaskCompleteData) Type() SessionEventType { return SessionEventTypeSessionTaskComplete }
 
 // Tool execution completion results including success status, detailed output, and error information
 type ToolExecutionCompleteData struct {
@@ -1637,6 +1216,9 @@ type ToolExecutionCompleteData struct {
 }
 
 func (*ToolExecutionCompleteData) sessionEventData() {}
+func (*ToolExecutionCompleteData) Type() SessionEventType {
+	return SessionEventTypeToolExecutionComplete
+}
 
 // Tool execution progress notification with status message
 type ToolExecutionProgressData struct {
@@ -1647,6 +1229,9 @@ type ToolExecutionProgressData struct {
 }
 
 func (*ToolExecutionProgressData) sessionEventData() {}
+func (*ToolExecutionProgressData) Type() SessionEventType {
+	return SessionEventTypeToolExecutionProgress
+}
 
 // Tool execution startup details including MCP server information when applicable
 type ToolExecutionStartData struct {
@@ -1667,7 +1252,8 @@ type ToolExecutionStartData struct {
 	TurnID *string `json:"turnId,omitempty"`
 }
 
-func (*ToolExecutionStartData) sessionEventData() {}
+func (*ToolExecutionStartData) sessionEventData()      {}
+func (*ToolExecutionStartData) Type() SessionEventType { return SessionEventTypeToolExecutionStart }
 
 // Turn abort information including the reason for termination
 type AbortData struct {
@@ -1675,7 +1261,8 @@ type AbortData struct {
 	Reason AbortReason `json:"reason"`
 }
 
-func (*AbortData) sessionEventData() {}
+func (*AbortData) sessionEventData()      {}
+func (*AbortData) Type() SessionEventType { return SessionEventTypeAbort }
 
 // Turn completion metadata including the turn identifier
 type AssistantTurnEndData struct {
@@ -1683,7 +1270,8 @@ type AssistantTurnEndData struct {
 	TurnID string `json:"turnId"`
 }
 
-func (*AssistantTurnEndData) sessionEventData() {}
+func (*AssistantTurnEndData) sessionEventData()      {}
+func (*AssistantTurnEndData) Type() SessionEventType { return SessionEventTypeAssistantTurnEnd }
 
 // Turn initialization metadata including identifier and interaction tracking
 type AssistantTurnStartData struct {
@@ -1693,7 +1281,8 @@ type AssistantTurnStartData struct {
 	TurnID string `json:"turnId"`
 }
 
-func (*AssistantTurnStartData) sessionEventData() {}
+func (*AssistantTurnStartData) sessionEventData()      {}
+func (*AssistantTurnStartData) Type() SessionEventType { return SessionEventTypeAssistantTurnStart }
 
 // User input request completion with the user's response
 type UserInputCompletedData struct {
@@ -1705,7 +1294,8 @@ type UserInputCompletedData struct {
 	WasFreeform *bool `json:"wasFreeform,omitempty"`
 }
 
-func (*UserInputCompletedData) sessionEventData() {}
+func (*UserInputCompletedData) sessionEventData()      {}
+func (*UserInputCompletedData) Type() SessionEventType { return SessionEventTypeUserInputCompleted }
 
 // User input request notification with question and optional predefined choices
 type UserInputRequestedData struct {
@@ -1721,7 +1311,8 @@ type UserInputRequestedData struct {
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
-func (*UserInputRequestedData) sessionEventData() {}
+func (*UserInputRequestedData) sessionEventData()      {}
+func (*UserInputRequestedData) Type() SessionEventType { return SessionEventTypeUserInputRequested }
 
 // User-initiated tool invocation request with tool name and arguments
 type ToolUserRequestedData struct {
@@ -1733,7 +1324,8 @@ type ToolUserRequestedData struct {
 	ToolName string `json:"toolName"`
 }
 
-func (*ToolUserRequestedData) sessionEventData() {}
+func (*ToolUserRequestedData) sessionEventData()      {}
+func (*ToolUserRequestedData) Type() SessionEventType { return SessionEventTypeToolUserRequested }
 
 // UserMessageData holds the payload for user.message events.
 type UserMessageData struct {
@@ -1757,7 +1349,8 @@ type UserMessageData struct {
 	TransformedContent *string `json:"transformedContent,omitempty"`
 }
 
-func (*UserMessageData) sessionEventData() {}
+func (*UserMessageData) sessionEventData()      {}
+func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMessage }
 
 // Warning message for timeline display with categorization
 type SessionWarningData struct {
@@ -1769,7 +1362,8 @@ type SessionWarningData struct {
 	WarningType string `json:"warningType"`
 }
 
-func (*SessionWarningData) sessionEventData() {}
+func (*SessionWarningData) sessionEventData()      {}
+func (*SessionWarningData) Type() SessionEventType { return SessionEventTypeSessionWarning }
 
 // Working directory and git context at session start
 type SessionContextChangedData struct {
@@ -1792,6 +1386,9 @@ type SessionContextChangedData struct {
 }
 
 func (*SessionContextChangedData) sessionEventData() {}
+func (*SessionContextChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionContextChanged
+}
 
 // Workspace file change details including path and operation type
 type SessionWorkspaceFileChangedData struct {
@@ -1802,6 +1399,9 @@ type SessionWorkspaceFileChangedData struct {
 }
 
 func (*SessionWorkspaceFileChangedData) sessionEventData() {}
+func (*SessionWorkspaceFileChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionWorkspaceFileChanged
+}
 
 // A tool invocation request from the assistant
 type AssistantMessageToolRequest struct {
@@ -1930,64 +1530,25 @@ type CustomAgentsUpdatedAgent struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
-type ElicitationCompletedContent struct {
-	Bool        *bool
-	Double      *float64
-	String      *string
-	StringArray []string
+type ElicitationCompletedContent interface {
+	elicitationCompletedContent()
 }
 
-func (r ElicitationCompletedContent) MarshalJSON() ([]byte, error) {
-	if r.Bool != nil {
-		return json.Marshal(r.Bool)
-	}
-	if r.Double != nil {
-		return json.Marshal(r.Double)
-	}
-	if r.String != nil {
-		return json.Marshal(r.String)
-	}
-	if r.StringArray != nil {
-		return json.Marshal(r.StringArray)
-	}
-	return []byte("null"), nil
-}
+type ElicitationCompletedBooleanContent bool
 
-func (r *ElicitationCompletedContent) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = ElicitationCompletedContent{}
-		return nil
-	}
-	{
-		var value bool
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ElicitationCompletedContent{Bool: &value}
-			return nil
-		}
-	}
-	{
-		var value float64
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ElicitationCompletedContent{Double: &value}
-			return nil
-		}
-	}
-	{
-		var value string
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ElicitationCompletedContent{String: &value}
-			return nil
-		}
-	}
-	{
-		var value []string
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ElicitationCompletedContent{StringArray: value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for ElicitationCompletedContent")
-}
+func (ElicitationCompletedBooleanContent) elicitationCompletedContent() {}
+
+type ElicitationCompletedNumberContent float64
+
+func (ElicitationCompletedNumberContent) elicitationCompletedContent() {}
+
+type ElicitationCompletedStringArrayContent []string
+
+func (ElicitationCompletedStringArrayContent) elicitationCompletedContent() {}
+
+type ElicitationCompletedStringContent string
+
+func (ElicitationCompletedStringContent) elicitationCompletedContent() {}
 
 // JSON Schema describing the form fields to present to the user (form mode only)
 type ElicitationRequestedSchema struct {
@@ -2050,135 +1611,414 @@ type McpServersLoadedServer struct {
 }
 
 // Derived user-facing permission prompt details for UI consumers
-type PermissionPromptRequest struct {
-	// Underlying permission kind that needs path approval
-	AccessKind *PermissionPromptRequestPathAccessKind `json:"accessKind,omitempty"`
-	// Whether this is a store or vote memory operation
-	Action *PermissionPromptRequestMemoryAction `json:"action,omitempty"`
-	// Arguments to pass to the MCP tool
-	Args *any `json:"args,omitempty"`
+type PermissionPromptRequest interface {
+	permissionPromptRequest()
+	Kind() PermissionPromptRequestKind
+}
+
+type RawPermissionPromptRequest struct {
+	Discriminator PermissionPromptRequestKind
+	Raw           json.RawMessage
+}
+
+func (RawPermissionPromptRequest) permissionPromptRequest() {}
+func (r RawPermissionPromptRequest) Kind() PermissionPromptRequestKind {
+	return r.Discriminator
+}
+
+// Shell command permission prompt
+type PermissionPromptRequestCommands struct {
 	// Whether the UI can offer session-wide approval for this command pattern
-	CanOfferSessionApproval *bool `json:"canOfferSessionApproval,omitempty"`
-	// Capabilities the extension is requesting
-	Capabilities []string `json:"capabilities,omitempty"`
-	// Source references for the stored fact (store only)
-	Citations *string `json:"citations,omitempty"`
+	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
 	// Command identifiers covered by this approval prompt
-	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
-	// Unified diff showing the proposed changes
-	Diff *string `json:"diff,omitempty"`
-	// Vote direction (vote only)
-	Direction *PermissionPromptRequestMemoryDirection `json:"direction,omitempty"`
-	// Name of the extension being managed
-	ExtensionName *string `json:"extensionName,omitempty"`
-	// The fact being stored or voted on
-	Fact *string `json:"fact,omitempty"`
-	// Path of the file being written to
-	FileName *string `json:"fileName,omitempty"`
+	CommandIdentifiers []string `json:"commandIdentifiers"`
 	// The complete shell command text to be executed
-	FullCommandText *string `json:"fullCommandText,omitempty"`
-	// Optional message from the hook explaining why confirmation is needed
-	HookMessage *string `json:"hookMessage,omitempty"`
+	FullCommandText string `json:"fullCommandText"`
 	// Human-readable description of what the command intends to do
-	Intention *string `json:"intention,omitempty"`
-	// Kind discriminator
-	Kind PermissionPromptRequestKind `json:"kind"`
-	// Complete new file contents for newly created files
-	NewFileContents *string `json:"newFileContents,omitempty"`
-	// The extension management operation (scaffold, reload)
-	Operation *string `json:"operation,omitempty"`
-	// Path of the file or directory being read
-	Path *string `json:"path,omitempty"`
-	// File paths that require explicit approval
-	Paths []string `json:"paths,omitempty"`
-	// Reason for the vote (vote only)
-	Reason *string `json:"reason,omitempty"`
-	// Name of the MCP server providing the tool
-	ServerName *string `json:"serverName,omitempty"`
-	// Topic or subject of the memory (store only)
-	Subject *string `json:"subject,omitempty"`
-	// Arguments of the tool call being gated
-	ToolArgs any `json:"toolArgs,omitempty"`
+	Intention string `json:"intention"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
-	// Description of what the custom tool does
-	ToolDescription *string `json:"toolDescription,omitempty"`
-	// Internal name of the MCP tool
-	ToolName *string `json:"toolName,omitempty"`
-	// Human-readable title of the MCP tool
-	ToolTitle *string `json:"toolTitle,omitempty"`
-	// URL to be fetched
-	URL *string `json:"url,omitempty"`
 	// Optional warning message about risks of running this command
 	Warning *string `json:"warning,omitempty"`
 }
 
-// Details of the permission being requested
-type PermissionRequest struct {
-	// Whether this is a store or vote memory operation
-	Action *PermissionRequestMemoryAction `json:"action,omitempty"`
-	// Arguments to pass to the MCP tool
+func (PermissionPromptRequestCommands) permissionPromptRequest() {}
+func (PermissionPromptRequestCommands) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindCommands
+}
+
+// Custom tool invocation permission prompt
+type PermissionPromptRequestCustomTool struct {
+	// Arguments to pass to the custom tool
 	Args any `json:"args,omitempty"`
-	// Whether the UI can offer session-wide approval for this command pattern
-	CanOfferSessionApproval *bool `json:"canOfferSessionApproval,omitempty"`
-	// Capabilities the extension is requesting
-	Capabilities []string `json:"capabilities,omitempty"`
-	// Source references for the stored fact (store only)
-	Citations *string `json:"citations,omitempty"`
-	// Parsed command identifiers found in the command text
-	Commands []PermissionRequestShellCommand `json:"commands,omitempty"`
-	// Unified diff showing the proposed changes
-	Diff *string `json:"diff,omitempty"`
-	// Vote direction (vote only)
-	Direction *PermissionRequestMemoryDirection `json:"direction,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Description of what the custom tool does
+	ToolDescription string `json:"toolDescription"`
+	// Name of the custom tool
+	ToolName string `json:"toolName"`
+}
+
+func (PermissionPromptRequestCustomTool) permissionPromptRequest() {}
+func (PermissionPromptRequestCustomTool) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindCustomTool
+}
+
+// Extension management permission prompt
+type PermissionPromptRequestExtensionManagement struct {
 	// Name of the extension being managed
 	ExtensionName *string `json:"extensionName,omitempty"`
-	// The fact being stored or voted on
-	Fact *string `json:"fact,omitempty"`
-	// Path of the file being written to
-	FileName *string `json:"fileName,omitempty"`
-	// The complete shell command text to be executed
-	FullCommandText *string `json:"fullCommandText,omitempty"`
-	// Whether the command includes a file write redirection (e.g., > or >>)
-	HasWriteFileRedirection *bool `json:"hasWriteFileRedirection,omitempty"`
+	// The extension management operation (scaffold, reload)
+	Operation string `json:"operation"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionPromptRequestExtensionManagement) permissionPromptRequest() {}
+func (PermissionPromptRequestExtensionManagement) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindExtensionManagement
+}
+
+// Extension permission access prompt
+type PermissionPromptRequestExtensionPermissionAccess struct {
+	// Capabilities the extension is requesting
+	Capabilities []string `json:"capabilities"`
+	// Name of the extension requesting permission access
+	ExtensionName string `json:"extensionName"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionPromptRequestExtensionPermissionAccess) permissionPromptRequest() {}
+func (PermissionPromptRequestExtensionPermissionAccess) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindExtensionPermissionAccess
+}
+
+// Hook confirmation permission prompt
+type PermissionPromptRequestHook struct {
 	// Optional message from the hook explaining why confirmation is needed
 	HookMessage *string `json:"hookMessage,omitempty"`
-	// Human-readable description of what the command intends to do
-	Intention *string `json:"intention,omitempty"`
-	// Kind discriminator
-	Kind PermissionRequestKind `json:"kind"`
-	// Complete new file contents for newly created files
-	NewFileContents *string `json:"newFileContents,omitempty"`
-	// The extension management operation (scaffold, reload)
-	Operation *string `json:"operation,omitempty"`
-	// Path of the file or directory being read
-	Path *string `json:"path,omitempty"`
-	// File paths that may be read or written by the command
-	PossiblePaths []string `json:"possiblePaths,omitempty"`
-	// URLs that may be accessed by the command
-	PossibleUrls []PermissionRequestShellPossibleURL `json:"possibleUrls,omitempty"`
-	// Whether this MCP tool is read-only (no side effects)
-	ReadOnly *bool `json:"readOnly,omitempty"`
-	// Reason for the vote (vote only)
-	Reason *string `json:"reason,omitempty"`
-	// Name of the MCP server providing the tool
-	ServerName *string `json:"serverName,omitempty"`
-	// Topic or subject of the memory (store only)
-	Subject *string `json:"subject,omitempty"`
 	// Arguments of the tool call being gated
 	ToolArgs any `json:"toolArgs,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
-	// Description of what the custom tool does
-	ToolDescription *string `json:"toolDescription,omitempty"`
+	// Name of the tool the hook is gating
+	ToolName string `json:"toolName"`
+}
+
+func (PermissionPromptRequestHook) permissionPromptRequest() {}
+func (PermissionPromptRequestHook) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindHook
+}
+
+// MCP tool invocation permission prompt
+type PermissionPromptRequestMcp struct {
+	// Arguments to pass to the MCP tool
+	Args *any `json:"args,omitempty"`
+	// Name of the MCP server providing the tool
+	ServerName string `json:"serverName"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Internal name of the MCP tool
-	ToolName *string `json:"toolName,omitempty"`
+	ToolName string `json:"toolName"`
 	// Human-readable title of the MCP tool
-	ToolTitle *string `json:"toolTitle,omitempty"`
+	ToolTitle string `json:"toolTitle"`
+}
+
+func (PermissionPromptRequestMcp) permissionPromptRequest() {}
+func (PermissionPromptRequestMcp) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindMcp
+}
+
+// Memory operation permission prompt
+type PermissionPromptRequestMemory struct {
+	// Whether this is a store or vote memory operation
+	Action *PermissionPromptRequestMemoryAction `json:"action,omitempty"`
+	// Source references for the stored fact (store only)
+	Citations *string `json:"citations,omitempty"`
+	// Vote direction (vote only)
+	Direction *PermissionPromptRequestMemoryDirection `json:"direction,omitempty"`
+	// The fact being stored or voted on
+	Fact string `json:"fact"`
+	// Reason for the vote (vote only)
+	Reason *string `json:"reason,omitempty"`
+	// Topic or subject of the memory (store only)
+	Subject *string `json:"subject,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionPromptRequestMemory) permissionPromptRequest() {}
+func (PermissionPromptRequestMemory) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindMemory
+}
+
+// Path access permission prompt
+type PermissionPromptRequestPath struct {
+	// Underlying permission kind that needs path approval
+	AccessKind PermissionPromptRequestPathAccessKind `json:"accessKind"`
+	// File paths that require explicit approval
+	Paths []string `json:"paths"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionPromptRequestPath) permissionPromptRequest() {}
+func (PermissionPromptRequestPath) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindPath
+}
+
+// File read permission prompt
+type PermissionPromptRequestRead struct {
+	// Human-readable description of why the file is being read
+	Intention string `json:"intention"`
+	// Path of the file or directory being read
+	Path string `json:"path"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionPromptRequestRead) permissionPromptRequest() {}
+func (PermissionPromptRequestRead) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindRead
+}
+
+// URL access permission prompt
+type PermissionPromptRequestURL struct {
+	// Human-readable description of why the URL is being accessed
+	Intention string `json:"intention"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
 	// URL to be fetched
-	URL *string `json:"url,omitempty"`
+	URL string `json:"url"`
+}
+
+func (PermissionPromptRequestURL) permissionPromptRequest() {}
+func (PermissionPromptRequestURL) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindURL
+}
+
+// File write permission prompt
+type PermissionPromptRequestWrite struct {
+	// Whether the UI can offer session-wide approval for file write operations
+	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
+	// Unified diff showing the proposed changes
+	Diff string `json:"diff"`
+	// Path of the file being written to
+	FileName string `json:"fileName"`
+	// Human-readable description of the intended file change
+	Intention string `json:"intention"`
+	// Complete new file contents for newly created files
+	NewFileContents *string `json:"newFileContents,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionPromptRequestWrite) permissionPromptRequest() {}
+func (PermissionPromptRequestWrite) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindWrite
+}
+
+// Details of the permission being requested
+type PermissionRequest interface {
+	permissionRequest()
+	Kind() PermissionRequestKind
+}
+
+type RawPermissionRequest struct {
+	Discriminator PermissionRequestKind
+	Raw           json.RawMessage
+}
+
+func (RawPermissionRequest) permissionRequest() {}
+func (r RawPermissionRequest) Kind() PermissionRequestKind {
+	return r.Discriminator
+}
+
+// Custom tool invocation permission request
+type PermissionRequestCustomTool struct {
+	// Arguments to pass to the custom tool
+	Args any `json:"args,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Description of what the custom tool does
+	ToolDescription string `json:"toolDescription"`
+	// Name of the custom tool
+	ToolName string `json:"toolName"`
+}
+
+func (PermissionRequestCustomTool) permissionRequest() {}
+func (PermissionRequestCustomTool) Kind() PermissionRequestKind {
+	return PermissionRequestKindCustomTool
+}
+
+// Extension management permission request
+type PermissionRequestExtensionManagement struct {
+	// Name of the extension being managed
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// The extension management operation (scaffold, reload)
+	Operation string `json:"operation"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionRequestExtensionManagement) permissionRequest() {}
+func (PermissionRequestExtensionManagement) Kind() PermissionRequestKind {
+	return PermissionRequestKindExtensionManagement
+}
+
+// Extension permission access request
+type PermissionRequestExtensionPermissionAccess struct {
+	// Capabilities the extension is requesting
+	Capabilities []string `json:"capabilities"`
+	// Name of the extension requesting permission access
+	ExtensionName string `json:"extensionName"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionRequestExtensionPermissionAccess) permissionRequest() {}
+func (PermissionRequestExtensionPermissionAccess) Kind() PermissionRequestKind {
+	return PermissionRequestKindExtensionPermissionAccess
+}
+
+// Hook confirmation permission request
+type PermissionRequestHook struct {
+	// Optional message from the hook explaining why confirmation is needed
+	HookMessage *string `json:"hookMessage,omitempty"`
+	// Arguments of the tool call being gated
+	ToolArgs any `json:"toolArgs,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Name of the tool the hook is gating
+	ToolName string `json:"toolName"`
+}
+
+func (PermissionRequestHook) permissionRequest() {}
+func (PermissionRequestHook) Kind() PermissionRequestKind {
+	return PermissionRequestKindHook
+}
+
+// MCP tool invocation permission request
+type PermissionRequestMcp struct {
+	// Arguments to pass to the MCP tool
+	Args any `json:"args,omitempty"`
+	// Whether this MCP tool is read-only (no side effects)
+	ReadOnly bool `json:"readOnly"`
+	// Name of the MCP server providing the tool
+	ServerName string `json:"serverName"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Internal name of the MCP tool
+	ToolName string `json:"toolName"`
+	// Human-readable title of the MCP tool
+	ToolTitle string `json:"toolTitle"`
+}
+
+func (PermissionRequestMcp) permissionRequest() {}
+func (PermissionRequestMcp) Kind() PermissionRequestKind {
+	return PermissionRequestKindMcp
+}
+
+// Memory operation permission request
+type PermissionRequestMemory struct {
+	// Whether this is a store or vote memory operation
+	Action *PermissionRequestMemoryAction `json:"action,omitempty"`
+	// Source references for the stored fact (store only)
+	Citations *string `json:"citations,omitempty"`
+	// Vote direction (vote only)
+	Direction *PermissionRequestMemoryDirection `json:"direction,omitempty"`
+	// The fact being stored or voted on
+	Fact string `json:"fact"`
+	// Reason for the vote (vote only)
+	Reason *string `json:"reason,omitempty"`
+	// Topic or subject of the memory (store only)
+	Subject *string `json:"subject,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionRequestMemory) permissionRequest() {}
+func (PermissionRequestMemory) Kind() PermissionRequestKind {
+	return PermissionRequestKindMemory
+}
+
+// File or directory read permission request
+type PermissionRequestRead struct {
+	// Human-readable description of why the file is being read
+	Intention string `json:"intention"`
+	// Path of the file or directory being read
+	Path string `json:"path"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionRequestRead) permissionRequest() {}
+func (PermissionRequestRead) Kind() PermissionRequestKind {
+	return PermissionRequestKindRead
+}
+
+// Shell command permission request
+type PermissionRequestShell struct {
+	// Whether the UI can offer session-wide approval for this command pattern
+	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
+	// Parsed command identifiers found in the command text
+	Commands []PermissionRequestShellCommand `json:"commands"`
+	// The complete shell command text to be executed
+	FullCommandText string `json:"fullCommandText"`
+	// Whether the command includes a file write redirection (e.g., > or >>)
+	HasWriteFileRedirection bool `json:"hasWriteFileRedirection"`
+	// Human-readable description of what the command intends to do
+	Intention string `json:"intention"`
+	// File paths that may be read or written by the command
+	PossiblePaths []string `json:"possiblePaths"`
+	// URLs that may be accessed by the command
+	PossibleUrls []PermissionRequestShellPossibleURL `json:"possibleUrls"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Optional warning message about risks of running this command
 	Warning *string `json:"warning,omitempty"`
+}
+
+func (PermissionRequestShell) permissionRequest() {}
+func (PermissionRequestShell) Kind() PermissionRequestKind {
+	return PermissionRequestKindShell
+}
+
+// URL access permission request
+type PermissionRequestURL struct {
+	// Human-readable description of why the URL is being accessed
+	Intention string `json:"intention"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// URL to be fetched
+	URL string `json:"url"`
+}
+
+func (PermissionRequestURL) permissionRequest() {}
+func (PermissionRequestURL) Kind() PermissionRequestKind {
+	return PermissionRequestKindURL
+}
+
+// File write permission request
+type PermissionRequestWrite struct {
+	// Whether the UI can offer session-wide approval for file write operations
+	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
+	// Unified diff showing the proposed changes
+	Diff string `json:"diff"`
+	// Path of the file being written to
+	FileName string `json:"fileName"`
+	// Human-readable description of the intended file change
+	Intention string `json:"intention"`
+	// Complete new file contents for newly created files
+	NewFileContents *string `json:"newFileContents,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionRequestWrite) permissionRequest() {}
+func (PermissionRequestWrite) Kind() PermissionRequestKind {
+	return PermissionRequestKindWrite
 }
 
 type PermissionRequestShellCommand struct {
@@ -2194,27 +2034,113 @@ type PermissionRequestShellPossibleURL struct {
 }
 
 // The result of the permission request
-type PermissionResult struct {
+type PermissionResult interface {
+	permissionResult()
+	Kind() PermissionResultKind
+}
+
+type RawPermissionResult struct {
+	Discriminator PermissionResultKind
+	Raw           json.RawMessage
+}
+
+func (RawPermissionResult) permissionResult() {}
+func (r RawPermissionResult) Kind() PermissionResultKind {
+	return r.Discriminator
+}
+
+type PermissionApproved struct {
+}
+
+func (PermissionApproved) permissionResult() {}
+func (PermissionApproved) Kind() PermissionResultKind {
+	return PermissionResultKindApproved
+}
+
+type PermissionApprovedForLocation struct {
+	// The approval to persist for this location
+	Approval UserToolSessionApproval `json:"approval"`
+	// The location key (git root or cwd) to persist the approval to
+	LocationKey string `json:"locationKey"`
+}
+
+func (PermissionApprovedForLocation) permissionResult() {}
+func (PermissionApprovedForLocation) Kind() PermissionResultKind {
+	return PermissionResultKindApprovedForLocation
+}
+
+type PermissionApprovedForSession struct {
 	// The approval to add as a session-scoped rule
-	Approval *UserToolSessionApproval `json:"approval,omitempty"`
+	Approval UserToolSessionApproval `json:"approval"`
+}
+
+func (PermissionApprovedForSession) permissionResult() {}
+func (PermissionApprovedForSession) Kind() PermissionResultKind {
+	return PermissionResultKindApprovedForSession
+}
+
+type PermissionCancelled struct {
+	// Optional explanation of why the request was cancelled
+	Reason *string `json:"reason,omitempty"`
+}
+
+func (PermissionCancelled) permissionResult() {}
+func (PermissionCancelled) Kind() PermissionResultKind {
+	return PermissionResultKindCancelled
+}
+
+type PermissionDeniedByContentExclusionPolicy struct {
+	// Human-readable explanation of why the path was excluded
+	Message string `json:"message"`
+	// File path that triggered the exclusion
+	Path string `json:"path"`
+}
+
+func (PermissionDeniedByContentExclusionPolicy) permissionResult() {}
+func (PermissionDeniedByContentExclusionPolicy) Kind() PermissionResultKind {
+	return PermissionResultKindDeniedByContentExclusionPolicy
+}
+
+type PermissionDeniedByPermissionRequestHook struct {
+	// Whether to interrupt the current agent turn
+	Interrupt *bool `json:"interrupt,omitempty"`
+	// Optional message from the hook explaining the denial
+	Message *string `json:"message,omitempty"`
+}
+
+func (PermissionDeniedByPermissionRequestHook) permissionResult() {}
+func (PermissionDeniedByPermissionRequestHook) Kind() PermissionResultKind {
+	return PermissionResultKindDeniedByPermissionRequestHook
+}
+
+type PermissionDeniedByRules struct {
+	// Rules that denied the request
+	Rules []PermissionRule `json:"rules"`
+}
+
+func (PermissionDeniedByRules) permissionResult() {}
+func (PermissionDeniedByRules) Kind() PermissionResultKind {
+	return PermissionResultKindDeniedByRules
+}
+
+type PermissionDeniedInteractivelyByUser struct {
 	// Optional feedback from the user explaining the denial
 	Feedback *string `json:"feedback,omitempty"`
 	// Whether to force-reject the current agent turn
 	ForceReject *bool `json:"forceReject,omitempty"`
-	// Whether to interrupt the current agent turn
-	Interrupt *bool `json:"interrupt,omitempty"`
-	// Kind discriminator
-	Kind PermissionResultKind `json:"kind"`
-	// The location key (git root or cwd) to persist the approval to
-	LocationKey *string `json:"locationKey,omitempty"`
-	// Human-readable explanation of why the path was excluded
-	Message *string `json:"message,omitempty"`
-	// File path that triggered the exclusion
-	Path *string `json:"path,omitempty"`
-	// Optional explanation of why the request was cancelled
-	Reason *string `json:"reason,omitempty"`
-	// Rules that denied the request
-	Rules []PermissionRule `json:"rules,omitempty"`
+}
+
+func (PermissionDeniedInteractivelyByUser) permissionResult() {}
+func (PermissionDeniedInteractivelyByUser) Kind() PermissionResultKind {
+	return PermissionResultKindDeniedInteractivelyByUser
+}
+
+type PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser struct {
+}
+
+func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) permissionResult() {}
+func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() PermissionResultKind {
+	return PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
 type PermissionRule struct {
@@ -2301,80 +2227,245 @@ type SystemMessageMetadata struct {
 }
 
 // Structured metadata identifying what triggered this notification
-type SystemNotification struct {
+type SystemNotification interface {
+	systemNotification()
+	Type() SystemNotificationType
+}
+
+type RawSystemNotification struct {
+	Discriminator SystemNotificationType
+	Raw           json.RawMessage
+}
+
+func (RawSystemNotification) systemNotification() {}
+func (r RawSystemNotification) Type() SystemNotificationType {
+	return r.Discriminator
+}
+
+type SystemNotificationAgentCompleted struct {
 	// Unique identifier of the background agent
-	AgentID *string `json:"agentId,omitempty"`
+	AgentID string `json:"agentId"`
 	// Type of the agent (e.g., explore, task, general-purpose)
-	AgentType *string `json:"agentType,omitempty"`
+	AgentType string `json:"agentType"`
 	// Human-readable description of the agent task
 	Description *string `json:"description,omitempty"`
-	// Unique identifier of the inbox entry
-	EntryID *string `json:"entryId,omitempty"`
-	// Exit code of the shell command, if available
-	ExitCode *float64 `json:"exitCode,omitempty"`
 	// The full prompt given to the background agent
 	Prompt *string `json:"prompt,omitempty"`
-	// Human-readable name of the sender
-	SenderName *string `json:"senderName,omitempty"`
-	// Category of the sender (e.g., sidekick-agent, plugin, hook)
-	SenderType *string `json:"senderType,omitempty"`
-	// Unique identifier of the shell session
-	ShellID *string `json:"shellId,omitempty"`
-	// Relative path to the discovered instruction file
-	SourcePath *string `json:"sourcePath,omitempty"`
 	// Whether the agent completed successfully or failed
-	Status *SystemNotificationAgentCompletedStatus `json:"status,omitempty"`
-	// Short summary shown before the agent decides whether to read the inbox
-	Summary *string `json:"summary,omitempty"`
+	Status SystemNotificationAgentCompletedStatus `json:"status"`
+}
+
+func (SystemNotificationAgentCompleted) systemNotification() {}
+func (SystemNotificationAgentCompleted) Type() SystemNotificationType {
+	return SystemNotificationTypeAgentCompleted
+}
+
+type SystemNotificationAgentIdle struct {
+	// Unique identifier of the background agent
+	AgentID string `json:"agentId"`
+	// Type of the agent (e.g., explore, task, general-purpose)
+	AgentType string `json:"agentType"`
+	// Human-readable description of the agent task
+	Description *string `json:"description,omitempty"`
+}
+
+func (SystemNotificationAgentIdle) systemNotification() {}
+func (SystemNotificationAgentIdle) Type() SystemNotificationType {
+	return SystemNotificationTypeAgentIdle
+}
+
+type SystemNotificationInstructionDiscovered struct {
+	// Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/')
+	Description *string `json:"description,omitempty"`
+	// Relative path to the discovered instruction file
+	SourcePath string `json:"sourcePath"`
 	// Path of the file access that triggered discovery
-	TriggerFile *string `json:"triggerFile,omitempty"`
+	TriggerFile string `json:"triggerFile"`
 	// Tool command that triggered discovery (currently always 'view')
-	TriggerTool *string `json:"triggerTool,omitempty"`
-	// Type discriminator
-	Type SystemNotificationType `json:"type"`
+	TriggerTool string `json:"triggerTool"`
+}
+
+func (SystemNotificationInstructionDiscovered) systemNotification() {}
+func (SystemNotificationInstructionDiscovered) Type() SystemNotificationType {
+	return SystemNotificationTypeInstructionDiscovered
+}
+
+type SystemNotificationNewInboxMessage struct {
+	// Unique identifier of the inbox entry
+	EntryID string `json:"entryId"`
+	// Human-readable name of the sender
+	SenderName string `json:"senderName"`
+	// Category of the sender (e.g., sidekick-agent, plugin, hook)
+	SenderType string `json:"senderType"`
+	// Short summary shown before the agent decides whether to read the inbox
+	Summary string `json:"summary"`
+}
+
+func (SystemNotificationNewInboxMessage) systemNotification() {}
+func (SystemNotificationNewInboxMessage) Type() SystemNotificationType {
+	return SystemNotificationTypeNewInboxMessage
+}
+
+type SystemNotificationShellCompleted struct {
+	// Human-readable description of the command
+	Description *string `json:"description,omitempty"`
+	// Exit code of the shell command, if available
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Unique identifier of the shell session
+	ShellID string `json:"shellId"`
+}
+
+func (SystemNotificationShellCompleted) systemNotification() {}
+func (SystemNotificationShellCompleted) Type() SystemNotificationType {
+	return SystemNotificationTypeShellCompleted
+}
+
+type SystemNotificationShellDetachedCompleted struct {
+	// Human-readable description of the command
+	Description *string `json:"description,omitempty"`
+	// Unique identifier of the detached shell session
+	ShellID string `json:"shellId"`
+}
+
+func (SystemNotificationShellDetachedCompleted) systemNotification() {}
+func (SystemNotificationShellDetachedCompleted) Type() SystemNotificationType {
+	return SystemNotificationTypeShellDetachedCompleted
 }
 
 // A content block within a tool result, which may be text, terminal output, image, audio, or a resource
-type ToolExecutionCompleteContent struct {
-	// Working directory where the command was executed
-	Cwd *string `json:"cwd,omitempty"`
-	// Base64-encoded image data
-	Data *string `json:"data,omitempty"`
-	// Human-readable description of the resource
-	Description *string `json:"description,omitempty"`
-	// Process exit code, if the command has completed
-	ExitCode *float64 `json:"exitCode,omitempty"`
-	// Icons associated with this resource
-	Icons []ToolExecutionCompleteContentResourceLinkIcon `json:"icons,omitempty"`
-	// MIME type of the image (e.g., image/png, image/jpeg)
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Resource name identifier
-	Name *string `json:"name,omitempty"`
-	// The embedded resource contents, either text or base64-encoded binary
-	Resource *ToolExecutionCompleteContentResourceDetails `json:"resource,omitempty"`
-	// Size of the resource in bytes
-	Size *float64 `json:"size,omitempty"`
-	// The text content
-	Text *string `json:"text,omitempty"`
-	// Human-readable display title for the resource
-	Title *string `json:"title,omitempty"`
-	// Type discriminator
-	Type ToolExecutionCompleteContentType `json:"type"`
-	// URI identifying the resource
-	URI *string `json:"uri,omitempty"`
+type ToolExecutionCompleteContent interface {
+	toolExecutionCompleteContent()
+	Type() ToolExecutionCompleteContentType
 }
 
-// The embedded resource contents, either text or base64-encoded binary
-type ToolExecutionCompleteContentResourceDetails struct {
-	// Base64-encoded binary content of the resource
-	Blob *string `json:"blob,omitempty"`
-	// MIME type of the text content
+type RawToolExecutionCompleteContent struct {
+	Discriminator ToolExecutionCompleteContentType
+	Raw           json.RawMessage
+}
+
+func (RawToolExecutionCompleteContent) toolExecutionCompleteContent() {}
+func (r RawToolExecutionCompleteContent) Type() ToolExecutionCompleteContentType {
+	return r.Discriminator
+}
+
+// Audio content block with base64-encoded data
+type ToolExecutionCompleteContentAudio struct {
+	// Base64-encoded audio data
+	Data string `json:"data"`
+	// MIME type of the audio (e.g., audio/wav, audio/mpeg)
+	MIMEType string `json:"mimeType"`
+}
+
+func (ToolExecutionCompleteContentAudio) toolExecutionCompleteContent() {}
+func (ToolExecutionCompleteContentAudio) Type() ToolExecutionCompleteContentType {
+	return ToolExecutionCompleteContentTypeAudio
+}
+
+// Image content block with base64-encoded data
+type ToolExecutionCompleteContentImage struct {
+	// Base64-encoded image data
+	Data string `json:"data"`
+	// MIME type of the image (e.g., image/png, image/jpeg)
+	MIMEType string `json:"mimeType"`
+}
+
+func (ToolExecutionCompleteContentImage) toolExecutionCompleteContent() {}
+func (ToolExecutionCompleteContentImage) Type() ToolExecutionCompleteContentType {
+	return ToolExecutionCompleteContentTypeImage
+}
+
+// Embedded resource content block with inline text or binary data
+type ToolExecutionCompleteContentResource struct {
+	// The embedded resource contents, either text or base64-encoded binary
+	Resource ToolExecutionCompleteContentResourceDetails `json:"resource"`
+}
+
+func (ToolExecutionCompleteContentResource) toolExecutionCompleteContent() {}
+func (ToolExecutionCompleteContentResource) Type() ToolExecutionCompleteContentType {
+	return ToolExecutionCompleteContentTypeResource
+}
+
+// Resource link content block referencing an external resource
+type ToolExecutionCompleteContentResourceLink struct {
+	// Human-readable description of the resource
+	Description *string `json:"description,omitempty"`
+	// Icons associated with this resource
+	Icons []ToolExecutionCompleteContentResourceLinkIcon `json:"icons,omitempty"`
+	// MIME type of the resource content
 	MIMEType *string `json:"mimeType,omitempty"`
-	// Text content of the resource
-	Text *string `json:"text,omitempty"`
+	// Resource name identifier
+	Name string `json:"name"`
+	// Size of the resource in bytes
+	Size *float64 `json:"size,omitempty"`
+	// Human-readable display title for the resource
+	Title *string `json:"title,omitempty"`
 	// URI identifying the resource
 	URI string `json:"uri"`
 }
+
+func (ToolExecutionCompleteContentResourceLink) toolExecutionCompleteContent() {}
+func (ToolExecutionCompleteContentResourceLink) Type() ToolExecutionCompleteContentType {
+	return ToolExecutionCompleteContentTypeResourceLink
+}
+
+// Terminal/shell output content block with optional exit code and working directory
+type ToolExecutionCompleteContentTerminal struct {
+	// Working directory where the command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Process exit code, if the command has completed
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Terminal/shell output text
+	Text string `json:"text"`
+}
+
+func (ToolExecutionCompleteContentTerminal) toolExecutionCompleteContent() {}
+func (ToolExecutionCompleteContentTerminal) Type() ToolExecutionCompleteContentType {
+	return ToolExecutionCompleteContentTypeTerminal
+}
+
+// Plain text content block
+type ToolExecutionCompleteContentText struct {
+	// The text content
+	Text string `json:"text"`
+}
+
+func (ToolExecutionCompleteContentText) toolExecutionCompleteContent() {}
+func (ToolExecutionCompleteContentText) Type() ToolExecutionCompleteContentType {
+	return ToolExecutionCompleteContentTypeText
+}
+
+// The embedded resource contents, either text or base64-encoded binary
+type ToolExecutionCompleteContentResourceDetails interface {
+	toolExecutionCompleteContentResourceDetails()
+}
+
+type RawToolExecutionCompleteContentResourceDetails struct {
+	Raw json.RawMessage
+}
+
+func (RawToolExecutionCompleteContentResourceDetails) toolExecutionCompleteContentResourceDetails() {}
+
+type EmbeddedBlobResourceContents struct {
+	// Base64-encoded binary content of the resource
+	Blob string `json:"blob"`
+	// MIME type of the blob content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
+func (EmbeddedBlobResourceContents) toolExecutionCompleteContentResourceDetails() {}
+
+type EmbeddedTextResourceContents struct {
+	// MIME type of the text content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content of the resource
+	Text string `json:"text"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+}
+
+func (EmbeddedTextResourceContents) toolExecutionCompleteContentResourceDetails() {}
 
 // Icon image for a resource
 type ToolExecutionCompleteContentResourceLinkIcon struct {
@@ -2407,35 +2498,98 @@ type ToolExecutionCompleteResult struct {
 }
 
 // A user message attachment — a file, directory, code selection, blob, or GitHub reference
-type UserMessageAttachment struct {
+type UserMessageAttachment interface {
+	userMessageAttachment()
+	Type() UserMessageAttachmentType
+}
+
+type RawUserMessageAttachment struct {
+	Discriminator UserMessageAttachmentType
+	Raw           json.RawMessage
+}
+
+func (RawUserMessageAttachment) userMessageAttachment() {}
+func (r RawUserMessageAttachment) Type() UserMessageAttachmentType {
+	return r.Discriminator
+}
+
+// Blob attachment with inline base64-encoded data
+type UserMessageAttachmentBlob struct {
 	// Base64-encoded content
-	Data *string `json:"data,omitempty"`
+	Data string `json:"data"`
 	// User-facing display name for the attachment
 	DisplayName *string `json:"displayName,omitempty"`
-	// Absolute path to the file containing the selection
-	FilePath *string `json:"filePath,omitempty"`
+	// MIME type of the inline data
+	MIMEType string `json:"mimeType"`
+}
+
+func (UserMessageAttachmentBlob) userMessageAttachment() {}
+func (UserMessageAttachmentBlob) Type() UserMessageAttachmentType {
+	return UserMessageAttachmentTypeBlob
+}
+
+// Directory attachment
+type UserMessageAttachmentDirectory struct {
+	// User-facing display name for the attachment
+	DisplayName string `json:"displayName"`
+	// Absolute directory path
+	Path string `json:"path"`
+}
+
+func (UserMessageAttachmentDirectory) userMessageAttachment() {}
+func (UserMessageAttachmentDirectory) Type() UserMessageAttachmentType {
+	return UserMessageAttachmentTypeDirectory
+}
+
+// File attachment
+type UserMessageAttachmentFile struct {
+	// User-facing display name for the attachment
+	DisplayName string `json:"displayName"`
 	// Optional line range to scope the attachment to a specific section of the file
 	LineRange *UserMessageAttachmentFileLineRange `json:"lineRange,omitempty"`
-	// MIME type of the inline data
-	MIMEType *string `json:"mimeType,omitempty"`
-	// Issue, pull request, or discussion number
-	Number *float64 `json:"number,omitempty"`
 	// Absolute file path
-	Path *string `json:"path,omitempty"`
+	Path string `json:"path"`
+}
+
+func (UserMessageAttachmentFile) userMessageAttachment() {}
+func (UserMessageAttachmentFile) Type() UserMessageAttachmentType {
+	return UserMessageAttachmentTypeFile
+}
+
+// GitHub issue, pull request, or discussion reference
+type UserMessageAttachmentGithubReference struct {
+	// Issue, pull request, or discussion number
+	Number float64 `json:"number"`
 	// Type of GitHub reference
-	ReferenceType *UserMessageAttachmentGithubReferenceType `json:"referenceType,omitempty"`
-	// Position range of the selection within the file
-	Selection *UserMessageAttachmentSelectionDetails `json:"selection,omitempty"`
+	ReferenceType UserMessageAttachmentGithubReferenceType `json:"referenceType"`
 	// Current state of the referenced item (e.g., open, closed, merged)
-	State *string `json:"state,omitempty"`
-	// The selected text content
-	Text *string `json:"text,omitempty"`
+	State string `json:"state"`
 	// Title of the referenced item
-	Title *string `json:"title,omitempty"`
-	// Type discriminator
-	Type UserMessageAttachmentType `json:"type"`
+	Title string `json:"title"`
 	// URL to the referenced item on GitHub
-	URL *string `json:"url,omitempty"`
+	URL string `json:"url"`
+}
+
+func (UserMessageAttachmentGithubReference) userMessageAttachment() {}
+func (UserMessageAttachmentGithubReference) Type() UserMessageAttachmentType {
+	return UserMessageAttachmentTypeGithubReference
+}
+
+// Code selection attachment from an editor
+type UserMessageAttachmentSelection struct {
+	// User-facing display name for the selection
+	DisplayName string `json:"displayName"`
+	// Absolute path to the file containing the selection
+	FilePath string `json:"filePath"`
+	// Position range of the selection within the file
+	Selection UserMessageAttachmentSelectionDetails `json:"selection"`
+	// The selected text content
+	Text string `json:"text"`
+}
+
+func (UserMessageAttachmentSelection) userMessageAttachment() {}
+func (UserMessageAttachmentSelection) Type() UserMessageAttachmentType {
+	return UserMessageAttachmentTypeSelection
 }
 
 // Optional line range to scope the attachment to a specific section of the file
@@ -2471,19 +2625,95 @@ type UserMessageAttachmentSelectionDetailsStart struct {
 }
 
 // The approval to add as a session-scoped rule
-type UserToolSessionApproval struct {
+type UserToolSessionApproval interface {
+	userToolSessionApproval()
+	Kind() UserToolSessionApprovalKind
+}
+
+type RawUserToolSessionApproval struct {
+	Discriminator UserToolSessionApprovalKind
+	Raw           json.RawMessage
+}
+
+func (RawUserToolSessionApproval) userToolSessionApproval() {}
+func (r RawUserToolSessionApproval) Kind() UserToolSessionApprovalKind {
+	return r.Discriminator
+}
+
+type UserToolSessionApprovalCommands struct {
 	// Command identifiers approved by the user
-	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
-	// Extension name
-	ExtensionName *string `json:"extensionName,omitempty"`
-	// Kind discriminator
-	Kind UserToolSessionApprovalKind `json:"kind"`
+	CommandIdentifiers []string `json:"commandIdentifiers"`
+}
+
+func (UserToolSessionApprovalCommands) userToolSessionApproval() {}
+func (UserToolSessionApprovalCommands) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindCommands
+}
+
+type UserToolSessionApprovalCustomTool struct {
+	// Custom tool name
+	ToolName string `json:"toolName"`
+}
+
+func (UserToolSessionApprovalCustomTool) userToolSessionApproval() {}
+func (UserToolSessionApprovalCustomTool) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindCustomTool
+}
+
+type UserToolSessionApprovalExtensionManagement struct {
 	// Optional operation identifier
 	Operation *string `json:"operation,omitempty"`
+}
+
+func (UserToolSessionApprovalExtensionManagement) userToolSessionApproval() {}
+func (UserToolSessionApprovalExtensionManagement) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindExtensionManagement
+}
+
+type UserToolSessionApprovalExtensionPermissionAccess struct {
+	// Extension name
+	ExtensionName string `json:"extensionName"`
+}
+
+func (UserToolSessionApprovalExtensionPermissionAccess) userToolSessionApproval() {}
+func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindExtensionPermissionAccess
+}
+
+type UserToolSessionApprovalMcp struct {
 	// MCP server name
-	ServerName *string `json:"serverName,omitempty"`
+	ServerName string `json:"serverName"`
 	// Optional MCP tool name, or null for all tools on the server
-	ToolName *string `json:"toolName,omitempty"`
+	ToolName *string `json:"toolName"`
+}
+
+func (UserToolSessionApprovalMcp) userToolSessionApproval() {}
+func (UserToolSessionApprovalMcp) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindMcp
+}
+
+type UserToolSessionApprovalMemory struct {
+}
+
+func (UserToolSessionApprovalMemory) userToolSessionApproval() {}
+func (UserToolSessionApprovalMemory) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindMemory
+}
+
+type UserToolSessionApprovalRead struct {
+}
+
+func (UserToolSessionApprovalRead) userToolSessionApproval() {}
+func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindRead
+}
+
+type UserToolSessionApprovalWrite struct {
+}
+
+func (UserToolSessionApprovalWrite) userToolSessionApproval() {}
+func (UserToolSessionApprovalWrite) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindWrite
 }
 
 // Working directory and git context at session start

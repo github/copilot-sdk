@@ -78,13 +78,13 @@ func TestMultiClientE2E(t *testing.T) {
 		client2Completed := make(chan struct{}, 1)
 
 		session1.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeExternalToolRequested {
+			switch event.Data.(type) {
+			case *copilot.ExternalToolRequestedData:
 				select {
 				case client1Requested <- struct{}{}:
 				default:
 				}
-			}
-			if event.Type == copilot.SessionEventTypeExternalToolCompleted {
+			case *copilot.ExternalToolCompletedData:
 				select {
 				case client1Completed <- struct{}{}:
 				default:
@@ -92,13 +92,13 @@ func TestMultiClientE2E(t *testing.T) {
 			}
 		})
 		session2.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionEventTypeExternalToolRequested {
+			switch event.Data.(type) {
+			case *copilot.ExternalToolRequestedData:
 				select {
 				case client2Requested <- struct{}{}:
 				default:
 				}
-			}
-			if event.Type == copilot.SessionEventTypeExternalToolCompleted {
+			case *copilot.ExternalToolCompletedData:
 				select {
 				case client2Completed <- struct{}{}:
 				default:
@@ -224,7 +224,11 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		for _, event := range append(c1PermCompleted, c2PermCompleted...) {
 			d, ok := event.Data.(*copilot.PermissionCompletedData)
-			if !ok || string(d.Result.Kind) != "approved" {
+			if !ok {
+				t.Errorf("Expected permission.completed result kind 'approved', got %v", event.Data)
+				continue
+			}
+			if _, ok := d.Result.(*copilot.PermissionApproved); !ok {
 				t.Errorf("Expected permission.completed result kind 'approved', got %v", event.Data)
 			}
 		}
@@ -317,7 +321,11 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		for _, event := range append(c1PermCompleted, c2PermCompleted...) {
 			d, ok := event.Data.(*copilot.PermissionCompletedData)
-			if !ok || string(d.Result.Kind) != "denied-interactively-by-user" {
+			if !ok {
+				t.Errorf("Expected permission.completed result kind 'denied-interactively-by-user', got %v", event.Data)
+				continue
+			}
+			if _, ok := d.Result.(*copilot.PermissionDeniedInteractivelyByUser); !ok {
 				t.Errorf("Expected permission.completed result kind 'denied-interactively-by-user', got %v", event.Data)
 			}
 		}
@@ -507,7 +515,7 @@ func TestMultiClientE2E(t *testing.T) {
 func filterEventsByType(events []copilot.SessionEvent, eventType copilot.SessionEventType) []copilot.SessionEvent {
 	var filtered []copilot.SessionEvent
 	for _, e := range events {
-		if e.Type == eventType {
+		if e.Type() == eventType {
 			filtered = append(filtered, e)
 		}
 	}

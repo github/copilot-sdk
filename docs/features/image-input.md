@@ -120,9 +120,9 @@ func main() {
 	session.Send(ctx, copilot.MessageOptions{
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
-			{
-				Type: copilot.AttachmentTypeFile,
-				Path: &path,
+            &copilot.UserMessageAttachmentFile{
+                DisplayName: "screenshot.png",
+                Path:        path,
 			},
 		},
 	})
@@ -146,9 +146,9 @@ path := "/absolute/path/to/screenshot.png"
 session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
-        {
-            Type: copilot.AttachmentTypeFile,
-            Path: &path,
+        &copilot.UserMessageAttachmentFile{
+            DisplayName: "screenshot.png",
+            Path:        path,
         },
     },
 })
@@ -343,10 +343,9 @@ func main() {
 	session.Send(ctx, copilot.MessageOptions{
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
-			{
-				Type:        copilot.AttachmentTypeBlob,
-				Data:        &base64ImageData,
-				MIMEType:    &mimeType,
+            &copilot.UserMessageAttachmentBlob{
+                Data:        base64ImageData,
+                MIMEType:    mimeType,
 				DisplayName: &displayName,
 			},
 		},
@@ -361,10 +360,9 @@ displayName := "screenshot.png"
 session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
-        {
-            Type:        copilot.AttachmentTypeBlob,
-            Data:        &base64ImageData, // base64-encoded string
-            MIMEType:    &mimeType,
+        &copilot.UserMessageAttachmentBlob{
+            Data:        base64ImageData, // base64-encoded string
+            MIMEType:    mimeType,
             DisplayName: &displayName,
         },
     },

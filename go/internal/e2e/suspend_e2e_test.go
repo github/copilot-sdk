@@ -153,11 +153,12 @@ func TestSuspendE2E(t *testing.T) {
 		case <-time.After(suspendTimeout):
 			t.Fatal("Timed out waiting for permission request")
 		}
-		if request.Kind != copilot.PermissionRequestKindCustomTool {
-			t.Fatalf("Expected custom-tool permission request, got %q", request.Kind)
+		customReq, ok := request.(*copilot.PermissionRequestCustomTool)
+		if !ok {
+			t.Fatalf("Expected custom-tool permission request, got %#v", request)
 		}
-		if request.ToolName == nil || *request.ToolName != "suspend_cancel_permission_tool" {
-			t.Fatalf("Expected permission request for suspend_cancel_permission_tool, got %#v", request.ToolName)
+		if customReq.ToolName != "suspend_cancel_permission_tool" {
+			t.Fatalf("Expected permission request for suspend_cancel_permission_tool, got %#v", request)
 		}
 
 		if err := suspendSession(t.Context(), session); err != nil {

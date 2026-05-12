@@ -79,6 +79,10 @@ function sortByPascalName<T>(entries: [string, T][]): [string, T][] {
     return entries.sort(([left], [right]) => toPascalCase(left).localeCompare(toPascalCase(right)));
 }
 
+function compareGoTypeNames(left: string, right: string): number {
+    return left.localeCompare(right);
+}
+
 function compareRpcMethodsByGoName(left: RpcMethod, right: RpcMethod): number {
     return clientHandlerMethodName(left.rpcMethod).localeCompare(clientHandlerMethodName(right.rpcMethod));
 }
@@ -137,25 +141,56 @@ function wrapGeneratedGoComments(code: string): string {
         .join("\n");
 }
 
+interface GoExtractedField {
+    name: string;
+    type: string;
+}
+
 /**
- * Extract a mapping from (structName, jsonFieldName) → goFieldName
- * so the wrapper code references the generated Go field names.
+ * Extract a mapping from (structName, jsonFieldName) to generated Go field
+ * metadata so wrapper code can reference emitted field names and nil behavior.
  */
-function extractFieldNames(generatedTypeCode: string): Map<string, Map<string, string>> {
-    const result = new Map<string, Map<string, string>>();
+function extractFields(generatedTypeCode: string): Map<string, Map<string, GoExtractedField>> {
+    const result = new Map<string, Map<string, GoExtractedField>>();
     const structRe = /^type\s+(\w+)\s+struct\s*\{([^}]*)\}/gm;
     let sm;
     while ((sm = structRe.exec(generatedTypeCode)) !== null) {
         const [, structName, body] = sm;
-        const fields = new Map<string, string>();
-        const fieldRe = /^\s+(\w+)\s+[^`\n]+`json:"([^",]+)/gm;
+        const fields = new Map<string, GoExtractedField>();
+        const fieldRe = /^\s+(\w+)\s+([^\s`]+)\s+`json:"([^",]+)/gm;
         let fm;
         while ((fm = fieldRe.exec(body)) !== null) {
-            fields.set(fm[2], fm[1]);
+            fields.set(fm[3], { name: fm[1], type: fm[2] });
         }
         result.set(structName, fields);
     }
     return result;
+}
+
+function goTypeIsPointer(goType: string | undefined): boolean {
+    return goType?.startsWith("*") ?? false;
+}
+
+function goTypeIsSlice(goType: string | undefined): boolean {
+    return goType?.startsWith("[]") ?? false;
+}
+
+function goTypeIsMap(goType: string | undefined): boolean {
+    return goType?.startsWith("map[") ?? false;
+}
+
+function goTypeIsNilable(goType: string | undefined, ctx?: GoCodegenCtx): boolean {
+    if (!goType) return false;
+    if (goTypeIsPointer(goType) || goTypeIsSlice(goType) || goTypeIsMap(goType)) return true;
+    return ctx ? goDiscriminatedUnionInfoForType(goType, ctx) !== undefined : false;
+}
+
+function goOptionalFieldNeedsDereference(goType: string | undefined): boolean {
+    return goType === undefined || goTypeIsPointer(goType);
+}
+
+function goTypeWithOptionalPointer(goType: string, ctx?: GoCodegenCtx): string {
+    return goTypeIsNilable(goType, ctx) ? goType : `*${goType}`;
 }
 
 async function formatGoFile(filePath: string): Promise<void> {
@@ -258,13 +293,59 @@ interface GoEventEnvelopeProperty extends SessionEventEnvelopeProperty {
     description?: string;
 }
 
+interface GoDiscriminatedUnionInfo {
+    typeName: string;
+    unmarshalFuncName: string;
+}
+
+interface GoDiscriminatedUnionVariant {
+    schema: JSONSchema7;
+    typeName: string;
+    discriminatorValues: string[];
+}
+
+interface GoDiscriminatorInfo {
+    property: string;
+    mapping: Map<string, GoDiscriminatedUnionVariant[]>;
+    variants: GoDiscriminatedUnionVariant[];
+}
+
+interface GoRequiredFieldDiscriminatorInfo {
+    variants: GoDiscriminatedUnionVariant[];
+}
+
+interface GoPrimitiveUnionVariant {
+    typeName: string;
+    goType: string;
+}
+
+interface GoUntaggedUnionVariant {
+    typeName: string;
+    goType: string;
+    jsonKind: string;
+    typeDefinition?: string;
+    returnExpr: string;
+}
+
+type GoUnionPlan =
+    | { kind: "discriminated"; typeName: string; schema: JSONSchema7; description?: string; discriminator: GoDiscriminatorInfo }
+    | { kind: "requiredFieldDiscriminated"; typeName: string; schema: JSONSchema7; description?: string; discriminator: GoRequiredFieldDiscriminatorInfo }
+    | { kind: "primitive"; typeName: string; schema: JSONSchema7; description?: string; variants: GoPrimitiveUnionVariant[] }
+    | { kind: "flattenedObject"; typeName: string; schema: JSONSchema7; description?: string; variants: JSONSchema7[] }
+    | { kind: "untagged"; typeName: string; schema: JSONSchema7; description?: string; variants: GoUntaggedUnionVariant[] }
+    | { kind: "wrapper"; typeName: string; schema: JSONSchema7; description?: string };
+
 interface GoCodegenCtx {
     structs: string[];
+    encoding: string[];
     enums: string[];
     enumsByName: Map<string, string>; // enumName → enumName (dedup by type name, not values)
+    discriminatedUnions: Map<string, GoDiscriminatedUnionInfo>;
     generatedNames: Set<string>;
     definitions?: DefinitionCollections;
     wrapComments?: boolean;
+    discriminatedUnionRawVariantSuffix?: string;
+    skipDefinitionTypeNames?: Set<string>;
 }
 
 function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
@@ -320,32 +401,90 @@ function sortedGoEventEnvelopeProperties(properties: GoEventEnvelopeProperty[]):
 }
 
 /**
- * Find a const-valued discriminator property shared by all anyOf variants.
+ * Find a string-valued discriminator property shared by all anyOf variants.
  */
 function findGoDiscriminator(
-    variants: JSONSchema7[]
-): { property: string; mapping: Map<string, JSONSchema7> } | null {
+    variants: JSONSchema7[],
+    ctx: GoCodegenCtx,
+    unionTypeName: string
+): GoDiscriminatorInfo | null {
     if (variants.length === 0) return null;
-    const firstVariant = variants[0];
+    const firstVariant = resolveGoUnionMember(variants[0], ctx.definitions);
     if (!firstVariant.properties) return null;
 
     for (const [propName, propSchema] of Object.entries(firstVariant.properties)) {
         if (typeof propSchema !== "object") continue;
-        if ((propSchema as JSONSchema7).const === undefined) continue;
+        const firstValues = goStringEnumValues(propSchema as JSONSchema7, ctx);
+        if (!firstValues || firstValues.length === 0) continue;
 
-        const mapping = new Map<string, JSONSchema7>();
+        const mapping = new Map<string, GoDiscriminatedUnionVariant[]>();
+        const unionVariants: GoDiscriminatedUnionVariant[] = [];
         let valid = true;
-        for (const variant of variants) {
+        for (const variantSource of variants) {
+            const variant = resolveGoUnionMember(variantSource, ctx.definitions);
             if (!variant.properties) { valid = false; break; }
+            if (!(variant.required || []).includes(propName)) { valid = false; break; }
             const vp = variant.properties[propName];
-            if (typeof vp !== "object" || (vp as JSONSchema7).const === undefined) { valid = false; break; }
-            mapping.set(String((vp as JSONSchema7).const), variant);
+            if (typeof vp !== "object") { valid = false; break; }
+            const discriminatorValues = goStringEnumValues(vp as JSONSchema7, ctx);
+            if (!discriminatorValues || discriminatorValues.length === 0) { valid = false; break; }
+            const dedupedValues = [...new Set(discriminatorValues)];
+            const unionVariant = {
+                schema: variant,
+                typeName: goDiscriminatedUnionVariantTypeName(unionTypeName, dedupedValues[0], variantSource, variant, ctx),
+                discriminatorValues: dedupedValues,
+            };
+            unionVariants.push(unionVariant);
+            for (const discriminatorValue of dedupedValues) {
+                const existing = mapping.get(discriminatorValue) ?? [];
+                existing.push(unionVariant);
+                mapping.set(discriminatorValue, existing);
+            }
         }
-        if (valid && mapping.size === variants.length) {
-            return { property: propName, mapping };
+        if (valid && mapping.size > 0 && unionVariants.length === variants.length) {
+            return { property: propName, mapping, variants: unionVariants };
         }
     }
     return null;
+}
+
+function findGoRequiredFieldDiscriminator(
+    variants: JSONSchema7[],
+    ctx: GoCodegenCtx,
+    unionTypeName: string
+): GoRequiredFieldDiscriminatorInfo | null {
+    if (variants.length === 0) return null;
+
+    const objectVariants = variants.map((variantSource) => ({
+        source: variantSource,
+        schema: goObjectUnionMemberSchema(variantSource, ctx),
+    }));
+    if (objectVariants.some((variant) => variant.schema === undefined)) return null;
+
+    const requiredSets = objectVariants.map((variant) => new Set(variant.schema!.required || []));
+    const propertySets = objectVariants.map((variant) => new Set(Object.keys(variant.schema!.properties || {})));
+    const unionVariants: GoDiscriminatedUnionVariant[] = [];
+    const seenTypeNames = new Set<string>();
+    for (const [index, variant] of objectVariants.entries()) {
+        const required = requiredSets[index];
+        if (required.size === 0) return null;
+
+        const uniqueRequired = [...required]
+            .filter((propName) => !propertySets.some((peerProperties, peerIndex) => peerIndex !== index && peerProperties.has(propName)))
+            .sort(compareGoFieldNames);
+        if (uniqueRequired.length === 0) return null;
+
+        const typeName = goDiscriminatedUnionVariantTypeName(unionTypeName, uniqueRequired[0], variant.source, variant.schema!, ctx);
+        if (seenTypeNames.has(typeName)) return null;
+        seenTypeNames.add(typeName);
+        unionVariants.push({
+            schema: variant.schema!,
+            typeName,
+            discriminatorValues: uniqueRequired,
+        });
+    }
+
+    return { variants: unionVariants };
 }
 
 /**
@@ -396,6 +535,23 @@ function goEnumConstSuffix(value: string): string {
         .join("");
 }
 
+function goDiscriminatedUnionVariantTypeName(
+    unionTypeName: string,
+    discriminatorValue: string,
+    variantSource: JSONSchema7,
+    variant: JSONSchema7,
+    ctx: GoCodegenCtx
+): string {
+    if (variantSource.$ref && typeof variantSource.$ref === "string") {
+        return goDefinitionName(refTypeName(variantSource.$ref, ctx.definitions));
+    }
+    const definitionRef = goDefinitionRefForEquivalentSchema(variant, ctx);
+    if (definitionRef) {
+        return goDefinitionName(refTypeName(definitionRef, ctx.definitions));
+    }
+    return `${unionTypeName}${goEnumConstSuffix(discriminatorValue)}`;
+}
+
 function schemaForConstValue(value: unknown): JSONSchema7 {
     if (value === null) return { type: "null" };
     if (Array.isArray(value)) return { type: "array", items: {} };
@@ -440,8 +596,12 @@ function resolveGoPropertyType(
                 emitGoStruct(typeName, resolved, ctx);
                 return isRequired ? typeName : `*${typeName}`;
             }
-            if (resolved.anyOf || resolved.oneOf) {
+            const resolvedUnion = resolved as JSONSchema7;
+            if (resolvedUnion.anyOf || resolvedUnion.oneOf) {
                 emitGoRpcDefinition(refTypeName(propSchema.$ref, ctx.definitions), resolved, ctx);
+                if (goDiscriminatedUnionInfoForType(typeName, ctx)) {
+                    return typeName;
+                }
                 return isRequired ? typeName : `*${typeName}`;
             }
             return resolveGoPropertyType(resolved, parentTypeName, jsonPropName, isRequired, ctx);
@@ -457,10 +617,7 @@ function resolveGoPropertyType(
             // anyOf [T, null/{not:{}}] → nullable T
             const innerType = resolveGoPropertyType(nullableInnerSchema, parentTypeName, jsonPropName, true, ctx);
             // Pointer-wrap if not already a pointer, slice, or map
-            if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
-                return innerType;
-            }
-            return `*${innerType}`;
+            return goTypeWithOptionalPointer(innerType, ctx);
         }
         const nonNull = (propSchema.anyOf as JSONSchema7[]).filter((s) => s.type !== "null");
         const hasNull = (propSchema.anyOf as JSONSchema7[]).some((s) => s.type === "null");
@@ -469,31 +626,15 @@ function resolveGoPropertyType(
             // anyOf [T, null] → nullable T
             const innerType = resolveGoPropertyType(nonNull[0], parentTypeName, jsonPropName, true, ctx);
             if (isRequired && !hasNull) return innerType;
-            if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
-                return innerType;
-            }
-            return `*${innerType}`;
+            return goTypeWithOptionalPointer(innerType, ctx);
         }
 
         if (nonNull.length > 1) {
-            // Resolve $refs in variants before discriminator analysis
-            const resolvedVariants = nonNull.map((v) => {
-                if (v.$ref && typeof v.$ref === "string") {
-                    return resolveRef(v.$ref, ctx.definitions) ?? v;
-                }
-                return v;
-            });
-            // Check for discriminated union
-            const disc = findGoDiscriminator(resolvedVariants);
-            if (disc) {
-                const unionName = (propSchema.title as string) || nestedName;
-                emitGoFlatDiscriminatedUnion(unionName, disc.property, disc.mapping, ctx, propSchema.description);
-                return isRequired && !hasNull ? unionName : `*${unionName}`;
-            }
-            if (canFlattenGoObjectUnion(resolvedVariants, ctx)) {
-                const unionName = (propSchema.title as string) || nestedName;
-                emitGoFlattenedObjectUnion(unionName, resolvedVariants, ctx, propSchema.description);
-                return isRequired && !hasNull ? unionName : `*${unionName}`;
+            const unionName = (propSchema.title as string) || nestedName;
+            const plan = planGoUnion(unionName, propSchema, ctx);
+            if (plan) {
+                emitGoUnionPlan(plan, ctx);
+                return goUnionPlanPropertyType(plan, isRequired, hasNull);
             }
             // Non-discriminated multi-type union → any
             return "any";
@@ -530,8 +671,7 @@ function resolveGoPropertyType(
                 true,
                 ctx
             );
-            if (inner.startsWith("*") || inner.startsWith("[]") || inner.startsWith("map[")) return inner;
-            return `*${inner}`;
+            return goTypeWithOptionalPointer(inner, ctx);
         }
     }
 
@@ -550,14 +690,12 @@ function resolveGoPropertyType(
     if (type === "array") {
         const items = propSchema.items as JSONSchema7 | undefined;
         if (items) {
-            // Discriminated union items
             if (items.anyOf) {
-                const itemVariants = (items.anyOf as JSONSchema7[]).filter((v) => v.type !== "null");
-                const disc = findGoDiscriminator(itemVariants);
-                if (disc) {
-                    const itemTypeName = (items.title as string) || (nestedName + "Item");
-                    emitGoFlatDiscriminatedUnion(itemTypeName, disc.property, disc.mapping, ctx, items.description);
-                    return `[]${itemTypeName}`;
+                const itemTypeName = (items.title as string) || (nestedName + "Item");
+                const plan = planGoUnion(itemTypeName, items, ctx);
+                if (plan) {
+                    emitGoUnionPlan(plan, ctx);
+                    return `[]${goUnionPlanPropertyType(plan, true, false)}`;
                 }
             }
             const itemType = resolveGoPropertyType(items, parentTypeName, jsonPropName + "Item", true, ctx);
@@ -589,7 +727,7 @@ function resolveGoPropertyType(
                 if (resolvedValueType?.anyOf || resolvedValueType?.oneOf) {
                     const unionMembers = goNonNullUnionMembers(resolvedValueType)
                         .map((member) => resolveGoUnionMember(member, ctx.definitions));
-                    if (!canFlattenGoObjectUnion(unionMembers, ctx) && !valueType.startsWith("*") && !valueType.startsWith("[]") && !valueType.startsWith("map[")) {
+                    if (!canFlattenGoObjectUnion(unionMembers, ctx) && !goTypeIsNilable(valueType, ctx)) {
                         valueType = `*${valueType}`;
                     }
                 }
@@ -602,6 +740,117 @@ function resolveGoPropertyType(
     }
 
     return "any";
+}
+
+interface GoStructField {
+    propName: string;
+    goName: string;
+    goType: string;
+    jsonTag: string;
+}
+
+interface GoDiscriminatedUnionField {
+    kind: "single" | "slice" | "map";
+    unionInfo: GoDiscriminatedUnionInfo;
+}
+
+function goUnexportedFunctionName(prefix: string, typeName: string): string {
+    return prefix + typeName;
+}
+
+function goDiscriminatedUnionInfoForType(typeName: string, ctx: GoCodegenCtx): GoDiscriminatedUnionInfo | undefined {
+    return ctx.discriminatedUnions.get(typeName);
+}
+
+function goDiscriminatedUnionField(goType: string, ctx: GoCodegenCtx): GoDiscriminatedUnionField | undefined {
+    const single = goDiscriminatedUnionInfoForType(goType, ctx);
+    if (single) return { kind: "single", unionInfo: single };
+
+    if (goTypeIsSlice(goType)) {
+        const itemType = goType.slice(2);
+        const item = goDiscriminatedUnionInfoForType(itemType, ctx);
+        if (item) return { kind: "slice", unionInfo: item };
+    }
+
+    const mapMatch = /^map\[string\](.+)$/.exec(goType);
+    if (mapMatch) {
+        const value = goDiscriminatedUnionInfoForType(mapMatch[1], ctx);
+        if (value) return { kind: "map", unionInfo: value };
+    }
+
+    return undefined;
+}
+
+function pushGoEncodingBlock(blockLines: string[], ctx: GoCodegenCtx): void {
+    if (blockLines.length === 0) return;
+    ctx.encoding.push(blockLines.join("\n"));
+}
+
+function pushGoStructUnmarshalJSON(lines: string[], typeName: string, fields: GoStructField[], ctx: GoCodegenCtx): void {
+    const unionFields = fields
+        .map((field) => ({ field, unionField: goDiscriminatedUnionField(field.goType, ctx) }))
+        .filter((entry): entry is { field: GoStructField; unionField: GoDiscriminatedUnionField } => entry.unionField !== undefined);
+    if (unionFields.length === 0) return;
+
+    const blockLines: string[] = [];
+    blockLines.push(`func (r *${typeName}) UnmarshalJSON(data []byte) error {`);
+    blockLines.push(`\ttype raw${typeName} struct {`);
+    for (const field of fields) {
+        const unionField = goDiscriminatedUnionField(field.goType, ctx);
+        let rawType = field.goType;
+        if (unionField?.kind === "single") rawType = "json.RawMessage";
+        if (unionField?.kind === "slice") rawType = "[]json.RawMessage";
+        if (unionField?.kind === "map") rawType = "map[string]json.RawMessage";
+        blockLines.push(`\t\t${field.goName} ${rawType} \`${field.jsonTag}\``);
+    }
+    blockLines.push(`\t}`);
+    blockLines.push(`\tvar raw raw${typeName}`);
+    blockLines.push(`\tif err := json.Unmarshal(data, &raw); err != nil {`);
+    blockLines.push(`\t\treturn err`);
+    blockLines.push(`\t}`);
+
+    for (const field of fields) {
+        const unionField = goDiscriminatedUnionField(field.goType, ctx);
+        if (!unionField) {
+            blockLines.push(`\tr.${field.goName} = raw.${field.goName}`);
+            continue;
+        }
+
+        if (unionField.kind === "single") {
+            blockLines.push(`\tif raw.${field.goName} != nil {`);
+            blockLines.push(`\t\tvalue, err := ${unionField.unionInfo.unmarshalFuncName}(raw.${field.goName})`);
+            blockLines.push(`\t\tif err != nil {`);
+            blockLines.push(`\t\t\treturn err`);
+            blockLines.push(`\t\t}`);
+            blockLines.push(`\t\tr.${field.goName} = value`);
+            blockLines.push(`\t}`);
+        } else if (unionField.kind === "slice") {
+            blockLines.push(`\tif raw.${field.goName} != nil {`);
+            blockLines.push(`\t\tr.${field.goName} = make([]${unionField.unionInfo.typeName}, 0, len(raw.${field.goName}))`);
+            blockLines.push(`\t\tfor _, rawItem := range raw.${field.goName} {`);
+            blockLines.push(`\t\t\tvalue, err := ${unionField.unionInfo.unmarshalFuncName}(rawItem)`);
+            blockLines.push(`\t\t\tif err != nil {`);
+            blockLines.push(`\t\t\t\treturn err`);
+            blockLines.push(`\t\t\t}`);
+            blockLines.push(`\t\t\tr.${field.goName} = append(r.${field.goName}, value)`);
+            blockLines.push(`\t\t}`);
+            blockLines.push(`\t}`);
+        } else {
+            blockLines.push(`\tif raw.${field.goName} != nil {`);
+            blockLines.push(`\t\tr.${field.goName} = make(map[string]${unionField.unionInfo.typeName}, len(raw.${field.goName}))`);
+            blockLines.push(`\t\tfor key, rawValue := range raw.${field.goName} {`);
+            blockLines.push(`\t\t\tvalue, err := ${unionField.unionInfo.unmarshalFuncName}(rawValue)`);
+            blockLines.push(`\t\t\tif err != nil {`);
+            blockLines.push(`\t\t\t\treturn err`);
+            blockLines.push(`\t\t\t}`);
+            blockLines.push(`\t\t\tr.${field.goName}[key] = value`);
+            blockLines.push(`\t\t}`);
+            blockLines.push(`\t}`);
+        }
+    }
+    blockLines.push(`\treturn nil`);
+    blockLines.push(`}`);
+    pushGoEncodingBlock(blockLines, ctx);
 }
 
 /**
@@ -627,6 +876,8 @@ function emitGoStruct(
     }
     lines.push(`type ${typeName} struct {`);
 
+    const fields: GoStructField[] = [];
+
     for (const [propName, propSchema] of sortByGoFieldName(Object.entries(schema.properties || {}))) {
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
@@ -641,67 +892,531 @@ function emitGoStruct(
         if (isSchemaDeprecated(prop)) {
             pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
         }
-        lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
+        const jsonTag = `json:"${propName}${omit}"`;
+        lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
+        fields.push({ propName, goName, goType, jsonTag });
     }
 
     lines.push(`}`);
+    pushGoStructUnmarshalJSON(lines, typeName, fields, ctx);
     ctx.structs.push(lines.join("\n"));
 }
 
+function goObjectSchemaForMatch(schema: JSONSchema7, ctx: GoCodegenCtx): JSONSchema7 | undefined {
+    const resolved = resolveSchema(schema, ctx.definitions) ?? schema;
+    const objectSchema = resolveObjectSchema(resolved, ctx.definitions) ?? resolved;
+    if (objectSchema?.properties || objectSchema?.type === "object" || objectSchema?.additionalProperties === false) {
+        return objectSchema;
+    }
+    return undefined;
+}
+
+function goSchemaNeedsJSONMatch(schema: JSONSchema7, ctx: GoCodegenCtx): boolean {
+    if (goObjectSchemaForMatch(schema, ctx)) return true;
+    return goStringEnumValues(schema, ctx) !== undefined;
+}
+
+function pushGoJSONStringMatchLines(
+    lines: string[],
+    rawExpr: string,
+    values: string[],
+    indent: string,
+    varPrefix: string
+): void {
+    const stringVar = `${varPrefix}String`;
+    lines.push(`${indent}var ${stringVar} string`);
+    lines.push(`${indent}if err := json.Unmarshal(${rawExpr}, &${stringVar}); err != nil {`);
+    lines.push(`${indent}\treturn false`);
+    lines.push(`${indent}}`);
+    lines.push(`${indent}switch ${stringVar} {`);
+    lines.push(`${indent}case ${[...new Set(values)].sort().map((value) => JSON.stringify(value)).join(", ")}:`);
+    lines.push(`${indent}default:`);
+    lines.push(`${indent}\treturn false`);
+    lines.push(`${indent}}`);
+}
+
+function pushGoJSONObjectMatchLines(
+    lines: string[],
+    schema: JSONSchema7,
+    rawVar: string,
+    ctx: GoCodegenCtx,
+    indent: string,
+    varPrefix: string
+): void {
+    const properties = schema.properties || {};
+    const propertyNames = Object.keys(properties).sort();
+    const required = [...new Set(schema.required || [])].sort();
+
+    for (const requiredProp of required) {
+        lines.push(`${indent}if _, ok := ${rawVar}[${JSON.stringify(requiredProp)}]; !ok {`);
+        lines.push(`${indent}\treturn false`);
+        lines.push(`${indent}}`);
+    }
+
+    if (schema.additionalProperties === false) {
+        if (propertyNames.length === 0) {
+            lines.push(`${indent}if len(${rawVar}) != 0 {`);
+            lines.push(`${indent}\treturn false`);
+            lines.push(`${indent}}`);
+        } else {
+            lines.push(`${indent}for key := range ${rawVar} {`);
+            lines.push(`${indent}\tswitch key {`);
+            lines.push(`${indent}\tcase ${propertyNames.map((propertyName) => JSON.stringify(propertyName)).join(", ")}:`);
+            lines.push(`${indent}\tdefault:`);
+            lines.push(`${indent}\t\treturn false`);
+            lines.push(`${indent}\t}`);
+            lines.push(`${indent}}`);
+        }
+    }
+
+    for (const [propName, propSchema] of Object.entries(properties).sort(([left], [right]) => left.localeCompare(right))) {
+        if (typeof propSchema !== "object") continue;
+        const prop = propSchema as JSONSchema7;
+        if (!goSchemaNeedsJSONMatch(prop, ctx)) continue;
+        const valueVar = `${varPrefix}${toGoFieldName(propName)}`;
+        lines.push(`${indent}if ${valueVar}, ok := ${rawVar}[${JSON.stringify(propName)}]; ok {`);
+        pushGoJSONSchemaMatchLines(lines, prop, valueVar, ctx, `${indent}\t`, valueVar);
+        lines.push(`${indent}}`);
+    }
+}
+
+function pushGoJSONSchemaMatchLines(
+    lines: string[],
+    schema: JSONSchema7,
+    rawExpr: string,
+    ctx: GoCodegenCtx,
+    indent: string,
+    varPrefix: string
+): void {
+    const objectSchema = goObjectSchemaForMatch(schema, ctx);
+    if (objectSchema) {
+        const objectVar = `${varPrefix}Object`;
+        lines.push(`${indent}var ${objectVar} map[string]json.RawMessage`);
+        lines.push(`${indent}if err := json.Unmarshal(${rawExpr}, &${objectVar}); err != nil {`);
+        lines.push(`${indent}\treturn false`);
+        lines.push(`${indent}}`);
+        pushGoJSONObjectMatchLines(lines, objectSchema, objectVar, ctx, indent, varPrefix);
+        return;
+    }
+
+    const stringValues = goStringEnumValues(schema, ctx);
+    if (stringValues) {
+        pushGoJSONStringMatchLines(lines, rawExpr, stringValues, indent, varPrefix);
+    }
+}
+
+function goVariantMatchFuncName(variantTypeName: string): string {
+    return goUnexportedFunctionName("matches", variantTypeName);
+}
+
+// Minimal checks used to distinguish variants that share the same discriminator.
+// Paths and values come from the JSON schema; these two operation names are the
+// only matcher primitives we currently need for const-aware tie breaking.
+type GoJSONMatchTerm =
+    | { kind: "propertyExists"; path: string[] }
+    | { kind: "stringValue"; path: string[]; values: string[] };
+
+interface GoVariantMatchSpec {
+    positiveTerms: GoJSONMatchTerm[];
+    negativeExistsPaths: string[][];
+}
+
+interface GoJSONMatchTermGroup {
+    parentPath: string[];
+    positiveTerms: GoJSONMatchTerm[];
+    negativeProperties: string[];
+}
+
+function goJSONMatchPathKey(path: string[]): string {
+    return path.join("\0");
+}
+
+function goJSONMatchTermKey(term: GoJSONMatchTerm): string {
+    const base = `${term.kind}:${goJSONMatchPathKey(term.path)}`;
+    if (term.kind === "stringValue") {
+        return `${base}:${[...new Set(term.values)].sort().join("\0")}`;
+    }
+    return base;
+}
+
+function dedupeGoJSONMatchTerms(terms: GoJSONMatchTerm[]): GoJSONMatchTerm[] {
+    const seen = new Set<string>();
+    const result: GoJSONMatchTerm[] = [];
+    for (const term of terms) {
+        const key = goJSONMatchTermKey(term);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(term);
+    }
+    return result;
+}
+
+function compareGoJSONPaths(left: string[], right: string[]): number {
+    return goJSONMatchPathKey(left).localeCompare(goJSONMatchPathKey(right));
+}
+
+function compareGoJSONMatchTerms(left: GoJSONMatchTerm, right: GoJSONMatchTerm): number {
+    const pathComparison = compareGoJSONPaths(left.path, right.path);
+    if (pathComparison !== 0) return pathComparison;
+    return left.kind.localeCompare(right.kind);
+}
+
+function goCollectRequiredJSONMatchTerms(
+    schema: JSONSchema7,
+    ctx: GoCodegenCtx,
+    discriminatorProp: string,
+    path: string[] = []
+): GoJSONMatchTerm[] {
+    const objectSchema = goObjectSchemaForMatch(schema, ctx);
+    if (!objectSchema) return [];
+
+    const properties = objectSchema.properties || {};
+    const terms: GoJSONMatchTerm[] = [];
+    for (const propName of [...new Set(objectSchema.required || [])].sort()) {
+        if (path.length === 0 && propName === discriminatorProp) continue;
+        const propSchema = properties[propName];
+        if (typeof propSchema !== "object") continue;
+
+        const propPath = [...path, propName];
+        const prop = propSchema as JSONSchema7;
+        terms.push({ kind: "propertyExists", path: propPath });
+
+        const stringValues = goStringEnumValues(prop, ctx);
+        if (stringValues) {
+            terms.push({ kind: "stringValue", path: propPath, values: [...new Set(stringValues)].sort() });
+        }
+
+        terms.push(...goCollectRequiredJSONMatchTerms(prop, ctx, discriminatorProp, propPath));
+    }
+
+    return dedupeGoJSONMatchTerms(terms);
+}
+
+function removeRedundantGoJSONExistsTerms(terms: GoJSONMatchTerm[]): GoJSONMatchTerm[] {
+    const stringPaths = new Set(terms
+        .filter((term) => term.kind === "stringValue")
+        .map((term) => goJSONMatchPathKey(term.path)));
+    return terms.filter((term) => term.kind !== "propertyExists" || !stringPaths.has(goJSONMatchPathKey(term.path)));
+}
+
+function goVariantTargetedMatchSpec(
+    variant: GoDiscriminatedUnionVariant,
+    groupVariants: GoDiscriminatedUnionVariant[],
+    discriminatorProp: string,
+    ctx: GoCodegenCtx
+): GoVariantMatchSpec {
+    const termsByVariant = new Map<string, GoJSONMatchTerm[]>();
+    const termCounts = new Map<string, number>();
+
+    for (const groupVariant of groupVariants) {
+        const terms = goCollectRequiredJSONMatchTerms(groupVariant.schema, ctx, discriminatorProp);
+        termsByVariant.set(groupVariant.typeName, terms);
+        for (const term of terms) {
+            const key = goJSONMatchTermKey(term);
+            termCounts.set(key, (termCounts.get(key) ?? 0) + 1);
+        }
+    }
+
+    const variantTerms = termsByVariant.get(variant.typeName) ?? [];
+    const uniqueTerms = variantTerms.filter((term) => (termCounts.get(goJSONMatchTermKey(term)) ?? 0) < groupVariants.length);
+    const positiveTerms = removeRedundantGoJSONExistsTerms(uniqueTerms).sort(compareGoJSONMatchTerms);
+
+    const variantPositivePathKeys = new Set(positiveTerms.map((term) => goJSONMatchPathKey(term.path)));
+    const peerPositivePathKeys = new Set<string>();
+    const peerPositivePaths: string[][] = [];
+    for (const groupVariant of groupVariants) {
+        if (groupVariant.typeName === variant.typeName) continue;
+        const groupTerms = termsByVariant.get(groupVariant.typeName) ?? [];
+        const peerUniqueTerms = removeRedundantGoJSONExistsTerms(
+            groupTerms.filter((term) => (termCounts.get(goJSONMatchTermKey(term)) ?? 0) < groupVariants.length)
+        );
+        for (const term of peerUniqueTerms) {
+            const pathKey = goJSONMatchPathKey(term.path);
+            if (variantPositivePathKeys.has(pathKey) || peerPositivePathKeys.has(pathKey)) continue;
+            peerPositivePathKeys.add(pathKey);
+            peerPositivePaths.push(term.path);
+        }
+    }
+
+    return {
+        positiveTerms,
+        negativeExistsPaths: peerPositivePaths.sort(compareGoJSONPaths),
+    };
+}
+
+function goJSONMatchTermParentPath(term: GoJSONMatchTerm): string[] {
+    return term.path.slice(0, -1);
+}
+
+function goJSONMatchPathParentPath(path: string[]): string[] {
+    return path.slice(0, -1);
+}
+
+function goJSONMatchPathProperty(path: string[]): string {
+    return path[path.length - 1];
+}
+
+function groupGoJSONMatchTerms(spec: GoVariantMatchSpec): GoJSONMatchTermGroup[] {
+    const groups = new Map<string, GoJSONMatchTermGroup>();
+    const getGroup = (parentPath: string[]): GoJSONMatchTermGroup => {
+        const key = goJSONMatchPathKey(parentPath);
+        const existing = groups.get(key);
+        if (existing) return existing;
+        const group = { parentPath, positiveTerms: [], negativeProperties: [] };
+        groups.set(key, group);
+        return group;
+    };
+
+    for (const term of spec.positiveTerms) {
+        getGroup(goJSONMatchTermParentPath(term)).positiveTerms.push(term);
+    }
+    for (const path of spec.negativeExistsPaths) {
+        const group = getGroup(goJSONMatchPathParentPath(path));
+        group.negativeProperties.push(goJSONMatchPathProperty(path));
+    }
+
+    return [...groups.values()]
+        .map((group) => ({
+            parentPath: group.parentPath,
+            positiveTerms: group.positiveTerms.sort(compareGoJSONMatchTerms),
+            negativeProperties: [...new Set(group.negativeProperties)].sort(),
+        }))
+        .sort((left, right) => compareGoJSONPaths(left.parentPath, right.parentPath));
+}
+
+function goJSONRawStructFields(propNames: string[]): Map<string, string> {
+    const fieldNames = new Map<string, string>();
+    const used = new Set<string>();
+    for (const propName of [...new Set(propNames)].sort()) {
+        const baseName = toGoFieldName(propName) || "Field";
+        let fieldName = baseName;
+        let suffix = 2;
+        while (used.has(fieldName)) {
+            fieldName = `${baseName}${suffix++}`;
+        }
+        used.add(fieldName);
+        fieldNames.set(propName, fieldName);
+    }
+    return fieldNames;
+}
+
+function pushGoJSONRawStructDeclLines(
+    lines: string[],
+    structVar: string,
+    propNames: string[],
+    indent: string
+): Map<string, string> {
+    const fieldNames = goJSONRawStructFields(propNames);
+    lines.push(`${indent}var ${structVar} struct {`);
+    for (const [propName, fieldName] of fieldNames) {
+        lines.push(`${indent}\t${fieldName} json.RawMessage \`json:"${propName}"\``);
+    }
+    lines.push(`${indent}}`);
+    return fieldNames;
+}
+
+function pushGoJSONRawStructUnmarshalLines(
+    lines: string[],
+    rawExpr: string,
+    structVar: string,
+    propNames: string[],
+    indent: string
+): Map<string, string> {
+    const fieldNames = pushGoJSONRawStructDeclLines(lines, structVar, propNames, indent);
+    lines.push(`${indent}if err := json.Unmarshal(${rawExpr}, &${structVar}); err != nil {`);
+    lines.push(`${indent}\treturn false`);
+    lines.push(`${indent}}`);
+    return fieldNames;
+}
+
+function goJSONPathVarName(varPrefix: string, path: string[]): string {
+    return `${varPrefix}${path.map(toGoFieldName).join("")}`;
+}
+
+function pushGoJSONRequiredRawPathLines(
+    lines: string[],
+    rootRawExpr: string,
+    path: string[],
+    indent: string,
+    varPrefix: string
+): string {
+    let rawExpr = rootRawExpr;
+    for (let index = 0; index < path.length; index++) {
+        const structVar = goJSONPathVarName(varPrefix, path.slice(0, index));
+        const fieldNames = pushGoJSONRawStructUnmarshalLines(lines, rawExpr, structVar, [path[index]], indent);
+        const fieldExpr = `${structVar}.${fieldNames.get(path[index])!}`;
+        lines.push(`${indent}if ${fieldExpr} == nil {`);
+        lines.push(`${indent}\treturn false`);
+        lines.push(`${indent}}`);
+        rawExpr = fieldExpr;
+    }
+    return rawExpr;
+}
+
+function pushGoJSONOptionalRawPathLines(
+    lines: string[],
+    rawExpr: string,
+    path: string[],
+    indent: string,
+    varPrefix: string,
+    pushInnerLines: (innerRawExpr: string, innerVarPrefix: string, innerIndent: string) => void,
+    pathPrefix: string[] = [],
+    requireObject: boolean = true
+): void {
+    if (path.length === 0) {
+        pushInnerLines(rawExpr, goJSONPathVarName(varPrefix, pathPrefix), indent);
+        return;
+    }
+
+    const [head, ...tail] = path;
+    const structVar = goJSONPathVarName(varPrefix, pathPrefix);
+    const fieldNames = pushGoJSONRawStructDeclLines(lines, structVar, [head], indent);
+    if (requireObject) {
+        lines.push(`${indent}if err := json.Unmarshal(${rawExpr}, &${structVar}); err != nil {`);
+        lines.push(`${indent}\treturn false`);
+        lines.push(`${indent}}`);
+        lines.push(`${indent}if ${structVar}.${fieldNames.get(head)!} != nil {`);
+    } else {
+        lines.push(`${indent}if err := json.Unmarshal(${rawExpr}, &${structVar}); err == nil && ${structVar}.${fieldNames.get(head)!} != nil {`);
+    }
+    pushGoJSONOptionalRawPathLines(
+        lines,
+        `${structVar}.${fieldNames.get(head)!}`,
+        tail,
+        `${indent}\t`,
+        varPrefix,
+        pushInnerLines,
+        [...pathPrefix, head],
+        false
+    );
+    lines.push(`${indent}}`);
+}
+
+function pushGoJSONPositiveTermLines(
+    lines: string[],
+    structVar: string,
+    fieldNames: Map<string, string>,
+    term: GoJSONMatchTerm,
+    indent: string,
+    varPrefix: string
+): void {
+    const propName = goJSONMatchPathProperty(term.path);
+    const fieldExpr = `${structVar}.${fieldNames.get(propName)!}`;
+    if (term.kind === "propertyExists") {
+        lines.push(`${indent}if ${fieldExpr} == nil {`);
+        lines.push(`${indent}\treturn false`);
+        lines.push(`${indent}}`);
+        return;
+    }
+
+    lines.push(`${indent}if ${fieldExpr} == nil {`);
+    lines.push(`${indent}\treturn false`);
+    lines.push(`${indent}}`);
+    pushGoJSONStringMatchLines(lines, fieldExpr, term.values, indent, varPrefix);
+}
+
+function pushGoJSONNegativePropertyLines(
+    lines: string[],
+    structVar: string,
+    fieldNames: Map<string, string>,
+    properties: string[],
+    indent: string,
+    emitFinalReturn: boolean = false
+): string | undefined {
+    const propertyChecks = emitFinalReturn ? properties.slice(0, -1) : properties;
+    for (const propName of propertyChecks) {
+        lines.push(`${indent}if ${structVar}.${fieldNames.get(propName)!} != nil {`);
+        lines.push(`${indent}\treturn false`);
+        lines.push(`${indent}}`);
+    }
+    if (!emitFinalReturn || properties.length === 0) return undefined;
+    return `${structVar}.${fieldNames.get(properties[properties.length - 1])!} == nil`;
+}
+
+function pushGoJSONTargetedMatchSpecLines(
+    lines: string[],
+    rootRawExpr: string,
+    spec: GoVariantMatchSpec,
+    indent: string
+): string | undefined {
+    const groups = groupGoJSONMatchTerms(spec);
+    for (const [index, group] of groups.entries()) {
+        const emitFinalReturn = index === groups.length - 1;
+        const groupVarPrefix = `rawGroup${index}`;
+        const groupProperties = [
+            ...group.positiveTerms.map((term) => goJSONMatchPathProperty(term.path)),
+            ...group.negativeProperties,
+        ];
+        if (group.positiveTerms.length > 0) {
+            const rawExpr = pushGoJSONRequiredRawPathLines(lines, rootRawExpr, group.parentPath, indent, groupVarPrefix);
+            const structVar = goJSONPathVarName(groupVarPrefix, group.parentPath);
+            const fieldNames = pushGoJSONRawStructUnmarshalLines(lines, rawExpr, structVar, groupProperties, indent);
+            for (const term of group.positiveTerms) {
+                pushGoJSONPositiveTermLines(lines, structVar, fieldNames, term, indent, groupVarPrefix);
+            }
+            const finalReturn = pushGoJSONNegativePropertyLines(lines, structVar, fieldNames, group.negativeProperties, indent, emitFinalReturn);
+            if (finalReturn) return finalReturn;
+            continue;
+        }
+
+        if (group.parentPath.length === 0) {
+            const structVar = goJSONPathVarName(groupVarPrefix, group.parentPath);
+            const fieldNames = pushGoJSONRawStructUnmarshalLines(lines, rootRawExpr, structVar, groupProperties, indent);
+            const finalReturn = pushGoJSONNegativePropertyLines(lines, structVar, fieldNames, group.negativeProperties, indent, emitFinalReturn);
+            if (finalReturn) return finalReturn;
+            continue;
+        }
+
+        pushGoJSONOptionalRawPathLines(lines, rootRawExpr, group.parentPath, indent, groupVarPrefix, (rawExpr, structVar, innerIndent) => {
+            const fieldNames = pushGoJSONRawStructDeclLines(lines, structVar, groupProperties, innerIndent);
+            lines.push(`${innerIndent}if err := json.Unmarshal(${rawExpr}, &${structVar}); err == nil {`);
+            pushGoJSONNegativePropertyLines(lines, structVar, fieldNames, group.negativeProperties, `${innerIndent}\t`);
+            lines.push(`${innerIndent}}`);
+        });
+    }
+    return undefined;
+}
+
+function goVariantMatchFunctionLines(
+    variant: GoDiscriminatedUnionVariant,
+    groupVariants: GoDiscriminatedUnionVariant[],
+    discriminatorProp: string,
+    ctx: GoCodegenCtx
+): string[] {
+    const lines: string[] = [];
+    lines.push(`func ${goVariantMatchFuncName(variant.typeName)}(data []byte) bool {`);
+    const spec = goVariantTargetedMatchSpec(variant, groupVariants, discriminatorProp, ctx);
+    if (spec.positiveTerms.length === 0 && spec.negativeExistsPaths.length === 0) {
+        pushGoJSONSchemaMatchLines(lines, variant.schema, "data", ctx, "\t", "raw");
+        lines.push(`\treturn true`);
+        lines.push(`}`);
+        return lines;
+    }
+
+    const finalReturn = pushGoJSONTargetedMatchSpecLines(lines, "data", spec, "\t");
+    lines.push(`\treturn ${finalReturn ?? "true"}`);
+    lines.push(`}`);
+    return lines;
+}
+
 /**
- * Emit a flat Go struct for a discriminated union (anyOf with const discriminator).
- * Merges all variant properties into a single struct.
+ * Emit a Go interface for a discriminated union (anyOf with const discriminator).
  */
 function emitGoFlatDiscriminatedUnion(
     typeName: string,
-    discriminatorProp: string,
-    mapping: Map<string, JSONSchema7>,
+    discriminator: GoDiscriminatorInfo,
     ctx: GoCodegenCtx,
     description?: string
 ): void {
     if (ctx.generatedNames.has(typeName)) return;
     ctx.generatedNames.add(typeName);
 
-    // Collect all properties across variants, determining which are required in all
-    const allProps = new Map<
-        string,
-        { schema: JSONSchema7; requiredInAll: boolean }
-    >();
-
-    for (const [, variant] of mapping) {
-        const required = new Set(variant.required || []);
-        for (const [propName, propSchema] of Object.entries(variant.properties || {})) {
-            if (typeof propSchema !== "object") continue;
-            if (!allProps.has(propName)) {
-                allProps.set(propName, {
-                    schema: propSchema as JSONSchema7,
-                    requiredInAll: required.has(propName),
-                });
-            } else {
-                const existing = allProps.get(propName)!;
-                if (!required.has(propName)) {
-                    existing.requiredInAll = false;
-                }
-            }
-        }
-    }
-
-    // Properties not present in all variants must be optional
-    const variantCount = mapping.size;
-    for (const [propName, info] of allProps) {
-        let presentCount = 0;
-        for (const [, variant] of mapping) {
-            if (variant.properties && propName in variant.properties) {
-                presentCount++;
-            }
-        }
-        if (presentCount < variantCount) {
-            info.requiredInAll = false;
-        }
-    }
-
     // Discriminator field: generate an enum from the const values
+    const discriminatorProp = discriminator.property;
+    const mapping = discriminator.mapping;
+    const unionVariants = [...discriminator.variants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName));
     const discGoName = toGoFieldName(discriminatorProp);
+    const discriminatorMethodName = discGoName;
     const discValues = [...mapping.keys()];
     const discEnumName = getOrCreateGoEnum(
         typeName + discGoName,
@@ -710,30 +1425,262 @@ function emitGoFlatDiscriminatedUnion(
         `${discGoName} discriminator for ${typeName}.`
     );
 
+    const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
+    const rawDataName = `Raw${typeName}${ctx.discriminatedUnionRawVariantSuffix ?? "Data"}`;
+    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
+
     const lines: string[] = [];
     if (description) {
         pushGoCommentForContext(lines, description, ctx);
     }
-    lines.push(`type ${typeName} struct {`);
+    lines.push(`type ${typeName} interface {`);
+    lines.push(`\t${markerName}()`);
+    lines.push(`\t${discriminatorMethodName}() ${discEnumName}`);
+    lines.push(`}`);
+    lines.push(``);
 
-    for (const [propName, info] of sortByGoFieldName([...allProps.entries()])) {
-        const goName = toGoFieldName(propName);
-        const goType = propName === discriminatorProp
-            ? discEnumName
-            : resolveGoPropertyType(info.schema, typeName, propName, info.requiredInAll, ctx);
-        const omit = info.requiredInAll ? "" : ",omitempty";
-        if (propName === discriminatorProp) {
-            lines.push(`\t// ${discGoName} discriminator`);
-        } else if (info.schema.description) {
-            pushGoCommentForContext(lines, info.schema.description, ctx, "\t");
+    const ambiguousGroupsByVariantTypeName = new Map<string, GoDiscriminatedUnionVariant[]>();
+    for (const groupVariants of mapping.values()) {
+        if (groupVariants.length <= 1) continue;
+        const sortedGroupVariants = [...groupVariants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName));
+        for (const variant of groupVariants) {
+            ambiguousGroupsByVariantTypeName.set(variant.typeName, sortedGroupVariants);
         }
-        if (isSchemaDeprecated(info.schema)) {
-            pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
+    }
+    for (const variant of unionVariants) {
+        const groupVariants = ambiguousGroupsByVariantTypeName.get(variant.typeName);
+        if (groupVariants) {
+            pushGoEncodingBlock(goVariantMatchFunctionLines(variant, groupVariants, discriminatorProp, ctx), ctx);
         }
-        lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
     }
 
+    const unmarshalLines: string[] = [];
+    unmarshalLines.push(`func ${unmarshalFuncName}(data []byte) (${typeName}, error) {`);
+    unmarshalLines.push(`\tif string(data) == "null" {`);
+    unmarshalLines.push(`\t\treturn nil, nil`);
+    unmarshalLines.push(`\t}`);
+    unmarshalLines.push(`\ttype rawUnion struct {`);
+    unmarshalLines.push(`\t\t${discGoName} ${discEnumName} \`json:"${discriminatorProp}"\``);
+    unmarshalLines.push(`\t}`);
+    unmarshalLines.push(`\tvar raw rawUnion`);
+    unmarshalLines.push(`\tif err := json.Unmarshal(data, &raw); err != nil {`);
+    unmarshalLines.push(`\t\treturn nil, err`);
+    unmarshalLines.push(`\t}`);
+    unmarshalLines.push(``);
+    unmarshalLines.push(`\tswitch raw.${discGoName} {`);
+    for (const discriminatorValue of [...mapping.keys()].sort()) {
+        const constName = `${discEnumName}${goEnumConstSuffix(discriminatorValue)}`;
+        const mappedVariants = [...mapping.get(discriminatorValue)!].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName));
+        unmarshalLines.push(`\tcase ${constName}:`);
+        if (mappedVariants.length === 1) {
+            const variantTypeName = mappedVariants[0].typeName;
+            unmarshalLines.push(`\t\tvar d ${variantTypeName}`);
+            unmarshalLines.push(`\t\tif err := json.Unmarshal(data, &d); err != nil {`);
+            unmarshalLines.push(`\t\t\treturn nil, err`);
+            unmarshalLines.push(`\t\t}`);
+            unmarshalLines.push(`\t\treturn &d, nil`);
+        } else {
+            for (const mappedVariant of mappedVariants) {
+                unmarshalLines.push(`\t\tif ${goVariantMatchFuncName(mappedVariant.typeName)}(data) {`);
+                unmarshalLines.push(`\t\t\tvar d ${mappedVariant.typeName}`);
+                unmarshalLines.push(`\t\t\tif err := json.Unmarshal(data, &d); err != nil {`);
+                unmarshalLines.push(`\t\t\t\treturn nil, err`);
+                unmarshalLines.push(`\t\t\t}`);
+                unmarshalLines.push(`\t\t\treturn &d, nil`);
+                unmarshalLines.push(`\t\t}`);
+            }
+            unmarshalLines.push(`\t\treturn &${rawDataName}{Discriminator: raw.${discGoName}, Raw: data}, nil`);
+        }
+    }
+    unmarshalLines.push(`\tdefault:`);
+    unmarshalLines.push(`\t\treturn &${rawDataName}{Discriminator: raw.${discGoName}, Raw: data}, nil`);
+    unmarshalLines.push(`\t}`);
+    unmarshalLines.push(`}`);
+    pushGoEncodingBlock(unmarshalLines, ctx);
+
+    lines.push(`type ${rawDataName} struct {`);
+    lines.push(`\tDiscriminator ${discEnumName}`);
+    lines.push(`\tRaw           json.RawMessage`);
     lines.push(`}`);
+    lines.push(``);
+    lines.push(`func (${rawDataName}) ${markerName}() {}`);
+    lines.push(`func (r ${rawDataName}) ${discriminatorMethodName}() ${discEnumName} {`);
+    lines.push(`\treturn r.Discriminator`);
+    lines.push(`}`);
+    pushGoEncodingBlock([
+        `func (r ${rawDataName}) MarshalJSON() ([]byte, error) {`,
+        `\tif r.Raw != nil {`,
+        `\t\treturn r.Raw, nil`,
+        `\t}`,
+        `\treturn json.Marshal(struct {`,
+        `\t\t${discGoName} ${discEnumName} \`json:"${discriminatorProp}"\``,
+        `\t}{`,
+        `\t\t${discGoName}: r.Discriminator,`,
+        `\t})`,
+        `}`,
+    ], ctx);
+
+    for (const mappedVariant of unionVariants) {
+        const variant = mappedVariant.schema;
+        const variantTypeName = mappedVariant.typeName;
+        if (variant.description) {
+            pushGoCommentForContext(lines, variant.description, ctx);
+        }
+        ctx.generatedNames.add(variantTypeName);
+        lines.push(`type ${variantTypeName} struct {`);
+        const required = new Set(variant.required || []);
+        const fields: GoStructField[] = [];
+        for (const [propName, propSchema] of sortByGoFieldName(Object.entries(variant.properties || {}))) {
+            if (typeof propSchema !== "object") continue;
+            const prop = propSchema as JSONSchema7;
+            if (propName === discriminatorProp) {
+                if (mappedVariant.discriminatorValues.length <= 1) continue;
+                const goType = resolveGoPropertyType(prop, variantTypeName, propName, true, ctx);
+                const jsonTag = `json:"${propName},omitempty"`;
+                lines.push(`\tDiscriminator ${goType} \`${jsonTag}\``);
+                fields.push({ propName, goName: "Discriminator", goType, jsonTag });
+                continue;
+            }
+            const goName = toGoFieldName(propName);
+            const goType = resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx);
+            const omit = required.has(propName) ? "" : ",omitempty";
+            if (prop.description) {
+                pushGoCommentForContext(lines, prop.description, ctx, "\t");
+            }
+            if (isSchemaDeprecated(prop)) {
+                pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
+            }
+            const jsonTag = `json:"${propName}${omit}"`;
+            lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
+            fields.push({ propName, goName, goType, jsonTag });
+        }
+        lines.push(`}`);
+        pushGoStructUnmarshalJSON(lines, variantTypeName, fields, ctx);
+        lines.push(``);
+        lines.push(`func (${variantTypeName}) ${markerName}() {}`);
+        const defaultConstName = `${discEnumName}${goEnumConstSuffix(mappedVariant.discriminatorValues[0])}`;
+        if (mappedVariant.discriminatorValues.length <= 1) {
+            lines.push(`func (${variantTypeName}) ${discriminatorMethodName}() ${discEnumName} {`);
+            lines.push(`\treturn ${defaultConstName}`);
+        } else {
+            lines.push(`func (r ${variantTypeName}) ${discriminatorMethodName}() ${discEnumName} {`);
+            lines.push(`\tif r.Discriminator == "" {`);
+            lines.push(`\t\treturn ${defaultConstName}`);
+            lines.push(`\t}`);
+            lines.push(`\treturn ${discEnumName}(r.Discriminator)`);
+        }
+        lines.push(`}`);
+        pushGoEncodingBlock([
+            `func (r ${variantTypeName}) MarshalJSON() ([]byte, error) {`,
+            `\ttype alias ${variantTypeName}`,
+            `\treturn json.Marshal(struct {`,
+            `\t\t${discGoName} ${discEnumName} \`json:"${discriminatorProp}"\``,
+            `\t\talias`,
+            `\t}{`,
+            `\t\t${discGoName}: r.${discriminatorMethodName}(),`,
+            `\t\talias: alias(r),`,
+            `\t})`,
+            `}`,
+        ], ctx);
+    }
+
+    ctx.structs.push(lines.join("\n"));
+}
+
+function emitGoRequiredFieldDiscriminatedUnion(
+    typeName: string,
+    discriminator: GoRequiredFieldDiscriminatorInfo,
+    ctx: GoCodegenCtx,
+    description?: string
+): void {
+    if (ctx.generatedNames.has(typeName)) return;
+    ctx.generatedNames.add(typeName);
+
+    const unionVariants = [...discriminator.variants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName));
+    const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
+    const rawDataName = `Raw${typeName}${ctx.discriminatedUnionRawVariantSuffix ?? "Data"}`;
+    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
+
+    const lines: string[] = [];
+    if (description) {
+        pushGoCommentForContext(lines, description, ctx);
+    }
+    lines.push(`type ${typeName} interface {`);
+    lines.push(`\t${markerName}()`);
+    lines.push(`}`);
+    lines.push(``);
+
+    for (const variant of unionVariants) {
+        pushGoEncodingBlock(goVariantMatchFunctionLines(variant, unionVariants, "", ctx), ctx);
+    }
+
+    const unmarshalLines: string[] = [];
+    unmarshalLines.push(`func ${unmarshalFuncName}(data []byte) (${typeName}, error) {`);
+    unmarshalLines.push(`\tif string(data) == "null" {`);
+    unmarshalLines.push(`\t\treturn nil, nil`);
+    unmarshalLines.push(`\t}`);
+    for (const variant of unionVariants) {
+        unmarshalLines.push(`\tif ${goVariantMatchFuncName(variant.typeName)}(data) {`);
+        unmarshalLines.push(`\t\tvar d ${variant.typeName}`);
+        unmarshalLines.push(`\t\tif err := json.Unmarshal(data, &d); err != nil {`);
+        unmarshalLines.push(`\t\t\treturn nil, err`);
+        unmarshalLines.push(`\t\t}`);
+        unmarshalLines.push(`\t\treturn &d, nil`);
+        unmarshalLines.push(`\t}`);
+    }
+    unmarshalLines.push(`\treturn &${rawDataName}{Raw: data}, nil`);
+    unmarshalLines.push(`}`);
+    pushGoEncodingBlock(unmarshalLines, ctx);
+
+    lines.push(`type ${rawDataName} struct {`);
+    lines.push(`\tRaw json.RawMessage`);
+    lines.push(`}`);
+    lines.push(``);
+    lines.push(`func (${rawDataName}) ${markerName}() {}`);
+    pushGoEncodingBlock([
+        `func (r ${rawDataName}) MarshalJSON() ([]byte, error) {`,
+        `\tif r.Raw != nil {`,
+        `\t\treturn r.Raw, nil`,
+        `\t}`,
+        `\treturn []byte("null"), nil`,
+        `}`,
+    ], ctx);
+
+    for (const mappedVariant of unionVariants) {
+        const variant = mappedVariant.schema;
+        const variantTypeName = mappedVariant.typeName;
+        if (variant.description) {
+            pushGoCommentForContext(lines, variant.description, ctx);
+        }
+        ctx.generatedNames.add(variantTypeName);
+        lines.push(`type ${variantTypeName} struct {`);
+        const required = new Set(variant.required || []);
+        const fields: GoStructField[] = [];
+        for (const [propName, propSchema] of sortByGoFieldName(Object.entries(variant.properties || {}))) {
+            if (typeof propSchema !== "object") continue;
+            const prop = propSchema as JSONSchema7;
+            const goName = toGoFieldName(propName);
+            const goType = resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx);
+            const omit = required.has(propName) ? "" : ",omitempty";
+            if (prop.description) {
+                pushGoCommentForContext(lines, prop.description, ctx, "\t");
+            }
+            if (isSchemaDeprecated(prop)) {
+                pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
+            }
+            const jsonTag = `json:"${propName}${omit}"`;
+            lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
+            fields.push({ propName, goName, goType, jsonTag });
+        }
+        lines.push(`}`);
+        pushGoStructUnmarshalJSON(lines, variantTypeName, fields, ctx);
+        lines.push(``);
+        lines.push(`func (${variantTypeName}) ${markerName}() {}`);
+        lines.push(``);
+    }
+
     ctx.structs.push(lines.join("\n"));
 }
 
@@ -821,6 +1768,34 @@ function goNonNullUnionMembers(schema: JSONSchema7): JSONSchema7[] {
             if (member.not && typeof member.not === "object" && Object.keys(member.not).length === 0) return false;
             return true;
         }) ?? [];
+}
+
+function collectGoDiscriminatedUnionVariantDefinitionTypeNames(
+    definitions: Record<string, JSONSchema7>,
+    ctx: GoCodegenCtx
+): Set<string> {
+    const definitionTypeNames = new Set(Object.keys(definitions).map((definitionName) => goDefinitionName(definitionName)));
+    const skipped = new Set<string>();
+
+    for (const [definitionName, schema] of Object.entries(definitions)) {
+        const typeName = goDefinitionName(definitionName);
+        const effectiveSchema = resolveObjectSchema(schema, ctx.definitions) ?? resolveSchema(schema, ctx.definitions) ?? schema;
+        const unionMembers = goNonNullUnionMembers(effectiveSchema);
+        if (unionMembers.length === 0) continue;
+
+        const discriminator = findGoDiscriminator(unionMembers, ctx, typeName);
+        const requiredFieldDiscriminator = discriminator ? undefined : findGoRequiredFieldDiscriminator(unionMembers, ctx, typeName);
+        const variants = discriminator?.variants ?? requiredFieldDiscriminator?.variants;
+        if (!variants) continue;
+
+        for (const variant of variants) {
+            if (definitionTypeNames.has(variant.typeName)) {
+                skipped.add(variant.typeName);
+            }
+        }
+    }
+
+    return skipped;
 }
 
 function resolveGoUnionMember(member: JSONSchema7, definitions: DefinitionCollections | undefined): JSONSchema7 {
@@ -932,6 +1907,8 @@ function emitGoFlattenedObjectUnion(
     }
     lines.push(`type ${typeName} struct {`);
 
+    const fields: GoStructField[] = [];
+
     for (const [propName, info] of sortByGoFieldName([...allProps.entries()])) {
         const goName = toGoFieldName(propName);
         const mergedSchema = mergeGoFlattenedPropertySchema(typeName, propName, info.schemas, ctx);
@@ -945,10 +1922,13 @@ function emitGoFlattenedObjectUnion(
         if (info.schemas.some((schema) => isSchemaDeprecated(schema))) {
             pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
         }
-        lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
+        const jsonTag = `json:"${propName}${omit}"`;
+        lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
+        fields.push({ propName, goName, goType, jsonTag });
     }
 
     lines.push(`}`);
+    pushGoStructUnmarshalJSON(lines, typeName, fields, ctx);
     ctx.structs.push(lines.join("\n"));
 }
 
@@ -994,34 +1974,397 @@ function goPrimitiveUnionFieldName(schema: JSONSchema7): string {
 
 function goUnionFieldType(member: JSONSchema7, fieldName: string, parentTypeName: string, ctx: GoCodegenCtx): string {
     const memberType = resolveGoPropertyType(member, parentTypeName, fieldName, true, ctx);
-    if (memberType.startsWith("*") || memberType.startsWith("[]") || memberType.startsWith("map[")) {
-        return memberType;
-    }
-    return `*${memberType}`;
+    return goTypeWithOptionalPointer(memberType, ctx);
 }
 
-function goUnionFieldMarshalIsSet(fieldName: string, fieldType: string): string {
-    if (fieldType.startsWith("*") || fieldType.startsWith("[]") || fieldType.startsWith("map[")) {
+function goUnionFieldMarshalIsSet(fieldName: string, fieldType: string, ctx: GoCodegenCtx): string {
+    if (goTypeIsNilable(fieldType, ctx)) {
         return `r.${fieldName} != nil`;
     }
     return "true";
 }
 
 function goUnionFieldUnmarshalType(fieldType: string): string {
-    if (fieldType.startsWith("*")) {
+    if (goTypeIsPointer(fieldType)) {
         return fieldType.slice(1);
     }
     return fieldType;
 }
 
 function goUnionFieldUnmarshalAssignment(typeName: string, fieldName: string, fieldType: string): string {
-    if (fieldType.startsWith("*")) {
+    if (goTypeIsPointer(fieldType)) {
         return `*r = ${typeName}{${fieldName}: &value}`;
     }
     return `*r = ${typeName}{${fieldName}: value}`;
 }
 
+function goPrimitiveSchemaTypeName(schema: JSONSchema7, ctx: GoCodegenCtx): string | undefined {
+    const resolved = resolveSchema(schema, ctx.definitions) ?? schema;
+    switch (resolved.type) {
+        case "boolean": return "Boolean";
+        case "integer": return "Integer";
+        case "number": return "Number";
+        case "string": return "String";
+        default: return undefined;
+    }
+}
+
+function goPrimitiveSchemaGoType(schema: JSONSchema7, ctx: GoCodegenCtx): string | undefined {
+    const resolved = resolveSchema(schema, ctx.definitions) ?? schema;
+    switch (resolved.type) {
+        case "boolean": return "bool";
+        case "integer": return "int64";
+        case "number": return "float64";
+        case "string": return "string";
+        default: return undefined;
+    }
+}
+
+function goPrimitiveUnionValueName(member: JSONSchema7, ctx: GoCodegenCtx): string | undefined {
+    const resolved = resolveGoUnionMember(member, ctx.definitions);
+    if (resolved.enum || resolved.const !== undefined) return undefined;
+
+    if (resolved.type === "array") {
+        const items = resolved.items && typeof resolved.items === "object" && !Array.isArray(resolved.items)
+            ? resolved.items as JSONSchema7
+            : undefined;
+        if (!items) return undefined;
+        const itemName = goPrimitiveSchemaTypeName(items, ctx);
+        return itemName ? `${itemName}Array` : undefined;
+    }
+
+    return goPrimitiveSchemaTypeName(resolved, ctx);
+}
+
+function goPrimitiveUnionGoType(member: JSONSchema7, ctx: GoCodegenCtx): string | undefined {
+    const resolved = resolveGoUnionMember(member, ctx.definitions);
+    if (resolved.enum || resolved.const !== undefined) return undefined;
+
+    if (resolved.type === "array") {
+        const items = resolved.items && typeof resolved.items === "object" && !Array.isArray(resolved.items)
+            ? resolved.items as JSONSchema7
+            : undefined;
+        if (!items) return undefined;
+        const itemType = goPrimitiveSchemaGoType(items, ctx);
+        return itemType ? `[]${itemType}` : undefined;
+    }
+
+    return goPrimitiveSchemaGoType(resolved, ctx);
+}
+
+function goPrimitiveUnionVariantTypeName(typeName: string, valueName: string): string {
+    if (typeName.endsWith("FieldValue")) {
+        return `${typeName.slice(0, -"FieldValue".length)}${valueName}Value`;
+    }
+    if (typeName.endsWith("Value")) {
+        return `${typeName.slice(0, -"Value".length)}${valueName}Value`;
+    }
+    if (typeName.endsWith("Result")) {
+        return `${typeName.slice(0, -"Result".length)}${valueName}Result`;
+    }
+    if (typeName.endsWith("Content")) {
+        return `${typeName.slice(0, -"Content".length)}${valueName}Content`;
+    }
+    return `${typeName}${valueName}`;
+}
+
+function goPrimitiveUnionVariants(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): GoPrimitiveUnionVariant[] | undefined {
+    const members = goNonNullUnionMembers(schema);
+    if (members.length === 0) return undefined;
+
+    const variants: GoPrimitiveUnionVariant[] = [];
+    const seenTypeNames = new Set<string>();
+    for (const member of members) {
+        const valueName = goPrimitiveUnionValueName(member, ctx);
+        const goType = goPrimitiveUnionGoType(member, ctx);
+        if (!valueName || !goType) return undefined;
+
+        const variantTypeName = goPrimitiveUnionVariantTypeName(typeName, valueName);
+        if (seenTypeNames.has(variantTypeName)) return undefined;
+        seenTypeNames.add(variantTypeName);
+        variants.push({
+            typeName: variantTypeName,
+            goType,
+        });
+    }
+
+    return variants;
+}
+
+function emitGoPrimitiveUnionInterface(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, variants?: GoPrimitiveUnionVariant[]): boolean {
+    if (ctx.generatedNames.has(typeName)) return true;
+    variants ??= goPrimitiveUnionVariants(typeName, schema, ctx);
+    if (!variants) return false;
+
+    ctx.generatedNames.add(typeName);
+    const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
+    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
+
+    const lines: string[] = [];
+    if (schema.description) {
+        pushGoCommentForContext(lines, schema.description, ctx);
+    }
+    if (isSchemaDeprecated(schema)) {
+        pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
+    }
+    lines.push(`type ${typeName} interface {`);
+    lines.push(`\t${markerName}()`);
+    lines.push(`}`);
+
+    for (const variant of [...variants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName))) {
+        lines.push(``);
+        lines.push(`type ${variant.typeName} ${variant.goType}`);
+        lines.push(``);
+        lines.push(`func (${variant.typeName}) ${markerName}() {}`);
+    }
+
+    const unmarshalLines: string[] = [];
+    unmarshalLines.push(`func ${unmarshalFuncName}(data []byte) (${typeName}, error) {`);
+    unmarshalLines.push(`\tif string(data) == "null" {`);
+    unmarshalLines.push(`\t\treturn nil, nil`);
+    unmarshalLines.push(`\t}`);
+    for (const variant of variants) {
+        unmarshalLines.push(`\t{`);
+        unmarshalLines.push(`\t\tvar value ${variant.goType}`);
+        unmarshalLines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
+        unmarshalLines.push(`\t\t\treturn ${variant.typeName}(value), nil`);
+        unmarshalLines.push(`\t\t}`);
+        unmarshalLines.push(`\t}`);
+    }
+    unmarshalLines.push(`\treturn nil, errors.New("data did not match any union variant for ${typeName}")`);
+    unmarshalLines.push(`}`);
+    pushGoEncodingBlock(unmarshalLines, ctx);
+
+    ctx.structs.push(lines.join("\n"));
+    return true;
+}
+
+function goSchemaJSONKind(schema: JSONSchema7, ctx: GoCodegenCtx): string | undefined {
+    const resolved = resolveGoUnionMember(schema, ctx.definitions);
+    if (resolved.const !== undefined) {
+        return goSchemaJSONKind(schemaForConstValue(resolved.const), ctx);
+    }
+
+    if (Array.isArray(resolved.type)) {
+        const nonNullTypes = resolved.type.filter((type) => type !== "null");
+        if (nonNullTypes.length === 1) {
+            return goSchemaJSONKind({ ...resolved, type: nonNullTypes[0] } as JSONSchema7, ctx);
+        }
+        return undefined;
+    }
+
+    if (goObjectUnionMemberSchema(schema, ctx)) return "object";
+
+    switch (resolved.type) {
+        case "array": return "array";
+        case "boolean": return "boolean";
+        case "integer":
+        case "number": return "number";
+        case "object": return "object";
+        case "string": return "string";
+        default: return undefined;
+    }
+}
+
+function goUntaggedUnionVariant(typeName: string, member: JSONSchema7, ctx: GoCodegenCtx): GoUntaggedUnionVariant | undefined {
+    const jsonKind = goSchemaJSONKind(member, ctx);
+    if (!jsonKind) return undefined;
+
+    const resolved = resolveGoUnionMember(member, ctx.definitions);
+    if (member.$ref && typeof member.$ref === "string") {
+        const definitionName = refTypeName(member.$ref, ctx.definitions);
+        const variantTypeName = goDefinitionName(definitionName);
+        emitGoRpcDefinition(definitionName, resolved, ctx);
+        return {
+            typeName: variantTypeName,
+            goType: variantTypeName,
+            jsonKind,
+            returnExpr: goObjectUnionMemberSchema(member, ctx) ? "&value" : "value",
+        };
+    }
+
+    if (resolved.enum && Array.isArray(resolved.enum)) {
+        const enumType = getOrCreateGoEnum((resolved.title as string) || `${typeName}Enum`, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
+        return { typeName: enumType, goType: enumType, jsonKind, returnExpr: "value" };
+    }
+
+    const primitiveValueName = goPrimitiveUnionValueName(member, ctx);
+    const primitiveGoType = goPrimitiveUnionGoType(member, ctx);
+    if (primitiveValueName && primitiveGoType) {
+        const variantTypeName = goPrimitiveUnionVariantTypeName(typeName, primitiveValueName);
+        return {
+            typeName: variantTypeName,
+            goType: primitiveGoType,
+            jsonKind,
+            typeDefinition: `type ${variantTypeName} ${primitiveGoType}`,
+            returnExpr: `${variantTypeName}(value)`,
+        };
+    }
+
+    if (jsonKind === "object" && resolved.type === "object" && resolved.additionalProperties && !resolved.properties) {
+        const fieldName = goUnionFieldName(resolved, ctx);
+        const variantTypeName = `${typeName}${fieldName}`;
+        const goType = resolveGoPropertyType(resolved, typeName, fieldName, true, ctx);
+        if (!goTypeIsMap(goType)) return undefined;
+        return {
+            typeName: variantTypeName,
+            goType: variantTypeName,
+            jsonKind,
+            typeDefinition: `type ${variantTypeName} ${goType}`,
+            returnExpr: "value",
+        };
+    }
+
+    if (jsonKind === "object" && (resolved.properties || resolved.additionalProperties === false)) {
+        const variantTypeName = (resolved.title as string) || `${typeName}Object`;
+        emitGoStruct(variantTypeName, resolved, ctx);
+        return { typeName: variantTypeName, goType: variantTypeName, jsonKind, returnExpr: "&value" };
+    }
+
+    return undefined;
+}
+
+function goUntaggedUnionVariants(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): GoUntaggedUnionVariant[] | undefined {
+    const members = goNonNullUnionMembers(schema);
+    if (members.length === 0) return undefined;
+
+    const variants: GoUntaggedUnionVariant[] = [];
+    const seenKinds = new Set<string>();
+    const seenTypeNames = new Set<string>();
+    for (const member of members) {
+        const variant = goUntaggedUnionVariant(typeName, member, ctx);
+        if (!variant) return undefined;
+        if (seenKinds.has(variant.jsonKind) || seenTypeNames.has(variant.typeName)) return undefined;
+        seenKinds.add(variant.jsonKind);
+        seenTypeNames.add(variant.typeName);
+        variants.push(variant);
+    }
+
+    return variants;
+}
+
+function emitGoUntaggedUnionInterface(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, variants?: GoUntaggedUnionVariant[]): boolean {
+    if (ctx.generatedNames.has(typeName)) return true;
+    variants ??= goUntaggedUnionVariants(typeName, schema, ctx);
+    if (!variants) return false;
+
+    ctx.generatedNames.add(typeName);
+    const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
+    const markerName = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+    ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
+
+    const lines: string[] = [];
+    if (schema.description) {
+        pushGoCommentForContext(lines, schema.description, ctx);
+    }
+    if (isSchemaDeprecated(schema)) {
+        pushGoCommentForContext(lines, `Deprecated: ${typeName} is deprecated and will be removed in a future version.`, ctx);
+    }
+    lines.push(`type ${typeName} interface {`);
+    lines.push(`\t${markerName}()`);
+    lines.push(`}`);
+
+    for (const variant of [...variants].sort((left, right) => compareGoTypeNames(left.typeName, right.typeName))) {
+        lines.push(``);
+        if (variant.typeDefinition) {
+            lines.push(variant.typeDefinition);
+            lines.push(``);
+        }
+        lines.push(`func (${variant.typeName}) ${markerName}() {}`);
+    }
+
+    const unmarshalLines: string[] = [];
+    unmarshalLines.push(`func ${unmarshalFuncName}(data []byte) (${typeName}, error) {`);
+    unmarshalLines.push(`\tif string(data) == "null" {`);
+    unmarshalLines.push(`\t\treturn nil, nil`);
+    unmarshalLines.push(`\t}`);
+    for (const variant of variants) {
+        unmarshalLines.push(`\t{`);
+        unmarshalLines.push(`\t\tvar value ${variant.goType}`);
+        unmarshalLines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
+        unmarshalLines.push(`\t\t\treturn ${variant.returnExpr}, nil`);
+        unmarshalLines.push(`\t\t}`);
+        unmarshalLines.push(`\t}`);
+    }
+    unmarshalLines.push(`\treturn nil, errors.New("data did not match any union variant for ${typeName}")`);
+    unmarshalLines.push(`}`);
+    pushGoEncodingBlock(unmarshalLines, ctx);
+
+    ctx.structs.push(lines.join("\n"));
+    return true;
+}
+
+function planGoUnion(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, includeWrapper: boolean = false): GoUnionPlan | undefined {
+    const members = goNonNullUnionMembers(schema);
+    if (members.length === 0) return undefined;
+
+    const description = (schema as JSONSchema7).description;
+    const discriminator = findGoDiscriminator(members, ctx, typeName);
+    if (discriminator) {
+        return { kind: "discriminated", typeName, schema, description, discriminator };
+    }
+
+    const primitiveVariants = goPrimitiveUnionVariants(typeName, schema, ctx);
+    if (primitiveVariants) {
+        return { kind: "primitive", typeName, schema, description, variants: primitiveVariants };
+    }
+
+    const requiredFieldDiscriminator = findGoRequiredFieldDiscriminator(members, ctx, typeName);
+    if (requiredFieldDiscriminator) {
+        return { kind: "requiredFieldDiscriminated", typeName, schema, description, discriminator: requiredFieldDiscriminator };
+    }
+
+    const resolvedVariants = members.map((member) => resolveGoUnionMember(member, ctx.definitions));
+    if (canFlattenGoObjectUnion(resolvedVariants, ctx)) {
+        return { kind: "flattenedObject", typeName, schema, description, variants: resolvedVariants };
+    }
+
+    const untaggedVariants = goUntaggedUnionVariants(typeName, schema, ctx);
+    if (untaggedVariants) {
+        return { kind: "untagged", typeName, schema, description, variants: untaggedVariants };
+    }
+
+    return includeWrapper ? { kind: "wrapper", typeName, schema, description } : undefined;
+}
+
+function emitGoUnionPlan(plan: GoUnionPlan, ctx: GoCodegenCtx): void {
+    switch (plan.kind) {
+        case "discriminated":
+            emitGoFlatDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description);
+            return;
+        case "requiredFieldDiscriminated":
+            emitGoRequiredFieldDiscriminatedUnion(plan.typeName, plan.discriminator, ctx, plan.description);
+            return;
+        case "primitive":
+            emitGoPrimitiveUnionInterface(plan.typeName, plan.schema, ctx, plan.variants);
+            return;
+        case "flattenedObject":
+            emitGoFlattenedObjectUnion(plan.typeName, plan.variants, ctx, plan.description);
+            return;
+        case "untagged":
+            emitGoUntaggedUnionInterface(plan.typeName, plan.schema, ctx, plan.variants);
+            return;
+        case "wrapper":
+            emitGoUnionWrapperStruct(plan.typeName, plan.schema, ctx);
+            return;
+    }
+}
+
+function goUnionPlanPropertyType(plan: GoUnionPlan, isRequired: boolean, hasNull: boolean): string {
+    if (plan.kind === "flattenedObject" || plan.kind === "wrapper") {
+        return isRequired && !hasNull ? plan.typeName : `*${plan.typeName}`;
+    }
+    return plan.typeName;
+}
+
 function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): void {
+    if (ctx.generatedNames.has(typeName)) return;
+    const plan = planGoUnion(typeName, schema, ctx, true);
+    if (plan) emitGoUnionPlan(plan, ctx);
+}
+
+function emitGoUnionWrapperStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx): void {
     if (ctx.generatedNames.has(typeName)) return;
     ctx.generatedNames.add(typeName);
 
@@ -1055,32 +2398,33 @@ function emitGoUnionStruct(typeName: string, schema: JSONSchema7, ctx: GoCodegen
     }
 
     lines.push(`}`);
-    lines.push(``);
-    lines.push(`func (r ${typeName}) MarshalJSON() ([]byte, error) {`);
+    const encodingLines: string[] = [];
+    encodingLines.push(`func (r ${typeName}) MarshalJSON() ([]byte, error) {`);
     for (const field of fields) {
-        lines.push(`\tif ${goUnionFieldMarshalIsSet(field.name, field.type)} {`);
-        lines.push(`\t\treturn json.Marshal(r.${field.name})`);
-        lines.push(`\t}`);
+        encodingLines.push(`\tif ${goUnionFieldMarshalIsSet(field.name, field.type, ctx)} {`);
+        encodingLines.push(`\t\treturn json.Marshal(r.${field.name})`);
+        encodingLines.push(`\t}`);
     }
-    lines.push(`\treturn []byte("null"), nil`);
-    lines.push(`}`);
-    lines.push(``);
-    lines.push(`func (r *${typeName}) UnmarshalJSON(data []byte) error {`);
-    lines.push(`\tif string(data) == "null" {`);
-    lines.push(`\t\t*r = ${typeName}{}`);
-    lines.push(`\t\treturn nil`);
-    lines.push(`\t}`);
+    encodingLines.push(`\treturn []byte("null"), nil`);
+    encodingLines.push(`}`);
+    encodingLines.push(``);
+    encodingLines.push(`func (r *${typeName}) UnmarshalJSON(data []byte) error {`);
+    encodingLines.push(`\tif string(data) == "null" {`);
+    encodingLines.push(`\t\t*r = ${typeName}{}`);
+    encodingLines.push(`\t\treturn nil`);
+    encodingLines.push(`\t}`);
     for (const field of fields) {
-        lines.push(`\t{`);
-        lines.push(`\t\tvar value ${goUnionFieldUnmarshalType(field.type)}`);
-        lines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
-        lines.push(`\t\t\t${goUnionFieldUnmarshalAssignment(typeName, field.name, field.type)}`);
-        lines.push(`\t\t\treturn nil`);
-        lines.push(`\t\t}`);
-        lines.push(`\t}`);
+        encodingLines.push(`\t{`);
+        encodingLines.push(`\t\tvar value ${goUnionFieldUnmarshalType(field.type)}`);
+        encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
+        encodingLines.push(`\t\t\t${goUnionFieldUnmarshalAssignment(typeName, field.name, field.type)}`);
+        encodingLines.push(`\t\t\treturn nil`);
+        encodingLines.push(`\t\t}`);
+        encodingLines.push(`\t}`);
     }
-    lines.push(`\treturn errors.New("data did not match any union variant for ${typeName}")`);
-    lines.push(`}`);
+    encodingLines.push(`\treturn errors.New("data did not match any union variant for ${typeName}")`);
+    encodingLines.push(`}`);
+    pushGoEncodingBlock(encodingLines, ctx);
     ctx.structs.push(lines.join("\n"));
 }
 
@@ -1115,15 +2459,8 @@ function emitGoRpcDefinition(definitionName: string, schema: JSONSchema7, ctx: G
 
     const unionMembers = goNonNullUnionMembers(effectiveSchema);
     if (unionMembers.length > 0) {
-        const resolvedVariants = unionMembers.map((member) => resolveGoUnionMember(member, ctx.definitions));
-        const discriminator = findGoDiscriminator(resolvedVariants);
-        if (discriminator) {
-            emitGoFlatDiscriminatedUnion(typeName, discriminator.property, discriminator.mapping, ctx, (effectiveSchema as JSONSchema7).description);
-        } else if (canFlattenGoObjectUnion(resolvedVariants, ctx)) {
-            emitGoFlattenedObjectUnion(typeName, resolvedVariants, ctx, (effectiveSchema as JSONSchema7).description);
-        } else {
-            emitGoUnionStruct(typeName, effectiveSchema, ctx);
-        }
+        const plan = planGoUnion(typeName, effectiveSchema, ctx, true);
+        if (plan) emitGoUnionPlan(plan, ctx);
         return typeName;
     }
 
@@ -1131,20 +2468,81 @@ function emitGoRpcDefinition(definitionName: string, schema: JSONSchema7, ctx: G
     return typeName;
 }
 
-function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definitionCollections: DefinitionCollections): string {
+interface GoGeneratedTypeCode {
+    typeCode: string;
+    encodingCode: string;
+}
+
+function stripTrailingGoWhitespace(code: string): string {
+    return code.replace(/[ \t]+$/gm, "");
+}
+
+function pushGoCodeBlocks(lines: string[], blocks: Iterable<string>): void {
+    for (const block of blocks) {
+        lines.push(block);
+        lines.push(``);
+    }
+}
+
+function sortedGoDeclaredTypeBlocks(blocks: string[]): string[] {
+    return [...blocks].sort((left, right) => goDeclaredTypeName(left).localeCompare(goDeclaredTypeName(right)));
+}
+
+function joinGoCode(lines: string[]): string {
+    return lines.join("\n").replace(/\n+$/, "");
+}
+
+function goEncodingBlocksCode(blocks: string[] | undefined): string {
+    const lines: string[] = [];
+    pushGoCodeBlocks(lines, blocks ?? []);
+    return joinGoCode(lines);
+}
+
+function goGeneratedEncodingFileCode(schemaFileName: string, packageName: string, generatedEncodingCode: string, wrapComments = false): string {
+    const lines: string[] = [];
+    lines.push(`// AUTO-GENERATED FILE - DO NOT EDIT`);
+    lines.push(`// Generated from: ${schemaFileName}`);
+    lines.push(``);
+    lines.push(`package ${packageName}`);
+    lines.push(``);
+
+    const imports = [`"encoding/json"`];
+    if (generatedEncodingCode.includes("errors.")) {
+        imports.push(`"errors"`);
+    }
+    if (generatedEncodingCode.includes("time.Time")) {
+        imports.push(`"time"`);
+    }
+    lines.push(`import (`);
+    for (const imp of imports) {
+        lines.push(`\t${imp}`);
+    }
+    lines.push(`)`);
+    lines.push(``);
+    lines.push(generatedEncodingCode);
+
+    const code = lines.join("\n");
+    return wrapComments ? wrapGeneratedGoComments(code) : code;
+}
+
+function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definitionCollections: DefinitionCollections): GoGeneratedTypeCode {
     const ctx: GoCodegenCtx = {
         structs: [],
+        encoding: [],
         enums: [],
         enumsByName: new Map(),
+        discriminatedUnions: new Map(),
         generatedNames: new Set(),
         definitions: definitionCollections,
     };
+    ctx.skipDefinitionTypeNames = collectGoDiscriminatedUnionVariantDefinitionTypeNames(definitions, ctx);
     const schemaKeysByTypeName = new Map<string, string>();
     const entries = Object.entries(definitions)
         .sort(([left], [right]) => goDefinitionName(left).localeCompare(goDefinitionName(right)));
 
     for (const [definitionName, definition] of entries) {
         const typeName = goDefinitionName(definitionName);
+        if (ctx.skipDefinitionTypeNames.has(typeName)) continue;
         const schemaKey = stableStringify(resolveSchema(definition, definitionCollections) ?? definition);
         const existingSchemaKey = schemaKeysByTypeName.get(typeName);
         if (existingSchemaKey && existingSchemaKey !== schemaKey) {
@@ -1155,16 +2553,13 @@ function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definit
     }
 
     const lines: string[] = [];
-    for (const typeCode of ctx.structs.sort((left, right) => goDeclaredTypeName(left).localeCompare(goDeclaredTypeName(right)))) {
-        lines.push(typeCode);
-        lines.push(``);
-    }
-    for (const typeCode of ctx.enums.sort((left, right) => goDeclaredTypeName(left).localeCompare(goDeclaredTypeName(right)))) {
-        lines.push(typeCode);
-        lines.push(``);
-    }
+    pushGoCodeBlocks(lines, sortedGoDeclaredTypeBlocks(ctx.structs));
+    pushGoCodeBlocks(lines, sortedGoDeclaredTypeBlocks(ctx.enums));
 
-    return lines.join("\n").replace(/\n+$/, "");
+    return {
+        typeCode: joinGoCode(lines),
+        encodingCode: goEncodingBlocksCode(ctx.encoding),
+    };
 }
 
 function goDeclaredTypeName(code: string): string {
@@ -1174,15 +2569,18 @@ function goDeclaredTypeName(code: string): string {
 /**
  * Generate the complete Go session-events file content.
  */
-function generateGoSessionEventsCode(schema: JSONSchema7): string {
+function generateGoSessionEventsCode(schema: JSONSchema7): GoGeneratedTypeCode {
     const variants = extractGoEventVariants(schema);
     const ctx: GoCodegenCtx = {
         structs: [],
+        encoding: [],
         enums: [],
         enumsByName: new Map(),
+        discriminatedUnions: new Map(),
         generatedNames: new Set(),
         definitions: collectDefinitionCollections(schema as Record<string, unknown>),
         wrapComments: false,
+        discriminatedUnionRawVariantSuffix: "",
     };
     const envelopeProperties = getGoSharedEventEnvelopeProperties(schema, ctx);
     const sessionEventStructFields = [
@@ -1195,13 +2593,6 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
             lines: [
                 ...goCommentLines("Typed event payload. Use a type switch to access per-event fields.", "\t", ctx.wrapComments !== false),
                 `\tData SessionEventData \`json:"-"\``,
-            ],
-        },
-        {
-            fieldName: "Type",
-            lines: [
-                ...goCommentLines("The event type discriminator.", "\t", ctx.wrapComments !== false),
-                `\tType SessionEventType \`json:"type"\``,
             ],
         },
     ].sort((left, right) => compareGoFieldNames(left.fieldName, right.fieldName));
@@ -1235,6 +2626,8 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
         }
         lines.push(`type ${variant.dataClassName} struct {`);
 
+        const fields: GoStructField[] = [];
+
         for (const [propName, propSchema] of sortByGoFieldName(Object.entries(variant.dataSchema.properties || {}))) {
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
@@ -1249,12 +2642,24 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
             if (isSchemaDeprecated(prop)) {
                 pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
             }
-            lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
+            const jsonTag = `json:"${propName}${omit}"`;
+            lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
+            fields.push({ propName, goName, goType, jsonTag });
         }
 
         lines.push(`}`);
+        pushGoStructUnmarshalJSON(lines, variant.dataClassName, fields, ctx);
         lines.push(``);
+        const constName = "SessionEventType" + variant.typeName
+            .split(/[._]/)
+            .map((w) =>
+                goInitialisms.has(w.toLowerCase())
+                    ? w.toUpperCase()
+                    : w.charAt(0).toUpperCase() + w.slice(1)
+            )
+            .join("");
         lines.push(`func (*${variant.dataClassName}) sessionEventData() {}`);
+        lines.push(`func (*${variant.dataClassName}) Type() SessionEventType { return ${constName} }`);
 
         dataStructs.push(lines.join("\n"));
     }
@@ -1283,6 +2688,8 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     }
     eventTypeEnum.push(`)`);
 
+    const sessionEncoding: string[] = [];
+
     // Assemble file
     const out: string[] = [];
     out.push(`// AUTO-GENERATED FILE - DO NOT EDIT`);
@@ -1293,7 +2700,6 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
 
     // Imports — time is always needed for SessionEvent.Timestamp
     out.push(`import (`);
-    out.push(`\t"errors"`);
     out.push(`\t"encoding/json"`);
     out.push(`\t"time"`);
     out.push(`)`);
@@ -1303,19 +2709,8 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     out.push(`// SessionEventData is the interface implemented by all per-event data types.`);
     out.push(`type SessionEventData interface {`);
     out.push(`\tsessionEventData()`);
+    out.push(`\tType() SessionEventType`);
     out.push(`}`);
-    out.push(``);
-
-    // RawSessionEventData for unknown event types
-    out.push(`// RawSessionEventData holds unparsed JSON data for unrecognized event types.`);
-    out.push(`type RawSessionEventData struct {`);
-    out.push(`\tRaw json.RawMessage`);
-    out.push(`}`);
-    out.push(``);
-    out.push(`func (RawSessionEventData) sessionEventData() {}`);
-    out.push(``);
-    out.push(`// MarshalJSON returns the original raw JSON so round-tripping preserves the payload.`);
-    out.push(`func (r RawSessionEventData) MarshalJSON() ([]byte, error) { return r.Raw, nil }`);
     out.push(``);
 
     // SessionEvent struct
@@ -1327,41 +2722,13 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     out.push(`}`);
     out.push(``);
 
-    // UnmarshalSessionEvent
-    out.push(`// UnmarshalSessionEvent parses JSON bytes into a SessionEvent.`);
-    out.push(`func UnmarshalSessionEvent(data []byte) (SessionEvent, error) {`);
-    out.push(`\tvar r SessionEvent`);
-    out.push(`\terr := json.Unmarshal(data, &r)`);
-    out.push(`\treturn r, err`);
-    out.push(`}`);
-    out.push(``);
-
     // Marshal
-    out.push(`// Marshal serializes the SessionEvent to JSON.`);
-    out.push(`func (r *SessionEvent) Marshal() ([]byte, error) {`);
-    out.push(`\treturn json.Marshal(r)`);
-    out.push(`}`);
-    out.push(``);
+    sessionEncoding.push(`// Marshal serializes the SessionEvent to JSON.`);
+    sessionEncoding.push(`func (r *SessionEvent) Marshal() ([]byte, error) {`);
+    sessionEncoding.push(`\treturn json.Marshal(r)`);
+    sessionEncoding.push(`}`);
+    sessionEncoding.push(``);
 
-    // Custom UnmarshalJSON
-    out.push(`func (e *SessionEvent) UnmarshalJSON(data []byte) error {`);
-    out.push(`\ttype rawEvent struct {`);
-    for (const field of rawEventUnmarshalFields) {
-        for (const line of field.lines) {
-            out.push(`\t${line}`);
-        }
-    }
-    out.push(`\t}`);
-    out.push(`\tvar raw rawEvent`);
-    out.push(`\tif err := json.Unmarshal(data, &raw); err != nil {`);
-    out.push(`\t\treturn err`);
-    out.push(`\t}`);
-    for (const property of sortedGoEventEnvelopeProperties(envelopeProperties)) {
-        out.push(`\te.${property.fieldName} = raw.${property.fieldName}`);
-    }
-    out.push(`\te.Type = raw.Type`);
-    out.push(``);
-    out.push(`\tswitch raw.Type {`);
     const eventCases = variants
         .map((variant) => ({
             constName: "SessionEventType" + variant.typeName
@@ -1375,42 +2742,92 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
             dataClassName: variant.dataClassName,
         }))
         .sort((left, right) => left.constName.localeCompare(right.constName));
-    for (const { constName, dataClassName } of eventCases) {
-        out.push(`\tcase ${constName}:`);
-        out.push(`\t\tvar d ${dataClassName}`);
-        out.push(`\t\tif err := json.Unmarshal(raw.Data, &d); err != nil {`);
-        out.push(`\t\t\treturn err`);
-        out.push(`\t\t}`);
-        out.push(`\t\te.Data = &d`);
-    }
-    out.push(`\tdefault:`);
-    out.push(`\t\te.Data = &RawSessionEventData{Raw: raw.Data}`);
+
+    // Type method
+    out.push(`// Type returns the event type discriminator derived from Data.`);
+    out.push(`func (e SessionEvent) Type() SessionEventType {`);
+    out.push(`\tif e.Data == nil {`);
+    out.push(`\t\treturn ""`);
     out.push(`\t}`);
-    out.push(`\treturn nil`);
+    out.push(`\treturn e.Data.Type()`);
     out.push(`}`);
     out.push(``);
 
-    // Custom MarshalJSON
-    out.push(`func (e SessionEvent) MarshalJSON() ([]byte, error) {`);
-    out.push(`\ttype rawEvent struct {`);
-    for (const field of rawEventMarshalFields) {
+    // Custom UnmarshalJSON
+    sessionEncoding.push(`func (e *SessionEvent) UnmarshalJSON(data []byte) error {`);
+    sessionEncoding.push(`\ttype rawEvent struct {`);
+    for (const field of rawEventUnmarshalFields) {
         for (const line of field.lines) {
-            out.push(`\t${line}`);
+            sessionEncoding.push(`\t${line}`);
         }
     }
-    out.push(`\t}`);
-    out.push(`\treturn json.Marshal(rawEvent{`);
+    sessionEncoding.push(`\t}`);
+    sessionEncoding.push(`\tvar raw rawEvent`);
+    sessionEncoding.push(`\tif err := json.Unmarshal(data, &raw); err != nil {`);
+    sessionEncoding.push(`\t\treturn err`);
+    sessionEncoding.push(`\t}`);
+    for (const property of sortedGoEventEnvelopeProperties(envelopeProperties)) {
+        sessionEncoding.push(`\te.${property.fieldName} = raw.${property.fieldName}`);
+    }
+    sessionEncoding.push(``);
+    sessionEncoding.push(`\tswitch raw.Type {`);
+    for (const { constName, dataClassName } of eventCases) {
+        sessionEncoding.push(`\tcase ${constName}:`);
+        sessionEncoding.push(`\t\tvar d ${dataClassName}`);
+        sessionEncoding.push(`\t\tif err := json.Unmarshal(raw.Data, &d); err != nil {`);
+        sessionEncoding.push(`\t\t\treturn err`);
+        sessionEncoding.push(`\t\t}`);
+        sessionEncoding.push(`\t\te.Data = &d`);
+    }
+    sessionEncoding.push(`\tdefault:`);
+    sessionEncoding.push(`\t\te.Data = &RawSessionEventData{EventType: raw.Type, Raw: raw.Data}`);
+    sessionEncoding.push(`\t}`);
+    sessionEncoding.push(`\treturn nil`);
+    sessionEncoding.push(`}`);
+    sessionEncoding.push(``);
+
+    // Custom MarshalJSON
+    sessionEncoding.push(`func (e SessionEvent) MarshalJSON() ([]byte, error) {`);
+    sessionEncoding.push(`\ttype rawEvent struct {`);
+    for (const field of rawEventMarshalFields) {
+        for (const line of field.lines) {
+            sessionEncoding.push(`\t${line}`);
+        }
+    }
+    sessionEncoding.push(`\t}`);
+    sessionEncoding.push(`\treturn json.Marshal(rawEvent{`);
     const rawEventValues = [
         ...envelopeProperties.map((property) => property.fieldName),
         "Data",
-        "Type",
     ].sort(compareGoFieldNames);
     for (const fieldName of rawEventValues) {
-        out.push(`\t\t${fieldName}: e.${fieldName},`);
+        sessionEncoding.push(`\t\t${fieldName}: e.${fieldName},`);
     }
-    out.push(`\t})`);
+    sessionEncoding.push(`\t\tType:      e.Type(),`);
+    sessionEncoding.push(`\t})`);
+    sessionEncoding.push(`}`);
+    sessionEncoding.push(``);
+
+    // RawSessionEventData for unknown event types
+    out.push(`// RawSessionEventData holds unparsed JSON data for unrecognized event types.`);
+    out.push(`type RawSessionEventData struct {`);
+    out.push(`\tEventType SessionEventType`);
+    out.push(`\tRaw       json.RawMessage`);
     out.push(`}`);
     out.push(``);
+    out.push(`func (RawSessionEventData) sessionEventData() {}`);
+    out.push(`func (r RawSessionEventData) Type() SessionEventType {`);
+    out.push(`\treturn r.EventType`);
+    out.push(`}`);
+
+    sessionEncoding.push(`// MarshalJSON returns the original raw JSON so round-tripping preserves the payload.`);
+    sessionEncoding.push(`func (r RawSessionEventData) MarshalJSON() ([]byte, error) {`);
+    sessionEncoding.push(`\tif r.Raw == nil {`);
+    sessionEncoding.push(`\t\treturn []byte("null"), nil`);
+    sessionEncoding.push(`\t}`);
+    sessionEncoding.push(`\treturn r.Raw, nil`);
+    sessionEncoding.push(`}`);
+    sessionEncoding.push(``);
 
     // Event type enum
     out.push(eventTypeEnum.join("\n"));
@@ -1423,16 +2840,10 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     }
 
     // Nested structs
-    for (const s of ctx.structs.sort((left, right) => goDeclaredTypeName(left).localeCompare(goDeclaredTypeName(right)))) {
-        out.push(s);
-        out.push(``);
-    }
+    pushGoCodeBlocks(out, sortedGoDeclaredTypeBlocks(ctx.structs));
 
     // Enums
-    for (const e of ctx.enums.sort((left, right) => goDeclaredTypeName(left).localeCompare(goDeclaredTypeName(right)))) {
-        out.push(e);
-        out.push(``);
-    }
+    pushGoCodeBlocks(out, sortedGoDeclaredTypeBlocks(ctx.enums));
 
     // Type aliases for types referenced by non-generated SDK code under their short names.
     const TYPE_ALIASES: Record<string, string> = {
@@ -1463,7 +2874,14 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     out.push(`)`);
     out.push(``);
 
-    return out.join("\n");
+    const encodingOut: string[] = [...sessionEncoding];
+    if (encodingOut.length > 0) encodingOut.push("");
+    pushGoCodeBlocks(encodingOut, ctx.encoding ?? []);
+
+    return {
+        typeCode: joinGoCode(out),
+        encodingCode: joinGoCode(encodingOut),
+    };
 }
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
@@ -1473,12 +2891,19 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
     const processed = postProcessSchema(schema);
 
-    const code = generateGoSessionEventsCode(processed);
+    const generatedSessionCode = generateGoSessionEventsCode(processed);
+    const generatedTypeCode = stripTrailingGoWhitespace(generatedSessionCode.typeCode);
+    const generatedEncodingCode = stripTrailingGoWhitespace(generatedSessionCode.encodingCode);
 
-    const outPath = await writeGeneratedFile("go/generated_session_events.go", code);
+    const outPath = await writeGeneratedFile("go/generated_session_events.go", generatedTypeCode);
     console.log(`  ✓ ${outPath}`);
 
     await formatGoFile(outPath);
+
+    const encodingOutPath = await writeGeneratedFile("go/zsession_encoding.go", goGeneratedEncodingFileCode("session-events.schema.json", "copilot", generatedEncodingCode));
+    console.log(`  ✓ ${encodingOutPath}`);
+
+    await formatGoFile(encodingOutPath);
 }
 
 // ── RPC Types ───────────────────────────────────────────────────────────────
@@ -1559,9 +2984,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     };
     rpcDefinitions = allDefinitionCollections;
 
-    let generatedTypeCode = generateGoRpcTypeCode(allDefinitions, allDefinitionCollections);
     // Strip trailing whitespace from generated output (gofmt requirement)
-    generatedTypeCode = generatedTypeCode.replace(/[ \t]+$/gm, "");
+    const generatedRpcCode = generateGoRpcTypeCode(allDefinitions, allDefinitionCollections);
+    let generatedTypeCode = stripTrailingGoWhitespace(generatedRpcCode.typeCode);
+    const generatedEncodingCode = stripTrailingGoWhitespace(generatedRpcCode.encodingCode);
 
     // Extract generated type names. Some may differ from toPascalCase due explicit schema titles.
     const actualTypeNames = new Map<string, string>();
@@ -1572,8 +2998,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     }
     const resolveType = (name: string): string => actualTypeNames.get(name.toLowerCase()) ?? name;
 
-    // Extract field name mappings so wrappers use the emitted Go field names.
-    const fieldNames = extractFieldNames(generatedTypeCode);
+    // Extract field metadata so wrappers use emitted Go names and nil semantics.
+    const fields = extractFields(generatedTypeCode);
 
     // Annotate experimental data types
     const experimentalTypeNames = new Set<string>();
@@ -1659,17 +3085,17 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Emit ServerRpc
     if (schema.server) {
         const publicNode = filterNodeByVisibility(schema.server, "public");
-        if (publicNode) emitRpcWrapper(lines, publicNode, false, resolveType, fieldNames, "");
+        if (publicNode) emitRpcWrapper(lines, publicNode, false, resolveType, fields, "");
         const internalNode = filterNodeByVisibility(schema.server, "internal");
-        if (internalNode) emitRpcWrapper(lines, internalNode, false, resolveType, fieldNames, "Internal");
+        if (internalNode) emitRpcWrapper(lines, internalNode, false, resolveType, fields, "Internal");
     }
 
     // Emit SessionRpc
     if (schema.session) {
         const publicNode = filterNodeByVisibility(schema.session, "public");
-        if (publicNode) emitRpcWrapper(lines, publicNode, true, resolveType, fieldNames, "");
+        if (publicNode) emitRpcWrapper(lines, publicNode, true, resolveType, fields, "");
         const internalNode = filterNodeByVisibility(schema.session, "internal");
-        if (internalNode) emitRpcWrapper(lines, internalNode, true, resolveType, fieldNames, "Internal");
+        if (internalNode) emitRpcWrapper(lines, internalNode, true, resolveType, fields, "Internal");
     }
 
     if (schema.clientSession) {
@@ -1680,6 +3106,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log(`  ✓ ${outPath}`);
 
     await formatGoFile(outPath);
+
+    const encodingOutPath = await writeGeneratedFile("go/rpc/zrpc_encoding.go", goGeneratedEncodingFileCode("api.schema.json", "rpc", generatedEncodingCode, true));
+    console.log(`  ✓ ${encodingOutPath}`);
+
+    await formatGoFile(encodingOutPath);
 }
 
 function emitApiGroup(
@@ -1689,7 +3120,7 @@ function emitApiGroup(
     isSession: boolean,
     serviceName: string,
     resolveType: (name: string) => string,
-    fieldNames: Map<string, Map<string, string>>,
+    fields: Map<string, Map<string, GoExtractedField>>,
     groupExperimental: boolean,
     groupDeprecated: boolean = false
 ): void {
@@ -1707,14 +3138,14 @@ function emitApiGroup(
 
     for (const [key, value] of methods) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, apiName, key, value, isSession, resolveType, fieldNames, groupExperimental, false, groupDeprecated);
+        emitMethod(lines, apiName, key, value, isSession, resolveType, fields, groupExperimental, false, groupDeprecated);
     }
 
     for (const [subGroupName, subGroupNode] of subGroups) {
         const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
         const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
         const subGroupDeprecated = isNodeFullyDeprecated(subGroupNode as Record<string, unknown>);
-        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, subGroupExperimental, subGroupDeprecated);
+        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, subGroupExperimental, subGroupDeprecated);
 
         if (subGroupExperimental) {
             pushGoComment(lines, `Experimental: ${toPascalCase(subGroupName)} returns experimental APIs that may change or be removed.`);
@@ -1726,7 +3157,7 @@ function emitApiGroup(
     }
 }
 
-function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, classPrefix: string = ""): void {
+function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string, fields: Map<string, Map<string, GoExtractedField>>, classPrefix: string = ""): void {
     const groups = sortByPascalName(Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v)));
     const topLevelMethods = sortByPascalName(Object.entries(node).filter(([, v]) => isRpcMethod(v)));
 
@@ -1751,12 +3182,12 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
         const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
-        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, groupExperimental, groupDeprecated);
+        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, groupExperimental, groupDeprecated);
     }
 
     // Compute field name lengths for gofmt-compatible column alignment
     const groupPascalNames = groups.map(([g]) => toPascalCase(g));
-    const allFieldNames = isSession ? ["common", ...groupPascalNames] : ["common", ...groupPascalNames];
+    const allFieldNames = ["common", ...groupPascalNames];
     const maxFieldLen = Math.max(...allFieldNames.map((n) => n.length));
     const pad = (name: string) => name.padEnd(maxFieldLen);
 
@@ -1781,7 +3212,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     // Top-level methods on the wrapper use the common service fields
     for (const [key, value] of topLevelMethods) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, wrapperName, key, value, isSession, resolveType, fieldNames, false, true);
+        emitMethod(lines, wrapperName, key, value, isSession, resolveType, fields, false, true);
     }
 
     // Constructor
@@ -1802,7 +3233,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
 }
 
-function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false, groupDeprecated = false): void {
+function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fields: Map<string, Map<string, GoExtractedField>>, groupExperimental = false, isWrapper = false, groupDeprecated = false): void {
     const methodName = toPascalCase(name);
     const resultSchema = getMethodResultSchema(method);
     const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
@@ -1843,12 +3274,16 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         if (hasParams) {
             lines.push(`\tif params != nil {`);
             for (const pName of nonSessionParams) {
-                const goField = fieldNames.get(paramsType)?.get(pName) ?? toGoFieldName(pName);
+                const field = fields.get(paramsType)?.get(pName);
+                const goField = field?.name ?? toGoFieldName(pName);
+                const goType = field?.type;
                 const isOptional = !requiredParams.has(pName);
                 if (isOptional) {
-                    // Optional fields are pointers - only add when non-nil and dereference
+                    // Optional fields are usually pointers; generated union interfaces, slices,
+                    // and maps are nilable values and should be passed through directly.
                     lines.push(`\t\tif params.${goField} != nil {`);
-                    lines.push(`\t\t\treq["${pName}"] = *params.${goField}`);
+                    const valueExpr = goOptionalFieldNeedsDereference(goType) ? `*params.${goField}` : `params.${goField}`;
+                    lines.push(`\t\t\treq["${pName}"] = ${valueExpr}`);
                     lines.push(`\t\t}`);
                 } else {
                     lines.push(`\t\treq["${pName}"] = params.${goField}`);

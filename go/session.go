@@ -127,7 +127,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 //	messageID, err := session.Send(context.Background(), copilot.MessageOptions{
 //	    Prompt: "Explain this code",
 //	    Attachments: []copilot.Attachment{
-//	        {Type: "file", Path: "./main.go"},
+//	        &copilot.UserMessageAttachmentFile{DisplayName: "main.go", Path: "./main.go"},
 //	    },
 //	})
 //	if err != nil {
@@ -644,9 +644,19 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 		return
 	}
 
-	rpcContent := make(map[string]*rpc.UIElicitationFieldValue)
+	rpcContent := make(map[string]rpc.UIElicitationFieldValue)
 	for k, v := range result.Content {
-		rpcContent[k] = toRPCContent(v)
+		contentValue, err := toRPCContent(v)
+		if err != nil {
+			s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
+				RequestID: requestID,
+				Result: rpc.UIElicitationResponse{
+					Action: rpc.UIElicitationResponseActionCancel,
+				},
+			})
+			return
+		}
+		rpcContent[k] = contentValue
 	}
 
 	s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
@@ -658,37 +668,61 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 	})
 }
 
-// toRPCContent converts an arbitrary value to a *rpc.UIElicitationFieldValue for elicitation responses.
-func toRPCContent(v any) *rpc.UIElicitationFieldValue {
+// toRPCContent converts an SDK content value to an RPC elicitation response value.
+func toRPCContent(v any) (rpc.UIElicitationFieldValue, error) {
 	if v == nil {
-		return nil
+		return nil, nil
 	}
-	c := &rpc.UIElicitationFieldValue{}
 	switch val := v.(type) {
 	case bool:
-		c.Bool = &val
+		return rpc.UIElicitationBooleanValue(val), nil
 	case float64:
-		c.Double = &val
+		return rpc.UIElicitationNumberValue(val), nil
+	case float32:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
 	case int:
-		f := float64(val)
-		c.Double = &f
-	case string:
-		c.String = &val
-	case []string:
-		c.StringArray = val
-	case []any:
-		strs := make([]string, 0, len(val))
-		for _, item := range val {
-			if s, ok := item.(string); ok {
-				strs = append(strs, s)
-			}
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case int8:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case int16:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case int32:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case int64:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case uint:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case uint8:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case uint16:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case uint32:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case uint64:
+		return rpc.UIElicitationNumberValue(float64(val)), nil
+	case json.Number:
+		f, err := val.Float64()
+		if err != nil {
+			return nil, err
 		}
-		c.StringArray = strs
+		return rpc.UIElicitationNumberValue(f), nil
+	case string:
+		return rpc.UIElicitationStringValue(val), nil
+	case []string:
+		return rpc.UIElicitationStringArrayValue(val), nil
+	case []any:
+		strs := make([]string, len(val))
+		for i, item := range val {
+			s, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("unsupported elicitation string array item type %T", item)
+			}
+			strs[i] = s
+		}
+		return rpc.UIElicitationStringArrayValue(strs), nil
 	default:
-		s := fmt.Sprintf("%v", val)
-		c.String = &s
+		return nil, fmt.Errorf("unsupported elicitation content value type %T", v)
 	}
-	return c
 }
 
 // Capabilities returns the session capabilities reported by the server.
@@ -751,9 +785,8 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 		RequestedSchema: rpc.UIElicitationSchema{
 			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
-				"confirmed": {
-					Type:    rpc.UIElicitationSchemaPropertyTypeBoolean,
-					Default: toRPCContent(true),
+				"confirmed": &rpc.UIElicitationSchemaPropertyBoolean{
+					Default: Bool(true),
 				},
 			},
 			Required: []string{"confirmed"},
@@ -763,8 +796,8 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 		return false, err
 	}
 	if rpcResult.Action == rpc.UIElicitationResponseActionAccept {
-		if c, ok := rpcResult.Content["confirmed"]; ok && c != nil && c.Bool != nil {
-			return *c.Bool, nil
+		if value, ok := rpcResult.Content["confirmed"].(rpc.UIElicitationBooleanValue); ok {
+			return bool(value), nil
 		}
 	}
 	return false, nil
@@ -781,8 +814,7 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 		RequestedSchema: rpc.UIElicitationSchema{
 			Type: rpc.UIElicitationSchemaTypeObject,
 			Properties: map[string]rpc.UIElicitationSchemaProperty{
-				"selection": {
-					Type: rpc.UIElicitationSchemaPropertyTypeString,
+				"selection": &rpc.UIElicitationStringEnumField{
 					Enum: options,
 				},
 			},
@@ -793,8 +825,8 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 		return "", false, err
 	}
 	if rpcResult.Action == rpc.UIElicitationResponseActionAccept {
-		if c, ok := rpcResult.Content["selection"]; ok && c != nil && c.String != nil {
-			return *c.String, true, nil
+		if value, ok := rpcResult.Content["selection"].(rpc.UIElicitationStringValue); ok {
+			return string(value), true, nil
 		}
 	}
 	return "", false, nil
@@ -806,7 +838,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 	if err := ui.session.assertElicitation(); err != nil {
 		return "", false, err
 	}
-	prop := rpc.UIElicitationSchemaProperty{Type: rpc.UIElicitationSchemaPropertyTypeString}
+	prop := &rpc.UIElicitationSchemaPropertyString{}
 	if opts != nil {
 		if opts.Title != "" {
 			prop.Title = &opts.Title
@@ -827,7 +859,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 			prop.Format = &format
 		}
 		if opts.Default != "" {
-			prop.Default = toRPCContent(opts.Default)
+			prop.Default = String(opts.Default)
 		}
 	}
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
@@ -844,8 +876,8 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 		return "", false, err
 	}
 	if rpcResult.Action == rpc.UIElicitationResponseActionAccept {
-		if c, ok := rpcResult.Content["value"]; ok && c != nil && c.String != nil {
-			return *c.String, true, nil
+		if value, ok := rpcResult.Content["value"].(rpc.UIElicitationStringValue); ok {
+			return string(value), true, nil
 		}
 	}
 	return "", false, nil
@@ -858,24 +890,28 @@ func fromRPCElicitationResult(r *rpc.UIElicitationResponse) *ElicitationResult {
 	}
 	content := make(map[string]any)
 	for k, v := range r.Content {
-		if v == nil {
-			content[k] = nil
-			continue
-		}
-		if v.Bool != nil {
-			content[k] = *v.Bool
-		} else if v.Double != nil {
-			content[k] = *v.Double
-		} else if v.String != nil {
-			content[k] = *v.String
-		} else if v.StringArray != nil {
-			content[k] = v.StringArray
-		}
+		content[k] = fromRPCContent(v)
 	}
 	return &ElicitationResult{
 		Action:  string(r.Action),
 		Content: content,
 	}
+}
+
+func fromRPCContent(value rpc.UIElicitationFieldValue) any {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case rpc.UIElicitationBooleanValue:
+		return bool(v)
+	case rpc.UIElicitationNumberValue:
+		return float64(v)
+	case rpc.UIElicitationStringValue:
+		return string(v)
+	case rpc.UIElicitationStringArrayValue:
+		return []string(v)
+	}
+	return nil
 }
 
 // dispatchEvent enqueues an event for delivery to user handlers and fires
@@ -1051,19 +1087,17 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		}
 	}
 
-	rpcResult := rpc.ExternalToolResult{
-		ExternalToolTextResultForLlm: &rpc.ExternalToolTextResultForLlm{
-			TextResultForLlm: textResultForLLM,
-			ToolTelemetry:    result.ToolTelemetry,
-			ResultType:       &effectiveResultType,
-		},
+	rpcResult := &rpc.ExternalToolTextResultForLlm{
+		TextResultForLlm: textResultForLLM,
+		ToolTelemetry:    result.ToolTelemetry,
+		ResultType:       &effectiveResultType,
 	}
 	if result.Error != "" {
-		rpcResult.ExternalToolTextResultForLlm.Error = &result.Error
+		rpcResult.Error = &result.Error
 	}
 	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 		RequestID: requestID,
-		Result:    &rpcResult,
+		Result:    rpcResult,
 	})
 }
 
@@ -1073,9 +1107,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		if r := recover(); r != nil {
 			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 				RequestID: requestID,
-				Result: rpc.PermissionDecision{
-					Kind: rpc.PermissionDecisionKindUserNotAvailable,
-				},
+				Result:    &rpc.PermissionDecisionUserNotAvailable{},
 			})
 		}
 	}()
@@ -1088,9 +1120,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	if err != nil {
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
-			Result: rpc.PermissionDecision{
-				Kind: rpc.PermissionDecisionKindUserNotAvailable,
-			},
+			Result:    &rpc.PermissionDecisionUserNotAvailable{},
 		})
 		return
 	}
@@ -1100,10 +1130,21 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 
 	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 		RequestID: requestID,
-		Result: rpc.PermissionDecision{
-			Kind: rpc.PermissionDecisionKind(result.Kind),
-		},
+		Result:    rpcPermissionDecisionFromKind(rpc.PermissionDecisionKind(result.Kind)),
 	})
+}
+
+func rpcPermissionDecisionFromKind(kind rpc.PermissionDecisionKind) rpc.PermissionDecision {
+	switch kind {
+	case rpc.PermissionDecisionKindApproveOnce:
+		return &rpc.PermissionDecisionApproveOnce{}
+	case rpc.PermissionDecisionKindReject:
+		return &rpc.PermissionDecisionReject{}
+	case rpc.PermissionDecisionKindUserNotAvailable:
+		return &rpc.PermissionDecisionUserNotAvailable{}
+	default:
+		return &rpc.RawPermissionDecisionData{Discriminator: kind}
+	}
 }
 
 // GetMessages retrieves all events and messages from this session's history.
