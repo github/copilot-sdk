@@ -4,7 +4,10 @@
  * Reads api.schema.json and session-events.schema.json, emits idiomatic Rust
  * types to rust/src/generated/.
  *
- * Usage: npx tsx scripts/codegen/rust.ts
+ * Usage:
+ *   npx tsx scripts/codegen/rust.ts
+ *   npx tsx scripts/codegen/rust.ts <apiSchemaPath>
+ *   npx tsx scripts/codegen/rust.ts <sessionEventsSchemaPath> <apiSchemaPath>
  */
 
 import { execFile } from "child_process";
@@ -1388,12 +1391,30 @@ async function rustfmt(filePath: string): Promise<void> {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
+function parseSchemaArgs(): {
+	sessionEventsSchemaPath?: string;
+	apiSchemaPath?: string;
+} {
+	const [firstArg, secondArg] = process.argv.slice(2);
+	if (secondArg) {
+		return {
+			sessionEventsSchemaPath: firstArg,
+			apiSchemaPath: secondArg,
+		};
+	}
+
+	return {
+		apiSchemaPath: firstArg,
+	};
+}
+
 async function generate(): Promise<void> {
 	console.log("Loading schemas...");
 
+	const schemaArgs = parseSchemaArgs();
 	const sessionEventsSchemaPath =
-		process.argv[2] || (await getSessionEventsSchemaPath());
-	const apiSchemaPath = await getApiSchemaPath(process.argv[3]);
+		schemaArgs.sessionEventsSchemaPath || (await getSessionEventsSchemaPath());
+	const apiSchemaPath = await getApiSchemaPath(schemaArgs.apiSchemaPath);
 
 	const sessionEventsRaw = JSON.parse(
 		await fs.readFile(sessionEventsSchemaPath, "utf-8"),
