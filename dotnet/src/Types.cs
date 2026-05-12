@@ -42,6 +42,13 @@ internal static class GeneratedStringEnumJson
     }
 }
 
+/// <summary>Diagnostic IDs for the Copilot SDK.</summary>
+internal static class Diagnostics
+{
+    /// <summary>Indicates an experimental API that may change or be removed.</summary>
+    internal const string Experimental = "GHCP001";
+}
+
 /// <summary>
 /// Represents the connection state of the Copilot client.
 /// </summary>

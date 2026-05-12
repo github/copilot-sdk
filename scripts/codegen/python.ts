@@ -24,6 +24,7 @@ import {
     isNodeFullyExperimental,
     isNodeFullyDeprecated,
     isSchemaDeprecated,
+    isSchemaExperimental,
     postProcessSchema,
     stripBooleanLiterals,
     writeGeneratedFile,
@@ -42,6 +43,20 @@ import {
 } from "./utils.js";
 
 // ── Utilities ───────────────────────────────────────────────────────────────
+
+type PyExperimentalSubject = "type" | "enum" | "event";
+
+function pyExperimentalComment(subject: PyExperimentalSubject, indent = ""): string {
+    return `${indent}# Experimental: this ${subject} is part of an experimental API and may change or be removed.`;
+}
+
+function pushPyExperimentalComment(lines: string[], subject: PyExperimentalSubject, indent = ""): void {
+    lines.push(pyExperimentalComment(subject, indent));
+}
+
+function pushPyExperimentalApiGroupComment(lines: string[]): void {
+    lines.push("# Experimental: this API group is experimental and may change or be removed.");
+}
 
 /**
  * Modernize quicktype's Python 3.7 output to Python 3.11+ syntax:
@@ -478,6 +493,8 @@ interface PyEventVariant {
     dataClassName: string;
     dataSchema: JSONSchema7;
     dataDescription?: string;
+    eventExperimental: boolean;
+    dataExperimental: boolean;
 }
 
 interface PyEventEnvelopeProperty extends SessionEventEnvelopeProperty {
@@ -650,6 +667,8 @@ function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
                 dataClassName: `${toPascalCase(typeName)}Data`,
                 dataSchema,
                 dataDescription: dataSchema.description,
+                eventExperimental: isSchemaExperimental(variant),
+                dataExperimental: isSchemaExperimental(dataSchema),
             };
         });
 }
@@ -721,7 +740,8 @@ function getOrCreatePyEnum(
     values: string[],
     ctx: PyCodegenCtx,
     description?: string,
-    deprecated?: boolean
+    deprecated?: boolean,
+    experimental?: boolean
 ): string {
     const existing = ctx.enumsByName.get(enumName);
     if (existing) {
@@ -729,6 +749,9 @@ function getOrCreatePyEnum(
     }
 
     const lines: string[] = [];
+    if (experimental) {
+        pushPyExperimentalComment(lines, "enum");
+    }
     if (deprecated) {
         lines.push(`# Deprecated: this enum is deprecated and will be removed in a future version.`);
     }
@@ -761,7 +784,7 @@ function resolvePyPropertyType(
         const resolved = resolveSchema(propSchema, ctx.definitions);
         if (resolved && resolved !== propSchema) {
             if (resolved.enum && Array.isArray(resolved.enum) && resolved.enum.every((value) => typeof value === "string")) {
-                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
+                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved), isSchemaExperimental(resolved));
                 const enumResolved: PyResolvedType = {
                     annotation: enumType,
                     fromExpr: (expr) => `parse_enum(${enumType}, ${expr})`,
@@ -820,7 +843,8 @@ function resolvePyPropertyType(
                     discriminator.property,
                     discriminator.mapping,
                     ctx,
-                    propSchema.description
+                    propSchema.description,
+                    isSchemaExperimental(propSchema)
                 );
                 const resolved: PyResolvedType = {
                     annotation: nestedName,
@@ -840,7 +864,8 @@ function resolvePyPropertyType(
             propSchema.enum as string[],
             ctx,
             propSchema.description,
-            isSchemaDeprecated(propSchema)
+            isSchemaDeprecated(propSchema),
+            isSchemaExperimental(propSchema)
         );
         const resolved: PyResolvedType = {
             annotation: enumType,
@@ -963,7 +988,8 @@ function resolvePyPropertyType(
                     discriminator.property,
                     discriminator.mapping,
                     ctx,
-                    items.description
+                    items.description,
+                    isSchemaExperimental(items)
                 );
                 const resolved: PyResolvedType = {
                     annotation: `list[${itemTypeName}]`,
@@ -1032,7 +1058,8 @@ function emitPyClass(
     typeName: string,
     schema: JSONSchema7,
     ctx: PyCodegenCtx,
-    description?: string
+    description?: string,
+    experimental = isSchemaExperimental(schema)
 ): void {
     if (ctx.generatedNames.has(typeName)) {
         return;
@@ -1063,6 +1090,9 @@ function emitPyClass(
     });
 
     const lines: string[] = [];
+    if (experimental) {
+        pushPyExperimentalComment(lines, "type");
+    }
     if (isSchemaDeprecated(schema)) {
         lines.push(`# Deprecated: this type is deprecated and will be removed in a future version.`);
     }
@@ -1131,7 +1161,8 @@ function emitPyFlatDiscriminatedUnion(
     discriminatorProp: string,
     mapping: Map<string, JSONSchema7>,
     ctx: PyCodegenCtx,
-    description?: string
+    description?: string,
+    experimental = false
 ): void {
     if (ctx.generatedNames.has(typeName)) {
         return;
@@ -1173,7 +1204,9 @@ function emitPyFlatDiscriminatedUnion(
         typeName + toPascalCase(discriminatorProp),
         [...mapping.keys()],
         ctx,
-        description ? `${description} discriminator` : `${typeName} discriminator`
+        description ? `${description} discriminator` : `${typeName} discriminator`,
+        false,
+        experimental
     );
 
     const fieldEntries: Array<[string, JSONSchema7, boolean]> = [
@@ -1219,6 +1252,9 @@ function emitPyFlatDiscriminatedUnion(
     });
 
     const lines: string[] = [];
+    if (experimental) {
+        pushPyExperimentalComment(lines, "type");
+    }
     lines.push(`@dataclass`);
     lines.push(`class ${typeName}:`);
     if (description) {
@@ -1279,7 +1315,13 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     };
 
     for (const variant of variants) {
-        emitPyClass(variant.dataClassName, variant.dataSchema, ctx, variant.dataDescription);
+        emitPyClass(
+            variant.dataClassName,
+            variant.dataSchema,
+            ctx,
+            variant.dataDescription,
+            variant.dataExperimental
+        );
     }
     const envelopeProperties = getPySharedEventEnvelopeProperties(schema, ctx);
     const envelopePropertiesWithoutDefaults = envelopeProperties.filter((property) => !property.hasDefault);
@@ -1288,6 +1330,9 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     const eventTypeLines: string[] = [];
     eventTypeLines.push(`class SessionEventType(Enum):`);
     for (const variant of variants) {
+        if (variant.eventExperimental) {
+            pushPyExperimentalComment(eventTypeLines, "event", "    ");
+        }
         eventTypeLines.push(`    ${toEnumMemberName(variant.typeName)} = ${JSON.stringify(variant.typeName)}`);
     }
     eventTypeLines.push(`    UNKNOWN = "unknown"`);
@@ -1740,6 +1785,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     // Annotate experimental data types
     const experimentalTypeNames = new Set<string>();
+    for (const [definitionName, definition] of Object.entries(allDefinitions)) {
+        if (typeof definition === "object" && definition !== null && isSchemaExperimental(definition as JSONSchema7)) {
+            experimentalTypeNames.add(definitionName);
+        }
+    }
     for (const method of allMethods) {
         if (method.stability !== "experimental") continue;
         experimentalTypeNames.add(pythonResultTypeName(method));
@@ -1751,7 +1801,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     for (const typeName of experimentalTypeNames) {
         typesCode = typesCode.replace(
             new RegExp(`^(@dataclass\\n)?class ${typeName}[:(]`, "m"),
-            (match) => `# Experimental: this type is part of an experimental API and may change or be removed.\n${match}`
+            (match) => `${pyExperimentalComment("type")}\n${match}`
         );
     }
 
@@ -1916,7 +1966,7 @@ function emitPyApiGroup(
         lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
     }
     if (groupExperimental) {
-        lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
+        pushPyExperimentalApiGroupComment(lines);
     }
     lines.push(`class ${apiName}:`);
     if (isSession) {
@@ -2105,7 +2155,7 @@ function emitClientSessionApiRegistration(
             lines.push(`# Deprecated: this API group is deprecated and will be removed in a future version.`);
         }
         if (groupExperimental) {
-            lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
+            pushPyExperimentalApiGroupComment(lines);
         }
         lines.push(`class ${handlerName}(Protocol):`);
         for (const [methodName, value] of Object.entries(groupNode as Record<string, unknown>)) {

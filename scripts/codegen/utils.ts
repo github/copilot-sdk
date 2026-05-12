@@ -445,6 +445,11 @@ export function isSchemaDeprecated(schema: JSONSchema7 | null | undefined): bool
     return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).deprecated === true;
 }
 
+/** Returns true when a JSON Schema node is marked as experimental. */
+export function isSchemaExperimental(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).stability === "experimental";
+}
+
 // ── $ref resolution ─────────────────────────────────────────────────────────
 
 /** Extract the generated type name from a `$ref` path (e.g. "#/definitions/Model" → "Model"). */

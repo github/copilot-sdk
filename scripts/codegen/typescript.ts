@@ -26,13 +26,47 @@ import {
     isNodeFullyExperimental,
     isNodeFullyDeprecated,
     isVoidSchema,
+    isSchemaExperimental,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
 
+const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
+
+function tsExperimentalJSDoc(indent = ""): string {
+    return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
+}
+
 function toPascalCase(s: string): string {
     return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function experimentalDefinitionNames(definitions: DefinitionCollections): Set<string> {
+    const names = new Set<string>();
+    for (const defs of [definitions.definitions, definitions.$defs]) {
+        for (const [name, def] of Object.entries(defs ?? {})) {
+            if (typeof def === "object" && def !== null && isSchemaExperimental(def as JSONSchema7)) {
+                names.add(name);
+            }
+        }
+    }
+    return names;
+}
+
+function annotateTypeScriptTypes(code: string, typeNames: Iterable<string>, annotation: string): string {
+    let annotated = code;
+    for (const typeName of typeNames) {
+        annotated = annotated.replace(
+            new RegExp(`(^|\\n)(export (?:interface|type|enum) ${escapeRegExp(typeName)}\\b)`, "m"),
+            `$1${annotation}\n$2`
+        );
+    }
+    return annotated;
 }
 
 function appendUniqueExportBlocks(output: string[], compiled: string, seenBlocks: Map<string, string>): void {
@@ -212,7 +246,8 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
         additionalProperties: false,
     });
 
-    const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", ts);
+    const annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
+    const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", annotatedTs);
     console.log(`  ✓ ${outPath}`);
 }
 
@@ -335,7 +370,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     );
 
     // Track which type names come from experimental methods for JSDoc annotations.
-    const experimentalTypes = new Set<string>();
+    const experimentalTypes = experimentalDefinitionNames(collectDefinitionCollections(combinedSchema as Record<string, unknown>));
     // Track which type names come from deprecated methods for JSDoc annotations.
     const deprecatedTypes = new Set<string>();
     // Types are tagged @internal directly via `visibility: "internal"` on the JSON Schema
@@ -352,11 +387,12 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     for (const method of [...allMethods, ...clientSessionMethods]) {
         const resultSchema = getMethodResultSchema(method);
         if (!isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
+            const resultSource = schemaSourceForNamedDefinition(method.result, resultSchema);
             combinedSchema.definitions![resultTypeName(method)] = withRootTitle(
-                schemaSourceForNamedDefinition(method.result, resultSchema),
+                resultSource,
                 resultTypeName(method)
             );
-            if (method.stability === "experimental") {
+            if (method.stability === "experimental" || isSchemaExperimental(resultSource)) {
                 experimentalTypes.add(resultTypeName(method));
             }
             if (method.deprecated && !method.result?.$ref) {
@@ -379,7 +415,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                         filtered,
                         paramsTypeName(method)
                     );
-                    if (method.stability === "experimental") {
+                    if (method.stability === "experimental" || isSchemaExperimental(filtered)) {
                         experimentalTypes.add(paramsTypeName(method));
                     }
                     if (method.deprecated) {
@@ -387,11 +423,12 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                     }
                 }
             } else {
+                const paramsSource = schemaSourceForNamedDefinition(method.params, resolvedParams);
                 combinedSchema.definitions![paramsTypeName(method)] = withRootTitle(
-                    schemaSourceForNamedDefinition(method.params, resolvedParams),
+                    paramsSource,
                     paramsTypeName(method)
                 );
-                if (method.stability === "experimental") {
+                if (method.stability === "experimental" || isSchemaExperimental(paramsSource)) {
                     experimentalTypes.add(paramsTypeName(method));
                 }
                 if (method.deprecated && !method.params?.$ref) {
@@ -420,14 +457,8 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         .trim();
 
     if (strippedTs) {
-        // Add @experimental JSDoc annotations for types from experimental methods
-        let annotatedTs = strippedTs;
-        for (const expType of experimentalTypes) {
-            annotatedTs = annotatedTs.replace(
-                new RegExp(`(^|\\n)(export (?:interface|type) ${expType}\\b)`, "m"),
-                `$1/** @experimental */\n$2`
-            );
-        }
+        // Add @experimental JSDoc annotations for types from experimental methods or schemas.
+        let annotatedTs = annotateTypeScriptTypes(strippedTs, experimentalTypes, TS_EXPERIMENTAL_JSDOC);
         // Add @deprecated JSDoc annotations for types from deprecated methods
         for (const depType of deprecatedTypes) {
             annotatedTs = annotatedTs.replace(
@@ -567,7 +598,7 @@ function emitGroup(
                 lines.push(`${indent}/** @deprecated */`);
             }
             if ((value as RpcMethod).stability === "experimental" && !parentExperimental) {
-                lines.push(`${indent}/** @experimental */`);
+                lines.push(tsExperimentalJSDoc(indent));
             }
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
             lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
@@ -588,7 +619,7 @@ function emitGroup(
                 lines.push(`${indent}/** @deprecated */`);
             }
             if (groupExperimental) {
-                lines.push(`${indent}/** @experimental */`);
+                lines.push(tsExperimentalJSDoc(indent));
             }
             lines.push(`${indent}${key}: {`);
             lines.push(...childLines);

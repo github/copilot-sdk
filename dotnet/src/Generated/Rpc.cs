@@ -17,13 +17,6 @@ using System.Text.Json.Serialization;
 
 namespace GitHub.Copilot.SDK.Rpc;
 
-/// <summary>Diagnostic IDs for the Copilot SDK.</summary>
-internal static class Diagnostics
-{
-    /// <summary>Indicates an experimental API that may change or be removed.</summary>
-    internal const string Experimental = "GHCP001";
-}
-
 /// <summary>RPC data type for Ping operations.</summary>
 public sealed class PingResult
 {
