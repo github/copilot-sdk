@@ -494,6 +494,7 @@ interface PyEventVariant {
     dataSchema: JSONSchema7;
     dataDescription?: string;
     eventExperimental: boolean;
+    dataExperimental: boolean;
 }
 
 interface PyEventEnvelopeProperty extends SessionEventEnvelopeProperty {
@@ -667,6 +668,7 @@ function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
                 dataSchema,
                 dataDescription: dataSchema.description,
                 eventExperimental: isSchemaExperimental(variant),
+                dataExperimental: isSchemaExperimental(dataSchema),
             };
         });
 }

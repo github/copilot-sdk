@@ -780,7 +780,7 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	for (const variant of variants) {
 		pushRustExperimentalDocs(
 			dataEnumLines,
-			variant.eventExperimental || variant.dataExperimental,
+			variant.dataExperimental,
 			"    ",
 		);
 		dataEnumLines.push(`    #[serde(rename = "${variant.typeName}")]`);
