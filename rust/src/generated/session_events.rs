@@ -1089,6 +1089,12 @@ pub struct AssistantMessageToolRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantMessageData {
+    /// Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
+    #[serde(default)]
+    pub anthropic_advisor_blocks: Vec<serde_json::Value>,
+    /// Anthropic advisor model ID used for this response, for timeline display on replay
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anthropic_advisor_model: Option<String>,
     /// The assistant's text response content
     pub content: String,
     /// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -1099,6 +1105,9 @@ pub struct AssistantMessageData {
     pub interaction_id: Option<String>,
     /// Unique identifier for this assistant message
     pub message_id: String,
+    /// Model that produced this assistant message, if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Actual output token count from the API response (completion_tokens), used for accurate token accounting
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<f64>,
@@ -2100,6 +2109,25 @@ pub struct UserToolSessionApprovalCustomTool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalExtensionManagement {
+    /// Extension management approval kind
+    pub kind: UserToolSessionApprovalExtensionManagementKind,
+    /// Optional operation identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalExtensionPermissionAccess {
+    /// Extension name
+    pub extension_name: String,
+    /// Extension permission access approval kind
+    pub kind: UserToolSessionApprovalExtensionPermissionAccessKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PermissionApprovedForSession {
     /// The approval to add as a session-scoped rule
     pub approval: UserToolSessionApproval,
@@ -3042,6 +3070,20 @@ pub enum UserToolSessionApprovalCustomToolKind {
     CustomTool,
 }
 
+/// Extension management approval kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalExtensionManagementKind {
+    #[serde(rename = "extension-management")]
+    ExtensionManagement,
+}
+
+/// Extension permission access approval kind
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalExtensionPermissionAccessKind {
+    #[serde(rename = "extension-permission-access")]
+    ExtensionPermissionAccess,
+}
+
 /// The approval to add as a session-scoped rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -3052,6 +3094,8 @@ pub enum UserToolSessionApproval {
     Mcp(UserToolSessionApprovalMcp),
     Memory(UserToolSessionApprovalMemory),
     CustomTool(UserToolSessionApprovalCustomTool),
+    ExtensionManagement(UserToolSessionApprovalExtensionManagement),
+    ExtensionPermissionAccess(UserToolSessionApprovalExtensionPermissionAccess),
 }
 
 /// Approved and remembered for the rest of the session

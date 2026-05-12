@@ -699,6 +699,10 @@ func (*AssistantReasoningData) sessionEventData() {}
 
 // Assistant response containing text content, optional tool requests, and interaction metadata
 type AssistantMessageData struct {
+	// Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
+	AnthropicAdvisorBlocks []any `json:"anthropicAdvisorBlocks,omitempty"`
+	// Anthropic advisor model ID used for this response, for timeline display on replay
+	AnthropicAdvisorModel *string `json:"anthropicAdvisorModel,omitempty"`
 	// The assistant's text response content
 	Content string `json:"content"`
 	// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -707,6 +711,8 @@ type AssistantMessageData struct {
 	InteractionID *string `json:"interactionId,omitempty"`
 	// Unique identifier for this assistant message
 	MessageID string `json:"messageId"`
+	// Model that produced this assistant message, if known
+	Model *string `json:"model,omitempty"`
 	// Actual output token count from the API response (completion_tokens), used for accurate token accounting
 	OutputTokens *float64 `json:"outputTokens,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -2468,8 +2474,12 @@ type UserMessageAttachmentSelectionDetailsStart struct {
 type UserToolSessionApproval struct {
 	// Command identifiers approved by the user
 	CommandIdentifiers []string `json:"commandIdentifiers,omitempty"`
+	// Extension name
+	ExtensionName *string `json:"extensionName,omitempty"`
 	// Kind discriminator
 	Kind UserToolSessionApprovalKind `json:"kind"`
+	// Optional operation identifier
+	Operation *string `json:"operation,omitempty"`
 	// MCP server name
 	ServerName *string `json:"serverName,omitempty"`
 	// Optional MCP tool name, or null for all tools on the server
@@ -2791,12 +2801,14 @@ const (
 type UserToolSessionApprovalKind string
 
 const (
-	UserToolSessionApprovalKindCommands   UserToolSessionApprovalKind = "commands"
-	UserToolSessionApprovalKindCustomTool UserToolSessionApprovalKind = "custom-tool"
-	UserToolSessionApprovalKindMcp        UserToolSessionApprovalKind = "mcp"
-	UserToolSessionApprovalKindMemory     UserToolSessionApprovalKind = "memory"
-	UserToolSessionApprovalKindRead       UserToolSessionApprovalKind = "read"
-	UserToolSessionApprovalKindWrite      UserToolSessionApprovalKind = "write"
+	UserToolSessionApprovalKindCommands                  UserToolSessionApprovalKind = "commands"
+	UserToolSessionApprovalKindCustomTool                UserToolSessionApprovalKind = "custom-tool"
+	UserToolSessionApprovalKindExtensionManagement       UserToolSessionApprovalKind = "extension-management"
+	UserToolSessionApprovalKindExtensionPermissionAccess UserToolSessionApprovalKind = "extension-permission-access"
+	UserToolSessionApprovalKindMcp                       UserToolSessionApprovalKind = "mcp"
+	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
+	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
+	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
 )
 
 // Hosting platform type of the repository (github or ado)

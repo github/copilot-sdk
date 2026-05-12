@@ -240,7 +240,9 @@ export type UserToolSessionApproval =
   | UserToolSessionApprovalWrite
   | UserToolSessionApprovalMcp
   | UserToolSessionApprovalMemory
-  | UserToolSessionApprovalCustomTool;
+  | UserToolSessionApprovalCustomTool
+  | UserToolSessionApprovalExtensionManagement
+  | UserToolSessionApprovalExtensionPermissionAccess;
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
  */
@@ -1973,6 +1975,14 @@ export interface AssistantMessageEvent {
  */
 export interface AssistantMessageData {
   /**
+   * Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
+   */
+  anthropicAdvisorBlocks?: unknown[];
+  /**
+   * Anthropic advisor model ID used for this response, for timeline display on replay
+   */
+  anthropicAdvisorModel?: string;
+  /**
    * The assistant's text response content
    */
   content: string;
@@ -1988,6 +1998,10 @@ export interface AssistantMessageData {
    * Unique identifier for this assistant message
    */
   messageId: string;
+  /**
+   * Model that produced this assistant message, if known
+   */
+  model?: string;
   /**
    * Actual output token count from the API response (completion_tokens), used for accurate token accounting
    */
@@ -4141,6 +4155,26 @@ export interface UserToolSessionApprovalCustomTool {
    * Custom tool name
    */
   toolName: string;
+}
+export interface UserToolSessionApprovalExtensionManagement {
+  /**
+   * Extension management approval kind
+   */
+  kind: "extension-management";
+  /**
+   * Optional operation identifier
+   */
+  operation?: string;
+}
+export interface UserToolSessionApprovalExtensionPermissionAccess {
+  /**
+   * Extension name
+   */
+  extensionName: string;
+  /**
+   * Extension permission access approval kind
+   */
+  kind: "extension-permission-access";
 }
 export interface PermissionApprovedForLocation {
   approval: UserToolSessionApproval;
