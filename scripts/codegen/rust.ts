@@ -1315,8 +1315,7 @@ function generateRpcCode(apiSchema: ApiSchema): string {
 	out.push("#![allow(missing_docs)]");
 	out.push("#![allow(clippy::too_many_arguments)]");
 	out.push("");
-	out.push("use super::api_types::*;");
-	out.push("use super::api_types::rpc_methods;");
+	out.push("use super::api_types::{rpc_methods, *};");
 	out.push("use crate::session::Session;");
 	out.push("use crate::{Client, Error};");
 	out.push("");
