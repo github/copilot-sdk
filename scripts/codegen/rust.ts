@@ -59,9 +59,37 @@ const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
 
 function toPascalCase(s: string): string {
 	return s
-		.split(/[._\-\s]+/)
+		.split(/[^A-Za-z0-9]+/)
+		.filter(Boolean)
 		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
 		.join("");
+}
+
+function toRustPascalIdentifier(value: string, fallback: string): string {
+	let identifier = toPascalCase(value);
+	if (!identifier) {
+		identifier = fallback;
+	} else if (!/^[A-Za-z_]/.test(identifier)) {
+		identifier = `${fallback}${identifier}`;
+	}
+
+	return RUST_KEYWORDS.has(identifier) ? `${identifier}Value` : identifier;
+}
+
+function uniqueRustPascalIdentifier(
+	value: string,
+	used: Set<string>,
+	fallback: string,
+	reserved: Set<string> = new Set(),
+): string {
+	const identifier = toRustPascalIdentifier(value, fallback);
+	if (used.has(identifier) || reserved.has(identifier)) {
+		throw new Error(
+			`Generated Rust enum variant identifier "${identifier}" is not unique for value "${value}". Add an explicit naming rule instead of stabilizing an arbitrary public variant name.`,
+		);
+	}
+	used.add(identifier);
+	return identifier;
 }
 
 function toSnakeCase(s: string): string {
@@ -233,10 +261,16 @@ function tryEmitRustDiscriminatedUnion(
 	lines.push("#[serde(untagged)]");
 	lines.push(`pub enum ${enumName} {`);
 
+	const usedVariantNames = new Set<string>();
 	for (const { schema: variantSchema, typeName } of resolvedVariants) {
 		const kind = ((variantSchema.properties?.kind as JSONSchema7 | undefined)
 			?.const ?? typeName) as string;
-		lines.push(`    ${toPascalCase(kind)}(${stripOption(typeName)}),`);
+		const variantName = uniqueRustPascalIdentifier(
+			kind,
+			usedVariantNames,
+			"Variant",
+		);
+		lines.push(`    ${variantName}(${stripOption(typeName)}),`);
 	}
 
 	lines.push("}");
@@ -617,8 +651,15 @@ function emitRustStringEnum(
 	lines.push("#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]");
 	lines.push(`pub enum ${enumName} {`);
 
+	const usedVariantNames = new Set<string>();
+	const reservedVariantNames = new Set(["Unknown"]);
 	for (const value of values) {
-		const variantName = toPascalCase(value);
+		const variantName = uniqueRustPascalIdentifier(
+			value,
+			usedVariantNames,
+			"Value",
+			reservedVariantNames,
+		);
 		if (variantName !== value) {
 			lines.push(`    #[serde(rename = "${value}")]`);
 		}
@@ -651,7 +692,7 @@ function emitRustConstStringEnum(
 	}
 	lines.push("#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]");
 	lines.push(`pub enum ${enumName} {`);
-	const variantName = toPascalCase(value);
+	const variantName = toRustPascalIdentifier(value, "Value");
 	if (variantName !== value) {
 		lines.push(`    #[serde(rename = "${value}")]`);
 	}
@@ -927,6 +968,8 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 				schema.description,
 				isSchemaExperimental(schema),
 			);
+		} else if (getUnionVariants(schema)) {
+			tryEmitRustDiscriminatedUnion(schema, name, "", ctx);
 		} else if (isObjectSchema(schema)) {
 			emitRustStruct(name, schema, ctx, schema.description);
 		}

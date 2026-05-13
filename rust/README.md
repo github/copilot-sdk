@@ -166,8 +166,8 @@ let forked = client
     .rpc()
     .sessions()
     .fork(github_copilot_sdk::generated::api_types::SessionsForkRequest {
-        session_id: "session-id".to_string(),
-        from_message_id: None,
+        session_id: "session-id".into(),
+        to_event_id: None,
     })
     .await?;
 ```
