@@ -262,8 +262,6 @@ impl ListModelsHandler for CountingModelsHandler {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(vec![Model {
             id: "custom-handler-model".to_string(),
-            model_picker_category: None,
-            model_picker_price_category: None,
             name: "Custom Handler Model".to_string(),
             ..Default::default()
         }])

@@ -2434,8 +2434,6 @@ mod tests {
         let calls = Arc::new(AtomicUsize::new(0));
         let model = Model {
             id: "byok-gpt-4".into(),
-            model_picker_category: None,
-            model_picker_price_category: None,
             name: "BYOK GPT-4".into(),
             ..Default::default()
         };
@@ -2472,8 +2470,6 @@ mod tests {
         let calls = Arc::new(AtomicUsize::new(0));
         let model = Model {
             id: "single-flight-model".into(),
-            model_picker_category: None,
-            model_picker_price_category: None,
             name: "Single Flight Model".into(),
             ..Default::default()
         };
