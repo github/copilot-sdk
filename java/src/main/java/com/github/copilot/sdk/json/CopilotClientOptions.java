@@ -503,7 +503,8 @@ public class CopilotClientOptions {
      * Gets the server-wide idle timeout for sessions in seconds.
      *
      * @return an {@link OptionalInt} containing the session idle timeout in
-     *         seconds, or empty to disable (sessions live indefinitely)
+     *         seconds, or {@link java.util.OptionalInt#empty()} if not set. Use
+     *         {@link #clearSessionIdleTimeoutSeconds()} to revert to the default.
      * @since 1.3.0
      */
     @JsonIgnore

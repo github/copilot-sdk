@@ -132,8 +132,9 @@ public class TelemetryConfig {
      * Maps to the {@code OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT}
      * environment variable.
      *
-     * @return {@code true} to capture content, {@code false} to suppress it, or
-     *         {@code null} to use the default
+     * @return an {@link java.util.Optional} containing {@code true} to capture
+     *         content or {@code false} to suppress it, or
+     *         {@link java.util.Optional#empty()} to use the default
      */
     @JsonIgnore
     public Optional<Boolean> getCaptureContent() {

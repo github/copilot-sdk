@@ -164,7 +164,7 @@ class ElicitationTest {
 
         var request = SessionRequestBuilder.buildCreateRequest(config);
 
-        assertTrue(request.getRequestElicitation());
+        assertEquals(Boolean.TRUE, request.getRequestElicitation());
     }
 
     @Test
@@ -186,6 +186,6 @@ class ElicitationTest {
 
         var request = SessionRequestBuilder.buildResumeRequest("session-1", config);
 
-        assertTrue(request.getRequestElicitation());
+        assertEquals(Boolean.TRUE, request.getRequestElicitation());
     }
 }

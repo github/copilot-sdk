@@ -236,7 +236,7 @@ public class ResumeSessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. When {@code null} (the default) or
+     * {@code false}, disables session telemetry. When unset (the default) or
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting. This is independent of
@@ -244,7 +244,8 @@ public class ResumeSessionConfig {
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
      *
-     * @return whether session telemetry is enabled
+     * @return an {@link java.util.Optional} containing whether session telemetry is
+     *         enabled, or {@link java.util.Optional#empty()} for the default
      */
     @JsonIgnore
     public Optional<Boolean> getEnableSessionTelemetry() {
@@ -253,7 +254,7 @@ public class ResumeSessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. When {@code null} (the default) or
+     * {@code false}, disables session telemetry. When unset (the default) or
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting.

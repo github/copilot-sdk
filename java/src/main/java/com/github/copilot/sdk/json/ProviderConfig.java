@@ -298,7 +298,8 @@ public class ProviderConfig {
     /**
      * Gets the maximum prompt token override.
      *
-     * @return the max prompt tokens, or {@code null} if not set
+     * @return an {@link java.util.OptionalInt} containing the max prompt tokens, or
+     *         {@link java.util.OptionalInt#empty()} if not set
      */
     @JsonIgnore
     public OptionalInt getMaxPromptTokens() {
@@ -335,7 +336,8 @@ public class ProviderConfig {
     /**
      * Gets the maximum output token override.
      *
-     * @return the max output tokens, or {@code null} if not set
+     * @return an {@link java.util.OptionalInt} containing the max output tokens, or
+     *         {@link java.util.OptionalInt#empty()} if not set
      */
     @JsonIgnore
     public OptionalInt getMaxOutputTokens() {

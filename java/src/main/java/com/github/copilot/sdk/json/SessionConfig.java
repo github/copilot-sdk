@@ -290,7 +290,7 @@ public class SessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. When {@code null} (the default) or
+     * {@code false}, disables session telemetry. When unset (the default) or
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting. This is independent of
@@ -298,7 +298,8 @@ public class SessionConfig {
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
      *
-     * @return whether session telemetry is enabled
+     * @return an {@link java.util.Optional} containing whether session telemetry is
+     *         enabled, or {@link java.util.Optional#empty()} for the default
      */
     @JsonIgnore
     public Optional<Boolean> getEnableSessionTelemetry() {
@@ -307,7 +308,7 @@ public class SessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. When {@code null} (the default) or
+     * {@code false}, disables session telemetry. When unset (the default) or
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting.
@@ -671,8 +672,9 @@ public class SessionConfig {
     /**
      * Gets whether automatic configuration discovery is enabled.
      *
-     * @return {@code true} to enable discovery, {@code false} to disable, or
-     *         {@code null} to use the runtime default
+     * @return an {@link java.util.Optional} containing {@code true} to enable
+     *         discovery or {@code false} to disable, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
      */
     @JsonIgnore
     public Optional<Boolean> getEnableConfigDiscovery() {
@@ -690,8 +692,7 @@ public class SessionConfig {
      * name collision.
      *
      * @param enableConfigDiscovery
-     *            {@code true} to enable discovery, {@code false} to disable, or
-     *            {@code null} to use the runtime default
+     *            {@code true} to enable discovery, {@code false} to disable
      * @return this config instance for method chaining
      */
     public SessionConfig setEnableConfigDiscovery(boolean enableConfigDiscovery) {
@@ -712,8 +713,9 @@ public class SessionConfig {
     /**
      * Gets whether sub-agent streaming events are included.
      *
-     * @return {@code true} to include sub-agent streaming events, {@code false} to
-     *         suppress them, or {@code null} to use the runtime default
+     * @return an {@link java.util.Optional} containing {@code true} to include
+     *         sub-agent streaming events or {@code false} to suppress them, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
      */
     @JsonIgnore
     public Optional<Boolean> getIncludeSubAgentStreamingEvents() {

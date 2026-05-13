@@ -1120,7 +1120,7 @@ public final class CopilotSession implements AutoCloseable {
         SessionCapabilities caps = capabilities;
         if (caps == null || caps.getUi() == null || !caps.getUi().getElicitation().orElse(false)) {
             throw new IllegalStateException("Elicitation is not supported by the host. "
-                    + "Check session.getCapabilities().getUi()?.getElicitation() before calling UI methods.");
+                    + "Check session.getCapabilities().getUi().getElicitation().orElse(false) before calling UI methods.");
         }
     }
 

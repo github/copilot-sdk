@@ -49,7 +49,12 @@ public class InputOptions {
         return this;
     }
 
-    /** Gets the minimum character length. @return the min length */
+    /**
+     * Gets the minimum character length.
+     *
+     * @return an {@link java.util.OptionalInt} containing the min length, or
+     *         {@link java.util.OptionalInt#empty()} if not set
+     */
     @JsonIgnore
     public OptionalInt getMinLength() {
         return minLength == null ? OptionalInt.empty() : OptionalInt.of(minLength);
@@ -74,7 +79,12 @@ public class InputOptions {
         return this;
     }
 
-    /** Gets the maximum character length. @return the max length */
+    /**
+     * Gets the maximum character length.
+     *
+     * @return an {@link java.util.OptionalInt} containing the max length, or
+     *         {@link java.util.OptionalInt#empty()} if not set
+     */
     @JsonIgnore
     public OptionalInt getMaxLength() {
         return maxLength == null ? OptionalInt.empty() : OptionalInt.of(maxLength);

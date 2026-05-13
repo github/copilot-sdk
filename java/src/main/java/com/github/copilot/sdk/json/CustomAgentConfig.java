@@ -199,7 +199,8 @@ public class CustomAgentConfig {
     /**
      * Gets whether inference mode is enabled.
      *
-     * @return the infer flag, or {@code null} if not set
+     * @return an {@link java.util.Optional} containing the infer flag, or
+     *         {@link java.util.Optional#empty()} if not set
      */
     @JsonIgnore
     public Optional<Boolean> getInfer() {

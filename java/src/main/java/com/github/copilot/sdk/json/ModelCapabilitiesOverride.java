@@ -109,8 +109,9 @@ public class ModelCapabilitiesOverride {
         /**
          * Gets the vision override.
          *
-         * @return {@code true} to enable vision, {@code false} to disable, or
-         *         {@code null} to use the runtime default
+         * @return an {@link java.util.Optional} containing {@code true} to enable
+         *         vision or {@code false} to disable, or
+         *         {@link java.util.Optional#empty()} to use the runtime default
          */
         @JsonIgnore
         public Optional<Boolean> getVision() {
@@ -118,11 +119,11 @@ public class ModelCapabilitiesOverride {
         }
 
         /**
-         * Sets whether vision (image input) is enabled.
+         * Sets whether vision (image input) is enabled. Use {@link #clearVision()} to
+         * revert to the runtime default.
          *
          * @param vision
-         *            {@code true} to enable, {@code false} to disable, or {@code null}
-         *            to use the runtime default
+         *            {@code true} to enable, {@code false} to disable
          * @return this instance for method chaining
          */
         public Supports setVision(boolean vision) {
@@ -143,8 +144,9 @@ public class ModelCapabilitiesOverride {
         /**
          * Gets the reasoning effort override.
          *
-         * @return {@code true} to enable reasoning effort, {@code false} to disable, or
-         *         {@code null} to use the runtime default
+         * @return an {@link java.util.Optional} containing {@code true} to enable
+         *         reasoning effort or {@code false} to disable, or
+         *         {@link java.util.Optional#empty()} to use the runtime default
          */
         @JsonIgnore
         public Optional<Boolean> getReasoningEffort() {
@@ -152,11 +154,11 @@ public class ModelCapabilitiesOverride {
         }
 
         /**
-         * Sets whether reasoning effort configuration is enabled.
+         * Sets whether reasoning effort configuration is enabled. Use
+         * {@link #clearReasoningEffort()} to revert to the runtime default.
          *
          * @param reasoningEffort
-         *            {@code true} to enable, {@code false} to disable, or {@code null}
-         *            to use the runtime default
+         *            {@code true} to enable, {@code false} to disable
          * @return this instance for method chaining
          */
         public Supports setReasoningEffort(boolean reasoningEffort) {

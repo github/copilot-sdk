@@ -77,7 +77,8 @@ public class UserInputRequest {
     /**
      * Returns whether freeform text input is allowed.
      *
-     * @return {@code true} if freeform input is allowed, {@code null} if not
+     * @return an {@link java.util.Optional} containing {@code true} if freeform
+     *         input is allowed, or {@link java.util.Optional#empty()} if not
      *         specified
      */
     @JsonIgnore
