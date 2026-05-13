@@ -641,7 +641,6 @@ function generatePolymorphicClasses(
     lines.push(`public partial class ${renamedBase}`);
     lines.push(`{`);
     lines.push(`    /// <summary>The type discriminator.</summary>`);
-    lines.push(`    [JsonIgnore]`);
     lines.push(`    [JsonPropertyName("${discriminatorProperty}")]`);
     lines.push(`    public virtual string ${toPascalCase(discriminatorProperty)} { get; set; } = string.Empty;`);
     lines.push(`}`);

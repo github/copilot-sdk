@@ -1187,7 +1187,6 @@ internal sealed class TasksStartAgentRequest
 public partial class TaskInfo
 {
     /// <summary>The type discriminator.</summary>
-    [JsonIgnore]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -1889,7 +1888,6 @@ internal sealed class CommandsListRequest
 public partial class SlashCommandInvocationResult
 {
     /// <summary>The type discriminator.</summary>
-    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2133,7 +2131,6 @@ public sealed class PermissionRequestResult
 public partial class PermissionDecision
 {
     /// <summary>The type discriminator.</summary>
-    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2164,7 +2161,6 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 public partial class PermissionDecisionApproveForSessionApproval
 {
     /// <summary>The type discriminator.</summary>
-    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2306,7 +2302,6 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 public partial class PermissionDecisionApproveForLocationApproval
 {
     /// <summary>The type discriminator.</summary>
-    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
