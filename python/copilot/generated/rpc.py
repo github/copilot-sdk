@@ -7563,7 +7563,7 @@ class CommandsApi:
     async def invoke(self, params: CommandsInvokeRequest, *, timeout: float | None = None) -> SlashCommandInvocationResult:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SlashCommandInvocationResult(await self._client.request("session.commands.invoke", params_dict, **_timeout_kwargs(timeout)))
+        return SlashCommandInvocationResult.from_dict(await self._client.request("session.commands.invoke", params_dict, **_timeout_kwargs(timeout)))
 
     async def handle_pending_command(self, params: CommandsHandlePendingCommandRequest, *, timeout: float | None = None) -> CommandsHandlePendingCommandResult:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}

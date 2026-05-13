@@ -445,6 +445,33 @@ function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
     return resolveSchema(method.result, rpcDefinitions) ?? method.result ?? undefined;
 }
 
+function isPythonObjectResultSchema(schema: JSONSchema7 | undefined): boolean {
+    if (!schema) return false;
+    if (isObjectSchema(schema)) return true;
+
+    const variants = schema.anyOf ?? schema.oneOf;
+    if (!Array.isArray(variants)) return false;
+
+    const nonNullVariants = variants
+        .filter((variant): variant is JSONSchema7 => typeof variant === "object" && variant !== null)
+        .map((variant) => resolveObjectSchema(variant, rpcDefinitions) ?? resolveSchema(variant, rpcDefinitions) ?? variant)
+        .filter(
+            (variant) =>
+                variant.type !== "null" &&
+                !(
+                    typeof variant.not === "object" &&
+                    variant.not !== null &&
+                    Object.keys(variant.not).length === 0
+                )
+        );
+
+    if (nonNullVariants.length === 1) {
+        return isPythonObjectResultSchema(nonNullVariants[0]);
+    }
+
+    return nonNullVariants.length > 1 && findPyDiscriminator(nonNullVariants) !== null;
+}
+
 function getMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
     return (
         resolveObjectSchema(method.params, rpcDefinitions) ??
@@ -2082,7 +2109,7 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     const effectiveResultSchema = nullableInner ?? resultSchema;
     const hasResult = !isVoidSchema(resultSchema) && !nullableInner;
     const hasNullableResult = !!nullableInner;
-    const resultIsObject = isObjectSchema(effectiveResultSchema);
+    const resultIsObject = isPythonObjectResultSchema(effectiveResultSchema);
 
     let resultType: string;
     if (hasNullableResult) {
