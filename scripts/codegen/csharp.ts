@@ -118,18 +118,41 @@ function xmlDocEnumComment(description: string | undefined, indent: string): str
 }
 
 function toPascalCase(name: string): string {
-    if (name.includes("_") || name.includes("-")) {
-        return name.split(/[-_]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
-    }
+    const parts = splitCSharpIdentifierParts(name);
+    if (parts.length > 1) return parts.map(toPascalCasePart).join("");
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 function typeToClassName(typeName: string): string {
-    return typeName.split(/[._]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
+    return splitCSharpIdentifierParts(typeName).map(toPascalCasePart).join("");
 }
 
-function toPascalCaseEnumMember(value: string): string {
-    return value.split(/[-_.]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
+function splitCSharpIdentifierParts(value: string): string[] {
+    return value.split(/[^A-Za-z0-9]+/).filter(Boolean);
+}
+
+function toPascalCasePart(value: string): string {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function toCSharpIdentifier(value: string, fallback: string): string {
+    let identifier = splitCSharpIdentifierParts(value).map(toPascalCasePart).join("");
+    if (!identifier) {
+        identifier = fallback;
+    } else if (!/^[A-Za-z_]/.test(identifier)) {
+        identifier = `${fallback}${identifier}`;
+    }
+    return identifier;
+}
+
+function uniqueCSharpIdentifier(value: string, used: Set<string>, fallback: string): string {
+    const base = toCSharpIdentifier(value, fallback);
+    let identifier = base;
+    for (let i = 2; used.has(identifier); i++) {
+        identifier = `${base}${i}`;
+    }
+    used.add(identifier);
+    return identifier;
 }
 
 async function formatCSharpFile(filePath: string): Promise<void> {
@@ -374,9 +397,11 @@ function getOrCreateEnum(
     lines.push(`    }`, "");
     lines.push(`    /// <summary>Gets the value associated with this <see cref="${enumName}"/>.</summary>`);
     lines.push(`    public string Value => _value ?? string.Empty;`, "");
+    const usedMemberNames = new Set<string>();
     for (const value of values) {
+        const memberName = uniqueCSharpIdentifier(value, usedMemberNames, "Value");
         lines.push(`    /// <summary>Gets the <c>${escapeXml(value)}</c> value.</summary>`);
-        lines.push(`    public static ${enumName} ${toPascalCaseEnumMember(value)} { get; } = new("${value}");`, "");
+        lines.push(`    public static ${enumName} ${memberName} { get; } = new("${escapeCSharpStringLiteral(value)}");`, "");
     }
     lines.push(`    /// <summary>Returns a value indicating whether two <see cref="${enumName}"/> instances are equivalent.</summary>`);
     lines.push(`    public static bool operator ==(${enumName} left, ${enumName} right) => left.Equals(right);`, "");
