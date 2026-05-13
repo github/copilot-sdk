@@ -169,6 +169,14 @@ public sealed class Model
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
+    /// <summary>Model capability category for grouping in the model picker.</summary>
+    [JsonPropertyName("modelPickerCategory")]
+    public ModelPickerCategory? ModelPickerCategory { get; set; }
+
+    /// <summary>Relative cost tier for token-based billing users.</summary>
+    [JsonPropertyName("modelPickerPriceCategory")]
+    public ModelPickerPriceCategory? ModelPickerPriceCategory { get; set; }
+
     /// <summary>Display name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -2875,6 +2883,139 @@ public sealed class SessionFsRenameRequest
     [JsonPropertyName("src")]
     public string Src { get; set; } = string.Empty;
 }
+
+/// <summary>Model capability category for grouping in the model picker.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelPickerCategory : IEquatable<ModelPickerCategory>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelPickerCategory"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelPickerCategory"/>.</param>
+    [JsonConstructor]
+    public ModelPickerCategory(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelPickerCategory"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>lightweight</c> value.</summary>
+    public static ModelPickerCategory Lightweight { get; } = new("lightweight");
+
+    /// <summary>Gets the <c>versatile</c> value.</summary>
+    public static ModelPickerCategory Versatile { get; } = new("versatile");
+
+    /// <summary>Gets the <c>powerful</c> value.</summary>
+    public static ModelPickerCategory Powerful { get; } = new("powerful");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelPickerCategory"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelPickerCategory left, ModelPickerCategory right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelPickerCategory"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelPickerCategory left, ModelPickerCategory right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelPickerCategory other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelPickerCategory other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelPickerCategory}"/> for serializing <see cref="ModelPickerCategory"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelPickerCategory>
+    {
+        /// <inheritdoc />
+        public override ModelPickerCategory Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelPickerCategory value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerCategory));
+        }
+    }
+}
+
+
+/// <summary>Relative cost tier for token-based billing users.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelPickerPriceCategory : IEquatable<ModelPickerPriceCategory>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelPickerPriceCategory"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelPickerPriceCategory"/>.</param>
+    [JsonConstructor]
+    public ModelPickerPriceCategory(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelPickerPriceCategory"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>low</c> value.</summary>
+    public static ModelPickerPriceCategory Low { get; } = new("low");
+
+    /// <summary>Gets the <c>medium</c> value.</summary>
+    public static ModelPickerPriceCategory Medium { get; } = new("medium");
+
+    /// <summary>Gets the <c>high</c> value.</summary>
+    public static ModelPickerPriceCategory High { get; } = new("high");
+
+    /// <summary>Gets the <c>very_high</c> value.</summary>
+    public static ModelPickerPriceCategory VeryHigh { get; } = new("very_high");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelPickerPriceCategory"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelPickerPriceCategory left, ModelPickerPriceCategory right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelPickerPriceCategory"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelPickerPriceCategory left, ModelPickerPriceCategory right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelPickerPriceCategory other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelPickerPriceCategory other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelPickerPriceCategory}"/> for serializing <see cref="ModelPickerPriceCategory"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelPickerPriceCategory>
+    {
+        /// <inheritdoc />
+        public override ModelPickerPriceCategory Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelPickerPriceCategory value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerPriceCategory));
+        }
+    }
+}
+
 
 /// <summary>Configuration source.</summary>
 [JsonConverter(typeof(Converter))]

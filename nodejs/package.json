@@ -56,7 +56,7 @@
     "author": "GitHub",
     "license": "MIT",
     "dependencies": {
-        "@github/copilot": "^1.0.45",
+        "@github/copilot": "^1.0.46",
         "vscode-jsonrpc": "^8.2.1",
         "zod": "^4.3.6"
     },
