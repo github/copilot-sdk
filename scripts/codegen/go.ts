@@ -52,7 +52,8 @@ const wrapGoCommentText = wordwrap(goCommentTextWrapLength);
 
 function toPascalCase(s: string): string {
     return s
-        .split(/[._]/)
+        .split(/[^A-Za-z0-9]+/)
+        .filter((word) => word.length > 0)
         .map((w) => goInitialisms.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))
         .join("");
 }
@@ -92,7 +93,7 @@ function splitGoIdentifierWords(name: string): string[] {
     return name
         .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
         .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-        .split(/[._-]/)
+        .split(/[^A-Za-z0-9]+/)
         .filter((word) => word.length > 0);
 }
 
@@ -547,8 +548,17 @@ function getOrCreateGoEnum(
     const consts = values
         .map((value) => ({ value, constSuffix: goEnumConstSuffix(value) }))
         .sort((left, right) => `${enumName}${left.constSuffix}`.localeCompare(`${enumName}${right.constSuffix}`));
+    const usedConstNames = new Map<string, string>();
     for (const { value, constSuffix } of consts) {
-        lines.push(`\t${enumName}${constSuffix} ${enumName} = "${value}"`);
+        const constName = `${enumName}${constSuffix}`;
+        const existingValue = usedConstNames.get(constName);
+        if (existingValue !== undefined) {
+            throw new Error(
+                `Generated Go enum const identifier "${constName}" is not unique for values "${existingValue}" and "${value}". Add an explicit naming rule instead of stabilizing an arbitrary public const name.`
+            );
+        }
+        usedConstNames.set(constName, value);
+        lines.push(`\t${constName} ${enumName} = "${value}"`);
     }
     lines.push(`)`);
 
@@ -558,14 +568,14 @@ function getOrCreateGoEnum(
 }
 
 function goEnumConstSuffix(value: string): string {
-    return value
-        .split(/[-_.]/)
+    const suffix = splitGoIdentifierWords(value)
         .map((word) =>
             goInitialisms.has(word.toLowerCase())
                 ? word.toUpperCase()
                 : word.charAt(0).toUpperCase() + word.slice(1)
         )
         .join("");
+    return suffix || "Value";
 }
 
 function goDiscriminatedUnionVariantTypeName(

@@ -1064,75 +1064,9 @@ pub struct NameSetRequest {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalCommands {
-    pub command_identifiers: Vec<String>,
-    pub kind: PermissionDecisionApproveForLocationApprovalCommandsKind,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalRead {
-    pub kind: PermissionDecisionApproveForLocationApprovalReadKind,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalWrite {
-    pub kind: PermissionDecisionApproveForLocationApprovalWriteKind,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalMcp {
-    pub kind: PermissionDecisionApproveForLocationApprovalMcpKind,
-    pub server_name: String,
-    pub tool_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalMcpSampling {
-    pub kind: PermissionDecisionApproveForLocationApprovalMcpSamplingKind,
-    pub server_name: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalMemory {
-    pub kind: PermissionDecisionApproveForLocationApprovalMemoryKind,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalCustomTool {
-    pub kind: PermissionDecisionApproveForLocationApprovalCustomToolKind,
-    pub tool_name: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalExtensionManagement {
-    pub kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub operation: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess {
-    pub extension_name: String,
-    pub kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveForLocation {
-    /// The approval to persist for this location
-    pub approval: PermissionDecisionApproveForLocationApproval,
-    /// Approved and persisted for this project location
-    pub kind: PermissionDecisionApproveForLocationKind,
-    /// The location key (git root or cwd) to persist the approval to
-    pub location_key: String,
+pub struct PermissionDecisionApproveOnce {
+    /// The permission request was approved for this one instance
+    pub kind: PermissionDecisionApproveOnceKind,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1212,9 +1146,75 @@ pub struct PermissionDecisionApproveForSession {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionDecisionApproveOnce {
-    /// The permission request was approved for this one instance
-    pub kind: PermissionDecisionApproveOnceKind,
+pub struct PermissionDecisionApproveForLocationApprovalCommands {
+    pub command_identifiers: Vec<String>,
+    pub kind: PermissionDecisionApproveForLocationApprovalCommandsKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalRead {
+    pub kind: PermissionDecisionApproveForLocationApprovalReadKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalWrite {
+    pub kind: PermissionDecisionApproveForLocationApprovalWriteKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalMcp {
+    pub kind: PermissionDecisionApproveForLocationApprovalMcpKind,
+    pub server_name: String,
+    pub tool_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalMcpSampling {
+    pub kind: PermissionDecisionApproveForLocationApprovalMcpSamplingKind,
+    pub server_name: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalMemory {
+    pub kind: PermissionDecisionApproveForLocationApprovalMemoryKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalCustomTool {
+    pub kind: PermissionDecisionApproveForLocationApprovalCustomToolKind,
+    pub tool_name: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalExtensionManagement {
+    pub kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess {
+    pub extension_name: String,
+    pub kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocation {
+    /// The approval to persist for this location
+    pub approval: PermissionDecisionApproveForLocationApproval,
+    /// Approved and persisted for this project location
+    pub kind: PermissionDecisionApproveForLocationKind,
+    /// The location key (git root or cwd) to persist the approval to
+    pub location_key: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -3227,92 +3227,12 @@ pub enum SessionMode {
     Unknown,
 }
 
+/// The permission request was approved for this one instance
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalCommandsKind {
-    #[serde(rename = "commands")]
+pub enum PermissionDecisionApproveOnceKind {
+    #[serde(rename = "approve-once")]
     #[default]
-    Commands,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalReadKind {
-    #[serde(rename = "read")]
-    #[default]
-    Read,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalWriteKind {
-    #[serde(rename = "write")]
-    #[default]
-    Write,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalMcpKind {
-    #[serde(rename = "mcp")]
-    #[default]
-    Mcp,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalMcpSamplingKind {
-    #[serde(rename = "mcp-sampling")]
-    #[default]
-    McpSampling,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalMemoryKind {
-    #[serde(rename = "memory")]
-    #[default]
-    Memory,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalCustomToolKind {
-    #[serde(rename = "custom-tool")]
-    #[default]
-    CustomTool,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalExtensionManagementKind {
-    #[serde(rename = "extension-management")]
-    #[default]
-    ExtensionManagement,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind {
-    #[serde(rename = "extension-permission-access")]
-    #[default]
-    ExtensionPermissionAccess,
-}
-
-/// The approval to persist for this location
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum PermissionDecisionApproveForLocationApproval {
-    Commands(PermissionDecisionApproveForLocationApprovalCommands),
-    Read(PermissionDecisionApproveForLocationApprovalRead),
-    Write(PermissionDecisionApproveForLocationApprovalWrite),
-    Mcp(PermissionDecisionApproveForLocationApprovalMcp),
-    McpSampling(PermissionDecisionApproveForLocationApprovalMcpSampling),
-    Memory(PermissionDecisionApproveForLocationApprovalMemory),
-    CustomTool(PermissionDecisionApproveForLocationApprovalCustomTool),
-    ExtensionManagement(PermissionDecisionApproveForLocationApprovalExtensionManagement),
-    ExtensionPermissionAccess(
-        PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess,
-    ),
-}
-
-/// Approved and persisted for this project location
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveForLocationKind {
-    #[serde(rename = "approve-for-location")]
-    #[default]
-    ApproveForLocation,
+    ApproveOnce,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -3401,12 +3321,92 @@ pub enum PermissionDecisionApproveForSessionKind {
     ApproveForSession,
 }
 
-/// The permission request was approved for this one instance
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionDecisionApproveOnceKind {
-    #[serde(rename = "approve-once")]
+pub enum PermissionDecisionApproveForLocationApprovalCommandsKind {
+    #[serde(rename = "commands")]
     #[default]
-    ApproveOnce,
+    Commands,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalReadKind {
+    #[serde(rename = "read")]
+    #[default]
+    Read,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalWriteKind {
+    #[serde(rename = "write")]
+    #[default]
+    Write,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalMcpKind {
+    #[serde(rename = "mcp")]
+    #[default]
+    Mcp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalMcpSamplingKind {
+    #[serde(rename = "mcp-sampling")]
+    #[default]
+    McpSampling,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalMemoryKind {
+    #[serde(rename = "memory")]
+    #[default]
+    Memory,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalCustomToolKind {
+    #[serde(rename = "custom-tool")]
+    #[default]
+    CustomTool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalExtensionManagementKind {
+    #[serde(rename = "extension-management")]
+    #[default]
+    ExtensionManagement,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind {
+    #[serde(rename = "extension-permission-access")]
+    #[default]
+    ExtensionPermissionAccess,
+}
+
+/// The approval to persist for this location
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PermissionDecisionApproveForLocationApproval {
+    Commands(PermissionDecisionApproveForLocationApprovalCommands),
+    Read(PermissionDecisionApproveForLocationApprovalRead),
+    Write(PermissionDecisionApproveForLocationApprovalWrite),
+    Mcp(PermissionDecisionApproveForLocationApprovalMcp),
+    McpSampling(PermissionDecisionApproveForLocationApprovalMcpSampling),
+    Memory(PermissionDecisionApproveForLocationApprovalMemory),
+    CustomTool(PermissionDecisionApproveForLocationApprovalCustomTool),
+    ExtensionManagement(PermissionDecisionApproveForLocationApprovalExtensionManagement),
+    ExtensionPermissionAccess(
+        PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess,
+    ),
+}
+
+/// Approved and persisted for this project location
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationKind {
+    #[serde(rename = "approve-for-location")]
+    #[default]
+    ApproveForLocation,
 }
 
 /// Approved and persisted across sessions
