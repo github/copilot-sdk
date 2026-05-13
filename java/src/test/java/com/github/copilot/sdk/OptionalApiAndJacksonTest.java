@@ -294,8 +294,6 @@ class OptionalApiAndJacksonTest {
     }
 
     // ── Jackson serialization roundtrip ───────────────────────────────
-
-    // ── Jackson serialization roundtrip ───────────────────────────────
     //
     // Classes whose fields carry @JsonProperty (InfiniteSessionConfig,
     // ModelCapabilitiesOverride inner classes) are serialized via field
