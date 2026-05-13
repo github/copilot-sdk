@@ -293,6 +293,271 @@ class OptionalApiAndJacksonTest {
         assertTrue(req.getAllowFreeform().isEmpty());
     }
 
+    // ── Value retrieval through Optional getters ────────────────────────
+
+    @Test
+    void copilotClientOptions_sessionIdleTimeoutSecondsValue() {
+        var opts = new CopilotClientOptions();
+        assertTrue(opts.getSessionIdleTimeoutSeconds().isEmpty());
+
+        opts.setSessionIdleTimeoutSeconds(300);
+        assertEquals(300, opts.getSessionIdleTimeoutSeconds().getAsInt());
+
+        opts.setSessionIdleTimeoutSeconds(0);
+        assertTrue(opts.getSessionIdleTimeoutSeconds().isPresent());
+        assertEquals(0, opts.getSessionIdleTimeoutSeconds().getAsInt());
+    }
+
+    @Test
+    void copilotClientOptions_useLoggedInUserValue() {
+        var opts = new CopilotClientOptions();
+        assertTrue(opts.getUseLoggedInUser().isEmpty());
+
+        opts.setUseLoggedInUser(true);
+        assertEquals(Boolean.TRUE, opts.getUseLoggedInUser().get());
+
+        opts.setUseLoggedInUser(false);
+        assertEquals(Boolean.FALSE, opts.getUseLoggedInUser().get());
+    }
+
+    @Test
+    void sessionConfig_enableSessionTelemetryValue() {
+        var cfg = new SessionConfig();
+        assertFalse(cfg.getEnableSessionTelemetry().orElse(false));
+
+        cfg.setEnableSessionTelemetry(true);
+        assertTrue(cfg.getEnableSessionTelemetry().orElse(false));
+
+        cfg.setEnableSessionTelemetry(false);
+        assertFalse(cfg.getEnableSessionTelemetry().orElse(true));
+    }
+
+    @Test
+    void sessionConfig_enableConfigDiscoveryValue() {
+        var cfg = new SessionConfig();
+        assertTrue(cfg.getEnableConfigDiscovery().isEmpty());
+
+        cfg.setEnableConfigDiscovery(true);
+        assertTrue(cfg.getEnableConfigDiscovery().get());
+
+        cfg.setEnableConfigDiscovery(false);
+        assertFalse(cfg.getEnableConfigDiscovery().get());
+    }
+
+    @Test
+    void sessionConfig_includeSubAgentStreamingEventsValue() {
+        var cfg = new SessionConfig();
+        assertTrue(cfg.getIncludeSubAgentStreamingEvents().isEmpty());
+
+        cfg.setIncludeSubAgentStreamingEvents(true);
+        assertTrue(cfg.getIncludeSubAgentStreamingEvents().get());
+    }
+
+    @Test
+    void resumeSessionConfig_enableSessionTelemetryValue() {
+        var cfg = new ResumeSessionConfig();
+        assertTrue(cfg.getEnableSessionTelemetry().isEmpty());
+
+        cfg.setEnableSessionTelemetry(true);
+        assertTrue(cfg.getEnableSessionTelemetry().get());
+
+        cfg.setEnableSessionTelemetry(false);
+        assertFalse(cfg.getEnableSessionTelemetry().get());
+    }
+
+    @Test
+    void resumeSessionConfig_enableConfigDiscoveryValue() {
+        var cfg = new ResumeSessionConfig();
+        assertTrue(cfg.getEnableConfigDiscovery().isEmpty());
+
+        cfg.setEnableConfigDiscovery(true);
+        assertTrue(cfg.getEnableConfigDiscovery().get());
+    }
+
+    @Test
+    void resumeSessionConfig_includeSubAgentStreamingEventsValue() {
+        var cfg = new ResumeSessionConfig();
+        assertTrue(cfg.getIncludeSubAgentStreamingEvents().isEmpty());
+
+        cfg.setIncludeSubAgentStreamingEvents(false);
+        assertFalse(cfg.getIncludeSubAgentStreamingEvents().get());
+    }
+
+    @Test
+    void infiniteSessionConfig_thresholdValues() {
+        var cfg = new InfiniteSessionConfig();
+        assertTrue(cfg.getBackgroundCompactionThreshold().isEmpty());
+        assertTrue(cfg.getBufferExhaustionThreshold().isEmpty());
+
+        cfg.setBackgroundCompactionThreshold(0.6);
+        cfg.setBufferExhaustionThreshold(0.85);
+        assertEquals(0.6, cfg.getBackgroundCompactionThreshold().getAsDouble(), 0.001);
+        assertEquals(0.85, cfg.getBufferExhaustionThreshold().getAsDouble(), 0.001);
+    }
+
+    @Test
+    void infiniteSessionConfig_enabledValue() {
+        var cfg = new InfiniteSessionConfig();
+        assertTrue(cfg.getEnabled().isEmpty());
+
+        cfg.setEnabled(true);
+        assertTrue(cfg.getEnabled().get());
+
+        cfg.setEnabled(false);
+        assertFalse(cfg.getEnabled().get());
+    }
+
+    @Test
+    void inputOptions_minAndMaxLengthValues() {
+        var opts = new InputOptions();
+        assertTrue(opts.getMinLength().isEmpty());
+        assertTrue(opts.getMaxLength().isEmpty());
+
+        opts.setMinLength(1);
+        opts.setMaxLength(255);
+        assertEquals(1, opts.getMinLength().getAsInt());
+        assertEquals(255, opts.getMaxLength().getAsInt());
+    }
+
+    @Test
+    void supports_visionAndReasoningEffortValues() {
+        var s = new ModelCapabilitiesOverride.Supports();
+        assertTrue(s.getVision().isEmpty());
+        assertTrue(s.getReasoningEffort().isEmpty());
+
+        s.setVision(true);
+        s.setReasoningEffort(false);
+        assertTrue(s.getVision().get());
+        assertFalse(s.getReasoningEffort().get());
+    }
+
+    @Test
+    void limits_tokenValues() {
+        var l = new ModelCapabilitiesOverride.Limits();
+        assertTrue(l.getMaxPromptTokens().isEmpty());
+        assertTrue(l.getMaxOutputTokens().isEmpty());
+        assertTrue(l.getMaxContextWindowTokens().isEmpty());
+
+        l.setMaxPromptTokens(4096);
+        l.setMaxOutputTokens(1024);
+        l.setMaxContextWindowTokens(16384);
+        assertEquals(4096, l.getMaxPromptTokens().getAsInt());
+        assertEquals(1024, l.getMaxOutputTokens().getAsInt());
+        assertEquals(16384, l.getMaxContextWindowTokens().getAsInt());
+    }
+
+    @Test
+    void providerConfig_tokenValues() {
+        var cfg = new ProviderConfig();
+        assertTrue(cfg.getMaxPromptTokens().isEmpty());
+        assertTrue(cfg.getMaxOutputTokens().isEmpty());
+
+        cfg.setMaxPromptTokens(8192);
+        cfg.setMaxOutputTokens(2048);
+        assertEquals(8192, cfg.getMaxPromptTokens().getAsInt());
+        assertEquals(2048, cfg.getMaxOutputTokens().getAsInt());
+    }
+
+    @Test
+    void telemetryConfig_captureContentValue() {
+        var cfg = new TelemetryConfig();
+        assertTrue(cfg.getCaptureContent().isEmpty());
+
+        cfg.setCaptureContent(true);
+        assertTrue(cfg.getCaptureContent().get());
+
+        cfg.setCaptureContent(false);
+        assertFalse(cfg.getCaptureContent().get());
+    }
+
+    @Test
+    void sessionUiCapabilities_elicitationValue() {
+        var caps = new SessionUiCapabilities();
+        assertTrue(caps.getElicitation().isEmpty());
+        assertFalse(caps.getElicitation().orElse(false));
+
+        caps.setElicitation(true);
+        assertTrue(caps.getElicitation().orElse(false));
+    }
+
+    @Test
+    void customAgentConfig_inferValue() {
+        var cfg = new CustomAgentConfig();
+        assertTrue(cfg.getInfer().isEmpty());
+
+        cfg.setInfer(true);
+        assertTrue(cfg.getInfer().get());
+
+        cfg.setInfer(false);
+        assertFalse(cfg.getInfer().get());
+    }
+
+    @Test
+    void userInputRequest_allowFreeformValue() {
+        var req = new UserInputRequest();
+        assertTrue(req.getAllowFreeform().isEmpty());
+
+        req.setAllowFreeform(true);
+        assertTrue(req.getAllowFreeform().get());
+
+        req.setAllowFreeform(false);
+        assertFalse(req.getAllowFreeform().get());
+    }
+
+    // ── JSON deserialization into Optional-returning classes ───────────
+
+    @Test
+    void jackson_deserializeSupportsWithFields() throws Exception {
+        String json = "{\"vision\":true,\"reasoningEffort\":false}";
+        var supports = MAPPER.readValue(json, ModelCapabilitiesOverride.Supports.class);
+        assertTrue(supports.getVision().get());
+        assertFalse(supports.getReasoningEffort().get());
+    }
+
+    @Test
+    void jackson_deserializeSupportsEmpty() throws Exception {
+        String json = "{}";
+        var supports = MAPPER.readValue(json, ModelCapabilitiesOverride.Supports.class);
+        assertTrue(supports.getVision().isEmpty());
+        assertTrue(supports.getReasoningEffort().isEmpty());
+    }
+
+    @Test
+    void jackson_deserializeLimitsWithFields() throws Exception {
+        String json = "{\"max_prompt_tokens\":4096,\"max_output_tokens\":1024,\"max_context_window_tokens\":16384}";
+        var limits = MAPPER.readValue(json, ModelCapabilitiesOverride.Limits.class);
+        assertEquals(4096, limits.getMaxPromptTokens().getAsInt());
+        assertEquals(1024, limits.getMaxOutputTokens().getAsInt());
+        assertEquals(16384, limits.getMaxContextWindowTokens().getAsInt());
+    }
+
+    @Test
+    void jackson_deserializeLimitsEmpty() throws Exception {
+        String json = "{}";
+        var limits = MAPPER.readValue(json, ModelCapabilitiesOverride.Limits.class);
+        assertTrue(limits.getMaxPromptTokens().isEmpty());
+        assertTrue(limits.getMaxOutputTokens().isEmpty());
+        assertTrue(limits.getMaxContextWindowTokens().isEmpty());
+    }
+
+    @Test
+    void jackson_deserializeInfiniteSessionConfigWithFields() throws Exception {
+        String json = "{\"enabled\":true,\"backgroundCompactionThreshold\":0.7,\"bufferExhaustionThreshold\":0.9}";
+        var cfg = MAPPER.readValue(json, InfiniteSessionConfig.class);
+        assertTrue(cfg.getEnabled().get());
+        assertEquals(0.7, cfg.getBackgroundCompactionThreshold().getAsDouble(), 0.001);
+        assertEquals(0.9, cfg.getBufferExhaustionThreshold().getAsDouble(), 0.001);
+    }
+
+    @Test
+    void jackson_deserializeInfiniteSessionConfigEmpty() throws Exception {
+        String json = "{}";
+        var cfg = MAPPER.readValue(json, InfiniteSessionConfig.class);
+        assertTrue(cfg.getEnabled().isEmpty());
+        assertTrue(cfg.getBackgroundCompactionThreshold().isEmpty());
+        assertTrue(cfg.getBufferExhaustionThreshold().isEmpty());
+    }
+
     // ── Jackson serialization roundtrip ───────────────────────────────
     //
     // Classes whose fields carry @JsonProperty (InfiniteSessionConfig,
