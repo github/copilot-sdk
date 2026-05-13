@@ -12,3 +12,5 @@ test/scenarios/**/rust/Cargo.lock
 
 # C# Dev Kit
 *.csproj.lscache
+.github/scripts/sync-docs/node_modules/
+.idea/

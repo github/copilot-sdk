@@ -1,0 +1,9 @@
+{
+  "name": "sync-docs",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "gray-matter": "^4.0.3",
+    "@mermaid-js/mermaid-cli": "^11.4.2"
+  }
+}
