@@ -148,7 +148,7 @@ public final class McpStdioServerConfig extends McpServerConfig {
     }
 
     @Override
-    public McpStdioServerConfig setTimeout(int timeout) {
+    public McpStdioServerConfig setTimeout(Integer timeout) {
         super.setTimeout(timeout);
         return this;
     }

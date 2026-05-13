@@ -11,8 +11,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.OptionalInt;
 
 /**
  * Abstract base class for MCP (Model Context Protocol) server configurations.
@@ -70,34 +68,21 @@ public abstract class McpServerConfig {
     /**
      * Gets the optional timeout in milliseconds for tool calls to this server.
      *
-     * @return an {@link OptionalInt} containing the timeout in milliseconds, or
-     *         empty for the default
+     * @return the timeout in milliseconds, or {@code null} for the default
      */
-    @JsonIgnore
-    public OptionalInt getTimeout() {
-        return timeout == null ? OptionalInt.empty() : OptionalInt.of(timeout);
+    public Integer getTimeout() {
+        return timeout;
     }
 
     /**
      * Sets an optional timeout in milliseconds for tool calls to this server.
      *
      * @param timeout
-     *            the timeout in milliseconds
+     *            the timeout in milliseconds, or {@code null} for the default
      * @return this config for method chaining
      */
-    public McpServerConfig setTimeout(int timeout) {
+    public McpServerConfig setTimeout(Integer timeout) {
         this.timeout = timeout;
         return this;
     }
-
-    /**
-     * Clears the timeout setting, reverting to the default behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public McpServerConfig clearTimeout() {
-        this.timeout = null;
-        return this;
-    }
-
 }

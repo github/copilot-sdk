@@ -194,7 +194,7 @@ class DataObjectCoverageTest {
         assertEquals("https://mcp.example.com/sse", cfg.getUrl());
         assertEquals("Bearer token", cfg.getHeaders().get("Authorization"));
         assertEquals(tools, cfg.getTools());
-        assertEquals(45, cfg.getTimeout().getAsInt());
+        assertEquals(45, cfg.getTimeout());
     }
 
     @Test
@@ -212,7 +212,7 @@ class DataObjectCoverageTest {
         assertEquals("1", cfg.getEnv().get("DEBUG"));
         assertEquals("/tmp", cfg.getWorkingDirectory());
         assertEquals(tools, cfg.getTools());
-        assertEquals(30, cfg.getTimeout().getAsInt());
+        assertEquals(30, cfg.getTimeout());
     }
 
     @Test

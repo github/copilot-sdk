@@ -6,8 +6,6 @@ package com.github.copilot.sdk.json;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.OptionalInt;
 
 /**
  * Model limits.
@@ -26,23 +24,12 @@ public class ModelLimits {
     @JsonProperty("vision")
     private ModelVisionLimits vision;
 
-    @JsonIgnore
-    public OptionalInt getMaxPromptTokens() {
-        return maxPromptTokens == null ? OptionalInt.empty() : OptionalInt.of(maxPromptTokens);
+    public Integer getMaxPromptTokens() {
+        return maxPromptTokens;
     }
 
-    public ModelLimits setMaxPromptTokens(int maxPromptTokens) {
+    public ModelLimits setMaxPromptTokens(Integer maxPromptTokens) {
         this.maxPromptTokens = maxPromptTokens;
-        return this;
-    }
-
-    /**
-     * Clears the maxPromptTokens setting, reverting to the default behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public ModelLimits clearMaxPromptTokens() {
-        this.maxPromptTokens = null;
         return this;
     }
 

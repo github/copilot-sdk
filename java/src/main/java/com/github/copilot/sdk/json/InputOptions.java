@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.OptionalInt;
 
 /**
@@ -49,6 +50,7 @@ public class InputOptions {
     }
 
     /** Gets the minimum character length. @return the min length */
+    @JsonIgnore
     public OptionalInt getMinLength() {
         return minLength == null ? OptionalInt.empty() : OptionalInt.of(minLength);
     }
@@ -73,6 +75,7 @@ public class InputOptions {
     }
 
     /** Gets the maximum character length. @return the max length */
+    @JsonIgnore
     public OptionalInt getMaxLength() {
         return maxLength == null ? OptionalInt.empty() : OptionalInt.of(maxLength);
     }
