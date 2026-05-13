@@ -59,13 +59,10 @@ jobs:
           if [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
             # Validate version format matches dist-tag
-            if [ "${{ github.event.inputs.dist-tag }}" = "latest" ]; then
-              if [[ "$VERSION" == *-* ]]; then
-                echo "❌ Error: Version '$VERSION' has a prerelease suffix but dist-tag is 'latest'" >> $GITHUB_STEP_SUMMARY
-                echo "Use a version without suffix (e.g., '1.0.0') for latest releases"
-                exit 1
-              fi
-            else
+            # TEMPORARY: skips validation for "latest" so prerelease versions
+            # can be published under that tag. To ship stable 1.0.0, revert the
+            # commit that introduced this temporary change.
+            if [ "${{ github.event.inputs.dist-tag }}" != "latest" ]; then
               if [[ "$VERSION" != *-* ]]; then
                 echo "❌ Error: Version '$VERSION' has no prerelease suffix but dist-tag is '${{ github.event.inputs.dist-tag }}'" >> $GITHUB_STEP_SUMMARY
                 echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease/unstable"
@@ -222,21 +219,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
+      # TEMPORARY: both "latest" and "prerelease" create GitHub pre-releases
+      # since "latest" publishes beta versions. To ship stable 1.0.0, revert
+      # the commit that introduced this temporary change.
       - name: Create GitHub Release
-        if: github.event.inputs.dist-tag == 'latest'
-        run: |
-          NOTES_FLAG=""
-          if git rev-parse "v${{ needs.version.outputs.current }}" >/dev/null 2>&1; then
-            NOTES_FLAG="--notes-start-tag v${{ needs.version.outputs.current }}"
-          fi
-          gh release create "v${{ needs.version.outputs.version }}" \
-            --title "v${{ needs.version.outputs.version }}" \
-            --generate-notes $NOTES_FLAG \
-            --target ${{ github.sha }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create GitHub Pre-Release
-        if: github.event.inputs.dist-tag == 'prerelease'
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
         run: |
           NOTES_FLAG=""
           if git rev-parse "v${{ needs.version.outputs.current-prerelease }}" >/dev/null 2>&1; then
