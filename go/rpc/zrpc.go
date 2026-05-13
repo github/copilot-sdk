@@ -2993,7 +2993,7 @@ func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *Commands
 	return &result, nil
 }
 
-func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest) (*SlashCommandInvocationResult, error) {
+func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Input != nil {
@@ -3005,11 +3005,11 @@ func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest)
 	if err != nil {
 		return nil, err
 	}
-	var result SlashCommandInvocationResult
-	if err := json.Unmarshal(raw, &result); err != nil {
+	result, err := unmarshalSlashCommandInvocationResult(raw)
+	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return result, nil
 }
 
 func (a *CommandsApi) List(ctx context.Context) (*CommandList, error) {
