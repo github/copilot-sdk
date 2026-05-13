@@ -185,6 +185,47 @@ func TestCommandsInvokeUnmarshalsSlashCommandInvocationResult(t *testing.T) {
 	}
 }
 
+func TestQueuedCommandResultBoolDiscriminatorJSONUnion(t *testing.T) {
+	stopProcessingQueue := true
+	var handled QueuedCommandResult = &QueuedCommandHandled{StopProcessingQueue: &stopProcessingQueue}
+	raw, err := json.Marshal(handled)
+	if err != nil {
+		t.Fatalf("marshal handled result: %v", err)
+	}
+	if string(raw) != `{"handled":true,"stopProcessingQueue":true}` {
+		t.Fatalf("marshal handled result = %s", raw)
+	}
+
+	decodedHandled, err := unmarshalQueuedCommandResult([]byte(`{"handled":true,"stopProcessingQueue":true}`))
+	if err != nil {
+		t.Fatalf("unmarshal handled result: %v", err)
+	}
+	decodedHandledValue, ok := decodedHandled.(*QueuedCommandHandled)
+	if !ok {
+		t.Fatalf("unmarshal handled result = %T, want *QueuedCommandHandled", decodedHandled)
+	}
+	if decodedHandledValue.StopProcessingQueue == nil || !*decodedHandledValue.StopProcessingQueue {
+		t.Fatalf("unmarshal handled stopProcessingQueue = %v, want true", decodedHandledValue.StopProcessingQueue)
+	}
+
+	var notHandled QueuedCommandResult = &QueuedCommandNotHandled{}
+	raw, err = json.Marshal(notHandled)
+	if err != nil {
+		t.Fatalf("marshal not handled result: %v", err)
+	}
+	if string(raw) != `{"handled":false}` {
+		t.Fatalf("marshal not handled result = %s", raw)
+	}
+
+	decodedNotHandled, err := unmarshalQueuedCommandResult([]byte(`{"handled":false}`))
+	if err != nil {
+		t.Fatalf("unmarshal not handled result: %v", err)
+	}
+	if _, ok := decodedNotHandled.(*QueuedCommandNotHandled); !ok {
+		t.Fatalf("unmarshal not handled result = %T, want *QueuedCommandNotHandled", decodedNotHandled)
+	}
+}
+
 func TestUIElicitationFieldValueJSONUnion(t *testing.T) {
 	raw, err := json.Marshal(UIElicitationBooleanValue(true))
 	if err != nil {
