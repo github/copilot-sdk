@@ -3408,6 +3408,7 @@ public partial class UserMessageAttachmentBlob : UserMessageAttachment
 public partial class UserMessageAttachment
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -3706,6 +3707,7 @@ public partial class ToolExecutionCompleteContentResource : ToolExecutionComplet
 public partial class ToolExecutionCompleteContent
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -3912,6 +3914,7 @@ public partial class SystemNotificationInstructionDiscovered : SystemNotificatio
 public partial class SystemNotification
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -4259,6 +4262,7 @@ public partial class PermissionRequestExtensionPermissionAccess : PermissionRequ
 public partial class PermissionRequest
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -4593,6 +4597,7 @@ public partial class PermissionPromptRequestExtensionPermissionAccess : Permissi
 public partial class PermissionPromptRequest
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -4711,6 +4716,7 @@ public partial class UserToolSessionApprovalExtensionPermissionAccess : UserTool
 public partial class UserToolSessionApproval
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -4858,6 +4864,7 @@ public partial class PermissionResultDeniedByPermissionRequestHook : PermissionR
 public partial class PermissionResult
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }

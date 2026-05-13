@@ -641,6 +641,7 @@ function generatePolymorphicClasses(
     lines.push(`public partial class ${renamedBase}`);
     lines.push(`{`);
     lines.push(`    /// <summary>The type discriminator.</summary>`);
+    lines.push(`    [JsonIgnore]`);
     lines.push(`    [JsonPropertyName("${discriminatorProperty}")]`);
     lines.push(`    public virtual string ${toPascalCase(discriminatorProperty)} { get; set; } = string.Empty;`);
     lines.push(`}`);
@@ -1266,19 +1267,14 @@ function emitRpcClass(
     return lines.join("\n");
 }
 
-/**
- * Emit the type for a non-object RPC result schema (e.g., a bare enum).
- * Returns the C# type name to use in method signatures. For enums, ensures the enum
- * is created via getOrCreateEnum. For other primitives, returns the mapped C# type.
- */
-function emitNonObjectResultType(typeName: string, schema: JSONSchema7, classes: string[]): string {
-    if (schema.enum && Array.isArray(schema.enum)) {
-        const enumName = getOrCreateEnum("", typeName, schema.enum as string[], rpcEnumOutput, schema.description, typeName, isSchemaDeprecated(schema), isSchemaExperimental(schema));
-        emittedRpcEnumResultTypes.add(enumName);
-        return enumName;
+function emitRpcResultType(typeName: string, schema: JSONSchema7, visibility: "public" | "internal", classes: string[]): string {
+    if (isObjectSchema(schema)) {
+        const resultClass = emitRpcClass(typeName, schema, visibility, classes);
+        if (resultClass) classes.push(resultClass);
+        return typeName;
     }
-    // For other non-object types, use the basic type mapping
-    return schemaTypeToCSharp(schema, true, rpcKnownTypes);
+
+    return resolveRpcType(schema, true, typeName, "", classes);
 }
 
 /**
@@ -1399,11 +1395,8 @@ function emitServerInstanceMethod(
     if (!isVoidSchema(resultSchema) && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
-    if (isObjectSchema(resultSchema)) {
-        const resultClass = emitRpcClass(resultClassName, resultSchema!, methodVisibility, classes);
-        if (resultClass) classes.push(resultClass);
-    } else if (!isVoidSchema(resultSchema)) {
-        resultClassName = emitNonObjectResultType(resultClassName, resultSchema!, classes);
+    if (!isVoidSchema(resultSchema)) {
+        resultClassName = emitRpcResultType(resultClassName, resultSchema!, methodVisibility, classes);
     }
 
     const effectiveParams = resolveMethodParamsSchema(method);
@@ -1507,11 +1500,8 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     if (!isVoidSchema(resultSchema) && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
-    if (isObjectSchema(resultSchema)) {
-        const resultClass = emitRpcClass(resultClassName, resultSchema!, methodVisibility, classes);
-        if (resultClass) classes.push(resultClass);
-    } else if (!isVoidSchema(resultSchema)) {
-        resultClassName = emitNonObjectResultType(resultClassName, resultSchema!, classes);
+    if (!isVoidSchema(resultSchema)) {
+        resultClassName = emitRpcResultType(resultClassName, resultSchema!, methodVisibility, classes);
     }
 
     const effectiveParams = resolveMethodParamsSchema(method);
@@ -1634,12 +1624,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
         for (const method of methods) {
             const resultSchema = getMethodResultSchema(method);
             if (!isVoidSchema(resultSchema)) {
-                if (isObjectSchema(resultSchema)) {
-                    const resultClass = emitRpcClass(resultTypeName(method), resultSchema!, "public", classes);
-                    if (resultClass) classes.push(resultClass);
-                } else {
-                    emitNonObjectResultType(resultTypeName(method), resultSchema!, classes);
-                }
+                emitRpcResultType(resultTypeName(method), resultSchema!, "public", classes);
             }
 
             const effectiveParams = resolveMethodParamsSchema(method);

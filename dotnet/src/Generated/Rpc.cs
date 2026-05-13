@@ -1187,6 +1187,7 @@ internal sealed class TasksStartAgentRequest
 public partial class TaskInfo
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -1878,6 +1879,93 @@ internal sealed class CommandsListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Polymorphic base type discriminated by <c>kind</c>.</summary>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SlashCommandInvocationResultText), "text")]
+[JsonDerivedType(typeof(SlashCommandInvocationResultAgentPrompt), "agent-prompt")]
+[JsonDerivedType(typeof(SlashCommandInvocationResultCompleted), "completed")]
+public partial class SlashCommandInvocationResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>text</c> variant of <see cref="SlashCommandInvocationResult"/>.</summary>
+public partial class SlashCommandInvocationResultText : SlashCommandInvocationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "text";
+
+    /// <summary>Whether text contains Markdown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("markdown")]
+    public bool? Markdown { get; set; }
+
+    /// <summary>Whether ANSI sequences should be preserved.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("preserveAnsi")]
+    public bool? PreserveAnsi { get; set; }
+
+    /// <summary>True when the invocation mutated user runtime settings; consumers caching settings should refresh.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("runtimeSettingsChanged")]
+    public bool? RuntimeSettingsChanged { get; set; }
+
+    /// <summary>Text output for the client to render.</summary>
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
+}
+
+/// <summary>The <c>agent-prompt</c> variant of <see cref="SlashCommandInvocationResult"/>.</summary>
+public partial class SlashCommandInvocationResultAgentPrompt : SlashCommandInvocationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "agent-prompt";
+
+    /// <summary>Prompt text to display to the user.</summary>
+    [JsonPropertyName("displayPrompt")]
+    public required string DisplayPrompt { get; set; }
+
+    /// <summary>Optional target session mode.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mode")]
+    public SlashCommandAgentPromptMode? Mode { get; set; }
+
+    /// <summary>Prompt to submit to the agent.</summary>
+    [JsonPropertyName("prompt")]
+    public required string Prompt { get; set; }
+
+    /// <summary>True when the invocation mutated user runtime settings; consumers caching settings should refresh.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("runtimeSettingsChanged")]
+    public bool? RuntimeSettingsChanged { get; set; }
+}
+
+/// <summary>The <c>completed</c> variant of <see cref="SlashCommandInvocationResult"/>.</summary>
+public partial class SlashCommandInvocationResultCompleted : SlashCommandInvocationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "completed";
+
+    /// <summary>Optional user-facing message describing the completed command.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>True when the invocation mutated user runtime settings; consumers caching settings should refresh.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("runtimeSettingsChanged")]
+    public bool? RuntimeSettingsChanged { get; set; }
+}
+
 /// <summary>RPC data type for CommandsInvoke operations.</summary>
 internal sealed class CommandsInvokeRequest
 {
@@ -2045,6 +2133,7 @@ public sealed class PermissionRequestResult
 public partial class PermissionDecision
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2075,6 +2164,7 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 public partial class PermissionDecisionApproveForSessionApproval
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2216,6 +2306,7 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 public partial class PermissionDecisionApproveForLocationApproval
 {
     /// <summary>The type discriminator.</summary>
+    [JsonIgnore]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -4476,6 +4567,71 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
 }
 
 
+/// <summary>Optional target session mode.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SlashCommandAgentPromptMode : IEquatable<SlashCommandAgentPromptMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SlashCommandAgentPromptMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SlashCommandAgentPromptMode"/>.</param>
+    [JsonConstructor]
+    public SlashCommandAgentPromptMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SlashCommandAgentPromptMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>interactive</c> value.</summary>
+    public static SlashCommandAgentPromptMode Interactive { get; } = new("interactive");
+
+    /// <summary>Gets the <c>plan</c> value.</summary>
+    public static SlashCommandAgentPromptMode Plan { get; } = new("plan");
+
+    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    public static SlashCommandAgentPromptMode Autopilot { get; } = new("autopilot");
+
+    /// <summary>Returns a value indicating whether two <see cref="SlashCommandAgentPromptMode"/> instances are equivalent.</summary>
+    public static bool operator ==(SlashCommandAgentPromptMode left, SlashCommandAgentPromptMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SlashCommandAgentPromptMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(SlashCommandAgentPromptMode left, SlashCommandAgentPromptMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SlashCommandAgentPromptMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SlashCommandAgentPromptMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SlashCommandAgentPromptMode}"/> for serializing <see cref="SlashCommandAgentPromptMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SlashCommandAgentPromptMode>
+    {
+        /// <inheritdoc />
+        public override SlashCommandAgentPromptMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SlashCommandAgentPromptMode value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandAgentPromptMode));
+        }
+    }
+}
+
+
 /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -5637,10 +5793,10 @@ public sealed class CommandsApi
     }
 
     /// <summary>Calls "session.commands.invoke".</summary>
-    public async Task<object> InvokeAsync(string name, string? input = null, CancellationToken cancellationToken = default)
+    public async Task<SlashCommandInvocationResult> InvokeAsync(string name, string? input = null, CancellationToken cancellationToken = default)
     {
         var request = new CommandsInvokeRequest { SessionId = _sessionId, Name = name, Input = input };
-        return await CopilotClient.InvokeRpcAsync<object>(_rpc, "session.commands.invoke", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<SlashCommandInvocationResult>(_rpc, "session.commands.invoke", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.commands.handlePendingCommand".</summary>
@@ -6056,7 +6212,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionInstructionsGetSourcesRequest))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
-[JsonSerializable(typeof(SessionMode))]
 [JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModelGetCurrentRequest))]
 [JsonSerializable(typeof(SessionNameGetRequest))]
@@ -6087,6 +6242,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SkillsLoadDiagnostics))]
 [JsonSerializable(typeof(SlashCommandInfo))]
 [JsonSerializable(typeof(SlashCommandInput))]
+[JsonSerializable(typeof(SlashCommandInvocationResult))]
 [JsonSerializable(typeof(TaskInfo))]
 [JsonSerializable(typeof(TaskList))]
 [JsonSerializable(typeof(TasksCancelRequest))]
