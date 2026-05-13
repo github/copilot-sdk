@@ -193,7 +193,7 @@ async fn one_client_approves_permission_and_both_see_the_result() {
 #[tokio::test]
 async fn one_client_rejects_permission_and_both_see_the_result() {
     with_e2e_context(
-        "rust_multi_client",
+        "multi_client",
         "one_client_rejects_permission_and_both_see_the_result",
         |ctx| {
             Box::pin(async move {
