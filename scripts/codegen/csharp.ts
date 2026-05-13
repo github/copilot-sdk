@@ -146,10 +146,11 @@ function toCSharpIdentifier(value: string, fallback: string): string {
 }
 
 function uniqueCSharpIdentifier(value: string, used: Set<string>, fallback: string): string {
-    const base = toCSharpIdentifier(value, fallback);
-    let identifier = base;
-    for (let i = 2; used.has(identifier); i++) {
-        identifier = `${base}${i}`;
+    const identifier = toCSharpIdentifier(value, fallback);
+    if (used.has(identifier)) {
+        throw new Error(
+            `Generated C# string enum member identifier "${identifier}" is not unique for value "${value}". Add an explicit naming rule instead of stabilizing an arbitrary public member name.`
+        );
     }
     used.add(identifier);
     return identifier;
@@ -334,6 +335,7 @@ const COPYRIGHT = `/*-----------------------------------------------------------
 
 const EXPERIMENTAL_ATTRIBUTE = "[Experimental(Diagnostics.Experimental)]";
 const OBSOLETE_ATTRIBUTE = `[Obsolete("This member is deprecated and will be removed in a future version.")]`;
+const STRING_ENUM_RESERVED_MEMBER_NAMES = new Set(["Value", "Equals", "GetHashCode", "ToString", "Converter"]);
 
 function experimentalAttribute(indent = ""): string {
     return `${indent}${EXPERIMENTAL_ATTRIBUTE}`;
@@ -397,7 +399,7 @@ function getOrCreateEnum(
     lines.push(`    }`, "");
     lines.push(`    /// <summary>Gets the value associated with this <see cref="${enumName}"/>.</summary>`);
     lines.push(`    public string Value => _value ?? string.Empty;`, "");
-    const usedMemberNames = new Set<string>();
+    const usedMemberNames = new Set(STRING_ENUM_RESERVED_MEMBER_NAMES);
     for (const value of values) {
         const memberName = uniqueCSharpIdentifier(value, usedMemberNames, "Value");
         lines.push(`    /// <summary>Gets the <c>${escapeXml(value)}</c> value.</summary>`);

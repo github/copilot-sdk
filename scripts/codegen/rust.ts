@@ -82,10 +82,11 @@ function uniqueRustPascalIdentifier(
 	fallback: string,
 	reserved: Set<string> = new Set(),
 ): string {
-	const base = toRustPascalIdentifier(value, fallback);
-	let identifier = base;
-	for (let i = 2; used.has(identifier) || reserved.has(identifier); i++) {
-		identifier = `${base}${i}`;
+	const identifier = toRustPascalIdentifier(value, fallback);
+	if (used.has(identifier) || reserved.has(identifier)) {
+		throw new Error(
+			`Generated Rust enum variant identifier "${identifier}" is not unique for value "${value}". Add an explicit naming rule instead of stabilizing an arbitrary public variant name.`,
+		);
 	}
 	used.add(identifier);
 	return identifier;
