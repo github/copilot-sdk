@@ -7109,6 +7109,17 @@ def rpc_to_dict(x: RPC) -> Any:
     return to_class(RPC, x)
 
 
+DiscoveredMcpServerSource = MCPServerSource
+ExternalToolResult = ExternalToolTextResultForLlm
+FilterMapping = dict
+FilterMappingValue = FilterMappingString
+SessionMode = Mode
+SlashCommandAgentPromptMode = Mode
+TaskAgentInfoExecutionMode = TaskInfoExecutionMode
+TaskAgentInfoStatus = TaskInfoStatus
+TaskShellInfoExecutionMode = TaskInfoExecutionMode
+TaskShellInfoStatus = TaskInfoStatus
+
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
     if timeout is not None:

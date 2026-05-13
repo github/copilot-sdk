@@ -1854,6 +1854,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // definition. Its root RPC dataclass still records the definition field and
     // generated class mapping, so use that as an alias table for RPC wrappers.
     const definitionAliases = new Map<string, string>();
+    const publicTypeAliases = new Map<string, string>();
     const rootFields = typesCode.match(/^class RPC:\n([\s\S]*?)\n    @staticmethod/m)?.[1] ?? "";
     const rootFieldTypes = new Map<string, string>();
     for (const line of rootFields.split(/\r?\n/)) {
@@ -1866,6 +1867,9 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         const actualName = rootFieldTypes.get(toSnakeCase(defName));
         if (actualName) {
             definitionAliases.set(defName.toLowerCase(), actualName);
+            if (actualName !== defName && !actualTypeNames.has(defName.toLowerCase()) && /^[A-Za-z_]\w*$/.test(defName)) {
+                publicTypeAliases.set(defName, actualName);
+            }
         }
     }
 
@@ -1897,6 +1901,14 @@ EnumT = TypeVar("EnumT", bound=Enum)
 
 `);
     lines.push(typesCode);
+    if (publicTypeAliases.size > 0) {
+        lines.push("");
+        for (const [aliasName, targetName] of [...publicTypeAliases.entries()].sort(([left], [right]) =>
+            left.localeCompare(right),
+        )) {
+            lines.push(`${aliasName} = ${targetName}`);
+        }
+    }
     lines.push(`
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
