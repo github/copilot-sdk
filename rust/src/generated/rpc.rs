@@ -647,6 +647,32 @@ pub struct SessionRpcCommands<'a> {
 }
 
 impl<'a> SessionRpcCommands<'a> {
+    /// Wire method: `session.commands.list`.
+    pub async fn list(&self) -> Result<CommandList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMMANDS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Wire method: `session.commands.invoke`.
+    pub async fn invoke(
+        &self,
+        params: CommandsInvokeRequest,
+    ) -> Result<SlashCommandInvocationResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_COMMANDS_INVOKE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Wire method: `session.commands.handlePendingCommand`.
     pub async fn handle_pending_command(
         &self,
@@ -1369,14 +1395,14 @@ impl<'a> SessionRpcSkills<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn reload(&self) -> Result<(), Error> {
+    pub async fn reload(&self) -> Result<SkillsLoadDiagnostics, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
             .client()
             .call(rpc_methods::SESSION_SKILLS_RELOAD, Some(wire_params))
             .await?;
-        Ok(())
+        Ok(serde_json::from_value(_value)?)
     }
 }
 

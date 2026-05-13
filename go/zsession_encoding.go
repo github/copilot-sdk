@@ -670,6 +670,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		Attachments                      []json.RawMessage     `json:"attachments,omitempty"`
 		Content                          string                `json:"content"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
+		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
 		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitempty"`
 		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
 		Source                           *string               `json:"source,omitempty"`
@@ -693,6 +694,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	}
 	r.Content = raw.Content
 	r.InteractionID = raw.InteractionID
+	r.IsAutopilotContinuation = raw.IsAutopilotContinuation
 	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths
 	r.ParentAgentTaskID = raw.ParentAgentTaskID
 	r.Source = raw.Source

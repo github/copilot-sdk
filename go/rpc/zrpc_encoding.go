@@ -1054,6 +1054,86 @@ func (r *PermissionDecisionRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalSlashCommandInvocationResult(data []byte) (SlashCommandInvocationResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind SlashCommandInvocationResultKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case SlashCommandInvocationResultKindAgentPrompt:
+		var d SlashCommandAgentPromptResult
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SlashCommandInvocationResultKindCompleted:
+		var d SlashCommandCompletedResult
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SlashCommandInvocationResultKindText:
+		var d SlashCommandTextResult
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawSlashCommandInvocationResultData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawSlashCommandInvocationResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind SlashCommandInvocationResultKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r SlashCommandAgentPromptResult) MarshalJSON() ([]byte, error) {
+	type alias SlashCommandAgentPromptResult
+	return json.Marshal(struct {
+		Kind SlashCommandInvocationResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SlashCommandCompletedResult) MarshalJSON() ([]byte, error) {
+	type alias SlashCommandCompletedResult
+	return json.Marshal(struct {
+		Kind SlashCommandInvocationResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SlashCommandTextResult) MarshalJSON() ([]byte, error) {
+	type alias SlashCommandTextResult
+	return json.Marshal(struct {
+		Kind SlashCommandInvocationResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
 func unmarshalTaskInfo(data []byte) (TaskInfo, error) {
 	if string(data) == "null" {
 		return nil, nil

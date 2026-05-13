@@ -128,6 +128,10 @@ pub mod rpc_methods {
     pub const SESSION_EXTENSIONS_RELOAD: &str = "session.extensions.reload";
     /// `session.tools.handlePendingToolCall`
     pub const SESSION_TOOLS_HANDLEPENDINGTOOLCALL: &str = "session.tools.handlePendingToolCall";
+    /// `session.commands.list`
+    pub const SESSION_COMMANDS_LIST: &str = "session.commands.list";
+    /// `session.commands.invoke`
+    pub const SESSION_COMMANDS_INVOKE: &str = "session.commands.invoke";
     /// `session.commands.handlePendingCommand`
     pub const SESSION_COMMANDS_HANDLEPENDINGCOMMAND: &str = "session.commands.handlePendingCommand";
     /// `session.commands.respondToQueuedCommand`
@@ -269,6 +273,52 @@ pub struct AgentSelectResult {
     pub agent: AgentInfo,
 }
 
+/// Optional unstructured input hint
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandInput {
+    /// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion: Option<SlashCommandInputCompletion>,
+    /// Hint to display when command input has not been provided
+    pub hint: String,
+    /// When true, clients should pass the full text after the command name as a single argument rather than splitting on whitespace
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preserve_multiline_input: Option<bool>,
+    /// When true, the command requires non-empty input; clients should render the input hint as required
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandInfo {
+    /// Canonical aliases without leading slashes
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    /// Whether the command may run while an agent turn is active
+    pub allow_during_agent_execution: bool,
+    /// Human-readable command description
+    pub description: String,
+    /// Whether the command is experimental
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub experimental: Option<bool>,
+    /// Optional unstructured input hint
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<SlashCommandInput>,
+    /// Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
+    pub kind: SlashCommandKind,
+    /// Canonical command name without a leading slash
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandList {
+    /// Commands available in this session
+    pub commands: Vec<SlashCommandInfo>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandsHandlePendingCommandRequest {
@@ -284,6 +334,30 @@ pub struct CommandsHandlePendingCommandRequest {
 pub struct CommandsHandlePendingCommandResult {
     /// Whether the command was handled successfully
     pub success: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandsInvokeRequest {
+    /// Raw input after the command name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<String>,
+    /// Command name. Leading slashes are stripped and the name is matched case-insensitively.
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandsListRequest {
+    /// Include runtime built-in commands
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_builtins: Option<bool>,
+    /// Include commands registered by protocol clients, including SDK clients and extensions
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_client_commands: Option<bool>,
+    /// Include enabled user-invocable skills and commands
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_skills: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -839,6 +913,24 @@ pub struct McpServerList {
     pub servers: Vec<McpServer>,
 }
 
+/// Token-level pricing information for this model
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelBillingTokenPrices {
+    /// Number of tokens per standard billing batch
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub batch_size: Option<i64>,
+    /// Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_price: Option<i64>,
+    /// Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_price: Option<i64>,
+    /// Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_price: Option<i64>,
+}
+
 /// Billing information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -846,6 +938,9 @@ pub struct ModelBilling {
     /// Billing cost multiplier relative to the base rate
     #[serde(skip_serializing_if = "Option::is_none")]
     pub multiplier: Option<f64>,
+    /// Token-level pricing information for this model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_prices: Option<ModelBillingTokenPrices>,
 }
 
 /// Vision-specific limits
@@ -1608,6 +1703,9 @@ pub struct SessionFsWriteFileRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionsForkRequest {
+    /// Optional friendly name to assign to the forked session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// Source session ID to fork from
     pub session_id: SessionId,
     /// Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.
@@ -1618,6 +1716,9 @@ pub struct SessionsForkRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionsForkResult {
+    /// Friendly name assigned to the forked session, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// The new forked session's ID
     pub session_id: SessionId,
 }
@@ -1714,6 +1815,63 @@ pub struct SkillsDiscoverRequest {
 pub struct SkillsEnableRequest {
     /// Name of the skill to enable
     pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsLoadDiagnostics {
+    /// Errors emitted while loading skills (e.g. skills that failed to load entirely)
+    pub errors: Vec<String>,
+    /// Warnings emitted while loading skills (e.g. skills that loaded but had issues)
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandAgentPromptResult {
+    /// Prompt text to display to the user
+    pub display_prompt: String,
+    /// Agent prompt result discriminator
+    pub kind: SlashCommandAgentPromptResultKind,
+    /// Optional target session mode
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<SlashCommandAgentPromptMode>,
+    /// Prompt to submit to the agent
+    pub prompt: String,
+    /// True when the invocation mutated user runtime settings; consumers caching settings should refresh
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_settings_changed: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandCompletedResult {
+    /// Completed result discriminator
+    pub kind: SlashCommandCompletedResultKind,
+    /// Optional user-facing message describing the completed command
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// True when the invocation mutated user runtime settings; consumers caching settings should refresh
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_settings_changed: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandTextResult {
+    /// Text result discriminator
+    pub kind: SlashCommandTextResultKind,
+    /// Whether text contains Markdown
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<bool>,
+    /// Whether ANSI sequences should be preserved
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preserve_ansi: Option<bool>,
+    /// True when the invocation mutated user runtime settings; consumers caching settings should refresh
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_settings_changed: Option<bool>,
+    /// Text output for the client to render
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2646,6 +2804,15 @@ pub struct SessionSkillsReloadParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionSkillsReloadResult {
+    /// Errors emitted while loading skills (e.g. skills that failed to load entirely)
+    pub errors: Vec<String>,
+    /// Warnings emitted while loading skills (e.g. skills that loaded but had issues)
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionMcpListParams {
     /// Target session identifier
     pub session_id: SessionId,
@@ -2713,6 +2880,13 @@ pub struct SessionExtensionsReloadParams {
 pub struct SessionToolsHandlePendingToolCallResult {
     /// Whether the tool call result was handled successfully
     pub success: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCommandsListResult {
+    /// Commands available in this session
+    pub commands: Vec<SlashCommandInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2895,6 +3069,30 @@ pub enum AuthInfoType {
     Token,
     #[serde(rename = "copilot-api-token")]
     CopilotApiToken,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SlashCommandInputCompletion {
+    #[serde(rename = "directory")]
+    Directory,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SlashCommandKind {
+    #[serde(rename = "builtin")]
+    Builtin,
+    #[serde(rename = "skill")]
+    Skill,
+    #[serde(rename = "client")]
+    Client,
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,
@@ -3438,6 +3636,49 @@ pub enum ShellKillSignal {
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,
+}
+
+/// Optional target session mode
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SlashCommandAgentPromptMode {
+    #[serde(rename = "interactive")]
+    Interactive,
+    #[serde(rename = "plan")]
+    Plan,
+    #[serde(rename = "autopilot")]
+    Autopilot,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Agent prompt result discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SlashCommandAgentPromptResultKind {
+    #[serde(rename = "agent-prompt")]
+    AgentPrompt,
+}
+
+/// Completed result discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SlashCommandCompletedResultKind {
+    #[serde(rename = "completed")]
+    Completed,
+}
+
+/// Text result discriminator
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SlashCommandTextResultKind {
+    #[serde(rename = "text")]
+    Text,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SlashCommandInvocationResult {
+    Text(SlashCommandTextResult),
+    AgentPrompt(SlashCommandAgentPromptResult),
+    Completed(SlashCommandCompletedResult),
 }
 
 /// How the agent is currently being managed by the runtime
