@@ -7296,8 +7296,8 @@ class ModeApi:
         self._client = client
         self._session_id = session_id
 
-    async def get(self, *, timeout: float | None = None) -> SessionMode:
-        return SessionMode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def get(self, *, timeout: float | None = None) -> Mode:
+        return Mode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def set(self, params: ModeSetRequest, *, timeout: float | None = None) -> None:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}

@@ -1849,7 +1849,28 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     while ((cm = classRe.exec(typesCode)) !== null) {
         actualTypeNames.set(cm[1].toLowerCase(), cm[1]);
     }
-    const resolveType = (name: string): string => actualTypeNames.get(name.toLowerCase()) ?? name;
+
+    // quicktype can also choose a shorter generated class name for a titled schema
+    // definition. Its root RPC dataclass still records the definition field and
+    // generated class mapping, so use that as an alias table for RPC wrappers.
+    const definitionAliases = new Map<string, string>();
+    const rootFields = typesCode.match(/^class RPC:\n([\s\S]*?)\n    @staticmethod/m)?.[1] ?? "";
+    const rootFieldTypes = new Map<string, string>();
+    for (const line of rootFields.split(/\r?\n/)) {
+        const match = line.match(/^    ([A-Za-z_]\w*): ([A-Za-z_]\w*)\b/);
+        if (match) {
+            rootFieldTypes.set(match[1], match[2]);
+        }
+    }
+    for (const defName of Object.keys(allDefinitions)) {
+        const actualName = rootFieldTypes.get(toSnakeCase(defName));
+        if (actualName) {
+            definitionAliases.set(defName.toLowerCase(), actualName);
+        }
+    }
+
+    const resolveType = (name: string): string =>
+        actualTypeNames.get(name.toLowerCase()) ?? definitionAliases.get(name.toLowerCase()) ?? name;
 
     const lines: string[] = [];
     lines.push(`"""
