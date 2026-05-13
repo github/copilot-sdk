@@ -3181,7 +3181,7 @@ pub enum McpServerConfigLocalType {
 }
 
 /// Model capability category for grouping in the model picker
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPickerCategory {
     #[serde(rename = "lightweight")]
     Lightweight,
@@ -3190,12 +3190,13 @@ pub enum ModelPickerCategory {
     #[serde(rename = "powerful")]
     Powerful,
     /// Unknown variant for forward compatibility.
+    #[default]
     #[serde(other)]
     Unknown,
 }
 
 /// Relative cost tier for token-based billing users
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPickerPriceCategory {
     #[serde(rename = "low")]
     Low,
@@ -3206,6 +3207,7 @@ pub enum ModelPickerPriceCategory {
     #[serde(rename = "very_high")]
     VeryHigh,
     /// Unknown variant for forward compatibility.
+    #[default]
     #[serde(other)]
     Unknown,
 }
