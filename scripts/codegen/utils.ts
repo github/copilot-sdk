@@ -251,6 +251,7 @@ export async function writeGeneratedFile(relativePath: string, content: string):
 
 export interface RpcMethod {
     rpcMethod: string;
+    description?: string;
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
     stability?: string;

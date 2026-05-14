@@ -8,9 +8,14 @@ runs:
   using: "composite"
   steps:
     - uses: actions/setup-node@v6
+      if: runner.os != 'Windows'
       with:
         cache: "npm"
         cache-dependency-path: "./nodejs/package-lock.json"
+        node-version: 22
+    - uses: actions/setup-node@v6
+      if: runner.os == 'Windows'
+      with:
         node-version: 22
     - name: Install dependencies
       run: npm --prefix "$(pwd)/nodejs" ci --ignore-scripts

@@ -432,6 +432,58 @@ function pushRustExperimentalDocs(
 	lines.push(`${indent}/// </div>`);
 }
 
+function pushRustDoc(lines: string[], text: string | undefined, indent = ""): void {
+	if (!text) return;
+	for (const paragraph of text.trim().split(/\r?\n/)) {
+		if (paragraph.trim().length === 0) {
+			lines.push(`${indent}///`);
+		} else {
+			lines.push(`${indent}/// ${paragraph.trim()}`);
+		}
+	}
+}
+
+function rustRpcResultDescription(
+	method: RpcMethod,
+	resultSchema: JSONSchema7 | undefined,
+): string | undefined {
+	if (isVoidSchema(resultSchema)) return undefined;
+	return method.result?.description ?? resultSchema?.description;
+}
+
+function rustRpcParamsDescription(
+	method: RpcMethod,
+	resolvedParams: JSONSchema7 | undefined,
+): string | undefined {
+	return method.params?.description ?? resolvedParams?.description;
+}
+
+function rustRpcMethodDocs(
+	method: RpcMethod,
+	resultSchema: JSONSchema7 | undefined,
+	paramsDescription: string | undefined,
+	includeParams: boolean,
+): string[] {
+	const docs: string[] = [];
+	pushRustDoc(docs, method.description ?? `Calls \`${method.rpcMethod}\`.`, "    ");
+	docs.push("    ///");
+	docs.push(`    /// Wire method: \`${method.rpcMethod}\`.`);
+	if (includeParams && paramsDescription) {
+		docs.push("    ///");
+		docs.push("    /// # Parameters");
+		docs.push("    ///");
+		pushRustDoc(docs, `* \`params\` - ${paramsDescription}`, "    ");
+	}
+	const resultDescription = rustRpcResultDescription(method, resultSchema);
+	if (resultDescription) {
+		docs.push("    ///");
+		docs.push("    /// # Returns");
+		docs.push("    ///");
+		pushRustDoc(docs, resultDescription, "    ");
+	}
+	return docs;
+}
+
 // ── Type resolution ─────────────────────────────────────────────────────────
 
 function rustRefTypeName(ref: string, definitions?: DefinitionCollections): string {
@@ -1104,13 +1156,23 @@ function collectRpcMethods(
 	return methods;
 }
 
-function rustParamsTypeName(method: RpcMethod, ctx: RustCodegenCtx): string {
-	if (method.params?.$ref && parseExternalSchemaRef(method.params.$ref)) {
-		recordExternalRustTypeRef(method.params.$ref, ctx);
-		return rustRefTypeName(method.params.$ref);
+function rustParamsTypeName(
+	method: RpcMethod,
+	context: DefinitionCollections | RustCodegenCtx,
+): string {
+	const ctx = "externalTypeRefs" in context ? context : undefined;
+	const defCollections = ctx?.definitions ?? context;
+	const params = method.params as (JSONSchema7 & { $ref?: string }) | undefined;
+	if (typeof params?.$ref === "string") {
+		if (ctx) {
+			recordExternalRustTypeRef(params.$ref, ctx);
+		}
+		return rustRefTypeName(params.$ref, defCollections);
 	}
+
+	const resolved = params ? resolveSchema(params, defCollections) : undefined;
 	return getRpcSchemaTypeName(
-		method.params,
+		resolved ?? params,
 		`${toPascalCase(method.rpcMethod)}Params`,
 	);
 }
@@ -1124,6 +1186,66 @@ function rustResultTypeName(method: RpcMethod, ctx: RustCodegenCtx): string {
 		method.result,
 		`${toPascalCase(method.rpcMethod)}Result`,
 	);
+}
+
+function asGeneratedObjectSchema(
+	schema: JSONSchema7,
+	defCollections: DefinitionCollections,
+): JSONSchema7 | undefined {
+	const resolved = resolveObjectSchema(schema, defCollections);
+	if (!resolved || !isObjectSchema(resolved)) return undefined;
+
+	return {
+		...resolved,
+		title: resolved.title ?? schema.title,
+		description: schema.description ?? resolved.description,
+	};
+}
+
+function getMethodParamsObjectSchema(
+	method: RpcMethod,
+	defCollections: DefinitionCollections,
+	isSession: boolean,
+): JSONSchema7 | undefined {
+	if (!method.params) return undefined;
+
+	const resolved = asGeneratedObjectSchema(method.params, defCollections);
+	if (!resolved) return undefined;
+
+	const properties = { ...(resolved.properties ?? {}) };
+	if (isSession) {
+		delete properties.sessionId;
+	}
+
+	if (Object.keys(properties).length === 0) return undefined;
+
+	const required = (resolved.required ?? [])
+		.filter((name) => !isSession || name !== "sessionId")
+		.filter((name) => Object.prototype.hasOwnProperty.call(properties, name));
+
+	const schema: JSONSchema7 = {
+		...resolved,
+		properties,
+		description: method.params.description ?? resolved.description,
+	};
+
+	if (required.length > 0) {
+		schema.required = required;
+	} else {
+		delete schema.required;
+	}
+
+	return schema;
+}
+
+function isNullableParamsSchema(
+	params: JSONSchema7,
+	defCollections: DefinitionCollections,
+): boolean {
+	if (getNullableInner(params)) return true;
+
+	const resolved = resolveSchema(params, defCollections);
+	return !!resolved && !!getNullableInner(resolved);
 }
 
 function generateApiTypesCode(apiSchema: ApiSchema): string {
@@ -1146,24 +1268,35 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 				schema.description,
 				isSchemaExperimental(schema),
 			);
+		} else if (asGeneratedObjectSchema(schema, defCollections)) {
+			emitRustStruct(
+				name,
+				asGeneratedObjectSchema(schema, defCollections)!,
+				ctx,
+				schema.description,
+			);
 		} else if (getUnionVariants(schema)) {
 			tryEmitRustUnion(schema, name, "", ctx);
-		} else if (isObjectSchema(schema)) {
-			emitRustStruct(name, schema, ctx, schema.description);
 		}
 	}
 
 	// Collect all RPC methods and generate request/response types
-	const allMethods: RpcMethod[] = [];
-	for (const group of [
-		apiSchema.server,
-		apiSchema.session,
-		apiSchema.clientSession,
+	const methodEntries: { method: RpcMethod; isSession: boolean }[] = [];
+	for (const { group, isSession } of [
+		{ group: apiSchema.server, isSession: false },
+		{ group: apiSchema.session, isSession: true },
+		{ group: apiSchema.clientSession, isSession: false },
 	]) {
 		if (group) {
-			allMethods.push(...collectRpcMethods(group as Record<string, unknown>));
+			methodEntries.push(
+				...collectRpcMethods(group as Record<string, unknown>).map((method) => ({
+					method,
+					isSession,
+				})),
+			);
 		}
 	}
+	const allMethods = methodEntries.map(({ method }) => method);
 
 	// RPC method name constants
 	const methodConstLines: string[] = [];
@@ -1180,14 +1313,24 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	methodConstLines.push("}");
 
 	// Generate param/result types for each method
-	for (const method of allMethods) {
-		if (
-			method.params &&
-			isObjectSchema(method.params) &&
-			!isVoidSchema(method.params)
-		) {
+	for (const { method, isSession } of methodEntries) {
+		const paramsSchema = getMethodParamsObjectSchema(
+			method,
+			defCollections,
+			isSession,
+		);
+		const sessionWireParamsSchema = isSession && !paramsSchema && method.params
+			? asGeneratedObjectSchema(method.params, defCollections)
+			: undefined;
+		const generatedParamsSchema = paramsSchema ?? sessionWireParamsSchema;
+		if (generatedParamsSchema) {
 			const paramsName = rustParamsTypeName(method, ctx);
-			emitRustStruct(paramsName, method.params, ctx, method.params.description);
+			emitRustStruct(
+				paramsName,
+				generatedParamsSchema,
+				ctx,
+				generatedParamsSchema.description,
+			);
 		}
 		if (method.result && !isVoidSchema(method.result)) {
 			const resultName = rustResultTypeName(method, ctx);
@@ -1319,29 +1462,22 @@ function getMethodParamsInfo(
 	isSession: boolean,
 ): { hasParams: boolean; optional: boolean; typeName: string | null } {
 	if (!method.params) return { hasParams: false, optional: false, typeName: null };
-	const inline = method.params as JSONSchema7 & { $ref?: string };
-	const resolved = resolveObjectSchema(inline, defCollections) ??
-		resolveSchema(inline, defCollections);
-	if (!resolved) return { hasParams: false, optional: false, typeName: null };
+	const paramsSchema = getMethodParamsObjectSchema(
+		method,
+		defCollections,
+		isSession,
+	);
+	if (!paramsSchema) return { hasParams: false, optional: false, typeName: null };
 
-	let typeName: string | null = null;
-	if (typeof inline.$ref === "string") {
-		typeName = refTypeName(inline.$ref, defCollections);
-	} else if (typeof resolved.title === "string") {
-		typeName = resolved.title;
-	} else if (typeof inline.title === "string") {
-		typeName = inline.title;
-	}
+	const typeName = rustParamsTypeName(method, defCollections);
 
-	const allProps = Object.keys(resolved.properties || {});
-	const props = isSession
-		? allProps.filter((p) => p !== "sessionId")
-		: allProps;
+	const props = Object.keys(paramsSchema.properties || {});
 	if (props.length === 0) return { hasParams: false, optional: false, typeName: null };
 	if (!typeName) return { hasParams: false, optional: false, typeName: null };
-	const required = new Set(resolved.required || []);
+	const required = new Set(paramsSchema.required || []);
 	const hasRequiredParams = props.some((p) => required.has(p));
-	const optional = !!getNullableInner(inline) && !hasRequiredParams;
+	const optional = isNullableParamsSchema(method.params, defCollections) &&
+		!hasRequiredParams;
 	return { hasParams: true, optional, typeName };
 }
 
@@ -1489,52 +1625,67 @@ function emitNamespaceMethod(
 	const paramsInfo = getMethodParamsInfo(method, defCollections, isSession);
 	const hasParams = paramsInfo.hasParams;
 	const paramsTypeName = paramsInfo.typeName;
+	const resolvedParams = method.params
+		? (resolveObjectSchema(method.params, defCollections) ??
+			resolveSchema(method.params, defCollections) ??
+			method.params)
+		: undefined;
 
 	const resultTypeName = getResultTypeName(method, defCollections);
+	const resultSchema = method.result
+		? (resolveSchema(method.result, defCollections) ?? method.result)
+		: undefined;
 	const returnType = resultTypeName ? resultTypeName : "()";
 	const resultIsVoid = resultTypeName === null;
 
-	const docs: string[] = [];
-	docs.push(`    /// Wire method: \`${wireMethod}\`.`);
-	if (method.deprecated) docs.push(...rustDeprecatedAttributes("    "));
-	const stability = method.stability;
-	if (stability === "experimental") {
-		docs.push(`    ///`);
-		docs.push(
-			`    /// <div class="warning">`,
+	const buildDocs = (includeParams: boolean): string[] => {
+		const docs = rustRpcMethodDocs(
+			method,
+			resultSchema,
+			rustRpcParamsDescription(method, resolvedParams),
+			includeParams,
 		);
-		docs.push(
-			`    ///`,
-		);
-		docs.push(
-			`    /// **Experimental.** This API is part of an experimental wire-protocol surface`,
-		);
-		docs.push(
-			`    /// and may change or be removed in future SDK or CLI releases. Pin both the`,
-		);
-		docs.push(
-			`    /// SDK and CLI versions if your code depends on it.`,
-		);
-		docs.push(
-			`    ///`,
-		);
-		docs.push(
-			`    /// </div>`,
-		);
-	} else if (stability && stability !== "stable") {
-		docs.push(`    /// Stability: \`${stability}\`.`);
-	}
+		if (method.deprecated) docs.push(...rustDeprecatedAttributes("    "));
+		const stability = method.stability;
+		if (stability === "experimental") {
+			docs.push(`    ///`);
+			docs.push(
+				`    /// <div class="warning">`,
+			);
+			docs.push(
+				`    ///`,
+			);
+			docs.push(
+				`    /// **Experimental.** This API is part of an experimental wire-protocol surface`,
+			);
+			docs.push(
+				`    /// and may change or be removed in future SDK or CLI releases. Pin both the`,
+			);
+			docs.push(
+				`    /// SDK and CLI versions if your code depends on it.`,
+			);
+			docs.push(
+				`    ///`,
+			);
+			docs.push(
+				`    /// </div>`,
+			);
+		} else if (stability && stability !== "stable") {
+			docs.push(`    /// Stability: \`${stability}\`.`);
+		}
+		return docs;
+	};
 
 	const paramArg = hasParams ? `, params: ${paramsTypeName}` : "";
 
-	out.push(...docs);
 	if (hasParams && paramsInfo.optional) {
+		out.push(...buildDocs(false));
 		out.push(
 			`    pub async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
 		);
 		pushNamespaceMethodBody(out, constName, isSession, false, resultIsVoid);
 		out.push("");
-		out.push(...docs);
+		out.push(...buildDocs(true));
 		out.push(
 			`    pub async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
 		);
@@ -1543,6 +1694,7 @@ function emitNamespaceMethod(
 		return;
 	}
 
+	out.push(...buildDocs(hasParams));
 	out.push(
 		`    pub async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
 	);
