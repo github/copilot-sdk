@@ -5,10 +5,9 @@ fire for tool calls made by sub-agents spawned via the task tool.
 
 import os
 
-os.environ["COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS"] = "true"
-
 import pytest
 
+from copilot.client import CopilotClient, SubprocessConfig
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -40,7 +39,22 @@ class TestSubagentHooks:
             })
             return None
 
-        session = await ctx.client.create_session(
+        # Create a client with the session-based subagents feature flag
+        env = ctx.get_env()
+        env["COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS"] = "true"
+        github_token = (
+            "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
+        )
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=ctx.cli_path,
+                cwd=ctx.work_dir,
+                env=env,
+                github_token=github_token,
+            )
+        )
+
+        session = await client.create_session(
             on_permission_request=PermissionHandler.approve_all,
             hooks={
                 "on_pre_tool_use": on_pre_tool_use,
@@ -73,3 +87,4 @@ class TestSubagentHooks:
         )
 
         await session.disconnect()
+        await client.stop()
