@@ -8,9 +8,8 @@ import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.Optional;
 
 /**
  * Request for user input from the agent.
@@ -21,6 +20,7 @@ import java.util.Optional;
  * @since 1.0.6
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserInputRequest {
 
     @JsonProperty("question")
@@ -77,13 +77,11 @@ public class UserInputRequest {
     /**
      * Returns whether freeform text input is allowed.
      *
-     * @return an {@link java.util.Optional} containing {@code true} if freeform
-     *         input is allowed, or {@link java.util.Optional#empty()} if not
+     * @return {@code true} if freeform input is allowed, {@code null} if not
      *         specified
      */
-    @JsonIgnore
-    public Optional<Boolean> getAllowFreeform() {
-        return Optional.ofNullable(allowFreeform);
+    public Boolean getAllowFreeform() {
+        return allowFreeform;
     }
 
     /**
@@ -93,19 +91,8 @@ public class UserInputRequest {
      *            {@code true} to allow freeform input
      * @return this instance for method chaining
      */
-    public UserInputRequest setAllowFreeform(boolean allowFreeform) {
+    public UserInputRequest setAllowFreeform(Boolean allowFreeform) {
         this.allowFreeform = allowFreeform;
         return this;
     }
-
-    /**
-     * Clears the allowFreeform setting, reverting to the default behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public UserInputRequest clearAllowFreeform() {
-        this.allowFreeform = null;
-        return this;
-    }
-
 }

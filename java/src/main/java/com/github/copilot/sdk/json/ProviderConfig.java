@@ -9,8 +9,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.OptionalInt;
 
 /**
  * Configuration for a custom API provider (BYOK - Bring Your Own Key).
@@ -298,12 +296,10 @@ public class ProviderConfig {
     /**
      * Gets the maximum prompt token override.
      *
-     * @return an {@link java.util.OptionalInt} containing the max prompt tokens, or
-     *         {@link java.util.OptionalInt#empty()} if not set
+     * @return the max prompt tokens, or {@code null} if not set
      */
-    @JsonIgnore
-    public OptionalInt getMaxPromptTokens() {
-        return maxPromptTokens == null ? OptionalInt.empty() : OptionalInt.of(maxPromptTokens);
+    public Integer getMaxPromptTokens() {
+        return maxPromptTokens;
     }
 
     /**
@@ -318,30 +314,18 @@ public class ProviderConfig {
      *            the max prompt tokens
      * @return this config for method chaining
      */
-    public ProviderConfig setMaxPromptTokens(int maxPromptTokens) {
+    public ProviderConfig setMaxPromptTokens(Integer maxPromptTokens) {
         this.maxPromptTokens = maxPromptTokens;
-        return this;
-    }
-
-    /**
-     * Clears the maxPromptTokens setting, reverting to the default behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public ProviderConfig clearMaxPromptTokens() {
-        this.maxPromptTokens = null;
         return this;
     }
 
     /**
      * Gets the maximum output token override.
      *
-     * @return an {@link java.util.OptionalInt} containing the max output tokens, or
-     *         {@link java.util.OptionalInt#empty()} if not set
+     * @return the max output tokens, or {@code null} if not set
      */
-    @JsonIgnore
-    public OptionalInt getMaxOutputTokens() {
-        return maxOutputTokens == null ? OptionalInt.empty() : OptionalInt.of(maxOutputTokens);
+    public Integer getMaxOutputTokens() {
+        return maxOutputTokens;
     }
 
     /**
@@ -354,19 +338,8 @@ public class ProviderConfig {
      *            the max output tokens
      * @return this config for method chaining
      */
-    public ProviderConfig setMaxOutputTokens(int maxOutputTokens) {
+    public ProviderConfig setMaxOutputTokens(Integer maxOutputTokens) {
         this.maxOutputTokens = maxOutputTokens;
         return this;
     }
-
-    /**
-     * Clears the maxOutputTokens setting, reverting to the default behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public ProviderConfig clearMaxOutputTokens() {
-        this.maxOutputTokens = null;
-        return this;
-    }
-
 }

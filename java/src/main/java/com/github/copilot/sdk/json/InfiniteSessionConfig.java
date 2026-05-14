@@ -6,9 +6,6 @@ package com.github.copilot.sdk.json;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.Optional;
-import java.util.OptionalDouble;
 
 /**
  * Configuration for infinite sessions with automatic context compaction and
@@ -46,12 +43,10 @@ public class InfiniteSessionConfig {
     /**
      * Gets whether infinite sessions are enabled.
      *
-     * @return an {@link Optional} containing the boolean value, or empty to use
-     *         default (true)
+     * @return {@code true} if enabled, {@code null} to use default (true)
      */
-    @JsonIgnore
-    public Optional<Boolean> getEnabled() {
-        return Optional.ofNullable(enabled);
+    public Boolean getEnabled() {
+        return enabled;
     }
 
     /**
@@ -63,32 +58,18 @@ public class InfiniteSessionConfig {
      *            {@code true} to enable infinite sessions
      * @return this config instance for method chaining
      */
-    public InfiniteSessionConfig setEnabled(boolean enabled) {
+    public InfiniteSessionConfig setEnabled(Boolean enabled) {
         this.enabled = enabled;
-        return this;
-    }
-
-    /**
-     * Clears the enabled setting, reverting to the default behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public InfiniteSessionConfig clearEnabled() {
-        this.enabled = null;
         return this;
     }
 
     /**
      * Gets the background compaction threshold.
      *
-     * @return an {@link OptionalDouble} containing the threshold (0.0-1.0), or
-     *         empty to use default
+     * @return the threshold (0.0-1.0), or {@code null} to use default
      */
-    @JsonIgnore
-    public OptionalDouble getBackgroundCompactionThreshold() {
-        return backgroundCompactionThreshold == null
-                ? OptionalDouble.empty()
-                : OptionalDouble.of(backgroundCompactionThreshold);
+    public Double getBackgroundCompactionThreshold() {
+        return backgroundCompactionThreshold;
     }
 
     /**
@@ -101,33 +82,18 @@ public class InfiniteSessionConfig {
      *            the threshold (0.0-1.0)
      * @return this config instance for method chaining
      */
-    public InfiniteSessionConfig setBackgroundCompactionThreshold(double backgroundCompactionThreshold) {
+    public InfiniteSessionConfig setBackgroundCompactionThreshold(Double backgroundCompactionThreshold) {
         this.backgroundCompactionThreshold = backgroundCompactionThreshold;
-        return this;
-    }
-
-    /**
-     * Clears the backgroundCompactionThreshold setting, reverting to the default
-     * behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public InfiniteSessionConfig clearBackgroundCompactionThreshold() {
-        this.backgroundCompactionThreshold = null;
         return this;
     }
 
     /**
      * Gets the buffer exhaustion threshold.
      *
-     * @return an {@link OptionalDouble} containing the threshold (0.0-1.0), or
-     *         empty to use default
+     * @return the threshold (0.0-1.0), or {@code null} to use default
      */
-    @JsonIgnore
-    public OptionalDouble getBufferExhaustionThreshold() {
-        return bufferExhaustionThreshold == null
-                ? OptionalDouble.empty()
-                : OptionalDouble.of(bufferExhaustionThreshold);
+    public Double getBufferExhaustionThreshold() {
+        return bufferExhaustionThreshold;
     }
 
     /**
@@ -141,20 +107,8 @@ public class InfiniteSessionConfig {
      *            the threshold (0.0-1.0)
      * @return this config instance for method chaining
      */
-    public InfiniteSessionConfig setBufferExhaustionThreshold(double bufferExhaustionThreshold) {
+    public InfiniteSessionConfig setBufferExhaustionThreshold(Double bufferExhaustionThreshold) {
         this.bufferExhaustionThreshold = bufferExhaustionThreshold;
         return this;
     }
-
-    /**
-     * Clears the bufferExhaustionThreshold setting, reverting to the default
-     * behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public InfiniteSessionConfig clearBufferExhaustionThreshold() {
-        this.bufferExhaustionThreshold = null;
-        return this;
-    }
-
 }

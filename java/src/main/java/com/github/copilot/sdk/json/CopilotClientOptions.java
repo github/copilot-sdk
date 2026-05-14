@@ -14,9 +14,6 @@ import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.Optional;
-import java.util.OptionalInt;
 
 /**
  * Configuration options for creating a
@@ -502,44 +499,31 @@ public class CopilotClientOptions {
     /**
      * Gets the server-wide idle timeout for sessions in seconds.
      *
-     * @return an {@link OptionalInt} containing the session idle timeout in
-     *         seconds, or {@link java.util.OptionalInt#empty()} if not set. Use
-     *         {@link #clearSessionIdleTimeoutSeconds()} to revert to the default.
+     * @return the session idle timeout in seconds, or {@code null} to disable
+     *         (sessions live indefinitely)
      * @since 1.3.0
      */
-    @JsonIgnore
-    public OptionalInt getSessionIdleTimeoutSeconds() {
-        return sessionIdleTimeoutSeconds == null ? OptionalInt.empty() : OptionalInt.of(sessionIdleTimeoutSeconds);
+    public Integer getSessionIdleTimeoutSeconds() {
+        return sessionIdleTimeoutSeconds;
     }
 
     /**
      * Sets the server-wide idle timeout for sessions in seconds.
      * <p>
      * Sessions without activity for this duration are automatically cleaned up. Set
-     * to {@code 0} to disable (sessions live indefinitely). Use
-     * {@link #clearSessionIdleTimeoutSeconds()} to revert to the default.
+     * to {@code 0} or leave as {@code null} to disable (sessions live
+     * indefinitely).
      * <p>
      * This option is only used when the SDK spawns the CLI process; it is ignored
      * when connecting to an external server via {@link #setCliUrl(String)}.
      *
      * @param sessionIdleTimeoutSeconds
-     *            the idle timeout in seconds
+     *            the idle timeout in seconds, or {@code null} to disable
      * @return this options instance for method chaining
      * @since 1.3.0
      */
-    public CopilotClientOptions setSessionIdleTimeoutSeconds(int sessionIdleTimeoutSeconds) {
+    public CopilotClientOptions setSessionIdleTimeoutSeconds(Integer sessionIdleTimeoutSeconds) {
         this.sessionIdleTimeoutSeconds = sessionIdleTimeoutSeconds;
-        return this;
-    }
-
-    /**
-     * Clears the sessionIdleTimeoutSeconds setting, reverting to the default
-     * behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public CopilotClientOptions clearSessionIdleTimeoutSeconds() {
-        this.sessionIdleTimeoutSeconds = null;
         return this;
     }
 
@@ -571,11 +555,11 @@ public class CopilotClientOptions {
     /**
      * Returns whether to use the logged-in user for authentication.
      *
-     * @return an {@link Optional} containing the boolean value, or empty if not set
+     * @return {@code true} to use logged-in user auth, {@code false} to use only
+     *         explicit tokens, or {@code null} to use default behavior
      */
-    @JsonIgnore
-    public Optional<Boolean> getUseLoggedInUser() {
-        return Optional.ofNullable(useLoggedInUser);
+    public Boolean getUseLoggedInUser() {
+        return useLoggedInUser;
     }
 
     /**
@@ -585,23 +569,15 @@ public class CopilotClientOptions {
      * auth. When false, only explicit tokens (gitHubToken or environment variables)
      * are used. Default: true (but defaults to false when gitHubToken is provided).
      * <p>
+     * Passing {@code null} is equivalent to passing {@link Boolean#FALSE}.
      *
      * @param useLoggedInUser
-     *            {@code true} to use logged-in user auth, {@code false} otherwise
+     *            {@code true} to use logged-in user auth, {@code false} or
+     *            {@code null} otherwise
      * @return this options instance for method chaining
      */
-    public CopilotClientOptions setUseLoggedInUser(boolean useLoggedInUser) {
-        this.useLoggedInUser = useLoggedInUser;
-        return this;
-    }
-
-    /**
-     * Clears the useLoggedInUser setting, reverting to the default behavior.
-     *
-     * @return this instance for method chaining
-     */
-    public CopilotClientOptions clearUseLoggedInUser() {
-        this.useLoggedInUser = null;
+    public CopilotClientOptions setUseLoggedInUser(Boolean useLoggedInUser) {
+        this.useLoggedInUser = useLoggedInUser != null ? useLoggedInUser : Boolean.FALSE;
         return this;
     }
 

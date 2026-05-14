@@ -90,16 +90,16 @@ final class CliServerManager {
         }
 
         // Default UseLoggedInUser to false when GitHubToken is provided
-        boolean useLoggedInUser = options.getUseLoggedInUser()
-                .orElse(options.getGitHubToken() == null || options.getGitHubToken().isEmpty());
+        boolean useLoggedInUser = options.getUseLoggedInUser() != null
+                ? options.getUseLoggedInUser()
+                : (options.getGitHubToken() == null || options.getGitHubToken().isEmpty());
         if (!useLoggedInUser) {
             args.add("--no-auto-login");
         }
 
-        if (options.getSessionIdleTimeoutSeconds().isPresent()
-                && options.getSessionIdleTimeoutSeconds().getAsInt() > 0) {
+        if (options.getSessionIdleTimeoutSeconds() != null && options.getSessionIdleTimeoutSeconds() > 0) {
             args.add("--session-idle-timeout");
-            args.add(String.valueOf(options.getSessionIdleTimeoutSeconds().getAsInt()));
+            args.add(String.valueOf(options.getSessionIdleTimeoutSeconds()));
         }
 
         if (options.isRemote()) {
@@ -159,9 +159,9 @@ final class CliServerManager {
             if (telemetry.getSourceName() != null) {
                 pb.environment().put("COPILOT_OTEL_SOURCE_NAME", telemetry.getSourceName());
             }
-            if (telemetry.getCaptureContent().isPresent()) {
+            if (telemetry.getCaptureContent() != null) {
                 pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
-                        telemetry.getCaptureContent().get() ? "true" : "false");
+                        telemetry.getCaptureContent() ? "true" : "false");
             }
         }
 

@@ -22,7 +22,7 @@ class TelemetryConfigTest {
         assertNull(config.getFilePath());
         assertNull(config.getExporterType());
         assertNull(config.getSourceName());
-        assertTrue(config.getCaptureContent().isEmpty());
+        assertNull(config.getCaptureContent());
     }
 
     @Test
@@ -57,10 +57,10 @@ class TelemetryConfigTest {
     void captureContentGetterSetter() {
         var config = new TelemetryConfig();
         config.setCaptureContent(true);
-        assertTrue(config.getCaptureContent().get());
+        assertTrue(config.getCaptureContent());
 
         config.setCaptureContent(false);
-        assertFalse(config.getCaptureContent().get());
+        assertFalse(config.getCaptureContent());
     }
 
     @Test
@@ -72,6 +72,6 @@ class TelemetryConfigTest {
         assertEquals("/tmp/spans.json", config.getFilePath());
         assertEquals("file", config.getExporterType());
         assertEquals("sdk-test", config.getSourceName());
-        assertTrue(config.getCaptureContent().get());
+        assertTrue(config.getCaptureContent());
     }
 }

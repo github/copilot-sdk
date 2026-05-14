@@ -111,18 +111,12 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
-        config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
-        if (config.getOnUserInputRequest() != null) {
-            request.setRequestUserInput(true);
-        }
-        if (config.getHooks() != null && config.getHooks().hasHooks()) {
-            request.setHooks(true);
-        }
+        request.setEnableSessionTelemetry(config.getEnableSessionTelemetry());
+        request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
+        request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());
-        if (config.isStreaming()) {
-            request.setStreaming(true);
-        }
-        config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
+        request.setStreaming(config.isStreaming() ? true : null);
+        request.setIncludeSubAgentStreamingEvents(config.getIncludeSubAgentStreamingEvents());
         request.setMcpServers(config.getMcpServers());
         request.setCustomAgents(config.getCustomAgents());
         request.setDefaultAgent(config.getDefaultAgent());
@@ -132,7 +126,7 @@ final class SessionRequestBuilder {
         request.setInstructionDirectories(config.getInstructionDirectories());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setConfigDir(config.getConfigDir());
-        config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
+        request.setEnableConfigDiscovery(config.getEnableConfigDiscovery());
         request.setModelCapabilities(config.getModelCapabilities());
 
         if (config.getCommands() != null && !config.getCommands().isEmpty()) {
@@ -200,23 +194,15 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
-        config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
-        if (config.getOnUserInputRequest() != null) {
-            request.setRequestUserInput(true);
-        }
-        if (config.getHooks() != null && config.getHooks().hasHooks()) {
-            request.setHooks(true);
-        }
+        request.setEnableSessionTelemetry(config.getEnableSessionTelemetry());
+        request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
+        request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());
         request.setConfigDir(config.getConfigDir());
-        config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
-        if (config.isDisableResume()) {
-            request.setDisableResume(true);
-        }
-        if (config.isStreaming()) {
-            request.setStreaming(true);
-        }
-        config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
+        request.setEnableConfigDiscovery(config.getEnableConfigDiscovery());
+        request.setDisableResume(config.isDisableResume() ? true : null);
+        request.setStreaming(config.isStreaming() ? true : null);
+        request.setIncludeSubAgentStreamingEvents(config.getIncludeSubAgentStreamingEvents());
         request.setMcpServers(config.getMcpServers());
         request.setCustomAgents(config.getCustomAgents());
         request.setDefaultAgent(config.getDefaultAgent());

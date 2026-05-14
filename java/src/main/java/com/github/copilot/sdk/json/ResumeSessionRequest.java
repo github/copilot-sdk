@@ -231,15 +231,8 @@ public final class ResumeSessionRequest {
     /**
      * Sets enable session telemetry flag. @param enableSessionTelemetry the flag
      */
-    public void setEnableSessionTelemetry(boolean enableSessionTelemetry) {
+    public void setEnableSessionTelemetry(Boolean enableSessionTelemetry) {
         this.enableSessionTelemetry = enableSessionTelemetry;
-    }
-
-    /**
-     * Clears the enableSessionTelemetry setting, reverting to the default behavior.
-     */
-    public void clearEnableSessionTelemetry() {
-        this.enableSessionTelemetry = null;
     }
 
     /** Gets request permission flag. @return the flag */
@@ -248,15 +241,8 @@ public final class ResumeSessionRequest {
     }
 
     /** Sets request permission flag. @param requestPermission the flag */
-    public void setRequestPermission(boolean requestPermission) {
+    public void setRequestPermission(Boolean requestPermission) {
         this.requestPermission = requestPermission;
-    }
-
-    /**
-     * Clears the requestPermission setting, reverting to the default behavior.
-     */
-    public void clearRequestPermission() {
-        this.requestPermission = null;
     }
 
     /** Gets request user input flag. @return the flag */
@@ -265,15 +251,8 @@ public final class ResumeSessionRequest {
     }
 
     /** Sets request user input flag. @param requestUserInput the flag */
-    public void setRequestUserInput(boolean requestUserInput) {
+    public void setRequestUserInput(Boolean requestUserInput) {
         this.requestUserInput = requestUserInput;
-    }
-
-    /**
-     * Clears the requestUserInput setting, reverting to the default behavior.
-     */
-    public void clearRequestUserInput() {
-        this.requestUserInput = null;
     }
 
     /** Gets hooks flag. @return the flag */
@@ -282,15 +261,8 @@ public final class ResumeSessionRequest {
     }
 
     /** Sets hooks flag. @param hooks the flag */
-    public void setHooks(boolean hooks) {
+    public void setHooks(Boolean hooks) {
         this.hooks = hooks;
-    }
-
-    /**
-     * Clears the hooks setting, reverting to the default behavior.
-     */
-    public void clearHooks() {
-        this.hooks = null;
     }
 
     /** Gets working directory. @return the working directory */
@@ -319,15 +291,8 @@ public final class ResumeSessionRequest {
     }
 
     /** Sets enable config discovery flag. @param enableConfigDiscovery the flag */
-    public void setEnableConfigDiscovery(boolean enableConfigDiscovery) {
+    public void setEnableConfigDiscovery(Boolean enableConfigDiscovery) {
         this.enableConfigDiscovery = enableConfigDiscovery;
-    }
-
-    /**
-     * Clears the enableConfigDiscovery setting, reverting to the default behavior.
-     */
-    public void clearEnableConfigDiscovery() {
-        this.enableConfigDiscovery = null;
     }
 
     /** Gets disable resume flag. @return the flag */
@@ -336,15 +301,8 @@ public final class ResumeSessionRequest {
     }
 
     /** Sets disable resume flag. @param disableResume the flag */
-    public void setDisableResume(boolean disableResume) {
+    public void setDisableResume(Boolean disableResume) {
         this.disableResume = disableResume;
-    }
-
-    /**
-     * Clears the disableResume setting, reverting to the default behavior.
-     */
-    public void clearDisableResume() {
-        this.disableResume = null;
     }
 
     /** Gets streaming flag. @return the flag */
@@ -353,15 +311,8 @@ public final class ResumeSessionRequest {
     }
 
     /** Sets streaming flag. @param streaming the flag */
-    public void setStreaming(boolean streaming) {
+    public void setStreaming(Boolean streaming) {
         this.streaming = streaming;
-    }
-
-    /**
-     * Clears the streaming setting, reverting to the default behavior.
-     */
-    public void clearStreaming() {
-        this.streaming = null;
     }
 
     /** Gets include sub-agent streaming events flag. @return the flag */
@@ -373,16 +324,8 @@ public final class ResumeSessionRequest {
      * Sets include sub-agent streaming events flag. @param
      * includeSubAgentStreamingEvents the flag
      */
-    public void setIncludeSubAgentStreamingEvents(boolean includeSubAgentStreamingEvents) {
+    public void setIncludeSubAgentStreamingEvents(Boolean includeSubAgentStreamingEvents) {
         this.includeSubAgentStreamingEvents = includeSubAgentStreamingEvents;
-    }
-
-    /**
-     * Clears the includeSubAgentStreamingEvents setting, reverting to the default
-     * behavior.
-     */
-    public void clearIncludeSubAgentStreamingEvents() {
-        this.includeSubAgentStreamingEvents = null;
     }
 
     /** Gets MCP servers. @return the servers map */
@@ -498,15 +441,8 @@ public final class ResumeSessionRequest {
     }
 
     /** Sets the requestElicitation flag. @param requestElicitation the flag */
-    public void setRequestElicitation(boolean requestElicitation) {
+    public void setRequestElicitation(Boolean requestElicitation) {
         this.requestElicitation = requestElicitation;
-    }
-
-    /**
-     * Clears the requestElicitation setting, reverting to the default behavior.
-     */
-    public void clearRequestElicitation() {
-        this.requestElicitation = null;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */

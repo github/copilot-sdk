@@ -7,9 +7,6 @@ package com.github.copilot.sdk.json;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.Optional;
-import java.util.OptionalInt;
 
 /**
  * Per-property overrides for model capabilities, deep-merged over runtime
@@ -109,73 +106,48 @@ public class ModelCapabilitiesOverride {
         /**
          * Gets the vision override.
          *
-         * @return an {@link java.util.Optional} containing {@code true} to enable
-         *         vision or {@code false} to disable, or
-         *         {@link java.util.Optional#empty()} to use the runtime default
+         * @return {@code true} to enable vision, {@code false} to disable, or
+         *         {@code null} to use the runtime default
          */
-        @JsonIgnore
-        public Optional<Boolean> getVision() {
-            return Optional.ofNullable(vision);
+        public Boolean getVision() {
+            return vision;
         }
 
         /**
-         * Sets whether vision (image input) is enabled. Use {@link #clearVision()} to
-         * revert to the runtime default.
+         * Sets whether vision (image input) is enabled.
          *
          * @param vision
-         *            {@code true} to enable, {@code false} to disable
+         *            {@code true} to enable, {@code false} to disable, or {@code null}
+         *            to use the runtime default
          * @return this instance for method chaining
          */
-        public Supports setVision(boolean vision) {
+        public Supports setVision(Boolean vision) {
             this.vision = vision;
-            return this;
-        }
-
-        /**
-         * Clears the vision setting, reverting to the default behavior.
-         *
-         * @return this instance for method chaining
-         */
-        public Supports clearVision() {
-            this.vision = null;
             return this;
         }
 
         /**
          * Gets the reasoning effort override.
          *
-         * @return an {@link java.util.Optional} containing {@code true} to enable
-         *         reasoning effort or {@code false} to disable, or
-         *         {@link java.util.Optional#empty()} to use the runtime default
+         * @return {@code true} to enable reasoning effort, {@code false} to disable, or
+         *         {@code null} to use the runtime default
          */
-        @JsonIgnore
-        public Optional<Boolean> getReasoningEffort() {
-            return Optional.ofNullable(reasoningEffort);
+        public Boolean getReasoningEffort() {
+            return reasoningEffort;
         }
 
         /**
-         * Sets whether reasoning effort configuration is enabled. Use
-         * {@link #clearReasoningEffort()} to revert to the runtime default.
+         * Sets whether reasoning effort configuration is enabled.
          *
          * @param reasoningEffort
-         *            {@code true} to enable, {@code false} to disable
+         *            {@code true} to enable, {@code false} to disable, or {@code null}
+         *            to use the runtime default
          * @return this instance for method chaining
          */
-        public Supports setReasoningEffort(boolean reasoningEffort) {
+        public Supports setReasoningEffort(Boolean reasoningEffort) {
             this.reasoningEffort = reasoningEffort;
             return this;
         }
-
-        /**
-         * Clears the reasoningEffort setting, reverting to the default behavior.
-         *
-         * @return this instance for method chaining
-         */
-        public Supports clearReasoningEffort() {
-            this.reasoningEffort = null;
-            return this;
-        }
-
     }
 
     /**
@@ -202,9 +174,8 @@ public class ModelCapabilitiesOverride {
          *
          * @return the override value, or {@code null} to use the runtime default
          */
-        @JsonIgnore
-        public OptionalInt getMaxPromptTokens() {
-            return maxPromptTokens == null ? OptionalInt.empty() : OptionalInt.of(maxPromptTokens);
+        public Integer getMaxPromptTokens() {
+            return maxPromptTokens;
         }
 
         /**
@@ -214,18 +185,8 @@ public class ModelCapabilitiesOverride {
          *            the override value, or {@code null} to use the runtime default
          * @return this instance for method chaining
          */
-        public Limits setMaxPromptTokens(int maxPromptTokens) {
+        public Limits setMaxPromptTokens(Integer maxPromptTokens) {
             this.maxPromptTokens = maxPromptTokens;
-            return this;
-        }
-
-        /**
-         * Clears the maxPromptTokens setting, reverting to the default behavior.
-         *
-         * @return this instance for method chaining
-         */
-        public Limits clearMaxPromptTokens() {
-            this.maxPromptTokens = null;
             return this;
         }
 
@@ -234,9 +195,8 @@ public class ModelCapabilitiesOverride {
          *
          * @return the override value, or {@code null} to use the runtime default
          */
-        @JsonIgnore
-        public OptionalInt getMaxOutputTokens() {
-            return maxOutputTokens == null ? OptionalInt.empty() : OptionalInt.of(maxOutputTokens);
+        public Integer getMaxOutputTokens() {
+            return maxOutputTokens;
         }
 
         /**
@@ -246,18 +206,8 @@ public class ModelCapabilitiesOverride {
          *            the override value, or {@code null} to use the runtime default
          * @return this instance for method chaining
          */
-        public Limits setMaxOutputTokens(int maxOutputTokens) {
+        public Limits setMaxOutputTokens(Integer maxOutputTokens) {
             this.maxOutputTokens = maxOutputTokens;
-            return this;
-        }
-
-        /**
-         * Clears the maxOutputTokens setting, reverting to the default behavior.
-         *
-         * @return this instance for method chaining
-         */
-        public Limits clearMaxOutputTokens() {
-            this.maxOutputTokens = null;
             return this;
         }
 
@@ -266,9 +216,8 @@ public class ModelCapabilitiesOverride {
          *
          * @return the override value, or {@code null} to use the runtime default
          */
-        @JsonIgnore
-        public OptionalInt getMaxContextWindowTokens() {
-            return maxContextWindowTokens == null ? OptionalInt.empty() : OptionalInt.of(maxContextWindowTokens);
+        public Integer getMaxContextWindowTokens() {
+            return maxContextWindowTokens;
         }
 
         /**
@@ -278,20 +227,9 @@ public class ModelCapabilitiesOverride {
          *            the override value, or {@code null} to use the runtime default
          * @return this instance for method chaining
          */
-        public Limits setMaxContextWindowTokens(int maxContextWindowTokens) {
+        public Limits setMaxContextWindowTokens(Integer maxContextWindowTokens) {
             this.maxContextWindowTokens = maxContextWindowTokens;
             return this;
         }
-
-        /**
-         * Clears the maxContextWindowTokens setting, reverting to the default behavior.
-         *
-         * @return this instance for method chaining
-         */
-        public Limits clearMaxContextWindowTokens() {
-            this.maxContextWindowTokens = null;
-            return this;
-        }
-
     }
 }
