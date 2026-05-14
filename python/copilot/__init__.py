@@ -11,6 +11,7 @@ from .client import (
     ModelLimitsOverride,
     ModelSupportsOverride,
     ModelVisionLimitsOverride,
+    RemoteSessionMode,
     SubprocessConfig,
 )
 from .session import (
@@ -67,6 +68,7 @@ __all__ = [
     "ModelSupportsOverride",
     "ModelVisionLimitsOverride",
     "ProviderConfig",
+    "RemoteSessionMode",
     "SessionCapabilities",
     "SessionFsConfig",
     "SessionFsFileInfo",

@@ -38,6 +38,7 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     ConnectRequest,
+    RemoteSessionMode,
     ServerRpc,
     _InternalServerRpc,
     register_client_session_api_handlers,
@@ -1326,6 +1327,7 @@ class CopilotClient:
         on_auto_mode_switch: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
+        remote_session: RemoteSessionMode | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1478,6 +1480,10 @@ class CopilotClient:
         # Add GitHub token for per-session authentication
         if github_token is not None:
             payload["gitHubToken"] = github_token
+
+        # Add remote session mode if provided
+        if remote_session is not None:
+            payload["remoteSession"] = remote_session.value
 
         # Add working directory if provided
         if working_directory:
@@ -1686,6 +1692,7 @@ class CopilotClient:
         on_auto_mode_switch: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
+        remote_session: RemoteSessionMode | None = None,
         continue_pending_work: bool | None = None,
     ) -> CopilotSession:
         """
@@ -1856,6 +1863,10 @@ class CopilotClient:
         # Add GitHub token for per-session authentication
         if github_token is not None:
             payload["gitHubToken"] = github_token
+
+        # Add remote session mode if provided
+        if remote_session is not None:
+            payload["remoteSession"] = remote_session.value
 
         if working_directory:
             payload["workingDirectory"] = working_directory

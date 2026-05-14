@@ -56,6 +56,7 @@ export type {
     PermissionRequest,
     PermissionRequestResult,
     ProviderConfig,
+    RemoteSessionMode,
     ResumeSessionConfig,
     SectionOverride,
     SectionOverrideAction,
