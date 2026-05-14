@@ -923,46 +923,6 @@ function tryGenerateSessionJsonUnionType(
     return className;
 }
 
-function tryGenerateRpcJsonUnionType(
-    schema: JSONSchema7,
-    parentClassName: string,
-    propName: string,
-    classes: string[]
-): string | undefined {
-    const members = getNonNullUnionMembers(schema);
-    if (members.length <= 1) return undefined;
-
-    const className = (schema.title as string) ?? `${parentClassName}${propName}`;
-    if (emittedRpcClassSchemas.has(className)) return className;
-
-    const usedNames = new Set<string>();
-    const variants: JsonUnionVariant[] = [];
-    for (const member of members) {
-        const memberSchema = getVariantSchema(member, rpcDefinitions);
-        const typeName = member.$ref
-            ? typeToClassName(refTypeName(member.$ref, rpcDefinitions))
-            : ((memberSchema?.title as string | undefined) ?? `${className}Variant${variants.length + 1}`);
-        if (memberSchema && !isObjectSchema(memberSchema)) return undefined;
-
-        if (memberSchema && member.$ref) {
-            const cls = emitRpcClass(typeName, memberSchema, "public", classes);
-            if (cls) classes.push(cls);
-        } else if (memberSchema && isObjectSchema(memberSchema)) {
-            const cls = emitRpcClass(typeName, memberSchema, "public", classes);
-            if (cls) classes.push(cls);
-        }
-        variants.push({
-            typeName,
-            propertyName: toUnionVariantPropertyName(typeName, usedNames),
-            schema: memberSchema,
-        });
-    }
-
-    emittedRpcClassSchemas.set(className, "json-union");
-    classes.push(generateJsonUnionClass(className, variants, schema.description));
-    return className;
-}
-
 function generateNestedClass(
     className: string,
     schema: JSONSchema7,
