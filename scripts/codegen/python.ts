@@ -701,6 +701,8 @@ interface PyResolvedType {
 
 interface PyCodegenCtx {
     classes: string[];
+    aliases: string[];
+    aliasesByName: Set<string>;
     enums: string[];
     enumsByName: Map<string, string>;
     generatedNames: Set<string>;
@@ -924,6 +926,108 @@ function findPyDiscriminator(
     return null;
 }
 
+function isPyNullLikeSchema(schema: JSONSchema7): boolean {
+    return schema.type === "null" ||
+        (typeof schema.not === "object" && schema.not !== null && Object.keys(schema.not).length === 0);
+}
+
+function getPyNamedSchemaType(
+    schema: JSONSchema7,
+    ctx: PyCodegenCtx
+): { typeName: string; resolved: PyResolvedType } | undefined {
+    const resolved = resolveSchema(schema, ctx.definitions) ?? schema;
+    const typeName = schema.$ref
+        ? toPascalCase(refTypeName(schema.$ref, ctx.definitions))
+        : typeof resolved.title === "string"
+            ? resolved.title
+            : undefined;
+
+    if (!typeName) {
+        return undefined;
+    }
+
+    if (resolved.enum && Array.isArray(resolved.enum) && resolved.enum.every((value) => typeof value === "string")) {
+        const enumType = getOrCreatePyEnum(
+            typeName,
+            resolved.enum as string[],
+            ctx,
+            resolved.description,
+            isSchemaDeprecated(resolved),
+            isSchemaExperimental(resolved)
+        );
+        return {
+            typeName: enumType,
+            resolved: {
+                annotation: enumType,
+                fromExpr: (expr) => `parse_enum(${enumType}, ${expr})`,
+                toExpr: (expr) => `to_enum(${enumType}, ${expr})`,
+            },
+        };
+    }
+
+    const resolvedObject = resolveObjectSchema(schema, ctx.definitions) ?? resolveObjectSchema(resolved, ctx.definitions);
+    if (isNamedPyObjectSchema(resolvedObject)) {
+        emitPyClass(typeName, resolvedObject, ctx, resolvedObject.description);
+        return {
+            typeName,
+            resolved: {
+                annotation: typeName,
+                fromExpr: (expr) => `${typeName}.from_dict(${expr})`,
+                toExpr: (expr) => `to_class(${typeName}, ${expr})`,
+            },
+        };
+    }
+
+    return undefined;
+}
+
+function getOrCreatePyUnionAlias(
+    aliasName: string,
+    members: string[],
+    ctx: PyCodegenCtx,
+    description?: string
+): string {
+    if (!ctx.aliasesByName.has(aliasName)) {
+        const lines: string[] = [];
+        if (description) {
+            lines.push(`# ${description}`);
+        }
+        lines.push(`${aliasName} = ${members.join(" | ")}`);
+        ctx.aliasesByName.add(aliasName);
+        ctx.aliases.push(lines.join("\n"));
+    }
+    return aliasName;
+}
+
+function resolvePyNamedUnion(
+    typeName: string,
+    schemas: JSONSchema7[],
+    ctx: PyCodegenCtx,
+    description?: string
+): PyResolvedType | undefined {
+    const members = schemas
+        .filter((schema) => !isPyNullLikeSchema(schema))
+        .map((schema) => getPyNamedSchemaType(schema, ctx));
+
+    if (members.length === 0 || members.some((member) => member === undefined)) {
+        return undefined;
+    }
+
+    const namedMembers = members as Array<{ typeName: string; resolved: PyResolvedType }>;
+    const aliasName = getOrCreatePyUnionAlias(
+        typeName,
+        namedMembers.map((member) => member.typeName),
+        ctx,
+        description
+    );
+
+    return {
+        annotation: aliasName,
+        fromExpr: (expr) => `from_union([${namedMembers.map((member) => member.resolved.fromExpr).map((fromExpr) => fromExpr("x")).map((expr) => `lambda x: ${expr}`).join(", ")}], ${expr})`,
+        toExpr: (expr) => `from_union([${namedMembers.map((member) => member.resolved.toExpr).map((toExpr) => toExpr("x")).map((expr) => `lambda x: ${expr}`).join(", ")}], ${expr})`,
+    };
+}
+
 function getOrCreatePyEnum(
     enumName: string,
     values: string[],
@@ -1008,15 +1112,17 @@ function resolvePyPropertyType(
     }
 
     if (propSchema.anyOf) {
-        const variants = (propSchema.anyOf as JSONSchema7[])
+        const variantSchemas = (propSchema.anyOf as JSONSchema7[])
             .filter((item) => typeof item === "object")
+            .map((item) => item as JSONSchema7);
+        const variants = variantSchemas
             .map(
                 (item) =>
-                    resolveObjectSchema(item as JSONSchema7, ctx.definitions) ??
-                    resolveSchema(item as JSONSchema7, ctx.definitions) ??
-                    (item as JSONSchema7)
+                    resolveObjectSchema(item, ctx.definitions) ??
+                    resolveSchema(item, ctx.definitions) ??
+                    item
             );
-        const nonNull = variants.filter((item) => item.type !== "null");
+        const nonNull = variants.filter((item) => !isPyNullLikeSchema(item));
         const hasNull = variants.length !== nonNull.length;
 
         if (nonNull.length === 1) {
@@ -1041,6 +1147,16 @@ function resolvePyPropertyType(
                     toExpr: (expr) => `to_class(${nestedName}, ${expr})`,
                 };
                 return hasNull || !isRequired ? pyOptionalResolvedType(resolved) : resolved;
+            }
+
+            const namedUnion = resolvePyNamedUnion(
+                nestedName,
+                variantSchemas.filter((schema) => !isPyNullLikeSchema(resolveSchema(schema, ctx.definitions) ?? schema)),
+                ctx,
+                propSchema.description
+            );
+            if (namedUnion) {
+                return hasNull || !isRequired ? pyOptionalResolvedType(namedUnion) : namedUnion;
             }
 
             return pyAnyResolvedType();
@@ -1495,6 +1611,8 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     const variants = extractPyEventVariants(schema);
     const ctx: PyCodegenCtx = {
         classes: [],
+        aliases: [],
+        aliasesByName: new Set(),
         enums: [],
         enumsByName: new Map(),
         generatedNames: new Set(),
@@ -1738,6 +1856,11 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(``);
     for (const classDef of ctx.classes.sort()) {
         out.push(classDef);
+        out.push(``);
+        out.push(``);
+    }
+    for (const aliasDef of ctx.aliases.sort()) {
+        out.push(aliasDef);
         out.push(``);
         out.push(``);
     }
