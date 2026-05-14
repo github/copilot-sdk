@@ -20,7 +20,9 @@ describe("Subagent hooks", async () => {
     const { copilotClient: client, workDir, env } = await createSdkTestContext({
         ...(recordToken ? { copilotClientOptions: { gitHubToken: recordToken } } : {}),
     });
-    // Enable session-based subagents so createSubagentSession is used
+    // Sub-agent hook propagation requires the session-based subagents feature flag.
+    // Without this flag, the legacy callback-bridge path is used, which does not
+    // support SDK preToolUse/postToolUse hooks for sub-agent tool calls.
     env.COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS = "true";
 
     it("should invoke preToolUse and postToolUse hooks for sub-agent tool calls", async () => {
