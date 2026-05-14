@@ -419,30 +419,6 @@ pub struct DiscoveredMcpServer {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EmbeddedBlobResourceContents {
-    /// Base64-encoded binary content of the resource
-    pub blob: String,
-    /// MIME type of the blob content
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mime_type: Option<String>,
-    /// URI identifying the resource
-    pub uri: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EmbeddedTextResourceContents {
-    /// MIME type of the text content
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mime_type: Option<String>,
-    /// Text content of the resource
-    pub text: String,
-    /// URI identifying the resource
-    pub uri: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Extension {
     /// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
     pub id: String,

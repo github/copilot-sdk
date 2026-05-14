@@ -21,7 +21,6 @@ import {
 	EXCLUDED_EVENT_TYPES,
 	REPO_ROOT,
 	type RpcMethod,
-	collectExternalSchemaRefNames,
 	collectDefinitionCollections,
 	collectDefinitions,
 	collectReachableDefinitionNames,
@@ -198,6 +197,14 @@ interface RustCodegenCtx {
 	nonDefaultableTypes: Set<string>;
 	/** Schema definitions for $ref resolution. */
 	definitions?: DefinitionCollections;
+	/** When set, only these const-valued properties are accepted as union discriminators. */
+	unionDiscriminatorProperties?: Set<string>;
+	/** Whether unions without a const-valued discriminator should be emitted. */
+	allowUntaggedUnions: boolean;
+	/** Specific union type names allowed even when their discriminator is not generally allowed. */
+	allowedUnionTypeNames: Set<string>;
+	/** External schema references that are actually emitted in generated types. */
+	externalTypeRefs: Map<string, Set<string>>;
 }
 
 function stripOption(typeName: string): string {
@@ -212,7 +219,52 @@ function getUnionVariants(schema: JSONSchema7): JSONSchema7[] | null {
 	return null;
 }
 
-function tryEmitRustDiscriminatedUnion(
+interface RustUnionVariant {
+	schema: JSONSchema7;
+	typeName: string;
+}
+
+function findRustDiscriminator(variants: RustUnionVariant[]): string | null {
+	const first = variants[0]?.schema;
+	if (!isObjectSchema(first) || !first.properties) return null;
+
+	for (const [propName, propSchema] of Object.entries(first.properties).sort(
+		([a], [b]) => a.localeCompare(b),
+	)) {
+		if (typeof propSchema !== "object") continue;
+		if ((propSchema as JSONSchema7).const === undefined) continue;
+
+		const values = new Set<string>();
+		let isValid = true;
+		for (const { schema } of variants) {
+			if (!isObjectSchema(schema) || !schema.properties) {
+				isValid = false;
+				break;
+			}
+			const candidate = schema.properties[propName];
+			if (typeof candidate !== "object") {
+				isValid = false;
+				break;
+			}
+			const value = (candidate as JSONSchema7).const;
+			if (value === undefined) {
+				isValid = false;
+				break;
+			}
+			const key = String(value);
+			if (values.has(key)) {
+				isValid = false;
+				break;
+			}
+			values.add(key);
+		}
+		if (isValid) return propName;
+	}
+
+	return null;
+}
+
+function tryEmitRustUnion(
 	schema: JSONSchema7,
 	parentTypeName: string,
 	jsonPropName: string,
@@ -228,42 +280,52 @@ function tryEmitRustDiscriminatedUnion(
 		(typeof schema.title === "string" && schema.title) ||
 		parentTypeName + toPascalCase(jsonPropName);
 
-	const resolvedVariants = nonNull.map((variant) => {
+	const resolvedVariants: RustUnionVariant[] = [];
+	for (let i = 0; i < nonNull.length; i++) {
+		const variant = nonNull[i];
 		if (variant.$ref && typeof variant.$ref === "string") {
 			const resolved = resolveRef(variant.$ref, ctx.definitions);
-			return {
+			if (resolved && !isObjectSchema(resolved)) return null;
+			resolvedVariants.push({
 				schema: (resolved ?? variant) as JSONSchema7,
 				typeName: rustRefTypeName(variant.$ref, ctx.definitions),
-			};
+			});
+			continue;
 		}
 
 		const resolved =
 			resolveObjectSchema(variant, ctx.definitions) ??
 			resolveSchema(variant, ctx.definitions) ??
 			variant;
-		const kindConst = (resolved.properties?.kind as JSONSchema7 | undefined)
-			?.const;
+		if (!isObjectSchema(resolved)) return null;
+		const discriminatorValue = Object.values(resolved.properties ?? {}).find(
+			(prop) => typeof prop === "object" && (prop as JSONSchema7).const !== undefined,
+		) as JSONSchema7 | undefined;
 		const typeName =
 			(typeof resolved.title === "string" && resolved.title) ||
-			(typeof kindConst === "string"
-				? `${enumName}${toPascalCase(kindConst)}`
-				: `${enumName}Variant`);
+			(discriminatorValue?.const !== undefined
+				? `${enumName}${toPascalCase(String(discriminatorValue.const))}`
+				: `${enumName}Variant${i + 1}`);
 
-		return {
+		resolvedVariants.push({
 			schema: resolved as JSONSchema7,
 			typeName,
-		};
-	});
+		});
+	}
 
-	const isDiscriminated = resolvedVariants.every(
-		({ schema: variantSchema }) => {
-			if (!isObjectSchema(variantSchema) || !variantSchema.properties)
-				return false;
-			const kind = variantSchema.properties.kind as JSONSchema7 | undefined;
-			return typeof kind?.const === "string";
-		},
-	);
-	if (!isDiscriminated) return null;
+	const discriminator = findRustDiscriminator(resolvedVariants);
+	const isAllowedUnionType = ctx.allowedUnionTypeNames.has(enumName);
+	if (discriminator) {
+		if (
+			ctx.unionDiscriminatorProperties &&
+			!ctx.unionDiscriminatorProperties.has(discriminator) &&
+			!isAllowedUnionType
+		) {
+			return null;
+		}
+	} else if (!ctx.allowUntaggedUnions || !isAllowedUnionType) {
+		return null;
+	}
 
 	if (ctx.generatedNames.has(enumName)) {
 		return enumName;
@@ -293,10 +355,13 @@ function tryEmitRustDiscriminatedUnion(
 
 	const usedVariantNames = new Set<string>();
 	for (const { schema: variantSchema, typeName } of resolvedVariants) {
-		const kind = ((variantSchema.properties?.kind as JSONSchema7 | undefined)
-			?.const ?? typeName) as string;
+		const discriminatorValue =
+			discriminator && isObjectSchema(variantSchema)
+				? (variantSchema.properties?.[discriminator] as JSONSchema7 | undefined)
+						?.const
+				: undefined;
 		const variantName = uniqueRustPascalIdentifier(
-			kind,
+			discriminatorValue === undefined ? typeName : String(discriminatorValue),
 			usedVariantNames,
 			"Variant",
 		);
@@ -308,13 +373,39 @@ function tryEmitRustDiscriminatedUnion(
 	return enumName;
 }
 
-function makeCtx(definitions?: DefinitionCollections): RustCodegenCtx {
+function recordExternalRustTypeRef(ref: string, ctx: RustCodegenCtx): void {
+	const externalRef = parseExternalSchemaRef(ref);
+	if (!externalRef) return;
+
+	let typeNames = ctx.externalTypeRefs.get(externalRef.schemaFile);
+	if (!typeNames) {
+		typeNames = new Set<string>();
+		ctx.externalTypeRefs.set(externalRef.schemaFile, typeNames);
+	}
+	typeNames.add(externalRef.definitionName);
+}
+
+function makeCtx(
+	definitions?: DefinitionCollections,
+	options: {
+		unionDiscriminatorProperties?: Set<string> | null;
+		allowUntaggedUnions?: boolean;
+		allowedUnionTypeNames?: Iterable<string>;
+	} = {},
+): RustCodegenCtx {
 	return {
 		structs: [],
 		enums: [],
 		generatedNames: new Set(),
 		nonDefaultableTypes: new Set(),
 		definitions,
+		unionDiscriminatorProperties:
+			options.unionDiscriminatorProperties === null
+				? undefined
+				: (options.unionDiscriminatorProperties ?? new Set(["kind"])),
+		allowUntaggedUnions: options.allowUntaggedUnions ?? false,
+		allowedUnionTypeNames: new Set(options.allowedUnionTypeNames ?? []),
+		externalTypeRefs: new Map(),
 	};
 }
 
@@ -359,6 +450,7 @@ function resolveRustType(
 
 	// $ref — resolve and recurse
 	if (propSchema.$ref && typeof propSchema.$ref === "string") {
+		recordExternalRustTypeRef(propSchema.$ref, ctx);
 		const typeName = rustRefTypeName(propSchema.$ref, ctx.definitions);
 		const resolved = resolveRef(propSchema.$ref, ctx.definitions);
 		if (resolved) {
@@ -389,14 +481,14 @@ function resolveRustType(
 
 	// anyOf — nullable pattern or union
 	if (propSchema.anyOf) {
-		const discriminatedUnion = tryEmitRustDiscriminatedUnion(
+		const unionType = tryEmitRustUnion(
 			propSchema,
 			parentTypeName,
 			jsonPropName,
 			ctx,
 		);
-		if (discriminatedUnion) {
-			return wrapOption(discriminatedUnion, isRequired);
+		if (unionType) {
+			return wrapOption(unionType, isRequired);
 		}
 
 		const nonNull = (propSchema.anyOf as JSONSchema7[]).filter(
@@ -426,14 +518,14 @@ function resolveRustType(
 
 	// oneOf — treat like anyOf for now
 	if (propSchema.oneOf) {
-		const discriminatedUnion = tryEmitRustDiscriminatedUnion(
+		const unionType = tryEmitRustUnion(
 			propSchema,
 			parentTypeName,
 			jsonPropName,
 			ctx,
 		);
-		if (discriminatedUnion) {
-			return wrapOption(discriminatedUnion, isRequired);
+		if (unionType) {
+			return wrapOption(unionType, isRequired);
 		}
 
 		const nonNull = (propSchema.oneOf as JSONSchema7[]).filter(
@@ -839,6 +931,13 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	const variants = extractEventVariants(schema);
 	const ctx = makeCtx(
 		collectDefinitionCollections(schema as Record<string, unknown>),
+		{
+			allowUntaggedUnions: true,
+			allowedUnionTypeNames: [
+				"ToolExecutionCompleteContent",
+				"ToolExecutionCompleteContentResourceDetails",
+			],
+		},
 	);
 
 	// Generate per-event data structs
@@ -1001,8 +1100,9 @@ function collectRpcMethods(
 	return methods;
 }
 
-function rustParamsTypeName(method: RpcMethod): string {
+function rustParamsTypeName(method: RpcMethod, ctx: RustCodegenCtx): string {
 	if (method.params?.$ref && parseExternalSchemaRef(method.params.$ref)) {
+		recordExternalRustTypeRef(method.params.$ref, ctx);
 		return rustRefTypeName(method.params.$ref);
 	}
 	return getRpcSchemaTypeName(
@@ -1011,8 +1111,9 @@ function rustParamsTypeName(method: RpcMethod): string {
 	);
 }
 
-function rustResultTypeName(method: RpcMethod): string {
+function rustResultTypeName(method: RpcMethod, ctx: RustCodegenCtx): string {
 	if (method.result?.$ref && parseExternalSchemaRef(method.result.$ref)) {
+		recordExternalRustTypeRef(method.result.$ref, ctx);
 		return rustRefTypeName(method.result.$ref);
 	}
 	return getRpcSchemaTypeName(
@@ -1026,7 +1127,6 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	const defCollections = collectDefinitionCollections(
 		apiSchema as Record<string, unknown>,
 	);
-	const externalSchemaRefs = collectExternalSchemaRefNames(apiSchema);
 	const ctx = makeCtx(defCollections);
 
 	// Generate shared definitions (structs & enums)
@@ -1043,7 +1143,7 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 				isSchemaExperimental(schema),
 			);
 		} else if (getUnionVariants(schema)) {
-			tryEmitRustDiscriminatedUnion(schema, name, "", ctx);
+			tryEmitRustUnion(schema, name, "", ctx);
 		} else if (isObjectSchema(schema)) {
 			emitRustStruct(name, schema, ctx, schema.description);
 		}
@@ -1082,11 +1182,11 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 			isObjectSchema(method.params) &&
 			!isVoidSchema(method.params)
 		) {
-			const paramsName = rustParamsTypeName(method);
+			const paramsName = rustParamsTypeName(method, ctx);
 			emitRustStruct(paramsName, method.params, ctx, method.params.description);
 		}
 		if (method.result && !isVoidSchema(method.result)) {
-			const resultName = rustResultTypeName(method);
+			const resultName = rustResultTypeName(method, ctx);
 			const resolved = resolveSchema(method.result, defCollections);
 			if (resolved) {
 				if (resolved.enum && Array.isArray(resolved.enum)) {
@@ -1109,7 +1209,7 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	out.push("use serde::{Deserialize, Serialize};");
 	out.push("");
 	const externalImports = new Map<string, Set<string>>();
-	for (const [schemaFile, typeNames] of externalSchemaRefs) {
+	for (const [schemaFile, typeNames] of ctx.externalTypeRefs) {
 		const defaultModule = EXTERNAL_SCHEMA_RUST_MODULE[schemaFile];
 		const typeModules = EXTERNAL_SCHEMA_RUST_TYPE_MODULE[schemaFile] ?? {};
 		for (const typeName of typeNames) {

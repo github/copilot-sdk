@@ -729,6 +729,240 @@ function generateDerivedClass(
     return lines.join("\n");
 }
 
+interface JsonUnionVariant {
+    typeName: string;
+    propertyName: string;
+    schema?: JSONSchema7;
+}
+
+function getUnionMembers(schema: JSONSchema7): JSONSchema7[] | undefined {
+    return (schema.anyOf ?? schema.oneOf) as JSONSchema7[] | undefined;
+}
+
+function getNonNullUnionMembers(schema: JSONSchema7): JSONSchema7[] {
+    return (getUnionMembers(schema) ?? []).filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
+}
+
+function getVariantSchema(variant: JSONSchema7, definitions: DefinitionCollections): JSONSchema7 | undefined {
+    if (variant.$ref) {
+        const resolved = resolveRef(variant.$ref, definitions);
+        return typeof resolved === "object" && resolved !== null ? resolved : undefined;
+    }
+
+    const resolved = resolveObjectSchema(variant, definitions) ?? resolveSchema(variant, definitions) ?? variant;
+    return typeof resolved === "object" && resolved !== null ? resolved : undefined;
+}
+
+function getJsonUnionMatchExpression(variant: JsonUnionVariant, variants: JsonUnionVariant[]): string | undefined {
+    const required = new Set(variant.schema?.required ?? []);
+    if (required.size === 0) return undefined;
+
+    const otherRequired = new Set<string>();
+    for (const other of variants) {
+        if (other === variant) continue;
+        for (const property of other.schema?.required ?? []) {
+            otherRequired.add(property);
+        }
+    }
+
+    const present = [...required].filter((property) => !otherRequired.has(property));
+    if (present.length === 0) return undefined;
+
+    const absent = new Set<string>();
+    for (const other of variants) {
+        if (other === variant) continue;
+        for (const property of other.schema?.required ?? []) {
+            if (!required.has(property)) absent.add(property);
+        }
+    }
+
+    return [
+        "element.ValueKind == JsonValueKind.Object",
+        ...present.map((property) => `element.TryGetProperty("${escapeCSharpStringLiteral(property)}", out _)`),
+        ...[...absent].sort().map((property) => `!element.TryGetProperty("${escapeCSharpStringLiteral(property)}", out _)`),
+    ].join(" && ");
+}
+
+function generateJsonUnionClass(className: string, variants: JsonUnionVariant[], description?: string, jsonContextType?: string): string {
+    const lines: string[] = [];
+    lines.push(...xmlDocCommentWithFallback(description, `JSON union data type for <c>${escapeXml(className)}</c>.`, ""));
+    lines.push(`[JsonConverter(typeof(Converter))]`);
+    lines.push(`public sealed partial class ${className}`);
+    lines.push(`{`);
+
+    for (const variant of variants) {
+        lines.push(`    /// <summary>Gets the value when this instance contains <see cref="${variant.typeName}"/>.</summary>`);
+        lines.push(`    public ${variant.typeName}? ${variant.propertyName} { get; }`, "");
+    }
+
+    for (const variant of variants) {
+        lines.push(`    /// <summary>Initializes a new instance of the <see cref="${className}"/> class from <see cref="${variant.typeName}"/>.</summary>`);
+        lines.push(`    public ${className}(${variant.typeName} value)`);
+        lines.push(`    {`);
+        lines.push(`        ArgumentNullException.ThrowIfNull(value);`);
+        lines.push(`        ${variant.propertyName} = value;`);
+        lines.push(`    }`, "");
+        lines.push(`    /// <summary>Converts <see cref="${variant.typeName}"/> to <see cref="${className}"/>.</summary>`);
+        lines.push(`    public static implicit operator ${className}(${variant.typeName} value) => new(value);`, "");
+    }
+
+    lines.push(`    /// <summary>Provides a <see cref="JsonConverter{${className}}"/> for serializing <see cref="${className}"/> instances.</summary>`);
+    lines.push(`    [EditorBrowsable(EditorBrowsableState.Never)]`);
+    lines.push(`    public sealed class Converter : JsonConverter<${className}>`);
+    lines.push(`    {`);
+    lines.push(`        /// <inheritdoc />`);
+    lines.push(`        public override ${className} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)`);
+    lines.push(`        {`);
+    lines.push(`            if (reader.TokenType == JsonTokenType.Null)`);
+    lines.push(`            {`);
+    lines.push(`                throw new JsonException("Expected JSON object for ${escapeCSharpStringLiteral(className)}.");`);
+    lines.push(`            }`);
+    lines.push(``);
+    lines.push(`            using var document = JsonDocument.ParseValue(ref reader);`);
+    lines.push(`            var element = document.RootElement;`);
+
+    const fallbackVariants: JsonUnionVariant[] = [];
+    for (const variant of variants) {
+        const matchExpression = getJsonUnionMatchExpression(variant, variants);
+        if (!matchExpression) {
+            fallbackVariants.push(variant);
+            continue;
+        }
+
+        const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
+        const deserializeExpression = jsonContextType
+            ? `JsonSerializer.Deserialize(element, ${jsonContextType}.Default.${variant.typeName})`
+            : `element.Deserialize<${variant.typeName}>(options)`;
+        lines.push(`            if (${matchExpression})`);
+        lines.push(`            {`);
+        lines.push(`                var ${valueName} = ${deserializeExpression};`);
+        lines.push(`                return ${valueName} is null ? throw new JsonException("Expected ${escapeCSharpStringLiteral(variant.typeName)} value.") : new ${className}(${valueName});`);
+        lines.push(`            }`);
+    }
+
+    for (const variant of fallbackVariants) {
+        const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
+        const deserializeExpression = jsonContextType
+            ? `JsonSerializer.Deserialize(element, ${jsonContextType}.Default.${variant.typeName})`
+            : `element.Deserialize<${variant.typeName}>(options)`;
+        lines.push(``);
+        lines.push(`            try`);
+        lines.push(`            {`);
+        lines.push(`                var ${valueName} = ${deserializeExpression};`);
+        lines.push(`                if (${valueName} is not null) return new ${className}(${valueName});`);
+        lines.push(`            }`);
+        lines.push(`            catch (JsonException)`);
+        lines.push(`            {`);
+        lines.push(`            }`);
+    }
+
+    lines.push(``);
+    lines.push(`            throw new JsonException("JSON value did not match any ${escapeCSharpStringLiteral(className)} variant.");`);
+    lines.push(`        }`, "");
+    lines.push(`        /// <inheritdoc />`);
+    lines.push(`        public override void Write(Utf8JsonWriter writer, ${className} value, JsonSerializerOptions options)`);
+    lines.push(`        {`);
+    for (const variant of variants) {
+        const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
+        const serializeExpression = jsonContextType
+            ? `JsonSerializer.Serialize(writer, ${valueName}, ${jsonContextType}.Default.${variant.typeName});`
+            : `JsonSerializer.Serialize(writer, ${valueName}, options);`;
+        lines.push(`            if (value.${variant.propertyName} is { } ${valueName})`);
+        lines.push(`            {`);
+        lines.push(`                ${serializeExpression}`);
+        lines.push(`                return;`);
+        lines.push(`            }`);
+    }
+    lines.push(``);
+    lines.push(`            throw new JsonException("No ${escapeCSharpStringLiteral(className)} variant value is set.");`);
+    lines.push(`        }`);
+    lines.push(`    }`);
+    lines.push(`}`);
+    return lines.join("\n");
+}
+
+function toUnionVariantPropertyName(typeName: string, usedNames: Set<string>): string {
+    const shortName = typeName.split(".").pop() ?? typeName;
+    return uniqueCSharpIdentifier(shortName, usedNames, "Value");
+}
+
+function tryGenerateSessionJsonUnionType(
+    schema: JSONSchema7,
+    parentClassName: string,
+    propName: string,
+    knownTypes: Map<string, string>,
+    nestedClasses: Map<string, string>,
+    enumOutput: string[]
+): string | undefined {
+    const members = getNonNullUnionMembers(schema);
+    if (members.length <= 1) return undefined;
+
+    const className = (schema.title as string) ?? `${parentClassName}${propName}`;
+    if (nestedClasses.has(className)) return className;
+
+    const usedNames = new Set<string>();
+    const variants: JsonUnionVariant[] = [];
+    for (const member of members) {
+        const memberSchema = getVariantSchema(member, sessionDefinitions);
+        const typeName = member.$ref
+            ? typeToClassName(refTypeName(member.$ref, sessionDefinitions))
+            : ((memberSchema?.title as string | undefined) ?? `${className}Variant${variants.length + 1}`);
+        if (!memberSchema || !isObjectSchema(memberSchema)) return undefined;
+
+        if (!nestedClasses.has(typeName)) {
+            nestedClasses.set(typeName, generateNestedClass(typeName, memberSchema, knownTypes, nestedClasses, enumOutput));
+        }
+        variants.push({
+            typeName,
+            propertyName: toUnionVariantPropertyName(typeName, usedNames),
+            schema: memberSchema,
+        });
+    }
+
+    nestedClasses.set(className, generateJsonUnionClass(className, variants, schema.description, "SessionEventsJsonContext"));
+    return className;
+}
+
+function tryGenerateRpcJsonUnionType(
+    schema: JSONSchema7,
+    parentClassName: string,
+    propName: string,
+    classes: string[]
+): string | undefined {
+    const members = getNonNullUnionMembers(schema);
+    if (members.length <= 1) return undefined;
+
+    const className = (schema.title as string) ?? `${parentClassName}${propName}`;
+    if (emittedRpcClassSchemas.has(className)) return className;
+
+    const usedNames = new Set<string>();
+    const variants: JsonUnionVariant[] = [];
+    for (const member of members) {
+        const memberSchema = getVariantSchema(member, rpcDefinitions);
+        const typeName = member.$ref
+            ? typeToClassName(refTypeName(member.$ref, rpcDefinitions))
+            : ((memberSchema?.title as string | undefined) ?? `${className}Variant${variants.length + 1}`);
+        if (memberSchema && !isObjectSchema(memberSchema)) return undefined;
+
+        if (memberSchema && member.$ref) {
+            const cls = emitRpcClass(typeName, memberSchema, "public", classes);
+            if (cls) classes.push(cls);
+        } else if (memberSchema && isObjectSchema(memberSchema)) {
+            const cls = emitRpcClass(typeName, memberSchema, "public", classes);
+            if (cls) classes.push(cls);
+        }
+        variants.push({
+            typeName,
+            propertyName: toUnionVariantPropertyName(typeName, usedNames),
+            schema: memberSchema,
+        });
+    }
+
+    emittedRpcClassSchemas.set(className, "json-union");
+    classes.push(generateJsonUnionClass(className, variants, schema.description));
+    return className;
+}
+
 function generateNestedClass(
     className: string,
     schema: JSONSchema7,
@@ -821,6 +1055,13 @@ function resolveSessionPropertyType(
                 return isRequired && !hasNull ? renamedBase : `${renamedBase}?`;
             }
         }
+        const unionType = tryGenerateSessionJsonUnionType(propSchema, parentClassName, propName, knownTypes, nestedClasses, enumOutput);
+        if (unionType) return isRequired ? unionType : `${unionType}?`;
+        return !isRequired ? "object?" : "object";
+    }
+    if (propSchema.oneOf) {
+        const unionType = tryGenerateSessionJsonUnionType(propSchema, parentClassName, propName, knownTypes, nestedClasses, enumOutput);
+        if (unionType) return isRequired ? unionType : `${unionType}?`;
         return !isRequired ? "object?" : "object";
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
