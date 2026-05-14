@@ -517,7 +517,7 @@ pub struct SessionTitleChangedData {
     pub title: String,
 }
 
-/// Scheduled prompt registered via /every
+/// Scheduled prompt registered via /every or /after
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionScheduleCreatedData {
@@ -527,6 +527,9 @@ pub struct SessionScheduleCreatedData {
     pub interval_ms: i64,
     /// Prompt text that gets enqueued on every tick
     pub prompt: String,
+    /// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recurring: Option<bool>,
 }
 
 /// Scheduled prompt cancelled from the schedule manager dialog

@@ -630,7 +630,7 @@ export interface ScheduleCreatedEvent {
   type: "session.schedule_created";
 }
 /**
- * Scheduled prompt registered via /every
+ * Scheduled prompt registered via /every or /after
  */
 export interface ScheduleCreatedData {
   /**
@@ -645,6 +645,10 @@ export interface ScheduleCreatedData {
    * Prompt text that gets enqueued on every tick
    */
   prompt: string;
+  /**
+   * Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
+   */
+  recurring?: boolean;
 }
 export interface ScheduleCancelledEvent {
   /**

@@ -224,7 +224,7 @@ public partial class SessionTitleChangedEvent : SessionEvent
     public required SessionTitleChangedData Data { get; set; }
 }
 
-/// <summary>Scheduled prompt registered via /every.</summary>
+/// <summary>Scheduled prompt registered via /every or /after.</summary>
 /// <remarks>Represents the <c>session.schedule_created</c> event.</remarks>
 public partial class SessionScheduleCreatedEvent : SessionEvent
 {
@@ -1348,7 +1348,7 @@ public partial class SessionTitleChangedData
     public required string Title { get; set; }
 }
 
-/// <summary>Scheduled prompt registered via /every.</summary>
+/// <summary>Scheduled prompt registered via /every or /after.</summary>
 public partial class SessionScheduleCreatedData
 {
     /// <summary>Sequential id assigned to the scheduled prompt within the session.</summary>
@@ -1362,6 +1362,11 @@ public partial class SessionScheduleCreatedData
     /// <summary>Prompt text that gets enqueued on every tick.</summary>
     [JsonPropertyName("prompt")]
     public required string Prompt { get; set; }
+
+    /// <summary>Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("recurring")]
+    public bool? Recurring { get; set; }
 }
 
 /// <summary>Scheduled prompt cancelled from the schedule manager dialog.</summary>

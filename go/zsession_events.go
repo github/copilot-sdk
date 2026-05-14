@@ -775,7 +775,7 @@ func (*SessionScheduleCancelledData) Type() SessionEventType {
 	return SessionEventTypeSessionScheduleCancelled
 }
 
-// Scheduled prompt registered via /every
+// Scheduled prompt registered via /every or /after
 type SessionScheduleCreatedData struct {
 	// Sequential id assigned to the scheduled prompt within the session
 	ID int64 `json:"id"`
@@ -783,6 +783,8 @@ type SessionScheduleCreatedData struct {
 	IntervalMs int64 `json:"intervalMs"`
 	// Prompt text that gets enqueued on every tick
 	Prompt string `json:"prompt"`
+	// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
+	Recurring *bool `json:"recurring,omitempty"`
 }
 
 func (*SessionScheduleCreatedData) sessionEventData() {}

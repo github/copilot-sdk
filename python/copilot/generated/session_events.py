@@ -2903,10 +2903,11 @@ class SessionScheduleCancelledData:
 
 @dataclass
 class SessionScheduleCreatedData:
-    "Scheduled prompt registered via /every"
+    "Scheduled prompt registered via /every or /after"
     id: int
     interval_ms: int
     prompt: str
+    recurring: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionScheduleCreatedData":
@@ -2914,10 +2915,12 @@ class SessionScheduleCreatedData:
         id = from_int(obj.get("id"))
         interval_ms = from_int(obj.get("intervalMs"))
         prompt = from_str(obj.get("prompt"))
+        recurring = from_union([from_none, from_bool], obj.get("recurring"))
         return SessionScheduleCreatedData(
             id=id,
             interval_ms=interval_ms,
             prompt=prompt,
+            recurring=recurring,
         )
 
     def to_dict(self) -> dict:
@@ -2925,6 +2928,8 @@ class SessionScheduleCreatedData:
         result["id"] = to_int(self.id)
         result["intervalMs"] = to_int(self.interval_ms)
         result["prompt"] = from_str(self.prompt)
+        if self.recurring is not None:
+            result["recurring"] = from_union([from_none, from_bool], self.recurring)
         return result
 
 

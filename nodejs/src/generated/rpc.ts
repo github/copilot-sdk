@@ -222,6 +222,13 @@ export type PermissionDecisionApproveForLocationApproval =
   | PermissionDecisionApproveForLocationApprovalExtensionManagement
   | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess;
 /**
+ * Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "RemoteSessionMode".
+ */
+export type RemoteSessionMode = "off" | "export" | "on";
+/**
  * Error classification
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1688,6 +1695,11 @@ export interface PluginList {
 }
 
 /** @experimental */
+export interface RemoteEnableRequest {
+  mode?: RemoteSessionMode;
+}
+
+/** @experimental */
 export interface RemoteEnableResult {
   /**
    * Mission Control frontend URL for this session
@@ -3058,8 +3070,8 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         },
         /** @experimental */
         remote: {
-            enable: async (): Promise<RemoteEnableResult> =>
-                connection.sendRequest("session.remote.enable", { sessionId }),
+            enable: async (params: RemoteEnableRequest): Promise<RemoteEnableResult> =>
+                connection.sendRequest("session.remote.enable", { sessionId, ...params }),
             disable: async (): Promise<void> =>
                 connection.sendRequest("session.remote.disable", { sessionId }),
         },

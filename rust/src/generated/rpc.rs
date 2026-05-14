@@ -1296,8 +1296,9 @@ impl<'a> SessionRpcRemote<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn enable(&self) -> Result<RemoteEnableResult, Error> {
-        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+    pub async fn enable(&self, params: RemoteEnableRequest) -> Result<RemoteEnableResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
             .session
             .client()
