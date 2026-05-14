@@ -157,6 +157,7 @@ public class CopilotClientOptions
     /// <summary>
     /// Obsolete. This option has no effect.
     /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("AutoRestart has no effect and will be removed in a future release.")]
     public bool AutoRestart { get; set; }
     /// <summary>
@@ -537,14 +538,17 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
     public static PermissionRequestResultKind NoResult { get; } = new("no-result");
 
     /// <summary>Deprecated. Use <see cref="Rejected"/> instead.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Use Rejected instead.")]
     public static PermissionRequestResultKind DeniedInteractivelyByUser => Rejected;
 
     /// <summary>Deprecated. Use <see cref="UserNotAvailable"/> instead.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Use UserNotAvailable instead.")]
     public static PermissionRequestResultKind DeniedCouldNotRequestFromUser => UserNotAvailable;
 
     /// <summary>Deprecated. Use <see cref="UserNotAvailable"/> instead.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Use UserNotAvailable instead.")]
     public static PermissionRequestResultKind DeniedByRules => UserNotAvailable;
 

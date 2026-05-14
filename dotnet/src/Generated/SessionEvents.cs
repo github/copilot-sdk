@@ -1976,6 +1976,7 @@ public partial class AssistantMessageData
     public double? OutputTokens { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -2037,6 +2038,7 @@ public partial class AssistantMessageDeltaData
     public required string MessageId { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -2114,6 +2116,7 @@ public partial class AssistantUsageData
     public double? OutputTokens { get; set; }
 
     /// <summary>Parent tool call ID when this usage originates from a sub-agent.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -2232,6 +2235,7 @@ public partial class ToolExecutionStartData
     public string? McpToolName { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -2299,6 +2303,7 @@ public partial class ToolExecutionCompleteData
     public string? Model { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]

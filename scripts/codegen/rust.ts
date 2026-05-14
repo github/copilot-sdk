@@ -58,6 +58,10 @@ const EXTERNAL_SCHEMA_RUST_TYPE_MODULE: Record<string, Record<string, string>> =
 	},
 };
 
+function rustDeprecatedAttributes(indent = ""): string[] {
+	return [`${indent}#[doc(hidden)]`, `${indent}#[deprecated]`];
+}
+
 /**
  * JSON property names that should be emitted as a hand-authored newtype rather
  * than `String`. The newtype is `#[serde(transparent)]`, so the wire format is
@@ -700,7 +704,7 @@ function emitRustStruct(
 	}
 	pushRustExperimentalDocs(lines, isSchemaExperimental(schema));
 	if (isSchemaDeprecated(schema)) {
-		lines.push("#[deprecated]");
+		lines.push(...rustDeprecatedAttributes());
 	}
 
 	// Resolve field types up-front so we can decide whether `Default` can be
@@ -745,7 +749,7 @@ function emitRustStruct(
 			}
 		}
 		if (isSchemaDeprecated(prop)) {
-			lines.push("    #[deprecated]");
+			lines.push(...rustDeprecatedAttributes("    "));
 		}
 
 		// Determine if an explicit rename is needed. `rename_all = "camelCase"` on
@@ -1492,7 +1496,7 @@ function emitNamespaceMethod(
 
 	const docs: string[] = [];
 	docs.push(`    /// Wire method: \`${wireMethod}\`.`);
-	if (method.deprecated) docs.push(`    #[deprecated]`);
+	if (method.deprecated) docs.push(...rustDeprecatedAttributes("    "));
 	const stability = method.stability;
 	if (stability === "experimental") {
 		docs.push(`    ///`);

@@ -1119,6 +1119,7 @@ pub struct AssistantMessageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<f64>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+    #[doc(hidden)]
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
@@ -1162,6 +1163,7 @@ pub struct AssistantMessageDeltaData {
     /// Message ID this delta belongs to, matching the corresponding assistant.message event
     pub message_id: String,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+    #[doc(hidden)]
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
@@ -1261,6 +1263,7 @@ pub struct AssistantUsageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<f64>,
     /// Parent tool call ID when this usage originates from a sub-agent
+    #[doc(hidden)]
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
@@ -1345,6 +1348,7 @@ pub struct ToolExecutionStartData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_tool_name: Option<String>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+    #[doc(hidden)]
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
@@ -1547,6 +1551,7 @@ pub struct ToolExecutionCompleteData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+    #[doc(hidden)]
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,

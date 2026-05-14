@@ -355,6 +355,7 @@ const COPYRIGHT = `/*-----------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/`;
 
 const EXPERIMENTAL_ATTRIBUTE = "[Experimental(Diagnostics.Experimental)]";
+const EDITOR_BROWSABLE_NEVER_ATTRIBUTE = "[EditorBrowsable(EditorBrowsableState.Never)]";
 const OBSOLETE_ATTRIBUTE = `[Obsolete("This member is deprecated and will be removed in a future version.")]`;
 const STRING_ENUM_RESERVED_MEMBER_NAMES = new Set(["Value", "Equals", "GetHashCode", "ToString", "Converter"]);
 
@@ -364,6 +365,21 @@ function experimentalAttribute(indent = ""): string {
 
 function pushExperimentalAttribute(lines: string[], indent = ""): void {
     lines.push(experimentalAttribute(indent));
+}
+
+function obsoleteAttributes(indent = ""): string[] {
+    return [
+        `${indent}${EDITOR_BROWSABLE_NEVER_ATTRIBUTE}`,
+        `${indent}${OBSOLETE_ATTRIBUTE}`,
+    ];
+}
+
+function obsoleteAttributeBlock(indent = ""): string {
+    return obsoleteAttributes(indent).join("\n");
+}
+
+function pushObsoleteAttributes(lines: string[], indent = ""): void {
+    lines.push(...obsoleteAttributes(indent));
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -404,7 +420,7 @@ function getOrCreateEnum(
     const lines: string[] = [];
     lines.push(...xmlDocEnumComment(description, ""));
     if (experimental) pushExperimentalAttribute(lines);
-    if (deprecated) lines.push(OBSOLETE_ATTRIBUTE);
+    if (deprecated) pushObsoleteAttributes(lines);
     lines.push(`[JsonConverter(typeof(Converter))]`);
     lines.push(`[DebuggerDisplay("{Value,nq}")]`);
     lines.push(`public readonly struct ${enumName} : IEquatable<${enumName}>`);
@@ -616,7 +632,7 @@ function generateFlattenedBooleanDiscriminatedClass(
         lines.push("");
         lines.push(...xmlDocPropertyComment(info.schema.description, propName, "    "));
         lines.push(...emitDataAnnotations(info.schema, "    "));
-        if (isSchemaDeprecated(info.schema)) lines.push(`    ${OBSOLETE_ATTRIBUTE}`);
+        if (isSchemaDeprecated(info.schema)) pushObsoleteAttributes(lines, "    ");
         if (isDurationProperty(info.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
@@ -696,7 +712,7 @@ function generateDerivedClass(
 
     lines.push(...xmlDocCommentWithFallback(schema.description, `The <c>${escapeXml(discriminatorValue)}</c> variant of <see cref="${baseClassName}"/>.`, ""));
     if (isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
-    if (isSchemaDeprecated(schema)) lines.push(OBSOLETE_ATTRIBUTE);
+    if (isSchemaDeprecated(schema)) pushObsoleteAttributes(lines);
     lines.push(`public partial class ${className} : ${baseClassName}`);
     lines.push(`{`);
     lines.push(`    /// <inheritdoc />`);
@@ -715,7 +731,7 @@ function generateDerivedClass(
 
             lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
             lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-            if (isSchemaDeprecated(propSchema as JSONSchema7)) lines.push(`    ${OBSOLETE_ATTRIBUTE}`);
+            if (isSchemaDeprecated(propSchema as JSONSchema7)) pushObsoleteAttributes(lines, "    ");
             if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
             if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
             lines.push(`    [JsonPropertyName("${propName}")]`);
@@ -928,7 +944,7 @@ function generateNestedClass(
     const lines: string[] = [];
     lines.push(...xmlDocCommentWithFallback(schema.description, `Nested data type for <c>${className}</c>.`, ""));
     if (isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
-    if (isSchemaDeprecated(schema)) lines.push(OBSOLETE_ATTRIBUTE);
+    if (isSchemaDeprecated(schema)) pushObsoleteAttributes(lines);
     lines.push(`public partial class ${className}`, `{`);
 
     for (const [propName, propSchema] of Object.entries(schema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
@@ -940,7 +956,7 @@ function generateNestedClass(
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
         lines.push(...emitDataAnnotations(prop, "    "));
-        if (isSchemaDeprecated(prop)) lines.push(`    ${OBSOLETE_ATTRIBUTE}`);
+        if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
         if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
@@ -1070,7 +1086,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
         pushExperimentalAttribute(lines);
     }
     if (isSchemaDeprecated(variant.dataSchema)) {
-        lines.push(OBSOLETE_ATTRIBUTE);
+        pushObsoleteAttributes(lines);
     }
     lines.push(`public partial class ${variant.dataClassName}`, `{`);
 
@@ -1082,7 +1098,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
 
         lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
         lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-        if (isSchemaDeprecated(propSchema as JSONSchema7)) lines.push(`    ${OBSOLETE_ATTRIBUTE}`);
+        if (isSchemaDeprecated(propSchema as JSONSchema7)) pushObsoleteAttributes(lines, "    ");
         if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
@@ -1114,7 +1130,7 @@ function emitSessionEventEnvelopeProperty(
 
     lines.push(...xmlDocPropertyComment(property.schema.description, property.name, "    "));
     lines.push(...emitDataAnnotations(property.schema, "    "));
-    if (isSchemaDeprecated(property.schema)) lines.push(`    ${OBSOLETE_ATTRIBUTE}`);
+    if (isSchemaDeprecated(property.schema)) pushObsoleteAttributes(lines, "    ");
     if (isDurationProperty(property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
     if (!property.required) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
     lines.push(`    [JsonPropertyName("${property.name}")]`);
@@ -1447,7 +1463,7 @@ function emitRpcClass(
         pushExperimentalAttribute(lines);
     }
     if (isSchemaDeprecated(schema) || isSchemaDeprecated(effectiveSchema)) {
-        lines.push(OBSOLETE_ATTRIBUTE);
+        pushObsoleteAttributes(lines);
     }
     lines.push(`${visibility} sealed class ${className}`, `{`);
 
@@ -1462,7 +1478,7 @@ function emitRpcClass(
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
         lines.push(...emitDataAnnotations(prop, "    "));
-        if (isSchemaDeprecated(prop)) lines.push(`    ${OBSOLETE_ATTRIBUTE}`);
+        if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
         if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
 
@@ -1562,7 +1578,7 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
         pushExperimentalAttribute(lines);
     }
     if (groupDeprecated) {
-        lines.push(OBSOLETE_ATTRIBUTE);
+        pushObsoleteAttributes(lines);
     }
     lines.push(`public sealed class ${className}`);
     lines.push(`{`);
@@ -1648,7 +1664,7 @@ function emitServerInstanceMethod(
         pushExperimentalAttribute(lines, indent);
     }
     if (method.deprecated && !groupDeprecated) {
-        lines.push(`${indent}${OBSOLETE_ATTRIBUTE}`);
+        pushObsoleteAttributes(lines, indent);
     }
 
     const sigParams: string[] = [];
@@ -1772,7 +1788,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
         pushExperimentalAttribute(lines, indent);
     }
     if (method.deprecated && !groupDeprecated) {
-        lines.push(`${indent}${OBSOLETE_ATTRIBUTE}`);
+        pushObsoleteAttributes(lines, indent);
     }
     const sigParams: string[] = [];
     const bodyAssignments = [`SessionId = _sessionId`];
@@ -1810,7 +1826,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
     const groupExperimental = isNodeFullyExperimental(node);
     const groupDeprecated = isNodeFullyDeprecated(node);
     const experimentalAttr = groupExperimental ? `${experimentalAttribute()}\n` : "";
-    const deprecatedAttr = groupDeprecated ? `${OBSOLETE_ATTRIBUTE}\n` : "";
+    const deprecatedAttr = groupDeprecated ? `${obsoleteAttributeBlock()}\n` : "";
     const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
 
     const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `${experimentalAttr}${deprecatedAttr}public sealed class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
@@ -1895,7 +1911,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             pushExperimentalAttribute(lines);
         }
         if (groupDeprecated) {
-            lines.push(OBSOLETE_ATTRIBUTE);
+            pushObsoleteAttributes(lines);
         }
         lines.push(`public interface ${interfaceName}`);
         lines.push(`{`);
@@ -1909,7 +1925,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
                 pushExperimentalAttribute(lines, "    ");
             }
             if (method.deprecated && !groupDeprecated) {
-                lines.push(`    ${OBSOLETE_ATTRIBUTE}`);
+                pushObsoleteAttributes(lines, "    ");
             }
             if (hasParams) {
                 lines.push(`    ${taskType} ${clientHandlerMethodName(method.rpcMethod)}(${paramsTypeName(method)} request, CancellationToken cancellationToken = default);`);
