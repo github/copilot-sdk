@@ -5,6 +5,8 @@ Generated from: api.schema.json
 
 from typing import TYPE_CHECKING
 
+from .session_events import EmbeddedBlobResourceContents, EmbeddedTextResourceContents
+
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
 
@@ -433,60 +435,6 @@ class DiscoveredMCPServerType(Enum):
     SSE = "sse"
     STDIO = "stdio"
 
-@dataclass
-class EmbeddedBlobResourceContents:
-    blob: str
-    """Base64-encoded binary content of the resource"""
-
-    uri: str
-    """URI identifying the resource"""
-
-    mime_type: str | None = None
-    """MIME type of the blob content"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'EmbeddedBlobResourceContents':
-        assert isinstance(obj, dict)
-        blob = from_str(obj.get("blob"))
-        uri = from_str(obj.get("uri"))
-        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
-        return EmbeddedBlobResourceContents(blob, uri, mime_type)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["blob"] = from_str(self.blob)
-        result["uri"] = from_str(self.uri)
-        if self.mime_type is not None:
-            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
-        return result
-
-@dataclass
-class EmbeddedTextResourceContents:
-    text: str
-    """Text content of the resource"""
-
-    uri: str
-    """URI identifying the resource"""
-
-    mime_type: str | None = None
-    """MIME type of the text content"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'EmbeddedTextResourceContents':
-        assert isinstance(obj, dict)
-        text = from_str(obj.get("text"))
-        uri = from_str(obj.get("uri"))
-        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
-        return EmbeddedTextResourceContents(text, uri, mime_type)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["text"] = from_str(self.text)
-        result["uri"] = from_str(self.uri)
-        if self.mime_type is not None:
-            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
-        return result
-
 class ExtensionSource(Enum):
     """Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)"""
 
@@ -540,44 +488,6 @@ class ExternalToolTextResultForLlmContentResourceLinkIconTheme(Enum):
 
     DARK = "dark"
     LIGHT = "light"
-
-@dataclass
-class ExternalToolTextResultForLlmContentResourceDetails:
-    """The embedded resource contents, either text or base64-encoded binary"""
-
-    uri: str
-    """URI identifying the resource"""
-
-    mime_type: str | None = None
-    """MIME type of the text content
-
-    MIME type of the blob content
-    """
-    text: str | None = None
-    """Text content of the resource"""
-
-    blob: str | None = None
-    """Base64-encoded binary content of the resource"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResourceDetails':
-        assert isinstance(obj, dict)
-        uri = from_str(obj.get("uri"))
-        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
-        text = from_union([from_str, from_none], obj.get("text"))
-        blob = from_union([from_str, from_none], obj.get("blob"))
-        return ExternalToolTextResultForLlmContentResourceDetails(uri, mime_type, text, blob)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["uri"] = from_str(self.uri)
-        if self.mime_type is not None:
-            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
-        if self.text is not None:
-            result["text"] = from_union([from_str, from_none], self.text)
-        if self.blob is not None:
-            result["blob"] = from_union([from_str, from_none], self.blob)
-        return result
 
 class ExternalToolTextResultForLlmContentType(Enum):
     AUDIO = "audio"
@@ -3074,6 +2984,8 @@ class ExternalToolTextResultForLlmContentResourceLinkIcon:
             result["theme"] = from_union([lambda x: to_enum(ExternalToolTextResultForLlmContentResourceLinkIconTheme, x), from_none], self.theme)
         return result
 
+ExternalToolTextResultForLlmContentResourceDetails = EmbeddedTextResourceContents | EmbeddedBlobResourceContents
+
 @dataclass
 class ExternalToolTextResultForLlmContentAudio:
     """Audio content block with base64-encoded data"""
@@ -3143,13 +3055,13 @@ class ExternalToolTextResultForLlmContentResource:
     @staticmethod
     def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResource':
         assert isinstance(obj, dict)
-        resource = ExternalToolTextResultForLlmContentResourceDetails.from_dict(obj.get("resource"))
+        resource = (lambda x: from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], x))(obj.get("resource"))
         type = ExternalToolTextResultForLlmContentResourceType(obj.get("type"))
         return ExternalToolTextResultForLlmContentResource(resource, type)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["resource"] = to_class(ExternalToolTextResultForLlmContentResourceDetails, self.resource)
+        result["resource"] = from_union([lambda x: to_class(EmbeddedTextResourceContents, x), lambda x: to_class(EmbeddedBlobResourceContents, x)], self.resource)
         result["type"] = to_enum(ExternalToolTextResultForLlmContentResourceType, self.type)
         return result
 
@@ -5112,7 +5024,7 @@ class ExternalToolTextResultForLlmContent:
         size = from_union([from_float, from_none], obj.get("size"))
         title = from_union([from_str, from_none], obj.get("title"))
         uri = from_union([from_str, from_none], obj.get("uri"))
-        resource = from_union([ExternalToolTextResultForLlmContentResourceDetails.from_dict, from_none], obj.get("resource"))
+        resource = from_union([(lambda x: from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], x)), from_none], obj.get("resource"))
         return ExternalToolTextResultForLlmContent(type, text, cwd, exit_code, data, mime_type, description, icons, name, size, title, uri, resource)
 
     def to_dict(self) -> dict:
@@ -5141,7 +5053,7 @@ class ExternalToolTextResultForLlmContent:
         if self.uri is not None:
             result["uri"] = from_union([from_str, from_none], self.uri)
         if self.resource is not None:
-            result["resource"] = from_union([lambda x: to_class(ExternalToolTextResultForLlmContentResourceDetails, x), from_none], self.resource)
+            result["resource"] = from_union([lambda x: from_union([lambda x: to_class(EmbeddedTextResourceContents, x), lambda x: to_class(EmbeddedBlobResourceContents, x)], x), from_none], self.resource)
         return result
 
 @dataclass
@@ -6389,8 +6301,6 @@ class RPC:
     discovered_mcp_server: DiscoveredMCPServer
     discovered_mcp_server_source: MCPServerSource
     discovered_mcp_server_type: DiscoveredMCPServerType
-    embedded_blob_resource_contents: EmbeddedBlobResourceContents
-    embedded_text_resource_contents: EmbeddedTextResourceContents
     extension: Extension
     extension_list: ExtensionList
     extensions_disable_request: ExtensionsDisableRequest
@@ -6647,8 +6557,6 @@ class RPC:
         discovered_mcp_server = DiscoveredMCPServer.from_dict(obj.get("DiscoveredMcpServer"))
         discovered_mcp_server_source = MCPServerSource(obj.get("DiscoveredMcpServerSource"))
         discovered_mcp_server_type = DiscoveredMCPServerType(obj.get("DiscoveredMcpServerType"))
-        embedded_blob_resource_contents = EmbeddedBlobResourceContents.from_dict(obj.get("EmbeddedBlobResourceContents"))
-        embedded_text_resource_contents = EmbeddedTextResourceContents.from_dict(obj.get("EmbeddedTextResourceContents"))
         extension = Extension.from_dict(obj.get("Extension"))
         extension_list = ExtensionList.from_dict(obj.get("ExtensionList"))
         extensions_disable_request = ExtensionsDisableRequest.from_dict(obj.get("ExtensionsDisableRequest"))
@@ -6661,7 +6569,7 @@ class RPC:
         external_tool_text_result_for_llm_content_audio = ExternalToolTextResultForLlmContentAudio.from_dict(obj.get("ExternalToolTextResultForLlmContentAudio"))
         external_tool_text_result_for_llm_content_image = ExternalToolTextResultForLlmContentImage.from_dict(obj.get("ExternalToolTextResultForLlmContentImage"))
         external_tool_text_result_for_llm_content_resource = ExternalToolTextResultForLlmContentResource.from_dict(obj.get("ExternalToolTextResultForLlmContentResource"))
-        external_tool_text_result_for_llm_content_resource_details = ExternalToolTextResultForLlmContentResourceDetails.from_dict(obj.get("ExternalToolTextResultForLlmContentResourceDetails"))
+        external_tool_text_result_for_llm_content_resource_details = (lambda x: from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], x))(obj.get("ExternalToolTextResultForLlmContentResourceDetails"))
         external_tool_text_result_for_llm_content_resource_link = ExternalToolTextResultForLlmContentResourceLink.from_dict(obj.get("ExternalToolTextResultForLlmContentResourceLink"))
         external_tool_text_result_for_llm_content_resource_link_icon = ExternalToolTextResultForLlmContentResourceLinkIcon.from_dict(obj.get("ExternalToolTextResultForLlmContentResourceLinkIcon"))
         external_tool_text_result_for_llm_content_resource_link_icon_theme = ExternalToolTextResultForLlmContentResourceLinkIconTheme(obj.get("ExternalToolTextResultForLlmContentResourceLinkIconTheme"))
@@ -6878,7 +6786,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, embedded_blob_resource_contents, embedded_text_resource_contents, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_request, remote_enable_result, remote_session_mode, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_mode, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_request, remote_enable_result, remote_session_mode, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_mode, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -6905,8 +6813,6 @@ class RPC:
         result["DiscoveredMcpServer"] = to_class(DiscoveredMCPServer, self.discovered_mcp_server)
         result["DiscoveredMcpServerSource"] = to_enum(MCPServerSource, self.discovered_mcp_server_source)
         result["DiscoveredMcpServerType"] = to_enum(DiscoveredMCPServerType, self.discovered_mcp_server_type)
-        result["EmbeddedBlobResourceContents"] = to_class(EmbeddedBlobResourceContents, self.embedded_blob_resource_contents)
-        result["EmbeddedTextResourceContents"] = to_class(EmbeddedTextResourceContents, self.embedded_text_resource_contents)
         result["Extension"] = to_class(Extension, self.extension)
         result["ExtensionList"] = to_class(ExtensionList, self.extension_list)
         result["ExtensionsDisableRequest"] = to_class(ExtensionsDisableRequest, self.extensions_disable_request)
@@ -6919,7 +6825,7 @@ class RPC:
         result["ExternalToolTextResultForLlmContentAudio"] = to_class(ExternalToolTextResultForLlmContentAudio, self.external_tool_text_result_for_llm_content_audio)
         result["ExternalToolTextResultForLlmContentImage"] = to_class(ExternalToolTextResultForLlmContentImage, self.external_tool_text_result_for_llm_content_image)
         result["ExternalToolTextResultForLlmContentResource"] = to_class(ExternalToolTextResultForLlmContentResource, self.external_tool_text_result_for_llm_content_resource)
-        result["ExternalToolTextResultForLlmContentResourceDetails"] = to_class(ExternalToolTextResultForLlmContentResourceDetails, self.external_tool_text_result_for_llm_content_resource_details)
+        result["ExternalToolTextResultForLlmContentResourceDetails"] = from_union([lambda x: to_class(EmbeddedTextResourceContents, x), lambda x: to_class(EmbeddedBlobResourceContents, x)], self.external_tool_text_result_for_llm_content_resource_details)
         result["ExternalToolTextResultForLlmContentResourceLink"] = to_class(ExternalToolTextResultForLlmContentResourceLink, self.external_tool_text_result_for_llm_content_resource_link)
         result["ExternalToolTextResultForLlmContentResourceLinkIcon"] = to_class(ExternalToolTextResultForLlmContentResourceLinkIcon, self.external_tool_text_result_for_llm_content_resource_link_icon)
         result["ExternalToolTextResultForLlmContentResourceLinkIconTheme"] = to_enum(ExternalToolTextResultForLlmContentResourceLinkIconTheme, self.external_tool_text_result_for_llm_content_resource_link_icon_theme)

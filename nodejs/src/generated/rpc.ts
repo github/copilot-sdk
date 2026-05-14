@@ -5,6 +5,8 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
+import type { EmbeddedBlobResourceContents, EmbeddedTextResourceContents } from "./session-events.js";
+
 /**
  * Authentication type
  *
@@ -607,36 +609,6 @@ export interface DiscoveredMcpServer {
    * Whether the server is enabled (not in the disabled list)
    */
   enabled: boolean;
-}
-
-export interface EmbeddedBlobResourceContents {
-  /**
-   * URI identifying the resource
-   */
-  uri: string;
-  /**
-   * MIME type of the blob content
-   */
-  mimeType?: string;
-  /**
-   * Base64-encoded binary content of the resource
-   */
-  blob: string;
-}
-
-export interface EmbeddedTextResourceContents {
-  /**
-   * URI identifying the resource
-   */
-  uri: string;
-  /**
-   * MIME type of the text content
-   */
-  mimeType?: string;
-  /**
-   * Text content of the resource
-   */
-  text: string;
 }
 
 export interface Extension {

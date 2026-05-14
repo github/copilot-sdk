@@ -3684,6 +3684,119 @@ public partial class ToolExecutionCompleteContentResourceLink : ToolExecutionCom
     public required string Uri { get; set; }
 }
 
+/// <summary>Nested data type for <c>EmbeddedTextResourceContents</c>.</summary>
+public partial class EmbeddedTextResourceContents
+{
+    /// <summary>MIME type of the text content.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>Text content of the resource.</summary>
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
+
+    /// <summary>URI identifying the resource.</summary>
+    [JsonPropertyName("uri")]
+    public required string Uri { get; set; }
+}
+
+/// <summary>Nested data type for <c>EmbeddedBlobResourceContents</c>.</summary>
+public partial class EmbeddedBlobResourceContents
+{
+    /// <summary>Base64-encoded binary content of the resource.</summary>
+    [Base64String]
+    [JsonPropertyName("blob")]
+    public required string Blob { get; set; }
+
+    /// <summary>MIME type of the blob content.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>URI identifying the resource.</summary>
+    [JsonPropertyName("uri")]
+    public required string Uri { get; set; }
+}
+
+/// <summary>The embedded resource contents, either text or base64-encoded binary.</summary>
+/// <remarks>JSON union data type for <c>ToolExecutionCompleteContentResourceDetails</c>.</remarks>
+[JsonConverter(typeof(Converter))]
+public sealed partial class ToolExecutionCompleteContentResourceDetails
+{
+    /// <summary>Gets the value when this instance contains <see cref="EmbeddedTextResourceContents"/>.</summary>
+    public EmbeddedTextResourceContents? EmbeddedTextResourceContents { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="EmbeddedBlobResourceContents"/>.</summary>
+    public EmbeddedBlobResourceContents? EmbeddedBlobResourceContents { get; }
+
+    /// <summary>Initializes a new instance of the <see cref="ToolExecutionCompleteContentResourceDetails"/> class from <see cref="EmbeddedTextResourceContents"/>.</summary>
+    public ToolExecutionCompleteContentResourceDetails(EmbeddedTextResourceContents value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        EmbeddedTextResourceContents = value;
+    }
+
+    /// <summary>Converts <see cref="EmbeddedTextResourceContents"/> to <see cref="ToolExecutionCompleteContentResourceDetails"/>.</summary>
+    public static implicit operator ToolExecutionCompleteContentResourceDetails(EmbeddedTextResourceContents value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="ToolExecutionCompleteContentResourceDetails"/> class from <see cref="EmbeddedBlobResourceContents"/>.</summary>
+    public ToolExecutionCompleteContentResourceDetails(EmbeddedBlobResourceContents value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        EmbeddedBlobResourceContents = value;
+    }
+
+    /// <summary>Converts <see cref="EmbeddedBlobResourceContents"/> to <see cref="ToolExecutionCompleteContentResourceDetails"/>.</summary>
+    public static implicit operator ToolExecutionCompleteContentResourceDetails(EmbeddedBlobResourceContents value) => new(value);
+
+    /// <summary>Provides a <see cref="JsonConverter{ToolExecutionCompleteContentResourceDetails}"/> for serializing <see cref="ToolExecutionCompleteContentResourceDetails"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ToolExecutionCompleteContentResourceDetails>
+    {
+        /// <inheritdoc />
+        public override ToolExecutionCompleteContentResourceDetails Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                throw new JsonException("Expected JSON object for ToolExecutionCompleteContentResourceDetails.");
+            }
+
+            using var document = JsonDocument.ParseValue(ref reader);
+            var element = document.RootElement;
+            if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("text", out _) && !element.TryGetProperty("blob", out _))
+            {
+                var embeddedTextResourceContents = JsonSerializer.Deserialize(element, SessionEventsJsonContext.Default.EmbeddedTextResourceContents);
+                return embeddedTextResourceContents is null ? throw new JsonException("Expected EmbeddedTextResourceContents value.") : new ToolExecutionCompleteContentResourceDetails(embeddedTextResourceContents);
+            }
+            if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("blob", out _) && !element.TryGetProperty("text", out _))
+            {
+                var embeddedBlobResourceContents = JsonSerializer.Deserialize(element, SessionEventsJsonContext.Default.EmbeddedBlobResourceContents);
+                return embeddedBlobResourceContents is null ? throw new JsonException("Expected EmbeddedBlobResourceContents value.") : new ToolExecutionCompleteContentResourceDetails(embeddedBlobResourceContents);
+            }
+
+            throw new JsonException("JSON value did not match any ToolExecutionCompleteContentResourceDetails variant.");
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ToolExecutionCompleteContentResourceDetails value, JsonSerializerOptions options)
+        {
+            if (value.EmbeddedTextResourceContents is { } embeddedTextResourceContents)
+            {
+                JsonSerializer.Serialize(writer, embeddedTextResourceContents, SessionEventsJsonContext.Default.EmbeddedTextResourceContents);
+                return;
+            }
+            if (value.EmbeddedBlobResourceContents is { } embeddedBlobResourceContents)
+            {
+                JsonSerializer.Serialize(writer, embeddedBlobResourceContents, SessionEventsJsonContext.Default.EmbeddedBlobResourceContents);
+                return;
+            }
+
+            throw new JsonException("No ToolExecutionCompleteContentResourceDetails variant value is set.");
+        }
+    }
+}
+
 /// <summary>Embedded resource content block with inline text or binary data.</summary>
 /// <remarks>The <c>resource</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
 public partial class ToolExecutionCompleteContentResource : ToolExecutionCompleteContent
@@ -3694,7 +3807,7 @@ public partial class ToolExecutionCompleteContentResource : ToolExecutionComplet
 
     /// <summary>The embedded resource contents, either text or base64-encoded binary.</summary>
     [JsonPropertyName("resource")]
-    public required object Resource { get; set; }
+    public required ToolExecutionCompleteContentResourceDetails Resource { get; set; }
 }
 
 /// <summary>A content block within a tool result, which may be text, terminal output, image, audio, or a resource.</summary>
@@ -6677,6 +6790,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ElicitationRequestedData))]
 [JsonSerializable(typeof(ElicitationRequestedEvent))]
 [JsonSerializable(typeof(ElicitationRequestedSchema))]
+[JsonSerializable(typeof(EmbeddedBlobResourceContents))]
+[JsonSerializable(typeof(EmbeddedTextResourceContents))]
 [JsonSerializable(typeof(ExitPlanModeCompletedData))]
 [JsonSerializable(typeof(ExitPlanModeCompletedEvent))]
 [JsonSerializable(typeof(ExitPlanModeRequestedData))]
@@ -6842,6 +6957,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionCompleteContentAudio))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentImage))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentResource))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentResourceDetails))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentResourceLink))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentResourceLinkIcon))]
 [JsonSerializable(typeof(ToolExecutionCompleteContentTerminal))]

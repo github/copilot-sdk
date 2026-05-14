@@ -17,10 +17,15 @@ import {
     getSessionEventsSchemaPath,
     postProcessSchema,
     writeGeneratedFile,
+    collectExternalSchemaRefNames,
     collectDefinitionCollections,
+    collectReachableDefinitionNames,
+    findSharedSchemaDefinitions,
     hasSchemaPayload,
+    parseExternalSchemaRef,
     resolveObjectSchema,
     resolveSchema,
+    rewriteSharedDefinitionReferences,
     withSharedDefinitions,
     isRpcMethod,
     isNodeFullyExperimental,
@@ -33,6 +38,9 @@ import {
 } from "./utils.js";
 
 const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
+const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
+    "session-events.schema.json": "./session-events.js",
+};
 
 function tsExperimentalJSDoc(indent = ""): string {
     return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
@@ -202,16 +210,24 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
         ) as Record<string, unknown>;
 
         if (typeof rewritten.$ref === "string") {
-            if (rewritten.$ref.startsWith("#/$defs/")) {
+            const externalRef = parseExternalSchemaRef(rewritten.$ref);
+            if (externalRef && EXTERNAL_SCHEMA_TS_IMPORT[externalRef.schemaFile]) {
+                rewritten.tsType = externalRef.definitionName;
+                for (const key of Object.keys(rewritten)) {
+                    if (key !== "tsType") {
+                        delete rewritten[key];
+                    }
+                }
+            } else if (rewritten.$ref.startsWith("#/$defs/")) {
                 const definitionName = rewritten.$ref.slice("#/$defs/".length);
                 rewritten.$ref = `#/definitions/${draftDefinitionAliases.get(definitionName) ?? definitionName}`;
             }
             // json-schema-to-typescript treats sibling keywords alongside $ref as a
             // new inline type instead of reusing the referenced definition.  Strip
             // siblings so that $ref-only objects compile to a single shared type.
-            for (const key of Object.keys(rewritten)) {
-                if (key !== "$ref") {
-                    delete rewritten[key];
+            if ("$ref" in rewritten) {
+                for (const key of Object.keys(rewritten)) {
+                    if (key !== "$ref") delete rewritten[key];
                 }
             }
         }
@@ -306,10 +322,9 @@ function isParamsOptional(method: RpcMethod): boolean {
 }
 
 function resultTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(
-        getMethodResultSchema(method),
-        method.rpcMethod.split(".").map(toPascalCase).join("") + "Result"
-    );
+    const schema = getMethodResultSchema(method);
+    const externalRef = schema?.$ref ? parseExternalSchemaRef(schema.$ref) : undefined;
+    return externalRef?.definitionName ?? getRpcSchemaTypeName(schema, method.rpcMethod.split(".").map(toPascalCase).join("") + "Result");
 }
 
 function tsNullableResultTypeName(method: RpcMethod): string | undefined {
@@ -336,14 +351,29 @@ function paramsTypeName(method: RpcMethod): string {
     if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
         return fallback;
     }
-    return getRpcSchemaTypeName(getMethodParamsSchema(method), fallback);
+    const schema = getMethodParamsSchema(method);
+    const externalRef = schema?.$ref ? parseExternalSchemaRef(schema.$ref) : undefined;
+    return externalRef?.definitionName ?? getRpcSchemaTypeName(schema, fallback);
 }
 
-async function generateRpc(schemaPath?: string): Promise<void> {
+async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("TypeScript: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = fixNullableRequiredRefsInApiSchema(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    let schema = fixNullableRequiredRefsInApiSchema(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    if (sessionEventsSchema) {
+        const sharedDefinitions = findSharedSchemaDefinitions(
+            schema as unknown as Record<string, unknown>,
+            sessionEventsSchema as unknown as Record<string, unknown>
+        );
+        const reachableDefinitions = collectReachableDefinitionNames(sessionEventsSchema as unknown as Record<string, unknown>);
+        for (const name of [...sharedDefinitions]) {
+            if (!reachableDefinitions.has(name)) {
+                sharedDefinitions.delete(name);
+            }
+        }
+        schema = rewriteSharedDefinitionReferences(schema, sharedDefinitions, "session-events.schema.json");
+    }
 
     const lines: string[] = [];
     lines.push(`/**
@@ -353,6 +383,17 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 `);
+
+    const externalSchemaRefs = collectExternalSchemaRefNames(schema);
+    for (const [schemaFile, typeNames] of externalSchemaRefs) {
+        const importPath = EXTERNAL_SCHEMA_TS_IMPORT[schemaFile];
+        if (importPath) {
+            lines.push(`import type { ${[...typeNames].sort().join(", ")} } from "${importPath}";`);
+        }
+    }
+    if (externalSchemaRefs.size > 0) {
+        lines.push("");
+    }
 
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});
@@ -748,7 +789,9 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     await generateSessionEvents(sessionSchemaPath);
     try {
-        await generateRpc(apiSchemaPath);
+        const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
+        const sessionSchema = postProcessSchema(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7);
+        await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {
             console.log("TypeScript: skipping RPC (api.schema.json not found)");

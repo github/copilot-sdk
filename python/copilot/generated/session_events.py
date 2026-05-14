@@ -1268,6 +1268,60 @@ class ElicitationRequestedSchema:
 
 
 @dataclass
+class EmbeddedBlobResourceContents:
+    blob: str
+    uri: str
+    mime_type: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "EmbeddedBlobResourceContents":
+        assert isinstance(obj, dict)
+        blob = from_str(obj.get("blob"))
+        uri = from_str(obj.get("uri"))
+        mime_type = from_union([from_none, from_str], obj.get("mimeType"))
+        return EmbeddedBlobResourceContents(
+            blob=blob,
+            uri=uri,
+            mime_type=mime_type,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["blob"] = from_str(self.blob)
+        result["uri"] = from_str(self.uri)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_none, from_str], self.mime_type)
+        return result
+
+
+@dataclass
+class EmbeddedTextResourceContents:
+    text: str
+    uri: str
+    mime_type: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "EmbeddedTextResourceContents":
+        assert isinstance(obj, dict)
+        text = from_str(obj.get("text"))
+        uri = from_str(obj.get("uri"))
+        mime_type = from_union([from_none, from_str], obj.get("mimeType"))
+        return EmbeddedTextResourceContents(
+            text=text,
+            uri=uri,
+            mime_type=mime_type,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["text"] = from_str(self.text)
+        result["uri"] = from_str(self.uri)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_none, from_str], self.mime_type)
+        return result
+
+
+@dataclass
 class ExitPlanModeCompletedData:
     "Plan mode exit completion with the user's approval decision and optional feedback"
     request_id: str
@@ -3919,7 +3973,7 @@ class ToolExecutionCompleteContent:
     icons: list[ToolExecutionCompleteContentResourceLinkIcon] | None = None
     mime_type: str | None = None
     name: str | None = None
-    resource: Any = None
+    resource: ToolExecutionCompleteContentResourceDetails | None = None
     size: float | None = None
     text: str | None = None
     title: str | None = None
@@ -3936,7 +3990,7 @@ class ToolExecutionCompleteContent:
         icons = from_union([from_none, lambda x: from_list(ToolExecutionCompleteContentResourceLinkIcon.from_dict, x)], obj.get("icons"))
         mime_type = from_union([from_none, from_str], obj.get("mimeType"))
         name = from_union([from_none, from_str], obj.get("name"))
-        resource = obj.get("resource")
+        resource = from_union([from_none, lambda x: from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], x)], obj.get("resource"))
         size = from_union([from_none, from_float], obj.get("size"))
         text = from_union([from_none, from_str], obj.get("text"))
         title = from_union([from_none, from_str], obj.get("title"))
@@ -3975,7 +4029,7 @@ class ToolExecutionCompleteContent:
         if self.name is not None:
             result["name"] = from_union([from_none, from_str], self.name)
         if self.resource is not None:
-            result["resource"] = self.resource
+            result["resource"] = from_union([from_none, lambda x: from_union([lambda x: to_class(EmbeddedTextResourceContents, x), lambda x: to_class(EmbeddedBlobResourceContents, x)], x)], self.resource)
         if self.size is not None:
             result["size"] = from_union([from_none, to_float], self.size)
         if self.text is not None:
@@ -4663,6 +4717,10 @@ class WorkingDirectoryContext:
         if self.repository_host is not None:
             result["repositoryHost"] = from_union([from_none, from_str], self.repository_host)
         return result
+
+
+# The embedded resource contents, either text or base64-encoded binary
+ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceContents | EmbeddedBlobResourceContents
 
 
 class AbortReason(Enum):

@@ -18,7 +18,10 @@ import {
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     writeGeneratedFile,
+    collectExternalSchemaRefNames,
     collectDefinitionCollections,
+    collectReachableDefinitionNames,
+    findSharedSchemaDefinitions,
     postProcessSchema,
     resolveRef,
     resolveObjectSchema,
@@ -34,6 +37,7 @@ import {
     getNullableInner,
     getSessionEventVariantSchemas,
     getSharedSessionEventEnvelopeProperties,
+    rewriteSharedDefinitionReferences,
     REPO_ROOT,
     type ApiSchema,
     type DefinitionCollections,
@@ -156,6 +160,19 @@ function uniqueCSharpIdentifier(value: string, used: Set<string>, fallback: stri
     return identifier;
 }
 
+function isNonNullableCSharpValueType(typeName: string): boolean {
+    return [
+        "bool",
+        "double",
+        "float",
+        "Guid",
+        "int",
+        "long",
+        "DateTimeOffset",
+        "TimeSpan",
+    ].includes(typeName) || generatedEnums.has(typeName) || emittedRpcEnumResultTypes.has(typeName);
+}
+
 async function formatCSharpFile(filePath: string): Promise<void> {
     try {
         const projectFile = path.join(REPO_ROOT, "dotnet/src/GitHub.Copilot.SDK.csproj");
@@ -176,6 +193,10 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
         }
     }
     return results;
+}
+
+function localRequestVariableName(paramEntries: [string, JSONSchema7Definition][], hasRequestParameter = false): string {
+    return hasRequestParameter || paramEntries.some(([name]) => name === "request") ? "rpcRequest" : "request";
 }
 
 function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: Map<string, string>): string {
@@ -708,6 +729,194 @@ function generateDerivedClass(
     return lines.join("\n");
 }
 
+interface JsonUnionVariant {
+    typeName: string;
+    propertyName: string;
+    schema?: JSONSchema7;
+}
+
+function getUnionMembers(schema: JSONSchema7): JSONSchema7[] | undefined {
+    return (schema.anyOf ?? schema.oneOf) as JSONSchema7[] | undefined;
+}
+
+function getNonNullUnionMembers(schema: JSONSchema7): JSONSchema7[] {
+    return (getUnionMembers(schema) ?? []).filter((s) => typeof s === "object" && s !== null && (s as JSONSchema7).type !== "null");
+}
+
+function getVariantSchema(variant: JSONSchema7, definitions: DefinitionCollections): JSONSchema7 | undefined {
+    if (variant.$ref) {
+        const resolved = resolveRef(variant.$ref, definitions);
+        return typeof resolved === "object" && resolved !== null ? resolved : undefined;
+    }
+
+    const resolved = resolveObjectSchema(variant, definitions) ?? resolveSchema(variant, definitions) ?? variant;
+    return typeof resolved === "object" && resolved !== null ? resolved : undefined;
+}
+
+function getJsonUnionMatchExpression(variant: JsonUnionVariant, variants: JsonUnionVariant[]): string | undefined {
+    const required = new Set(variant.schema?.required ?? []);
+    if (required.size === 0) return undefined;
+
+    const otherRequired = new Set<string>();
+    for (const other of variants) {
+        if (other === variant) continue;
+        for (const property of other.schema?.required ?? []) {
+            otherRequired.add(property);
+        }
+    }
+
+    const present = [...required].filter((property) => !otherRequired.has(property));
+    if (present.length === 0) return undefined;
+
+    const absent = new Set<string>();
+    for (const other of variants) {
+        if (other === variant) continue;
+        for (const property of other.schema?.required ?? []) {
+            if (!required.has(property)) absent.add(property);
+        }
+    }
+
+    return [
+        "element.ValueKind == JsonValueKind.Object",
+        ...present.map((property) => `element.TryGetProperty("${escapeCSharpStringLiteral(property)}", out _)`),
+        ...[...absent].sort().map((property) => `!element.TryGetProperty("${escapeCSharpStringLiteral(property)}", out _)`),
+    ].join(" && ");
+}
+
+function generateJsonUnionClass(className: string, variants: JsonUnionVariant[], description: string | undefined, jsonContextType: string): string {
+    const lines: string[] = [];
+    lines.push(...xmlDocCommentWithFallback(description, `JSON union data type for <c>${escapeXml(className)}</c>.`, ""));
+    lines.push(`[JsonConverter(typeof(Converter))]`);
+    lines.push(`public sealed partial class ${className}`);
+    lines.push(`{`);
+
+    for (const variant of variants) {
+        lines.push(`    /// <summary>Gets the value when this instance contains <see cref="${variant.typeName}"/>.</summary>`);
+        lines.push(`    public ${variant.typeName}? ${variant.propertyName} { get; }`, "");
+    }
+
+    for (const variant of variants) {
+        lines.push(`    /// <summary>Initializes a new instance of the <see cref="${className}"/> class from <see cref="${variant.typeName}"/>.</summary>`);
+        lines.push(`    public ${className}(${variant.typeName} value)`);
+        lines.push(`    {`);
+        lines.push(`        ArgumentNullException.ThrowIfNull(value);`);
+        lines.push(`        ${variant.propertyName} = value;`);
+        lines.push(`    }`, "");
+        lines.push(`    /// <summary>Converts <see cref="${variant.typeName}"/> to <see cref="${className}"/>.</summary>`);
+        lines.push(`    public static implicit operator ${className}(${variant.typeName} value) => new(value);`, "");
+    }
+
+    lines.push(`    /// <summary>Provides a <see cref="JsonConverter{${className}}"/> for serializing <see cref="${className}"/> instances.</summary>`);
+    lines.push(`    [EditorBrowsable(EditorBrowsableState.Never)]`);
+    lines.push(`    public sealed class Converter : JsonConverter<${className}>`);
+    lines.push(`    {`);
+    lines.push(`        /// <inheritdoc />`);
+    lines.push(`        public override ${className} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)`);
+    lines.push(`        {`);
+    lines.push(`            if (reader.TokenType == JsonTokenType.Null)`);
+    lines.push(`            {`);
+    lines.push(`                throw new JsonException("Expected JSON object for ${escapeCSharpStringLiteral(className)}.");`);
+    lines.push(`            }`);
+    lines.push(``);
+    lines.push(`            using var document = JsonDocument.ParseValue(ref reader);`);
+    lines.push(`            var element = document.RootElement;`);
+
+    const fallbackVariants: JsonUnionVariant[] = [];
+    for (const variant of variants) {
+        const matchExpression = getJsonUnionMatchExpression(variant, variants);
+        if (!matchExpression) {
+            fallbackVariants.push(variant);
+            continue;
+        }
+
+        const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
+        const deserializeExpression = `JsonSerializer.Deserialize(element, ${jsonContextType}.Default.${variant.typeName})`;
+        lines.push(`            if (${matchExpression})`);
+        lines.push(`            {`);
+        lines.push(`                var ${valueName} = ${deserializeExpression};`);
+        lines.push(`                return ${valueName} is null ? throw new JsonException("Expected ${escapeCSharpStringLiteral(variant.typeName)} value.") : new ${className}(${valueName});`);
+        lines.push(`            }`);
+    }
+
+    for (const variant of fallbackVariants) {
+        const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
+        const deserializeExpression = `JsonSerializer.Deserialize(element, ${jsonContextType}.Default.${variant.typeName})`;
+        lines.push(``);
+        lines.push(`            try`);
+        lines.push(`            {`);
+        lines.push(`                var ${valueName} = ${deserializeExpression};`);
+        lines.push(`                if (${valueName} is not null) return new ${className}(${valueName});`);
+        lines.push(`            }`);
+        lines.push(`            catch (JsonException)`);
+        lines.push(`            {`);
+        lines.push(`            }`);
+    }
+
+    lines.push(``);
+    lines.push(`            throw new JsonException("JSON value did not match any ${escapeCSharpStringLiteral(className)} variant.");`);
+    lines.push(`        }`, "");
+    lines.push(`        /// <inheritdoc />`);
+    lines.push(`        public override void Write(Utf8JsonWriter writer, ${className} value, JsonSerializerOptions options)`);
+    lines.push(`        {`);
+    for (const variant of variants) {
+        const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
+        const serializeExpression = `JsonSerializer.Serialize(writer, ${valueName}, ${jsonContextType}.Default.${variant.typeName});`;
+        lines.push(`            if (value.${variant.propertyName} is { } ${valueName})`);
+        lines.push(`            {`);
+        lines.push(`                ${serializeExpression}`);
+        lines.push(`                return;`);
+        lines.push(`            }`);
+    }
+    lines.push(``);
+    lines.push(`            throw new JsonException("No ${escapeCSharpStringLiteral(className)} variant value is set.");`);
+    lines.push(`        }`);
+    lines.push(`    }`);
+    lines.push(`}`);
+    return lines.join("\n");
+}
+
+function toUnionVariantPropertyName(typeName: string, usedNames: Set<string>): string {
+    const shortName = typeName.split(".").pop() ?? typeName;
+    return uniqueCSharpIdentifier(shortName, usedNames, "Value");
+}
+
+function tryGenerateSessionJsonUnionType(
+    schema: JSONSchema7,
+    parentClassName: string,
+    propName: string,
+    knownTypes: Map<string, string>,
+    nestedClasses: Map<string, string>,
+    enumOutput: string[]
+): string | undefined {
+    const members = getNonNullUnionMembers(schema);
+    if (members.length <= 1) return undefined;
+
+    const className = (schema.title as string) ?? `${parentClassName}${propName}`;
+    if (nestedClasses.has(className)) return className;
+
+    const usedNames = new Set<string>();
+    const variants: JsonUnionVariant[] = [];
+    for (const member of members) {
+        const memberSchema = getVariantSchema(member, sessionDefinitions);
+        const typeName = member.$ref
+            ? typeToClassName(refTypeName(member.$ref, sessionDefinitions))
+            : ((memberSchema?.title as string | undefined) ?? `${className}Variant${variants.length + 1}`);
+        if (!memberSchema || !isObjectSchema(memberSchema)) return undefined;
+
+        if (!nestedClasses.has(typeName)) {
+            nestedClasses.set(typeName, generateNestedClass(typeName, memberSchema, knownTypes, nestedClasses, enumOutput));
+        }
+        variants.push({
+            typeName,
+            propertyName: toUnionVariantPropertyName(typeName, usedNames),
+            schema: memberSchema,
+        });
+    }
+
+    nestedClasses.set(className, generateJsonUnionClass(className, variants, schema.description, "SessionEventsJsonContext"));
+    return className;
+}
+
 function generateNestedClass(
     className: string,
     schema: JSONSchema7,
@@ -800,6 +1009,13 @@ function resolveSessionPropertyType(
                 return isRequired && !hasNull ? renamedBase : `${renamedBase}?`;
             }
         }
+        const unionType = tryGenerateSessionJsonUnionType(propSchema, parentClassName, propName, knownTypes, nestedClasses, enumOutput);
+        if (unionType) return isRequired ? unionType : `${unionType}?`;
+        return !isRequired ? "object?" : "object";
+    }
+    if (propSchema.oneOf) {
+        const unionType = tryGenerateSessionJsonUnionType(propSchema, parentClassName, propName, knownTypes, nestedClasses, enumOutput);
+        if (unionType) return isRequired ? unionType : `${unionType}?`;
         return !isRequired ? "object?" : "object";
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
@@ -1034,7 +1250,12 @@ function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
 }
 
 function resultTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(getMethodResultSchema(method), `${typeToClassName(method.rpcMethod)}Result`);
+    return getCSharpSchemaTypeName(getMethodResultSchema(method), `${typeToClassName(method.rpcMethod)}Result`);
+}
+
+function getCSharpSchemaTypeName(schema: JSONSchema7 | null | undefined, fallback: string): string {
+    if (schema?.$ref) return typeToClassName(refTypeName(schema.$ref, rpcDefinitions));
+    return getRpcSchemaTypeName(schema, fallback);
 }
 
 /** Returns the C# type for a method's result, accounting for nullable anyOf wrappers. */
@@ -1065,7 +1286,7 @@ function resultTaskType(method: RpcMethod): string {
 }
 
 function paramsTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(resolveMethodParamsSchema(method), `${typeToClassName(method.rpcMethod)}Request`);
+    return getCSharpSchemaTypeName(resolveMethodParamsSchema(method), `${typeToClassName(method.rpcMethod)}Request`);
 }
 
 function resolveMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
@@ -1257,6 +1478,8 @@ function emitRpcClass(
                 propAccessors = `{ get => field ??= new ${concreteType}(); set; }`;
             } else if (emittedRpcClassSchemas.has(csharpType)) {
                 propAccessors = "{ get => field ??= new(); set; }";
+            } else if (!isNonNullableCSharpValueType(csharpType)) {
+                defaultVal = " = null!;";
             }
         }
         lines.push(`    public ${csharpType} ${csharpName} ${propAccessors}${defaultVal}`);
@@ -1444,14 +1667,15 @@ function emitServerInstanceMethod(
     sigParams.push("CancellationToken cancellationToken = default");
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
+    const localRequestName = localRequestVariableName(paramEntries);
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`);
     if (requestClassName && bodyAssignments.length > 0) {
-        lines.push(`${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
+        lines.push(`${indent}    var ${localRequestName} = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
         if (!isVoidSchema(resultSchema)) {
-            lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
+            lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`);
         } else {
-            lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
+            lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`);
         }
     } else {
         if (!isVoidSchema(resultSchema)) {
@@ -1570,7 +1794,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     sigParams.push("CancellationToken cancellationToken = default");
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
-    const localRequestName = useRequestParameter ? "rpcRequest" : "request";
+    const localRequestName = localRequestVariableName(paramEntries, useRequestParameter);
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`, `${indent}    var ${localRequestName} = new ${wireRequestClassName} { ${bodyAssignments.join(", ")} };`);
     if (!isVoidSchema(resultSchema)) {
@@ -1752,7 +1976,10 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
     return lines;
 }
 
-function generateRpcCode(schema: ApiSchema): string {
+function generateRpcCode(
+    schema: ApiSchema,
+    externalJsonSerializableRefs: Map<string, Set<string>> = new Map()
+): string {
     emittedRpcClassSchemas.clear();
     emittedRpcEnumResultTypes.clear();
     experimentalRpcTypes.clear();
@@ -1811,6 +2038,13 @@ namespace GitHub.Copilot.SDK.Rpc;
         lines.push(`    AllowOutOfOrderMetadataProperties = true,`);
         lines.push(`    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`);
         for (const t of ["bool", "double", "int", "long", "string"]) lines.push(`[JsonSerializable(typeof(${t}))]`);
+        for (const [schemaFile, names] of externalJsonSerializableRefs) {
+            if (schemaFile !== "session-events.schema.json") continue;
+            for (const name of [...names].sort()) {
+                const typeName = typeToClassName(name);
+                lines.push(`[JsonSerializable(typeof(GitHub.Copilot.SDK.${typeName}), TypeInfoPropertyName = "SessionEvents${typeName}")]`);
+            }
+        }
         for (const t of typeNames) lines.push(`[JsonSerializable(typeof(${t}))]`);
         lines.push(`internal partial class RpcJsonContext : JsonSerializerContext;`);
     }
@@ -1818,11 +2052,48 @@ namespace GitHub.Copilot.SDK.Rpc;
     return lines.join("\n");
 }
 
-export async function generateRpc(schemaPath?: string): Promise<void> {
+export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("C#: generating RPC types...");
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
-    const code = generateRpcCode(schema);
+    let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
+    if (sessionEventsSchema) {
+        const sharedDefinitions = findSharedSchemaDefinitions(
+            schema as unknown as Record<string, unknown>,
+            sessionEventsSchema as unknown as Record<string, unknown>
+        );
+        const reachableDefinitions = collectReachableDefinitionNames(sessionEventsSchema as unknown as Record<string, unknown>);
+        for (const name of [...sharedDefinitions]) {
+            if (!reachableDefinitions.has(name)) {
+                sharedDefinitions.delete(name);
+            }
+        }
+        schema = rewriteSharedDefinitionReferences(schema, sharedDefinitions, "session-events.schema.json");
+    }
+    const externalJsonSerializableRefs = new Map<string, Set<string>>();
+    if (sessionEventsSchema) {
+        const sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
+        const externalRefs = collectExternalSchemaRefNames(schema);
+        const sessionEventRefs = externalRefs.get("session-events.schema.json");
+        if (sessionEventRefs && sessionEventRefs.size > 0) {
+            const reachableDefinitions = collectReachableDefinitionNames(
+                sessionEventsSchema as unknown as Record<string, unknown>,
+                sessionEventRefs
+            );
+            const emittedDefinitions = new Set<string>();
+            for (const name of reachableDefinitions) {
+                const typeName = typeToClassName(name);
+                const declarationPattern = new RegExp(`\\bpublic\\s+(?:(?:sealed|abstract|partial|readonly)\\s+)*(?:class|struct)\\s+${typeName}\\b`);
+                if (declarationPattern.test(sessionEventsCode)) {
+                    emittedDefinitions.add(name);
+                }
+            }
+            externalJsonSerializableRefs.set(
+                "session-events.schema.json",
+                emittedDefinitions
+            );
+        }
+    }
+    const code = generateRpcCode(schema, externalJsonSerializableRefs);
     const outPath = await writeGeneratedFile("dotnet/src/Generated/Rpc.cs", code);
     console.log(`  ✓ ${outPath}`);
     await formatCSharpFile(outPath);
@@ -1835,7 +2106,9 @@ export async function generateRpc(schemaPath?: string): Promise<void> {
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     await generateSessionEvents(sessionSchemaPath);
     try {
-        await generateRpc(apiSchemaPath);
+        const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
+        const sessionSchema = postProcessSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7));
+        await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {
             console.log("C#: skipping RPC (api.schema.json not found)");

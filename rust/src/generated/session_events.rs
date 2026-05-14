@@ -1388,6 +1388,134 @@ pub struct ToolExecutionCompleteError {
     pub message: String,
 }
 
+/// Plain text content block
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentText {
+    /// The text content
+    pub text: String,
+    /// Content block type discriminator
+    pub r#type: ToolExecutionCompleteContentTextType,
+}
+
+/// Terminal/shell output content block with optional exit code and working directory
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentTerminal {
+    /// Working directory where the command was executed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Process exit code, if the command has completed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<f64>,
+    /// Terminal/shell output text
+    pub text: String,
+    /// Content block type discriminator
+    pub r#type: ToolExecutionCompleteContentTerminalType,
+}
+
+/// Image content block with base64-encoded data
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentImage {
+    /// Base64-encoded image data
+    pub data: String,
+    /// MIME type of the image (e.g., image/png, image/jpeg)
+    pub mime_type: String,
+    /// Content block type discriminator
+    pub r#type: ToolExecutionCompleteContentImageType,
+}
+
+/// Audio content block with base64-encoded data
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentAudio {
+    /// Base64-encoded audio data
+    pub data: String,
+    /// MIME type of the audio (e.g., audio/wav, audio/mpeg)
+    pub mime_type: String,
+    /// Content block type discriminator
+    pub r#type: ToolExecutionCompleteContentAudioType,
+}
+
+/// Icon image for a resource
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentResourceLinkIcon {
+    /// MIME type of the icon image
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Available icon sizes (e.g., ['16x16', '32x32'])
+    #[serde(default)]
+    pub sizes: Vec<String>,
+    /// URL or path to the icon image
+    pub src: String,
+    /// Theme variant this icon is intended for
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme: Option<ToolExecutionCompleteContentResourceLinkIconTheme>,
+}
+
+/// Resource link content block referencing an external resource
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentResourceLink {
+    /// Human-readable description of the resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Icons associated with this resource
+    #[serde(default)]
+    pub icons: Vec<ToolExecutionCompleteContentResourceLinkIcon>,
+    /// MIME type of the resource content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Resource name identifier
+    pub name: String,
+    /// Size of the resource in bytes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<f64>,
+    /// Human-readable display title for the resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Content block type discriminator
+    pub r#type: ToolExecutionCompleteContentResourceLinkType,
+    /// URI identifying the resource
+    pub uri: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbeddedTextResourceContents {
+    /// MIME type of the text content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Text content of the resource
+    pub text: String,
+    /// URI identifying the resource
+    pub uri: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbeddedBlobResourceContents {
+    /// Base64-encoded binary content of the resource
+    pub blob: String,
+    /// MIME type of the blob content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// URI identifying the resource
+    pub uri: String,
+}
+
+/// Embedded resource content block with inline text or binary data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentResource {
+    /// The embedded resource contents, either text or base64-encoded binary
+    pub resource: ToolExecutionCompleteContentResourceDetails,
+    /// Content block type discriminator
+    pub r#type: ToolExecutionCompleteContentResourceType,
+}
+
 /// Tool execution result on success
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1396,7 +1524,7 @@ pub struct ToolExecutionCompleteResult {
     pub content: String,
     /// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
     #[serde(default)]
-    pub contents: Vec<serde_json::Value>,
+    pub contents: Vec<ToolExecutionCompleteContent>,
     /// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_content: Option<String>,
@@ -2801,6 +2929,87 @@ pub enum AbortReason {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentTextType {
+    #[serde(rename = "text")]
+    #[default]
+    Text,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentTerminalType {
+    #[serde(rename = "terminal")]
+    #[default]
+    Terminal,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentImageType {
+    #[serde(rename = "image")]
+    #[default]
+    Image,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentAudioType {
+    #[serde(rename = "audio")]
+    #[default]
+    Audio,
+}
+
+/// Theme variant this icon is intended for
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentResourceLinkIconTheme {
+    #[serde(rename = "light")]
+    Light,
+    #[serde(rename = "dark")]
+    Dark,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentResourceLinkType {
+    #[serde(rename = "resource_link")]
+    #[default]
+    ResourceLink,
+}
+
+/// The embedded resource contents, either text or base64-encoded binary
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ToolExecutionCompleteContentResourceDetails {
+    EmbeddedTextResourceContents(EmbeddedTextResourceContents),
+    EmbeddedBlobResourceContents(EmbeddedBlobResourceContents),
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentResourceType {
+    #[serde(rename = "resource")]
+    #[default]
+    Resource,
+}
+
+/// A content block within a tool result, which may be text, terminal output, image, audio, or a resource
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ToolExecutionCompleteContent {
+    Text(ToolExecutionCompleteContentText),
+    Terminal(ToolExecutionCompleteContentTerminal),
+    Image(ToolExecutionCompleteContentImage),
+    Audio(ToolExecutionCompleteContentAudio),
+    ResourceLink(ToolExecutionCompleteContentResourceLink),
+    Resource(ToolExecutionCompleteContentResource),
 }
 
 /// Message role: "system" for system prompts, "developer" for developer-injected instructions
