@@ -641,6 +641,7 @@ async fn should_fork_session_with_persisted_messages() {
                     .rpc()
                     .sessions()
                     .fork(SessionsForkRequest {
+                        name: None,
                         session_id: session.id().clone(),
                         to_event_id: None,
                     })
@@ -706,6 +707,7 @@ async fn should_handle_forking_session_without_persisted_events() {
                     .rpc()
                     .sessions()
                     .fork(SessionsForkRequest {
+                        name: None,
                         session_id: session.id().clone(),
                         to_event_id: None,
                     })
@@ -799,6 +801,7 @@ async fn should_fork_session_to_event_id_excluding_boundary_event() {
                     .rpc()
                     .sessions()
                     .fork(SessionsForkRequest {
+                        name: None,
                         session_id: session.id().clone(),
                         to_event_id: Some(boundary_id.clone()),
                     })
@@ -858,6 +861,7 @@ async fn should_report_error_when_forking_session_to_unknown_event_id() {
                         .rpc()
                         .sessions()
                         .fork(SessionsForkRequest {
+                            name: None,
                             session_id: session.id().clone(),
                             to_event_id: Some(bogus_event_id.to_string()),
                         })

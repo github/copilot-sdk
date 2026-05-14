@@ -445,6 +445,33 @@ function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
     return resolveSchema(method.result, rpcDefinitions) ?? method.result ?? undefined;
 }
 
+function isPythonObjectResultSchema(schema: JSONSchema7 | undefined): boolean {
+    if (!schema) return false;
+    if (isObjectSchema(schema)) return true;
+
+    const variants = schema.anyOf ?? schema.oneOf;
+    if (!Array.isArray(variants)) return false;
+
+    const nonNullVariants = variants
+        .filter((variant): variant is JSONSchema7 => typeof variant === "object" && variant !== null)
+        .map((variant) => resolveObjectSchema(variant, rpcDefinitions) ?? resolveSchema(variant, rpcDefinitions) ?? variant)
+        .filter(
+            (variant) =>
+                variant.type !== "null" &&
+                !(
+                    typeof variant.not === "object" &&
+                    variant.not !== null &&
+                    Object.keys(variant.not).length === 0
+                )
+        );
+
+    if (nonNullVariants.length === 1) {
+        return isPythonObjectResultSchema(nonNullVariants[0]);
+    }
+
+    return nonNullVariants.length > 1 && findPyDiscriminator(nonNullVariants) !== null;
+}
+
 function getMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
     return (
         resolveObjectSchema(method.params, rpcDefinitions) ??
@@ -1849,7 +1876,32 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     while ((cm = classRe.exec(typesCode)) !== null) {
         actualTypeNames.set(cm[1].toLowerCase(), cm[1]);
     }
-    const resolveType = (name: string): string => actualTypeNames.get(name.toLowerCase()) ?? name;
+
+    // quicktype can also choose a shorter generated class name for a titled schema
+    // definition. Its root RPC dataclass still records the definition field and
+    // generated class mapping, so use that as an alias table for RPC wrappers.
+    const definitionAliases = new Map<string, string>();
+    const publicTypeAliases = new Map<string, string>();
+    const rootFields = typesCode.match(/^class RPC:\n([\s\S]*?)\n    @staticmethod/m)?.[1] ?? "";
+    const rootFieldTypes = new Map<string, string>();
+    for (const line of rootFields.split(/\r?\n/)) {
+        const match = line.match(/^    ([A-Za-z_]\w*): ([A-Za-z_]\w*)\b/);
+        if (match) {
+            rootFieldTypes.set(match[1], match[2]);
+        }
+    }
+    for (const defName of Object.keys(allDefinitions)) {
+        const actualName = rootFieldTypes.get(toSnakeCase(defName));
+        if (actualName) {
+            definitionAliases.set(defName.toLowerCase(), actualName);
+            if (actualName !== defName && !actualTypeNames.has(defName.toLowerCase()) && /^[A-Za-z_]\w*$/.test(defName)) {
+                publicTypeAliases.set(defName, actualName);
+            }
+        }
+    }
+
+    const resolveType = (name: string): string =>
+        actualTypeNames.get(name.toLowerCase()) ?? definitionAliases.get(name.toLowerCase()) ?? name;
 
     const lines: string[] = [];
     lines.push(`"""
@@ -1876,6 +1928,14 @@ EnumT = TypeVar("EnumT", bound=Enum)
 
 `);
     lines.push(typesCode);
+    if (publicTypeAliases.size > 0) {
+        lines.push("");
+        for (const [aliasName, targetName] of [...publicTypeAliases.entries()].sort(([left], [right]) =>
+            left.localeCompare(right),
+        )) {
+            lines.push(`${aliasName} = ${targetName}`);
+        }
+    }
     lines.push(`
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
@@ -2024,7 +2084,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     } else {
         lines.push(`class ${wrapperName}:`);
         lines.push(classPrefix === "_Internal"
-            ? `    """Internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API."""`
+            ? `    """Internal SDK server-scoped RPC methods. Not part of the public API."""`
             : `    """Typed server-scoped RPC methods."""`);
         lines.push(`    def __init__(self, client: "JsonRpcClient"):`);
         lines.push(`        self._client = client`);
@@ -2049,7 +2109,7 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     const effectiveResultSchema = nullableInner ?? resultSchema;
     const hasResult = !isVoidSchema(resultSchema) && !nullableInner;
     const hasNullableResult = !!nullableInner;
-    const resultIsObject = isObjectSchema(effectiveResultSchema);
+    const resultIsObject = isPythonObjectResultSchema(effectiveResultSchema);
 
     let resultType: string;
     if (hasNullableResult) {

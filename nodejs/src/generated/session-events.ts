@@ -126,6 +126,10 @@ export type UserMessageAttachmentGithubReferenceType = "issue" | "pr" | "discuss
  */
 export type AssistantMessageToolRequestType = "function" | "custom";
 /**
+ * API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+ */
+export type AssistantUsageApiEndpoint = "/chat/completions" | "/v1/messages" | "/responses" | "ws:/responses";
+/**
  * Where the failed model call originated
  */
 export type ModelCallFailureSource = "top_level" | "subagent" | "mcp_sampling";
@@ -1583,6 +1587,10 @@ export interface UserMessageData {
    */
   interactionId?: string;
   /**
+   * True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
+   */
+  isAutopilotContinuation?: boolean;
+  /**
    * Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
    */
   nativeDocumentPathFallbackPaths?: string[];
@@ -2207,6 +2215,7 @@ export interface AssistantUsageData {
    * Completion ID from the model provider (e.g., chatcmpl-abc123)
    */
   apiCallId?: string;
+  apiEndpoint?: AssistantUsageApiEndpoint;
   /**
    * Number of tokens read from prompt cache
    */

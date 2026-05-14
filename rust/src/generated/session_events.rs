@@ -988,6 +988,9 @@ pub struct UserMessageData {
     /// CAPI interaction ID for correlating this user message with its turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
+    /// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_autopilot_continuation: Option<bool>,
     /// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
     #[serde(default)]
     pub native_document_path_fallback_paths: Vec<String>,
@@ -1221,6 +1224,9 @@ pub struct AssistantUsageData {
     /// Completion ID from the model provider (e.g., chatcmpl-abc123)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
+    /// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_endpoint: Option<AssistantUsageApiEndpoint>,
     /// Number of tokens read from prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_read_tokens: Option<f64>,
@@ -2734,6 +2740,22 @@ pub enum AssistantMessageToolRequestType {
     Function,
     #[serde(rename = "custom")]
     Custom,
+    /// Unknown variant for forward compatibility.
+    #[serde(other)]
+    Unknown,
+}
+
+/// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistantUsageApiEndpoint {
+    #[serde(rename = "/chat/completions")]
+    ChatCompletions,
+    #[serde(rename = "/v1/messages")]
+    V1Messages,
+    #[serde(rename = "/responses")]
+    Responses,
+    #[serde(rename = "ws:/responses")]
+    WsResponses,
     /// Unknown variant for forward compatibility.
     #[serde(other)]
     Unknown,

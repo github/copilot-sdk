@@ -1840,6 +1840,11 @@ public partial class UserMessageData
     [JsonPropertyName("interactionId")]
     public string? InteractionId { get; set; }
 
+    /// <summary>True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("isAutopilotContinuation")]
+    public bool? IsAutopilotContinuation { get; set; }
+
     /// <summary>Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("nativeDocumentPathFallbackPaths")]
@@ -2048,6 +2053,11 @@ public partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("apiCallId")]
     public string? ApiCallId { get; set; }
+
+    /// <summary>API endpoint used for this model call, matching CAPI supported_endpoints vocabulary.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("apiEndpoint")]
+    public AssistantUsageApiEndpoint? ApiEndpoint { get; set; }
 
     /// <summary>Number of tokens read from prompt cache.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5517,6 +5527,73 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
         public override void Write(Utf8JsonWriter writer, AssistantMessageToolRequestType value, JsonSerializerOptions options)
         {
             GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestType));
+        }
+    }
+}
+
+/// <summary>API endpoint used for this model call, matching CAPI supported_endpoints vocabulary.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AssistantUsageApiEndpoint : IEquatable<AssistantUsageApiEndpoint>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AssistantUsageApiEndpoint"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AssistantUsageApiEndpoint"/>.</param>
+    [JsonConstructor]
+    public AssistantUsageApiEndpoint(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AssistantUsageApiEndpoint"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>/chat/completions</c> value.</summary>
+    public static AssistantUsageApiEndpoint ChatCompletions { get; } = new("/chat/completions");
+
+    /// <summary>Gets the <c>/v1/messages</c> value.</summary>
+    public static AssistantUsageApiEndpoint V1Messages { get; } = new("/v1/messages");
+
+    /// <summary>Gets the <c>/responses</c> value.</summary>
+    public static AssistantUsageApiEndpoint Responses { get; } = new("/responses");
+
+    /// <summary>Gets the <c>ws:/responses</c> value.</summary>
+    public static AssistantUsageApiEndpoint WsResponses { get; } = new("ws:/responses");
+
+    /// <summary>Returns a value indicating whether two <see cref="AssistantUsageApiEndpoint"/> instances are equivalent.</summary>
+    public static bool operator ==(AssistantUsageApiEndpoint left, AssistantUsageApiEndpoint right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AssistantUsageApiEndpoint"/> instances are not equivalent.</summary>
+    public static bool operator !=(AssistantUsageApiEndpoint left, AssistantUsageApiEndpoint right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AssistantUsageApiEndpoint other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AssistantUsageApiEndpoint other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AssistantUsageApiEndpoint}"/> for serializing <see cref="AssistantUsageApiEndpoint"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AssistantUsageApiEndpoint>
+    {
+        /// <inheritdoc />
+        public override AssistantUsageApiEndpoint Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AssistantUsageApiEndpoint value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantUsageApiEndpoint));
         }
     }
 }

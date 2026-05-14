@@ -147,9 +147,10 @@ pub enum PermissionResult {
     /// `{ "kind": "user-not-available" }`.
     UserNotAvailable,
     /// The handler has no result to provide and the CLI should fall back
-    /// to its default policy. Sent as `{ "kind": "no-result" }`. Distinct
-    /// from [`Deferred`](Self::Deferred), which suppresses the reply
-    /// entirely so the handler can resolve later out-of-band.
+    /// to another permission responder or its default policy. On the
+    /// notification path, the SDK will not send a pending permission response.
+    /// Distinct from [`Deferred`](Self::Deferred), where the handler takes
+    /// responsibility for resolving the request later out-of-band.
     NoResult,
 }
 

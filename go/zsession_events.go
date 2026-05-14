@@ -522,6 +522,8 @@ func (*SessionInfoData) Type() SessionEventType { return SessionEventTypeSession
 type AssistantUsageData struct {
 	// Completion ID from the model provider (e.g., chatcmpl-abc123)
 	APICallID *string `json:"apiCallId,omitempty"`
+	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
 	// Number of tokens read from prompt cache
 	CacheReadTokens *float64 `json:"cacheReadTokens,omitempty"`
 	// Number of tokens written to prompt cache
@@ -1337,6 +1339,8 @@ type UserMessageData struct {
 	Content string `json:"content"`
 	// CAPI interaction ID for correlating this user message with its turn
 	InteractionID *string `json:"interactionId,omitempty"`
+	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
+	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
 	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitempty"`
 	// Parent agent task ID for background telemetry correlated to this user turn
@@ -2751,6 +2755,16 @@ type AssistantMessageToolRequestType string
 const (
 	AssistantMessageToolRequestTypeCustom   AssistantMessageToolRequestType = "custom"
 	AssistantMessageToolRequestTypeFunction AssistantMessageToolRequestType = "function"
+)
+
+// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+type AssistantUsageAPIEndpoint string
+
+const (
+	AssistantUsageAPIEndpointChatCompletions AssistantUsageAPIEndpoint = "/chat/completions"
+	AssistantUsageAPIEndpointResponses       AssistantUsageAPIEndpoint = "/responses"
+	AssistantUsageAPIEndpointV1Messages      AssistantUsageAPIEndpoint = "/v1/messages"
+	AssistantUsageAPIEndpointWsResponses     AssistantUsageAPIEndpoint = "ws:/responses"
 )
 
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)

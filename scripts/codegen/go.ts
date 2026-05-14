@@ -2543,6 +2543,7 @@ function emitGoRpcDefinition(definitionName: string, schema: JSONSchema7, ctx: G
 interface GoGeneratedTypeCode {
     typeCode: string;
     encodingCode: string;
+    discriminatedUnions: Map<string, GoDiscriminatedUnionInfo>;
 }
 
 function stripTrailingGoWhitespace(code: string): string {
@@ -2637,6 +2638,7 @@ function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definit
     return {
         typeCode: joinGoCode(lines),
         encodingCode: goEncodingBlocksCode(ctx.encoding),
+        discriminatedUnions: new Map(ctx.discriminatedUnions),
     };
 }
 
@@ -2965,6 +2967,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): GoGeneratedTypeCode {
     return {
         typeCode: joinGoCode(out),
         encodingCode: joinGoCode(encodingOut),
+        discriminatedUnions: new Map(ctx.discriminatedUnions),
     };
 }
 
@@ -3168,21 +3171,21 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Emit ServerRpc
     if (schema.server) {
         const publicNode = filterNodeByVisibility(schema.server, "public");
-        if (publicNode) emitRpcWrapper(lines, publicNode, false, resolveType, fields, "");
+        if (publicNode) emitRpcWrapper(lines, publicNode, false, resolveType, fields, generatedRpcCode.discriminatedUnions, "");
         const internalNode = filterNodeByVisibility(schema.server, "internal");
-        if (internalNode) emitRpcWrapper(lines, internalNode, false, resolveType, fields, "Internal");
+        if (internalNode) emitRpcWrapper(lines, internalNode, false, resolveType, fields, generatedRpcCode.discriminatedUnions, "Internal");
     }
 
     // Emit SessionRpc
     if (schema.session) {
         const publicNode = filterNodeByVisibility(schema.session, "public");
-        if (publicNode) emitRpcWrapper(lines, publicNode, true, resolveType, fields, "");
+        if (publicNode) emitRpcWrapper(lines, publicNode, true, resolveType, fields, generatedRpcCode.discriminatedUnions, "");
         const internalNode = filterNodeByVisibility(schema.session, "internal");
-        if (internalNode) emitRpcWrapper(lines, internalNode, true, resolveType, fields, "Internal");
+        if (internalNode) emitRpcWrapper(lines, internalNode, true, resolveType, fields, generatedRpcCode.discriminatedUnions, "Internal");
     }
 
     if (schema.clientSession) {
-        emitClientSessionApiRegistration(lines, schema.clientSession, resolveType);
+        emitClientSessionApiRegistration(lines, schema.clientSession, resolveType, generatedRpcCode.discriminatedUnions);
     }
 
     const outPath = await writeGeneratedFile("go/rpc/zrpc.go", wrapGeneratedGoComments(lines.join("\n")));
@@ -3204,6 +3207,7 @@ function emitApiGroup(
     serviceName: string,
     resolveType: (name: string) => string,
     fields: Map<string, Map<string, GoExtractedField>>,
+    unionInfos: Map<string, GoDiscriminatedUnionInfo>,
     groupExperimental: boolean,
     groupDeprecated: boolean = false
 ): void {
@@ -3221,14 +3225,14 @@ function emitApiGroup(
 
     for (const [key, value] of methods) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, apiName, key, value, isSession, resolveType, fields, groupExperimental, false, groupDeprecated);
+        emitMethod(lines, apiName, key, value, isSession, resolveType, fields, unionInfos, groupExperimental, false, groupDeprecated);
     }
 
     for (const [subGroupName, subGroupNode] of subGroups) {
         const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
         const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
         const subGroupDeprecated = isNodeFullyDeprecated(subGroupNode as Record<string, unknown>);
-        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, subGroupExperimental, subGroupDeprecated);
+        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, unionInfos, subGroupExperimental, subGroupDeprecated);
 
         if (subGroupExperimental) {
             pushGoExperimentalSubApiComment(lines, toPascalCase(subGroupName));
@@ -3240,7 +3244,7 @@ function emitApiGroup(
     }
 }
 
-function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string, fields: Map<string, Map<string, GoExtractedField>>, classPrefix: string = ""): void {
+function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string, fields: Map<string, Map<string, GoExtractedField>>, unionInfos: Map<string, GoDiscriminatedUnionInfo>, classPrefix: string = ""): void {
     const groups = sortByPascalName(Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v)));
     const topLevelMethods = sortByPascalName(Object.entries(node).filter(([, v]) => isRpcMethod(v)));
 
@@ -3265,7 +3269,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
         const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
-        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, groupExperimental, groupDeprecated);
+        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fields, unionInfos, groupExperimental, groupDeprecated);
     }
 
     // Compute field name lengths for gofmt-compatible column alignment
@@ -3295,7 +3299,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     // Top-level methods on the wrapper use the common service fields
     for (const [key, value] of topLevelMethods) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, wrapperName, key, value, isSession, resolveType, fields, false, true);
+        emitMethod(lines, wrapperName, key, value, isSession, resolveType, fields, unionInfos, false, true);
     }
 
     // Constructor
@@ -3316,13 +3320,15 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
 }
 
-function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fields: Map<string, Map<string, GoExtractedField>>, groupExperimental = false, isWrapper = false, groupDeprecated = false): void {
+function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fields: Map<string, Map<string, GoExtractedField>>, unionInfos: Map<string, GoDiscriminatedUnionInfo>, groupExperimental = false, isWrapper = false, groupDeprecated = false): void {
     const methodName = toPascalCase(name);
     const resultSchema = getMethodResultSchema(method);
     const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
     const resultType = nullableInner
         ? resolveType(goNullableResultTypeName(method, nullableInner))
         : resolveType(goResultTypeName(method));
+    const resultUnion = unionInfos.get(resultType);
+    const returnType = resultUnion ? resultType : `*${resultType}`;
 
     const effectiveParams = getMethodParamsSchema(method);
     const paramProps = effectiveParams?.properties || {};
@@ -3332,6 +3338,8 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         .sort((left, right) => compareGoFieldNames(toGoFieldName(left), toGoFieldName(right)));
     const hasParams = isSession ? nonSessionParams.length > 0 : hasSchemaPayload(effectiveParams);
     const paramsType = hasParams ? resolveType(goParamsTypeName(method)) : "";
+    const hasRequiredNonSessionParams = nonSessionParams.some((name) => requiredParams.has(name));
+    const paramsAreOptional = hasParams && !!method.params && !!getNullableInner(method.params) && !hasRequiredNonSessionParams;
 
     // For wrapper-level methods, access fields through a.common; for service type aliases, use a directly
     const clientRef = isWrapper ? "a.common.client" : "a.client";
@@ -3347,15 +3355,22 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         pushGoComment(lines, `Internal: ${methodName} is part of the SDK's internal handshake/plumbing; external callers should not use it.`);
     }
     const sig = hasParams
-        ? `func (a *${receiver}) ${methodName}(ctx context.Context, params *${paramsType}) (*${resultType}, error)`
-        : `func (a *${receiver}) ${methodName}(ctx context.Context) (*${resultType}, error)`;
+        ? `func (a *${receiver}) ${methodName}(ctx context.Context, params ${paramsAreOptional ? "..." : ""}*${paramsType}) (${returnType}, error)`
+        : `func (a *${receiver}) ${methodName}(ctx context.Context) (${returnType}, error)`;
 
     lines.push(sig + ` {`);
+    const paramsRef = paramsAreOptional ? "requestParams" : "params";
+    if (paramsAreOptional) {
+        lines.push(`\tvar requestParams *${paramsType}`);
+        lines.push(`\tif len(params) > 0 {`);
+        lines.push(`\t\trequestParams = params[0]`);
+        lines.push(`\t}`);
+    }
 
     if (isSession) {
         lines.push(`\treq := map[string]any{"sessionId": ${sessionIDRef}}`);
         if (hasParams) {
-            lines.push(`\tif params != nil {`);
+            lines.push(`\tif ${paramsRef} != nil {`);
             for (const pName of nonSessionParams) {
                 const field = fields.get(paramsType)?.get(pName);
                 const goField = field?.name ?? toGoFieldName(pName);
@@ -3364,30 +3379,38 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
                 if (isOptional) {
                     // Optional fields are usually pointers; generated union interfaces, slices,
                     // and maps are nilable values and should be passed through directly.
-                    lines.push(`\t\tif params.${goField} != nil {`);
-                    const valueExpr = goOptionalFieldNeedsDereference(goType) ? `*params.${goField}` : `params.${goField}`;
+                    lines.push(`\t\tif ${paramsRef}.${goField} != nil {`);
+                    const valueExpr = goOptionalFieldNeedsDereference(goType) ? `*${paramsRef}.${goField}` : `${paramsRef}.${goField}`;
                     lines.push(`\t\t\treq["${pName}"] = ${valueExpr}`);
                     lines.push(`\t\t}`);
                 } else {
-                    lines.push(`\t\treq["${pName}"] = params.${goField}`);
+                    lines.push(`\t\treq["${pName}"] = ${paramsRef}.${goField}`);
                 }
             }
             lines.push(`\t}`);
         }
         lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", req)`);
     } else {
-        const arg = hasParams ? "params" : "nil";
+        const arg = hasParams ? paramsRef : "nil";
         lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", ${arg})`);
     }
 
     lines.push(`\tif err != nil {`);
     lines.push(`\t\treturn nil, err`);
     lines.push(`\t}`);
-    lines.push(`\tvar result ${resultType}`);
-    lines.push(`\tif err := json.Unmarshal(raw, &result); err != nil {`);
-    lines.push(`\t\treturn nil, err`);
-    lines.push(`\t}`);
-    lines.push(`\treturn &result, nil`);
+    if (resultUnion) {
+        lines.push(`\tresult, err := ${resultUnion.unmarshalFuncName}(raw)`);
+        lines.push(`\tif err != nil {`);
+        lines.push(`\t\treturn nil, err`);
+        lines.push(`\t}`);
+        lines.push(`\treturn result, nil`);
+    } else {
+        lines.push(`\tvar result ${resultType}`);
+        lines.push(`\tif err := json.Unmarshal(raw, &result); err != nil {`);
+        lines.push(`\t\treturn nil, err`);
+        lines.push(`\t}`);
+        lines.push(`\treturn &result, nil`);
+    }
     lines.push(`}`);
     lines.push(``);
 }
@@ -3420,7 +3443,7 @@ function clientHandlerMethodName(rpcMethod: string): string {
     return toPascalCase(rpcMethod.split(".").at(-1)!);
 }
 
-function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string): void {
+function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string, unionInfos: Map<string, GoDiscriminatedUnionInfo>): void {
     const groups = collectClientGroups(clientSchema);
 
     for (const { groupName, groupNode, methods } of groups) {
@@ -3447,7 +3470,8 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
             const resultType = nullableInner
                 ? resolveType(goNullableResultTypeName(method, nullableInner))
                 : resolveType(goResultTypeName(method));
-            lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (*${resultType}, error)`);
+            const returnType = unionInfos.has(resultType) ? resultType : `*${resultType}`;
+            lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (${returnType}, error)`);
         }
         lines.push(`}`);
         lines.push(``);

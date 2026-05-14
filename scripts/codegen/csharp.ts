@@ -1266,19 +1266,14 @@ function emitRpcClass(
     return lines.join("\n");
 }
 
-/**
- * Emit the type for a non-object RPC result schema (e.g., a bare enum).
- * Returns the C# type name to use in method signatures. For enums, ensures the enum
- * is created via getOrCreateEnum. For other primitives, returns the mapped C# type.
- */
-function emitNonObjectResultType(typeName: string, schema: JSONSchema7, classes: string[]): string {
-    if (schema.enum && Array.isArray(schema.enum)) {
-        const enumName = getOrCreateEnum("", typeName, schema.enum as string[], rpcEnumOutput, schema.description, typeName, isSchemaDeprecated(schema), isSchemaExperimental(schema));
-        emittedRpcEnumResultTypes.add(enumName);
-        return enumName;
+function emitRpcResultType(typeName: string, schema: JSONSchema7, visibility: "public" | "internal", classes: string[]): string {
+    if (isObjectSchema(schema)) {
+        const resultClass = emitRpcClass(typeName, schema, visibility, classes);
+        if (resultClass) classes.push(resultClass);
+        return typeName;
     }
-    // For other non-object types, use the basic type mapping
-    return schemaTypeToCSharp(schema, true, rpcKnownTypes);
+
+    return resolveRpcType(schema, true, typeName, "", classes);
 }
 
 /**
@@ -1399,11 +1394,8 @@ function emitServerInstanceMethod(
     if (!isVoidSchema(resultSchema) && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
-    if (isObjectSchema(resultSchema)) {
-        const resultClass = emitRpcClass(resultClassName, resultSchema!, methodVisibility, classes);
-        if (resultClass) classes.push(resultClass);
-    } else if (!isVoidSchema(resultSchema)) {
-        resultClassName = emitNonObjectResultType(resultClassName, resultSchema!, classes);
+    if (!isVoidSchema(resultSchema)) {
+        resultClassName = emitRpcResultType(resultClassName, resultSchema!, methodVisibility, classes);
     }
 
     const effectiveParams = resolveMethodParamsSchema(method);
@@ -1507,16 +1499,17 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     if (!isVoidSchema(resultSchema) && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
-    if (isObjectSchema(resultSchema)) {
-        const resultClass = emitRpcClass(resultClassName, resultSchema!, methodVisibility, classes);
-        if (resultClass) classes.push(resultClass);
-    } else if (!isVoidSchema(resultSchema)) {
-        resultClassName = emitNonObjectResultType(resultClassName, resultSchema!, classes);
+    if (!isVoidSchema(resultSchema)) {
+        resultClassName = emitRpcResultType(resultClassName, resultSchema!, methodVisibility, classes);
     }
 
     const effectiveParams = resolveMethodParamsSchema(method);
     const paramEntries = (effectiveParams?.properties ? Object.entries(effectiveParams.properties) : []).filter(([k]) => k !== "sessionId");
     const requiredSet = new Set(effectiveParams?.required || []);
+    const useRequestParameter =
+        paramEntries.length > 0 &&
+        !!getNullableInner(method.params) &&
+        paramEntries.every(([name]) => !requiredSet.has(name));
 
     // Sort so required params come before optional (C# requires defaults at end)
     paramEntries.sort((a, b) => {
@@ -1526,12 +1519,28 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     });
 
     const requestClassName = paramsTypeName(method);
+    const wireRequestClassName = useRequestParameter ? `${requestClassName}WithSession` : requestClassName;
     if (method.stability === "experimental") {
         experimentalRpcTypes.add(requestClassName);
+        if (useRequestParameter) {
+            experimentalRpcTypes.add(wireRequestClassName);
+        }
     }
     if (effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0) {
-        const reqClass = emitRpcClass(requestClassName, effectiveParams, "internal", classes);
-        if (reqClass) classes.push(reqClass);
+        if (useRequestParameter) {
+            const publicParams: JSONSchema7 = {
+                ...effectiveParams,
+                properties: Object.fromEntries(paramEntries),
+                required: effectiveParams.required?.filter((name) => name !== "sessionId"),
+            };
+            const publicReqClass = emitRpcClass(requestClassName, publicParams, methodVisibility, classes);
+            if (publicReqClass) classes.push(publicReqClass);
+            const wireReqClass = emitRpcClass(wireRequestClassName, effectiveParams, "internal", classes);
+            if (wireReqClass) classes.push(wireReqClass);
+        } else {
+            const reqClass = emitRpcClass(requestClassName, effectiveParams, "internal", classes);
+            if (reqClass) classes.push(reqClass);
+        }
     }
 
     lines.push("", `${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
@@ -1544,22 +1553,30 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     const sigParams: string[] = [];
     const bodyAssignments = [`SessionId = _sessionId`];
 
-    for (const [pName, pSchema] of paramEntries) {
-        if (typeof pSchema !== "object") continue;
-        const isReq = requiredSet.has(pName);
-        const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
-        sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-        bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+    if (useRequestParameter) {
+        sigParams.push(`${requestClassName}? request = null`);
+        for (const [pName] of paramEntries) {
+            bodyAssignments.push(`${toPascalCase(pName)} = request?.${toPascalCase(pName)}`);
+        }
+    } else {
+        for (const [pName, pSchema] of paramEntries) {
+            if (typeof pSchema !== "object") continue;
+            const isReq = requiredSet.has(pName);
+            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
+            sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
+            bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+        }
     }
     sigParams.push("CancellationToken cancellationToken = default");
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
+    const localRequestName = useRequestParameter ? "rpcRequest" : "request";
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
-    lines.push(`${indent}{`, `${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
+    lines.push(`${indent}{`, `${indent}    var ${localRequestName} = new ${wireRequestClassName} { ${bodyAssignments.join(", ")} };`);
     if (!isVoidSchema(resultSchema)) {
-        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
     } else {
-        lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+        lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
     }
 }
 
@@ -1634,12 +1651,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
         for (const method of methods) {
             const resultSchema = getMethodResultSchema(method);
             if (!isVoidSchema(resultSchema)) {
-                if (isObjectSchema(resultSchema)) {
-                    const resultClass = emitRpcClass(resultTypeName(method), resultSchema!, "public", classes);
-                    if (resultClass) classes.push(resultClass);
-                } else {
-                    emitNonObjectResultType(resultTypeName(method), resultSchema!, classes);
-                }
+                emitRpcResultType(resultTypeName(method), resultSchema!, "public", classes);
             }
 
             const effectiveParams = resolveMethodParamsSchema(method);

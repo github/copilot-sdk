@@ -1129,12 +1129,12 @@ fn permission_request_response(response: &HandlerResponse) -> PermissionDecision
 /// Map a handler response into the `result` payload for the notification
 /// path (`session.permissions.handlePendingPermissionRequest`).
 ///
-/// Returns `None` when the SDK must not respond — currently only the
-/// [`PermissionResult::Deferred`] case, where the handler takes over
-/// responsibility for the round-trip itself.
+/// Returns `None` when the SDK must not respond.
 fn notification_permission_payload(response: &HandlerResponse) -> Option<Value> {
     match response {
-        HandlerResponse::Permission(PermissionResult::Deferred) => None,
+        HandlerResponse::Permission(PermissionResult::Deferred | PermissionResult::NoResult) => {
+            None
+        }
         HandlerResponse::Permission(PermissionResult::Custom(value)) => Some(value.clone()),
         _ => Some(serde_json::json!({
             "kind": pending_permission_result_kind(response),
@@ -2116,11 +2116,17 @@ mod tests {
     }
 
     #[test]
-    fn notification_payload_handles_deferred_and_custom() {
-        // Deferred → no payload, SDK must not respond.
+    fn notification_payload_handles_non_responses_and_custom() {
+        // Deferred/NoResult -> no payload, SDK must not respond.
         assert!(
             notification_permission_payload(&HandlerResponse::Permission(
                 PermissionResult::Deferred,
+            ))
+            .is_none()
+        );
+        assert!(
+            notification_permission_payload(&HandlerResponse::Permission(
+                PermissionResult::NoResult,
             ))
             .is_none()
         );

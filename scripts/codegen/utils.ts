@@ -502,54 +502,76 @@ export function resolveSchema(
     return current;
 }
 
+function hasObjectShape(schema: JSONSchema7): boolean {
+    return !!(schema.properties || schema.additionalProperties || schema.type === "object");
+}
+
+function isEmptyNotSchema(schema: JSONSchema7): boolean {
+    return !!schema.not && typeof schema.not === "object" && Object.keys(schema.not).length === 0;
+}
+
+function mergeObjectSchemas(schemas: JSONSchema7[]): JSONSchema7 | undefined {
+    const mergedProperties: Record<string, JSONSchema7Definition> = {};
+    const mergedRequired = new Set<string>();
+    const merged: JSONSchema7 = {
+        type: "object",
+    };
+    let hasShape = false;
+
+    for (const objectSchema of schemas) {
+        if (!merged.title && objectSchema.title) {
+            merged.title = objectSchema.title;
+        }
+        if (!merged.description && objectSchema.description) {
+            merged.description = objectSchema.description;
+        }
+        if (objectSchema.properties) {
+            Object.assign(mergedProperties, objectSchema.properties);
+            hasShape = true;
+        }
+        if (objectSchema.required) {
+            for (const name of objectSchema.required) {
+                mergedRequired.add(name);
+            }
+        }
+        if (objectSchema.additionalProperties !== undefined) {
+            merged.additionalProperties = objectSchema.additionalProperties;
+            hasShape = true;
+        }
+    }
+
+    if (!hasShape) return undefined;
+    if (Object.keys(mergedProperties).length > 0) {
+        merged.properties = mergedProperties;
+    }
+    if (mergedRequired.size > 0) {
+        merged.required = [...mergedRequired];
+    }
+    return merged;
+}
+
 export function resolveObjectSchema(
     schema: JSONSchema7 | null | undefined,
     definitions: DefinitionCollections | undefined
 ): JSONSchema7 | undefined {
     const resolved = resolveSchema(schema, definitions) ?? schema ?? undefined;
     if (!resolved) return undefined;
-    if (resolved.properties || resolved.additionalProperties || resolved.type === "object") return resolved;
+    const resolvedHasObjectShape = hasObjectShape(resolved);
 
     if (resolved.allOf) {
-        const mergedProperties: Record<string, JSONSchema7Definition> = {};
-        const mergedRequired = new Set<string>();
-        const merged: JSONSchema7 = {
-            type: "object",
-            description: resolved.description,
-        };
-        let hasObjectShape = false;
+        const objectSchemas: JSONSchema7[] = [];
+        if (resolvedHasObjectShape) {
+            objectSchemas.push(resolved);
+        }
 
         for (const item of resolved.allOf) {
             if (typeof item !== "object") continue;
             const objectSchema = resolveObjectSchema(item as JSONSchema7, definitions);
             if (!objectSchema) continue;
-
-            if (objectSchema.properties) {
-                Object.assign(mergedProperties, objectSchema.properties);
-                hasObjectShape = true;
-            }
-            if (objectSchema.required) {
-                for (const name of objectSchema.required) {
-                    mergedRequired.add(name);
-                }
-            }
-            if (objectSchema.additionalProperties !== undefined) {
-                merged.additionalProperties = objectSchema.additionalProperties;
-                hasObjectShape = true;
-            }
-            if (!merged.description && objectSchema.description) {
-                merged.description = objectSchema.description;
-            }
+            objectSchemas.push(objectSchema);
         }
 
-        if (!hasObjectShape) return resolved;
-        if (Object.keys(mergedProperties).length > 0) {
-            merged.properties = mergedProperties;
-        }
-        if (mergedRequired.size > 0) {
-            merged.required = [...mergedRequired];
-        }
-        return merged;
+        return mergeObjectSchemas(objectSchemas) ?? resolved;
     }
 
     const singleBranch = (resolved.anyOf ?? resolved.oneOf)
@@ -558,12 +580,19 @@ export function resolveObjectSchema(
             const s = item as JSONSchema7;
             // Filter out null types and `{ not: {} }` (Zod's representation of "nothing" in optional anyOf)
             if (s.type === "null") return false;
-            if (s.not && typeof s.not === "object" && Object.keys(s.not).length === 0) return false;
+            if (isEmptyNotSchema(s)) return false;
             return true;
         });
     if (singleBranch && singleBranch.length === 1) {
-        return resolveObjectSchema(singleBranch[0], definitions);
+        const objectSchema = resolveObjectSchema(singleBranch[0], definitions);
+        if (!objectSchema) return resolved;
+        if (resolvedHasObjectShape) {
+            return mergeObjectSchemas([resolved, objectSchema]) ?? objectSchema;
+        }
+        return objectSchema;
     }
+
+    if (resolvedHasObjectShape) return resolved;
 
     return resolved;
 }

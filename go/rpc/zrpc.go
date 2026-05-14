@@ -93,6 +93,11 @@ type AgentSelectResult struct {
 	Agent AgentInfo `json:"agent"`
 }
 
+type CommandList struct {
+	// Commands available in this session
+	Commands []SlashCommandInfo `json:"commands"`
+}
+
 type CommandsHandlePendingCommandRequest struct {
 	// Error message if the command handler failed
 	Error *string `json:"error,omitempty"`
@@ -103,6 +108,22 @@ type CommandsHandlePendingCommandRequest struct {
 type CommandsHandlePendingCommandResult struct {
 	// Whether the command was handled successfully
 	Success bool `json:"success"`
+}
+
+type CommandsInvokeRequest struct {
+	// Raw input after the command name
+	Input *string `json:"input,omitempty"`
+	// Command name. Leading slashes are stripped and the name is matched case-insensitively.
+	Name string `json:"name"`
+}
+
+type CommandsListRequest struct {
+	// Include runtime built-in commands
+	IncludeBuiltins *bool `json:"includeBuiltins,omitempty"`
+	// Include commands registered by protocol clients, including SDK clients and extensions
+	IncludeClientCommands *bool `json:"includeClientCommands,omitempty"`
+	// Include enabled user-invocable skills and commands
+	IncludeSkills *bool `json:"includeSkills,omitempty"`
 }
 
 type CommandsRespondToQueuedCommandRequest struct {
@@ -705,6 +726,23 @@ type Model struct {
 type ModelBilling struct {
 	// Billing cost multiplier relative to the base rate
 	Multiplier *float64 `json:"multiplier,omitempty"`
+	// Token-level pricing information for this model
+	TokenPrices *ModelBillingTokenPrices `json:"tokenPrices,omitempty"`
+}
+
+// Token-level pricing information for this model
+type ModelBillingTokenPrices struct {
+	// Number of tokens per standard billing batch
+	BatchSize *int64 `json:"batchSize,omitempty"`
+	// Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1
+	// AIU = $0.01 USD)
+	CachePrice *int64 `json:"cachePrice,omitempty"`
+	// Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU
+	// = $0.01 USD)
+	InputPrice *int64 `json:"inputPrice,omitempty"`
+	// Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1
+	// AIU = $0.01 USD)
+	OutputPrice *int64 `json:"outputPrice,omitempty"`
 }
 
 // Model capabilities and limits
@@ -1427,6 +1465,8 @@ type SessionFsWriteFileRequest struct {
 // Experimental: SessionsForkRequest is part of an experimental API and may change or be
 // removed.
 type SessionsForkRequest struct {
+	// Optional friendly name to assign to the forked session.
+	Name *string `json:"name,omitempty"`
 	// Source session ID to fork from
 	SessionID string `json:"sessionId"`
 	// Optional event ID boundary. When provided, the fork includes only events before this ID
@@ -1437,6 +1477,8 @@ type SessionsForkRequest struct {
 // Experimental: SessionsForkResult is part of an experimental API and may change or be
 // removed.
 type SessionsForkResult struct {
+	// Friendly name assigned to the forked session, if any.
+	Name *string `json:"name,omitempty"`
 	// The new forked session's ID
 	SessionID string `json:"sessionId"`
 }
@@ -1527,9 +1569,107 @@ type SkillsEnableRequest struct {
 type SkillsEnableResult struct {
 }
 
-// Experimental: SkillsReloadResult is part of an experimental API and may change or be
+// Experimental: SkillsLoadDiagnostics is part of an experimental API and may change or be
 // removed.
-type SkillsReloadResult struct {
+type SkillsLoadDiagnostics struct {
+	// Errors emitted while loading skills (e.g. skills that failed to load entirely)
+	Errors []string `json:"errors"`
+	// Warnings emitted while loading skills (e.g. skills that loaded but had issues)
+	Warnings []string `json:"warnings"`
+}
+
+type SlashCommandInfo struct {
+	// Canonical aliases without leading slashes
+	Aliases []string `json:"aliases,omitempty"`
+	// Whether the command may run while an agent turn is active
+	AllowDuringAgentExecution bool `json:"allowDuringAgentExecution"`
+	// Human-readable command description
+	Description string `json:"description"`
+	// Whether the command is experimental
+	Experimental *bool `json:"experimental,omitempty"`
+	// Optional unstructured input hint
+	Input *SlashCommandInput `json:"input,omitempty"`
+	// Coarse command category for grouping and behavior: runtime built-in, skill-backed
+	// command, or SDK/client-owned command
+	Kind SlashCommandKind `json:"kind"`
+	// Canonical command name without a leading slash
+	Name string `json:"name"`
+}
+
+// Optional unstructured input hint
+type SlashCommandInput struct {
+	// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
+	Completion *SlashCommandInputCompletion `json:"completion,omitempty"`
+	// Hint to display when command input has not been provided
+	Hint string `json:"hint"`
+	// When true, clients should pass the full text after the command name as a single argument
+	// rather than splitting on whitespace
+	PreserveMultilineInput *bool `json:"preserveMultilineInput,omitempty"`
+	// When true, the command requires non-empty input; clients should render the input hint as
+	// required
+	Required *bool `json:"required,omitempty"`
+}
+
+type SlashCommandInvocationResult interface {
+	slashCommandInvocationResult()
+	Kind() SlashCommandInvocationResultKind
+}
+
+type RawSlashCommandInvocationResultData struct {
+	Discriminator SlashCommandInvocationResultKind
+	Raw           json.RawMessage
+}
+
+func (RawSlashCommandInvocationResultData) slashCommandInvocationResult() {}
+func (r RawSlashCommandInvocationResultData) Kind() SlashCommandInvocationResultKind {
+	return r.Discriminator
+}
+
+type SlashCommandAgentPromptResult struct {
+	// Prompt text to display to the user
+	DisplayPrompt string `json:"displayPrompt"`
+	// Optional target session mode
+	Mode *SlashCommandAgentPromptMode `json:"mode,omitempty"`
+	// Prompt to submit to the agent
+	Prompt string `json:"prompt"`
+	// True when the invocation mutated user runtime settings; consumers caching settings should
+	// refresh
+	RuntimeSettingsChanged *bool `json:"runtimeSettingsChanged,omitempty"`
+}
+
+func (SlashCommandAgentPromptResult) slashCommandInvocationResult() {}
+func (SlashCommandAgentPromptResult) Kind() SlashCommandInvocationResultKind {
+	return SlashCommandInvocationResultKindAgentPrompt
+}
+
+type SlashCommandCompletedResult struct {
+	// Optional user-facing message describing the completed command
+	Message *string `json:"message,omitempty"`
+	// True when the invocation mutated user runtime settings; consumers caching settings should
+	// refresh
+	RuntimeSettingsChanged *bool `json:"runtimeSettingsChanged,omitempty"`
+}
+
+func (SlashCommandCompletedResult) slashCommandInvocationResult() {}
+func (SlashCommandCompletedResult) Kind() SlashCommandInvocationResultKind {
+	return SlashCommandInvocationResultKindCompleted
+}
+
+type SlashCommandTextResult struct {
+	// Whether text contains Markdown
+	Markdown *bool `json:"markdown,omitempty"`
+	// Whether ANSI sequences should be preserved
+	PreserveAnsi *bool `json:"preserveAnsi,omitempty"`
+	// True when the invocation mutated user runtime settings; consumers caching settings should
+	// refresh
+	RuntimeSettingsChanged *bool `json:"runtimeSettingsChanged,omitempty"`
+	// Text output for the client to render
+	Text string `json:"text"`
+}
+
+func (SlashCommandTextResult) slashCommandInvocationResult() {}
+func (SlashCommandTextResult) Kind() SlashCommandInvocationResultKind {
+	return SlashCommandInvocationResultKindText
 }
 
 type SuspendResult struct {
@@ -2326,6 +2466,41 @@ const (
 	ShellKillSignalSIGTERM ShellKillSignal = "SIGTERM"
 )
 
+// Optional target session mode
+type SlashCommandAgentPromptMode string
+
+const (
+	SlashCommandAgentPromptModeAutopilot   SlashCommandAgentPromptMode = "autopilot"
+	SlashCommandAgentPromptModeInteractive SlashCommandAgentPromptMode = "interactive"
+	SlashCommandAgentPromptModePlan        SlashCommandAgentPromptMode = "plan"
+)
+
+// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
+type SlashCommandInputCompletion string
+
+const (
+	SlashCommandInputCompletionDirectory SlashCommandInputCompletion = "directory"
+)
+
+// Kind discriminator for SlashCommandInvocationResult.
+type SlashCommandInvocationResultKind string
+
+const (
+	SlashCommandInvocationResultKindAgentPrompt SlashCommandInvocationResultKind = "agent-prompt"
+	SlashCommandInvocationResultKindCompleted   SlashCommandInvocationResultKind = "completed"
+	SlashCommandInvocationResultKindText        SlashCommandInvocationResultKind = "text"
+)
+
+// Coarse command category for grouping and behavior: runtime built-in, skill-backed
+// command, or SDK/client-owned command
+type SlashCommandKind string
+
+const (
+	SlashCommandKindBuiltin SlashCommandKind = "builtin"
+	SlashCommandKindClient  SlashCommandKind = "client"
+	SlashCommandKindSkill   SlashCommandKind = "skill"
+)
+
 // How the agent is currently being managed by the runtime
 type TaskAgentInfoExecutionMode string
 
@@ -2443,8 +2618,12 @@ type serverApi struct {
 
 type ServerAccountApi serverApi
 
-func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
-	raw, err := a.client.Request("account.getQuota", params)
+func (a *ServerAccountApi) GetQuota(ctx context.Context, params ...*AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
+	var requestParams *AccountGetQuotaRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	raw, err := a.client.Request("account.getQuota", requestParams)
 	if err != nil {
 		return nil, err
 	}
@@ -2549,8 +2728,12 @@ func (s *ServerMcpApi) Config() *ServerMcpConfigApi {
 
 type ServerModelsApi serverApi
 
-func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
-	raw, err := a.client.Request("models.list", params)
+func (a *ServerModelsApi) List(ctx context.Context, params ...*ModelsListRequest) (*ModelList, error) {
+	var requestParams *ModelsListRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	raw, err := a.client.Request("models.list", requestParams)
 	if err != nil {
 		return nil, err
 	}
@@ -2812,6 +2995,53 @@ func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *Commands
 		return nil, err
 	}
 	var result CommandsHandlePendingCommandResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Input != nil {
+			req["input"] = *params.Input
+		}
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request("session.commands.invoke", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSlashCommandInvocationResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (a *CommandsApi) List(ctx context.Context, params ...*CommandsListRequest) (*CommandList, error) {
+	var requestParams *CommandsListRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	req := map[string]any{"sessionId": a.sessionID}
+	if requestParams != nil {
+		if requestParams.IncludeBuiltins != nil {
+			req["includeBuiltins"] = *requestParams.IncludeBuiltins
+		}
+		if requestParams.IncludeClientCommands != nil {
+			req["includeClientCommands"] = *requestParams.IncludeClientCommands
+		}
+		if requestParams.IncludeSkills != nil {
+			req["includeSkills"] = *requestParams.IncludeSkills
+		}
+	}
+	raw, err := a.client.Request("session.commands.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CommandList
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -3385,13 +3615,13 @@ func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
 	return &result, nil
 }
 
-func (a *SkillsApi) Reload(ctx context.Context) (*SkillsReloadResult, error) {
+func (a *SkillsApi) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.reload", req)
 	if err != nil {
 		return nil, err
 	}
-	var result SkillsReloadResult
+	var result SkillsLoadDiagnostics
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

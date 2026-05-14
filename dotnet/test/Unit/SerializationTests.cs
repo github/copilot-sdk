@@ -264,6 +264,21 @@ public class SerializationTests
         Assert.Null(deserialized.StopProcessingQueue);
     }
 
+    [Fact]
+    public void PermissionDecision_SerializesBaseDiscriminator_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new PermissionDecision
+        {
+            Kind = PermissionRequestResultKind.Approved.Value
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal("approve-once", document.RootElement.GetProperty("kind").GetString());
+    }
+
     private static JsonSerializerOptions GetSerializerOptions()
     {
         var prop = typeof(CopilotClient)

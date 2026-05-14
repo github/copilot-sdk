@@ -657,6 +657,7 @@ class AssistantUsageData:
     "LLM API call usage metrics including tokens, costs, quotas, and billing information"
     model: str
     api_call_id: str | None = None
+    api_endpoint: AssistantUsageApiEndpoint | None = None
     cache_read_tokens: float | None = None
     cache_write_tokens: float | None = None
     copilot_usage: AssistantUsageCopilotUsage | None = None
@@ -679,6 +680,7 @@ class AssistantUsageData:
         assert isinstance(obj, dict)
         model = from_str(obj.get("model"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
+        api_endpoint = from_union([from_none, lambda x: parse_enum(AssistantUsageApiEndpoint, x)], obj.get("apiEndpoint"))
         cache_read_tokens = from_union([from_none, from_float], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_float], obj.get("cacheWriteTokens"))
         copilot_usage = from_union([from_none, AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
@@ -697,6 +699,7 @@ class AssistantUsageData:
         return AssistantUsageData(
             model=model,
             api_call_id=api_call_id,
+            api_endpoint=api_endpoint,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
             copilot_usage=copilot_usage,
@@ -719,6 +722,8 @@ class AssistantUsageData:
         result["model"] = from_str(self.model)
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
+        if self.api_endpoint is not None:
+            result["apiEndpoint"] = from_union([from_none, lambda x: to_enum(AssistantUsageApiEndpoint, x)], self.api_endpoint)
         if self.cache_read_tokens is not None:
             result["cacheReadTokens"] = from_union([from_none, to_float], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
@@ -4500,6 +4505,7 @@ class UserMessageData:
     agent_mode: UserMessageAgentMode | None = None
     attachments: list[UserMessageAttachment] | None = None
     interaction_id: str | None = None
+    is_autopilot_continuation: bool | None = None
     native_document_path_fallback_paths: list[str] | None = None
     parent_agent_task_id: str | None = None
     source: str | None = None
@@ -4513,6 +4519,7 @@ class UserMessageData:
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
         attachments = from_union([from_none, lambda x: from_list(UserMessageAttachment.from_dict, x)], obj.get("attachments"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        is_autopilot_continuation = from_union([from_none, from_bool], obj.get("isAutopilotContinuation"))
         native_document_path_fallback_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("nativeDocumentPathFallbackPaths"))
         parent_agent_task_id = from_union([from_none, from_str], obj.get("parentAgentTaskId"))
         source = from_union([from_none, from_str], obj.get("source"))
@@ -4523,6 +4530,7 @@ class UserMessageData:
             agent_mode=agent_mode,
             attachments=attachments,
             interaction_id=interaction_id,
+            is_autopilot_continuation=is_autopilot_continuation,
             native_document_path_fallback_paths=native_document_path_fallback_paths,
             parent_agent_task_id=parent_agent_task_id,
             source=source,
@@ -4539,6 +4547,8 @@ class UserMessageData:
             result["attachments"] = from_union([from_none, lambda x: from_list(lambda x: to_class(UserMessageAttachment, x), x)], self.attachments)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
+        if self.is_autopilot_continuation is not None:
+            result["isAutopilotContinuation"] = from_union([from_none, from_bool], self.is_autopilot_continuation)
         if self.native_document_path_fallback_paths is not None:
             result["nativeDocumentPathFallbackPaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.native_document_path_fallback_paths)
         if self.parent_agent_task_id is not None:
@@ -4661,6 +4671,14 @@ class AssistantMessageToolRequestType(Enum):
     "Tool call type: \"function\" for standard tool calls, \"custom\" for grammar-based tool calls. Defaults to \"function\" when absent."
     FUNCTION = "function"
     CUSTOM = "custom"
+
+
+class AssistantUsageApiEndpoint(Enum):
+    "API endpoint used for this model call, matching CAPI supported_endpoints vocabulary"
+    CHAT_COMPLETIONS = "/chat/completions"
+    V1_MESSAGES = "/v1/messages"
+    RESPONSES = "/responses"
+    WS_RESPONSES = "ws:/responses"
 
 
 class ElicitationCompletedAction(Enum):
