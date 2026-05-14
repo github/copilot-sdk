@@ -783,7 +783,7 @@ function getJsonUnionMatchExpression(variant: JsonUnionVariant, variants: JsonUn
     ].join(" && ");
 }
 
-function generateJsonUnionClass(className: string, variants: JsonUnionVariant[], description?: string, jsonContextType?: string): string {
+function generateJsonUnionClass(className: string, variants: JsonUnionVariant[], description: string | undefined, jsonContextType: string): string {
     const lines: string[] = [];
     lines.push(...xmlDocCommentWithFallback(description, `JSON union data type for <c>${escapeXml(className)}</c>.`, ""));
     lines.push(`[JsonConverter(typeof(Converter))]`);
@@ -830,9 +830,7 @@ function generateJsonUnionClass(className: string, variants: JsonUnionVariant[],
         }
 
         const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
-        const deserializeExpression = jsonContextType
-            ? `JsonSerializer.Deserialize(element, ${jsonContextType}.Default.${variant.typeName})`
-            : `element.Deserialize<${variant.typeName}>(options)`;
+        const deserializeExpression = `JsonSerializer.Deserialize(element, ${jsonContextType}.Default.${variant.typeName})`;
         lines.push(`            if (${matchExpression})`);
         lines.push(`            {`);
         lines.push(`                var ${valueName} = ${deserializeExpression};`);
@@ -842,9 +840,7 @@ function generateJsonUnionClass(className: string, variants: JsonUnionVariant[],
 
     for (const variant of fallbackVariants) {
         const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
-        const deserializeExpression = jsonContextType
-            ? `JsonSerializer.Deserialize(element, ${jsonContextType}.Default.${variant.typeName})`
-            : `element.Deserialize<${variant.typeName}>(options)`;
+        const deserializeExpression = `JsonSerializer.Deserialize(element, ${jsonContextType}.Default.${variant.typeName})`;
         lines.push(``);
         lines.push(`            try`);
         lines.push(`            {`);
@@ -864,9 +860,7 @@ function generateJsonUnionClass(className: string, variants: JsonUnionVariant[],
     lines.push(`        {`);
     for (const variant of variants) {
         const valueName = variant.propertyName.charAt(0).toLowerCase() + variant.propertyName.slice(1);
-        const serializeExpression = jsonContextType
-            ? `JsonSerializer.Serialize(writer, ${valueName}, ${jsonContextType}.Default.${variant.typeName});`
-            : `JsonSerializer.Serialize(writer, ${valueName}, options);`;
+        const serializeExpression = `JsonSerializer.Serialize(writer, ${valueName}, ${jsonContextType}.Default.${variant.typeName});`;
         lines.push(`            if (value.${variant.propertyName} is { } ${valueName})`);
         lines.push(`            {`);
         lines.push(`                ${serializeExpression}`);
