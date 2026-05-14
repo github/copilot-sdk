@@ -6,9 +6,7 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import type {
-    PreToolUseHookInput,
     PreToolUseHookOutput,
-    PostToolUseHookInput,
     PostToolUseHookOutput,
 } from "../../src/index.js";
 import { approveAll } from "../../src/index.js";
@@ -26,18 +24,19 @@ describe("Subagent hooks", async () => {
     env.COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS = "true";
 
     it("should invoke preToolUse and postToolUse hooks for sub-agent tool calls", async () => {
-        const preToolUseInputs: PreToolUseHookInput[] = [];
-        const postToolUseInputs: PostToolUseHookInput[] = [];
+        // Track hooks in order so we can verify parent vs sub-agent nesting
+        const hookLog: { kind: "pre" | "post"; toolName: string; index: number }[] = [];
+        let hookIndex = 0;
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onPreToolUse: async (input) => {
-                    preToolUseInputs.push(input);
+                    hookLog.push({ kind: "pre", toolName: input.toolName, index: hookIndex++ });
                     return { permissionDecision: "allow" } as PreToolUseHookOutput;
                 },
                 onPostToolUse: async (input) => {
-                    postToolUseInputs.push(input);
+                    hookLog.push({ kind: "post", toolName: input.toolName, index: hookIndex++ });
                     return null as PostToolUseHookOutput;
                 },
             },
@@ -53,17 +52,26 @@ describe("Subagent hooks", async () => {
                 "Use the task tool to spawn an explore agent that reads the file subagent-test.txt in the current directory and reports its contents. You must use the task tool.",
         });
 
-        // preToolUse should have been called for the parent's task tool call
-        const taskPreHooks = preToolUseInputs.filter((i) => i.toolName === "task");
-        expect(taskPreHooks.length).toBeGreaterThanOrEqual(1);
+        // --- Parent tool hooks ---
+        // The parent agent calls "task" to spawn the sub-agent.
+        const taskPre = hookLog.find((h) => h.kind === "pre" && h.toolName === "task");
+        const taskPost = hookLog.find((h) => h.kind === "post" && h.toolName === "task");
+        expect(taskPre, "preToolUse should fire for the parent's 'task' tool call").toBeDefined();
+        expect(taskPost, "postToolUse should fire for the parent's 'task' tool call").toBeDefined();
 
-        // preToolUse should ALSO have been called for the sub-agent's "view" tool
-        const viewPreHooks = preToolUseInputs.filter((i) => i.toolName === "view");
-        expect(viewPreHooks.length).toBeGreaterThan(0);
+        // --- Sub-agent tool hooks ---
+        // The sub-agent uses "view" (or similar) to read the file. These hooks prove
+        // that sub-agent tool calls trigger hooks back to the SDK.
+        const viewPre = hookLog.filter((h) => h.kind === "pre" && h.toolName === "view");
+        const viewPost = hookLog.filter((h) => h.kind === "post" && h.toolName === "view");
+        expect(viewPre.length, "preToolUse should fire for the sub-agent's 'view' tool call").toBeGreaterThan(0);
+        expect(viewPost.length, "postToolUse should fire for the sub-agent's 'view' tool call").toBeGreaterThan(0);
 
-        // postToolUse should also have been called for the sub-agent's "view" tool
-        const viewPostHooks = postToolUseInputs.filter((i) => i.toolName === "view");
-        expect(viewPostHooks.length).toBeGreaterThan(0);
+        // --- Ordering: sub-agent tool calls occur after the parent spawns the sub-agent ---
+        // The parent's "task" tool starts the sub-agent and returns; then the sub-agent
+        // runs its tools. So the sub-agent's "view" pre-hook comes after the parent's
+        // "task" pre-hook. The parent then reads results via "read_agent".
+        expect(viewPre[0].index).toBeGreaterThan(taskPre!.index);
 
         await session.disconnect();
     }, 120_000);
