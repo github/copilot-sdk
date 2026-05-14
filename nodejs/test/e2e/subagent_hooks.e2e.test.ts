@@ -6,7 +6,9 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import type {
+    PreToolUseHookInput,
     PreToolUseHookOutput,
+    PostToolUseHookInput,
     PostToolUseHookOutput,
 } from "../../src/index.js";
 import { approveAll } from "../../src/index.js";
@@ -24,19 +26,29 @@ describe("Subagent hooks", async () => {
     env.COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS = "true";
 
     it("should invoke preToolUse and postToolUse hooks for sub-agent tool calls", async () => {
-        // Track hooks in order so we can verify parent vs sub-agent nesting
-        const hookLog: { kind: "pre" | "post"; toolName: string; index: number }[] = [];
+        // Track hooks with agentSessionId so we can verify parent vs sub-agent
+        const hookLog: { kind: "pre" | "post"; toolName: string; agentSessionId: string; index: number }[] = [];
         let hookIndex = 0;
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
-                onPreToolUse: async (input) => {
-                    hookLog.push({ kind: "pre", toolName: input.toolName, index: hookIndex++ });
+                onPreToolUse: async (input: PreToolUseHookInput) => {
+                    hookLog.push({
+                        kind: "pre",
+                        toolName: input.toolName,
+                        agentSessionId: input.agentSessionId,
+                        index: hookIndex++,
+                    });
                     return { permissionDecision: "allow" } as PreToolUseHookOutput;
                 },
-                onPostToolUse: async (input) => {
-                    hookLog.push({ kind: "post", toolName: input.toolName, index: hookIndex++ });
+                onPostToolUse: async (input: PostToolUseHookInput) => {
+                    hookLog.push({
+                        kind: "post",
+                        toolName: input.toolName,
+                        agentSessionId: input.agentSessionId,
+                        index: hookIndex++,
+                    });
                     return null as PostToolUseHookOutput;
                 },
             },
@@ -67,10 +79,26 @@ describe("Subagent hooks", async () => {
         expect(viewPre.length, "preToolUse should fire for the sub-agent's 'view' tool call").toBeGreaterThan(0);
         expect(viewPost.length, "postToolUse should fire for the sub-agent's 'view' tool call").toBeGreaterThan(0);
 
+        // --- agentSessionId distinguishes parent from sub-agent ---
+        // The parent's "task" hook and the sub-agent's "view" hook should have
+        // different agentSessionIds, proving the SDK exposes which session
+        // (parent vs sub-agent) originated each tool call.
+        const parentSessionId = taskPre!.agentSessionId;
+        const subagentSessionId = viewPre[0].agentSessionId;
+        expect(parentSessionId).toBeDefined();
+        expect(subagentSessionId).toBeDefined();
+        expect(subagentSessionId).not.toBe(parentSessionId);
+
+        // All parent tool hooks share the same agentSessionId
+        const parentHooks = hookLog.filter((h) => h.agentSessionId === parentSessionId);
+        expect(parentHooks.every((h) => ["task", "read_agent", "report_intent"].includes(h.toolName))).toBe(true);
+
+        // All sub-agent tool hooks share a different agentSessionId
+        const subagentHooks = hookLog.filter((h) => h.agentSessionId === subagentSessionId);
+        expect(subagentHooks.length).toBeGreaterThan(0);
+        expect(subagentHooks.some((h) => h.toolName === "view")).toBe(true);
+
         // --- Ordering: sub-agent tool calls occur after the parent spawns the sub-agent ---
-        // The parent's "task" tool starts the sub-agent and returns; then the sub-agent
-        // runs its tools. So the sub-agent's "view" pre-hook comes after the parent's
-        // "task" pre-hook. The parent then reads results via "read_agent".
         expect(viewPre[0].index).toBeGreaterThan(taskPre!.index);
 
         await session.disconnect();

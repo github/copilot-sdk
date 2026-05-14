@@ -962,7 +962,13 @@ export class CopilotSession {
         }
 
         try {
-            const result = await handler(input, { sessionId: this.sessionId });
+            // The runtime sends `sessionId` in the hook input to identify which
+            // session (parent or sub-agent) invoked the tool.  Expose it as
+            // `agentSessionId` so SDK consumers can distinguish parent vs
+            // sub-agent tool calls.
+            const wireInput = input as Record<string, unknown>;
+            const mappedInput = { ...wireInput, agentSessionId: wireInput.sessionId };
+            const result = await handler(mappedInput, { sessionId: this.sessionId });
             return result;
         } catch (_error) {
             // Hook failed, return undefined

@@ -917,6 +917,10 @@ export type AutoModeSwitchHandler = (
  * Base interface for all hook inputs
  */
 export interface BaseHookInput {
+    /** The runtime session ID of the session that invoked the tool.
+     * For parent session tools this matches the SDK session ID; for sub-agent
+     * tools it is the sub-agent's internal session ID. */
+    agentSessionId: string;
     timestamp: number;
     cwd: string;
 }
