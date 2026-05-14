@@ -4,12 +4,15 @@
 
 package com.github.copilot.sdk.json;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Options for the {@link SessionUiApi#input(String, InputOptions)} convenience
  * method.
  *
  * @since 1.0.0
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class InputOptions {
 
     private String title;

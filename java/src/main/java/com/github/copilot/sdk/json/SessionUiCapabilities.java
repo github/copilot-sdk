@@ -4,11 +4,14 @@
 
 package com.github.copilot.sdk.json;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * UI-specific capability flags for a session.
  *
  * @since 1.0.0
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class SessionUiCapabilities {
 
     private Boolean elicitation;
