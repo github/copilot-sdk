@@ -7094,9 +7094,9 @@ class ServerModelsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def list(self, params: ModelsListRequest | None = None, *, timeout: float | None = None) -> ModelList:
+    async def list(self, params: ModelsListRequest, *, timeout: float | None = None) -> ModelList:
         "Calls models.list."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list", params_dict, **_timeout_kwargs(timeout))))
 
 
@@ -7114,9 +7114,9 @@ class ServerAccountApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def get_quota(self, params: AccountGetQuotaRequest | None = None, *, timeout: float | None = None) -> AccountGetQuotaResult:
+    async def get_quota(self, params: AccountGetQuotaRequest, *, timeout: float | None = None) -> AccountGetQuotaResult:
         "Calls account.getQuota."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", params_dict, **_timeout_kwargs(timeout)))
 
 

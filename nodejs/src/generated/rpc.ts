@@ -2812,7 +2812,7 @@ export function createServerRpc(connection: MessageConnection) {
             /**
              * Calls `models.list`.
              */
-            list: async (params?: ModelsListRequest): Promise<ModelList> =>
+            list: async (params: ModelsListRequest): Promise<ModelList> =>
                 connection.sendRequest("models.list", params),
         },
         tools: {
@@ -2826,7 +2826,7 @@ export function createServerRpc(connection: MessageConnection) {
             /**
              * Calls `account.getQuota`.
              */
-            getQuota: async (params?: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
+            getQuota: async (params: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", params),
         },
         mcp: {

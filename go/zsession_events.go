@@ -40,6 +40,7 @@ type (
 	CompactionCompleteCompactionTokensUsedCopilotUsage            = rpc.CompactionCompleteCompactionTokensUsedCopilotUsage
 	CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail = rpc.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail
 	CustomAgentsUpdatedAgent                                      = rpc.CustomAgentsUpdatedAgent
+	CustomNotificationPayload                                     = rpc.CustomNotificationPayload
 	ElicitationCompletedAction                                    = rpc.ElicitationCompletedAction
 	ElicitationCompletedBooleanContent                            = rpc.ElicitationCompletedBooleanContent
 	ElicitationCompletedContent                                   = rpc.ElicitationCompletedContent
@@ -139,6 +140,7 @@ type (
 	SessionCompactionStartData                                    = rpc.SessionCompactionStartData
 	SessionContextChangedData                                     = rpc.SessionContextChangedData
 	SessionCustomAgentsUpdatedData                                = rpc.SessionCustomAgentsUpdatedData
+	SessionCustomNotificationData                                 = rpc.SessionCustomNotificationData
 	SessionErrorData                                              = rpc.SessionErrorData
 	SessionEvent                                                  = rpc.SessionEvent
 	SessionEventData                                              = rpc.SessionEventData
@@ -372,6 +374,7 @@ const (
 	SessionEventTypeSessionCompactionStart                             = rpc.SessionEventTypeSessionCompactionStart
 	SessionEventTypeSessionContextChanged                              = rpc.SessionEventTypeSessionContextChanged
 	SessionEventTypeSessionCustomAgentsUpdated                         = rpc.SessionEventTypeSessionCustomAgentsUpdated
+	SessionEventTypeSessionCustomNotification                          = rpc.SessionEventTypeSessionCustomNotification
 	SessionEventTypeSessionError                                       = rpc.SessionEventTypeSessionError
 	SessionEventTypeSessionExtensionsLoaded                            = rpc.SessionEventTypeSessionExtensionsLoaded
 	SessionEventTypeSessionHandoff                                     = rpc.SessionEventTypeSessionHandoff

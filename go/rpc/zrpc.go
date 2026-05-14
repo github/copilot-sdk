@@ -2645,12 +2645,8 @@ type ServerAccountApi serverApi
 // GetQuota calls account.getQuota.
 //
 // RPC method: account.getQuota.
-func (a *ServerAccountApi) GetQuota(ctx context.Context, params ...*AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
-	var requestParams *AccountGetQuotaRequest
-	if len(params) > 0 {
-		requestParams = params[0]
-	}
-	raw, err := a.client.Request("account.getQuota", requestParams)
+func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
+	raw, err := a.client.Request("account.getQuota", params)
 	if err != nil {
 		return nil, err
 	}
@@ -2779,12 +2775,8 @@ type ServerModelsApi serverApi
 // List calls models.list.
 //
 // RPC method: models.list.
-func (a *ServerModelsApi) List(ctx context.Context, params ...*ModelsListRequest) (*ModelList, error) {
-	var requestParams *ModelsListRequest
-	if len(params) > 0 {
-		requestParams = params[0]
-	}
-	raw, err := a.client.Request("models.list", requestParams)
+func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
+	raw, err := a.client.Request("models.list", params)
 	if err != nil {
 		return nil, err
 	}

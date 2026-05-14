@@ -63,6 +63,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
 [JsonDerivedType(typeof(SessionCustomAgentsUpdatedEvent), "session.custom_agents_updated")]
+[JsonDerivedType(typeof(SessionCustomNotificationEvent), "session.custom_notification")]
 [JsonDerivedType(typeof(SessionErrorEvent), "session.error")]
 [JsonDerivedType(typeof(SessionExtensionsLoadedEvent), "session.extensions_loaded")]
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
@@ -951,6 +952,19 @@ public partial class McpOauthCompletedEvent : SessionEvent
     public required McpOauthCompletedData Data { get; set; }
 }
 
+/// <summary>Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.</summary>
+/// <remarks>Represents the <c>session.custom_notification</c> event.</remarks>
+public partial class SessionCustomNotificationEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.custom_notification";
+
+    /// <summary>The <c>session.custom_notification</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCustomNotificationData Data { get; set; }
+}
+
 /// <summary>External tool invocation request for client-side tool execution.</summary>
 /// <remarks>Represents the <c>external_tool.requested</c> event.</remarks>
 public partial class ExternalToolRequestedEvent : SessionEvent
@@ -1295,7 +1309,7 @@ public partial class SessionErrorData
     [JsonPropertyName("eligibleForAutoSwitch")]
     public bool? EligibleForAutoSwitch { get; set; }
 
-    /// <summary>Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).</summary>
+    /// <summary>Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("errorCode")]
     public string? ErrorCode { get; set; }
@@ -2758,6 +2772,36 @@ public partial class McpOauthCompletedData
     /// <summary>Request ID of the resolved OAuth request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+}
+
+/// <summary>Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.</summary>
+public partial class SessionCustomNotificationData
+{
+    /// <summary>Source-defined custom notification name.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Source-defined JSON payload for the custom notification.</summary>
+    [JsonPropertyName("payload")]
+    public required object Payload { get; set; }
+
+    /// <summary>Namespace for the custom notification producer.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("source")]
+    public required string Source { get; set; }
+
+    /// <summary>Optional source-defined string identifiers describing the payload subject.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("subject")]
+    public IDictionary<string, string>? Subject { get; set; }
+
+    /// <summary>Optional source-defined payload schema version.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("version")]
+    public long? Version { get; set; }
 }
 
 /// <summary>External tool invocation request for client-side tool execution.</summary>
@@ -6876,6 +6920,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionContextChangedEvent))]
 [JsonSerializable(typeof(SessionCustomAgentsUpdatedData))]
 [JsonSerializable(typeof(SessionCustomAgentsUpdatedEvent))]
+[JsonSerializable(typeof(SessionCustomNotificationData))]
+[JsonSerializable(typeof(SessionCustomNotificationEvent))]
 [JsonSerializable(typeof(SessionErrorData))]
 [JsonSerializable(typeof(SessionErrorEvent))]
 [JsonSerializable(typeof(SessionEvent))]

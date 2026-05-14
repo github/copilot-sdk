@@ -269,6 +269,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionCustomNotification:
+		var d SessionCustomNotificationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionError:
 		var d SessionErrorData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -1978,4 +1984,66 @@ func (r *ElicitationCompletedData) UnmarshalJSON(data []byte) error {
 	}
 	r.RequestID = raw.RequestID
 	return nil
+}
+
+func (r CustomNotificationPayload) MarshalJSON() ([]byte, error) {
+	if r.AnyArray != nil {
+		return json.Marshal(r.AnyArray)
+	}
+	if r.AnyMap != nil {
+		return json.Marshal(r.AnyMap)
+	}
+	if r.Bool != nil {
+		return json.Marshal(r.Bool)
+	}
+	if r.Double != nil {
+		return json.Marshal(r.Double)
+	}
+	if r.String != nil {
+		return json.Marshal(r.String)
+	}
+	return []byte("null"), nil
+}
+
+func (r *CustomNotificationPayload) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*r = CustomNotificationPayload{}
+		return nil
+	}
+	{
+		var value []any
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = CustomNotificationPayload{AnyArray: value}
+			return nil
+		}
+	}
+	{
+		var value map[string]any
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = CustomNotificationPayload{AnyMap: value}
+			return nil
+		}
+	}
+	{
+		var value bool
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = CustomNotificationPayload{Bool: &value}
+			return nil
+		}
+	}
+	{
+		var value float64
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = CustomNotificationPayload{Double: &value}
+			return nil
+		}
+	}
+	{
+		var value string
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = CustomNotificationPayload{String: &value}
+			return nil
+		}
+	}
+	return errors.New("data did not match any union variant for CustomNotificationPayload")
 }

@@ -215,7 +215,8 @@ class TestMultiClientBroadcast:
 
         # Send a prompt that triggers the custom tool
         await session1.send("Use the magic_number tool with seed 'hello' and tell me the result")
-        response = await get_final_assistant_message(session1)
+        # Use a longer timeout: first multi-client TCP test on Windows CI needs extra time
+        response = await get_final_assistant_message(session1, timeout=30.0)
         assert "MAGIC_hello_42" in (response.data.content or "")
 
         # Both clients should have seen the external_tool.requested event

@@ -92,6 +92,7 @@ const (
 	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
 	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
 	SessionEventTypeSessionCustomAgentsUpdated    SessionEventType = "session.custom_agents_updated"
+	SessionEventTypeSessionCustomNotification     SessionEventType = "session.custom_notification"
 	SessionEventTypeSessionError                  SessionEventType = "session.error"
 	SessionEventTypeSessionExtensionsLoaded       SessionEventType = "session.extensions_loaded"
 	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"
@@ -397,7 +398,7 @@ func (*PendingMessagesModifiedData) Type() SessionEventType {
 type SessionErrorData struct {
 	// Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
 	EligibleForAutoSwitch *bool `json:"eligibleForAutoSwitch,omitempty"`
-	// Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).
+	// Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`).
 	ErrorCode *string `json:"errorCode,omitempty"`
 	// Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query")
 	ErrorType string `json:"errorType"`
@@ -613,6 +614,25 @@ type McpOauthRequiredData struct {
 
 func (*McpOauthRequiredData) sessionEventData()      {}
 func (*McpOauthRequiredData) Type() SessionEventType { return SessionEventTypeMcpOauthRequired }
+
+// Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
+type SessionCustomNotificationData struct {
+	// Source-defined custom notification name
+	Name string `json:"name"`
+	// Source-defined JSON payload for the custom notification
+	Payload CustomNotificationPayload `json:"payload"`
+	// Namespace for the custom notification producer
+	Source string `json:"source"`
+	// Optional source-defined string identifiers describing the payload subject
+	Subject map[string]string `json:"subject,omitempty"`
+	// Optional source-defined payload schema version
+	Version *int64 `json:"version,omitempty"`
+}
+
+func (*SessionCustomNotificationData) sessionEventData() {}
+func (*SessionCustomNotificationData) Type() SessionEventType {
+	return SessionEventTypeSessionCustomNotification
+}
 
 // Payload indicating the session is idle with no background agents in flight
 type SessionIdleData struct {
@@ -1534,6 +1554,15 @@ type CustomAgentsUpdatedAgent struct {
 	Tools []string `json:"tools"`
 	// Whether the agent can be selected by the user
 	UserInvocable bool `json:"userInvocable"`
+}
+
+// Source-defined JSON payload for the custom notification
+type CustomNotificationPayload struct {
+	AnyArray []any
+	AnyMap   map[string]any
+	Bool     *bool
+	Double   *float64
+	String   *string
 }
 
 type ElicitationCompletedContent interface {

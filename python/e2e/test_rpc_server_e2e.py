@@ -17,6 +17,7 @@ from copilot.client import SubprocessConfig
 from copilot.generated.rpc import (
     AccountGetQuotaRequest,
     MCPDiscoverRequest,
+    ModelsListRequest,
     PingRequest,
     SkillsConfigSetDisabledSkillsRequest,
     SkillsDiscoverRequest,
@@ -96,7 +97,7 @@ class TestRpcServer:
         client = _make_authed_client(authed_ctx, token)
         try:
             await client.start()
-            result = await client.rpc.models.list()
+            result = await client.rpc.models.list(ModelsListRequest())
             assert result.models is not None
             assert any(model.id == "claude-sonnet-4.5" for model in result.models)
             assert all((model.name or "").strip() for model in result.models)

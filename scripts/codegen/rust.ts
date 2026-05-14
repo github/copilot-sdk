@@ -1276,7 +1276,15 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 				schema.description,
 			);
 		} else if (getUnionVariants(schema)) {
-			tryEmitRustUnion(schema, name, "", ctx);
+			// Unwrap nullable anyOf wrappers (e.g. anyOf: [{ not: {} }, { type: "object" }])
+			// before falling through to struct generation, since tryEmitRustUnion
+			// silently drops these.
+			const nullableInner = getNullableInner(schema);
+			if (nullableInner && isObjectSchema(nullableInner)) {
+				emitRustStruct(name, nullableInner, ctx, nullableInner.description ?? schema.description);
+			} else {
+				tryEmitRustUnion(schema, name, "", ctx);
+			}
 		}
 	}
 
