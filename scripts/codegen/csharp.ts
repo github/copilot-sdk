@@ -18,7 +18,10 @@ import {
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     writeGeneratedFile,
+    collectExternalSchemaRefNames,
     collectDefinitionCollections,
+    collectReachableDefinitionNames,
+    findSharedSchemaDefinitions,
     postProcessSchema,
     resolveRef,
     resolveObjectSchema,
@@ -34,6 +37,7 @@ import {
     getNullableInner,
     getSessionEventVariantSchemas,
     getSharedSessionEventEnvelopeProperties,
+    rewriteSharedDefinitionReferences,
     REPO_ROOT,
     type ApiSchema,
     type DefinitionCollections,
@@ -156,6 +160,19 @@ function uniqueCSharpIdentifier(value: string, used: Set<string>, fallback: stri
     return identifier;
 }
 
+function isNonNullableCSharpValueType(typeName: string): boolean {
+    return [
+        "bool",
+        "double",
+        "float",
+        "Guid",
+        "int",
+        "long",
+        "DateTimeOffset",
+        "TimeSpan",
+    ].includes(typeName) || generatedEnums.has(typeName) || emittedRpcEnumResultTypes.has(typeName);
+}
+
 async function formatCSharpFile(filePath: string): Promise<void> {
     try {
         const projectFile = path.join(REPO_ROOT, "dotnet/src/GitHub.Copilot.SDK.csproj");
@@ -176,6 +193,10 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
         }
     }
     return results;
+}
+
+function localRequestVariableName(paramEntries: [string, JSONSchema7Definition][], hasRequestParameter = false): string {
+    return hasRequestParameter || paramEntries.some(([name]) => name === "request") ? "rpcRequest" : "request";
 }
 
 function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: Map<string, string>): string {
@@ -1034,7 +1055,12 @@ function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
 }
 
 function resultTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(getMethodResultSchema(method), `${typeToClassName(method.rpcMethod)}Result`);
+    return getCSharpSchemaTypeName(getMethodResultSchema(method), `${typeToClassName(method.rpcMethod)}Result`);
+}
+
+function getCSharpSchemaTypeName(schema: JSONSchema7 | null | undefined, fallback: string): string {
+    if (schema?.$ref) return typeToClassName(refTypeName(schema.$ref, rpcDefinitions));
+    return getRpcSchemaTypeName(schema, fallback);
 }
 
 /** Returns the C# type for a method's result, accounting for nullable anyOf wrappers. */
@@ -1065,7 +1091,7 @@ function resultTaskType(method: RpcMethod): string {
 }
 
 function paramsTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(resolveMethodParamsSchema(method), `${typeToClassName(method.rpcMethod)}Request`);
+    return getCSharpSchemaTypeName(resolveMethodParamsSchema(method), `${typeToClassName(method.rpcMethod)}Request`);
 }
 
 function resolveMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
@@ -1257,6 +1283,8 @@ function emitRpcClass(
                 propAccessors = `{ get => field ??= new ${concreteType}(); set; }`;
             } else if (emittedRpcClassSchemas.has(csharpType)) {
                 propAccessors = "{ get => field ??= new(); set; }";
+            } else if (!isNonNullableCSharpValueType(csharpType)) {
+                defaultVal = " = null!;";
             }
         }
         lines.push(`    public ${csharpType} ${csharpName} ${propAccessors}${defaultVal}`);
@@ -1444,14 +1472,15 @@ function emitServerInstanceMethod(
     sigParams.push("CancellationToken cancellationToken = default");
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
+    const localRequestName = localRequestVariableName(paramEntries);
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`);
     if (requestClassName && bodyAssignments.length > 0) {
-        lines.push(`${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
+        lines.push(`${indent}    var ${localRequestName} = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
         if (!isVoidSchema(resultSchema)) {
-            lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
+            lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`);
         } else {
-            lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
+            lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`);
         }
     } else {
         if (!isVoidSchema(resultSchema)) {
@@ -1570,7 +1599,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     sigParams.push("CancellationToken cancellationToken = default");
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
-    const localRequestName = useRequestParameter ? "rpcRequest" : "request";
+    const localRequestName = localRequestVariableName(paramEntries, useRequestParameter);
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`, `${indent}    var ${localRequestName} = new ${wireRequestClassName} { ${bodyAssignments.join(", ")} };`);
     if (!isVoidSchema(resultSchema)) {
@@ -1752,7 +1781,10 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
     return lines;
 }
 
-function generateRpcCode(schema: ApiSchema): string {
+function generateRpcCode(
+    schema: ApiSchema,
+    externalJsonSerializableRefs: Map<string, Set<string>> = new Map()
+): string {
     emittedRpcClassSchemas.clear();
     emittedRpcEnumResultTypes.clear();
     experimentalRpcTypes.clear();
@@ -1779,6 +1811,7 @@ function generateRpcCode(schema: ApiSchema): string {
     if (schema.clientSession) clientSessionParts = emitClientSessionApiRegistration(schema.clientSession, classes);
 
     const lines: string[] = [];
+    const externalSchemaRefs = collectExternalSchemaRefNames(schema);
     lines.push(`${COPYRIGHT}
 
 // AUTO-GENERATED FILE - DO NOT EDIT
@@ -1811,6 +1844,13 @@ namespace GitHub.Copilot.SDK.Rpc;
         lines.push(`    AllowOutOfOrderMetadataProperties = true,`);
         lines.push(`    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`);
         for (const t of ["bool", "double", "int", "long", "string"]) lines.push(`[JsonSerializable(typeof(${t}))]`);
+        for (const [schemaFile, names] of externalJsonSerializableRefs) {
+            if (schemaFile !== "session-events.schema.json") continue;
+            for (const name of [...names].sort()) {
+                const typeName = typeToClassName(name);
+                lines.push(`[JsonSerializable(typeof(GitHub.Copilot.SDK.${typeName}), TypeInfoPropertyName = "SessionEvents${typeName}")]`);
+            }
+        }
         for (const t of typeNames) lines.push(`[JsonSerializable(typeof(${t}))]`);
         lines.push(`internal partial class RpcJsonContext : JsonSerializerContext;`);
     }
@@ -1818,11 +1858,48 @@ namespace GitHub.Copilot.SDK.Rpc;
     return lines.join("\n");
 }
 
-export async function generateRpc(schemaPath?: string): Promise<void> {
+export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("C#: generating RPC types...");
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
-    const code = generateRpcCode(schema);
+    let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
+    if (sessionEventsSchema) {
+        const sharedDefinitions = findSharedSchemaDefinitions(
+            schema as unknown as Record<string, unknown>,
+            sessionEventsSchema as unknown as Record<string, unknown>
+        );
+        const reachableDefinitions = collectReachableDefinitionNames(sessionEventsSchema as unknown as Record<string, unknown>);
+        for (const name of [...sharedDefinitions]) {
+            if (!reachableDefinitions.has(name)) {
+                sharedDefinitions.delete(name);
+            }
+        }
+        schema = rewriteSharedDefinitionReferences(schema, sharedDefinitions, "session-events.schema.json");
+    }
+    const externalJsonSerializableRefs = new Map<string, Set<string>>();
+    if (sessionEventsSchema) {
+        const sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
+        const externalRefs = collectExternalSchemaRefNames(schema);
+        const sessionEventRefs = externalRefs.get("session-events.schema.json");
+        if (sessionEventRefs && sessionEventRefs.size > 0) {
+            const reachableDefinitions = collectReachableDefinitionNames(
+                sessionEventsSchema as unknown as Record<string, unknown>,
+                sessionEventRefs
+            );
+            const emittedDefinitions = new Set<string>();
+            for (const name of reachableDefinitions) {
+                const typeName = typeToClassName(name);
+                const declarationPattern = new RegExp(`\\bpublic\\s+(?:(?:sealed|abstract|partial|readonly)\\s+)*(?:class|struct)\\s+${typeName}\\b`);
+                if (declarationPattern.test(sessionEventsCode)) {
+                    emittedDefinitions.add(name);
+                }
+            }
+            externalJsonSerializableRefs.set(
+                "session-events.schema.json",
+                emittedDefinitions
+            );
+        }
+    }
+    const code = generateRpcCode(schema, externalJsonSerializableRefs);
     const outPath = await writeGeneratedFile("dotnet/src/Generated/Rpc.cs", code);
     console.log(`  ✓ ${outPath}`);
     await formatCSharpFile(outPath);
@@ -1835,7 +1912,9 @@ export async function generateRpc(schemaPath?: string): Promise<void> {
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     await generateSessionEvents(sessionSchemaPath);
     try {
-        await generateRpc(apiSchemaPath);
+        const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
+        const sessionSchema = postProcessSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7));
+        await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {
             console.log("C#: skipping RPC (api.schema.json not found)");

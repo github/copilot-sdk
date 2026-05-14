@@ -21,8 +21,11 @@ import {
 	EXCLUDED_EVENT_TYPES,
 	REPO_ROOT,
 	type RpcMethod,
+	collectExternalSchemaRefNames,
 	collectDefinitionCollections,
 	collectDefinitions,
+	collectReachableDefinitionNames,
+	findSharedSchemaDefinitions,
 	getApiSchemaPath,
 	getNullableInner,
 	getRpcSchemaTypeName,
@@ -32,17 +35,29 @@ import {
 	isSchemaDeprecated,
 	isSchemaExperimental,
 	isVoidSchema,
+	parseExternalSchemaRef,
 	postProcessSchema,
 	refTypeName,
 	resolveObjectSchema,
 	resolveRef,
 	resolveSchema,
+	rewriteSharedDefinitionReferences,
 	stripBooleanLiterals,
 } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
 
 const GENERATED_DIR = path.join(REPO_ROOT, "rust/src/generated");
+
+const EXTERNAL_SCHEMA_RUST_MODULE: Record<string, string> = {
+	"session-events.schema.json": "super::session_events",
+};
+
+const EXTERNAL_SCHEMA_RUST_TYPE_MODULE: Record<string, Record<string, string>> = {
+	"session-events.schema.json": {
+		SessionEvent: "crate::types",
+	},
+};
 
 /**
  * JSON property names that should be emitted as a hand-authored newtype rather
@@ -59,11 +74,13 @@ const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
 // ── Naming helpers ──────────────────────────────────────────────────────────
 
 function toPascalCase(s: string): string {
-	return s
+	const name = s
 		.split(/[^A-Za-z0-9]+/)
 		.filter(Boolean)
 		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
 		.join("");
+	if (!name) return "Value";
+	return /^[0-9]/.test(name) ? `Value${name}` : name;
 }
 
 function toRustPascalIdentifier(value: string, fallback: string): string {
@@ -216,7 +233,7 @@ function tryEmitRustDiscriminatedUnion(
 			const resolved = resolveRef(variant.$ref, ctx.definitions);
 			return {
 				schema: (resolved ?? variant) as JSONSchema7,
-				typeName: toPascalCase(refTypeName(variant.$ref, ctx.definitions)),
+				typeName: rustRefTypeName(variant.$ref, ctx.definitions),
 			};
 		}
 
@@ -322,6 +339,11 @@ function pushRustExperimentalDocs(
 
 // ── Type resolution ─────────────────────────────────────────────────────────
 
+function rustRefTypeName(ref: string, definitions?: DefinitionCollections): string {
+	const externalRef = parseExternalSchemaRef(ref);
+	return toPascalCase(externalRef?.definitionName ?? refTypeName(ref, definitions));
+}
+
 /**
  * Map a JSON Schema to a Rust type string. Emits nested type definitions as
  * side effects into ctx.
@@ -337,9 +359,7 @@ function resolveRustType(
 
 	// $ref — resolve and recurse
 	if (propSchema.$ref && typeof propSchema.$ref === "string") {
-		const typeName = toPascalCase(
-			refTypeName(propSchema.$ref, ctx.definitions),
-		);
+		const typeName = rustRefTypeName(propSchema.$ref, ctx.definitions);
 		const resolved = resolveRef(propSchema.$ref, ctx.definitions);
 		if (resolved) {
 			if (resolved.enum) {
@@ -982,6 +1002,9 @@ function collectRpcMethods(
 }
 
 function rustParamsTypeName(method: RpcMethod): string {
+	if (method.params?.$ref && parseExternalSchemaRef(method.params.$ref)) {
+		return rustRefTypeName(method.params.$ref);
+	}
 	return getRpcSchemaTypeName(
 		method.params,
 		`${toPascalCase(method.rpcMethod)}Params`,
@@ -989,6 +1012,9 @@ function rustParamsTypeName(method: RpcMethod): string {
 }
 
 function rustResultTypeName(method: RpcMethod): string {
+	if (method.result?.$ref && parseExternalSchemaRef(method.result.$ref)) {
+		return rustRefTypeName(method.result.$ref);
+	}
 	return getRpcSchemaTypeName(
 		method.result,
 		`${toPascalCase(method.rpcMethod)}Result`,
@@ -1000,6 +1026,7 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	const defCollections = collectDefinitionCollections(
 		apiSchema as Record<string, unknown>,
 	);
+	const externalSchemaRefs = collectExternalSchemaRefNames(apiSchema);
 	const ctx = makeCtx(defCollections);
 
 	// Generate shared definitions (structs & enums)
@@ -1081,6 +1108,29 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	out.push("");
 	out.push("use serde::{Deserialize, Serialize};");
 	out.push("");
+	const externalImports = new Map<string, Set<string>>();
+	for (const [schemaFile, typeNames] of externalSchemaRefs) {
+		const defaultModule = EXTERNAL_SCHEMA_RUST_MODULE[schemaFile];
+		const typeModules = EXTERNAL_SCHEMA_RUST_TYPE_MODULE[schemaFile] ?? {};
+		for (const typeName of typeNames) {
+			const module = typeModules[typeName] ?? defaultModule;
+			if (!module) continue;
+			let names = externalImports.get(module);
+			if (!names) {
+				names = new Set<string>();
+				externalImports.set(module, names);
+			}
+			names.add(typeName);
+		}
+	}
+	for (const [module, typeNames] of [...externalImports].sort(([left], [right]) =>
+		left.localeCompare(right),
+	)) {
+		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
+	}
+	if (externalImports.size > 0) {
+		out.push("");
+	}
 	out.push("use crate::types::{RequestId, SessionId};");
 	out.push("");
 
@@ -1554,20 +1604,38 @@ async function generate(): Promise<void> {
 	// Generate session events
 	console.log("Generating session_events.rs...");
 	const sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
+	const sharedDefinitions = findSharedSchemaDefinitions(
+		apiSchema as unknown as Record<string, unknown>,
+		sessionEventsSchema as unknown as Record<string, unknown>,
+	);
+	const reachableDefinitions = collectReachableDefinitionNames(
+		sessionEventsSchema as unknown as Record<string, unknown>,
+	);
+	for (const name of [...sharedDefinitions]) {
+		const declarationPattern = new RegExp(`\\bpub\\s+(?:struct|enum)\\s+${name}\\b`);
+		if (!reachableDefinitions.has(name) || !declarationPattern.test(sessionEventsCode)) {
+			sharedDefinitions.delete(name);
+		}
+	}
+	const apiSchemaForGeneration = rewriteSharedDefinitionReferences(
+		apiSchema,
+		sharedDefinitions,
+		"session-events.schema.json",
+	);
 	const sessionEventsPath = path.join(GENERATED_DIR, "session_events.rs");
 	await fs.writeFile(sessionEventsPath, sessionEventsCode, "utf-8");
 	await rustfmt(sessionEventsPath);
 
 	// Generate API types
 	console.log("Generating api_types.rs...");
-	const apiTypesCode = generateApiTypesCode(apiSchema);
+	const apiTypesCode = generateApiTypesCode(apiSchemaForGeneration);
 	const apiTypesPath = path.join(GENERATED_DIR, "api_types.rs");
 	await fs.writeFile(apiTypesPath, apiTypesCode, "utf-8");
 	await rustfmt(apiTypesPath);
 
 	// Generate typed RPC namespace
 	console.log("Generating rpc.rs...");
-	const rpcCode = generateRpcCode(apiSchema);
+	const rpcCode = generateRpcCode(apiSchemaForGeneration);
 	const rpcPath = path.join(GENERATED_DIR, "rpc.rs");
 	await fs.writeFile(rpcPath, rpcCode, "utf-8");
 	await rustfmt(rpcPath);

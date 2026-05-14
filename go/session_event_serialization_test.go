@@ -3,7 +3,14 @@ package copilot
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/github/copilot-sdk/go/rpc"
 )
+
+var _ rpc.SessionEvent = SessionEvent{}
+var _ SessionEvent = rpc.SessionEvent{}
+var _ rpc.SessionEventData = (*UserMessageData)(nil)
+var _ SessionEventData = (*rpc.UserMessageData)(nil)
 
 func TestSessionEventAgentIDRoundTripsKnownEvent(t *testing.T) {
 	var event SessionEvent
