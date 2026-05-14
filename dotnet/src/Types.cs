@@ -1254,6 +1254,12 @@ public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(PostToolUseHookI
 public class UserPromptSubmittedHookInput
 {
     /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unix timestamp in milliseconds when the prompt was submitted.
     /// </summary>
     [JsonPropertyName("timestamp")]
@@ -1306,6 +1312,12 @@ public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
 /// </summary>
 public class SessionStartHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the session started.
     /// </summary>
@@ -1364,6 +1376,12 @@ public delegate Task<SessionStartHookOutput?> SessionStartHandler(SessionStartHo
 /// </summary>
 public class SessionEndHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the session ended.
     /// </summary>
@@ -1436,6 +1454,12 @@ public delegate Task<SessionEndHookOutput?> SessionEndHandler(SessionEndHookInpu
 /// </summary>
 public class ErrorOccurredHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the error occurred.
     /// </summary>
