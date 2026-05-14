@@ -171,6 +171,14 @@ interface RustCodegenCtx {
 	enums: string[];
 	/** Track generated type names to avoid duplicates. */
 	generatedNames: Set<string>;
+	/**
+	 * Generated type names that do not (and cannot trivially) implement
+	 * `Default` — currently `#[serde(untagged)]` enums of distinct payload
+	 * structs. Structs with a *required* field of one of these types must
+	 * also skip the `Default` derive; their names are added here on emission
+	 * so the property propagates transitively.
+	 */
+	nonDefaultableTypes: Set<string>;
 	/** Schema definitions for $ref resolution. */
 	definitions?: DefinitionCollections;
 }
@@ -244,6 +252,10 @@ function tryEmitRustDiscriminatedUnion(
 		return enumName;
 	}
 	ctx.generatedNames.add(enumName);
+	// Untagged enums of distinct payload structs have no obvious default
+	// variant; structs with a required field of this type will also skip
+	// the `Default` derive.
+	ctx.nonDefaultableTypes.add(enumName);
 
 	for (const { schema: variantSchema, typeName } of resolvedVariants) {
 		if (isObjectSchema(variantSchema)) {
@@ -284,6 +296,7 @@ function makeCtx(definitions?: DefinitionCollections): RustCodegenCtx {
 		structs: [],
 		enums: [],
 		generatedNames: new Set(),
+		nonDefaultableTypes: new Set(),
 		definitions,
 	};
 }
@@ -577,10 +590,19 @@ function emitRustStruct(
 	if (isSchemaDeprecated(schema)) {
 		lines.push("#[deprecated]");
 	}
-	lines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
-	lines.push(`#[serde(rename_all = "camelCase")]`);
-	lines.push(`pub struct ${typeName} {`);
 
+	// Resolve field types up-front so we can decide whether `Default` can be
+	// derived. A required field whose bare type is non-default-able (e.g. an
+	// untagged enum, or another struct that already opted out) blocks the
+	// derive and propagates the opt-out to this struct.
+	interface FieldInfo {
+		propName: string;
+		prop: JSONSchema7;
+		isReq: boolean;
+		rustField: string;
+		rustType: string;
+	}
+	const fields: FieldInfo[] = [];
 	for (const [propName, propSchema] of Object.entries(
 		schema.properties || {},
 	)) {
@@ -589,7 +611,22 @@ function emitRustStruct(
 		const isReq = required.has(propName);
 		const rustField = safeRustFieldName(propName);
 		const rustType = resolveRustType(prop, typeName, propName, isReq, ctx);
+		fields.push({ propName, prop, isReq, rustField, rustType });
+	}
 
+	const blocksDefault = fields.some(
+		(f) => f.isReq && ctx.nonDefaultableTypes.has(f.rustType),
+	);
+	if (blocksDefault) {
+		ctx.nonDefaultableTypes.add(typeName);
+		lines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
+	} else {
+		lines.push("#[derive(Debug, Clone, Default, Serialize, Deserialize)]");
+	}
+	lines.push(`#[serde(rename_all = "camelCase")]`);
+	lines.push(`pub struct ${typeName} {`);
+
+	for (const { propName, prop, isReq, rustField, rustType } of fields) {
 		if (prop.description) {
 			for (const line of prop.description.split(/\r?\n/)) {
 				lines.push(`    /// ${line}`);
@@ -649,7 +686,9 @@ function emitRustStringEnum(
 		}
 	}
 	pushRustExperimentalDocs(lines, experimental);
-	lines.push("#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]");
+	lines.push(
+		"#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]",
+	);
 	lines.push(`pub enum ${enumName} {`);
 
 	const usedVariantNames = new Set<string>();
@@ -667,8 +706,11 @@ function emitRustStringEnum(
 		lines.push(`    ${variantName},`);
 	}
 
-	// Add a catch-all for forward compatibility
+	// Add a catch-all for forward compatibility. This is also the `Default`
+	// variant — for wire-protocol enums an unknown/sentinel value is the only
+	// safe default.
 	lines.push("    /// Unknown variant for forward compatibility.");
+	lines.push("    #[default]");
 	lines.push("    #[serde(other)]");
 	lines.push("    Unknown,");
 
@@ -691,12 +733,15 @@ function emitRustConstStringEnum(
 			lines.push(`/// ${line}`);
 		}
 	}
-	lines.push("#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]");
+	lines.push(
+		"#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]",
+	);
 	lines.push(`pub enum ${enumName} {`);
 	const variantName = toRustPascalIdentifier(value, "Value");
 	if (variantName !== value) {
 		lines.push(`    #[serde(rename = "${value}")]`);
 	}
+	lines.push("    #[default]");
 	lines.push(`    ${variantName},`);
 	lines.push("}");
 	ctx.enums.push(lines.join("\n"));
@@ -790,7 +835,7 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	const typeEnumLines: string[] = [];
 	typeEnumLines.push("/// Identifies the kind of session event.");
 	typeEnumLines.push(
-		"#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]",
+		"#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]",
 	);
 	typeEnumLines.push("pub enum SessionEventType {");
 	for (const variant of variants) {
@@ -803,6 +848,7 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 		typeEnumLines.push(`    ${variant.variantName},`);
 	}
 	typeEnumLines.push("    /// Unknown event type for forward compatibility.");
+	typeEnumLines.push("    #[default]");
 	typeEnumLines.push("    #[serde(other)]");
 	typeEnumLines.push("    Unknown,");
 	typeEnumLines.push("}");

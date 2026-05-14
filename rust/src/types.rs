@@ -206,7 +206,7 @@ impl PartialEq<SessionId> for &SessionId {
 /// A newtype wrapper around `String` that provides type safety — prevents
 /// accidentally passing a session ID or workspace ID where a request ID
 /// is expected. Derefs to `str` for zero-friction borrowing.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RequestId(String);
 

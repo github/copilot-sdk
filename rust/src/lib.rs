@@ -2433,18 +2433,9 @@ mod tests {
 
         let calls = Arc::new(AtomicUsize::new(0));
         let model = Model {
-            billing: None,
-            capabilities: ModelCapabilities {
-                limits: None,
-                supports: None,
-            },
-            default_reasoning_effort: None,
             id: "byok-gpt-4".into(),
-            model_picker_category: None,
-            model_picker_price_category: None,
             name: "BYOK GPT-4".into(),
-            policy: None,
-            supported_reasoning_efforts: Vec::new(),
+            ..Default::default()
         };
         let handler: Arc<dyn ListModelsHandler> = Arc::new(CountingHandler {
             calls: Arc::clone(&calls),
@@ -2478,18 +2469,9 @@ mod tests {
 
         let calls = Arc::new(AtomicUsize::new(0));
         let model = Model {
-            billing: None,
-            capabilities: ModelCapabilities {
-                limits: None,
-                supports: None,
-            },
-            default_reasoning_effort: None,
             id: "single-flight-model".into(),
-            model_picker_category: None,
-            model_picker_price_category: None,
             name: "Single Flight Model".into(),
-            policy: None,
-            supported_reasoning_efforts: Vec::new(),
+            ..Default::default()
         };
         let handler: Arc<dyn ListModelsHandler> = Arc::new(SlowCountingHandler {
             calls: Arc::clone(&calls),

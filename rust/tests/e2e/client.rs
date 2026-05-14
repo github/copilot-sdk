@@ -3,8 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use async_trait::async_trait;
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, ConnectionState, Error, ListModelsHandler, Model,
-    ModelCapabilities, Transport,
+    CliProgram, Client, ClientOptions, ConnectionState, Error, ListModelsHandler, Model, Transport,
 };
 
 use super::support::with_e2e_context;
@@ -262,18 +261,9 @@ impl ListModelsHandler for CountingModelsHandler {
     async fn list_models(&self) -> Result<Vec<Model>, Error> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(vec![Model {
-            billing: None,
-            capabilities: ModelCapabilities {
-                limits: None,
-                supports: None,
-            },
-            default_reasoning_effort: None,
             id: "custom-handler-model".to_string(),
-            model_picker_category: None,
-            model_picker_price_category: None,
             name: "Custom Handler Model".to_string(),
-            policy: None,
-            supported_reasoning_efforts: Vec::new(),
+            ..Default::default()
         }])
     }
 }
