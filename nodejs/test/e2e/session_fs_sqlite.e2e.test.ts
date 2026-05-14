@@ -1,0 +1,202 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { DatabaseSync } from "node:sqlite";
+import { MemoryProvider, VirtualProvider } from "@platformatic/vfs";
+import { mkdtempSync, realpathSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { describe, expect, it } from "vitest";
+import type { SessionFsReaddirWithTypesEntry } from "../../src/generated/rpc.js";
+import {
+    approveAll,
+    CopilotSession,
+    type SessionFsConfig,
+    type SessionFsProvider,
+    type SessionFsFileInfo,
+    type SessionFsSqliteQueryResult,
+    type SessionFsSqliteQueryType,
+} from "../../src/index.js";
+import { createSdkTestContext } from "./harness/sdkTestContext.js";
+
+const sessionStatePath =
+    process.platform === "win32"
+        ? "/session-state"
+        : join(
+              realpathSync(mkdtempSync(join(tmpdir(), "copilot-sqlite-state-"))),
+              "session-state"
+          ).replace(/\\/g, "/");
+
+const sessionFsConfig: SessionFsConfig = {
+    initialCwd: "/",
+    sessionStatePath,
+    conventions: "posix",
+    handleSqlite: true,
+};
+
+describe("Session Fs SQLite", async () => {
+    const provider = new MemoryProvider();
+    /** Track which dbNames received queries, per session */
+    const sqliteCalls: { sessionId: string; dbName: string; queryType: string; query: string }[] = [];
+
+    const createSessionFsHandler = (session: CopilotSession) =>
+        createTestSessionFsHandlerWithSqlite(session, provider, sqliteCalls);
+
+    const { copilotClient: client } = await createSdkTestContext({
+        copilotClientOptions: { sessionFs: sessionFsConfig },
+    });
+
+    it("should route SQL queries through the sessionFs sqlite handler", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            createSessionFsHandler,
+        });
+
+        // Ask the agent to create a table and insert data using the SQL tool
+        const msg = await session.sendAndWait({
+            prompt:
+                'Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). ' +
+                'Then insert a row with id "a1" and name "Widget". ' +
+                "Then select all rows from items and tell me what you find.",
+        });
+
+        expect(msg?.data.content).toContain("Widget");
+
+        // Verify the sqlite handler was called
+        const sessionCalls = sqliteCalls.filter((c) => c.sessionId === session.sessionId);
+        expect(sessionCalls.length).toBeGreaterThan(0);
+        expect(sessionCalls.some((c) => c.dbName === "session")).toBe(true);
+        expect(sessionCalls.some((c) => c.query.toUpperCase().includes("CREATE TABLE"))).toBe(true);
+        expect(sessionCalls.some((c) => c.query.toUpperCase().includes("INSERT"))).toBe(true);
+        expect(sessionCalls.some((c) => c.query.toUpperCase().includes("SELECT"))).toBe(true);
+
+        // Verify queryType is set correctly
+        expect(sessionCalls.some((c) => c.queryType === "exec")).toBe(true);
+        expect(sessionCalls.some((c) => c.queryType === "query")).toBe(true);
+        expect(sessionCalls.some((c) => c.queryType === "run")).toBe(true);
+
+        await session.disconnect();
+    });
+});
+
+function createTestSessionFsHandlerWithSqlite(
+    session: CopilotSession,
+    provider: VirtualProvider,
+    sqliteCalls: { sessionId: string; dbName: string; queryType: string; query: string }[]
+): SessionFsProvider {
+    const sp = (path: string) =>
+        `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
+
+    // Per-session SQLite databases (in-memory)
+    const databases = new Map<string, DatabaseSync>();
+
+    function getOrCreateDb(dbName: string): DatabaseSync {
+        let db = databases.get(dbName);
+        if (!db) {
+            db = new DatabaseSync(":memory:");
+            db.exec("PRAGMA busy_timeout = 5000");
+            databases.set(dbName, db);
+        }
+        return db;
+    }
+
+    return {
+        async readFile(path: string): Promise<string> {
+            return (await provider.readFile(sp(path), "utf8")) as string;
+        },
+        async writeFile(path: string, content: string): Promise<void> {
+            await provider.writeFile(sp(path), content);
+        },
+        async appendFile(path: string, content: string): Promise<void> {
+            await provider.appendFile(sp(path), content);
+        },
+        async exists(path: string): Promise<boolean> {
+            return provider.exists(sp(path));
+        },
+        async stat(path: string): Promise<SessionFsFileInfo> {
+            const st = await provider.stat(sp(path));
+            return {
+                isFile: st.isFile(),
+                isDirectory: st.isDirectory(),
+                size: st.size,
+                mtime: new Date(st.mtimeMs).toISOString(),
+                birthtime: new Date(st.birthtimeMs).toISOString(),
+            };
+        },
+        async mkdir(path: string, recursive: boolean, mode?: number): Promise<void> {
+            await provider.mkdir(sp(path), { recursive, mode });
+        },
+        async readdir(path: string): Promise<string[]> {
+            return (await provider.readdir(sp(path))) as string[];
+        },
+        async readdirWithTypes(
+            path: string
+        ): Promise<SessionFsReaddirWithTypesEntry[]> {
+            const names = (await provider.readdir(sp(path))) as string[];
+            return Promise.all(
+                names.map(async (name) => {
+                    const st = await provider.stat(sp(`${path}/${name}`));
+                    return {
+                        name,
+                        type: st.isDirectory()
+                            ? ("directory" as const)
+                            : ("file" as const),
+                    };
+                })
+            );
+        },
+        async rm(path: string): Promise<void> {
+            await provider.unlink(sp(path));
+        },
+        async rename(src: string, dest: string): Promise<void> {
+            await provider.rename(sp(src), sp(dest));
+        },
+        async sqlite(
+            dbName: string,
+            queryType: SessionFsSqliteQueryType,
+            query: string,
+            params?: Record<string, string | number | null>
+        ): Promise<SessionFsSqliteQueryResult | undefined> {
+            sqliteCalls.push({ sessionId: session.sessionId, dbName, queryType, query });
+
+            const db = getOrCreateDb(dbName);
+            const trimmed = query.trim();
+            if (trimmed.length === 0) {
+                return undefined;
+            }
+
+            switch (queryType) {
+                case "exec":
+                    db.exec(trimmed);
+                    return undefined;
+
+                case "query": {
+                    const stmt = db.prepare(trimmed);
+                    const rows = (
+                        params ? stmt.all(params) : stmt.all()
+                    ) as Record<string, unknown>[];
+                    const columns =
+                        rows.length > 0 ? Object.keys(rows[0]) : [];
+                    return { rows, columns, rowsAffected: 0 };
+                }
+
+                case "run": {
+                    const stmt = db.prepare(trimmed);
+                    const result = params
+                        ? stmt.run(params)
+                        : stmt.run();
+                    return {
+                        rows: [],
+                        columns: [],
+                        rowsAffected: Number(result.changes),
+                        lastInsertRowid:
+                            result.lastInsertRowid !== undefined
+                                ? Number(result.lastInsertRowid)
+                                : undefined,
+                    };
+                }
+            }
+        },
+    };
+}

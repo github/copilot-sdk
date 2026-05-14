@@ -290,4 +290,11 @@ public abstract class SessionFsProvider : ISessionFsHandler
             : SessionFsErrorCode.UNKNOWN;
         return new SessionFsError { Code = code, Message = ex.Message };
     }
+
+    // SQLite support is not yet implemented for the .NET SDK.
+    // This satisfies the generated interface; full implementation will follow.
+    Task<SessionFsSqliteResult> ISessionFsHandler.SqliteAsync(SessionFsSqliteRequest request, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException("SQLite is not yet supported by the .NET SDK.");
+    }
 }

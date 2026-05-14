@@ -676,7 +676,6 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		Attachments                      []json.RawMessage     `json:"attachments,omitempty"`
 		Content                          string                `json:"content"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
-		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
 		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitempty"`
 		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
 		Source                           *string               `json:"source,omitempty"`
@@ -700,7 +699,6 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	}
 	r.Content = raw.Content
 	r.InteractionID = raw.InteractionID
-	r.IsAutopilotContinuation = raw.IsAutopilotContinuation
 	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths
 	r.ParentAgentTaskID = raw.ParentAgentTaskID
 	r.Source = raw.Source
@@ -1097,18 +1095,6 @@ func unmarshalPermissionRequest(data []byte) (PermissionRequest, error) {
 			return nil, err
 		}
 		return &d, nil
-	case PermissionRequestKindExtensionManagement:
-		var d PermissionRequestExtensionManagement
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case PermissionRequestKindExtensionPermissionAccess:
-		var d PermissionRequestExtensionPermissionAccess
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case PermissionRequestKindHook:
 		var d PermissionRequestHook
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1169,28 +1155,6 @@ func (r RawPermissionRequest) MarshalJSON() ([]byte, error) {
 
 func (r PermissionRequestCustomTool) MarshalJSON() ([]byte, error) {
 	type alias PermissionRequestCustomTool
-	return json.Marshal(struct {
-		Kind PermissionRequestKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r PermissionRequestExtensionManagement) MarshalJSON() ([]byte, error) {
-	type alias PermissionRequestExtensionManagement
-	return json.Marshal(struct {
-		Kind PermissionRequestKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r PermissionRequestExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
-	type alias PermissionRequestExtensionPermissionAccess
 	return json.Marshal(struct {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
@@ -1302,18 +1266,6 @@ func unmarshalPermissionPromptRequest(data []byte) (PermissionPromptRequest, err
 			return nil, err
 		}
 		return &d, nil
-	case PermissionPromptRequestKindExtensionManagement:
-		var d PermissionPromptRequestExtensionManagement
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case PermissionPromptRequestKindExtensionPermissionAccess:
-		var d PermissionPromptRequestExtensionPermissionAccess
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case PermissionPromptRequestKindHook:
 		var d PermissionPromptRequestHook
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1385,28 +1337,6 @@ func (r PermissionPromptRequestCommands) MarshalJSON() ([]byte, error) {
 
 func (r PermissionPromptRequestCustomTool) MarshalJSON() ([]byte, error) {
 	type alias PermissionPromptRequestCustomTool
-	return json.Marshal(struct {
-		Kind PermissionPromptRequestKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r PermissionPromptRequestExtensionManagement) MarshalJSON() ([]byte, error) {
-	type alias PermissionPromptRequestExtensionManagement
-	return json.Marshal(struct {
-		Kind PermissionPromptRequestKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r PermissionPromptRequestExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
-	type alias PermissionPromptRequestExtensionPermissionAccess
 	return json.Marshal(struct {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
@@ -1642,18 +1572,6 @@ func unmarshalUserToolSessionApproval(data []byte) (UserToolSessionApproval, err
 			return nil, err
 		}
 		return &d, nil
-	case UserToolSessionApprovalKindExtensionManagement:
-		var d UserToolSessionApprovalExtensionManagement
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case UserToolSessionApprovalKindExtensionPermissionAccess:
-		var d UserToolSessionApprovalExtensionPermissionAccess
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case UserToolSessionApprovalKindMcp:
 		var d UserToolSessionApprovalMcp
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1707,28 +1625,6 @@ func (r UserToolSessionApprovalCommands) MarshalJSON() ([]byte, error) {
 
 func (r UserToolSessionApprovalCustomTool) MarshalJSON() ([]byte, error) {
 	type alias UserToolSessionApprovalCustomTool
-	return json.Marshal(struct {
-		Kind UserToolSessionApprovalKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r UserToolSessionApprovalExtensionManagement) MarshalJSON() ([]byte, error) {
-	type alias UserToolSessionApprovalExtensionManagement
-	return json.Marshal(struct {
-		Kind UserToolSessionApprovalKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r UserToolSessionApprovalExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
-	type alias UserToolSessionApprovalExtensionPermissionAccess
 	return json.Marshal(struct {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias

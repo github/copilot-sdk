@@ -493,6 +493,7 @@ export class CopilotClient {
                     initialCwd: this.sessionFsConfig.initialCwd,
                     sessionStatePath: this.sessionFsConfig.sessionStatePath,
                     conventions: this.sessionFsConfig.conventions,
+                    handleSqlite: this.sessionFsConfig.handleSqlite ?? false,
                 });
             }
 
