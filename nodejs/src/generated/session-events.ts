@@ -66,6 +66,7 @@ export type SessionEvent =
   | SamplingCompletedEvent
   | McpOauthRequiredEvent
   | McpOauthCompletedEvent
+  | CustomNotificationEvent
   | ExternalToolRequestedEvent
   | ExternalToolCompletedEvent
   | CommandQueuedEvent
@@ -256,6 +257,18 @@ export type ElicitationRequestedMode = "form" | "url";
  */
 export type ElicitationCompletedAction = "accept" | "decline" | "cancel";
 export type ElicitationCompletedContent = string | number | boolean | string[];
+/**
+ * Source-defined JSON payload for the custom notification
+ */
+export type CustomNotificationPayload =
+  | string
+  | number
+  | boolean
+  | null
+  | unknown[]
+  | {
+      [k: string]: unknown;
+    };
 /**
  * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
  */
@@ -517,7 +530,7 @@ export interface ErrorData {
    */
   eligibleForAutoSwitch?: boolean;
   /**
-   * Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).
+   * Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`).
    */
   errorCode?: string;
   /**
@@ -4621,6 +4634,52 @@ export interface McpOauthCompletedData {
    * Request ID of the resolved OAuth request
    */
   requestId: string;
+}
+export interface CustomNotificationEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CustomNotificationData;
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  type: "session.custom_notification";
+}
+/**
+ * Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
+ */
+export interface CustomNotificationData {
+  /**
+   * Source-defined custom notification name
+   */
+  name: string;
+  payload: CustomNotificationPayload;
+  /**
+   * Namespace for the custom notification producer
+   */
+  source: string;
+  subject?: CustomNotificationSubject;
+  /**
+   * Optional source-defined payload schema version
+   */
+  version?: number;
+}
+/**
+ * Optional source-defined string identifiers describing the payload subject
+ */
+export interface CustomNotificationSubject {
+  [k: string]: string;
 }
 export interface ExternalToolRequestedEvent {
   /**

@@ -133,6 +133,8 @@ pub enum SessionEventType {
     McpOauthRequired,
     #[serde(rename = "mcp.oauth_completed")]
     McpOauthCompleted,
+    #[serde(rename = "session.custom_notification")]
+    SessionCustomNotification,
     #[serde(rename = "external_tool.requested")]
     ExternalToolRequested,
     #[serde(rename = "external_tool.completed")]
@@ -305,6 +307,8 @@ pub enum SessionEventData {
     McpOauthRequired(McpOauthRequiredData),
     #[serde(rename = "mcp.oauth_completed")]
     McpOauthCompleted(McpOauthCompletedData),
+    #[serde(rename = "session.custom_notification")]
+    SessionCustomNotification(SessionCustomNotificationData),
     #[serde(rename = "external_tool.requested")]
     ExternalToolRequested(ExternalToolRequestedData),
     #[serde(rename = "external_tool.completed")]
@@ -479,7 +483,7 @@ pub struct SessionErrorData {
     /// Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eligible_for_auto_switch: Option<bool>,
-    /// Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`).
+    /// Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
     /// Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query")
@@ -2514,6 +2518,24 @@ pub struct McpOauthRequiredData {
 pub struct McpOauthCompletedData {
     /// Request ID of the resolved OAuth request
     pub request_id: RequestId,
+}
+
+/// Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCustomNotificationData {
+    /// Source-defined custom notification name
+    pub name: String,
+    /// Source-defined JSON payload for the custom notification
+    pub payload: serde_json::Value,
+    /// Namespace for the custom notification producer
+    pub source: String,
+    /// Optional source-defined string identifiers describing the payload subject
+    #[serde(default)]
+    pub subject: HashMap<String, String>,
+    /// Optional source-defined payload schema version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<i64>,
 }
 
 /// External tool invocation request for client-side tool execution

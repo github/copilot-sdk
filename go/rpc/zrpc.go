@@ -2642,15 +2642,8 @@ type serverApi struct {
 
 type ServerAccountApi serverApi
 
-// GetQuota calls account.getQuota.
-//
-// RPC method: account.getQuota.
-func (a *ServerAccountApi) GetQuota(ctx context.Context, params ...*AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
-	var requestParams *AccountGetQuotaRequest
-	if len(params) > 0 {
-		requestParams = params[0]
-	}
-	raw, err := a.client.Request("account.getQuota", requestParams)
+func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
+	raw, err := a.client.Request("account.getQuota", params)
 	if err != nil {
 		return nil, err
 	}
@@ -2663,9 +2656,6 @@ func (a *ServerAccountApi) GetQuota(ctx context.Context, params ...*AccountGetQu
 
 type ServerMcpApi serverApi
 
-// Discover calls mcp.discover.
-//
-// RPC method: mcp.discover.
 func (a *ServerMcpApi) Discover(ctx context.Context, params *McpDiscoverRequest) (*McpDiscoverResult, error) {
 	raw, err := a.client.Request("mcp.discover", params)
 	if err != nil {
@@ -2680,9 +2670,6 @@ func (a *ServerMcpApi) Discover(ctx context.Context, params *McpDiscoverRequest)
 
 type ServerMcpConfigApi serverApi
 
-// Add calls mcp.config.add.
-//
-// RPC method: mcp.config.add.
 func (a *ServerMcpConfigApi) Add(ctx context.Context, params *McpConfigAddRequest) (*McpConfigAddResult, error) {
 	raw, err := a.client.Request("mcp.config.add", params)
 	if err != nil {
@@ -2695,9 +2682,6 @@ func (a *ServerMcpConfigApi) Add(ctx context.Context, params *McpConfigAddReques
 	return &result, nil
 }
 
-// Disable calls mcp.config.disable.
-//
-// RPC method: mcp.config.disable.
 func (a *ServerMcpConfigApi) Disable(ctx context.Context, params *McpConfigDisableRequest) (*McpConfigDisableResult, error) {
 	raw, err := a.client.Request("mcp.config.disable", params)
 	if err != nil {
@@ -2710,9 +2694,6 @@ func (a *ServerMcpConfigApi) Disable(ctx context.Context, params *McpConfigDisab
 	return &result, nil
 }
 
-// Enable calls mcp.config.enable.
-//
-// RPC method: mcp.config.enable.
 func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *McpConfigEnableRequest) (*McpConfigEnableResult, error) {
 	raw, err := a.client.Request("mcp.config.enable", params)
 	if err != nil {
@@ -2725,9 +2706,6 @@ func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *McpConfigEnable
 	return &result, nil
 }
 
-// List calls mcp.config.list.
-//
-// RPC method: mcp.config.list.
 func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
 	raw, err := a.client.Request("mcp.config.list", nil)
 	if err != nil {
@@ -2740,9 +2718,6 @@ func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
 	return &result, nil
 }
 
-// Remove calls mcp.config.remove.
-//
-// RPC method: mcp.config.remove.
 func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *McpConfigRemoveRequest) (*McpConfigRemoveResult, error) {
 	raw, err := a.client.Request("mcp.config.remove", params)
 	if err != nil {
@@ -2755,9 +2730,6 @@ func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *McpConfigRemove
 	return &result, nil
 }
 
-// Update calls mcp.config.update.
-//
-// RPC method: mcp.config.update.
 func (a *ServerMcpConfigApi) Update(ctx context.Context, params *McpConfigUpdateRequest) (*McpConfigUpdateResult, error) {
 	raw, err := a.client.Request("mcp.config.update", params)
 	if err != nil {
@@ -2776,15 +2748,8 @@ func (s *ServerMcpApi) Config() *ServerMcpConfigApi {
 
 type ServerModelsApi serverApi
 
-// List calls models.list.
-//
-// RPC method: models.list.
-func (a *ServerModelsApi) List(ctx context.Context, params ...*ModelsListRequest) (*ModelList, error) {
-	var requestParams *ModelsListRequest
-	if len(params) > 0 {
-		requestParams = params[0]
-	}
-	raw, err := a.client.Request("models.list", requestParams)
+func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
+	raw, err := a.client.Request("models.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -2797,9 +2762,6 @@ func (a *ServerModelsApi) List(ctx context.Context, params ...*ModelsListRequest
 
 type ServerSessionFsApi serverApi
 
-// SetProvider calls sessionFs.setProvider.
-//
-// RPC method: sessionFs.setProvider.
 func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFsSetProviderRequest) (*SessionFsSetProviderResult, error) {
 	raw, err := a.client.Request("sessionFs.setProvider", params)
 	if err != nil {
@@ -2815,9 +2777,6 @@ func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFsS
 // Experimental: ServerSessionsApi contains experimental APIs that may change or be removed.
 type ServerSessionsApi serverApi
 
-// Fork calls sessions.fork.
-//
-// RPC method: sessions.fork.
 func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkRequest) (*SessionsForkResult, error) {
 	raw, err := a.client.Request("sessions.fork", params)
 	if err != nil {
@@ -2832,9 +2791,6 @@ func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkReques
 
 type ServerSkillsApi serverApi
 
-// Discover calls skills.discover.
-//
-// RPC method: skills.discover.
 func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRequest) (*ServerSkillList, error) {
 	raw, err := a.client.Request("skills.discover", params)
 	if err != nil {
@@ -2849,9 +2805,6 @@ func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRe
 
 type ServerSkillsConfigApi serverApi
 
-// SetDisabledSkills calls skills.config.setDisabledSkills.
-//
-// RPC method: skills.config.setDisabledSkills.
 func (a *ServerSkillsConfigApi) SetDisabledSkills(ctx context.Context, params *SkillsConfigSetDisabledSkillsRequest) (*SkillsConfigSetDisabledSkillsResult, error) {
 	raw, err := a.client.Request("skills.config.setDisabledSkills", params)
 	if err != nil {
@@ -2870,9 +2823,6 @@ func (s *ServerSkillsApi) Config() *ServerSkillsConfigApi {
 
 type ServerToolsApi serverApi
 
-// List calls tools.list.
-//
-// RPC method: tools.list.
 func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*ToolList, error) {
 	raw, err := a.client.Request("tools.list", params)
 	if err != nil {
@@ -2899,9 +2849,6 @@ type ServerRpc struct {
 	Tools     *ServerToolsApi
 }
 
-// Ping calls ping.
-//
-// RPC method: ping.
 func (a *ServerRpc) Ping(ctx context.Context, params *PingRequest) (*PingResult, error) {
 	raw, err := a.common.client.Request("ping", params)
 	if err != nil {
@@ -2938,9 +2885,6 @@ type InternalServerRpc struct {
 	common internalServerApi
 }
 
-// Connect calls connect.
-//
-// RPC method: connect.
 // Internal: Connect is part of the SDK's internal handshake/plumbing; external callers
 // should not use it.
 func (a *InternalServerRpc) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
@@ -2969,9 +2913,6 @@ type sessionApi struct {
 // Experimental: AgentApi contains experimental APIs that may change or be removed.
 type AgentApi sessionApi
 
-// Deselect calls session.agent.deselect.
-//
-// RPC method: session.agent.deselect.
 func (a *AgentApi) Deselect(ctx context.Context) (*AgentDeselectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.deselect", req)
@@ -2985,9 +2926,6 @@ func (a *AgentApi) Deselect(ctx context.Context) (*AgentDeselectResult, error) {
 	return &result, nil
 }
 
-// GetCurrent calls session.agent.getCurrent.
-//
-// RPC method: session.agent.getCurrent.
 func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.getCurrent", req)
@@ -3001,9 +2939,6 @@ func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, erro
 	return &result, nil
 }
 
-// List calls session.agent.list.
-//
-// RPC method: session.agent.list.
 func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.list", req)
@@ -3017,9 +2952,6 @@ func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
 	return &result, nil
 }
 
-// Reload calls session.agent.reload.
-//
-// RPC method: session.agent.reload.
 func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.reload", req)
@@ -3033,9 +2965,6 @@ func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
 	return &result, nil
 }
 
-// Select calls session.agent.select.
-//
-// RPC method: session.agent.select.
 func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*AgentSelectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3054,9 +2983,6 @@ func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 
 type AuthApi sessionApi
 
-// GetStatus calls session.auth.getStatus.
-//
-// RPC method: session.auth.getStatus.
 func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.auth.getStatus", req)
@@ -3072,9 +2998,6 @@ func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 
 type CommandsApi sessionApi
 
-// HandlePendingCommand calls session.commands.handlePendingCommand.
-//
-// RPC method: session.commands.handlePendingCommand.
 func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *CommandsHandlePendingCommandRequest) (*CommandsHandlePendingCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3094,9 +3017,6 @@ func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *Commands
 	return &result, nil
 }
 
-// Invoke calls session.commands.invoke.
-//
-// RPC method: session.commands.invoke.
 func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3116,9 +3036,6 @@ func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest)
 	return result, nil
 }
 
-// List calls session.commands.list.
-//
-// RPC method: session.commands.list.
 func (a *CommandsApi) List(ctx context.Context, params ...*CommandsListRequest) (*CommandList, error) {
 	var requestParams *CommandsListRequest
 	if len(params) > 0 {
@@ -3147,9 +3064,6 @@ func (a *CommandsApi) List(ctx context.Context, params ...*CommandsListRequest) 
 	return &result, nil
 }
 
-// RespondToQueuedCommand calls session.commands.respondToQueuedCommand.
-//
-// RPC method: session.commands.respondToQueuedCommand.
 func (a *CommandsApi) RespondToQueuedCommand(ctx context.Context, params *CommandsRespondToQueuedCommandRequest) (*CommandsRespondToQueuedCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3170,9 +3084,6 @@ func (a *CommandsApi) RespondToQueuedCommand(ctx context.Context, params *Comman
 // Experimental: ExtensionsApi contains experimental APIs that may change or be removed.
 type ExtensionsApi sessionApi
 
-// Disable calls session.extensions.disable.
-//
-// RPC method: session.extensions.disable.
 func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRequest) (*ExtensionsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3189,9 +3100,6 @@ func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRe
 	return &result, nil
 }
 
-// Enable calls session.extensions.enable.
-//
-// RPC method: session.extensions.enable.
 func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequest) (*ExtensionsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3208,9 +3116,6 @@ func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequ
 	return &result, nil
 }
 
-// List calls session.extensions.list.
-//
-// RPC method: session.extensions.list.
 func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.extensions.list", req)
@@ -3224,9 +3129,6 @@ func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
 	return &result, nil
 }
 
-// Reload calls session.extensions.reload.
-//
-// RPC method: session.extensions.reload.
 func (a *ExtensionsApi) Reload(ctx context.Context) (*ExtensionsReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.extensions.reload", req)
@@ -3243,9 +3145,6 @@ func (a *ExtensionsApi) Reload(ctx context.Context) (*ExtensionsReloadResult, er
 // Experimental: FleetApi contains experimental APIs that may change or be removed.
 type FleetApi sessionApi
 
-// Start calls session.fleet.start.
-//
-// RPC method: session.fleet.start.
 func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*FleetStartResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3267,9 +3166,6 @@ func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*Fleet
 // Experimental: HistoryApi contains experimental APIs that may change or be removed.
 type HistoryApi sessionApi
 
-// Compact calls session.history.compact.
-//
-// RPC method: session.history.compact.
 func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.compact", req)
@@ -3283,9 +3179,6 @@ func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error)
 	return &result, nil
 }
 
-// Truncate calls session.history.truncate.
-//
-// RPC method: session.history.truncate.
 func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateRequest) (*HistoryTruncateResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3304,9 +3197,6 @@ func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateReques
 
 type InstructionsApi sessionApi
 
-// GetSources calls session.instructions.getSources.
-//
-// RPC method: session.instructions.getSources.
 func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourcesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.instructions.getSources", req)
@@ -3323,9 +3213,6 @@ func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourc
 // Experimental: McpApi contains experimental APIs that may change or be removed.
 type McpApi sessionApi
 
-// Disable calls session.mcp.disable.
-//
-// RPC method: session.mcp.disable.
 func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*McpDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3342,9 +3229,6 @@ func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*McpDi
 	return &result, nil
 }
 
-// Enable calls session.mcp.enable.
-//
-// RPC method: session.mcp.enable.
 func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*McpEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3361,9 +3245,6 @@ func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*McpEnab
 	return &result, nil
 }
 
-// List calls session.mcp.list.
-//
-// RPC method: session.mcp.list.
 func (a *McpApi) List(ctx context.Context) (*McpServerList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.list", req)
@@ -3377,9 +3258,6 @@ func (a *McpApi) List(ctx context.Context) (*McpServerList, error) {
 	return &result, nil
 }
 
-// Reload calls session.mcp.reload.
-//
-// RPC method: session.mcp.reload.
 func (a *McpApi) Reload(ctx context.Context) (*McpReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.reload", req)
@@ -3396,9 +3274,6 @@ func (a *McpApi) Reload(ctx context.Context) (*McpReloadResult, error) {
 // Experimental: McpOauthApi contains experimental APIs that may change or be removed.
 type McpOauthApi sessionApi
 
-// Login calls session.mcp.oauth.login.
-//
-// RPC method: session.mcp.oauth.login.
 func (a *McpOauthApi) Login(ctx context.Context, params *McpOauthLoginRequest) (*McpOauthLoginResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3431,11 +3306,6 @@ func (s *McpApi) Oauth() *McpOauthApi {
 
 type ModeApi sessionApi
 
-// Get calls session.mode.get.
-//
-// RPC method: session.mode.get.
-//
-// Returns: The agent mode. Valid values: "interactive", "plan", "autopilot".
 func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mode.get", req)
@@ -3449,9 +3319,6 @@ func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
 	return &result, nil
 }
 
-// Set calls session.mode.set.
-//
-// RPC method: session.mode.set.
 func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3470,9 +3337,6 @@ func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResu
 
 type ModelApi sessionApi
 
-// GetCurrent calls session.model.getCurrent.
-//
-// RPC method: session.model.getCurrent.
 func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.model.getCurrent", req)
@@ -3486,9 +3350,6 @@ func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	return &result, nil
 }
 
-// SwitchTo calls session.model.switchTo.
-//
-// RPC method: session.model.switchTo.
 func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (*ModelSwitchToResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3513,9 +3374,6 @@ func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (
 
 type NameApi sessionApi
 
-// Get calls session.name.get.
-//
-// RPC method: session.name.get.
 func (a *NameApi) Get(ctx context.Context) (*NameGetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.name.get", req)
@@ -3529,9 +3387,6 @@ func (a *NameApi) Get(ctx context.Context) (*NameGetResult, error) {
 	return &result, nil
 }
 
-// Set calls session.name.set.
-//
-// RPC method: session.name.set.
 func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*NameSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3550,9 +3405,6 @@ func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*NameSetResu
 
 type PermissionsApi sessionApi
 
-// HandlePendingPermissionRequest calls session.permissions.handlePendingPermissionRequest.
-//
-// RPC method: session.permissions.handlePendingPermissionRequest.
 func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, params *PermissionDecisionRequest) (*PermissionRequestResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3570,9 +3422,6 @@ func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, par
 	return &result, nil
 }
 
-// ResetSessionApprovals calls session.permissions.resetSessionApprovals.
-//
-// RPC method: session.permissions.resetSessionApprovals.
 func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*PermissionsResetSessionApprovalsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.permissions.resetSessionApprovals", req)
@@ -3586,9 +3435,6 @@ func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*Permission
 	return &result, nil
 }
 
-// SetApproveAll calls session.permissions.setApproveAll.
-//
-// RPC method: session.permissions.setApproveAll.
 func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsSetApproveAllRequest) (*PermissionsSetApproveAllResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3607,9 +3453,6 @@ func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsS
 
 type PlanApi sessionApi
 
-// Delete calls session.plan.delete.
-//
-// RPC method: session.plan.delete.
 func (a *PlanApi) Delete(ctx context.Context) (*PlanDeleteResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.delete", req)
@@ -3623,9 +3466,6 @@ func (a *PlanApi) Delete(ctx context.Context) (*PlanDeleteResult, error) {
 	return &result, nil
 }
 
-// Read calls session.plan.read.
-//
-// RPC method: session.plan.read.
 func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.read", req)
@@ -3639,9 +3479,6 @@ func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
 	return &result, nil
 }
 
-// Update calls session.plan.update.
-//
-// RPC method: session.plan.update.
 func (a *PlanApi) Update(ctx context.Context, params *PlanUpdateRequest) (*PlanUpdateResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3661,9 +3498,6 @@ func (a *PlanApi) Update(ctx context.Context, params *PlanUpdateRequest) (*PlanU
 // Experimental: PluginsApi contains experimental APIs that may change or be removed.
 type PluginsApi sessionApi
 
-// List calls session.plugins.list.
-//
-// RPC method: session.plugins.list.
 func (a *PluginsApi) List(ctx context.Context) (*PluginList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plugins.list", req)
@@ -3680,9 +3514,6 @@ func (a *PluginsApi) List(ctx context.Context) (*PluginList, error) {
 // Experimental: RemoteApi contains experimental APIs that may change or be removed.
 type RemoteApi sessionApi
 
-// Disable calls session.remote.disable.
-//
-// RPC method: session.remote.disable.
 func (a *RemoteApi) Disable(ctx context.Context) (*RemoteDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.remote.disable", req)
@@ -3696,9 +3527,6 @@ func (a *RemoteApi) Disable(ctx context.Context) (*RemoteDisableResult, error) {
 	return &result, nil
 }
 
-// Enable calls session.remote.enable.
-//
-// RPC method: session.remote.enable.
 func (a *RemoteApi) Enable(ctx context.Context, params *RemoteEnableRequest) (*RemoteEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3719,9 +3547,6 @@ func (a *RemoteApi) Enable(ctx context.Context, params *RemoteEnableRequest) (*R
 
 type ShellApi sessionApi
 
-// Exec calls session.shell.exec.
-//
-// RPC method: session.shell.exec.
 func (a *ShellApi) Exec(ctx context.Context, params *ShellExecRequest) (*ShellExecResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3744,9 +3569,6 @@ func (a *ShellApi) Exec(ctx context.Context, params *ShellExecRequest) (*ShellEx
 	return &result, nil
 }
 
-// Kill calls session.shell.kill.
-//
-// RPC method: session.shell.kill.
 func (a *ShellApi) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKillResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3769,9 +3591,6 @@ func (a *ShellApi) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKi
 // Experimental: SkillsApi contains experimental APIs that may change or be removed.
 type SkillsApi sessionApi
 
-// Disable calls session.skills.disable.
-//
-// RPC method: session.skills.disable.
 func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (*SkillsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3788,9 +3607,6 @@ func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (
 	return &result, nil
 }
 
-// Enable calls session.skills.enable.
-//
-// RPC method: session.skills.enable.
 func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*SkillsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3807,9 +3623,6 @@ func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*S
 	return &result, nil
 }
 
-// List calls session.skills.list.
-//
-// RPC method: session.skills.list.
 func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.list", req)
@@ -3823,9 +3636,6 @@ func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
 	return &result, nil
 }
 
-// Reload calls session.skills.reload.
-//
-// RPC method: session.skills.reload.
 func (a *SkillsApi) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.reload", req)
@@ -3842,9 +3652,6 @@ func (a *SkillsApi) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) 
 // Experimental: TasksApi contains experimental APIs that may change or be removed.
 type TasksApi sessionApi
 
-// Cancel calls session.tasks.cancel.
-//
-// RPC method: session.tasks.cancel.
 func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*TasksCancelResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3861,9 +3668,6 @@ func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*Tas
 	return &result, nil
 }
 
-// List calls session.tasks.list.
-//
-// RPC method: session.tasks.list.
 func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.list", req)
@@ -3877,9 +3681,6 @@ func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
 	return &result, nil
 }
 
-// PromoteToBackground calls session.tasks.promoteToBackground.
-//
-// RPC method: session.tasks.promoteToBackground.
 func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromoteToBackgroundRequest) (*TasksPromoteToBackgroundResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3896,9 +3697,6 @@ func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromote
 	return &result, nil
 }
 
-// Remove calls session.tasks.remove.
-//
-// RPC method: session.tasks.remove.
 func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*TasksRemoveResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3915,9 +3713,6 @@ func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*Tas
 	return &result, nil
 }
 
-// SendMessage calls session.tasks.sendMessage.
-//
-// RPC method: session.tasks.sendMessage.
 func (a *TasksApi) SendMessage(ctx context.Context, params *TasksSendMessageRequest) (*TasksSendMessageResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3938,9 +3733,6 @@ func (a *TasksApi) SendMessage(ctx context.Context, params *TasksSendMessageRequ
 	return &result, nil
 }
 
-// StartAgent calls session.tasks.startAgent.
-//
-// RPC method: session.tasks.startAgent.
 func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentRequest) (*TasksStartAgentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3967,9 +3759,6 @@ func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentReques
 
 type ToolsApi sessionApi
 
-// HandlePendingToolCall calls session.tools.handlePendingToolCall.
-//
-// RPC method: session.tools.handlePendingToolCall.
 func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePendingToolCallRequest) (*HandlePendingToolCallResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3994,11 +3783,6 @@ func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePend
 
 type UIApi sessionApi
 
-// Elicitation calls session.ui.elicitation.
-//
-// RPC method: session.ui.elicitation.
-//
-// Returns: The elicitation response (accept with form values, decline, or cancel)
 func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (*UIElicitationResponse, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4016,9 +3800,6 @@ func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (
 	return &result, nil
 }
 
-// HandlePendingElicitation calls session.ui.handlePendingElicitation.
-//
-// RPC method: session.ui.handlePendingElicitation.
 func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4039,9 +3820,6 @@ func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePe
 // Experimental: UsageApi contains experimental APIs that may change or be removed.
 type UsageApi sessionApi
 
-// GetMetrics calls session.usage.getMetrics.
-//
-// RPC method: session.usage.getMetrics.
 func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.usage.getMetrics", req)
@@ -4057,9 +3835,6 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 
 type WorkspacesApi sessionApi
 
-// CreateFile calls session.workspaces.createFile.
-//
-// RPC method: session.workspaces.createFile.
 func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreateFileRequest) (*WorkspacesCreateFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4077,9 +3852,6 @@ func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreate
 	return &result, nil
 }
 
-// GetWorkspace calls session.workspaces.getWorkspace.
-//
-// RPC method: session.workspaces.getWorkspace.
 func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspaceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspaces.getWorkspace", req)
@@ -4093,9 +3865,6 @@ func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspa
 	return &result, nil
 }
 
-// ListFiles calls session.workspaces.listFiles.
-//
-// RPC method: session.workspaces.listFiles.
 func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspaces.listFiles", req)
@@ -4109,9 +3878,6 @@ func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResu
 	return &result, nil
 }
 
-// ReadFile calls session.workspaces.readFile.
-//
-// RPC method: session.workspaces.readFile.
 func (a *WorkspacesApi) ReadFile(ctx context.Context, params *WorkspacesReadFileRequest) (*WorkspacesReadFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4157,9 +3923,6 @@ type SessionRpc struct {
 	Workspaces   *WorkspacesApi
 }
 
-// Log calls session.log.
-//
-// RPC method: session.log.
 func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
@@ -4185,9 +3948,6 @@ func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, e
 	return &result, nil
 }
 
-// Suspend calls session.suspend.
-//
-// RPC method: session.suspend.
 func (a *SessionRpc) Suspend(ctx context.Context) (*SuspendResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	raw, err := a.common.client.Request("session.suspend", req)
@@ -4230,55 +3990,15 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 }
 
 type SessionFsHandler interface {
-	// AppendFile handles sessionFs.appendFile.
-	//
-	// RPC method: sessionFs.appendFile.
-	//
-	// Returns: Describes a filesystem error.
 	AppendFile(request *SessionFsAppendFileRequest) (*SessionFsError, error)
-	// Exists handles sessionFs.exists.
-	//
-	// RPC method: sessionFs.exists.
 	Exists(request *SessionFsExistsRequest) (*SessionFsExistsResult, error)
-	// Mkdir handles sessionFs.mkdir.
-	//
-	// RPC method: sessionFs.mkdir.
-	//
-	// Returns: Describes a filesystem error.
 	Mkdir(request *SessionFsMkdirRequest) (*SessionFsError, error)
-	// Readdir handles sessionFs.readdir.
-	//
-	// RPC method: sessionFs.readdir.
 	Readdir(request *SessionFsReaddirRequest) (*SessionFsReaddirResult, error)
-	// ReaddirWithTypes handles sessionFs.readdirWithTypes.
-	//
-	// RPC method: sessionFs.readdirWithTypes.
 	ReaddirWithTypes(request *SessionFsReaddirWithTypesRequest) (*SessionFsReaddirWithTypesResult, error)
-	// ReadFile handles sessionFs.readFile.
-	//
-	// RPC method: sessionFs.readFile.
 	ReadFile(request *SessionFsReadFileRequest) (*SessionFsReadFileResult, error)
-	// Rename handles sessionFs.rename.
-	//
-	// RPC method: sessionFs.rename.
-	//
-	// Returns: Describes a filesystem error.
 	Rename(request *SessionFsRenameRequest) (*SessionFsError, error)
-	// Rm handles sessionFs.rm.
-	//
-	// RPC method: sessionFs.rm.
-	//
-	// Returns: Describes a filesystem error.
 	Rm(request *SessionFsRmRequest) (*SessionFsError, error)
-	// Stat handles sessionFs.stat.
-	//
-	// RPC method: sessionFs.stat.
 	Stat(request *SessionFsStatRequest) (*SessionFsStatResult, error)
-	// WriteFile handles sessionFs.writeFile.
-	//
-	// RPC method: sessionFs.writeFile.
-	//
-	// Returns: Describes a filesystem error.
 	WriteFile(request *SessionFsWriteFileRequest) (*SessionFsError, error)
 }
 
