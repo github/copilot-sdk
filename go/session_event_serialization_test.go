@@ -11,6 +11,8 @@ var _ rpc.SessionEvent = SessionEvent{}
 var _ SessionEvent = rpc.SessionEvent{}
 var _ rpc.SessionEventData = (*UserMessageData)(nil)
 var _ SessionEventData = (*rpc.UserMessageData)(nil)
+var _ rpc.EmbeddedTextResourceContents = EmbeddedTextResourceContents{}
+var _ EmbeddedTextResourceContents = rpc.EmbeddedTextResourceContents{}
 
 func TestSessionEventAgentIDRoundTripsKnownEvent(t *testing.T) {
 	var event SessionEvent

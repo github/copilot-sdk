@@ -51,6 +51,8 @@ type (
 	ElicitationRequestedMode                                      = rpc.ElicitationRequestedMode
 	ElicitationRequestedSchema                                    = rpc.ElicitationRequestedSchema
 	ElicitationRequestedSchemaType                                = rpc.ElicitationRequestedSchemaType
+	EmbeddedBlobResourceContents                                  = rpc.EmbeddedBlobResourceContents
+	EmbeddedTextResourceContents                                  = rpc.EmbeddedTextResourceContents
 	ExitPlanModeCompletedData                                     = rpc.ExitPlanModeCompletedData
 	ExitPlanModeRequestedData                                     = rpc.ExitPlanModeRequestedData
 	ExtensionsLoadedExtension                                     = rpc.ExtensionsLoadedExtension

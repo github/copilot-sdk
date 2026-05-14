@@ -384,13 +384,14 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
-    for (const [schemaFile, typeNames] of collectExternalSchemaRefNames(schema)) {
+    const externalSchemaRefs = collectExternalSchemaRefNames(schema);
+    for (const [schemaFile, typeNames] of externalSchemaRefs) {
         const importPath = EXTERNAL_SCHEMA_TS_IMPORT[schemaFile];
         if (importPath) {
             lines.push(`import type { ${[...typeNames].sort().join(", ")} } from "${importPath}";`);
         }
     }
-    if (collectExternalSchemaRefNames(schema).size > 0) {
+    if (externalSchemaRefs.size > 0) {
         lines.push("");
     }
 

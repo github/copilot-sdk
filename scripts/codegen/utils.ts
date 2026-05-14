@@ -335,7 +335,7 @@ export function stableStringify(value: unknown): string {
         return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`).join(",")}}`;
     }
 
-    return JSON.stringify(value);
+    return JSON.stringify(value) ?? "undefined";
 }
 
 export interface ApiSchema {

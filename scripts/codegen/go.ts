@@ -15,6 +15,7 @@ import {
     cloneSchemaForCodegen,
     collectExternalSchemaRefNames,
     collectDefinitionCollections,
+    collectReachableDefinitionNames,
     filterNodeByVisibility,
     fixNullableRequiredRefsInApiSchema,
     findSharedSchemaDefinitions,
@@ -3231,9 +3232,15 @@ function collectGoTopLevelNames(code: string, keyword: "type" | "const"): string
     return [...names].sort(compareGoTypeNames);
 }
 
-function generateGoSessionEventAliasFile(generatedSessionTypeCode: string): string {
-    const typeNames = collectGoTopLevelNames(generatedSessionTypeCode, "type");
-    const constNames = collectGoTopLevelNames(generatedSessionTypeCode, "const");
+function generateGoSessionEventAliasFile(
+    generatedSessionTypeCode: string,
+    additionalTypeNames: Iterable<string> = [],
+    additionalConstNames: Iterable<string> = []
+): string {
+    const typeNames = [...new Set([...collectGoTopLevelNames(generatedSessionTypeCode, "type"), ...additionalTypeNames])]
+        .sort(compareGoTypeNames);
+    const constNames = [...new Set([...collectGoTopLevelNames(generatedSessionTypeCode, "const"), ...additionalConstNames])]
+        .sort(compareGoTypeNames);
     const lines: string[] = [];
 
     lines.push(...goDoNotEditHeader("session-events.schema.json"));
@@ -3264,6 +3271,39 @@ function generateGoSessionEventAliasFile(generatedSessionTypeCode: string): stri
     }
 
     return joinGoCode(lines);
+}
+
+function collectGoSharedSessionEventAliasNames(
+    sharedDefinitionNames: Iterable<string>,
+    apiSchema: ApiSchema
+): { typeNames: string[]; constNames: string[] } {
+    const apiDefinitions = collectDefinitionCollections(apiSchema as Record<string, unknown>);
+    const definitions = { ...apiDefinitions.$defs, ...apiDefinitions.definitions };
+    const typeNames = new Set<string>();
+    const constNames = new Set<string>();
+
+    for (const definitionName of sharedDefinitionNames) {
+        const typeName = toGoFieldName(definitionName);
+        typeNames.add(typeName);
+
+        const definition = definitions[definitionName];
+        if (!definition || typeof definition !== "object" || Array.isArray(definition)) continue;
+
+        const schema = definition as JSONSchema7;
+        const values = isStringEnumDefinition(schema)
+            ? schema.enum
+            : typeof schema.const === "string"
+                ? [schema.const]
+                : undefined;
+        for (const value of values ?? []) {
+            constNames.add(`${typeName}${goEnumConstSuffix(value)}`);
+        }
+    }
+
+    return {
+        typeNames: [...typeNames].sort(compareGoTypeNames),
+        constNames: [...constNames].sort(compareGoTypeNames),
+    };
 }
 
 function generateGoRootSessionEncodingStub(): string {
@@ -3303,6 +3343,8 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
             postProcessSchema(cloneSchemaForCodegen(apiSchema as JSONSchema7)) as unknown as Record<string, unknown>
         )
         : new Set<string>();
+    const reachableDefinitions = collectReachableDefinitionNames(processed as unknown as Record<string, unknown>);
+    const sharedSessionEventDefinitions = new Set([...sharedDefinitions].filter((name) => reachableDefinitions.has(name)));
     const sessionSchema = rewriteSharedDefinitionReferences(processed, sharedDefinitions, "api.schema.json", true);
 
     const generatedSessionCode = generateGoSessionEventsCode(sessionSchema, "rpc");
@@ -3323,7 +3365,13 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
 
     await formatGoFile(rpcEncodingOutPath);
 
-    const aliasOutPath = await writeGeneratedFile("go/zsession_events.go", generateGoSessionEventAliasFile(generatedTypeCode));
+    const sharedAliasNames = apiSchema
+        ? collectGoSharedSessionEventAliasNames(sharedSessionEventDefinitions, apiSchema)
+        : { typeNames: [], constNames: [] };
+    const aliasOutPath = await writeGeneratedFile(
+        "go/zsession_events.go",
+        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames)
+    );
     console.log(`  ✓ ${aliasOutPath}`);
 
     await formatGoFile(aliasOutPath);
