@@ -24,6 +24,7 @@ import {
 	collectDefinitionCollections,
 	collectDefinitions,
 	getApiSchemaPath,
+	getNullableInner,
 	getRpcSchemaTypeName,
 	getSessionEventsSchemaPath,
 	isObjectSchema,
@@ -1116,11 +1117,12 @@ function getMethodParamsInfo(
 	method: RpcMethod,
 	defCollections: DefinitionCollections,
 	isSession: boolean,
-): { hasParams: boolean; typeName: string | null } {
-	if (!method.params) return { hasParams: false, typeName: null };
+): { hasParams: boolean; optional: boolean; typeName: string | null } {
+	if (!method.params) return { hasParams: false, optional: false, typeName: null };
 	const inline = method.params as JSONSchema7 & { $ref?: string };
-	const resolved = resolveSchema(inline, defCollections);
-	if (!resolved) return { hasParams: false, typeName: null };
+	const resolved = resolveObjectSchema(inline, defCollections) ??
+		resolveSchema(inline, defCollections);
+	if (!resolved) return { hasParams: false, optional: false, typeName: null };
 
 	let typeName: string | null = null;
 	if (typeof inline.$ref === "string") {
@@ -1135,9 +1137,12 @@ function getMethodParamsInfo(
 	const props = isSession
 		? allProps.filter((p) => p !== "sessionId")
 		: allProps;
-	if (props.length === 0) return { hasParams: false, typeName: null };
-	if (!typeName) return { hasParams: false, typeName: null };
-	return { hasParams: true, typeName };
+	if (props.length === 0) return { hasParams: false, optional: false, typeName: null };
+	if (!typeName) return { hasParams: false, optional: false, typeName: null };
+	const required = new Set(resolved.required || []);
+	const hasRequiredParams = props.some((p) => required.has(p));
+	const optional = !!getNullableInner(inline) && !hasRequiredParams;
+	return { hasParams: true, optional, typeName };
 }
 
 function rpcMethodConstName(method: RpcMethod): string {
@@ -1228,6 +1233,47 @@ function getResultTypeName(
 	return `${toPascalCase(method.rpcMethod)}Result`;
 }
 
+function pushNamespaceMethodBody(
+	out: string[],
+	constName: string,
+	isSession: boolean,
+	hasParams: boolean,
+	resultIsVoid: boolean,
+): void {
+	// Build the params Value sent over the wire.
+	if (isSession) {
+		if (hasParams) {
+			out.push(`        let mut wire_params = serde_json::to_value(params)?;`);
+			out.push(
+				`        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());`,
+			);
+		} else {
+			out.push(
+				`        let wire_params = serde_json::json!({ "sessionId": self.session.id() });`,
+			);
+		}
+		out.push(
+			`        let _value = self.session.client().call(rpc_methods::${constName}, Some(wire_params)).await?;`,
+		);
+	} else {
+		if (hasParams) {
+			out.push(`        let wire_params = serde_json::to_value(params)?;`);
+		} else {
+			out.push(`        let wire_params = serde_json::json!({});`);
+		}
+		out.push(
+			`        let _value = self.client.call(rpc_methods::${constName}, Some(wire_params)).await?;`,
+		);
+	}
+
+	if (resultIsVoid) {
+		out.push(`        Ok(())`);
+	} else {
+		out.push(`        Ok(serde_json::from_value(_value)?)`);
+	}
+	out.push(`    }`);
+}
+
 function emitNamespaceMethod(
 	out: string[],
 	method: RpcMethod,
@@ -1282,42 +1328,25 @@ function emitNamespaceMethod(
 	const paramArg = hasParams ? `, params: ${paramsTypeName}` : "";
 
 	out.push(...docs);
+	if (hasParams && paramsInfo.optional) {
+		out.push(
+			`    pub async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
+		);
+		pushNamespaceMethodBody(out, constName, isSession, false, resultIsVoid);
+		out.push("");
+		out.push(...docs);
+		out.push(
+			`    pub async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
+		);
+		pushNamespaceMethodBody(out, constName, isSession, true, resultIsVoid);
+		out.push("");
+		return;
+	}
+
 	out.push(
 		`    pub async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
 	);
-
-	// Build the params Value sent over the wire.
-	if (isSession) {
-		if (hasParams) {
-			out.push(`        let mut wire_params = serde_json::to_value(params)?;`);
-			out.push(
-				`        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());`,
-			);
-		} else {
-			out.push(
-				`        let wire_params = serde_json::json!({ "sessionId": self.session.id() });`,
-			);
-		}
-		out.push(
-			`        let _value = self.session.client().call(rpc_methods::${constName}, Some(wire_params)).await?;`,
-		);
-	} else {
-		if (hasParams) {
-			out.push(`        let wire_params = serde_json::to_value(params)?;`);
-		} else {
-			out.push(`        let wire_params = serde_json::json!({});`);
-		}
-		out.push(
-			`        let _value = self.client.call(rpc_methods::${constName}, Some(wire_params)).await?;`,
-		);
-	}
-
-	if (resultIsVoid) {
-		out.push(`        Ok(())`);
-	} else {
-		out.push(`        Ok(serde_json::from_value(_value)?)`);
-	}
-	out.push(`    }`);
+	pushNamespaceMethodBody(out, constName, isSession, hasParams, resultIsVoid);
 	out.push("");
 }
 

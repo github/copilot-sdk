@@ -7269,7 +7269,7 @@ class ServerRpc:
 
 
 class _InternalServerRpc:
-    """Internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API."""
+    """Internal SDK server-scoped RPC methods. Not part of the public API."""
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
@@ -7557,8 +7557,10 @@ class CommandsApi:
         self._client = client
         self._session_id = session_id
 
-    async def list(self, *, timeout: float | None = None) -> CommandList:
-        return CommandList.from_dict(await self._client.request("session.commands.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def list(self, params: CommandsListRequest | None = None, *, timeout: float | None = None) -> CommandList:
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
+        params_dict["sessionId"] = self._session_id
+        return CommandList.from_dict(await self._client.request("session.commands.list", params_dict, **_timeout_kwargs(timeout)))
 
     async def invoke(self, params: CommandsInvokeRequest, *, timeout: float | None = None) -> SlashCommandInvocationResult:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}

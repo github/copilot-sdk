@@ -2618,8 +2618,12 @@ type serverApi struct {
 
 type ServerAccountApi serverApi
 
-func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
-	raw, err := a.client.Request("account.getQuota", params)
+func (a *ServerAccountApi) GetQuota(ctx context.Context, params ...*AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
+	var requestParams *AccountGetQuotaRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	raw, err := a.client.Request("account.getQuota", requestParams)
 	if err != nil {
 		return nil, err
 	}
@@ -2724,8 +2728,12 @@ func (s *ServerMcpApi) Config() *ServerMcpConfigApi {
 
 type ServerModelsApi serverApi
 
-func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
-	raw, err := a.client.Request("models.list", params)
+func (a *ServerModelsApi) List(ctx context.Context, params ...*ModelsListRequest) (*ModelList, error) {
+	var requestParams *ModelsListRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	raw, err := a.client.Request("models.list", requestParams)
 	if err != nil {
 		return nil, err
 	}
@@ -3012,8 +3020,23 @@ func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest)
 	return result, nil
 }
 
-func (a *CommandsApi) List(ctx context.Context) (*CommandList, error) {
+func (a *CommandsApi) List(ctx context.Context, params ...*CommandsListRequest) (*CommandList, error) {
+	var requestParams *CommandsListRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
 	req := map[string]any{"sessionId": a.sessionID}
+	if requestParams != nil {
+		if requestParams.IncludeBuiltins != nil {
+			req["includeBuiltins"] = *requestParams.IncludeBuiltins
+		}
+		if requestParams.IncludeClientCommands != nil {
+			req["includeClientCommands"] = *requestParams.IncludeClientCommands
+		}
+		if requestParams.IncludeSkills != nil {
+			req["includeSkills"] = *requestParams.IncludeSkills
+		}
+	}
 	raw, err := a.client.Request("session.commands.list", req)
 	if err != nil {
 		return nil, err

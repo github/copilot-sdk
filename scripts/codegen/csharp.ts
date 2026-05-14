@@ -1506,6 +1506,10 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     const effectiveParams = resolveMethodParamsSchema(method);
     const paramEntries = (effectiveParams?.properties ? Object.entries(effectiveParams.properties) : []).filter(([k]) => k !== "sessionId");
     const requiredSet = new Set(effectiveParams?.required || []);
+    const useRequestParameter =
+        paramEntries.length > 0 &&
+        !!getNullableInner(method.params) &&
+        paramEntries.every(([name]) => !requiredSet.has(name));
 
     // Sort so required params come before optional (C# requires defaults at end)
     paramEntries.sort((a, b) => {
@@ -1515,12 +1519,28 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     });
 
     const requestClassName = paramsTypeName(method);
+    const wireRequestClassName = useRequestParameter ? `${requestClassName}WithSession` : requestClassName;
     if (method.stability === "experimental") {
         experimentalRpcTypes.add(requestClassName);
+        if (useRequestParameter) {
+            experimentalRpcTypes.add(wireRequestClassName);
+        }
     }
     if (effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0) {
-        const reqClass = emitRpcClass(requestClassName, effectiveParams, "internal", classes);
-        if (reqClass) classes.push(reqClass);
+        if (useRequestParameter) {
+            const publicParams: JSONSchema7 = {
+                ...effectiveParams,
+                properties: Object.fromEntries(paramEntries),
+                required: effectiveParams.required?.filter((name) => name !== "sessionId"),
+            };
+            const publicReqClass = emitRpcClass(requestClassName, publicParams, methodVisibility, classes);
+            if (publicReqClass) classes.push(publicReqClass);
+            const wireReqClass = emitRpcClass(wireRequestClassName, effectiveParams, "internal", classes);
+            if (wireReqClass) classes.push(wireReqClass);
+        } else {
+            const reqClass = emitRpcClass(requestClassName, effectiveParams, "internal", classes);
+            if (reqClass) classes.push(reqClass);
+        }
     }
 
     lines.push("", `${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
@@ -1533,22 +1553,30 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     const sigParams: string[] = [];
     const bodyAssignments = [`SessionId = _sessionId`];
 
-    for (const [pName, pSchema] of paramEntries) {
-        if (typeof pSchema !== "object") continue;
-        const isReq = requiredSet.has(pName);
-        const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
-        sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-        bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+    if (useRequestParameter) {
+        sigParams.push(`${requestClassName}? request = null`);
+        for (const [pName] of paramEntries) {
+            bodyAssignments.push(`${toPascalCase(pName)} = request?.${toPascalCase(pName)}`);
+        }
+    } else {
+        for (const [pName, pSchema] of paramEntries) {
+            if (typeof pSchema !== "object") continue;
+            const isReq = requiredSet.has(pName);
+            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
+            sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
+            bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+        }
     }
     sigParams.push("CancellationToken cancellationToken = default");
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
+    const localRequestName = useRequestParameter ? "rpcRequest" : "request";
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
-    lines.push(`${indent}{`, `${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
+    lines.push(`${indent}{`, `${indent}    var ${localRequestName} = new ${wireRequestClassName} { ${bodyAssignments.join(", ")} };`);
     if (!isVoidSchema(resultSchema)) {
-        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
     } else {
-        lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+        lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
     }
 }
 

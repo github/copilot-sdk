@@ -3013,8 +3013,8 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
         },
         commands: {
-            list: async (): Promise<CommandList> =>
-                connection.sendRequest("session.commands.list", { sessionId }),
+            list: async (params?: CommandsListRequest): Promise<CommandList> =>
+                connection.sendRequest("session.commands.list", { sessionId, ...params }),
             invoke: async (params: CommandsInvokeRequest): Promise<SlashCommandInvocationResult> =>
                 connection.sendRequest("session.commands.invoke", { sessionId, ...params }),
             handlePendingCommand: async (params: CommandsHandlePendingCommandRequest): Promise<CommandsHandlePendingCommandResult> =>

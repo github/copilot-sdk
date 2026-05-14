@@ -2084,7 +2084,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     } else {
         lines.push(`class ${wrapperName}:`);
         lines.push(classPrefix === "_Internal"
-            ? `    """Internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API."""`
+            ? `    """Internal SDK server-scoped RPC methods. Not part of the public API."""`
             : `    """Typed server-scoped RPC methods."""`);
         lines.push(`    def __init__(self, client: "JsonRpcClient"):`);
         lines.push(`        self._client = client`);

@@ -1871,8 +1871,36 @@ public sealed class CommandList
 }
 
 /// <summary>RPC data type for CommandsList operations.</summary>
-internal sealed class CommandsListRequest
+public sealed class CommandsListRequest
 {
+    /// <summary>Include runtime built-in commands.</summary>
+    [JsonPropertyName("includeBuiltins")]
+    public bool? IncludeBuiltins { get; set; }
+
+    /// <summary>Include commands registered by protocol clients, including SDK clients and extensions.</summary>
+    [JsonPropertyName("includeClientCommands")]
+    public bool? IncludeClientCommands { get; set; }
+
+    /// <summary>Include enabled user-invocable skills and commands.</summary>
+    [JsonPropertyName("includeSkills")]
+    public bool? IncludeSkills { get; set; }
+}
+
+/// <summary>RPC data type for CommandsListRequestWithSession operations.</summary>
+internal sealed class CommandsListRequestWithSession
+{
+    /// <summary>Include runtime built-in commands.</summary>
+    [JsonPropertyName("includeBuiltins")]
+    public bool? IncludeBuiltins { get; set; }
+
+    /// <summary>Include commands registered by protocol clients, including SDK clients and extensions.</summary>
+    [JsonPropertyName("includeClientCommands")]
+    public bool? IncludeClientCommands { get; set; }
+
+    /// <summary>Include enabled user-invocable skills and commands.</summary>
+    [JsonPropertyName("includeSkills")]
+    public bool? IncludeSkills { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -5781,10 +5809,10 @@ public sealed class CommandsApi
     }
 
     /// <summary>Calls "session.commands.list".</summary>
-    public async Task<CommandList> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<CommandList> ListAsync(CommandsListRequest? request = null, CancellationToken cancellationToken = default)
     {
-        var request = new CommandsListRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<CommandList>(_rpc, "session.commands.list", [request], cancellationToken);
+        var rpcRequest = new CommandsListRequestWithSession { SessionId = _sessionId, IncludeBuiltins = request?.IncludeBuiltins, IncludeSkills = request?.IncludeSkills, IncludeClientCommands = request?.IncludeClientCommands };
+        return await CopilotClient.InvokeRpcAsync<CommandList>(_rpc, "session.commands.list", [rpcRequest], cancellationToken);
     }
 
     /// <summary>Calls "session.commands.invoke".</summary>
@@ -6102,6 +6130,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(CommandsHandlePendingCommandResult))]
 [JsonSerializable(typeof(CommandsInvokeRequest))]
 [JsonSerializable(typeof(CommandsListRequest))]
+[JsonSerializable(typeof(CommandsListRequestWithSession))]
 [JsonSerializable(typeof(CommandsRespondToQueuedCommandRequest))]
 [JsonSerializable(typeof(CommandsRespondToQueuedCommandResult))]
 [JsonSerializable(typeof(ConnectRequest))]

@@ -3338,6 +3338,8 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         .sort((left, right) => compareGoFieldNames(toGoFieldName(left), toGoFieldName(right)));
     const hasParams = isSession ? nonSessionParams.length > 0 : hasSchemaPayload(effectiveParams);
     const paramsType = hasParams ? resolveType(goParamsTypeName(method)) : "";
+    const hasRequiredNonSessionParams = nonSessionParams.some((name) => requiredParams.has(name));
+    const paramsAreOptional = hasParams && !!method.params && !!getNullableInner(method.params) && !hasRequiredNonSessionParams;
 
     // For wrapper-level methods, access fields through a.common; for service type aliases, use a directly
     const clientRef = isWrapper ? "a.common.client" : "a.client";
@@ -3353,15 +3355,22 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         pushGoComment(lines, `Internal: ${methodName} is part of the SDK's internal handshake/plumbing; external callers should not use it.`);
     }
     const sig = hasParams
-        ? `func (a *${receiver}) ${methodName}(ctx context.Context, params *${paramsType}) (${returnType}, error)`
+        ? `func (a *${receiver}) ${methodName}(ctx context.Context, params ${paramsAreOptional ? "..." : ""}*${paramsType}) (${returnType}, error)`
         : `func (a *${receiver}) ${methodName}(ctx context.Context) (${returnType}, error)`;
 
     lines.push(sig + ` {`);
+    const paramsRef = paramsAreOptional ? "requestParams" : "params";
+    if (paramsAreOptional) {
+        lines.push(`\tvar requestParams *${paramsType}`);
+        lines.push(`\tif len(params) > 0 {`);
+        lines.push(`\t\trequestParams = params[0]`);
+        lines.push(`\t}`);
+    }
 
     if (isSession) {
         lines.push(`\treq := map[string]any{"sessionId": ${sessionIDRef}}`);
         if (hasParams) {
-            lines.push(`\tif params != nil {`);
+            lines.push(`\tif ${paramsRef} != nil {`);
             for (const pName of nonSessionParams) {
                 const field = fields.get(paramsType)?.get(pName);
                 const goField = field?.name ?? toGoFieldName(pName);
@@ -3370,19 +3379,19 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
                 if (isOptional) {
                     // Optional fields are usually pointers; generated union interfaces, slices,
                     // and maps are nilable values and should be passed through directly.
-                    lines.push(`\t\tif params.${goField} != nil {`);
-                    const valueExpr = goOptionalFieldNeedsDereference(goType) ? `*params.${goField}` : `params.${goField}`;
+                    lines.push(`\t\tif ${paramsRef}.${goField} != nil {`);
+                    const valueExpr = goOptionalFieldNeedsDereference(goType) ? `*${paramsRef}.${goField}` : `${paramsRef}.${goField}`;
                     lines.push(`\t\t\treq["${pName}"] = ${valueExpr}`);
                     lines.push(`\t\t}`);
                 } else {
-                    lines.push(`\t\treq["${pName}"] = params.${goField}`);
+                    lines.push(`\t\treq["${pName}"] = ${paramsRef}.${goField}`);
                 }
             }
             lines.push(`\t}`);
         }
         lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", req)`);
     } else {
-        const arg = hasParams ? "params" : "nil";
+        const arg = hasParams ? paramsRef : "nil";
         lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", ${arg})`);
     }
 
