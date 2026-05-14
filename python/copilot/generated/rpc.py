@@ -7231,7 +7231,7 @@ class _InternalServerRpc:
         self._client = client
 
     async def connect(self, params: ConnectRequest, *, timeout: float | None = None) -> ConnectResult:
-        "Calls connect.\n\nInternal SDK API; not part of the public surface."
+        "Calls connect.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ConnectResult.from_dict(await self._client.request("connect", params_dict, **_timeout_kwargs(timeout)))
 

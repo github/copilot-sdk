@@ -4230,51 +4230,51 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 }
 
 type SessionFsHandler interface {
-	// AppendFile calls sessionFs.appendFile.
+	// AppendFile handles sessionFs.appendFile.
 	//
 	// RPC method: sessionFs.appendFile.
 	//
 	// Returns: Describes a filesystem error.
 	AppendFile(request *SessionFsAppendFileRequest) (*SessionFsError, error)
-	// Exists calls sessionFs.exists.
+	// Exists handles sessionFs.exists.
 	//
 	// RPC method: sessionFs.exists.
 	Exists(request *SessionFsExistsRequest) (*SessionFsExistsResult, error)
-	// Mkdir calls sessionFs.mkdir.
+	// Mkdir handles sessionFs.mkdir.
 	//
 	// RPC method: sessionFs.mkdir.
 	//
 	// Returns: Describes a filesystem error.
 	Mkdir(request *SessionFsMkdirRequest) (*SessionFsError, error)
-	// Readdir calls sessionFs.readdir.
+	// Readdir handles sessionFs.readdir.
 	//
 	// RPC method: sessionFs.readdir.
 	Readdir(request *SessionFsReaddirRequest) (*SessionFsReaddirResult, error)
-	// ReaddirWithTypes calls sessionFs.readdirWithTypes.
+	// ReaddirWithTypes handles sessionFs.readdirWithTypes.
 	//
 	// RPC method: sessionFs.readdirWithTypes.
 	ReaddirWithTypes(request *SessionFsReaddirWithTypesRequest) (*SessionFsReaddirWithTypesResult, error)
-	// ReadFile calls sessionFs.readFile.
+	// ReadFile handles sessionFs.readFile.
 	//
 	// RPC method: sessionFs.readFile.
 	ReadFile(request *SessionFsReadFileRequest) (*SessionFsReadFileResult, error)
-	// Rename calls sessionFs.rename.
+	// Rename handles sessionFs.rename.
 	//
 	// RPC method: sessionFs.rename.
 	//
 	// Returns: Describes a filesystem error.
 	Rename(request *SessionFsRenameRequest) (*SessionFsError, error)
-	// Rm calls sessionFs.rm.
+	// Rm handles sessionFs.rm.
 	//
 	// RPC method: sessionFs.rm.
 	//
 	// Returns: Describes a filesystem error.
 	Rm(request *SessionFsRmRequest) (*SessionFsError, error)
-	// Stat calls sessionFs.stat.
+	// Stat handles sessionFs.stat.
 	//
 	// RPC method: sessionFs.stat.
 	Stat(request *SessionFsStatRequest) (*SessionFsStatResult, error)
-	// WriteFile calls sessionFs.writeFile.
+	// WriteFile handles sessionFs.writeFile.
 	//
 	// RPC method: sessionFs.writeFile.
 	//

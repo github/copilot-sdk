@@ -168,9 +168,9 @@ function lowerFirst(value: string): string {
     return value.charAt(0).toLowerCase() + value.slice(1);
 }
 
-function goMethodDocSummary(methodName: string, method: RpcMethod): string {
+function goMethodDocSummary(methodName: string, method: RpcMethod, fallbackVerb = "calls"): string {
     const description = method.description?.trim();
-    if (!description) return `${methodName} calls ${method.rpcMethod}.`;
+    if (!description) return `${methodName} ${fallbackVerb} ${method.rpcMethod}.`;
     if (description.startsWith(methodName)) return description;
     return `${methodName} ${lowerFirst(description)}`;
 }
@@ -190,9 +190,10 @@ function pushGoRpcMethodComment(
     method: RpcMethod,
     resultSchema: JSONSchema7 | undefined,
     paramsDescription?: string,
-    indent = ""
+    indent = "",
+    fallbackVerb = "calls"
 ): void {
-    const paragraphs = [goMethodDocSummary(methodName, method), `RPC method: ${method.rpcMethod}.`];
+    const paragraphs = [goMethodDocSummary(methodName, method, fallbackVerb), `RPC method: ${method.rpcMethod}.`];
     if (paramsDescription) {
         paragraphs.push(`Parameters: ${paramsDescription}`);
     }
@@ -3888,7 +3889,8 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
                 method,
                 resultSchema,
                 goRpcParamsDescription(method, getMethodParamsSchema(method)),
-                "\t"
+                "\t",
+                "handles"
             );
             if (method.deprecated && !groupDeprecated) {
                 pushGoComment(lines, `Deprecated: ${clientHandlerMethodName(method.rpcMethod)} is deprecated and will be removed in a future version.`, "\t");

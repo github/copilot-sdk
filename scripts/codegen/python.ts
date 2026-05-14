@@ -307,13 +307,13 @@ function pushPyRpcMethodDocstring(
         sections.push(`Returns:\n    ${options.resultDescription}`);
     }
     if (options.deprecated) {
-        sections.push("Deprecated:\n    This API is deprecated and will be removed in a future version.");
+        sections.push(".. deprecated:: This API is deprecated and will be removed in a future version.");
     }
     if (options.experimental) {
-        sections.push("Warning:\n    This API is experimental and may change or be removed in future versions.");
+        sections.push(".. warning:: This API is experimental and may change or be removed in future versions.");
     }
     if (options.internal) {
-        sections.push("Internal SDK API; not part of the public surface.");
+        sections.push(":meta private:\n\nInternal SDK API; not part of the public surface.");
     }
 
     lines.push(`${indent}${pyDocstringLiteral(sections.join("\n\n"))}`);

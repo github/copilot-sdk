@@ -3285,51 +3285,51 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
 /** Handler for `sessionFs` client session API methods. */
 export interface SessionFsHandler {
     /**
-     * Calls `sessionFs.readFile`.
+     * Handles `sessionFs.readFile`.
      */
     readFile(params: SessionFsReadFileRequest): Promise<SessionFsReadFileResult>;
     /**
-     * Calls `sessionFs.writeFile`.
+     * Handles `sessionFs.writeFile`.
      *
      * @returns Describes a filesystem error.
      */
     writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsError | undefined>;
     /**
-     * Calls `sessionFs.appendFile`.
+     * Handles `sessionFs.appendFile`.
      *
      * @returns Describes a filesystem error.
      */
     appendFile(params: SessionFsAppendFileRequest): Promise<SessionFsError | undefined>;
     /**
-     * Calls `sessionFs.exists`.
+     * Handles `sessionFs.exists`.
      */
     exists(params: SessionFsExistsRequest): Promise<SessionFsExistsResult>;
     /**
-     * Calls `sessionFs.stat`.
+     * Handles `sessionFs.stat`.
      */
     stat(params: SessionFsStatRequest): Promise<SessionFsStatResult>;
     /**
-     * Calls `sessionFs.mkdir`.
+     * Handles `sessionFs.mkdir`.
      *
      * @returns Describes a filesystem error.
      */
     mkdir(params: SessionFsMkdirRequest): Promise<SessionFsError | undefined>;
     /**
-     * Calls `sessionFs.readdir`.
+     * Handles `sessionFs.readdir`.
      */
     readdir(params: SessionFsReaddirRequest): Promise<SessionFsReaddirResult>;
     /**
-     * Calls `sessionFs.readdirWithTypes`.
+     * Handles `sessionFs.readdirWithTypes`.
      */
     readdirWithTypes(params: SessionFsReaddirWithTypesRequest): Promise<SessionFsReaddirWithTypesResult>;
     /**
-     * Calls `sessionFs.rm`.
+     * Handles `sessionFs.rm`.
      *
      * @returns Describes a filesystem error.
      */
     rm(params: SessionFsRmRequest): Promise<SessionFsError | undefined>;
     /**
-     * Calls `sessionFs.rename`.
+     * Handles `sessionFs.rename`.
      *
      * @returns Describes a filesystem error.
      */

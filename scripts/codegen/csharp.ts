@@ -71,6 +71,10 @@ function escapeXml(text: string): string {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function escapeXmlAttribute(text: string): string {
+    return escapeXml(text).replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
 /** Ensures text ends with sentence-ending punctuation. */
 function ensureTrailingPunctuation(text: string): string {
     const trimmed = text.trimEnd();
@@ -116,7 +120,7 @@ function xmlDocNamedElement(
     if (!description) return [];
     const preparedDescription = escapeDescription ? escapeXml(description.trim()) : description.trim();
     const lines = ensureTrailingPunctuation(preparedDescription).split(/\r?\n/);
-    const escapedName = escapeXml(name);
+    const escapedName = escapeXmlAttribute(name);
     if (lines.length === 1) {
         return [`${indent}/// <${tagName} name="${escapedName}">${lines[0]}</${tagName}>`];
     }
@@ -145,9 +149,10 @@ function pushRpcMethodXmlDocs(
     method: RpcMethod,
     indent: string,
     parameterDescriptions: Array<{ name: string; description?: string; escapeDescription?: boolean }>,
-    resultSchema: JSONSchema7 | undefined
+    resultSchema: JSONSchema7 | undefined,
+    summaryFallback?: string
 ): void {
-    lines.push(...xmlDocComment(method.description ?? `Calls "${method.rpcMethod}".`, indent));
+    lines.push(...xmlDocComment(method.description ?? summaryFallback ?? `Calls "${method.rpcMethod}".`, indent));
     for (const parameter of parameterDescriptions) {
         lines.push(
             ...xmlDocNamedElement(
@@ -2016,7 +2021,8 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
                     ...(hasParams ? [{ name: "request", description: rpcParamsDescription(method, effectiveParams) }] : []),
                     { name: "cancellationToken", description: CANCELLATION_TOKEN_DESCRIPTION, escapeDescription: false },
                 ],
-                resultSchema
+                resultSchema,
+                `Handles "${method.rpcMethod}".`
             );
             if (method.stability === "experimental" && !groupExperimental) {
                 pushExperimentalAttribute(lines, "    ");

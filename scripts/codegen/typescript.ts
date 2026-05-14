@@ -81,6 +81,7 @@ function pushTsRpcMethodJsDoc(
     indent: string,
     method: RpcMethod,
     options: {
+        summaryFallback?: string;
         paramsName?: string;
         paramsDescription?: string;
         includeDeprecated?: boolean;
@@ -88,7 +89,7 @@ function pushTsRpcMethodJsDoc(
     } = {}
 ): void {
     const entries: string[] = [];
-    entries.push(method.description ?? `Calls \`${method.rpcMethod}\`.`);
+    entries.push(method.description ?? options.summaryFallback ?? `Calls \`${method.rpcMethod}\`.`);
     if (options.paramsName && options.paramsDescription) {
         entries.push(`@param ${options.paramsName} ${options.paramsDescription}`);
     }
@@ -784,6 +785,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
             const rType = tsResultType(method);
 
             pushTsRpcMethodJsDoc(lines, "    ", method, {
+                summaryFallback: `Handles \`${method.rpcMethod}\`.`,
                 paramsName: hasParams ? "params" : undefined,
                 paramsDescription: rpcParamsDescription(method, getMethodParamsSchema(method)),
                 includeDeprecated: method.deprecated && !groupDeprecated,

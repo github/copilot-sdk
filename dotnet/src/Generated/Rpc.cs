@@ -6234,47 +6234,47 @@ public sealed class RemoteApi
 /// <summary>Handles `sessionFs` client session API methods.</summary>
 public interface ISessionFsHandler
 {
-    /// <summary>Calls "sessionFs.readFile".</summary>
+    /// <summary>Handles "sessionFs.readFile".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.writeFile".</summary>
+    /// <summary>Handles "sessionFs.writeFile".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.appendFile".</summary>
+    /// <summary>Handles "sessionFs.appendFile".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.exists".</summary>
+    /// <summary>Handles "sessionFs.exists".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.stat".</summary>
+    /// <summary>Handles "sessionFs.stat".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.mkdir".</summary>
+    /// <summary>Handles "sessionFs.mkdir".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.readdir".</summary>
+    /// <summary>Handles "sessionFs.readdir".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.readdirWithTypes".</summary>
+    /// <summary>Handles "sessionFs.readdirWithTypes".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.rm".</summary>
+    /// <summary>Handles "sessionFs.rm".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Calls "sessionFs.rename".</summary>
+    /// <summary>Handles "sessionFs.rename".</summary>
     /// <param name="request">The request parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
