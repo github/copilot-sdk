@@ -1101,6 +1101,12 @@ public class HookInvocation
 public class PreToolUseHookInput
 {
     /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unix timestamp in milliseconds when the tool use was initiated.
     /// </summary>
     [JsonPropertyName("timestamp")]
@@ -1176,6 +1182,12 @@ public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(PreToolUseHookInpu
 /// </summary>
 public class PostToolUseHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the tool execution completed.
     /// </summary>

@@ -613,6 +613,7 @@ class SessionUiApi:
 class BaseHookInput(TypedDict):
     """Base interface for all hook inputs"""
 
+    sessionId: str
     timestamp: int
     cwd: str
 
@@ -620,6 +621,7 @@ class BaseHookInput(TypedDict):
 class PreToolUseHookInput(TypedDict):
     """Input for pre-tool-use hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     toolName: str
@@ -645,6 +647,7 @@ PreToolUseHandler = Callable[
 class PostToolUseHookInput(TypedDict):
     """Input for post-tool-use hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     toolName: str
