@@ -1081,6 +1081,13 @@ pub struct SessionConfig {
     /// quota checks for *this session*.
     #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
+    /// Per-session remote behavior control:
+    /// - `Off` — local only, no remote export (default)
+    /// - `Export` — export session events to GitHub without
+    ///   enabling remote steering
+    /// - `On` — export to GitHub AND enable remote steering
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
     /// Forward sub-agent streaming events to this connection. When false,
     /// only non-streaming sub-agent events and `subagent.*` lifecycle events
     /// are delivered. Defaults to true on the CLI.
@@ -1152,6 +1159,7 @@ impl std::fmt::Debug for SessionConfig {
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
+            .field("remote_session", &self.remote_session)
             .field(
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
@@ -1211,6 +1219,7 @@ impl Default for SessionConfig {
             config_dir: None,
             working_directory: None,
             github_token: None,
+            remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
@@ -1528,6 +1537,15 @@ impl SessionConfig {
         self.include_sub_agent_streaming_events = Some(include);
         self
     }
+
+    /// Set per-session remote behavior.
+    pub fn with_remote_session(
+        mut self,
+        mode: crate::generated::api_types::RemoteSessionMode,
+    ) -> Self {
+        self.remote_session = Some(mode);
+        self
+    }
 }
 
 /// Configuration for resuming an existing session via the `session.resume` RPC.
@@ -1639,6 +1657,10 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::github_token`].
     #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
+    /// Per-session remote behavior control on resume. See
+    /// [`SessionConfig::remote_session`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
     /// Forward sub-agent streaming events to this connection on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
@@ -1712,6 +1734,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
+            .field("remote_session", &self.remote_session)
             .field(
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
@@ -1770,6 +1793,7 @@ impl ResumeSessionConfig {
             config_dir: None,
             working_directory: None,
             github_token: None,
+            remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
@@ -2051,6 +2075,15 @@ impl ResumeSessionConfig {
     /// Forward sub-agent streaming events to this connection on resume.
     pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
         self.include_sub_agent_streaming_events = Some(include);
+        self
+    }
+
+    /// Set per-session remote behavior on resume.
+    pub fn with_remote_session(
+        mut self,
+        mode: crate::generated::api_types::RemoteSessionMode,
+    ) -> Self {
+        self.remote_session = Some(mode);
         self
     }
 

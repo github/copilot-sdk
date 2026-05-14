@@ -2028,6 +2028,7 @@ public class SessionConfig
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
+        RemoteSession = other.RemoteSession;
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
@@ -2254,6 +2255,16 @@ public class SessionConfig
     public string? GitHubToken { get; set; }
 
     /// <summary>
+    /// Per-session remote behavior control:
+    /// <list type="bullet">
+    /// <item><description><c>"off"</c> — local only, no remote export (default)</description></item>
+    /// <item><description><c>"export"</c> — export session events to GitHub without enabling remote steering</description></item>
+    /// <item><description><c>"on"</c> — export to GitHub AND enable remote steering</description></item>
+    /// </list>
+    /// </summary>
+    public RemoteSessionMode? RemoteSession { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
     /// </summary>
     /// <remarks>
@@ -2319,6 +2330,7 @@ public class ResumeSessionConfig
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
+        RemoteSession = other.RemoteSession;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
@@ -2554,6 +2566,12 @@ public class ResumeSessionConfig
     /// and stores it on the session for content exclusion, model routing, and quota checks.
     /// </summary>
     public string? GitHubToken { get; set; }
+
+    /// <summary>
+    /// Per-session remote behavior control.
+    /// See <see cref="SessionConfig.RemoteSession"/> for details.
+    /// </summary>
+    public RemoteSessionMode? RemoteSession { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.

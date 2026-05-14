@@ -629,6 +629,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
                 GitHubToken: config.GitHubToken,
+                RemoteSession: config.RemoteSession,
                 InstructionDirectories: config.InstructionDirectories);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -786,6 +787,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
                 GitHubToken: config.GitHubToken,
+                RemoteSession: config.RemoteSession,
                 ContinuePendingWork: config.ContinuePendingWork,
                 InstructionDirectories: config.InstructionDirectories);
 
@@ -1981,6 +1983,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
         string? GitHubToken = null,
+        RemoteSessionMode? RemoteSession = null,
         IList<string>? InstructionDirectories = null);
 
     internal record ToolDefinition(
@@ -2041,6 +2044,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
         string? GitHubToken = null,
+        RemoteSessionMode? RemoteSession = null,
         bool? ContinuePendingWork = null,
         IList<string>? InstructionDirectories = null);
 

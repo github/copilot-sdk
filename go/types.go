@@ -680,6 +680,11 @@ type SessionConfig struct {
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
 	GitHubToken string `json:"-"`
+	// RemoteSession controls per-session remote behavior:
+	//   - "off" — local only, no remote export (default)
+	//   - "export" — export session events to GitHub without enabling remote steering
+	//   - "on" — export to GitHub AND enable remote steering
+	RemoteSession rpc.RemoteSessionMode
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -891,6 +896,9 @@ type ResumeSessionConfig struct {
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
 	GitHubToken string `json:"-"`
+	// RemoteSession controls per-session remote behavior.
+	// See SessionConfig.RemoteSession for details.
+	RemoteSession rpc.RemoteSessionMode
 	// DisableResume, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
 	DisableResume bool
@@ -1142,6 +1150,7 @@ type createSessionRequest struct {
 	Commands                       []wireCommand                  `json:"commands,omitempty"`
 	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
+	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
@@ -1196,6 +1205,7 @@ type resumeSessionRequest struct {
 	Commands                       []wireCommand                  `json:"commands,omitempty"`
 	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
+	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }

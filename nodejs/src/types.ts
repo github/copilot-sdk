@@ -10,6 +10,8 @@
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
+import type { RemoteSessionMode } from "./generated/rpc.js";
+export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
@@ -1478,6 +1480,14 @@ export interface SessionConfig {
     gitHubToken?: string;
 
     /**
+     * Per-session remote behavior control:
+     * - `"off"` — local only, no remote export (default)
+     * - `"export"` — export session events to GitHub without enabling remote steering
+     * - `"on"` — export to GitHub AND enable remote steering
+     */
+    remoteSession?: RemoteSessionMode;
+
+    /**
      * Optional event handler that is registered on the session before the
      * session.create RPC is issued. This guarantees that early events emitted
      * by the CLI during session creation (e.g. session.start) are delivered to
@@ -1531,6 +1541,7 @@ export type ResumeSessionConfig = Pick<
     | "disabledSkills"
     | "infiniteSessions"
     | "gitHubToken"
+    | "remoteSession"
     | "onEvent"
     | "createSessionFsHandler"
 > & {

@@ -2597,6 +2597,8 @@ fn session_config_serializes_bucket_b_fields() {
         cfg.github_token = Some("ghs_secret".to_string());
         cfg.include_sub_agent_streaming_events = Some(false);
         cfg.enable_session_telemetry = Some(false);
+        cfg.remote_session =
+            Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::Export);
         cfg
     };
     let json = serde_json::to_value(&cfg).unwrap();
@@ -2606,6 +2608,7 @@ fn session_config_serializes_bucket_b_fields() {
     assert_eq!(json["gitHubToken"], "ghs_secret");
     assert_eq!(json["includeSubAgentStreamingEvents"], false);
     assert_eq!(json["enableSessionTelemetry"], false);
+    assert_eq!(json["remoteSession"], "export");
 
     // Debug never leaks the token.
     let debug = format!("{cfg:?}");
@@ -2617,6 +2620,7 @@ fn session_config_serializes_bucket_b_fields() {
     assert!(empty.get("sessionId").is_none());
     assert!(empty.get("gitHubToken").is_none());
     assert!(empty.get("enableSessionTelemetry").is_none());
+    assert!(empty.get("remoteSession").is_none());
 }
 
 #[test]
@@ -2631,6 +2635,7 @@ fn resume_session_config_serializes_bucket_b_fields() {
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(true);
     cfg.enable_session_telemetry = Some(false);
+    cfg.remote_session = Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::On);
     let json = serde_json::to_value(&cfg).unwrap();
     assert_eq!(json["sessionId"], "sess-1");
     assert_eq!(json["workingDirectory"], "/tmp/work");
@@ -2638,6 +2643,12 @@ fn resume_session_config_serializes_bucket_b_fields() {
     assert_eq!(json["gitHubToken"], "ghs_secret");
     assert_eq!(json["includeSubAgentStreamingEvents"], true);
     assert_eq!(json["enableSessionTelemetry"], false);
+    assert_eq!(json["remoteSession"], "on");
+
+    // Unset remote_session is omitted on the wire.
+    let empty = ResumeSessionConfig::new(SessionId::from("sess-2"));
+    let empty_json = serde_json::to_value(&empty).unwrap();
+    assert!(empty_json.get("remoteSession").is_none());
 
     let debug = format!("{cfg:?}");
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
