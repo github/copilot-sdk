@@ -46,7 +46,7 @@ async fn should_call_rpc_models_list_with_typed_result() {
                     .await
                     .expect("start client");
 
-                let result = client.rpc().models().list(Default::default()).await.expect("models list");
+                let result = client.rpc().models().list().await.expect("models list");
 
                 assert!(
                     result
@@ -87,7 +87,7 @@ async fn should_call_rpc_account_get_quota_when_authenticated() {
                     .await
                     .expect("start client");
 
-                let result = client.rpc().account().get_quota(Default::default()).await.expect("quota");
+                let result = client.rpc().account().get_quota().await.expect("quota");
                 let chat = result.quota_snapshots.get("chat").expect("chat quota");
 
                 assert_eq!(chat.entitlement_requests, 100);

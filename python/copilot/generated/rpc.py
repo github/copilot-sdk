@@ -7095,6 +7095,7 @@ class ServerModelsApi:
         self._client = client
 
     async def list(self, params: ModelsListRequest, *, timeout: float | None = None) -> ModelList:
+        "Calls models.list."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list", params_dict, **_timeout_kwargs(timeout))))
 
@@ -7104,6 +7105,7 @@ class ServerToolsApi:
         self._client = client
 
     async def list(self, params: ToolsListRequest, *, timeout: float | None = None) -> ToolList:
+        "Calls tools.list."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ToolList.from_dict(await self._client.request("tools.list", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7113,6 +7115,7 @@ class ServerAccountApi:
         self._client = client
 
     async def get_quota(self, params: AccountGetQuotaRequest, *, timeout: float | None = None) -> AccountGetQuotaResult:
+        "Calls account.getQuota."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7122,25 +7125,31 @@ class ServerMcpConfigApi:
         self._client = client
 
     async def list(self, *, timeout: float | None = None) -> MCPConfigList:
+        "Calls mcp.config.list."
         return MCPConfigList.from_dict(await self._client.request("mcp.config.list", {}, **_timeout_kwargs(timeout)))
 
     async def add(self, params: MCPConfigAddRequest, *, timeout: float | None = None) -> None:
+        "Calls mcp.config.add."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.add", params_dict, **_timeout_kwargs(timeout))
 
     async def update(self, params: MCPConfigUpdateRequest, *, timeout: float | None = None) -> None:
+        "Calls mcp.config.update."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.update", params_dict, **_timeout_kwargs(timeout))
 
     async def remove(self, params: MCPConfigRemoveRequest, *, timeout: float | None = None) -> None:
+        "Calls mcp.config.remove."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.remove", params_dict, **_timeout_kwargs(timeout))
 
     async def enable(self, params: MCPConfigEnableRequest, *, timeout: float | None = None) -> None:
+        "Calls mcp.config.enable."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: MCPConfigDisableRequest, *, timeout: float | None = None) -> None:
+        "Calls mcp.config.disable."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.disable", params_dict, **_timeout_kwargs(timeout))
 
@@ -7151,6 +7160,7 @@ class ServerMcpApi:
         self.config = ServerMcpConfigApi(client)
 
     async def discover(self, params: MCPDiscoverRequest, *, timeout: float | None = None) -> MCPDiscoverResult:
+        "Calls mcp.discover."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MCPDiscoverResult.from_dict(await self._client.request("mcp.discover", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7160,6 +7170,7 @@ class ServerSkillsConfigApi:
         self._client = client
 
     async def set_disabled_skills(self, params: SkillsConfigSetDisabledSkillsRequest, *, timeout: float | None = None) -> None:
+        "Calls skills.config.setDisabledSkills."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("skills.config.setDisabledSkills", params_dict, **_timeout_kwargs(timeout))
 
@@ -7170,6 +7181,7 @@ class ServerSkillsApi:
         self.config = ServerSkillsConfigApi(client)
 
     async def discover(self, params: SkillsDiscoverRequest, *, timeout: float | None = None) -> ServerSkillList:
+        "Calls skills.discover."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ServerSkillList.from_dict(await self._client.request("skills.discover", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7179,6 +7191,7 @@ class ServerSessionFsApi:
         self._client = client
 
     async def set_provider(self, params: SessionFSSetProviderRequest, *, timeout: float | None = None) -> SessionFSSetProviderResult:
+        "Calls sessionFs.setProvider."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionFSSetProviderResult.from_dict(await self._client.request("sessionFs.setProvider", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7189,6 +7202,7 @@ class ServerSessionsApi:
         self._client = client
 
     async def fork(self, params: SessionsForkRequest, *, timeout: float | None = None) -> SessionsForkResult:
+        "Calls sessions.fork."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsForkResult.from_dict(await self._client.request("sessions.fork", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7206,6 +7220,7 @@ class ServerRpc:
         self.sessions = ServerSessionsApi(client)
 
     async def ping(self, params: PingRequest, *, timeout: float | None = None) -> PingResult:
+        "Calls ping."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return PingResult.from_dict(await self._client.request("ping", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7216,7 +7231,7 @@ class _InternalServerRpc:
         self._client = client
 
     async def connect(self, params: ConnectRequest, *, timeout: float | None = None) -> ConnectResult:
-        """:meta private: Internal SDK API; not part of the public surface."""
+        "Calls connect.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ConnectResult.from_dict(await self._client.request("connect", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7227,6 +7242,7 @@ class AuthApi:
         self._session_id = session_id
 
     async def get_status(self, *, timeout: float | None = None) -> SessionAuthStatus:
+        "Calls session.auth.getStatus."
         return SessionAuthStatus.from_dict(await self._client.request("session.auth.getStatus", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7236,9 +7252,11 @@ class ModelApi:
         self._session_id = session_id
 
     async def get_current(self, *, timeout: float | None = None) -> CurrentModel:
+        "Calls session.model.getCurrent."
         return CurrentModel.from_dict(await self._client.request("session.model.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def switch_to(self, params: ModelSwitchToRequest, *, timeout: float | None = None) -> ModelSwitchToResult:
+        "Calls session.model.switchTo."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ModelSwitchToResult.from_dict(await self._client.request("session.model.switchTo", params_dict, **_timeout_kwargs(timeout)))
@@ -7250,9 +7268,11 @@ class ModeApi:
         self._session_id = session_id
 
     async def get(self, *, timeout: float | None = None) -> Mode:
+        "Calls session.mode.get.\n\nReturns:\n    The agent mode. Valid values: \"interactive\", \"plan\", \"autopilot\"."
         return Mode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def set(self, params: ModeSetRequest, *, timeout: float | None = None) -> None:
+        "Calls session.mode.set."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mode.set", params_dict, **_timeout_kwargs(timeout))
@@ -7264,9 +7284,11 @@ class NameApi:
         self._session_id = session_id
 
     async def get(self, *, timeout: float | None = None) -> NameGetResult:
+        "Calls session.name.get."
         return NameGetResult.from_dict(await self._client.request("session.name.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def set(self, params: NameSetRequest, *, timeout: float | None = None) -> None:
+        "Calls session.name.set."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.name.set", params_dict, **_timeout_kwargs(timeout))
@@ -7278,14 +7300,17 @@ class PlanApi:
         self._session_id = session_id
 
     async def read(self, *, timeout: float | None = None) -> PlanReadResult:
+        "Calls session.plan.read."
         return PlanReadResult.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def update(self, params: PlanUpdateRequest, *, timeout: float | None = None) -> None:
+        "Calls session.plan.update."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.plan.update", params_dict, **_timeout_kwargs(timeout))
 
     async def delete(self, *, timeout: float | None = None) -> None:
+        "Calls session.plan.delete."
         await self._client.request("session.plan.delete", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
@@ -7295,17 +7320,21 @@ class WorkspacesApi:
         self._session_id = session_id
 
     async def get_workspace(self, *, timeout: float | None = None) -> WorkspacesGetWorkspaceResult:
+        "Calls session.workspaces.getWorkspace."
         return WorkspacesGetWorkspaceResult.from_dict(await self._client.request("session.workspaces.getWorkspace", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def list_files(self, *, timeout: float | None = None) -> WorkspacesListFilesResult:
+        "Calls session.workspaces.listFiles."
         return WorkspacesListFilesResult.from_dict(await self._client.request("session.workspaces.listFiles", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def read_file(self, params: WorkspacesReadFileRequest, *, timeout: float | None = None) -> WorkspacesReadFileResult:
+        "Calls session.workspaces.readFile."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return WorkspacesReadFileResult.from_dict(await self._client.request("session.workspaces.readFile", params_dict, **_timeout_kwargs(timeout)))
 
     async def create_file(self, params: WorkspacesCreateFileRequest, *, timeout: float | None = None) -> None:
+        "Calls session.workspaces.createFile."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.workspaces.createFile", params_dict, **_timeout_kwargs(timeout))
@@ -7317,6 +7346,7 @@ class InstructionsApi:
         self._session_id = session_id
 
     async def get_sources(self, *, timeout: float | None = None) -> InstructionsGetSourcesResult:
+        "Calls session.instructions.getSources."
         return InstructionsGetSourcesResult.from_dict(await self._client.request("session.instructions.getSources", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7327,6 +7357,7 @@ class FleetApi:
         self._session_id = session_id
 
     async def start(self, params: FleetStartRequest, *, timeout: float | None = None) -> FleetStartResult:
+        "Calls session.fleet.start."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return FleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict, **_timeout_kwargs(timeout)))
@@ -7339,20 +7370,25 @@ class AgentApi:
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> AgentList:
+        "Calls session.agent.list."
         return AgentList.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def get_current(self, *, timeout: float | None = None) -> AgentGetCurrentResult:
+        "Calls session.agent.getCurrent."
         return AgentGetCurrentResult.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def select(self, params: AgentSelectRequest, *, timeout: float | None = None) -> AgentSelectResult:
+        "Calls session.agent.select."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return AgentSelectResult.from_dict(await self._client.request("session.agent.select", params_dict, **_timeout_kwargs(timeout)))
 
     async def deselect(self, *, timeout: float | None = None) -> None:
+        "Calls session.agent.deselect."
         await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> AgentReloadResult:
+        "Calls session.agent.reload."
         return AgentReloadResult.from_dict(await self._client.request("session.agent.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7363,29 +7399,35 @@ class TasksApi:
         self._session_id = session_id
 
     async def start_agent(self, params: TasksStartAgentRequest, *, timeout: float | None = None) -> TasksStartAgentResult:
+        "Calls session.tasks.startAgent."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksStartAgentResult.from_dict(await self._client.request("session.tasks.startAgent", params_dict, **_timeout_kwargs(timeout)))
 
     async def list(self, *, timeout: float | None = None) -> TaskList:
+        "Calls session.tasks.list."
         return TaskList.from_dict(await self._client.request("session.tasks.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def promote_to_background(self, params: TasksPromoteToBackgroundRequest, *, timeout: float | None = None) -> TasksPromoteToBackgroundResult:
+        "Calls session.tasks.promoteToBackground."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksPromoteToBackgroundResult.from_dict(await self._client.request("session.tasks.promoteToBackground", params_dict, **_timeout_kwargs(timeout)))
 
     async def cancel(self, params: TasksCancelRequest, *, timeout: float | None = None) -> TasksCancelResult:
+        "Calls session.tasks.cancel."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksCancelResult.from_dict(await self._client.request("session.tasks.cancel", params_dict, **_timeout_kwargs(timeout)))
 
     async def remove(self, params: TasksRemoveRequest, *, timeout: float | None = None) -> TasksRemoveResult:
+        "Calls session.tasks.remove."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksRemoveResult.from_dict(await self._client.request("session.tasks.remove", params_dict, **_timeout_kwargs(timeout)))
 
     async def send_message(self, params: TasksSendMessageRequest, *, timeout: float | None = None) -> TasksSendMessageResult:
+        "Calls session.tasks.sendMessage."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksSendMessageResult.from_dict(await self._client.request("session.tasks.sendMessage", params_dict, **_timeout_kwargs(timeout)))
@@ -7398,19 +7440,23 @@ class SkillsApi:
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> SkillList:
+        "Calls session.skills.list."
         return SkillList.from_dict(await self._client.request("session.skills.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: SkillsEnableRequest, *, timeout: float | None = None) -> None:
+        "Calls session.skills.enable."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: SkillsDisableRequest, *, timeout: float | None = None) -> None:
+        "Calls session.skills.disable."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.disable", params_dict, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> SkillsLoadDiagnostics:
+        "Calls session.skills.reload."
         return SkillsLoadDiagnostics.from_dict(await self._client.request("session.skills.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7421,6 +7467,7 @@ class McpOauthApi:
         self._session_id = session_id
 
     async def login(self, params: MCPOauthLoginRequest, *, timeout: float | None = None) -> MCPOauthLoginResult:
+        "Calls session.mcp.oauth.login."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPOauthLoginResult.from_dict(await self._client.request("session.mcp.oauth.login", params_dict, **_timeout_kwargs(timeout)))
@@ -7434,19 +7481,23 @@ class McpApi:
         self.oauth = McpOauthApi(client, session_id)
 
     async def list(self, *, timeout: float | None = None) -> MCPServerList:
+        "Calls session.mcp.list."
         return MCPServerList.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: MCPEnableRequest, *, timeout: float | None = None) -> None:
+        "Calls session.mcp.enable."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: MCPDisableRequest, *, timeout: float | None = None) -> None:
+        "Calls session.mcp.disable."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.disable", params_dict, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> None:
+        "Calls session.mcp.reload."
         await self._client.request("session.mcp.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
@@ -7457,6 +7508,7 @@ class PluginsApi:
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> PluginList:
+        "Calls session.plugins.list."
         return PluginList.from_dict(await self._client.request("session.plugins.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7467,19 +7519,23 @@ class ExtensionsApi:
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> ExtensionList:
+        "Calls session.extensions.list."
         return ExtensionList.from_dict(await self._client.request("session.extensions.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: ExtensionsEnableRequest, *, timeout: float | None = None) -> None:
+        "Calls session.extensions.enable."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.extensions.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: ExtensionsDisableRequest, *, timeout: float | None = None) -> None:
+        "Calls session.extensions.disable."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.extensions.disable", params_dict, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> None:
+        "Calls session.extensions.reload."
         await self._client.request("session.extensions.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
@@ -7489,6 +7545,7 @@ class ToolsApi:
         self._session_id = session_id
 
     async def handle_pending_tool_call(self, params: HandlePendingToolCallRequest, *, timeout: float | None = None) -> HandlePendingToolCallResult:
+        "Calls session.tools.handlePendingToolCall."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return HandlePendingToolCallResult.from_dict(await self._client.request("session.tools.handlePendingToolCall", params_dict, **_timeout_kwargs(timeout)))
@@ -7500,21 +7557,25 @@ class CommandsApi:
         self._session_id = session_id
 
     async def list(self, params: CommandsListRequest | None = None, *, timeout: float | None = None) -> CommandList:
+        "Calls session.commands.list."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         params_dict["sessionId"] = self._session_id
         return CommandList.from_dict(await self._client.request("session.commands.list", params_dict, **_timeout_kwargs(timeout)))
 
     async def invoke(self, params: CommandsInvokeRequest, *, timeout: float | None = None) -> SlashCommandInvocationResult:
+        "Calls session.commands.invoke."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return SlashCommandInvocationResult.from_dict(await self._client.request("session.commands.invoke", params_dict, **_timeout_kwargs(timeout)))
 
     async def handle_pending_command(self, params: CommandsHandlePendingCommandRequest, *, timeout: float | None = None) -> CommandsHandlePendingCommandResult:
+        "Calls session.commands.handlePendingCommand."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return CommandsHandlePendingCommandResult.from_dict(await self._client.request("session.commands.handlePendingCommand", params_dict, **_timeout_kwargs(timeout)))
 
     async def respond_to_queued_command(self, params: CommandsRespondToQueuedCommandRequest, *, timeout: float | None = None) -> CommandsRespondToQueuedCommandResult:
+        "Calls session.commands.respondToQueuedCommand."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return CommandsRespondToQueuedCommandResult.from_dict(await self._client.request("session.commands.respondToQueuedCommand", params_dict, **_timeout_kwargs(timeout)))
@@ -7526,11 +7587,13 @@ class UiApi:
         self._session_id = session_id
 
     async def elicitation(self, params: UIElicitationRequest, *, timeout: float | None = None) -> UIElicitationResponse:
+        "Calls session.ui.elicitation.\n\nReturns:\n    The elicitation response (accept with form values, decline, or cancel)"
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIElicitationResponse.from_dict(await self._client.request("session.ui.elicitation", params_dict, **_timeout_kwargs(timeout)))
 
     async def handle_pending_elicitation(self, params: UIHandlePendingElicitationRequest, *, timeout: float | None = None) -> UIElicitationResult:
+        "Calls session.ui.handlePendingElicitation."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIElicitationResult.from_dict(await self._client.request("session.ui.handlePendingElicitation", params_dict, **_timeout_kwargs(timeout)))
@@ -7542,16 +7605,19 @@ class PermissionsApi:
         self._session_id = session_id
 
     async def handle_pending_permission_request(self, params: PermissionDecisionRequest, *, timeout: float | None = None) -> PermissionRequestResult:
+        "Calls session.permissions.handlePendingPermissionRequest."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionRequestResult.from_dict(await self._client.request("session.permissions.handlePendingPermissionRequest", params_dict, **_timeout_kwargs(timeout)))
 
     async def set_approve_all(self, params: PermissionsSetApproveAllRequest, *, timeout: float | None = None) -> PermissionsSetApproveAllResult:
+        "Calls session.permissions.setApproveAll."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionsSetApproveAllResult.from_dict(await self._client.request("session.permissions.setApproveAll", params_dict, **_timeout_kwargs(timeout)))
 
     async def reset_session_approvals(self, *, timeout: float | None = None) -> PermissionsResetSessionApprovalsResult:
+        "Calls session.permissions.resetSessionApprovals."
         return PermissionsResetSessionApprovalsResult.from_dict(await self._client.request("session.permissions.resetSessionApprovals", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7561,11 +7627,13 @@ class ShellApi:
         self._session_id = session_id
 
     async def exec(self, params: ShellExecRequest, *, timeout: float | None = None) -> ShellExecResult:
+        "Calls session.shell.exec."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ShellExecResult.from_dict(await self._client.request("session.shell.exec", params_dict, **_timeout_kwargs(timeout)))
 
     async def kill(self, params: ShellKillRequest, *, timeout: float | None = None) -> ShellKillResult:
+        "Calls session.shell.kill."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ShellKillResult.from_dict(await self._client.request("session.shell.kill", params_dict, **_timeout_kwargs(timeout)))
@@ -7578,9 +7646,11 @@ class HistoryApi:
         self._session_id = session_id
 
     async def compact(self, *, timeout: float | None = None) -> HistoryCompactResult:
+        "Calls session.history.compact."
         return HistoryCompactResult.from_dict(await self._client.request("session.history.compact", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def truncate(self, params: HistoryTruncateRequest, *, timeout: float | None = None) -> HistoryTruncateResult:
+        "Calls session.history.truncate."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return HistoryTruncateResult.from_dict(await self._client.request("session.history.truncate", params_dict, **_timeout_kwargs(timeout)))
@@ -7593,6 +7663,7 @@ class UsageApi:
         self._session_id = session_id
 
     async def get_metrics(self, *, timeout: float | None = None) -> UsageGetMetricsResult:
+        "Calls session.usage.getMetrics."
         return UsageGetMetricsResult.from_dict(await self._client.request("session.usage.getMetrics", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7603,11 +7674,13 @@ class RemoteApi:
         self._session_id = session_id
 
     async def enable(self, params: RemoteEnableRequest, *, timeout: float | None = None) -> RemoteEnableResult:
+        "Calls session.remote.enable."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return RemoteEnableResult.from_dict(await self._client.request("session.remote.enable", params_dict, **_timeout_kwargs(timeout)))
 
     async def disable(self, *, timeout: float | None = None) -> None:
+        "Calls session.remote.disable."
         await self._client.request("session.remote.disable", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
@@ -7640,9 +7713,11 @@ class SessionRpc:
         self.remote = RemoteApi(client, session_id)
 
     async def suspend(self, *, timeout: float | None = None) -> None:
+        "Calls session.suspend."
         await self._client.request("session.suspend", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
     async def log(self, params: LogRequest, *, timeout: float | None = None) -> LogResult:
+        "Calls session.log."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return LogResult.from_dict(await self._client.request("session.log", params_dict, **_timeout_kwargs(timeout)))
@@ -7650,24 +7725,34 @@ class SessionRpc:
 
 class SessionFsHandler(Protocol):
     async def read_file(self, params: SessionFSReadFileRequest) -> SessionFSReadFileResult:
+        "Calls sessionFs.readFile."
         pass
     async def write_file(self, params: SessionFSWriteFileRequest) -> SessionFSError | None:
+        "Calls sessionFs.writeFile.\n\nReturns:\n    Describes a filesystem error."
         pass
     async def append_file(self, params: SessionFSAppendFileRequest) -> SessionFSError | None:
+        "Calls sessionFs.appendFile.\n\nReturns:\n    Describes a filesystem error."
         pass
     async def exists(self, params: SessionFSExistsRequest) -> SessionFSExistsResult:
+        "Calls sessionFs.exists."
         pass
     async def stat(self, params: SessionFSStatRequest) -> SessionFSStatResult:
+        "Calls sessionFs.stat."
         pass
     async def mkdir(self, params: SessionFSMkdirRequest) -> SessionFSError | None:
+        "Calls sessionFs.mkdir.\n\nReturns:\n    Describes a filesystem error."
         pass
     async def readdir(self, params: SessionFSReaddirRequest) -> SessionFSReaddirResult:
+        "Calls sessionFs.readdir."
         pass
     async def readdir_with_types(self, params: SessionFSReaddirWithTypesRequest) -> SessionFSReaddirWithTypesResult:
+        "Calls sessionFs.readdirWithTypes."
         pass
     async def rm(self, params: SessionFSRmRequest) -> SessionFSError | None:
+        "Calls sessionFs.rm.\n\nReturns:\n    Describes a filesystem error."
         pass
     async def rename(self, params: SessionFSRenameRequest) -> SessionFSError | None:
+        "Calls sessionFs.rename.\n\nReturns:\n    Describes a filesystem error."
         pass
 
 @dataclass

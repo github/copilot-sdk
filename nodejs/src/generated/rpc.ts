@@ -2803,52 +2803,97 @@ export interface WorkspacesReadFileResult {
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
+        /**
+         * Calls `ping`.
+         */
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
         models: {
+            /**
+             * Calls `models.list`.
+             */
             list: async (params: ModelsListRequest): Promise<ModelList> =>
                 connection.sendRequest("models.list", params),
         },
         tools: {
+            /**
+             * Calls `tools.list`.
+             */
             list: async (params: ToolsListRequest): Promise<ToolList> =>
                 connection.sendRequest("tools.list", params),
         },
         account: {
+            /**
+             * Calls `account.getQuota`.
+             */
             getQuota: async (params: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", params),
         },
         mcp: {
             config: {
+                /**
+                 * Calls `mcp.config.list`.
+                 */
                 list: async (): Promise<McpConfigList> =>
                     connection.sendRequest("mcp.config.list", {}),
+                /**
+                 * Calls `mcp.config.add`.
+                 */
                 add: async (params: McpConfigAddRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.add", params),
+                /**
+                 * Calls `mcp.config.update`.
+                 */
                 update: async (params: McpConfigUpdateRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.update", params),
+                /**
+                 * Calls `mcp.config.remove`.
+                 */
                 remove: async (params: McpConfigRemoveRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.remove", params),
+                /**
+                 * Calls `mcp.config.enable`.
+                 */
                 enable: async (params: McpConfigEnableRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.enable", params),
+                /**
+                 * Calls `mcp.config.disable`.
+                 */
                 disable: async (params: McpConfigDisableRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.disable", params),
             },
+            /**
+             * Calls `mcp.discover`.
+             */
             discover: async (params: McpDiscoverRequest): Promise<McpDiscoverResult> =>
                 connection.sendRequest("mcp.discover", params),
         },
         skills: {
             config: {
+                /**
+                 * Calls `skills.config.setDisabledSkills`.
+                 */
                 setDisabledSkills: async (params: SkillsConfigSetDisabledSkillsRequest): Promise<void> =>
                     connection.sendRequest("skills.config.setDisabledSkills", params),
             },
+            /**
+             * Calls `skills.discover`.
+             */
             discover: async (params: SkillsDiscoverRequest): Promise<ServerSkillList> =>
                 connection.sendRequest("skills.discover", params),
         },
         sessionFs: {
+            /**
+             * Calls `sessionFs.setProvider`.
+             */
             setProvider: async (params: SessionFsSetProviderRequest): Promise<SessionFsSetProviderResult> =>
                 connection.sendRequest("sessionFs.setProvider", params),
         },
         /** @experimental */
         sessions: {
+            /**
+             * Calls `sessions.fork`.
+             */
             fork: async (params: SessionsForkRequest): Promise<SessionsForkResult> =>
                 connection.sendRequest("sessions.fork", params),
         },
@@ -2862,6 +2907,9 @@ export function createServerRpc(connection: MessageConnection) {
  */
 export function createInternalServerRpc(connection: MessageConnection) {
     return {
+        /**
+         * Calls `connect`.
+         */
         connect: async (params: ConnectRequest): Promise<ConnectResult> =>
             connection.sendRequest("connect", params),
     };
@@ -2870,180 +2918,364 @@ export function createInternalServerRpc(connection: MessageConnection) {
 /** Create typed session-scoped RPC methods. */
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
+        /**
+         * Calls `session.suspend`.
+         */
         suspend: async (): Promise<void> =>
             connection.sendRequest("session.suspend", { sessionId }),
         auth: {
+            /**
+             * Calls `session.auth.getStatus`.
+             */
             getStatus: async (): Promise<SessionAuthStatus> =>
                 connection.sendRequest("session.auth.getStatus", { sessionId }),
         },
         model: {
+            /**
+             * Calls `session.model.getCurrent`.
+             */
             getCurrent: async (): Promise<CurrentModel> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
+            /**
+             * Calls `session.model.switchTo`.
+             */
             switchTo: async (params: ModelSwitchToRequest): Promise<ModelSwitchToResult> =>
                 connection.sendRequest("session.model.switchTo", { sessionId, ...params }),
         },
         mode: {
+            /**
+             * Calls `session.mode.get`.
+             *
+             * @returns The agent mode. Valid values: "interactive", "plan", "autopilot".
+             */
             get: async (): Promise<SessionMode> =>
                 connection.sendRequest("session.mode.get", { sessionId }),
+            /**
+             * Calls `session.mode.set`.
+             */
             set: async (params: ModeSetRequest): Promise<void> =>
                 connection.sendRequest("session.mode.set", { sessionId, ...params }),
         },
         name: {
+            /**
+             * Calls `session.name.get`.
+             */
             get: async (): Promise<NameGetResult> =>
                 connection.sendRequest("session.name.get", { sessionId }),
+            /**
+             * Calls `session.name.set`.
+             */
             set: async (params: NameSetRequest): Promise<void> =>
                 connection.sendRequest("session.name.set", { sessionId, ...params }),
         },
         plan: {
+            /**
+             * Calls `session.plan.read`.
+             */
             read: async (): Promise<PlanReadResult> =>
                 connection.sendRequest("session.plan.read", { sessionId }),
+            /**
+             * Calls `session.plan.update`.
+             */
             update: async (params: PlanUpdateRequest): Promise<void> =>
                 connection.sendRequest("session.plan.update", { sessionId, ...params }),
+            /**
+             * Calls `session.plan.delete`.
+             */
             delete: async (): Promise<void> =>
                 connection.sendRequest("session.plan.delete", { sessionId }),
         },
         workspaces: {
+            /**
+             * Calls `session.workspaces.getWorkspace`.
+             */
             getWorkspace: async (): Promise<WorkspacesGetWorkspaceResult> =>
                 connection.sendRequest("session.workspaces.getWorkspace", { sessionId }),
+            /**
+             * Calls `session.workspaces.listFiles`.
+             */
             listFiles: async (): Promise<WorkspacesListFilesResult> =>
                 connection.sendRequest("session.workspaces.listFiles", { sessionId }),
+            /**
+             * Calls `session.workspaces.readFile`.
+             */
             readFile: async (params: WorkspacesReadFileRequest): Promise<WorkspacesReadFileResult> =>
                 connection.sendRequest("session.workspaces.readFile", { sessionId, ...params }),
+            /**
+             * Calls `session.workspaces.createFile`.
+             */
             createFile: async (params: WorkspacesCreateFileRequest): Promise<void> =>
                 connection.sendRequest("session.workspaces.createFile", { sessionId, ...params }),
         },
         instructions: {
+            /**
+             * Calls `session.instructions.getSources`.
+             */
             getSources: async (): Promise<InstructionsGetSourcesResult> =>
                 connection.sendRequest("session.instructions.getSources", { sessionId }),
         },
         /** @experimental */
         fleet: {
+            /**
+             * Calls `session.fleet.start`.
+             */
             start: async (params: FleetStartRequest): Promise<FleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
         },
         /** @experimental */
         agent: {
+            /**
+             * Calls `session.agent.list`.
+             */
             list: async (): Promise<AgentList> =>
                 connection.sendRequest("session.agent.list", { sessionId }),
+            /**
+             * Calls `session.agent.getCurrent`.
+             */
             getCurrent: async (): Promise<AgentGetCurrentResult> =>
                 connection.sendRequest("session.agent.getCurrent", { sessionId }),
+            /**
+             * Calls `session.agent.select`.
+             */
             select: async (params: AgentSelectRequest): Promise<AgentSelectResult> =>
                 connection.sendRequest("session.agent.select", { sessionId, ...params }),
+            /**
+             * Calls `session.agent.deselect`.
+             */
             deselect: async (): Promise<void> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
+            /**
+             * Calls `session.agent.reload`.
+             */
             reload: async (): Promise<AgentReloadResult> =>
                 connection.sendRequest("session.agent.reload", { sessionId }),
         },
         /** @experimental */
         tasks: {
+            /**
+             * Calls `session.tasks.startAgent`.
+             */
             startAgent: async (params: TasksStartAgentRequest): Promise<TasksStartAgentResult> =>
                 connection.sendRequest("session.tasks.startAgent", { sessionId, ...params }),
+            /**
+             * Calls `session.tasks.list`.
+             */
             list: async (): Promise<TaskList> =>
                 connection.sendRequest("session.tasks.list", { sessionId }),
+            /**
+             * Calls `session.tasks.promoteToBackground`.
+             */
             promoteToBackground: async (params: TasksPromoteToBackgroundRequest): Promise<TasksPromoteToBackgroundResult> =>
                 connection.sendRequest("session.tasks.promoteToBackground", { sessionId, ...params }),
+            /**
+             * Calls `session.tasks.cancel`.
+             */
             cancel: async (params: TasksCancelRequest): Promise<TasksCancelResult> =>
                 connection.sendRequest("session.tasks.cancel", { sessionId, ...params }),
+            /**
+             * Calls `session.tasks.remove`.
+             */
             remove: async (params: TasksRemoveRequest): Promise<TasksRemoveResult> =>
                 connection.sendRequest("session.tasks.remove", { sessionId, ...params }),
+            /**
+             * Calls `session.tasks.sendMessage`.
+             */
             sendMessage: async (params: TasksSendMessageRequest): Promise<TasksSendMessageResult> =>
                 connection.sendRequest("session.tasks.sendMessage", { sessionId, ...params }),
         },
         /** @experimental */
         skills: {
+            /**
+             * Calls `session.skills.list`.
+             */
             list: async (): Promise<SkillList> =>
                 connection.sendRequest("session.skills.list", { sessionId }),
+            /**
+             * Calls `session.skills.enable`.
+             */
             enable: async (params: SkillsEnableRequest): Promise<void> =>
                 connection.sendRequest("session.skills.enable", { sessionId, ...params }),
+            /**
+             * Calls `session.skills.disable`.
+             */
             disable: async (params: SkillsDisableRequest): Promise<void> =>
                 connection.sendRequest("session.skills.disable", { sessionId, ...params }),
+            /**
+             * Calls `session.skills.reload`.
+             */
             reload: async (): Promise<SkillsLoadDiagnostics> =>
                 connection.sendRequest("session.skills.reload", { sessionId }),
         },
         /** @experimental */
         mcp: {
+            /**
+             * Calls `session.mcp.list`.
+             */
             list: async (): Promise<McpServerList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
+            /**
+             * Calls `session.mcp.enable`.
+             */
             enable: async (params: McpEnableRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.enable", { sessionId, ...params }),
+            /**
+             * Calls `session.mcp.disable`.
+             */
             disable: async (params: McpDisableRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.disable", { sessionId, ...params }),
+            /**
+             * Calls `session.mcp.reload`.
+             */
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.mcp.reload", { sessionId }),
             /** @experimental */
             oauth: {
+                /**
+                 * Calls `session.mcp.oauth.login`.
+                 */
                 login: async (params: McpOauthLoginRequest): Promise<McpOauthLoginResult> =>
                     connection.sendRequest("session.mcp.oauth.login", { sessionId, ...params }),
             },
         },
         /** @experimental */
         plugins: {
+            /**
+             * Calls `session.plugins.list`.
+             */
             list: async (): Promise<PluginList> =>
                 connection.sendRequest("session.plugins.list", { sessionId }),
         },
         /** @experimental */
         extensions: {
+            /**
+             * Calls `session.extensions.list`.
+             */
             list: async (): Promise<ExtensionList> =>
                 connection.sendRequest("session.extensions.list", { sessionId }),
+            /**
+             * Calls `session.extensions.enable`.
+             */
             enable: async (params: ExtensionsEnableRequest): Promise<void> =>
                 connection.sendRequest("session.extensions.enable", { sessionId, ...params }),
+            /**
+             * Calls `session.extensions.disable`.
+             */
             disable: async (params: ExtensionsDisableRequest): Promise<void> =>
                 connection.sendRequest("session.extensions.disable", { sessionId, ...params }),
+            /**
+             * Calls `session.extensions.reload`.
+             */
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.extensions.reload", { sessionId }),
         },
         tools: {
+            /**
+             * Calls `session.tools.handlePendingToolCall`.
+             */
             handlePendingToolCall: async (params: HandlePendingToolCallRequest): Promise<HandlePendingToolCallResult> =>
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
         },
         commands: {
+            /**
+             * Calls `session.commands.list`.
+             */
             list: async (params?: CommandsListRequest): Promise<CommandList> =>
                 connection.sendRequest("session.commands.list", { sessionId, ...params }),
+            /**
+             * Calls `session.commands.invoke`.
+             */
             invoke: async (params: CommandsInvokeRequest): Promise<SlashCommandInvocationResult> =>
                 connection.sendRequest("session.commands.invoke", { sessionId, ...params }),
+            /**
+             * Calls `session.commands.handlePendingCommand`.
+             */
             handlePendingCommand: async (params: CommandsHandlePendingCommandRequest): Promise<CommandsHandlePendingCommandResult> =>
                 connection.sendRequest("session.commands.handlePendingCommand", { sessionId, ...params }),
+            /**
+             * Calls `session.commands.respondToQueuedCommand`.
+             */
             respondToQueuedCommand: async (params: CommandsRespondToQueuedCommandRequest): Promise<CommandsRespondToQueuedCommandResult> =>
                 connection.sendRequest("session.commands.respondToQueuedCommand", { sessionId, ...params }),
         },
         ui: {
+            /**
+             * Calls `session.ui.elicitation`.
+             *
+             * @returns The elicitation response (accept with form values, decline, or cancel)
+             */
             elicitation: async (params: UIElicitationRequest): Promise<UIElicitationResponse> =>
                 connection.sendRequest("session.ui.elicitation", { sessionId, ...params }),
+            /**
+             * Calls `session.ui.handlePendingElicitation`.
+             */
             handlePendingElicitation: async (params: UIHandlePendingElicitationRequest): Promise<UIElicitationResult> =>
                 connection.sendRequest("session.ui.handlePendingElicitation", { sessionId, ...params }),
         },
         permissions: {
+            /**
+             * Calls `session.permissions.handlePendingPermissionRequest`.
+             */
             handlePendingPermissionRequest: async (params: PermissionDecisionRequest): Promise<PermissionRequestResult> =>
                 connection.sendRequest("session.permissions.handlePendingPermissionRequest", { sessionId, ...params }),
+            /**
+             * Calls `session.permissions.setApproveAll`.
+             */
             setApproveAll: async (params: PermissionsSetApproveAllRequest): Promise<PermissionsSetApproveAllResult> =>
                 connection.sendRequest("session.permissions.setApproveAll", { sessionId, ...params }),
+            /**
+             * Calls `session.permissions.resetSessionApprovals`.
+             */
             resetSessionApprovals: async (): Promise<PermissionsResetSessionApprovalsResult> =>
                 connection.sendRequest("session.permissions.resetSessionApprovals", { sessionId }),
         },
+        /**
+         * Calls `session.log`.
+         */
         log: async (params: LogRequest): Promise<LogResult> =>
             connection.sendRequest("session.log", { sessionId, ...params }),
         shell: {
+            /**
+             * Calls `session.shell.exec`.
+             */
             exec: async (params: ShellExecRequest): Promise<ShellExecResult> =>
                 connection.sendRequest("session.shell.exec", { sessionId, ...params }),
+            /**
+             * Calls `session.shell.kill`.
+             */
             kill: async (params: ShellKillRequest): Promise<ShellKillResult> =>
                 connection.sendRequest("session.shell.kill", { sessionId, ...params }),
         },
         /** @experimental */
         history: {
+            /**
+             * Calls `session.history.compact`.
+             */
             compact: async (): Promise<HistoryCompactResult> =>
                 connection.sendRequest("session.history.compact", { sessionId }),
+            /**
+             * Calls `session.history.truncate`.
+             */
             truncate: async (params: HistoryTruncateRequest): Promise<HistoryTruncateResult> =>
                 connection.sendRequest("session.history.truncate", { sessionId, ...params }),
         },
         /** @experimental */
         usage: {
+            /**
+             * Calls `session.usage.getMetrics`.
+             */
             getMetrics: async (): Promise<UsageGetMetricsResult> =>
                 connection.sendRequest("session.usage.getMetrics", { sessionId }),
         },
         /** @experimental */
         remote: {
+            /**
+             * Calls `session.remote.enable`.
+             */
             enable: async (params: RemoteEnableRequest): Promise<RemoteEnableResult> =>
                 connection.sendRequest("session.remote.enable", { sessionId, ...params }),
+            /**
+             * Calls `session.remote.disable`.
+             */
             disable: async (): Promise<void> =>
                 connection.sendRequest("session.remote.disable", { sessionId }),
         },
@@ -3052,15 +3284,55 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
 
 /** Handler for `sessionFs` client session API methods. */
 export interface SessionFsHandler {
+    /**
+     * Handles `sessionFs.readFile`.
+     */
     readFile(params: SessionFsReadFileRequest): Promise<SessionFsReadFileResult>;
+    /**
+     * Handles `sessionFs.writeFile`.
+     *
+     * @returns Describes a filesystem error.
+     */
     writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsError | undefined>;
+    /**
+     * Handles `sessionFs.appendFile`.
+     *
+     * @returns Describes a filesystem error.
+     */
     appendFile(params: SessionFsAppendFileRequest): Promise<SessionFsError | undefined>;
+    /**
+     * Handles `sessionFs.exists`.
+     */
     exists(params: SessionFsExistsRequest): Promise<SessionFsExistsResult>;
+    /**
+     * Handles `sessionFs.stat`.
+     */
     stat(params: SessionFsStatRequest): Promise<SessionFsStatResult>;
+    /**
+     * Handles `sessionFs.mkdir`.
+     *
+     * @returns Describes a filesystem error.
+     */
     mkdir(params: SessionFsMkdirRequest): Promise<SessionFsError | undefined>;
+    /**
+     * Handles `sessionFs.readdir`.
+     */
     readdir(params: SessionFsReaddirRequest): Promise<SessionFsReaddirResult>;
+    /**
+     * Handles `sessionFs.readdirWithTypes`.
+     */
     readdirWithTypes(params: SessionFsReaddirWithTypesRequest): Promise<SessionFsReaddirWithTypesResult>;
+    /**
+     * Handles `sessionFs.rm`.
+     *
+     * @returns Describes a filesystem error.
+     */
     rm(params: SessionFsRmRequest): Promise<SessionFsError | undefined>;
+    /**
+     * Handles `sessionFs.rename`.
+     *
+     * @returns Describes a filesystem error.
+     */
     rename(params: SessionFsRenameRequest): Promise<SessionFsError | undefined>;
 }
 
