@@ -40,7 +40,7 @@ class ElicitationTest {
         var capabilities = new SessionCapabilities().setUi(new SessionUiCapabilities().setElicitation(true));
 
         assertNotNull(capabilities.getUi());
-        assertTrue(capabilities.getUi().getElicitation());
+        assertTrue(capabilities.getUi().getElicitation().get());
 
         // Test with null UI
         var emptyCapabilities = new SessionCapabilities();
@@ -119,8 +119,8 @@ class ElicitationTest {
 
         assertEquals("My Title", opts.getTitle());
         assertEquals("My Desc", opts.getDescription());
-        assertEquals(1, opts.getMinLength());
-        assertEquals(100, opts.getMaxLength());
+        assertEquals(1, opts.getMinLength().getAsInt());
+        assertEquals(100, opts.getMaxLength().getAsInt());
         assertEquals("email", opts.getFormat());
         assertEquals("default@example.com", opts.getDefaultValue());
     }
@@ -164,7 +164,7 @@ class ElicitationTest {
 
         var request = SessionRequestBuilder.buildCreateRequest(config);
 
-        assertTrue(Boolean.TRUE.equals(request.getRequestElicitation()));
+        assertEquals(Boolean.TRUE, request.getRequestElicitation());
     }
 
     @Test
@@ -186,6 +186,6 @@ class ElicitationTest {
 
         var request = SessionRequestBuilder.buildResumeRequest("session-1", config);
 
-        assertTrue(Boolean.TRUE.equals(request.getRequestElicitation()));
+        assertEquals(Boolean.TRUE, request.getRequestElicitation());
     }
 }
