@@ -13,6 +13,20 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
  */
 export type AuthInfoType = "hmac" | "env" | "user" | "gh-cli" | "api-key" | "token" | "copilot-api-token";
 /**
+ * Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SlashCommandKind".
+ */
+export type SlashCommandKind = "builtin" | "skill" | "client";
+/**
+ * Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SlashCommandInputCompletion".
+ */
+export type SlashCommandInputCompletion = "directory";
+/**
  * Result of the queued command execution
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -236,6 +250,18 @@ export type SessionFsSetProviderConventions = "windows" | "posix";
  */
 export type ShellKillSignal = "SIGTERM" | "SIGKILL" | "SIGINT";
 /**
+ * Optional target session mode
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SlashCommandAgentPromptMode".
+ */
+export type SlashCommandAgentPromptMode = "interactive" | "plan" | "autopilot";
+
+export type SlashCommandInvocationResult =
+  | SlashCommandTextResult
+  | SlashCommandAgentPromptResult
+  | SlashCommandCompletedResult;
+/**
  * Current lifecycle status of the task
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -402,6 +428,59 @@ export interface AgentSelectResult {
   agent: AgentInfo;
 }
 
+export interface CommandList {
+  /**
+   * Commands available in this session
+   */
+  commands: SlashCommandInfo[];
+}
+
+export interface SlashCommandInfo {
+  /**
+   * Canonical command name without a leading slash
+   */
+  name: string;
+  /**
+   * Canonical aliases without leading slashes
+   */
+  aliases?: string[];
+  /**
+   * Human-readable command description
+   */
+  description: string;
+  kind: SlashCommandKind;
+  input?: SlashCommandInput;
+  /**
+   * Whether the command may run while an agent turn is active
+   */
+  allowDuringAgentExecution: boolean;
+  /**
+   * Whether the command is experimental
+   */
+  experimental?: boolean;
+}
+/**
+ * Optional unstructured input hint
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SlashCommandInput".
+ */
+export interface SlashCommandInput {
+  /**
+   * Hint to display when command input has not been provided
+   */
+  hint: string;
+  /**
+   * When true, the command requires non-empty input; clients should render the input hint as required
+   */
+  required?: boolean;
+  completion?: SlashCommandInputCompletion;
+  /**
+   * When true, clients should pass the full text after the command name as a single argument rather than splitting on whitespace
+   */
+  preserveMultilineInput?: boolean;
+}
+
 export interface CommandsHandlePendingCommandRequest {
   /**
    * Request ID from the command invocation event
@@ -418,6 +497,32 @@ export interface CommandsHandlePendingCommandResult {
    * Whether the command was handled successfully
    */
   success: boolean;
+}
+
+export interface CommandsInvokeRequest {
+  /**
+   * Command name. Leading slashes are stripped and the name is matched case-insensitively.
+   */
+  name: string;
+  /**
+   * Raw input after the command name
+   */
+  input?: string;
+}
+
+export interface CommandsListRequest {
+  /**
+   * Include runtime built-in commands
+   */
+  includeBuiltins?: boolean;
+  /**
+   * Include enabled user-invocable skills and commands
+   */
+  includeSkills?: boolean;
+  /**
+   * Include commands registered by protocol clients, including SDK clients and extensions
+   */
+  includeClientCommands?: boolean;
 }
 
 export interface CommandsRespondToQueuedCommandRequest {
@@ -1199,6 +1304,31 @@ export interface ModelBilling {
    * Billing cost multiplier relative to the base rate
    */
   multiplier?: number;
+  tokenPrices?: ModelBillingTokenPrices;
+}
+/**
+ * Token-level pricing information for this model
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelBillingTokenPrices".
+ */
+export interface ModelBillingTokenPrices {
+  /**
+   * Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+   */
+  inputPrice?: number;
+  /**
+   * Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+   */
+  outputPrice?: number;
+  /**
+   * Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+   */
+  cachePrice?: number;
+  /**
+   * Number of tokens per standard billing batch
+   */
+  batchSize?: number;
 }
 /**
  * Override individual model capabilities resolved by the runtime
@@ -1882,6 +2012,10 @@ export interface SessionsForkRequest {
    * Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.
    */
   toEventId?: string;
+  /**
+   * Optional friendly name to assign to the forked session.
+   */
+  name?: string;
 }
 
 /** @experimental */
@@ -1890,6 +2024,10 @@ export interface SessionsForkResult {
    * The new forked session's ID
    */
   sessionId: string;
+  /**
+   * Friendly name assigned to the forked session, if any.
+   */
+  name?: string;
 }
 
 export interface ShellExecRequest {
@@ -1996,6 +2134,76 @@ export interface SkillsEnableRequest {
    * Name of the skill to enable
    */
   name: string;
+}
+
+/** @experimental */
+export interface SkillsLoadDiagnostics {
+  /**
+   * Warnings emitted while loading skills (e.g. skills that loaded but had issues)
+   */
+  warnings: string[];
+  /**
+   * Errors emitted while loading skills (e.g. skills that failed to load entirely)
+   */
+  errors: string[];
+}
+
+export interface SlashCommandAgentPromptResult {
+  /**
+   * Agent prompt result discriminator
+   */
+  kind: "agent-prompt";
+  /**
+   * Prompt to submit to the agent
+   */
+  prompt: string;
+  /**
+   * Prompt text to display to the user
+   */
+  displayPrompt: string;
+  mode?: SlashCommandAgentPromptMode;
+  /**
+   * True when the invocation mutated user runtime settings; consumers caching settings should refresh
+   */
+  runtimeSettingsChanged?: boolean;
+}
+
+export interface SlashCommandCompletedResult {
+  /**
+   * Completed result discriminator
+   */
+  kind: "completed";
+  /**
+   * Optional user-facing message describing the completed command
+   */
+  message?: string;
+  /**
+   * True when the invocation mutated user runtime settings; consumers caching settings should refresh
+   */
+  runtimeSettingsChanged?: boolean;
+}
+
+export interface SlashCommandTextResult {
+  /**
+   * Text result discriminator
+   */
+  kind: "text";
+  /**
+   * Text output for the client to render
+   */
+  text: string;
+  /**
+   * Whether text contains Markdown
+   */
+  markdown?: boolean;
+  /**
+   * Whether ANSI sequences should be preserved
+   */
+  preserveAnsi?: boolean;
+  /**
+   * True when the invocation mutated user runtime settings; consumers caching settings should refresh
+   */
+  runtimeSettingsChanged?: boolean;
 }
 
 export interface TaskAgentInfo {
@@ -2765,7 +2973,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.skills.enable", { sessionId, ...params }),
             disable: async (params: SkillsDisableRequest): Promise<void> =>
                 connection.sendRequest("session.skills.disable", { sessionId, ...params }),
-            reload: async (): Promise<void> =>
+            reload: async (): Promise<SkillsLoadDiagnostics> =>
                 connection.sendRequest("session.skills.reload", { sessionId }),
         },
         /** @experimental */
@@ -2805,6 +3013,10 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
         },
         commands: {
+            list: async (params?: CommandsListRequest): Promise<CommandList> =>
+                connection.sendRequest("session.commands.list", { sessionId, ...params }),
+            invoke: async (params: CommandsInvokeRequest): Promise<SlashCommandInvocationResult> =>
+                connection.sendRequest("session.commands.invoke", { sessionId, ...params }),
             handlePendingCommand: async (params: CommandsHandlePendingCommandRequest): Promise<CommandsHandlePendingCommandResult> =>
                 connection.sendRequest("session.commands.handlePendingCommand", { sessionId, ...params }),
             respondToQueuedCommand: async (params: CommandsRespondToQueuedCommandRequest): Promise<CommandsRespondToQueuedCommandResult> =>

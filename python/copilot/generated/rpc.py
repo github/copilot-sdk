@@ -207,6 +207,19 @@ class AuthInfoType(Enum):
     TOKEN = "token"
     USER = "user"
 
+class SlashCommandInputCompletion(Enum):
+    """Optional completion hint for the input (e.g. 'directory' for filesystem path completion)"""
+
+    DIRECTORY = "directory"
+
+class SlashCommandKind(Enum):
+    """Coarse command category for grouping and behavior: runtime built-in, skill-backed
+    command, or SDK/client-owned command
+    """
+    BUILTIN = "builtin"
+    CLIENT = "client"
+    SKILL = "skill"
+
 @dataclass
 class CommandsHandlePendingCommandRequest:
     request_id: str
@@ -243,6 +256,57 @@ class CommandsHandlePendingCommandResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["success"] = from_bool(self.success)
+        return result
+
+@dataclass
+class CommandsInvokeRequest:
+    name: str
+    """Command name. Leading slashes are stripped and the name is matched case-insensitively."""
+
+    input: str | None = None
+    """Raw input after the command name"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CommandsInvokeRequest':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        input = from_union([from_str, from_none], obj.get("input"))
+        return CommandsInvokeRequest(name, input)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        if self.input is not None:
+            result["input"] = from_union([from_str, from_none], self.input)
+        return result
+
+@dataclass
+class CommandsListRequest:
+    include_builtins: bool | None = None
+    """Include runtime built-in commands"""
+
+    include_client_commands: bool | None = None
+    """Include commands registered by protocol clients, including SDK clients and extensions"""
+
+    include_skills: bool | None = None
+    """Include enabled user-invocable skills and commands"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CommandsListRequest':
+        assert isinstance(obj, dict)
+        include_builtins = from_union([from_bool, from_none], obj.get("includeBuiltins"))
+        include_client_commands = from_union([from_bool, from_none], obj.get("includeClientCommands"))
+        include_skills = from_union([from_bool, from_none], obj.get("includeSkills"))
+        return CommandsListRequest(include_builtins, include_client_commands, include_skills)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.include_builtins is not None:
+            result["includeBuiltins"] = from_union([from_bool, from_none], self.include_builtins)
+        if self.include_client_commands is not None:
+            result["includeClientCommands"] = from_union([from_bool, from_none], self.include_client_commands)
+        if self.include_skills is not None:
+            result["includeSkills"] = from_union([from_bool, from_none], self.include_skills)
         return result
 
 @dataclass
@@ -538,7 +602,7 @@ class ExternalToolTextResultForLlmContentResourceLinkType(Enum):
 class ExternalToolTextResultForLlmContentTerminalType(Enum):
     TERMINAL = "terminal"
 
-class ExternalToolTextResultForLlmContentTextType(Enum):
+class KindEnum(Enum):
     TEXT = "text"
 
 class FilterMappingString(Enum):
@@ -917,30 +981,54 @@ class MCPServerConfigLocalType(Enum):
     LOCAL = "local"
     STDIO = "stdio"
 
-class SessionMode(Enum):
-    """The agent mode. Valid values: "interactive", "plan", "autopilot"."""
+class Mode(Enum):
+    """The agent mode. Valid values: "interactive", "plan", "autopilot".
 
+    Optional target session mode
+    """
     AUTOPILOT = "autopilot"
     INTERACTIVE = "interactive"
     PLAN = "plan"
 
 @dataclass
-class ModelBilling:
-    """Billing information"""
+class ModelBillingTokenPrices:
+    """Token-level pricing information for this model"""
 
-    multiplier: float | None = None
-    """Billing cost multiplier relative to the base rate"""
+    batch_size: int | None = None
+    """Number of tokens per standard billing batch"""
+
+    cache_price: int | None = None
+    """Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1
+    AIU = $0.01 USD)
+    """
+    input_price: int | None = None
+    """Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU
+    = $0.01 USD)
+    """
+    output_price: int | None = None
+    """Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1
+    AIU = $0.01 USD)
+    """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelBilling':
+    def from_dict(obj: Any) -> 'ModelBillingTokenPrices':
         assert isinstance(obj, dict)
-        multiplier = from_union([from_float, from_none], obj.get("multiplier"))
-        return ModelBilling(multiplier)
+        batch_size = from_union([from_int, from_none], obj.get("batchSize"))
+        cache_price = from_union([from_int, from_none], obj.get("cachePrice"))
+        input_price = from_union([from_int, from_none], obj.get("inputPrice"))
+        output_price = from_union([from_int, from_none], obj.get("outputPrice"))
+        return ModelBillingTokenPrices(batch_size, cache_price, input_price, output_price)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        if self.multiplier is not None:
-            result["multiplier"] = from_union([to_float, from_none], self.multiplier)
+        if self.batch_size is not None:
+            result["batchSize"] = from_union([from_int, from_none], self.batch_size)
+        if self.cache_price is not None:
+            result["cachePrice"] = from_union([from_int, from_none], self.cache_price)
+        if self.input_price is not None:
+            result["inputPrice"] = from_union([from_int, from_none], self.input_price)
+        if self.output_price is not None:
+            result["outputPrice"] = from_union([from_int, from_none], self.output_price)
         return result
 
 @dataclass
@@ -1829,6 +1917,9 @@ class SessionsForkRequest:
     session_id: str
     """Source session ID to fork from"""
 
+    name: str | None = None
+    """Optional friendly name to assign to the forked session."""
+
     to_event_id: str | None = None
     """Optional event ID boundary. When provided, the fork includes only events before this ID
     (exclusive). When omitted, all events are included.
@@ -1838,12 +1929,15 @@ class SessionsForkRequest:
     def from_dict(obj: Any) -> 'SessionsForkRequest':
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
+        name = from_union([from_str, from_none], obj.get("name"))
         to_event_id = from_union([from_str, from_none], obj.get("toEventId"))
-        return SessionsForkRequest(session_id, to_event_id)
+        return SessionsForkRequest(session_id, name, to_event_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["sessionId"] = from_str(self.session_id)
+        if self.name is not None:
+            result["name"] = from_union([from_str, from_none], self.name)
         if self.to_event_id is not None:
             result["toEventId"] = from_union([from_str, from_none], self.to_event_id)
         return result
@@ -1854,15 +1948,21 @@ class SessionsForkResult:
     session_id: str
     """The new forked session's ID"""
 
+    name: str | None = None
+    """Friendly name assigned to the forked session, if any."""
+
     @staticmethod
     def from_dict(obj: Any) -> 'SessionsForkResult':
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
-        return SessionsForkResult(session_id)
+        name = from_union([from_str, from_none], obj.get("name"))
+        return SessionsForkResult(session_id, name)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["sessionId"] = from_str(self.session_id)
+        if self.name is not None:
+            result["name"] = from_union([from_str, from_none], self.name)
         return result
 
 @dataclass
@@ -2046,6 +2146,39 @@ class SkillsEnableRequest:
         result: dict = {}
         result["name"] = from_str(self.name)
         return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillsLoadDiagnostics:
+    errors: list[str]
+    """Errors emitted while loading skills (e.g. skills that failed to load entirely)"""
+
+    warnings: list[str]
+    """Warnings emitted while loading skills (e.g. skills that loaded but had issues)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillsLoadDiagnostics':
+        assert isinstance(obj, dict)
+        errors = from_list(from_str, obj.get("errors"))
+        warnings = from_list(from_str, obj.get("warnings"))
+        return SkillsLoadDiagnostics(errors, warnings)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["errors"] = from_list(from_str, self.errors)
+        result["warnings"] = from_list(from_str, self.warnings)
+        return result
+
+class SlashCommandAgentPromptResultKind(Enum):
+    AGENT_PROMPT = "agent-prompt"
+
+class SlashCommandCompletedResultKind(Enum):
+    COMPLETED = "completed"
+
+class SlashCommandInvocationResultKind(Enum):
+    AGENT_PROMPT = "agent-prompt"
+    COMPLETED = "completed"
+    TEXT = "text"
 
 class TaskInfoExecutionMode(Enum):
     """How the agent is currently being managed by the runtime
@@ -2768,6 +2901,45 @@ class SessionAuthStatus:
         return result
 
 @dataclass
+class SlashCommandInput:
+    """Optional unstructured input hint"""
+
+    hint: str
+    """Hint to display when command input has not been provided"""
+
+    completion: SlashCommandInputCompletion | None = None
+    """Optional completion hint for the input (e.g. 'directory' for filesystem path completion)"""
+
+    preserve_multiline_input: bool | None = None
+    """When true, clients should pass the full text after the command name as a single argument
+    rather than splitting on whitespace
+    """
+    required: bool | None = None
+    """When true, the command requires non-empty input; clients should render the input hint as
+    required
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SlashCommandInput':
+        assert isinstance(obj, dict)
+        hint = from_str(obj.get("hint"))
+        completion = from_union([SlashCommandInputCompletion, from_none], obj.get("completion"))
+        preserve_multiline_input = from_union([from_bool, from_none], obj.get("preserveMultilineInput"))
+        required = from_union([from_bool, from_none], obj.get("required"))
+        return SlashCommandInput(hint, completion, preserve_multiline_input, required)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hint"] = from_str(self.hint)
+        if self.completion is not None:
+            result["completion"] = from_union([lambda x: to_enum(SlashCommandInputCompletion, x), from_none], self.completion)
+        if self.preserve_multiline_input is not None:
+            result["preserveMultilineInput"] = from_union([from_bool, from_none], self.preserve_multiline_input)
+        if self.required is not None:
+            result["required"] = from_union([from_bool, from_none], self.required)
+        return result
+
+@dataclass
 class CommandsRespondToQueuedCommandRequest:
     request_id: str
     """Request ID from the queued command event"""
@@ -3014,20 +3186,61 @@ class ExternalToolTextResultForLlmContentText:
     text: str
     """The text content"""
 
-    type: ExternalToolTextResultForLlmContentTextType
+    type: KindEnum
     """Content block type discriminator"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentText':
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
-        type = ExternalToolTextResultForLlmContentTextType(obj.get("type"))
+        type = KindEnum(obj.get("type"))
         return ExternalToolTextResultForLlmContentText(text, type)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["text"] = from_str(self.text)
-        result["type"] = to_enum(ExternalToolTextResultForLlmContentTextType, self.type)
+        result["type"] = to_enum(KindEnum, self.type)
+        return result
+
+@dataclass
+class SlashCommandTextResult:
+    kind: KindEnum
+    """Text result discriminator"""
+
+    text: str
+    """Text output for the client to render"""
+
+    markdown: bool | None = None
+    """Whether text contains Markdown"""
+
+    preserve_ansi: bool | None = None
+    """Whether ANSI sequences should be preserved"""
+
+    runtime_settings_changed: bool | None = None
+    """True when the invocation mutated user runtime settings; consumers caching settings should
+    refresh
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SlashCommandTextResult':
+        assert isinstance(obj, dict)
+        kind = KindEnum(obj.get("kind"))
+        text = from_str(obj.get("text"))
+        markdown = from_union([from_bool, from_none], obj.get("markdown"))
+        preserve_ansi = from_union([from_bool, from_none], obj.get("preserveAnsi"))
+        runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
+        return SlashCommandTextResult(kind, text, markdown, preserve_ansi, runtime_settings_changed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(KindEnum, self.kind)
+        result["text"] = from_str(self.text)
+        if self.markdown is not None:
+            result["markdown"] = from_union([from_bool, from_none], self.markdown)
+        if self.preserve_ansi is not None:
+            result["preserveAnsi"] = from_union([from_bool, from_none], self.preserve_ansi)
+        if self.runtime_settings_changed is not None:
+            result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -3368,18 +3581,43 @@ class MCPServerConfigLocal:
 
 @dataclass
 class ModeSetRequest:
-    mode: SessionMode
+    mode: Mode
     """The agent mode. Valid values: "interactive", "plan", "autopilot"."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModeSetRequest':
         assert isinstance(obj, dict)
-        mode = SessionMode(obj.get("mode"))
+        mode = Mode(obj.get("mode"))
         return ModeSetRequest(mode)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["mode"] = to_enum(SessionMode, self.mode)
+        result["mode"] = to_enum(Mode, self.mode)
+        return result
+
+@dataclass
+class ModelBilling:
+    """Billing information"""
+
+    multiplier: float | None = None
+    """Billing cost multiplier relative to the base rate"""
+
+    token_prices: ModelBillingTokenPrices | None = None
+    """Token-level pricing information for this model"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelBilling':
+        assert isinstance(obj, dict)
+        multiplier = from_union([from_float, from_none], obj.get("multiplier"))
+        token_prices = from_union([ModelBillingTokenPrices.from_dict, from_none], obj.get("tokenPrices"))
+        return ModelBilling(multiplier, token_prices)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.multiplier is not None:
+            result["multiplier"] = from_union([to_float, from_none], self.multiplier)
+        if self.token_prices is not None:
+            result["tokenPrices"] = from_union([lambda x: to_class(ModelBillingTokenPrices, x), from_none], self.token_prices)
         return result
 
 @dataclass
@@ -4097,6 +4335,145 @@ class SkillList:
         return result
 
 @dataclass
+class SlashCommandAgentPromptResult:
+    display_prompt: str
+    """Prompt text to display to the user"""
+
+    kind: SlashCommandAgentPromptResultKind
+    """Agent prompt result discriminator"""
+
+    prompt: str
+    """Prompt to submit to the agent"""
+
+    mode: Mode | None = None
+    """Optional target session mode"""
+
+    runtime_settings_changed: bool | None = None
+    """True when the invocation mutated user runtime settings; consumers caching settings should
+    refresh
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SlashCommandAgentPromptResult':
+        assert isinstance(obj, dict)
+        display_prompt = from_str(obj.get("displayPrompt"))
+        kind = SlashCommandAgentPromptResultKind(obj.get("kind"))
+        prompt = from_str(obj.get("prompt"))
+        mode = from_union([Mode, from_none], obj.get("mode"))
+        runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
+        return SlashCommandAgentPromptResult(display_prompt, kind, prompt, mode, runtime_settings_changed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["displayPrompt"] = from_str(self.display_prompt)
+        result["kind"] = to_enum(SlashCommandAgentPromptResultKind, self.kind)
+        result["prompt"] = from_str(self.prompt)
+        if self.mode is not None:
+            result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
+        if self.runtime_settings_changed is not None:
+            result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
+        return result
+
+@dataclass
+class SlashCommandCompletedResult:
+    kind: SlashCommandCompletedResultKind
+    """Completed result discriminator"""
+
+    message: str | None = None
+    """Optional user-facing message describing the completed command"""
+
+    runtime_settings_changed: bool | None = None
+    """True when the invocation mutated user runtime settings; consumers caching settings should
+    refresh
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SlashCommandCompletedResult':
+        assert isinstance(obj, dict)
+        kind = SlashCommandCompletedResultKind(obj.get("kind"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
+        return SlashCommandCompletedResult(kind, message, runtime_settings_changed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(SlashCommandCompletedResultKind, self.kind)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.runtime_settings_changed is not None:
+            result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
+        return result
+
+@dataclass
+class SlashCommandInvocationResult:
+    kind: SlashCommandInvocationResultKind
+    """Text result discriminator
+
+    Agent prompt result discriminator
+
+    Completed result discriminator
+    """
+    markdown: bool | None = None
+    """Whether text contains Markdown"""
+
+    preserve_ansi: bool | None = None
+    """Whether ANSI sequences should be preserved"""
+
+    runtime_settings_changed: bool | None = None
+    """True when the invocation mutated user runtime settings; consumers caching settings should
+    refresh
+    """
+    text: str | None = None
+    """Text output for the client to render"""
+
+    display_prompt: str | None = None
+    """Prompt text to display to the user"""
+
+    mode: Mode | None = None
+    """Optional target session mode"""
+
+    prompt: str | None = None
+    """Prompt to submit to the agent"""
+
+    message: str | None = None
+    """Optional user-facing message describing the completed command"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SlashCommandInvocationResult':
+        assert isinstance(obj, dict)
+        kind = SlashCommandInvocationResultKind(obj.get("kind"))
+        markdown = from_union([from_bool, from_none], obj.get("markdown"))
+        preserve_ansi = from_union([from_bool, from_none], obj.get("preserveAnsi"))
+        runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
+        text = from_union([from_str, from_none], obj.get("text"))
+        display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
+        mode = from_union([Mode, from_none], obj.get("mode"))
+        prompt = from_union([from_str, from_none], obj.get("prompt"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        return SlashCommandInvocationResult(kind, markdown, preserve_ansi, runtime_settings_changed, text, display_prompt, mode, prompt, message)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(SlashCommandInvocationResultKind, self.kind)
+        if self.markdown is not None:
+            result["markdown"] = from_union([from_bool, from_none], self.markdown)
+        if self.preserve_ansi is not None:
+            result["preserveAnsi"] = from_union([from_bool, from_none], self.preserve_ansi)
+        if self.runtime_settings_changed is not None:
+            result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
+        if self.text is not None:
+            result["text"] = from_union([from_str, from_none], self.text)
+        if self.display_prompt is not None:
+            result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
+        if self.mode is not None:
+            result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
+        if self.prompt is not None:
+            result["prompt"] = from_union([from_str, from_none], self.prompt)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        return result
+
+@dataclass
 class TaskShellInfo:
     attachment_mode: TaskShellInfoAttachmentMode
     """Whether the shell runs inside a managed PTY session or as an independent background
@@ -4541,6 +4918,56 @@ class Workspace:
             result["updated_at"] = from_union([lambda x: x.isoformat(), from_none], self.updated_at)
         if self.user_named is not None:
             result["user_named"] = from_union([from_bool, from_none], self.user_named)
+        return result
+
+@dataclass
+class SlashCommandInfo:
+    allow_during_agent_execution: bool
+    """Whether the command may run while an agent turn is active"""
+
+    description: str
+    """Human-readable command description"""
+
+    kind: SlashCommandKind
+    """Coarse command category for grouping and behavior: runtime built-in, skill-backed
+    command, or SDK/client-owned command
+    """
+    name: str
+    """Canonical command name without a leading slash"""
+
+    aliases: list[str] | None = None
+    """Canonical aliases without leading slashes"""
+
+    experimental: bool | None = None
+    """Whether the command is experimental"""
+
+    input: SlashCommandInput | None = None
+    """Optional unstructured input hint"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SlashCommandInfo':
+        assert isinstance(obj, dict)
+        allow_during_agent_execution = from_bool(obj.get("allowDuringAgentExecution"))
+        description = from_str(obj.get("description"))
+        kind = SlashCommandKind(obj.get("kind"))
+        name = from_str(obj.get("name"))
+        aliases = from_union([lambda x: from_list(from_str, x), from_none], obj.get("aliases"))
+        experimental = from_union([from_bool, from_none], obj.get("experimental"))
+        input = from_union([SlashCommandInput.from_dict, from_none], obj.get("input"))
+        return SlashCommandInfo(allow_during_agent_execution, description, kind, name, aliases, experimental, input)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["allowDuringAgentExecution"] = from_bool(self.allow_during_agent_execution)
+        result["description"] = from_str(self.description)
+        result["kind"] = to_enum(SlashCommandKind, self.kind)
+        result["name"] = from_str(self.name)
+        if self.aliases is not None:
+            result["aliases"] = from_union([lambda x: from_list(from_str, x), from_none], self.aliases)
+        if self.experimental is not None:
+            result["experimental"] = from_union([from_bool, from_none], self.experimental)
+        if self.input is not None:
+            result["input"] = from_union([lambda x: to_class(SlashCommandInput, x), from_none], self.input)
         return result
 
 @dataclass
@@ -5332,6 +5759,22 @@ class WorkspacesGetWorkspaceResult:
         return result
 
 @dataclass
+class CommandList:
+    commands: list[SlashCommandInfo]
+    """Commands available in this session"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CommandList':
+        assert isinstance(obj, dict)
+        commands = from_list(SlashCommandInfo.from_dict, obj.get("commands"))
+        return CommandList(commands)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["commands"] = from_list(lambda x: to_class(SlashCommandInfo, x), self.commands)
+        return result
+
+@dataclass
 class ExternalToolTextResultForLlm:
     """Expanded external tool result payload"""
 
@@ -5903,8 +6346,11 @@ class RPC:
     agent_select_request: AgentSelectRequest
     agent_select_result: AgentSelectResult
     auth_info_type: AuthInfoType
+    command_list: CommandList
     commands_handle_pending_command_request: CommandsHandlePendingCommandRequest
     commands_handle_pending_command_result: CommandsHandlePendingCommandResult
+    commands_invoke_request: CommandsInvokeRequest
+    commands_list_request: CommandsListRequest
     commands_respond_to_queued_command_request: CommandsRespondToQueuedCommandRequest
     commands_respond_to_queued_command_result: CommandsRespondToQueuedCommandResult
     connect_request: ConnectRequest
@@ -5974,6 +6420,7 @@ class RPC:
     mcp_server_status: MCPServerStatus
     model: Model
     model_billing: ModelBilling
+    model_billing_token_prices: ModelBillingTokenPrices
     model_capabilities: ModelCapabilities
     model_capabilities_limits: ModelCapabilitiesLimits
     model_capabilities_limits_vision: ModelCapabilitiesLimitsVision
@@ -6061,7 +6508,7 @@ class RPC:
     session_fs_stat_result: SessionFSStatResult
     session_fs_write_file_request: SessionFSWriteFileRequest
     session_log_level: SessionLogLevel
-    session_mode: SessionMode
+    session_mode: Mode
     sessions_fork_request: SessionsForkRequest
     sessions_fork_result: SessionsForkResult
     shell_exec_request: ShellExecRequest
@@ -6075,6 +6522,16 @@ class RPC:
     skills_disable_request: SkillsDisableRequest
     skills_discover_request: SkillsDiscoverRequest
     skills_enable_request: SkillsEnableRequest
+    skills_load_diagnostics: SkillsLoadDiagnostics
+    slash_command_agent_prompt_mode: Mode
+    slash_command_agent_prompt_result: SlashCommandAgentPromptResult
+    slash_command_completed_result: SlashCommandCompletedResult
+    slash_command_info: SlashCommandInfo
+    slash_command_input: SlashCommandInput
+    slash_command_input_completion: SlashCommandInputCompletion
+    slash_command_invocation_result: SlashCommandInvocationResult
+    slash_command_kind: SlashCommandKind
+    slash_command_text_result: SlashCommandTextResult
     task_agent_info: TaskAgentInfo
     task_agent_info_execution_mode: TaskInfoExecutionMode
     task_agent_info_status: TaskInfoStatus
@@ -6145,8 +6602,11 @@ class RPC:
         agent_select_request = AgentSelectRequest.from_dict(obj.get("AgentSelectRequest"))
         agent_select_result = AgentSelectResult.from_dict(obj.get("AgentSelectResult"))
         auth_info_type = AuthInfoType(obj.get("AuthInfoType"))
+        command_list = CommandList.from_dict(obj.get("CommandList"))
         commands_handle_pending_command_request = CommandsHandlePendingCommandRequest.from_dict(obj.get("CommandsHandlePendingCommandRequest"))
         commands_handle_pending_command_result = CommandsHandlePendingCommandResult.from_dict(obj.get("CommandsHandlePendingCommandResult"))
+        commands_invoke_request = CommandsInvokeRequest.from_dict(obj.get("CommandsInvokeRequest"))
+        commands_list_request = CommandsListRequest.from_dict(obj.get("CommandsListRequest"))
         commands_respond_to_queued_command_request = CommandsRespondToQueuedCommandRequest.from_dict(obj.get("CommandsRespondToQueuedCommandRequest"))
         commands_respond_to_queued_command_result = CommandsRespondToQueuedCommandResult.from_dict(obj.get("CommandsRespondToQueuedCommandResult"))
         connect_request = ConnectRequest.from_dict(obj.get("ConnectRequest"))
@@ -6216,6 +6676,7 @@ class RPC:
         mcp_server_status = MCPServerStatus(obj.get("McpServerStatus"))
         model = Model.from_dict(obj.get("Model"))
         model_billing = ModelBilling.from_dict(obj.get("ModelBilling"))
+        model_billing_token_prices = ModelBillingTokenPrices.from_dict(obj.get("ModelBillingTokenPrices"))
         model_capabilities = ModelCapabilities.from_dict(obj.get("ModelCapabilities"))
         model_capabilities_limits = ModelCapabilitiesLimits.from_dict(obj.get("ModelCapabilitiesLimits"))
         model_capabilities_limits_vision = ModelCapabilitiesLimitsVision.from_dict(obj.get("ModelCapabilitiesLimitsVision"))
@@ -6303,7 +6764,7 @@ class RPC:
         session_fs_stat_result = SessionFSStatResult.from_dict(obj.get("SessionFsStatResult"))
         session_fs_write_file_request = SessionFSWriteFileRequest.from_dict(obj.get("SessionFsWriteFileRequest"))
         session_log_level = SessionLogLevel(obj.get("SessionLogLevel"))
-        session_mode = SessionMode(obj.get("SessionMode"))
+        session_mode = Mode(obj.get("SessionMode"))
         sessions_fork_request = SessionsForkRequest.from_dict(obj.get("SessionsForkRequest"))
         sessions_fork_result = SessionsForkResult.from_dict(obj.get("SessionsForkResult"))
         shell_exec_request = ShellExecRequest.from_dict(obj.get("ShellExecRequest"))
@@ -6317,6 +6778,16 @@ class RPC:
         skills_disable_request = SkillsDisableRequest.from_dict(obj.get("SkillsDisableRequest"))
         skills_discover_request = SkillsDiscoverRequest.from_dict(obj.get("SkillsDiscoverRequest"))
         skills_enable_request = SkillsEnableRequest.from_dict(obj.get("SkillsEnableRequest"))
+        skills_load_diagnostics = SkillsLoadDiagnostics.from_dict(obj.get("SkillsLoadDiagnostics"))
+        slash_command_agent_prompt_mode = Mode(obj.get("SlashCommandAgentPromptMode"))
+        slash_command_agent_prompt_result = SlashCommandAgentPromptResult.from_dict(obj.get("SlashCommandAgentPromptResult"))
+        slash_command_completed_result = SlashCommandCompletedResult.from_dict(obj.get("SlashCommandCompletedResult"))
+        slash_command_info = SlashCommandInfo.from_dict(obj.get("SlashCommandInfo"))
+        slash_command_input = SlashCommandInput.from_dict(obj.get("SlashCommandInput"))
+        slash_command_input_completion = SlashCommandInputCompletion(obj.get("SlashCommandInputCompletion"))
+        slash_command_invocation_result = SlashCommandInvocationResult.from_dict(obj.get("SlashCommandInvocationResult"))
+        slash_command_kind = SlashCommandKind(obj.get("SlashCommandKind"))
+        slash_command_text_result = SlashCommandTextResult.from_dict(obj.get("SlashCommandTextResult"))
         task_agent_info = TaskAgentInfo.from_dict(obj.get("TaskAgentInfo"))
         task_agent_info_execution_mode = TaskInfoExecutionMode(obj.get("TaskAgentInfoExecutionMode"))
         task_agent_info_status = TaskInfoStatus(obj.get("TaskAgentInfoStatus"))
@@ -6373,7 +6844,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, embedded_blob_resource_contents, embedded_text_resource_contents, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_result, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, embedded_blob_resource_contents, embedded_text_resource_contents, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_result, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_mode, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -6387,8 +6858,11 @@ class RPC:
         result["AgentSelectRequest"] = to_class(AgentSelectRequest, self.agent_select_request)
         result["AgentSelectResult"] = to_class(AgentSelectResult, self.agent_select_result)
         result["AuthInfoType"] = to_enum(AuthInfoType, self.auth_info_type)
+        result["CommandList"] = to_class(CommandList, self.command_list)
         result["CommandsHandlePendingCommandRequest"] = to_class(CommandsHandlePendingCommandRequest, self.commands_handle_pending_command_request)
         result["CommandsHandlePendingCommandResult"] = to_class(CommandsHandlePendingCommandResult, self.commands_handle_pending_command_result)
+        result["CommandsInvokeRequest"] = to_class(CommandsInvokeRequest, self.commands_invoke_request)
+        result["CommandsListRequest"] = to_class(CommandsListRequest, self.commands_list_request)
         result["CommandsRespondToQueuedCommandRequest"] = to_class(CommandsRespondToQueuedCommandRequest, self.commands_respond_to_queued_command_request)
         result["CommandsRespondToQueuedCommandResult"] = to_class(CommandsRespondToQueuedCommandResult, self.commands_respond_to_queued_command_result)
         result["ConnectRequest"] = to_class(ConnectRequest, self.connect_request)
@@ -6458,6 +6932,7 @@ class RPC:
         result["McpServerStatus"] = to_enum(MCPServerStatus, self.mcp_server_status)
         result["Model"] = to_class(Model, self.model)
         result["ModelBilling"] = to_class(ModelBilling, self.model_billing)
+        result["ModelBillingTokenPrices"] = to_class(ModelBillingTokenPrices, self.model_billing_token_prices)
         result["ModelCapabilities"] = to_class(ModelCapabilities, self.model_capabilities)
         result["ModelCapabilitiesLimits"] = to_class(ModelCapabilitiesLimits, self.model_capabilities_limits)
         result["ModelCapabilitiesLimitsVision"] = to_class(ModelCapabilitiesLimitsVision, self.model_capabilities_limits_vision)
@@ -6545,7 +7020,7 @@ class RPC:
         result["SessionFsStatResult"] = to_class(SessionFSStatResult, self.session_fs_stat_result)
         result["SessionFsWriteFileRequest"] = to_class(SessionFSWriteFileRequest, self.session_fs_write_file_request)
         result["SessionLogLevel"] = to_enum(SessionLogLevel, self.session_log_level)
-        result["SessionMode"] = to_enum(SessionMode, self.session_mode)
+        result["SessionMode"] = to_enum(Mode, self.session_mode)
         result["SessionsForkRequest"] = to_class(SessionsForkRequest, self.sessions_fork_request)
         result["SessionsForkResult"] = to_class(SessionsForkResult, self.sessions_fork_result)
         result["ShellExecRequest"] = to_class(ShellExecRequest, self.shell_exec_request)
@@ -6559,6 +7034,16 @@ class RPC:
         result["SkillsDisableRequest"] = to_class(SkillsDisableRequest, self.skills_disable_request)
         result["SkillsDiscoverRequest"] = to_class(SkillsDiscoverRequest, self.skills_discover_request)
         result["SkillsEnableRequest"] = to_class(SkillsEnableRequest, self.skills_enable_request)
+        result["SkillsLoadDiagnostics"] = to_class(SkillsLoadDiagnostics, self.skills_load_diagnostics)
+        result["SlashCommandAgentPromptMode"] = to_enum(Mode, self.slash_command_agent_prompt_mode)
+        result["SlashCommandAgentPromptResult"] = to_class(SlashCommandAgentPromptResult, self.slash_command_agent_prompt_result)
+        result["SlashCommandCompletedResult"] = to_class(SlashCommandCompletedResult, self.slash_command_completed_result)
+        result["SlashCommandInfo"] = to_class(SlashCommandInfo, self.slash_command_info)
+        result["SlashCommandInput"] = to_class(SlashCommandInput, self.slash_command_input)
+        result["SlashCommandInputCompletion"] = to_enum(SlashCommandInputCompletion, self.slash_command_input_completion)
+        result["SlashCommandInvocationResult"] = to_class(SlashCommandInvocationResult, self.slash_command_invocation_result)
+        result["SlashCommandKind"] = to_enum(SlashCommandKind, self.slash_command_kind)
+        result["SlashCommandTextResult"] = to_class(SlashCommandTextResult, self.slash_command_text_result)
         result["TaskAgentInfo"] = to_class(TaskAgentInfo, self.task_agent_info)
         result["TaskAgentInfoExecutionMode"] = to_enum(TaskInfoExecutionMode, self.task_agent_info_execution_mode)
         result["TaskAgentInfoStatus"] = to_enum(TaskInfoStatus, self.task_agent_info_status)
@@ -6623,6 +7108,17 @@ def rpc_from_dict(s: Any) -> RPC:
 def rpc_to_dict(x: RPC) -> Any:
     return to_class(RPC, x)
 
+
+DiscoveredMcpServerSource = MCPServerSource
+ExternalToolResult = ExternalToolTextResultForLlm
+FilterMapping = dict
+FilterMappingValue = FilterMappingString
+SessionMode = Mode
+SlashCommandAgentPromptMode = Mode
+TaskAgentInfoExecutionMode = TaskInfoExecutionMode
+TaskAgentInfoStatus = TaskInfoStatus
+TaskShellInfoExecutionMode = TaskInfoExecutionMode
+TaskShellInfoStatus = TaskInfoStatus
 
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
@@ -6773,7 +7269,7 @@ class ServerRpc:
 
 
 class _InternalServerRpc:
-    """Internal SDK server-scoped RPC methods (handshake helpers etc.). Not part of the public API."""
+    """Internal SDK server-scoped RPC methods. Not part of the public API."""
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
@@ -6811,8 +7307,8 @@ class ModeApi:
         self._client = client
         self._session_id = session_id
 
-    async def get(self, *, timeout: float | None = None) -> SessionMode:
-        return SessionMode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def get(self, *, timeout: float | None = None) -> Mode:
+        return Mode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def set(self, params: ModeSetRequest, *, timeout: float | None = None) -> None:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -6972,8 +7468,8 @@ class SkillsApi:
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.disable", params_dict, **_timeout_kwargs(timeout))
 
-    async def reload(self, *, timeout: float | None = None) -> None:
-        await self._client.request("session.skills.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
+    async def reload(self, *, timeout: float | None = None) -> SkillsLoadDiagnostics:
+        return SkillsLoadDiagnostics.from_dict(await self._client.request("session.skills.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -7060,6 +7556,16 @@ class CommandsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
+
+    async def list(self, params: CommandsListRequest | None = None, *, timeout: float | None = None) -> CommandList:
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
+        params_dict["sessionId"] = self._session_id
+        return CommandList.from_dict(await self._client.request("session.commands.list", params_dict, **_timeout_kwargs(timeout)))
+
+    async def invoke(self, params: CommandsInvokeRequest, *, timeout: float | None = None) -> SlashCommandInvocationResult:
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SlashCommandInvocationResult.from_dict(await self._client.request("session.commands.invoke", params_dict, **_timeout_kwargs(timeout)))
 
     async def handle_pending_command(self, params: CommandsHandlePendingCommandRequest, *, timeout: float | None = None) -> CommandsHandlePendingCommandResult:
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}

@@ -2,7 +2,10 @@ package rpc
 
 import (
 	"encoding/json"
+	"io"
 	"testing"
+
+	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
 func TestExternalToolResultJSONUnion(t *testing.T) {
@@ -127,6 +130,58 @@ func TestMcpServerConfigJSONUnion(t *testing.T) {
 	}
 	if _, ok := decodedRaw.(*RawMcpServerConfigData); !ok {
 		t.Fatalf("unmarshal raw config = %T, want *RawMcpServerConfigData", decodedRaw)
+	}
+}
+
+func TestCommandsInvokeUnmarshalsSlashCommandInvocationResult(t *testing.T) {
+	clientToServerReader, clientToServerWriter := io.Pipe()
+	serverToClientReader, serverToClientWriter := io.Pipe()
+
+	client := jsonrpc2.NewClient(clientToServerWriter, serverToClientReader)
+	server := jsonrpc2.NewClient(serverToClientWriter, clientToServerReader)
+	server.SetRequestHandler("session.commands.invoke", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request struct {
+			Input     string `json:"input"`
+			Name      string `json:"name"`
+			SessionID string `json:"sessionId"`
+		}
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+		}
+		if request.SessionID != "session-1" || request.Name != "help" || request.Input != "details" {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: "unexpected invoke request"}
+		}
+		return json.RawMessage(`{"kind":"text","text":"hello","markdown":true}`), nil
+	})
+
+	client.Start()
+	server.Start()
+	t.Cleanup(func() {
+		client.Stop()
+		server.Stop()
+		_ = clientToServerWriter.Close()
+		_ = clientToServerReader.Close()
+		_ = serverToClientWriter.Close()
+		_ = serverToClientReader.Close()
+	})
+
+	input := "details"
+	result, err := NewSessionRpc(client, "session-1").Commands.Invoke(t.Context(), &CommandsInvokeRequest{
+		Input: &input,
+		Name:  "help",
+	})
+	if err != nil {
+		t.Fatalf("invoke command: %v", err)
+	}
+	textResult, ok := result.(*SlashCommandTextResult)
+	if !ok {
+		t.Fatalf("invoke result = %T, want *SlashCommandTextResult", result)
+	}
+	if textResult.Text != "hello" {
+		t.Fatalf("invoke result text = %q, want hello", textResult.Text)
+	}
+	if textResult.Markdown == nil || !*textResult.Markdown {
+		t.Fatalf("invoke result markdown = %v, want true", textResult.Markdown)
 	}
 }
 

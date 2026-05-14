@@ -70,6 +70,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "rust"
+          prefix-key: v1-rust-no-bin
+          cache-bin: false
 
       - name: cargo fmt --check (nightly)
         if: runner.os == 'Linux'
@@ -135,6 +137,8 @@ jobs:
         with:
           workspaces: "rust"
           key: bundled-cli
+          prefix-key: v1-rust-no-bin
+          cache-bin: false
 
       - name: Read pinned @github/copilot CLI version
         id: cli-version
