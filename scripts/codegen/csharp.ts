@@ -92,6 +92,79 @@ function xmlDocComment(description: string | undefined, indent: string): string[
     ];
 }
 
+function xmlDocElement(tagName: string, description: string | undefined, indent: string): string[] {
+    if (!description) return [];
+    const escaped = ensureTrailingPunctuation(escapeXml(description.trim()));
+    const lines = escaped.split(/\r?\n/);
+    if (lines.length === 1) {
+        return [`${indent}/// <${tagName}>${lines[0]}</${tagName}>`];
+    }
+    return [
+        `${indent}/// <${tagName}>`,
+        ...lines.map((line) => `${indent}/// ${line}`),
+        `${indent}/// </${tagName}>`,
+    ];
+}
+
+function xmlDocNamedElement(
+    tagName: string,
+    name: string,
+    description: string | undefined,
+    indent: string,
+    escapeDescription = true
+): string[] {
+    if (!description) return [];
+    const preparedDescription = escapeDescription ? escapeXml(description.trim()) : description.trim();
+    const lines = ensureTrailingPunctuation(preparedDescription).split(/\r?\n/);
+    const escapedName = escapeXml(name);
+    if (lines.length === 1) {
+        return [`${indent}/// <${tagName} name="${escapedName}">${lines[0]}</${tagName}>`];
+    }
+    return [
+        `${indent}/// <${tagName} name="${escapedName}">`,
+        ...lines.map((line) => `${indent}/// ${line}`),
+        `${indent}/// </${tagName}>`,
+    ];
+}
+
+function rpcResultDescription(method: RpcMethod, resultSchema: JSONSchema7 | undefined): string | undefined {
+    if (isVoidSchema(resultSchema)) return undefined;
+    return method.result?.description ?? resultSchema?.description;
+}
+
+function rpcParamsDescription(method: RpcMethod, effectiveParams: JSONSchema7 | undefined): string | undefined {
+    return method.params?.description ?? effectiveParams?.description;
+}
+
+function fallbackParameterDescription(name: string): string {
+    return name === "request" ? "The request parameters." : `The ${name} parameter.`;
+}
+
+function pushRpcMethodXmlDocs(
+    lines: string[],
+    method: RpcMethod,
+    indent: string,
+    parameterDescriptions: Array<{ name: string; description?: string; escapeDescription?: boolean }>,
+    resultSchema: JSONSchema7 | undefined
+): void {
+    lines.push(...xmlDocComment(method.description ?? `Calls "${method.rpcMethod}".`, indent));
+    for (const parameter of parameterDescriptions) {
+        lines.push(
+            ...xmlDocNamedElement(
+                "param",
+                parameter.name,
+                parameter.description ?? fallbackParameterDescription(parameter.name),
+                indent,
+                parameter.escapeDescription
+            )
+        );
+    }
+    lines.push(...xmlDocElement("returns", rpcResultDescription(method, resultSchema), indent));
+}
+
+const CANCELLATION_TOKEN_DESCRIPTION =
+    'The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.';
+
 /** Like xmlDocComment but skips XML escaping — use only for codegen-controlled strings that already contain valid XML tags. */
 function rawXmlDocSummary(text: string, indent: string): string[] {
     const line = ensureTrailingPunctuation(text.trim());
@@ -1658,17 +1731,9 @@ function emitServerInstanceMethod(
         if (reqClass) classes.push(reqClass);
     }
 
-    lines.push("");
-    lines.push(`${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
-    if (method.stability === "experimental" && !groupExperimental) {
-        pushExperimentalAttribute(lines, indent);
-    }
-    if (method.deprecated && !groupDeprecated) {
-        pushObsoleteAttributes(lines, indent);
-    }
-
     const sigParams: string[] = [];
     const bodyAssignments: string[] = [];
+    const parameterDescriptions: Array<{ name: string; description?: string; escapeDescription?: boolean }> = [];
 
     for (const [pName, pSchema] of paramEntries) {
         if (typeof pSchema !== "object") continue;
@@ -1679,11 +1744,25 @@ function emitServerInstanceMethod(
             : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
         sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
         bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+        parameterDescriptions.push({ name: pName, description: jsonSchema.description });
     }
     sigParams.push("CancellationToken cancellationToken = default");
+    parameterDescriptions.push({
+        name: "cancellationToken",
+        description: CANCELLATION_TOKEN_DESCRIPTION,
+        escapeDescription: false,
+    });
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
     const localRequestName = localRequestVariableName(paramEntries);
+    lines.push("");
+    pushRpcMethodXmlDocs(lines, method, indent, parameterDescriptions, resultSchema);
+    if (method.stability === "experimental" && !groupExperimental) {
+        pushExperimentalAttribute(lines, indent);
+    }
+    if (method.deprecated && !groupDeprecated) {
+        pushObsoleteAttributes(lines, indent);
+    }
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`);
     if (requestClassName && bodyAssignments.length > 0) {
@@ -1783,18 +1862,13 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
         }
     }
 
-    lines.push("", `${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
-    if (method.stability === "experimental" && !groupExperimental) {
-        pushExperimentalAttribute(lines, indent);
-    }
-    if (method.deprecated && !groupDeprecated) {
-        pushObsoleteAttributes(lines, indent);
-    }
     const sigParams: string[] = [];
     const bodyAssignments = [`SessionId = _sessionId`];
+    const parameterDescriptions: Array<{ name: string; description?: string; escapeDescription?: boolean }> = [];
 
     if (useRequestParameter) {
         sigParams.push(`${requestClassName}? request = null`);
+        parameterDescriptions.push({ name: "request", description: rpcParamsDescription(method, effectiveParams) });
         for (const [pName] of paramEntries) {
             bodyAssignments.push(`${toPascalCase(pName)} = request?.${toPascalCase(pName)}`);
         }
@@ -1805,12 +1879,26 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
             const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
             sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
             bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+            parameterDescriptions.push({ name: pName, description: (pSchema as JSONSchema7).description });
         }
     }
     sigParams.push("CancellationToken cancellationToken = default");
+    parameterDescriptions.push({
+        name: "cancellationToken",
+        description: CANCELLATION_TOKEN_DESCRIPTION,
+        escapeDescription: false,
+    });
 
     const taskType = !isVoidSchema(resultSchema) ? `Task<${resultClassName}>` : "Task";
     const localRequestName = localRequestVariableName(paramEntries, useRequestParameter);
+    lines.push("");
+    pushRpcMethodXmlDocs(lines, method, indent, parameterDescriptions, resultSchema);
+    if (method.stability === "experimental" && !groupExperimental) {
+        pushExperimentalAttribute(lines, indent);
+    }
+    if (method.deprecated && !groupDeprecated) {
+        pushObsoleteAttributes(lines, indent);
+    }
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`, `${indent}    var ${localRequestName} = new ${wireRequestClassName} { ${bodyAssignments.join(", ")} };`);
     if (!isVoidSchema(resultSchema)) {
@@ -1920,7 +2008,16 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             const hasParams = !!effectiveParams?.properties && Object.keys(effectiveParams.properties).length > 0;
             const resultSchema = getMethodResultSchema(method);
             const taskType = resultTaskType(method);
-            lines.push(`    /// <summary>Handles "${method.rpcMethod}".</summary>`);
+            pushRpcMethodXmlDocs(
+                lines,
+                method,
+                "    ",
+                [
+                    ...(hasParams ? [{ name: "request", description: rpcParamsDescription(method, effectiveParams) }] : []),
+                    { name: "cancellationToken", description: CANCELLATION_TOKEN_DESCRIPTION, escapeDescription: false },
+                ],
+                resultSchema
+            );
             if (method.stability === "experimental" && !groupExperimental) {
                 pushExperimentalAttribute(lines, "    ");
             }

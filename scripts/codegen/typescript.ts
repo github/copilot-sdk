@@ -46,6 +46,65 @@ function tsExperimentalJSDoc(indent = ""): string {
     return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
 }
 
+function sanitizeJsDocText(text: string): string {
+    return text.trim().replace(/\*\//g, "* /");
+}
+
+function pushTsJsDoc(lines: string[], indent: string, entries: string[]): void {
+    const cleaned = entries.map(sanitizeJsDocText).filter((entry) => entry.length > 0);
+    if (cleaned.length === 0) return;
+
+    lines.push(`${indent}/**`);
+    for (const [index, entry] of cleaned.entries()) {
+        if (index > 0) {
+            lines.push(`${indent} *`);
+        }
+        for (const line of entry.split(/\r?\n/)) {
+            lines.push(`${indent} * ${line}`);
+        }
+    }
+    lines.push(`${indent} */`);
+}
+
+function rpcResultDescription(method: RpcMethod): string | undefined {
+    const resultSchema = getMethodResultSchema(method);
+    if (isVoidSchema(resultSchema)) return undefined;
+    return method.result?.description ?? resultSchema?.description;
+}
+
+function rpcParamsDescription(method: RpcMethod, effectiveParams: JSONSchema7 | undefined): string | undefined {
+    return method.params?.description ?? effectiveParams?.description;
+}
+
+function pushTsRpcMethodJsDoc(
+    lines: string[],
+    indent: string,
+    method: RpcMethod,
+    options: {
+        paramsName?: string;
+        paramsDescription?: string;
+        includeDeprecated?: boolean;
+        includeExperimental?: boolean;
+    } = {}
+): void {
+    const entries: string[] = [];
+    entries.push(method.description ?? `Calls \`${method.rpcMethod}\`.`);
+    if (options.paramsName && options.paramsDescription) {
+        entries.push(`@param ${options.paramsName} ${options.paramsDescription}`);
+    }
+    const resultDescription = rpcResultDescription(method);
+    if (resultDescription) {
+        entries.push(`@returns ${resultDescription}`);
+    }
+    if (options.includeDeprecated) {
+        entries.push("@deprecated");
+    }
+    if (options.includeExperimental) {
+        entries.push("@experimental");
+    }
+    pushTsJsDoc(lines, indent, entries);
+}
+
 function toPascalCase(s: string): string {
     return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -635,12 +694,12 @@ function emitGroup(
                 }
             }
 
-            if ((value as RpcMethod).deprecated && !parentDeprecated) {
-                lines.push(`${indent}/** @deprecated */`);
-            }
-            if ((value as RpcMethod).stability === "experimental" && !parentExperimental) {
-                lines.push(tsExperimentalJSDoc(indent));
-            }
+            pushTsRpcMethodJsDoc(lines, indent, value, {
+                paramsName: sigParams.length > 0 ? "params" : undefined,
+                paramsDescription: rpcParamsDescription(value, effectiveParams),
+                includeDeprecated: (value as RpcMethod).deprecated && !parentDeprecated,
+                includeExperimental: (value as RpcMethod).stability === "experimental" && !parentExperimental,
+            });
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
             lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
         } else if (typeof value === "object" && value !== null) {
@@ -711,6 +770,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
     for (const [groupName, methods] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
         const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
+        const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
         if (groupDeprecated) {
             lines.push(`/** @deprecated Handler for \`${groupName}\` client session API methods. */`);
         } else {
@@ -723,9 +783,12 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
             const pType = hasParams ? paramsTypeName(method) : "";
             const rType = tsResultType(method);
 
-            if (method.deprecated && !groupDeprecated) {
-                lines.push(`    /** @deprecated */`);
-            }
+            pushTsRpcMethodJsDoc(lines, "    ", method, {
+                paramsName: hasParams ? "params" : undefined,
+                paramsDescription: rpcParamsDescription(method, getMethodParamsSchema(method)),
+                includeDeprecated: method.deprecated && !groupDeprecated,
+                includeExperimental: method.stability === "experimental" && !groupExperimental,
+            });
             if (hasParams) {
                 lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
             } else {

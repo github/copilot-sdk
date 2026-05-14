@@ -4996,6 +4996,8 @@ public sealed class ServerRpc
     }
 
     /// <summary>Calls "ping".</summary>
+    /// <param name="message">Optional message to echo back.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<PingResult> PingAsync(string? message = null, CancellationToken cancellationToken = default)
     {
         var request = new PingRequest { Message = message };
@@ -5003,6 +5005,8 @@ public sealed class ServerRpc
     }
 
     /// <summary>Calls "connect".</summary>
+    /// <param name="token">Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     internal async Task<ConnectResult> ConnectAsync(string? token = null, CancellationToken cancellationToken = default)
     {
         var request = new ConnectRequest { Token = token };
@@ -5042,6 +5046,8 @@ public sealed class ServerModelsApi
     }
 
     /// <summary>Calls "models.list".</summary>
+    /// <param name="gitHubToken">GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<ModelList> ListAsync(string? gitHubToken = null, CancellationToken cancellationToken = default)
     {
         var request = new ModelsListRequest { GitHubToken = gitHubToken };
@@ -5060,6 +5066,8 @@ public sealed class ServerToolsApi
     }
 
     /// <summary>Calls "tools.list".</summary>
+    /// <param name="model">Optional model ID — when provided, the returned tool list reflects model-specific overrides.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<ToolList> ListAsync(string? model = null, CancellationToken cancellationToken = default)
     {
         var request = new ToolsListRequest { Model = model };
@@ -5078,6 +5086,8 @@ public sealed class ServerAccountApi
     }
 
     /// <summary>Calls "account.getQuota".</summary>
+    /// <param name="gitHubToken">GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<AccountGetQuotaResult> GetQuotaAsync(string? gitHubToken = null, CancellationToken cancellationToken = default)
     {
         var request = new AccountGetQuotaRequest { GitHubToken = gitHubToken };
@@ -5097,6 +5107,8 @@ public sealed class ServerMcpApi
     }
 
     /// <summary>Calls "mcp.discover".</summary>
+    /// <param name="workingDirectory">Working directory used as context for discovery (e.g., plugin resolution).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<McpDiscoverResult> DiscoverAsync(string? workingDirectory = null, CancellationToken cancellationToken = default)
     {
         var request = new McpDiscoverRequest { WorkingDirectory = workingDirectory };
@@ -5118,12 +5130,16 @@ public sealed class ServerMcpConfigApi
     }
 
     /// <summary>Calls "mcp.config.list".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<McpConfigList> ListAsync(CancellationToken cancellationToken = default)
     {
         return await CopilotClient.InvokeRpcAsync<McpConfigList>(_rpc, "mcp.config.list", [], cancellationToken);
     }
 
     /// <summary>Calls "mcp.config.add".</summary>
+    /// <param name="name">Unique name for the MCP server.</param>
+    /// <param name="config">MCP server configuration (local/stdio or remote/http).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task AddAsync(string name, object config, CancellationToken cancellationToken = default)
     {
         var request = new McpConfigAddRequest { Name = name, Config = config };
@@ -5131,6 +5147,9 @@ public sealed class ServerMcpConfigApi
     }
 
     /// <summary>Calls "mcp.config.update".</summary>
+    /// <param name="name">Name of the MCP server to update.</param>
+    /// <param name="config">MCP server configuration (local/stdio or remote/http).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task UpdateAsync(string name, object config, CancellationToken cancellationToken = default)
     {
         var request = new McpConfigUpdateRequest { Name = name, Config = config };
@@ -5138,6 +5157,8 @@ public sealed class ServerMcpConfigApi
     }
 
     /// <summary>Calls "mcp.config.remove".</summary>
+    /// <param name="name">Name of the MCP server to remove.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task RemoveAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new McpConfigRemoveRequest { Name = name };
@@ -5145,6 +5166,8 @@ public sealed class ServerMcpConfigApi
     }
 
     /// <summary>Calls "mcp.config.enable".</summary>
+    /// <param name="names">Names of MCP servers to enable. Each server is removed from the persisted disabled list so new sessions spawn it. Unknown or already-enabled names are ignored.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(IList<string> names, CancellationToken cancellationToken = default)
     {
         var request = new McpConfigEnableRequest { Names = names };
@@ -5152,6 +5175,8 @@ public sealed class ServerMcpConfigApi
     }
 
     /// <summary>Calls "mcp.config.disable".</summary>
+    /// <param name="names">Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(IList<string> names, CancellationToken cancellationToken = default)
     {
         var request = new McpConfigDisableRequest { Names = names };
@@ -5171,6 +5196,9 @@ public sealed class ServerSkillsApi
     }
 
     /// <summary>Calls "skills.discover".</summary>
+    /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped skills.</param>
+    /// <param name="skillDirectories">Optional list of additional skill directory paths to include.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, CancellationToken cancellationToken = default)
     {
         var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories };
@@ -5192,6 +5220,8 @@ public sealed class ServerSkillsConfigApi
     }
 
     /// <summary>Calls "skills.config.setDisabledSkills".</summary>
+    /// <param name="disabledSkills">List of skill names to disable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetDisabledSkillsAsync(IList<string> disabledSkills, CancellationToken cancellationToken = default)
     {
         var request = new SkillsConfigSetDisabledSkillsRequest { DisabledSkills = disabledSkills };
@@ -5210,6 +5240,10 @@ public sealed class ServerSessionFsApi
     }
 
     /// <summary>Calls "sessionFs.setProvider".</summary>
+    /// <param name="initialCwd">Initial working directory for sessions.</param>
+    /// <param name="sessionStatePath">Path within each session's SessionFs where the runtime stores files for that session.</param>
+    /// <param name="conventions">Path conventions used by this filesystem.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<SessionFsSetProviderResult> SetProviderAsync(string initialCwd, string sessionStatePath, SessionFsSetProviderConventions conventions, CancellationToken cancellationToken = default)
     {
         var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions };
@@ -5229,6 +5263,10 @@ public sealed class ServerSessionsApi
     }
 
     /// <summary>Calls "sessions.fork".</summary>
+    /// <param name="sessionId">Source session ID to fork from.</param>
+    /// <param name="toEventId">Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.</param>
+    /// <param name="name">Optional friendly name to assign to the forked session.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<SessionsForkResult> ForkAsync(string sessionId, string? toEventId = null, string? name = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionsForkRequest { SessionId = sessionId, ToEventId = toEventId, Name = name };
@@ -5337,6 +5375,7 @@ public sealed class SessionRpc
     public RemoteApi Remote { get; }
 
     /// <summary>Calls "session.suspend".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionSuspendRequest { SessionId = _sessionId };
@@ -5344,6 +5383,11 @@ public sealed class SessionRpc
     }
 
     /// <summary>Calls "session.log".</summary>
+    /// <param name="message">Human-readable message.</param>
+    /// <param name="level">Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</param>
+    /// <param name="ephemeral">When true, the message is transient and not persisted to the session event log on disk.</param>
+    /// <param name="url">Optional URL the user can open in their browser for more details.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<LogResult> LogAsync(string message, SessionLogLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
         var request = new LogRequest { SessionId = _sessionId, Message = message, Level = level, Ephemeral = ephemeral, Url = url };
@@ -5364,6 +5408,7 @@ public sealed class AuthApi
     }
 
     /// <summary>Calls "session.auth.getStatus".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<SessionAuthStatus> GetStatusAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAuthGetStatusRequest { SessionId = _sessionId };
@@ -5384,6 +5429,7 @@ public sealed class ModelApi
     }
 
     /// <summary>Calls "session.model.getCurrent".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<CurrentModel> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionModelGetCurrentRequest { SessionId = _sessionId };
@@ -5391,6 +5437,10 @@ public sealed class ModelApi
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
+    /// <param name="modelId">Model identifier to switch to.</param>
+    /// <param name="reasoningEffort">Reasoning effort level to use for the model.</param>
+    /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
     {
         var request = new ModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ModelCapabilities = modelCapabilities };
@@ -5411,6 +5461,8 @@ public sealed class ModeApi
     }
 
     /// <summary>Calls "session.mode.get".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The agent mode. Valid values: "interactive", "plan", "autopilot".</returns>
     public async Task<SessionMode> GetAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionModeGetRequest { SessionId = _sessionId };
@@ -5418,6 +5470,8 @@ public sealed class ModeApi
     }
 
     /// <summary>Calls "session.mode.set".</summary>
+    /// <param name="mode">The agent mode. Valid values: "interactive", "plan", "autopilot".</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetAsync(SessionMode mode, CancellationToken cancellationToken = default)
     {
         var request = new ModeSetRequest { SessionId = _sessionId, Mode = mode };
@@ -5438,6 +5492,7 @@ public sealed class NameApi
     }
 
     /// <summary>Calls "session.name.get".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<NameGetResult> GetAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionNameGetRequest { SessionId = _sessionId };
@@ -5445,6 +5500,8 @@ public sealed class NameApi
     }
 
     /// <summary>Calls "session.name.set".</summary>
+    /// <param name="name">New session name (1–100 characters, trimmed of leading/trailing whitespace).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new NameSetRequest { SessionId = _sessionId, Name = name };
@@ -5465,6 +5522,7 @@ public sealed class PlanApi
     }
 
     /// <summary>Calls "session.plan.read".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<PlanReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionPlanReadRequest { SessionId = _sessionId };
@@ -5472,6 +5530,8 @@ public sealed class PlanApi
     }
 
     /// <summary>Calls "session.plan.update".</summary>
+    /// <param name="content">The new content for the plan file.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task UpdateAsync(string content, CancellationToken cancellationToken = default)
     {
         var request = new PlanUpdateRequest { SessionId = _sessionId, Content = content };
@@ -5479,6 +5539,7 @@ public sealed class PlanApi
     }
 
     /// <summary>Calls "session.plan.delete".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DeleteAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionPlanDeleteRequest { SessionId = _sessionId };
@@ -5499,6 +5560,7 @@ public sealed class WorkspacesApi
     }
 
     /// <summary>Calls "session.workspaces.getWorkspace".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<WorkspacesGetWorkspaceResult> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionWorkspacesGetWorkspaceRequest { SessionId = _sessionId };
@@ -5506,6 +5568,7 @@ public sealed class WorkspacesApi
     }
 
     /// <summary>Calls "session.workspaces.listFiles".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<WorkspacesListFilesResult> ListFilesAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionWorkspacesListFilesRequest { SessionId = _sessionId };
@@ -5513,6 +5576,8 @@ public sealed class WorkspacesApi
     }
 
     /// <summary>Calls "session.workspaces.readFile".</summary>
+    /// <param name="path">Relative path within the workspace files directory.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<WorkspacesReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
     {
         var request = new WorkspacesReadFileRequest { SessionId = _sessionId, Path = path };
@@ -5520,6 +5585,9 @@ public sealed class WorkspacesApi
     }
 
     /// <summary>Calls "session.workspaces.createFile".</summary>
+    /// <param name="path">Relative path within the workspace files directory.</param>
+    /// <param name="content">File content to write as a UTF-8 string.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
     {
         var request = new WorkspacesCreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
@@ -5540,6 +5608,7 @@ public sealed class InstructionsApi
     }
 
     /// <summary>Calls "session.instructions.getSources".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<InstructionsGetSourcesResult> GetSourcesAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionInstructionsGetSourcesRequest { SessionId = _sessionId };
@@ -5561,6 +5630,8 @@ public sealed class FleetApi
     }
 
     /// <summary>Calls "session.fleet.start".</summary>
+    /// <param name="prompt">Optional user prompt to combine with fleet instructions.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<FleetStartResult> StartAsync(string? prompt = null, CancellationToken cancellationToken = default)
     {
         var request = new FleetStartRequest { SessionId = _sessionId, Prompt = prompt };
@@ -5582,6 +5653,7 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.list".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<AgentList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentListRequest { SessionId = _sessionId };
@@ -5589,6 +5661,7 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.getCurrent".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<AgentGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentGetCurrentRequest { SessionId = _sessionId };
@@ -5596,6 +5669,8 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.select".</summary>
+    /// <param name="name">Name of the custom agent to select.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<AgentSelectResult> SelectAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new AgentSelectRequest { SessionId = _sessionId, Name = name };
@@ -5603,6 +5678,7 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.deselect".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DeselectAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentDeselectRequest { SessionId = _sessionId };
@@ -5610,6 +5686,7 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.reload".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<AgentReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentReloadRequest { SessionId = _sessionId };
@@ -5631,6 +5708,12 @@ public sealed class TasksApi
     }
 
     /// <summary>Calls "session.tasks.startAgent".</summary>
+    /// <param name="agentType">Type of agent to start (e.g., 'explore', 'task', 'general-purpose').</param>
+    /// <param name="prompt">Task prompt for the agent.</param>
+    /// <param name="name">Short name for the agent, used to generate a human-readable ID.</param>
+    /// <param name="description">Short description of the task.</param>
+    /// <param name="model">Optional model override.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<TasksStartAgentResult> StartAgentAsync(string agentType, string prompt, string name, string? description = null, string? model = null, CancellationToken cancellationToken = default)
     {
         var request = new TasksStartAgentRequest { SessionId = _sessionId, AgentType = agentType, Prompt = prompt, Name = name, Description = description, Model = model };
@@ -5638,6 +5721,7 @@ public sealed class TasksApi
     }
 
     /// <summary>Calls "session.tasks.list".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<TaskList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionTasksListRequest { SessionId = _sessionId };
@@ -5645,6 +5729,8 @@ public sealed class TasksApi
     }
 
     /// <summary>Calls "session.tasks.promoteToBackground".</summary>
+    /// <param name="id">Task identifier.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<TasksPromoteToBackgroundResult> PromoteToBackgroundAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new TasksPromoteToBackgroundRequest { SessionId = _sessionId, Id = id };
@@ -5652,6 +5738,8 @@ public sealed class TasksApi
     }
 
     /// <summary>Calls "session.tasks.cancel".</summary>
+    /// <param name="id">Task identifier.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<TasksCancelResult> CancelAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new TasksCancelRequest { SessionId = _sessionId, Id = id };
@@ -5659,6 +5747,8 @@ public sealed class TasksApi
     }
 
     /// <summary>Calls "session.tasks.remove".</summary>
+    /// <param name="id">Task identifier.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<TasksRemoveResult> RemoveAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new TasksRemoveRequest { SessionId = _sessionId, Id = id };
@@ -5666,6 +5756,10 @@ public sealed class TasksApi
     }
 
     /// <summary>Calls "session.tasks.sendMessage".</summary>
+    /// <param name="id">Agent task identifier.</param>
+    /// <param name="message">Message content to send to the agent.</param>
+    /// <param name="fromAgentId">Agent ID of the sender, if sent on behalf of another agent.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<TasksSendMessageResult> SendMessageAsync(string id, string message, string? fromAgentId = null, CancellationToken cancellationToken = default)
     {
         var request = new TasksSendMessageRequest { SessionId = _sessionId, Id = id, Message = message, FromAgentId = fromAgentId };
@@ -5687,6 +5781,7 @@ public sealed class SkillsApi
     }
 
     /// <summary>Calls "session.skills.list".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<SkillList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionSkillsListRequest { SessionId = _sessionId };
@@ -5694,6 +5789,8 @@ public sealed class SkillsApi
     }
 
     /// <summary>Calls "session.skills.enable".</summary>
+    /// <param name="name">Name of the skill to enable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new SkillsEnableRequest { SessionId = _sessionId, Name = name };
@@ -5701,6 +5798,8 @@ public sealed class SkillsApi
     }
 
     /// <summary>Calls "session.skills.disable".</summary>
+    /// <param name="name">Name of the skill to disable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new SkillsDisableRequest { SessionId = _sessionId, Name = name };
@@ -5708,6 +5807,7 @@ public sealed class SkillsApi
     }
 
     /// <summary>Calls "session.skills.reload".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<SkillsLoadDiagnostics> ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionSkillsReloadRequest { SessionId = _sessionId };
@@ -5730,6 +5830,7 @@ public sealed class McpApi
     }
 
     /// <summary>Calls "session.mcp.list".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<McpServerList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionMcpListRequest { SessionId = _sessionId };
@@ -5737,6 +5838,8 @@ public sealed class McpApi
     }
 
     /// <summary>Calls "session.mcp.enable".</summary>
+    /// <param name="serverName">Name of the MCP server to enable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string serverName, CancellationToken cancellationToken = default)
     {
         var request = new McpEnableRequest { SessionId = _sessionId, ServerName = serverName };
@@ -5744,6 +5847,8 @@ public sealed class McpApi
     }
 
     /// <summary>Calls "session.mcp.disable".</summary>
+    /// <param name="serverName">Name of the MCP server to disable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string serverName, CancellationToken cancellationToken = default)
     {
         var request = new McpDisableRequest { SessionId = _sessionId, ServerName = serverName };
@@ -5751,6 +5856,7 @@ public sealed class McpApi
     }
 
     /// <summary>Calls "session.mcp.reload".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionMcpReloadRequest { SessionId = _sessionId };
@@ -5775,6 +5881,11 @@ public sealed class McpOauthApi
     }
 
     /// <summary>Calls "session.mcp.oauth.login".</summary>
+    /// <param name="serverName">Name of the remote MCP server to authenticate.</param>
+    /// <param name="forceReauth">When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</param>
+    /// <param name="clientName">Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</param>
+    /// <param name="callbackSuccessMessage">Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<McpOauthLoginResult> LoginAsync(string serverName, bool? forceReauth = null, string? clientName = null, string? callbackSuccessMessage = null, CancellationToken cancellationToken = default)
     {
         var request = new McpOauthLoginRequest { SessionId = _sessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage };
@@ -5796,6 +5907,7 @@ public sealed class PluginsApi
     }
 
     /// <summary>Calls "session.plugins.list".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<PluginList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionPluginsListRequest { SessionId = _sessionId };
@@ -5817,6 +5929,7 @@ public sealed class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.list".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<ExtensionList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionExtensionsListRequest { SessionId = _sessionId };
@@ -5824,6 +5937,8 @@ public sealed class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.enable".</summary>
+    /// <param name="id">Source-qualified extension ID to enable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new ExtensionsEnableRequest { SessionId = _sessionId, Id = id };
@@ -5831,6 +5946,8 @@ public sealed class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.disable".</summary>
+    /// <param name="id">Source-qualified extension ID to disable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new ExtensionsDisableRequest { SessionId = _sessionId, Id = id };
@@ -5838,6 +5955,7 @@ public sealed class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.reload".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionExtensionsReloadRequest { SessionId = _sessionId };
@@ -5858,6 +5976,10 @@ public sealed class ToolsApi
     }
 
     /// <summary>Calls "session.tools.handlePendingToolCall".</summary>
+    /// <param name="requestId">Request ID of the pending tool call.</param>
+    /// <param name="result">Tool call result (string or expanded result object).</param>
+    /// <param name="error">Error message if the tool call failed.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<HandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result = null, string? error = null, CancellationToken cancellationToken = default)
     {
         var request = new HandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
@@ -5878,6 +6000,8 @@ public sealed class CommandsApi
     }
 
     /// <summary>Calls "session.commands.list".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<CommandList> ListAsync(CommandsListRequest? request = null, CancellationToken cancellationToken = default)
     {
         var rpcRequest = new CommandsListRequestWithSession { SessionId = _sessionId, IncludeBuiltins = request?.IncludeBuiltins, IncludeSkills = request?.IncludeSkills, IncludeClientCommands = request?.IncludeClientCommands };
@@ -5885,6 +6009,9 @@ public sealed class CommandsApi
     }
 
     /// <summary>Calls "session.commands.invoke".</summary>
+    /// <param name="name">Command name. Leading slashes are stripped and the name is matched case-insensitively.</param>
+    /// <param name="input">Raw input after the command name.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<SlashCommandInvocationResult> InvokeAsync(string name, string? input = null, CancellationToken cancellationToken = default)
     {
         var request = new CommandsInvokeRequest { SessionId = _sessionId, Name = name, Input = input };
@@ -5892,6 +6019,9 @@ public sealed class CommandsApi
     }
 
     /// <summary>Calls "session.commands.handlePendingCommand".</summary>
+    /// <param name="requestId">Request ID from the command invocation event.</param>
+    /// <param name="error">Error message if the command handler failed.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<CommandsHandlePendingCommandResult> HandlePendingCommandAsync(string requestId, string? error = null, CancellationToken cancellationToken = default)
     {
         var request = new CommandsHandlePendingCommandRequest { SessionId = _sessionId, RequestId = requestId, Error = error };
@@ -5899,6 +6029,9 @@ public sealed class CommandsApi
     }
 
     /// <summary>Calls "session.commands.respondToQueuedCommand".</summary>
+    /// <param name="requestId">Request ID from the queued command event.</param>
+    /// <param name="result">Result of the queued command execution.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<CommandsRespondToQueuedCommandResult> RespondToQueuedCommandAsync(string requestId, QueuedCommandResult result, CancellationToken cancellationToken = default)
     {
         var request = new CommandsRespondToQueuedCommandRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
@@ -5919,6 +6052,10 @@ public sealed class UiApi
     }
 
     /// <summary>Calls "session.ui.elicitation".</summary>
+    /// <param name="message">Message describing what information is needed from the user.</param>
+    /// <param name="requestedSchema">JSON Schema describing the form fields to present to the user.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The elicitation response (accept with form values, decline, or cancel).</returns>
     public async Task<UIElicitationResponse> ElicitationAsync(string message, UIElicitationSchema requestedSchema, CancellationToken cancellationToken = default)
     {
         var request = new UIElicitationRequest { SessionId = _sessionId, Message = message, RequestedSchema = requestedSchema };
@@ -5926,6 +6063,9 @@ public sealed class UiApi
     }
 
     /// <summary>Calls "session.ui.handlePendingElicitation".</summary>
+    /// <param name="requestId">The unique request ID from the elicitation.requested event.</param>
+    /// <param name="result">The elicitation response (accept with form values, decline, or cancel).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<UIElicitationResult> HandlePendingElicitationAsync(string requestId, UIElicitationResponse result, CancellationToken cancellationToken = default)
     {
         var request = new UIHandlePendingElicitationRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
@@ -5946,6 +6086,9 @@ public sealed class PermissionsApi
     }
 
     /// <summary>Calls "session.permissions.handlePendingPermissionRequest".</summary>
+    /// <param name="requestId">Request ID of the pending permission request.</param>
+    /// <param name="result">The result parameter.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, PermissionDecision result, CancellationToken cancellationToken = default)
     {
         var request = new PermissionDecisionRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
@@ -5953,6 +6096,8 @@ public sealed class PermissionsApi
     }
 
     /// <summary>Calls "session.permissions.setApproveAll".</summary>
+    /// <param name="enabled">Whether to auto-approve all tool permission requests.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<PermissionsSetApproveAllResult> SetApproveAllAsync(bool enabled, CancellationToken cancellationToken = default)
     {
         var request = new PermissionsSetApproveAllRequest { SessionId = _sessionId, Enabled = enabled };
@@ -5960,6 +6105,7 @@ public sealed class PermissionsApi
     }
 
     /// <summary>Calls "session.permissions.resetSessionApprovals".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<PermissionsResetSessionApprovalsResult> ResetSessionApprovalsAsync(CancellationToken cancellationToken = default)
     {
         var request = new PermissionsResetSessionApprovalsRequest { SessionId = _sessionId };
@@ -5980,6 +6126,10 @@ public sealed class ShellApi
     }
 
     /// <summary>Calls "session.shell.exec".</summary>
+    /// <param name="command">Shell command to execute.</param>
+    /// <param name="cwd">Working directory (defaults to session working directory).</param>
+    /// <param name="timeout">Timeout in milliseconds (default: 30000).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<ShellExecResult> ExecAsync(string command, string? cwd = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
         var request = new ShellExecRequest { SessionId = _sessionId, Command = command, Cwd = cwd, Timeout = timeout };
@@ -5987,6 +6137,9 @@ public sealed class ShellApi
     }
 
     /// <summary>Calls "session.shell.kill".</summary>
+    /// <param name="processId">Process identifier returned by shell.exec.</param>
+    /// <param name="signal">Signal to send (default: SIGTERM).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<ShellKillResult> KillAsync(string processId, ShellKillSignal? signal = null, CancellationToken cancellationToken = default)
     {
         var request = new ShellKillRequest { SessionId = _sessionId, ProcessId = processId, Signal = signal };
@@ -6008,6 +6161,7 @@ public sealed class HistoryApi
     }
 
     /// <summary>Calls "session.history.compact".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<HistoryCompactResult> CompactAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionHistoryCompactRequest { SessionId = _sessionId };
@@ -6015,6 +6169,8 @@ public sealed class HistoryApi
     }
 
     /// <summary>Calls "session.history.truncate".</summary>
+    /// <param name="eventId">Event ID to truncate to. This event and all events after it are removed from the session.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<HistoryTruncateResult> TruncateAsync(string eventId, CancellationToken cancellationToken = default)
     {
         var request = new HistoryTruncateRequest { SessionId = _sessionId, EventId = eventId };
@@ -6036,6 +6192,7 @@ public sealed class UsageApi
     }
 
     /// <summary>Calls "session.usage.getMetrics".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<UsageGetMetricsResult> GetMetricsAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionUsageGetMetricsRequest { SessionId = _sessionId };
@@ -6057,6 +6214,8 @@ public sealed class RemoteApi
     }
 
     /// <summary>Calls "session.remote.enable".</summary>
+    /// <param name="mode">Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task<RemoteEnableResult> EnableAsync(RemoteSessionMode? mode = null, CancellationToken cancellationToken = default)
     {
         var request = new RemoteEnableRequest { SessionId = _sessionId, Mode = mode };
@@ -6064,6 +6223,7 @@ public sealed class RemoteApi
     }
 
     /// <summary>Calls "session.remote.disable".</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionRemoteDisableRequest { SessionId = _sessionId };
@@ -6074,25 +6234,50 @@ public sealed class RemoteApi
 /// <summary>Handles `sessionFs` client session API methods.</summary>
 public interface ISessionFsHandler
 {
-    /// <summary>Handles "sessionFs.readFile".</summary>
+    /// <summary>Calls "sessionFs.readFile".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.writeFile".</summary>
+    /// <summary>Calls "sessionFs.writeFile".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.appendFile".</summary>
+    /// <summary>Calls "sessionFs.appendFile".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.exists".</summary>
+    /// <summary>Calls "sessionFs.exists".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.stat".</summary>
+    /// <summary>Calls "sessionFs.stat".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.mkdir".</summary>
+    /// <summary>Calls "sessionFs.mkdir".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.readdir".</summary>
+    /// <summary>Calls "sessionFs.readdir".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.readdirWithTypes".</summary>
+    /// <summary>Calls "sessionFs.readdirWithTypes".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.rm".</summary>
+    /// <summary>Calls "sessionFs.rm".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.rename".</summary>
+    /// <summary>Calls "sessionFs.rename".</summary>
+    /// <param name="request">The request parameters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
 }
 

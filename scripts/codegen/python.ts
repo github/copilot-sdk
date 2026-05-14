@@ -277,6 +277,48 @@ function pyDocstringLiteral(text: string): string {
     return JSON.stringify(normalized);
 }
 
+function rpcResultDescription(method: RpcMethod, resultSchema: JSONSchema7 | undefined): string | undefined {
+    if (isVoidSchema(resultSchema)) return undefined;
+    return method.result?.description ?? resultSchema?.description;
+}
+
+function rpcParamsDescription(method: RpcMethod, effectiveParams: JSONSchema7 | undefined): string | undefined {
+    return method.params?.description ?? effectiveParams?.description;
+}
+
+function pushPyRpcMethodDocstring(
+    lines: string[],
+    indent: string,
+    method: RpcMethod,
+    options: {
+        paramsName?: string;
+        paramsDescription?: string;
+        resultDescription?: string;
+        deprecated?: boolean;
+        experimental?: boolean;
+        internal?: boolean;
+    } = {}
+): void {
+    const sections: string[] = [method.description ?? `Calls ${method.rpcMethod}.`];
+    if (options.paramsName && options.paramsDescription) {
+        sections.push(`Args:\n    ${options.paramsName}: ${options.paramsDescription}`);
+    }
+    if (options.resultDescription) {
+        sections.push(`Returns:\n    ${options.resultDescription}`);
+    }
+    if (options.deprecated) {
+        sections.push("Deprecated:\n    This API is deprecated and will be removed in a future version.");
+    }
+    if (options.experimental) {
+        sections.push("Warning:\n    This API is experimental and may change or be removed in future versions.");
+    }
+    if (options.internal) {
+        sections.push("Internal SDK API; not part of the public surface.");
+    }
+
+    lines.push(`${indent}${pyDocstringLiteral(sections.join("\n\n"))}`);
+}
+
 function modernizePython(code: string): string {
     // Replace Optional[X] with X | None (handles arbitrarily nested brackets)
     code = replaceBalancedBrackets(code, "Optional", (inner) => `${inner} | None`);
@@ -2463,15 +2505,14 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
 
     lines.push(sig);
 
-    if (method.deprecated && !groupDeprecated) {
-        lines.push(`        """.. deprecated:: This API is deprecated and will be removed in a future version."""`);
-    }
-    if (method.stability === "experimental" && !groupExperimental) {
-        lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
-    }
-    if (method.visibility === "internal") {
-        lines.push(`        """:meta private: Internal SDK API; not part of the public surface."""`);
-    }
+    pushPyRpcMethodDocstring(lines, "        ", method, {
+        paramsName: hasParams ? "params" : undefined,
+        paramsDescription: rpcParamsDescription(method, effectiveParams),
+        resultDescription: rpcResultDescription(method, resultSchema),
+        deprecated: method.deprecated && !groupDeprecated,
+        experimental: method.stability === "experimental" && !groupExperimental,
+        internal: method.visibility === "internal",
+    });
 
     // Deserialize helper
     const innerTypeName = hasNullableResult ? resolveType(pythonResultTypeName(method, nullableInner)) : resultType;
@@ -2606,12 +2647,13 @@ function emitClientSessionHandlerMethod(
         resultType = "None";
     }
     lines.push(`    async def ${toSnakeCase(name)}(self, params: ${paramsType}) -> ${resultType}:`);
-    if (method.deprecated && !groupDeprecated) {
-        lines.push(`        """.. deprecated:: This API is deprecated and will be removed in a future version."""`);
-    }
-    if (method.stability === "experimental" && !groupExperimental) {
-        lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
-    }
+    pushPyRpcMethodDocstring(lines, "        ", method, {
+        paramsName: "params",
+        paramsDescription: rpcParamsDescription(method, getMethodParamsSchema(method)),
+        resultDescription: rpcResultDescription(method, resultSchema),
+        deprecated: method.deprecated && !groupDeprecated,
+        experimental: method.stability === "experimental" && !groupExperimental,
+    });
     lines.push(`        pass`);
 }
 

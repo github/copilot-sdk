@@ -163,6 +163,46 @@ function pushGoExperimentalMethodComment(lines: string[], methodName: string, in
     pushGoComment(lines, `Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`, indent);
 }
 
+function lowerFirst(value: string): string {
+    if (value.length === 0) return value;
+    return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+function goMethodDocSummary(methodName: string, method: RpcMethod): string {
+    const description = method.description?.trim();
+    if (!description) return `${methodName} calls ${method.rpcMethod}.`;
+    if (description.startsWith(methodName)) return description;
+    return `${methodName} ${lowerFirst(description)}`;
+}
+
+function goRpcResultDescription(method: RpcMethod, resultSchema: JSONSchema7 | undefined): string | undefined {
+    if (isVoidSchema(resultSchema)) return undefined;
+    return method.result?.description ?? resultSchema?.description;
+}
+
+function goRpcParamsDescription(method: RpcMethod, effectiveParams: JSONSchema7 | undefined): string | undefined {
+    return method.params?.description ?? effectiveParams?.description;
+}
+
+function pushGoRpcMethodComment(
+    lines: string[],
+    methodName: string,
+    method: RpcMethod,
+    resultSchema: JSONSchema7 | undefined,
+    paramsDescription?: string,
+    indent = ""
+): void {
+    const paragraphs = [goMethodDocSummary(methodName, method), `RPC method: ${method.rpcMethod}.`];
+    if (paramsDescription) {
+        paragraphs.push(`Parameters: ${paramsDescription}`);
+    }
+    const resultDescription = goRpcResultDescription(method, resultSchema);
+    if (resultDescription) {
+        paragraphs.push(`Returns: ${resultDescription}`);
+    }
+    pushGoComment(lines, paragraphs.join("\n\n"), indent);
+}
+
 function goCommentLines(text: string, indent = "", wrap = true): string[] {
     const prefix = `${indent}//`;
     const lines: string[] = [];
@@ -3721,6 +3761,13 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     const clientRef = isWrapper ? "a.common.client" : "a.client";
     const sessionIDRef = isWrapper ? "a.common.sessionID" : "a.sessionID";
 
+    pushGoRpcMethodComment(
+        lines,
+        methodName,
+        method,
+        resultSchema,
+        hasParams ? goRpcParamsDescription(method, effectiveParams) : undefined
+    );
     if (method.deprecated && !groupDeprecated) {
         pushGoComment(lines, `Deprecated: ${methodName} is deprecated and will be removed in a future version.`);
     }
@@ -3834,6 +3881,15 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
         }
         lines.push(`type ${interfaceName} interface {`);
         for (const method of methods) {
+            const resultSchema = getMethodResultSchema(method);
+            pushGoRpcMethodComment(
+                lines,
+                clientHandlerMethodName(method.rpcMethod),
+                method,
+                resultSchema,
+                goRpcParamsDescription(method, getMethodParamsSchema(method)),
+                "\t"
+            );
             if (method.deprecated && !groupDeprecated) {
                 pushGoComment(lines, `Deprecated: ${clientHandlerMethodName(method.rpcMethod)} is deprecated and will be removed in a future version.`, "\t");
             }
@@ -3841,7 +3897,6 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
                 pushGoExperimentalMethodComment(lines, clientHandlerMethodName(method.rpcMethod), "\t");
             }
             const paramsType = resolveType(goParamsTypeName(method));
-            const resultSchema = getMethodResultSchema(method);
             const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
             const resultType = nullableInner
                 ? resolveType(goNullableResultTypeName(method, nullableInner))
