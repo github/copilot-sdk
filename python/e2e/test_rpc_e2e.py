@@ -4,7 +4,7 @@ import pytest
 
 from copilot import CopilotClient
 from copilot.client import SubprocessConfig
-from copilot.generated.rpc import PingRequest
+from copilot.generated.rpc import PingRequest, ModelsListRequest
 from copilot.session import PermissionHandler
 
 from .testharness import CLI_PATH, E2ETestContext
@@ -42,7 +42,7 @@ class TestRpc:
                 await client.stop()
                 return
 
-            result = await client.rpc.models.list()
+            result = await client.rpc.models.list(ModelsListRequest())
             assert result.models is not None
             assert isinstance(result.models, list)
 

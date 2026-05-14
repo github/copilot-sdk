@@ -2470,7 +2470,7 @@ async fn rpc_namespace_client_models_list_dispatches_correctly() {
     let session = Arc::new(session);
 
     let client = session.client().clone();
-    let handle = tokio::spawn(async move { client.rpc().models().list().await });
+    let handle = tokio::spawn(async move { client.rpc().models().list(Default::default()).await });
 
     let request = server.read_request().await;
     assert_eq!(request["method"], "models.list");

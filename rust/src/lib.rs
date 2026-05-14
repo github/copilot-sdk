@@ -1787,7 +1787,7 @@ impl Client {
                 if let Some(handler) = &self.inner.on_list_models {
                     handler.list_models().await
                 } else {
-                    Ok(self.rpc().models().list().await?.models)
+                    Ok(self.rpc().models().list(Default::default()).await?.models)
                 }
             })
             .await?;

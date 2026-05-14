@@ -157,7 +157,7 @@ response structs.
 ```rust,ignore
 // Common generated RPCs.
 let files = session.rpc().workspaces().list_files().await?.files;
-let models = client.rpc().models().list().await?.models;
+let models = client.rpc().models().list(Default::default()).await?.models;
 
 // Methods with no helper — full schema-typed access.
 let agents = session.rpc().agent().list().await?.agents;

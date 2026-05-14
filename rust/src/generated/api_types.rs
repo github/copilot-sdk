@@ -189,6 +189,14 @@ pub mod rpc_methods {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AccountGetQuotaRequest {
+    /// GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_hub_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AccountQuotaSnapshot {
     /// Number of requests included in the entitlement
     pub entitlement_requests: i64,
@@ -336,6 +344,20 @@ pub struct CommandsInvokeRequest {
     pub input: Option<String>,
     /// Command name. Leading slashes are stripped and the name is matched case-insensitively.
     pub name: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandsListRequest {
+    /// Include runtime built-in commands
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_builtins: Option<bool>,
+    /// Include commands registered by protocol clients, including SDK clients and extensions
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_client_commands: Option<bool>,
+    /// Include enabled user-invocable skills and commands
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_skills: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1059,6 +1081,14 @@ pub struct ModelCapabilitiesOverride {
 pub struct ModelList {
     /// List of available models with full metadata
     pub models: Vec<Model>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelsListRequest {
+    /// GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_hub_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
