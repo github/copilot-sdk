@@ -1854,8 +1854,9 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
             sessionEventsSchema as unknown as Record<string, unknown>
         );
         const reachableDefinitions = collectReachableDefinitionNames(sessionEventsSchema as unknown as Record<string, unknown>);
+        const exportedSessionEventTypes = collectPythonSessionEventExportedTypeNames(sessionEventsSchema);
         for (const name of [...sharedDefinitions]) {
-            if (!reachableDefinitions.has(name)) {
+            if (!reachableDefinitions.has(name) || !exportedSessionEventTypes.has(name)) {
                 sharedDefinitions.delete(name);
             }
         }
@@ -2183,6 +2184,24 @@ def _patch_model_capabilities(data: dict) -> dict:
 
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
+}
+
+function collectPythonSessionEventExportedTypeNames(schema: JSONSchema7): Set<string> {
+    const definitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    const definitionNames = new Set([...Object.keys(definitions.definitions), ...Object.keys(definitions.$defs)]);
+    const code = generatePythonSessionEventsCode(schema);
+    const exported = new Set<string>();
+    const symbolPattern = /^(?:class\s+([A-Za-z_]\w*)\b|([A-Za-z_]\w*)\s*=)/gm;
+    let match: RegExpExecArray | null;
+
+    while ((match = symbolPattern.exec(code)) !== null) {
+        const name = match[1] ?? match[2];
+        if (definitionNames.has(name)) {
+            exported.add(name);
+        }
+    }
+
+    return exported;
 }
 
 function emitPyApiGroup(

@@ -1811,7 +1811,6 @@ function generateRpcCode(
     if (schema.clientSession) clientSessionParts = emitClientSessionApiRegistration(schema.clientSession, classes);
 
     const lines: string[] = [];
-    const externalSchemaRefs = collectExternalSchemaRefNames(schema);
     lines.push(`${COPYRIGHT}
 
 // AUTO-GENERATED FILE - DO NOT EDIT
