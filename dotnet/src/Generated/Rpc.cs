@@ -2853,10 +2853,14 @@ public sealed class RemoteEnableResult
     public string? Url { get; set; }
 }
 
-/// <summary>RPC data type for SessionRemoteEnable operations.</summary>
+/// <summary>RPC data type for RemoteEnable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class SessionRemoteEnableRequest
+internal sealed class RemoteEnableRequest
 {
+    /// <summary>Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering.</summary>
+    [JsonPropertyName("mode")]
+    public RemoteSessionMode? Mode { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -4785,6 +4789,71 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
 }
 
 
+/// <summary>Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="RemoteSessionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="RemoteSessionMode"/>.</param>
+    [JsonConstructor]
+    public RemoteSessionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="RemoteSessionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>off</c> value.</summary>
+    public static RemoteSessionMode Off { get; } = new("off");
+
+    /// <summary>Gets the <c>export</c> value.</summary>
+    public static RemoteSessionMode Export { get; } = new("export");
+
+    /// <summary>Gets the <c>on</c> value.</summary>
+    public static RemoteSessionMode On { get; } = new("on");
+
+    /// <summary>Returns a value indicating whether two <see cref="RemoteSessionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(RemoteSessionMode left, RemoteSessionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="RemoteSessionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(RemoteSessionMode left, RemoteSessionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is RemoteSessionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(RemoteSessionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{RemoteSessionMode}"/> for serializing <see cref="RemoteSessionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<RemoteSessionMode>
+    {
+        /// <inheritdoc />
+        public override RemoteSessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, RemoteSessionMode value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(RemoteSessionMode));
+        }
+    }
+}
+
+
 /// <summary>Error classification.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -5988,9 +6057,9 @@ public sealed class RemoteApi
     }
 
     /// <summary>Calls "session.remote.enable".</summary>
-    public async Task<RemoteEnableResult> EnableAsync(CancellationToken cancellationToken = default)
+    public async Task<RemoteEnableResult> EnableAsync(RemoteSessionMode? mode = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionRemoteEnableRequest { SessionId = _sessionId };
+        var request = new RemoteEnableRequest { SessionId = _sessionId, Mode = mode };
         return await CopilotClient.InvokeRpcAsync<RemoteEnableResult>(_rpc, "session.remote.enable", [request], cancellationToken);
     }
 
@@ -6202,6 +6271,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(Plugin))]
 [JsonSerializable(typeof(PluginList))]
 [JsonSerializable(typeof(QueuedCommandResult))]
+[JsonSerializable(typeof(RemoteEnableRequest))]
 [JsonSerializable(typeof(RemoteEnableResult))]
 [JsonSerializable(typeof(ServerSkill))]
 [JsonSerializable(typeof(ServerSkillList))]
@@ -6243,7 +6313,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionPlanReadRequest))]
 [JsonSerializable(typeof(SessionPluginsListRequest))]
 [JsonSerializable(typeof(SessionRemoteDisableRequest))]
-[JsonSerializable(typeof(SessionRemoteEnableRequest))]
 [JsonSerializable(typeof(SessionSkillsListRequest))]
 [JsonSerializable(typeof(SessionSkillsReloadRequest))]
 [JsonSerializable(typeof(SessionSuspendRequest))]
