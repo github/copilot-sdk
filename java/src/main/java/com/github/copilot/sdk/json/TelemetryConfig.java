@@ -4,7 +4,9 @@
 
 package com.github.copilot.sdk.json;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.Optional;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * OpenTelemetry configuration for the Copilot CLI server.
@@ -23,7 +25,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @see CopilotClientOptions#setTelemetry(TelemetryConfig)
  * @since 1.2.0
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class TelemetryConfig {
 
     private String otlpEndpoint;
@@ -131,11 +132,13 @@ public class TelemetryConfig {
      * Maps to the {@code OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT}
      * environment variable.
      *
-     * @return {@code true} to capture content, {@code false} to suppress it, or
-     *         {@code null} to use the default
+     * @return an {@link java.util.Optional} containing {@code true} to capture
+     *         content or {@code false} to suppress it, or
+     *         {@link java.util.Optional#empty()} to use the default
      */
-    public Boolean getCaptureContent() {
-        return captureContent;
+    @JsonIgnore
+    public Optional<Boolean> getCaptureContent() {
+        return Optional.ofNullable(captureContent);
     }
 
     /**
@@ -145,8 +148,19 @@ public class TelemetryConfig {
      *            {@code true} to capture content, {@code false} to suppress it
      * @return this config for method chaining
      */
-    public TelemetryConfig setCaptureContent(Boolean captureContent) {
+    public TelemetryConfig setCaptureContent(boolean captureContent) {
         this.captureContent = captureContent;
         return this;
     }
+
+    /**
+     * Clears the captureContent setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public TelemetryConfig clearCaptureContent() {
+        this.captureContent = null;
+        return this;
+    }
+
 }

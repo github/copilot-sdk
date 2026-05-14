@@ -20,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.Optional;
 
 /**
  * Tests for CopilotClient.
@@ -153,14 +154,14 @@ public class CopilotClientTest {
     void testUseLoggedInUserDefaultsToNull() {
         var options = new CopilotClientOptions().setCliPath("/path/to/cli");
 
-        assertNull(options.getUseLoggedInUser());
+        assertTrue(options.getUseLoggedInUser().isEmpty());
     }
 
     @Test
     void testExplicitUseLoggedInUserFalse() {
         var options = new CopilotClientOptions().setCliPath("/path/to/cli").setUseLoggedInUser(false);
 
-        assertEquals(false, options.getUseLoggedInUser());
+        assertEquals(Optional.of(false), options.getUseLoggedInUser());
     }
 
     @Test
@@ -168,7 +169,7 @@ public class CopilotClientTest {
         var options = new CopilotClientOptions().setCliPath("/path/to/cli").setGitHubToken("gho_test_token")
                 .setUseLoggedInUser(true);
 
-        assertEquals(true, options.getUseLoggedInUser());
+        assertEquals(Optional.of(true), options.getUseLoggedInUser());
     }
 
     @Test
@@ -189,14 +190,14 @@ public class CopilotClientTest {
     void testSessionIdleTimeoutSecondsDefaultsToNull() {
         var options = new CopilotClientOptions();
 
-        assertNull(options.getSessionIdleTimeoutSeconds());
+        assertTrue(options.getSessionIdleTimeoutSeconds().isEmpty());
     }
 
     @Test
     void testSessionIdleTimeoutSecondsOptionAccepted() {
         var options = new CopilotClientOptions().setSessionIdleTimeoutSeconds(600);
 
-        assertEquals(600, options.getSessionIdleTimeoutSeconds());
+        assertEquals(600, options.getSessionIdleTimeoutSeconds().getAsInt());
     }
 
     @Test

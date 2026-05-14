@@ -203,7 +203,7 @@ class ConfigCloneTest {
 
         SessionConfig cloned = original.clone();
 
-        assertFalse(cloned.getEnableSessionTelemetry());
+        assertFalse(cloned.getEnableSessionTelemetry().orElse(true));
     }
 
     @Test
@@ -212,7 +212,7 @@ class ConfigCloneTest {
 
         SessionConfig cloned = original.clone();
 
-        assertNull(cloned.getEnableSessionTelemetry());
+        assertTrue(cloned.getEnableSessionTelemetry().isEmpty());
     }
 
     @Test
@@ -222,7 +222,7 @@ class ConfigCloneTest {
 
         ResumeSessionConfig cloned = original.clone();
 
-        assertFalse(cloned.getEnableSessionTelemetry());
+        assertFalse(cloned.getEnableSessionTelemetry().orElse(true));
     }
 
     @Test
@@ -231,7 +231,7 @@ class ConfigCloneTest {
 
         ResumeSessionConfig cloned = original.clone();
 
-        assertNull(cloned.getEnableSessionTelemetry());
+        assertTrue(cloned.getEnableSessionTelemetry().isEmpty());
     }
 
     @Test
@@ -301,11 +301,11 @@ class ConfigCloneTest {
     }
 
     @Test
-    void copilotClientOptionsSetUseLoggedInUserNull() {
+    void copilotClientOptionsClearUseLoggedInUser() {
         var opts = new CopilotClientOptions();
-        opts.setUseLoggedInUser(null);
-        // null → Boolean.FALSE
-        assertEquals(Boolean.FALSE, opts.getUseLoggedInUser());
+        opts.setUseLoggedInUser(true);
+        opts.clearUseLoggedInUser();
+        assertTrue(opts.getUseLoggedInUser().isEmpty());
     }
 
     @Test
@@ -375,7 +375,7 @@ class ConfigCloneTest {
 
         CopilotClientOptions cloned = original.clone();
 
-        assertEquals(600, cloned.getSessionIdleTimeoutSeconds());
+        assertEquals(600, cloned.getSessionIdleTimeoutSeconds().getAsInt());
     }
 
     @Test

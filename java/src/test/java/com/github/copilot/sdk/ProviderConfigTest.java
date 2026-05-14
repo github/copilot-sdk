@@ -410,8 +410,8 @@ public class ProviderConfigTest {
         ProviderConfig deserialized = MAPPER.readValue(MAPPER.writeValueAsString(provider), ProviderConfig.class);
         assertEquals("gpt-4o", deserialized.getModelId());
         assertEquals("my-finetune-v3", deserialized.getWireModel());
-        assertEquals(100_000, deserialized.getMaxPromptTokens());
-        assertEquals(4096, deserialized.getMaxOutputTokens());
+        assertEquals(100_000, deserialized.getMaxPromptTokens().getAsInt());
+        assertEquals(4096, deserialized.getMaxOutputTokens().getAsInt());
     }
 
     @Test
@@ -419,8 +419,8 @@ public class ProviderConfigTest {
         var provider = new ProviderConfig();
         assertNull(provider.getModelId());
         assertNull(provider.getWireModel());
-        assertNull(provider.getMaxPromptTokens());
-        assertNull(provider.getMaxOutputTokens());
+        assertTrue(provider.getMaxPromptTokens().isEmpty());
+        assertTrue(provider.getMaxOutputTokens().isEmpty());
     }
 
     @Test

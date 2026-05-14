@@ -10,6 +10,8 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.Optional;
 
 /**
  * Configuration for a custom agent in a Copilot session.
@@ -197,10 +199,12 @@ public class CustomAgentConfig {
     /**
      * Gets whether inference mode is enabled.
      *
-     * @return the infer flag, or {@code null} if not set
+     * @return an {@link java.util.Optional} containing the infer flag, or
+     *         {@link java.util.Optional#empty()} if not set
      */
-    public Boolean getInfer() {
-        return infer;
+    @JsonIgnore
+    public Optional<Boolean> getInfer() {
+        return Optional.ofNullable(infer);
     }
 
     /**
@@ -210,8 +214,18 @@ public class CustomAgentConfig {
      *            {@code true} to enable inference mode
      * @return this config for method chaining
      */
-    public CustomAgentConfig setInfer(Boolean infer) {
+    public CustomAgentConfig setInfer(boolean infer) {
         this.infer = infer;
+        return this;
+    }
+
+    /**
+     * Clears the infer setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public CustomAgentConfig clearInfer() {
+        this.infer = null;
         return this;
     }
 

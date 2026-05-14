@@ -11,8 +11,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.sdk.generated.SessionEvent;
+import java.util.Optional;
 
 /**
  * Configuration for creating a new Copilot session.
@@ -288,7 +290,7 @@ public class SessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. When {@code null} (the default) or
+     * {@code false}, disables session telemetry. When unset (the default) or
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting. This is independent of
@@ -296,15 +298,17 @@ public class SessionConfig {
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
      *
-     * @return whether session telemetry is enabled
+     * @return an {@link java.util.Optional} containing whether session telemetry is
+     *         enabled, or {@link java.util.Optional#empty()} for the default
      */
-    public Boolean getEnableSessionTelemetry() {
-        return enableSessionTelemetry;
+    @JsonIgnore
+    public Optional<Boolean> getEnableSessionTelemetry() {
+        return Optional.ofNullable(enableSessionTelemetry);
     }
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. When {@code null} (the default) or
+     * {@code false}, disables session telemetry. When unset (the default) or
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting.
@@ -313,8 +317,18 @@ public class SessionConfig {
      *            whether to enable session telemetry
      * @return this config instance for method chaining
      */
-    public SessionConfig setEnableSessionTelemetry(Boolean enableSessionTelemetry) {
+    public SessionConfig setEnableSessionTelemetry(boolean enableSessionTelemetry) {
         this.enableSessionTelemetry = enableSessionTelemetry;
+        return this;
+    }
+
+    /**
+     * Clears the enableSessionTelemetry setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableSessionTelemetry() {
+        this.enableSessionTelemetry = null;
         return this;
     }
 
@@ -658,11 +672,13 @@ public class SessionConfig {
     /**
      * Gets whether automatic configuration discovery is enabled.
      *
-     * @return {@code true} to enable discovery, {@code false} to disable, or
-     *         {@code null} to use the runtime default
+     * @return an {@link java.util.Optional} containing {@code true} to enable
+     *         discovery or {@code false} to disable, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
      */
-    public Boolean getEnableConfigDiscovery() {
-        return enableConfigDiscovery;
+    @JsonIgnore
+    public Optional<Boolean> getEnableConfigDiscovery() {
+        return Optional.ofNullable(enableConfigDiscovery);
     }
 
     /**
@@ -676,23 +692,34 @@ public class SessionConfig {
      * name collision.
      *
      * @param enableConfigDiscovery
-     *            {@code true} to enable discovery, {@code false} to disable, or
-     *            {@code null} to use the runtime default
+     *            {@code true} to enable discovery, {@code false} to disable
      * @return this config instance for method chaining
      */
-    public SessionConfig setEnableConfigDiscovery(Boolean enableConfigDiscovery) {
+    public SessionConfig setEnableConfigDiscovery(boolean enableConfigDiscovery) {
         this.enableConfigDiscovery = enableConfigDiscovery;
+        return this;
+    }
+
+    /**
+     * Clears the enableConfigDiscovery setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableConfigDiscovery() {
+        this.enableConfigDiscovery = null;
         return this;
     }
 
     /**
      * Gets whether sub-agent streaming events are included.
      *
-     * @return {@code true} to include sub-agent streaming events, {@code false} to
-     *         suppress them, or {@code null} to use the runtime default
+     * @return an {@link java.util.Optional} containing {@code true} to include
+     *         sub-agent streaming events or {@code false} to suppress them, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
      */
-    public Boolean getIncludeSubAgentStreamingEvents() {
-        return includeSubAgentStreamingEvents;
+    @JsonIgnore
+    public Optional<Boolean> getIncludeSubAgentStreamingEvents() {
+        return Optional.ofNullable(includeSubAgentStreamingEvents);
     }
 
     /**
@@ -709,8 +736,19 @@ public class SessionConfig {
      *            suppress
      * @return this config instance for method chaining
      */
-    public SessionConfig setIncludeSubAgentStreamingEvents(Boolean includeSubAgentStreamingEvents) {
+    public SessionConfig setIncludeSubAgentStreamingEvents(boolean includeSubAgentStreamingEvents) {
         this.includeSubAgentStreamingEvents = includeSubAgentStreamingEvents;
+        return this;
+    }
+
+    /**
+     * Clears the includeSubAgentStreamingEvents setting, reverting to the default
+     * behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearIncludeSubAgentStreamingEvents() {
+        this.includeSubAgentStreamingEvents = null;
         return this;
     }
 

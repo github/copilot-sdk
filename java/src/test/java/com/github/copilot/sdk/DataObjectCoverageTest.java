@@ -217,17 +217,16 @@ class DataObjectCoverageTest {
 
     @Test
     void modelCapabilitiesOverrideCoversNestedSupportsAndLimits() {
-        var supports = new ModelCapabilitiesOverride.Supports().setVision(Boolean.TRUE)
-                .setReasoningEffort(Boolean.FALSE);
+        var supports = new ModelCapabilitiesOverride.Supports().setVision(true).setReasoningEffort(false);
         var limits = new ModelCapabilitiesOverride.Limits().setMaxPromptTokens(2048).setMaxOutputTokens(512)
                 .setMaxContextWindowTokens(8192);
 
         var override = new ModelCapabilitiesOverride().setSupports(supports).setLimits(limits);
 
-        assertTrue(override.getSupports().getVision());
-        assertFalse(override.getSupports().getReasoningEffort());
-        assertEquals(2048, override.getLimits().getMaxPromptTokens());
-        assertEquals(512, override.getLimits().getMaxOutputTokens());
-        assertEquals(8192, override.getLimits().getMaxContextWindowTokens());
+        assertTrue(override.getSupports().getVision().orElse(false));
+        assertFalse(override.getSupports().getReasoningEffort().orElse(true));
+        assertEquals(2048, override.getLimits().getMaxPromptTokens().getAsInt());
+        assertEquals(512, override.getLimits().getMaxOutputTokens().getAsInt());
+        assertEquals(8192, override.getLimits().getMaxContextWindowTokens().getAsInt());
     }
 }
