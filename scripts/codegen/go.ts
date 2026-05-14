@@ -3306,16 +3306,6 @@ function collectGoSharedSessionEventAliasNames(
     };
 }
 
-function generateGoRootSessionEncodingStub(): string {
-    return joinGoCode([
-        ...goDoNotEditHeader("session-events.schema.json"),
-        ``,
-        `package copilot`,
-        ``,
-        `// Encoding methods live on the rpc package types aliased from zsession_events.go.`,
-    ]);
-}
-
 function assertNoGoRpcSessionEventConflicts(rpcGeneratedTypeCode: string): void {
     const duplicateTypes = collectGoTopLevelNames(rpcGeneratedTypeCode, "type")
         .filter((name) => rpcSessionEventTopLevelNames.types.has(name));
@@ -3376,10 +3366,6 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
 
     await formatGoFile(aliasOutPath);
 
-    const outPath = await writeGeneratedFile("go/zsession_encoding.go", generateGoRootSessionEncodingStub());
-    console.log(`  ✓ ${outPath}`);
-
-    await formatGoFile(outPath);
 }
 
 // ── RPC Types ───────────────────────────────────────────────────────────────
