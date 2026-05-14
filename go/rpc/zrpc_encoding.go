@@ -8,6 +8,80 @@ import (
 	"errors"
 )
 
+func unmarshalQueuedCommandResult(data []byte) (QueuedCommandResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Handled *bool `json:"handled"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	if raw.Handled == nil {
+		return nil, errors.New("data did not match any union variant for QueuedCommandResult")
+	}
+
+	switch *raw.Handled {
+	case false:
+		var d QueuedCommandNotHandled
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case true:
+		var d QueuedCommandHandled
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	return nil, errors.New("data did not match any union variant for QueuedCommandResult")
+}
+
+func (r QueuedCommandHandled) MarshalJSON() ([]byte, error) {
+	type alias QueuedCommandHandled
+	return json.Marshal(struct {
+		Handled bool `json:"handled"`
+		alias
+	}{
+		Handled: r.Handled(),
+		alias:   alias(r),
+	})
+}
+
+func (r QueuedCommandNotHandled) MarshalJSON() ([]byte, error) {
+	type alias QueuedCommandNotHandled
+	return json.Marshal(struct {
+		Handled bool `json:"handled"`
+		alias
+	}{
+		Handled: r.Handled(),
+		alias:   alias(r),
+	})
+}
+
+func (r *CommandsRespondToQueuedCommandRequest) UnmarshalJSON(data []byte) error {
+	type rawCommandsRespondToQueuedCommandRequest struct {
+		RequestID string          `json:"requestId"`
+		Result    json.RawMessage `json:"result"`
+	}
+	var raw rawCommandsRespondToQueuedCommandRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.RequestID = raw.RequestID
+	if raw.Result != nil {
+		value, err := unmarshalQueuedCommandResult(raw.Result)
+		if err != nil {
+			return err
+		}
+		r.Result = value
+	}
+	return nil
+}
+
 func unmarshalExternalToolTextResultForLlmContent(data []byte) (ExternalToolTextResultForLlmContent, error) {
 	if string(data) == "null" {
 		return nil, nil

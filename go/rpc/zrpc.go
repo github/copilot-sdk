@@ -1233,24 +1233,28 @@ type PluginList struct {
 	Plugins []Plugin `json:"plugins"`
 }
 
+// Result of the queued command execution
+type QueuedCommandResult interface {
+	queuedCommandResult()
+	Handled() bool
+}
+
 type QueuedCommandHandled struct {
-	// The command was handled
-	Handled bool `json:"handled"`
 	// If true, stop processing remaining queued items
 	StopProcessingQueue *bool `json:"stopProcessingQueue,omitempty"`
+}
+
+func (QueuedCommandHandled) queuedCommandResult() {}
+func (QueuedCommandHandled) Handled() bool {
+	return true
 }
 
 type QueuedCommandNotHandled struct {
-	// The command was not handled
-	Handled bool `json:"handled"`
 }
 
-// Result of the queued command execution
-type QueuedCommandResult struct {
-	// The command was handled
-	Handled any `json:"handled"`
-	// If true, stop processing remaining queued items
-	StopProcessingQueue *bool `json:"stopProcessingQueue,omitempty"`
+func (QueuedCommandNotHandled) queuedCommandResult() {}
+func (QueuedCommandNotHandled) Handled() bool {
+	return false
 }
 
 // Experimental: RemoteDisableResult is part of an experimental API and may change or be
