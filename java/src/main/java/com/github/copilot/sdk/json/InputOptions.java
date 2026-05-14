@@ -5,6 +5,8 @@
 package com.github.copilot.sdk.json;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.OptionalInt;
 
 /**
@@ -13,11 +15,14 @@ import java.util.OptionalInt;
  *
  * @since 1.0.0
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class InputOptions {
 
     private String title;
     private String description;
+    @JsonProperty("minLength")
     private Integer minLength;
+    @JsonProperty("maxLength")
     private Integer maxLength;
     private String format;
     private String defaultValue;

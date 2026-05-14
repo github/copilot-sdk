@@ -7,6 +7,7 @@ package com.github.copilot.sdk.json;
 import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * OpenTelemetry configuration for the Copilot CLI server.
@@ -25,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * @see CopilotClientOptions#setTelemetry(TelemetryConfig)
  * @since 1.2.0
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class TelemetryConfig {
 
     private String otlpEndpoint;
