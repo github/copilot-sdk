@@ -2813,6 +2813,11 @@ class CopilotClient:
         it is called instead of querying the CLI server. The handler may be sync
         or async.
 
+        Malformed entries in the server response (for example, a single model
+        whose schema drifts in a backwards-incompatible way) are logged at
+        ``WARNING`` level and skipped, so one bad entry will not fail the
+        entire call.
+
         Returns:
             A list of ModelInfo objects with model details.
 
@@ -2845,7 +2850,21 @@ class CopilotClient:
                 # Cache miss - fetch from backend while holding lock
                 response = await self._client.request("models.list", {})
                 models_data = response.get("models", [])
-                models = [ModelInfo.from_dict(model) for model in models_data]
+                models = []
+                for model_data in models_data:
+                    try:
+                        models.append(ModelInfo.from_dict(model_data))
+                    except Exception as e:
+                        # Isolate per-entry parse failures so a single
+                        # malformed model entry (e.g. backend schema drift
+                        # on one model) does not take down list_models()
+                        # for all consumers. See issue #1302.
+                        model_id = model_data.get("id") if isinstance(model_data, dict) else None
+                        logger.warning(
+                            "Skipping malformed model entry%s in models.list response: %s",
+                            f" (id={model_id!r})" if model_id else "",
+                            e,
+                        )
 
             # Update cache before releasing lock (copy to prevent external mutation)
             self._models_cache = list(models)

@@ -946,6 +946,94 @@ class TestOnListModels:
         assert models == custom_models
 
 
+class TestListModelsParserResilience:
+    """Per-entry parse failures in models.list response should not take down
+    the whole call. See https://github.com/github/copilot-sdk/issues/1302."""
+
+    def _make_client_with_fake_rpc(self, models_data):
+        """Build a CopilotClient whose RPC layer returns the given models payload.
+
+        Avoids spawning the CLI subprocess; we drive list_models() directly
+        against a stand-in for the JSON-RPC client.
+        """
+
+        class _FakeRpcClient:
+            async def request(self, method, params):
+                assert method == "models.list", f"unexpected RPC: {method}"
+                return {"models": models_data}
+
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client._client = _FakeRpcClient()  # type: ignore[assignment]
+        return client
+
+    def _good_model(self, model_id: str) -> dict:
+        return {
+            "id": model_id,
+            "name": model_id,
+            "capabilities": {
+                "supports": {"vision": False, "reasoning_effort": False},
+                "limits": {"max_context_window_tokens": 128000},
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_skips_malformed_entry_and_returns_valid_ones(self, caplog):
+        # Mix of valid + malformed entries. Malformed ones are missing
+        # required fields (id/name/capabilities) which would otherwise raise
+        # ValueError from ModelInfo.from_dict and abort the whole call.
+        models_data = [
+            self._good_model("good-1"),
+            {"id": "bad-no-name", "capabilities": self._good_model("x")["capabilities"]},
+            self._good_model("good-2"),
+            {"name": "missing-everything-else"},
+        ]
+
+        client = self._make_client_with_fake_rpc(models_data)
+
+        with caplog.at_level("WARNING", logger="copilot.client"):
+            models = await client.list_models()
+
+        ids = [m.id for m in models]
+        assert ids == ["good-1", "good-2"]
+
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 2, (
+            f"expected one warning per malformed entry, got {len(warnings)}: "
+            f"{[r.getMessage() for r in warnings]}"
+        )
+        # The first warning should mention the id we did manage to extract.
+        assert "bad-no-name" in warnings[0].getMessage()
+
+    @pytest.mark.asyncio
+    async def test_all_malformed_returns_empty_list_without_raising(self):
+        models_data = [
+            {"id": "broken-1"},
+            {"id": "broken-2"},
+        ]
+        client = self._make_client_with_fake_rpc(models_data)
+
+        models = await client.list_models()
+        assert models == []
+
+    @pytest.mark.asyncio
+    async def test_empty_models_payload_returns_empty_list(self):
+        client = self._make_client_with_fake_rpc([])
+        models = await client.list_models()
+        assert models == []
+
+    @pytest.mark.asyncio
+    async def test_non_dict_entry_is_skipped_with_warning(self, caplog):
+        models_data = [self._good_model("ok"), "not-a-dict", 42]
+        client = self._make_client_with_fake_rpc(models_data)
+
+        with caplog.at_level("WARNING", logger="copilot.client"):
+            models = await client.list_models()
+
+        assert [m.id for m in models] == ["ok"]
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 2
+
+
 class TestSessionConfigForwarding:
     @pytest.mark.asyncio
     async def test_create_session_forwards_client_name(self):
