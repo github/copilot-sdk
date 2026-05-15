@@ -17,13 +17,13 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum AssistantUsageApiEndpoint {
     /** The {@code /chat/completions} variant. */
-    /CHAT/COMPLETIONS("/chat/completions"),
+    CHAT_COMPLETIONS("/chat/completions"),
     /** The {@code /v1/messages} variant. */
-    /V1/MESSAGES("/v1/messages"),
+    V1_MESSAGES("/v1/messages"),
     /** The {@code /responses} variant. */
-    /RESPONSES("/responses"),
+    RESPONSES("/responses"),
     /** The {@code ws:/responses} variant. */
-    WS:/RESPONSES("ws:/responses");
+    WS_RESPONSES("ws:/responses");
 
     private final String value;
     AssistantUsageApiEndpoint(String value) { this.value = value; }

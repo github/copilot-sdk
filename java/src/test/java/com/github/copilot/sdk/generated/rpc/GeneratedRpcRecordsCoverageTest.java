@@ -67,7 +67,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionsForkParams_record() {
-        var params = new SessionsForkParams("sess-1", "event-abc");
+        var params = new SessionsForkParams("sess-1", "event-abc", null);
         assertEquals("sess-1", params.sessionId());
         assertEquals("event-abc", params.toEventId());
     }
@@ -795,7 +795,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsReloadResult_empty() {
-        assertNotNull(new SessionSkillsReloadResult());
+        assertNotNull(new SessionSkillsReloadResult(null, null));
     }
 
     @Test
@@ -863,7 +863,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionsForkResult_record() {
-        var result = new SessionsForkResult("forked-sess-id");
+        var result = new SessionsForkResult("forked-sess-id", null);
         assertEquals("forked-sess-id", result.sessionId());
     }
 
@@ -917,8 +917,8 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy("active", null);
-        var billing = new ModelBilling(1.0);
-        var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null);
+        var billing = new ModelBilling(1.0, null);
+        var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null, null);
         var result = new ModelsListResult(List.of(modelItem));
 
         assertEquals(1, result.models().size());
