@@ -998,7 +998,9 @@ function normalizeDefinitionForComparison(definition: JSONSchema7Definition): un
 
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(definition as Record<string, unknown>)) {
-        if (key === "$ref" && typeof value === "string") {
+        if (key === "description" || key === "markdownDescription") {
+            continue;
+        } else if (key === "$ref" && typeof value === "string") {
             const localRef = parseLocalDefinitionRef(value);
             result[key] = localRef ? `#/definitions/${localRef}` : value;
         } else if (Array.isArray(value)) {
