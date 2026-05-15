@@ -425,17 +425,20 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Registers custom tool handlers for this session.
     /// </summary>
-    /// <param name="tools">A collection of AI functions that can be invoked by the assistant.</param>
+    /// <param name="tools">A collection of AI function declarations available to the assistant.</param>
     /// <remarks>
-    /// Tools allow the assistant to execute custom functions. When the assistant invokes a tool,
-    /// the corresponding handler is called with the tool arguments.
+    /// Tools backed by an <see cref="AIFunction"/> are invoked automatically. Declaration-only tools are
+    /// left pending for the client to resolve via the external tool request event.
     /// </remarks>
-    internal void RegisterTools(ICollection<AIFunction> tools)
+    internal void RegisterTools(ICollection<AIFunctionDeclaration> tools)
     {
         _toolHandlers.Clear();
         foreach (var tool in tools)
         {
-            _toolHandlers.Add(tool.Name, tool);
+            if (tool.GetService<AIFunction>() is { } function)
+            {
+                _toolHandlers.Add(tool.Name, function);
+            }
         }
     }
 
@@ -457,7 +460,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(PermissionRequestHandler handler)
+    internal void RegisterPermissionHandler(PermissionRequestHandler? handler)
     {
         _permissionHandler = handler;
     }

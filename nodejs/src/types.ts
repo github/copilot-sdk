@@ -393,12 +393,16 @@ export interface ZodSchema<T = unknown> {
  * - A Zod schema (provides type inference for handler)
  * - A raw JSON schema object
  * - Omitted (no parameters)
+ *
+ * If `handler` is omitted, the SDK exposes the declaration but does not
+ * automatically invoke the tool. Consumers can resolve tool calls by observing
+ * external tool request events and calling the pending-tool RPC.
  */
 export interface Tool<TArgs = unknown> {
     name: string;
     description?: string;
     parameters?: ZodSchema<TArgs> | Record<string, unknown>;
-    handler: ToolHandler<TArgs>;
+    handler?: ToolHandler<TArgs>;
     /**
      * When true, explicitly indicates this tool is intended to override a built-in tool
      * of the same name. If not set and the name clashes with a built-in tool, the runtime
@@ -420,7 +424,7 @@ export function defineTool<T = unknown>(
     config: {
         description?: string;
         parameters?: ZodSchema<T> | Record<string, unknown>;
-        handler: ToolHandler<T>;
+        handler?: ToolHandler<T>;
         overridesBuiltInTool?: boolean;
         skipPermission?: boolean;
     }
@@ -1335,7 +1339,8 @@ export interface SessionConfig {
     enableConfigDiscovery?: boolean;
 
     /**
-     * Tools exposed to the CLI server
+     * Tools exposed to the CLI server. Tools without a handler are declaration-only
+     * and must be resolved by the consumer via pending external tool request RPCs.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools?: Tool<any>[];
@@ -1382,10 +1387,11 @@ export interface SessionConfig {
     enableSessionTelemetry?: boolean;
 
     /**
-     * Handler for permission requests from the server.
-     * When provided, the server will call this handler to request permission for operations.
+     * Optional handler for permission requests from the server.
+     * When omitted, permission requests are surfaced as events and left pending for
+     * the consumer to resolve via the pending permission RPC.
      */
-    onPermissionRequest: PermissionHandler;
+    onPermissionRequest?: PermissionHandler;
 
     /**
      * Handler for user input requests from the agent.

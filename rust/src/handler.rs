@@ -98,6 +98,8 @@ pub enum HandlerEvent {
 pub enum HandlerResponse {
     /// No response needed (used for fire-and-forget `SessionEvent`s).
     Ok,
+    /// Do not send a response. The consumer will resolve the pending request out-of-band.
+    NoResult,
     /// Permission decision.
     Permission(PermissionResult),
     /// User input response (or `None` to signal no input available).
@@ -230,7 +232,7 @@ pub enum AutoModeSwitchResponse {
 ///
 /// # Default behavior
 ///
-/// - Permission requests → **denied** (safe default).
+/// - Permission requests → **denied**.
 /// - User input → `None` (no answer available).
 /// - External tool calls → failure result with "no handler registered".
 /// - Elicitation → `"cancel"`.
@@ -460,10 +462,8 @@ impl SessionHandler for ApproveAllHandler {
 /// A [`SessionHandler`] that denies all permission requests and otherwise
 /// relies on the trait's default fallback responses for every other event
 /// (e.g. tool invocations return "unhandled", elicitations cancel, plan-mode
-/// prompts decline). This is the safe default used when no handler is set on
-/// [`SessionConfig::handler`](crate::types::SessionConfig::handler) — sessions
-/// will not stall on permission prompts (they're denied immediately) but no
-/// privileged actions will be taken without an explicit opt-in.
+/// prompts decline). Use this when a session should never wait for manual
+/// permission approval.
 #[derive(Debug, Clone)]
 pub struct DenyAllHandler;
 
@@ -471,6 +471,41 @@ pub struct DenyAllHandler;
 impl SessionHandler for DenyAllHandler {
     // All defaults are already safe: permissions deny, everything else is a
     // sensible fallback. We just reuse them here for clarity.
+}
+
+/// A [`SessionHandler`] that leaves permission requests and external tool calls pending.
+///
+/// This is the default used when no handler is set on
+/// [`SessionConfig::handler`](crate::types::SessionConfig::handler). It lets consumers
+/// observe `permission.requested` and `external_tool.requested` events and later resolve
+/// them with the corresponding pending-request RPC methods.
+#[derive(Debug, Clone)]
+pub struct NoopHandler;
+
+#[async_trait]
+impl SessionHandler for NoopHandler {
+    async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
+        match event {
+            HandlerEvent::SessionEvent { .. } => HandlerResponse::Ok,
+            HandlerEvent::PermissionRequest { .. } => {
+                HandlerResponse::Permission(PermissionResult::NoResult)
+            }
+            HandlerEvent::UserInput { .. } => HandlerResponse::UserInput(None),
+            HandlerEvent::ExternalTool { .. } => HandlerResponse::NoResult,
+            HandlerEvent::ElicitationRequest { .. } => {
+                HandlerResponse::Elicitation(ElicitationResult {
+                    action: "cancel".to_string(),
+                    content: None,
+                })
+            }
+            HandlerEvent::ExitPlanMode { .. } => {
+                HandlerResponse::ExitPlanMode(ExitPlanModeResult::default())
+            }
+            HandlerEvent::AutoModeSwitch { .. } => {
+                HandlerResponse::AutoModeSwitch(AutoModeSwitchResponse::No)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -585,6 +620,36 @@ mod tests {
             }
             other => panic!("unexpected response: {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn noop_handler_leaves_permission_and_external_tool_pending() {
+        let h = NoopHandler;
+        let permission = h
+            .on_event(HandlerEvent::PermissionRequest {
+                session_id: SessionId::from("s1".to_string()),
+                request_id: RequestId::new("r1"),
+                data: perm_data(),
+            })
+            .await;
+        assert!(matches!(
+            permission,
+            HandlerResponse::Permission(PermissionResult::NoResult)
+        ));
+
+        let tool = h
+            .on_event(HandlerEvent::ExternalTool {
+                invocation: crate::types::ToolInvocation {
+                    session_id: SessionId::from("s1".to_string()),
+                    tool_call_id: "tc1".to_string(),
+                    tool_name: "manual".to_string(),
+                    arguments: Value::Null,
+                    traceparent: None,
+                    tracestate: None,
+                },
+            })
+            .await;
+        assert!(matches!(tool, HandlerResponse::NoResult));
     }
 
     #[tokio::test]

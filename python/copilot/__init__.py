@@ -43,7 +43,14 @@ from .session_fs_provider import (
     SessionFsProvider,
     create_session_fs_adapter,
 )
-from .tools import convert_mcp_call_tool_result, define_tool
+from .tools import (
+    Tool,
+    ToolBinaryResult,
+    ToolInvocation,
+    ToolResult,
+    convert_mcp_call_tool_result,
+    define_tool,
+)
 
 __version__ = "0.1.0"
 
@@ -81,6 +88,10 @@ __all__ = [
     "SessionUiApi",
     "SessionUiCapabilities",
     "SubprocessConfig",
+    "Tool",
+    "ToolBinaryResult",
+    "ToolInvocation",
+    "ToolResult",
     "convert_mcp_call_tool_result",
     "define_tool",
 ]

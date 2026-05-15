@@ -1,40 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
+import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
-    it("throws when createSession is called without onPermissionRequest", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
+    it("allows createSession without onPermissionRequest", async () => {
+        const client = new CopilotClient({ autoStart: false });
 
-        await expect((client as any).createSession({})).rejects.toThrow(
-            /onPermissionRequest.*is required/
-        );
+        await expect(client.createSession({})).rejects.toThrow(/Client not connected/);
     });
 
-    it("throws when resumeSession is called without onPermissionRequest", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
+    it("allows resumeSession without onPermissionRequest", async () => {
+        const client = new CopilotClient({ autoStart: false });
 
-        const session = await client.createSession({ onPermissionRequest: approveAll });
-        await expect((client as any).resumeSession(session.sessionId, {})).rejects.toThrow(
-            /onPermissionRequest.*is required/
-        );
+        await expect(client.resumeSession("session-1", {})).rejects.toThrow(/Client not connected/);
     });
 
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
-
-        const session = await client.createSession({
-            onPermissionRequest: () => ({ kind: "no-result" }),
-        });
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerPermissionHandler(() => ({ kind: "no-result" }));
         const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
 
         await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
@@ -43,13 +30,10 @@ describe("CopilotClient", () => {
     });
 
     it("throws when a v2 permission handler returns no-result", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerPermissionHandler(() => ({ kind: "no-result" }));
         const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
-
-        const session = await client.createSession({
-            onPermissionRequest: () => ({ kind: "no-result" }),
-        });
+        (client as any).sessions.set(session.sessionId, session);
 
         await expect(
             (client as any).handlePermissionRequestV2({

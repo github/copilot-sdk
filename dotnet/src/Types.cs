@@ -2158,9 +2158,11 @@ public class SessionConfig
     public bool? EnableConfigDiscovery { get; set; }
 
     /// <summary>
-    /// Custom tool functions available to the language model during the session.
+    /// Custom tool declarations available to the language model during the session.
+    /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
+    /// are left for the client to handle via external tool request events.
     /// </summary>
-    public ICollection<AIFunction>? Tools { get; set; }
+    public ICollection<AIFunctionDeclaration>? Tools { get; set; }
     /// <summary>
     /// System message configuration for the session.
     /// </summary>
@@ -2429,9 +2431,11 @@ public class ResumeSessionConfig
     public string? Model { get; set; }
 
     /// <summary>
-    /// Custom tool functions available to the language model during the resumed session.
+    /// Custom tool declarations available to the language model during the resumed session.
+    /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
+    /// are left for the client to handle via external tool request events.
     /// </summary>
-    public ICollection<AIFunction>? Tools { get; set; }
+    public ICollection<AIFunctionDeclaration>? Tools { get; set; }
 
     /// <summary>
     /// System message configuration.

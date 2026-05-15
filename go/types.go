@@ -613,7 +613,8 @@ type SessionConfig struct {
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
-	// Tools exposes caller-implemented tools to the CLI
+	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
+	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
 	Tools []Tool
 	// SystemMessage configures system message customization
 	SystemMessage *SystemMessageConfig
@@ -623,8 +624,9 @@ type SessionConfig struct {
 	// ExcludedTools is a list of tool names to disable. All other tools remain available.
 	// Ignored if AvailableTools is specified.
 	ExcludedTools []string
-	// OnPermissionRequest is a handler for permission requests from the server.
-	// This field is required; use PermissionHandler.ApproveAll to allow all permissions.
+	// OnPermissionRequest is an optional handler for permission requests from the server.
+	// When nil, permission requests are surfaced as events and left pending for the
+	// consumer to resolve via pending permission RPCs.
 	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
@@ -717,7 +719,9 @@ type Tool struct {
 	Parameters           map[string]any `json:"parameters,omitempty"`
 	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
 	SkipPermission       bool           `json:"skipPermission,omitempty"`
-	Handler              ToolHandler    `json:"-"`
+	// Handler is optional. When nil, the SDK exposes the tool declaration but does
+	// not automatically invoke it.
+	Handler ToolHandler `json:"-"`
 }
 
 // ToolInvocation describes a tool call initiated by Copilot
@@ -845,7 +849,8 @@ type ResumeSessionConfig struct {
 	ClientName string
 	// Model to use for this session. Can change the model when resuming.
 	Model string
-	// Tools exposes caller-implemented tools to the CLI
+	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
+	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
 	Tools []Tool
 	// SystemMessage configures system message customization
 	SystemMessage *SystemMessageConfig
@@ -870,8 +875,9 @@ type ResumeSessionConfig struct {
 	// ReasoningEffort level for models that support it.
 	// Valid values: "low", "medium", "high", "xhigh"
 	ReasoningEffort string
-	// OnPermissionRequest is a handler for permission requests from the server.
-	// This field is required; use PermissionHandler.ApproveAll to allow all permissions.
+	// OnPermissionRequest is an optional handler for permission requests from the server.
+	// When nil, permission requests are surfaced as events and left pending for the
+	// consumer to resolve via pending permission RPCs.
 	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
