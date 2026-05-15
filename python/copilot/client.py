@@ -2852,14 +2852,25 @@ class CopilotClient:
                 models_data = response.get("models", [])
                 models = []
                 for model_data in models_data:
+                    if not isinstance(model_data, dict):
+                        # Defensive: server should always send dicts here.
+                        # Skip and log rather than letting the inner assert
+                        # raise, for the same resilience reason as below.
+                        logger.warning(
+                            "Skipping non-dict entry in models.list response: %r",
+                            model_data,
+                        )
+                        continue
                     try:
                         models.append(ModelInfo.from_dict(model_data))
-                    except Exception as e:
+                    except (ValueError, TypeError, AssertionError) as e:
                         # Isolate per-entry parse failures so a single
                         # malformed model entry (e.g. backend schema drift
                         # on one model) does not take down list_models()
                         # for all consumers. See issue #1302.
-                        model_id = model_data.get("id") if isinstance(model_data, dict) else None
+                        # Catch only parse/shape-related exceptions; let
+                        # unexpected programmer errors propagate.
+                        model_id = model_data.get("id")
                         logger.warning(
                             "Skipping malformed model entry%s in models.list response: %s",
                             f" (id={model_id!r})" if model_id else "",

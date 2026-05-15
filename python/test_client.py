@@ -1033,6 +1033,24 @@ class TestListModelsParserResilience:
         warnings = [r for r in caplog.records if r.levelname == "WARNING"]
         assert len(warnings) == 2
 
+    @pytest.mark.asyncio
+    async def test_unexpected_exceptions_propagate(self, monkeypatch):
+        # Programmer errors (e.g. AttributeError from a refactoring mistake)
+        # should NOT be swallowed by the per-entry try/except. Only
+        # parse/shape-related exceptions (ValueError/TypeError/AssertionError)
+        # are caught.
+        from copilot import client as client_mod
+
+        def boom(_obj):
+            raise AttributeError("simulated programmer error")
+
+        monkeypatch.setattr(client_mod.ModelInfo, "from_dict", staticmethod(boom))
+
+        client = self._make_client_with_fake_rpc([self._good_model("x")])
+
+        with pytest.raises(AttributeError, match="simulated programmer error"):
+            await client.list_models()
+
 
 class TestSessionConfigForwarding:
     @pytest.mark.asyncio
