@@ -32,7 +32,6 @@ const sessionFsConfig: SessionFsConfig = {
     initialCwd: "/",
     sessionStatePath,
     conventions: "posix",
-    handleSqlite: true,
 };
 
 describe("Session Fs SQLite", async () => {

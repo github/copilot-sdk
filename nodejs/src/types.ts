@@ -1795,18 +1795,6 @@ export interface SessionFsConfig {
      * Path conventions used by this filesystem provider.
      */
     conventions: "windows" | "posix";
-
-    /**
-     * When `true`, the runtime routes SQLite queries through the SessionFs
-     * provider via RPC instead of using a local database on the host.
-     *
-     * Set this to `true` when your per-session {@link SessionFsProvider}
-     * implementations include a `sqlite` handler. When `false` or omitted,
-     * the runtime uses a local `node:sqlite` database as a fallback.
-     *
-     * @default false
-     */
-    handleSqlite?: boolean;
 }
 
 /**
