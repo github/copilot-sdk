@@ -46,7 +46,7 @@
    - `.lastmerge` → `java/.lastmerge`
    - `.githooks/` → `java/.githooks/`
    - `docs/adr/` → `java/docs/adr/`
-   - `instructions/` → `java/instructions/` (or merge into monorepo copilot-instructions)
+   - `instructions/copilot-sdk-java.instructions.md` → `.github/skills/java-coding-skill/SKILL.md` (follows the `rust-coding-skill` pattern); Java repo governance merged into `.github/copilot-instructions.md`
 
 2. Update `pom.xml` paths if needed (should be self-contained under `java/`).
 
@@ -349,28 +349,28 @@ What changes is the **mechanism**: instead of polling a remote repository, the w
 
 ### 6A. copilot-sdk-java-00
 
-| Resource                                                         | Location                                     | Purpose                                      | Must Migrate?                                     |
-| ---------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------- | ------------------------------------------------- |
-| **Agent:** `agentic-workflows.agent.md`                          | `.github/agents/`                            | Dispatcher for gh-aw workflow creation/debug | Yes (merge with monorepo version)                 |
-| **Skill:** `agentic-merge-reference-impl`                        | `.github/skills/` + `.github/prompts/`       | Merges reference impl changes into Java      | Yes — **must be reworked** (no longer cross-repo) |
-| **Skill:** `commit-as-pull-request`                              | `.github/skills/` + `.github/prompts/`       | Creates branch, pushes, opens PR             | Yes (may already exist in monorepo)               |
-| **Skill:** `documentation-coverage`                              | `.github/skills/` + `.github/prompts/`       | Assesses Java docs coverage                  | Yes                                               |
-| **Prompt:** `coding-agent-merge-reference-impl-instructions.md`  | `.github/prompts/`                           | Instructions for coding agent merge          | Yes                                               |
-| **Prompt:** `test-coverage-assessment.prompt.md`                 | `.github/prompts/`                           | Test coverage assessment                     | Yes                                               |
-| **Composite Action:** `setup-copilot`                            | `.github/actions/setup-copilot/`             | Sets up Copilot CLI for Java tests           | Yes — **adapt paths**                             |
-| **Composite Action:** `test-report`                              | `.github/actions/test-report/`               | Test report generation                       | Yes                                               |
-| **Scripts:** `release/`, `ci/`, `build/`, `reference-impl-sync/` | `.github/scripts/`                           | Release, CI, sync automation                 | Yes — **path rewrites**                           |
-| **Dependabot:** `dependabot.yml`                                 | `.github/`                                   | Maven + GitHub Actions updates               | Merge into monorepo's `dependabot.yaml`           |
-| **CODEOWNERS**                                                   | `.github/`                                   | ~~`@github/copilot-sdk-java`                 | Merge into monorepo's CODEOWNERS~~                |
-| **Issue Templates:** bug, documentation, feature, maintenance    | `.github/ISSUE_TEMPLATE/`                    | Issue forms                                  | Assess whether monorepo issue triage covers this  |
-| **PR Template**                                                  | `.github/pull_request_template.md`           | PR form                                      | Merge or keep per-language                        |
-| **Release Config**                                               | `.github/release.yml`                        | Auto-generated release notes config          | Merge                                             |
-| **copilot-instructions.md**                                      | `.github/`                                   | Agent instructions for Java SDK              | Merge (scoped to `java/`)                         |
-| **Site templates**                                               | `.github/templates/`                         | HTML/CSS for GitHub Pages                    | Migrate to `java/`                                |
-| **Coverage badge script**                                        | `.github/scripts/generate-coverage-badge.sh` | JaCoCo badge generation                      | Migrate                                           |
-| **`.lastmerge`**                                                 | repo root                                    | Tracks last merged ref-impl commit           | **This concept changes** — see §6                 |
-| **`.githooks/pre-commit`**                                       | repo root                                    | Runs `mvn spotless:check`                    | Migrate to `java/.githooks/`                      |
-| **`instructions/copilot-sdk-java.instructions.md`**              | `instructions/`                              | VS Code copilot instructions                 | Move to `java/`                                   |
+| Resource                                                         | Location                                     | Purpose                                      | Must Migrate?                                                                            |
+| ---------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Agent:** `agentic-workflows.agent.md`                          | `.github/agents/`                            | Dispatcher for gh-aw workflow creation/debug | Yes (merge with monorepo version)                                                        |
+| **Skill:** `agentic-merge-reference-impl`                        | `.github/skills/` + `.github/prompts/`       | Merges reference impl changes into Java      | Yes — **must be reworked** (no longer cross-repo)                                        |
+| **Skill:** `commit-as-pull-request`                              | `.github/skills/` + `.github/prompts/`       | Creates branch, pushes, opens PR             | Yes (may already exist in monorepo)                                                      |
+| **Skill:** `documentation-coverage`                              | `.github/skills/` + `.github/prompts/`       | Assesses Java docs coverage                  | Yes                                                                                      |
+| **Prompt:** `coding-agent-merge-reference-impl-instructions.md`  | `.github/prompts/`                           | Instructions for coding agent merge          | Yes                                                                                      |
+| **Prompt:** `test-coverage-assessment.prompt.md`                 | `.github/prompts/`                           | Test coverage assessment                     | Yes                                                                                      |
+| **Composite Action:** `setup-copilot`                            | `.github/actions/setup-copilot/`             | Sets up Copilot CLI for Java tests           | Yes — **adapt paths**                                                                    |
+| **Composite Action:** `test-report`                              | `.github/actions/test-report/`               | Test report generation                       | Yes                                                                                      |
+| **Scripts:** `release/`, `ci/`, `build/`, `reference-impl-sync/` | `.github/scripts/`                           | Release, CI, sync automation                 | Yes — **path rewrites**                                                                  |
+| **Dependabot:** `dependabot.yml`                                 | `.github/`                                   | Maven + GitHub Actions updates               | Merge into monorepo's `dependabot.yaml`                                                  |
+| **CODEOWNERS**                                                   | `.github/`                                   | ~~`@github/copilot-sdk-java`                 | Merge into monorepo's CODEOWNERS~~                                                       |
+| **Issue Templates:** bug, documentation, feature, maintenance    | `.github/ISSUE_TEMPLATE/`                    | Issue forms                                  | Assess whether monorepo issue triage covers this                                         |
+| **PR Template**                                                  | `.github/pull_request_template.md`           | PR form                                      | Merge or keep per-language                                                               |
+| **Release Config**                                               | `.github/release.yml`                        | Auto-generated release notes config          | Merge                                                                                    |
+| **copilot-instructions.md**                                      | `.github/`                                   | Agent instructions for Java SDK              | Merge (scoped to `java/`)                                                                |
+| **Site templates**                                               | `.github/templates/`                         | HTML/CSS for GitHub Pages                    | Migrate to `java/`                                                                       |
+| **Coverage badge script**                                        | `.github/scripts/generate-coverage-badge.sh` | JaCoCo badge generation                      | Migrate                                                                                  |
+| **`.lastmerge`**                                                 | repo root                                    | Tracks last merged ref-impl commit           | **This concept changes** — see §6                                                        |
+| **`.githooks/pre-commit`**                                       | repo root                                    | Runs `mvn spotless:check`                    | Migrate to `java/.githooks/`                                                             |
+| **`instructions/copilot-sdk-java.instructions.md`**              | `instructions/`                              | VS Code copilot instructions                 | Create `.github/skills/java-coding-skill/SKILL.md` (follows `rust-coding-skill` pattern) |
 
 ### 6B. copilot-sdk-00
 
@@ -453,7 +453,8 @@ What changes is the **mechanism**: instead of polling a remote repository, the w
 ### Documentation
 
 - [ ] Monorepo `README.md` lists Java
-- [ ] `copilot-instructions.md` includes Java guidance
+- [ ] `copilot-instructions.md` includes Java governance section (build, test, conventions)
+- [ ] `.github/skills/java-coding-skill/SKILL.md` exists with Java API patterns and coding rules
 - [ ] `java/README.md` links updated to monorepo
 - [ ] Maven Central POM `<scm>` URLs updated
 
@@ -513,7 +514,7 @@ What changes is the **mechanism**: instead of polling a remote repository, the w
 | `.github/ISSUE_TEMPLATE/*`                               | Evaluate — likely skip                                                  | —                                                             |
 | `.github/pull_request_template.md`                       | Evaluate — likely skip                                                  | —                                                             |
 | `.github/templates/`                                     | Copy                                                                    | `java/.github/templates/` or `java/src/site/`                 |
-| `instructions/`                                          | Move                                                                    | `java/instructions/`                                          |
+| `instructions/copilot-sdk-java.instructions.md`          | Create skill (follows `rust-coding-skill` pattern)                      | `.github/skills/java-coding-skill/SKILL.md`                   |
 | `test` (file, not directory)                             | Copy if needed                                                          | `java/test`                                                   |
 
 ## Appendix B: Unique Java Concerns vs Other Languages
