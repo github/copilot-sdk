@@ -36,6 +36,13 @@ export type SlashCommandInputCompletion = "directory";
  */
 export type QueuedCommandResult = QueuedCommandHandled | QueuedCommandNotHandled;
 /**
+ * Neutral SDK discriminator for the connected remote session kind.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectedRemoteSessionMetadataKind".
+ */
+export type ConnectedRemoteSessionMetadataKind = "remote-session" | "coding-agent";
+/**
  * Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -715,6 +722,85 @@ export interface CommandsRespondToQueuedCommandResult {
    * Whether the response was accepted (false if the requestId was not found or already resolved)
    */
   success: boolean;
+}
+/**
+ * Metadata for a connected remote session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectedRemoteSessionMetadata".
+ */
+export interface ConnectedRemoteSessionMetadata {
+  /**
+   * SDK session ID for the connected remote session.
+   */
+  sessionId: string;
+  /**
+   * Optional friendly session name.
+   */
+  name?: string;
+  /**
+   * Optional session summary.
+   */
+  summary?: string;
+  /**
+   * Session start time as an ISO 8601 string.
+   */
+  startTime: string;
+  /**
+   * Last session update time as an ISO 8601 string.
+   */
+  modifiedTime: string;
+  repository: ConnectedRemoteSessionMetadataRepository;
+  /**
+   * Pull request number associated with the session.
+   */
+  pullRequestNumber?: number;
+  /**
+   * Original remote resource identifier.
+   */
+  resourceId?: string;
+  kind: ConnectedRemoteSessionMetadataKind;
+  /**
+   * Remote session staleness deadline as an ISO 8601 string.
+   */
+  staleAt?: string;
+  /**
+   * Remote session state returned by the backing service.
+   */
+  state?: string;
+}
+/**
+ * Repository associated with the connected remote session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectedRemoteSessionMetadataRepository".
+ */
+export interface ConnectedRemoteSessionMetadataRepository {
+  /**
+   * Repository owner or organization login.
+   */
+  owner: string;
+  /**
+   * Repository name.
+   */
+  name: string;
+  /**
+   * Branch associated with the remote session.
+   */
+  branch: string;
+}
+/**
+ * Remote session connection parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectRemoteSessionParams".
+ */
+/** @experimental */
+export interface ConnectRemoteSessionParams {
+  /**
+   * Session ID to connect to.
+   */
+  sessionId: string;
 }
 /**
  * Optional connection token presented by the SDK client during the handshake.
@@ -2375,6 +2461,20 @@ export interface RemoteEnableResult {
    * Whether remote steering is enabled
    */
   remoteSteerable: boolean;
+}
+/**
+ * Remote session connection result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "RemoteSessionConnectionResult".
+ */
+/** @experimental */
+export interface RemoteSessionConnectionResult {
+  /**
+   * SDK session ID for the connected remote session.
+   */
+  sessionId: string;
+  metadata: ConnectedRemoteSessionMetadata;
 }
 /**
  * Schema for the `ServerSkill` type.
@@ -4151,6 +4251,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             fork: async (params: SessionsForkRequest): Promise<SessionsForkResult> =>
                 connection.sendRequest("sessions.fork", params),
+            /**
+             * Connects to an existing remote session and exposes it as an SDK session.
+             *
+             * @param params Remote session connection parameters.
+             *
+             * @returns Remote session connection result.
+             */
+            connect: async (params: ConnectRemoteSessionParams): Promise<RemoteSessionConnectionResult> =>
+                connection.sendRequest("sessions.connect", params),
         },
     };
 }

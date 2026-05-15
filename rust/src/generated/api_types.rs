@@ -43,6 +43,8 @@ pub mod rpc_methods {
     pub const SESSIONFS_SETPROVIDER: &str = "sessionFs.setProvider";
     /// `sessions.fork`
     pub const SESSIONS_FORK: &str = "sessions.fork";
+    /// `sessions.connect`
+    pub const SESSIONS_CONNECT: &str = "sessions.connect";
     /// `session.suspend`
     pub const SESSION_SUSPEND: &str = "session.suspend";
     /// `session.auth.getStatus`
@@ -392,6 +394,60 @@ pub struct CommandsRespondToQueuedCommandRequest {
 pub struct CommandsRespondToQueuedCommandResult {
     /// Whether the response was accepted (false if the requestId was not found or already resolved)
     pub success: bool,
+}
+
+/// Repository associated with the connected remote session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedRemoteSessionMetadataRepository {
+    /// Branch associated with the remote session.
+    pub branch: String,
+    /// Repository name.
+    pub name: String,
+    /// Repository owner or organization login.
+    pub owner: String,
+}
+
+/// Metadata for a connected remote session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedRemoteSessionMetadata {
+    /// Neutral SDK discriminator for the connected remote session kind.
+    pub kind: ConnectedRemoteSessionMetadataKind,
+    /// Last session update time as an ISO 8601 string.
+    pub modified_time: String,
+    /// Optional friendly session name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Pull request number associated with the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pull_request_number: Option<i64>,
+    /// Repository associated with the connected remote session.
+    pub repository: ConnectedRemoteSessionMetadataRepository,
+    /// Original remote resource identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_id: Option<String>,
+    /// SDK session ID for the connected remote session.
+    pub session_id: SessionId,
+    /// Remote session staleness deadline as an ISO 8601 string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stale_at: Option<String>,
+    /// Session start time as an ISO 8601 string.
+    pub start_time: String,
+    /// Remote session state returned by the backing service.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+    /// Optional session summary.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+}
+
+/// Remote session connection parameters.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectRemoteSessionParams {
+    /// Session ID to connect to.
+    pub session_id: SessionId,
 }
 
 /// Optional connection token presented by the SDK client during the handshake.
@@ -1604,6 +1660,16 @@ pub struct RemoteEnableResult {
     pub url: Option<String>,
 }
 
+/// Remote session connection result.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSessionConnectionResult {
+    /// Metadata for a connected remote session.
+    pub metadata: ConnectedRemoteSessionMetadata,
+    /// SDK session ID for the connected remote session.
+    pub session_id: SessionId,
+}
+
 /// Schema for the `ServerSkill` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2743,6 +2809,16 @@ pub struct SkillsDiscoverResult {
     pub skills: Vec<ServerSkill>,
 }
 
+/// Remote session connection result.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsConnectResult {
+    /// Metadata for a connected remote session.
+    pub metadata: ConnectedRemoteSessionMetadata,
+    /// SDK session ID for the connected remote session.
+    pub session_id: SessionId,
+}
+
 /// Identifies the target session.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3424,6 +3500,19 @@ pub enum SlashCommandKind {
     Skill,
     #[serde(rename = "client")]
     Client,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Neutral SDK discriminator for the connected remote session kind.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectedRemoteSessionMetadataKind {
+    #[serde(rename = "remote-session")]
+    RemoteSession,
+    #[serde(rename = "coding-agent")]
+    CodingAgent,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

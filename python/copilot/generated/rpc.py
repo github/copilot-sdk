@@ -345,6 +345,25 @@ class CommandsRespondToQueuedCommandResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class ConnectRemoteSessionParams:
+    """Remote session connection parameters."""
+
+    session_id: str
+    """Session ID to connect to."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ConnectRemoteSessionParams':
+        assert isinstance(obj, dict)
+        session_id = from_str(obj.get("sessionId"))
+        return ConnectRemoteSessionParams(session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
 class ConnectRequest:
@@ -392,6 +411,40 @@ class ConnectResult:
         result["ok"] = from_bool(self.ok)
         result["protocolVersion"] = from_int(self.protocol_version)
         result["version"] = from_str(self.version)
+        return result
+
+class ConnectedRemoteSessionMetadataKind(Enum):
+    """Neutral SDK discriminator for the connected remote session kind."""
+
+    CODING_AGENT = "coding-agent"
+    REMOTE_SESSION = "remote-session"
+
+@dataclass
+class ConnectedRemoteSessionMetadataRepository:
+    """Repository associated with the connected remote session."""
+
+    branch: str
+    """Branch associated with the remote session."""
+
+    name: str
+    """Repository name."""
+
+    owner: str
+    """Repository owner or organization login."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ConnectedRemoteSessionMetadataRepository':
+        assert isinstance(obj, dict)
+        branch = from_str(obj.get("branch"))
+        name = from_str(obj.get("name"))
+        owner = from_str(obj.get("owner"))
+        return ConnectedRemoteSessionMetadataRepository(branch, name, owner)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["branch"] = from_str(self.branch)
+        result["name"] = from_str(self.name)
+        result["owner"] = from_str(self.owner)
         return result
 
 @dataclass
@@ -3042,6 +3095,80 @@ class SlashCommandInput:
         return result
 
 @dataclass
+class ConnectedRemoteSessionMetadata:
+    """Metadata for a connected remote session."""
+
+    kind: ConnectedRemoteSessionMetadataKind
+    """Neutral SDK discriminator for the connected remote session kind."""
+
+    modified_time: str
+    """Last session update time as an ISO 8601 string."""
+
+    repository: ConnectedRemoteSessionMetadataRepository
+    """Repository associated with the connected remote session."""
+
+    session_id: str
+    """SDK session ID for the connected remote session."""
+
+    start_time: str
+    """Session start time as an ISO 8601 string."""
+
+    name: str | None = None
+    """Optional friendly session name."""
+
+    pull_request_number: int | None = None
+    """Pull request number associated with the session."""
+
+    resource_id: str | None = None
+    """Original remote resource identifier."""
+
+    stale_at: str | None = None
+    """Remote session staleness deadline as an ISO 8601 string."""
+
+    state: str | None = None
+    """Remote session state returned by the backing service."""
+
+    summary: str | None = None
+    """Optional session summary."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ConnectedRemoteSessionMetadata':
+        assert isinstance(obj, dict)
+        kind = ConnectedRemoteSessionMetadataKind(obj.get("kind"))
+        modified_time = from_str(obj.get("modifiedTime"))
+        repository = ConnectedRemoteSessionMetadataRepository.from_dict(obj.get("repository"))
+        session_id = from_str(obj.get("sessionId"))
+        start_time = from_str(obj.get("startTime"))
+        name = from_union([from_str, from_none], obj.get("name"))
+        pull_request_number = from_union([from_int, from_none], obj.get("pullRequestNumber"))
+        resource_id = from_union([from_str, from_none], obj.get("resourceId"))
+        stale_at = from_union([from_str, from_none], obj.get("staleAt"))
+        state = from_union([from_str, from_none], obj.get("state"))
+        summary = from_union([from_str, from_none], obj.get("summary"))
+        return ConnectedRemoteSessionMetadata(kind, modified_time, repository, session_id, start_time, name, pull_request_number, resource_id, stale_at, state, summary)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(ConnectedRemoteSessionMetadataKind, self.kind)
+        result["modifiedTime"] = from_str(self.modified_time)
+        result["repository"] = to_class(ConnectedRemoteSessionMetadataRepository, self.repository)
+        result["sessionId"] = from_str(self.session_id)
+        result["startTime"] = from_str(self.start_time)
+        if self.name is not None:
+            result["name"] = from_union([from_str, from_none], self.name)
+        if self.pull_request_number is not None:
+            result["pullRequestNumber"] = from_union([from_int, from_none], self.pull_request_number)
+        if self.resource_id is not None:
+            result["resourceId"] = from_union([from_str, from_none], self.resource_id)
+        if self.stale_at is not None:
+            result["staleAt"] = from_union([from_str, from_none], self.stale_at)
+        if self.state is not None:
+            result["state"] = from_union([from_str, from_none], self.state)
+        if self.summary is not None:
+            result["summary"] = from_union([from_str, from_none], self.summary)
+        return result
+
+@dataclass
 class DiscoveredMCPServer:
     """Schema for the `DiscoveredMcpServer` type."""
 
@@ -5177,6 +5304,30 @@ class SlashCommandInfo:
             result["input"] = from_union([lambda x: to_class(SlashCommandInput, x), from_none], self.input)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class RemoteSessionConnectionResult:
+    """Remote session connection result."""
+
+    metadata: ConnectedRemoteSessionMetadata
+    """Metadata for a connected remote session."""
+
+    session_id: str
+    """SDK session ID for the connected remote session."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'RemoteSessionConnectionResult':
+        assert isinstance(obj, dict)
+        metadata = ConnectedRemoteSessionMetadata.from_dict(obj.get("metadata"))
+        session_id = from_str(obj.get("sessionId"))
+        return RemoteSessionConnectionResult(metadata, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["metadata"] = to_class(ConnectedRemoteSessionMetadata, self.metadata)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
 @dataclass
 class MCPDiscoverResult:
     """MCP servers discovered from user, workspace, plugin, and built-in sources."""
@@ -7155,6 +7306,10 @@ class RPC:
     commands_list_request: CommandsListRequest
     commands_respond_to_queued_command_request: CommandsRespondToQueuedCommandRequest
     commands_respond_to_queued_command_result: CommandsRespondToQueuedCommandResult
+    connected_remote_session_metadata: ConnectedRemoteSessionMetadata
+    connected_remote_session_metadata_kind: ConnectedRemoteSessionMetadataKind
+    connected_remote_session_metadata_repository: ConnectedRemoteSessionMetadataRepository
+    connect_remote_session_params: ConnectRemoteSessionParams
     connect_request: ConnectRequest
     connect_result: ConnectResult
     current_model: CurrentModel
@@ -7283,6 +7438,7 @@ class RPC:
     queued_command_result: QueuedCommandResult
     remote_enable_request: RemoteEnableRequest
     remote_enable_result: RemoteEnableResult
+    remote_session_connection_result: RemoteSessionConnectionResult
     remote_session_mode: RemoteSessionMode
     server_skill: ServerSkill
     server_skill_list: ServerSkillList
@@ -7411,6 +7567,10 @@ class RPC:
         commands_list_request = CommandsListRequest.from_dict(obj.get("CommandsListRequest"))
         commands_respond_to_queued_command_request = CommandsRespondToQueuedCommandRequest.from_dict(obj.get("CommandsRespondToQueuedCommandRequest"))
         commands_respond_to_queued_command_result = CommandsRespondToQueuedCommandResult.from_dict(obj.get("CommandsRespondToQueuedCommandResult"))
+        connected_remote_session_metadata = ConnectedRemoteSessionMetadata.from_dict(obj.get("ConnectedRemoteSessionMetadata"))
+        connected_remote_session_metadata_kind = ConnectedRemoteSessionMetadataKind(obj.get("ConnectedRemoteSessionMetadataKind"))
+        connected_remote_session_metadata_repository = ConnectedRemoteSessionMetadataRepository.from_dict(obj.get("ConnectedRemoteSessionMetadataRepository"))
+        connect_remote_session_params = ConnectRemoteSessionParams.from_dict(obj.get("ConnectRemoteSessionParams"))
         connect_request = ConnectRequest.from_dict(obj.get("ConnectRequest"))
         connect_result = ConnectResult.from_dict(obj.get("ConnectResult"))
         current_model = CurrentModel.from_dict(obj.get("CurrentModel"))
@@ -7539,6 +7699,7 @@ class RPC:
         queued_command_result = QueuedCommandResult.from_dict(obj.get("QueuedCommandResult"))
         remote_enable_request = RemoteEnableRequest.from_dict(obj.get("RemoteEnableRequest"))
         remote_enable_result = RemoteEnableResult.from_dict(obj.get("RemoteEnableResult"))
+        remote_session_connection_result = RemoteSessionConnectionResult.from_dict(obj.get("RemoteSessionConnectionResult"))
         remote_session_mode = RemoteSessionMode(obj.get("RemoteSessionMode"))
         server_skill = ServerSkill.from_dict(obj.get("ServerSkill"))
         server_skill_list = ServerSkillList.from_dict(obj.get("ServerSkillList"))
@@ -7646,7 +7807,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_request, remote_enable_result, remote_session_mode, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_mode, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_request, remote_enable_result, remote_session_connection_result, remote_session_mode, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_mode, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -7667,6 +7828,10 @@ class RPC:
         result["CommandsListRequest"] = to_class(CommandsListRequest, self.commands_list_request)
         result["CommandsRespondToQueuedCommandRequest"] = to_class(CommandsRespondToQueuedCommandRequest, self.commands_respond_to_queued_command_request)
         result["CommandsRespondToQueuedCommandResult"] = to_class(CommandsRespondToQueuedCommandResult, self.commands_respond_to_queued_command_result)
+        result["ConnectedRemoteSessionMetadata"] = to_class(ConnectedRemoteSessionMetadata, self.connected_remote_session_metadata)
+        result["ConnectedRemoteSessionMetadataKind"] = to_enum(ConnectedRemoteSessionMetadataKind, self.connected_remote_session_metadata_kind)
+        result["ConnectedRemoteSessionMetadataRepository"] = to_class(ConnectedRemoteSessionMetadataRepository, self.connected_remote_session_metadata_repository)
+        result["ConnectRemoteSessionParams"] = to_class(ConnectRemoteSessionParams, self.connect_remote_session_params)
         result["ConnectRequest"] = to_class(ConnectRequest, self.connect_request)
         result["ConnectResult"] = to_class(ConnectResult, self.connect_result)
         result["CurrentModel"] = to_class(CurrentModel, self.current_model)
@@ -7795,6 +7960,7 @@ class RPC:
         result["QueuedCommandResult"] = to_class(QueuedCommandResult, self.queued_command_result)
         result["RemoteEnableRequest"] = to_class(RemoteEnableRequest, self.remote_enable_request)
         result["RemoteEnableResult"] = to_class(RemoteEnableResult, self.remote_enable_result)
+        result["RemoteSessionConnectionResult"] = to_class(RemoteSessionConnectionResult, self.remote_session_connection_result)
         result["RemoteSessionMode"] = to_enum(RemoteSessionMode, self.remote_session_mode)
         result["ServerSkill"] = to_class(ServerSkill, self.server_skill)
         result["ServerSkillList"] = to_class(ServerSkillList, self.server_skill_list)
@@ -8065,6 +8231,11 @@ class ServerSessionsApi:
         "Creates a new session by forking persisted history from an existing session.\n\nArgs:\n    params: Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.\n\nReturns:\n    Identifier and optional friendly name assigned to the newly forked session."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsForkResult.from_dict(await self._client.request("sessions.fork", params_dict, **_timeout_kwargs(timeout)))
+
+    async def connect(self, params: ConnectRemoteSessionParams, *, timeout: float | None = None) -> RemoteSessionConnectionResult:
+        "Connects to an existing remote session and exposes it as an SDK session.\n\nArgs:\n    params: Remote session connection parameters.\n\nReturns:\n    Remote session connection result."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return RemoteSessionConnectionResult.from_dict(await self._client.request("sessions.connect", params_dict, **_timeout_kwargs(timeout)))
 
 
 class ServerRpc:

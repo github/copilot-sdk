@@ -404,6 +404,37 @@ impl<'a> ClientRpcSessions<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Connects to an existing remote session and exposes it as an SDK session.
+    ///
+    /// Wire method: `sessions.connect`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Remote session connection parameters.
+    ///
+    /// # Returns
+    ///
+    /// Remote session connection result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn connect(
+        &self,
+        params: ConnectRemoteSessionParams,
+    ) -> Result<RemoteSessionConnectionResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_CONNECT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `skills.*` RPCs.
