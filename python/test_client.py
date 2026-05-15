@@ -982,3 +982,34 @@ class TestCopilotSessionContextManager:
         with patch.object(session, "disconnect", new_callable=AsyncMock) as mock_disconnect:
             await session.__aexit__(None, None, None)
             mock_disconnect.assert_awaited_once()
+
+
+class TestCustomAgentWireFormat:
+    def test_model_field_is_forwarded_in_wire_format(self):
+        """The model key in CustomAgentConfig should appear as 'model' in the wire payload."""
+        from copilot.client import CopilotClient
+        from copilot.session import CustomAgentConfig
+
+        client = CopilotClient.__new__(CopilotClient)
+        agent: CustomAgentConfig = {
+            "name": "model-agent",
+            "prompt": "You are a model agent.",
+            "model": "claude-haiku-4.5",
+        }
+        wire = client._convert_custom_agent_to_wire_format(agent)
+        assert wire["model"] == "claude-haiku-4.5"
+        assert wire["name"] == "model-agent"
+        assert wire["prompt"] == "You are a model agent."
+
+    def test_model_field_is_omitted_when_absent(self):
+        """When model is not set, it should not appear in the wire payload."""
+        from copilot.client import CopilotClient
+        from copilot.session import CustomAgentConfig
+
+        client = CopilotClient.__new__(CopilotClient)
+        agent: CustomAgentConfig = {
+            "name": "no-model-agent",
+            "prompt": "You are an agent without a model.",
+        }
+        wire = client._convert_custom_agent_to_wire_format(agent)
+        assert "model" not in wire
