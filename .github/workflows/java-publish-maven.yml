@@ -1,256 +1,255 @@
 name: Publish to Maven Central
 
 env:
-    # Disable Husky Git hooks in CI to prevent local development hooks
-    # (e.g., pre-commit formatting checks) from running during automated
-    # workflows that perform git commits and pushes.
-    HUSKY: 0
+  # Disable Husky Git hooks in CI to prevent local development hooks
+  # (e.g., pre-commit formatting checks) from running during automated
+  # workflows that perform git commits and pushes.
+  HUSKY: 0
 
 on:
-    workflow_dispatch:
-        inputs:
-            releaseVersion:
-                description: "Release version (e.g., 1.0.0). If empty, derives from pom.xml by removing -SNAPSHOT"
-                required: false
-                type: string
-            developmentVersion:
-                description: "Next development version (e.g., 1.0.1-SNAPSHOT). If empty, increments patch version"
-                required: false
-                type: string
-            prerelease:
-                description: "Is this a prerelease?"
-                type: boolean
-                required: false
-                default: false
+  workflow_dispatch:
+    inputs:
+      releaseVersion:
+        description: "Release version (e.g., 1.0.0). If empty, derives from pom.xml by removing -SNAPSHOT"
+        required: false
+        type: string
+      developmentVersion:
+        description: "Next development version (e.g., 1.0.1-SNAPSHOT). If empty, increments patch version"
+        required: false
+        type: string
+      prerelease:
+        description: "Is this a prerelease?"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
-    contents: write
-    id-token: write
+  contents: write
+  id-token: write
 
 concurrency:
-    group: publish-maven
-    cancel-in-progress: false
+  group: publish-maven
+  cancel-in-progress: false
 
 jobs:
-    publish-maven:
-        name: Publish Java SDK to Maven Central
-        runs-on: ubuntu-latest
-        outputs:
-            version: ${{ steps.versions.outputs.release_version }}
-        steps:
-            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-              with:
-                  fetch-depth: 0
-                  token: ${{ secrets.JAVA_RELEASE_TOKEN }}
+  publish-maven:
+    name: Publish Java SDK to Maven Central
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versions.outputs.release_version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.JAVA_RELEASE_TOKEN }}
 
-            - name: Configure Git for Maven Release
-              run: |
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Configure Git for Maven Release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-            - uses: ./.github/actions/setup-copilot
+      - uses: ./.github/actions/setup-copilot
 
-            - name: Set up JDK 17
-              uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
-              with:
-                  java-version: "17"
-                  distribution: "microsoft"
-                  cache: "maven"
-                  server-id: central
-                  server-username: MAVEN_USERNAME
-                  server-password: MAVEN_PASSWORD
-                  gpg-private-key: ${{ secrets.JAVA_GPG_SECRET_KEY }}
-                  gpg-passphrase: JAVA_GPG_PASSPHRASE
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "17"
+          distribution: "microsoft"
+          cache: "maven"
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.JAVA_GPG_SECRET_KEY }}
+          gpg-passphrase: JAVA_GPG_PASSPHRASE
 
-            - name: Determine versions
-              id: versions
-              run: |
-                  CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-                  echo "Current pom.xml version: $CURRENT_VERSION"
-                  
-                  # Determine release version
-                  if [ -n "${{ inputs.releaseVersion }}" ]; then
-                    RELEASE_VERSION="${{ inputs.releaseVersion }}"
-                  else
-                    # Remove -SNAPSHOT suffix if present
-                    RELEASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
-                  fi
-                  echo "Release version: $RELEASE_VERSION"
-                  
-                  # Determine next development version
-                  if [ -n "${{ inputs.developmentVersion }}" ]; then
-                    DEV_VERSION="${{ inputs.developmentVersion }}"
-                    if [[ "$DEV_VERSION" != *-SNAPSHOT ]]; then
-                      echo "::error::developmentVersion '${DEV_VERSION}' must end with '-SNAPSHOT' (e.g., '${DEV_VERSION}-SNAPSHOT'). The maven-release-plugin requires the next development version to be a snapshot."
-                      exit 1
-                    fi
-                  else
-                    # Split version: supports "0.1.32", "0.1.32-java.0", and "0.1.32-java-preview.0" formats
-                    # Validate RELEASE_VERSION format explicitly to provide clear errors
-                    if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-(beta-)?java(-preview)?\.[0-9]+)?$'; then
-                      echo "Error: RELEASE_VERSION '$RELEASE_VERSION' is invalid. Expected format: M.M.P, M.M.P-java.N, M.M.P-java-preview.N, M.M.P-beta-java.N, or M.M.P-beta-java-preview.N (e.g., 1.2.3, 1.2.3-java.0, 1.2.3-java-preview.0, 1.2.3-beta-java.0, or 1.2.3-beta-java-preview.0)." >&2
-                      exit 1
-                    fi
-                    # Extract the base M.M.P portion (before any qualifier)
-                    BASE_VERSION=$(echo "$RELEASE_VERSION" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
-                    QUALIFIER=$(echo "$RELEASE_VERSION" | sed "s|^${BASE_VERSION}||")
-                    IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
-                    NEXT_PATCH=$((PATCH + 1))
-                    DEV_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}${QUALIFIER}-SNAPSHOT"
-                  fi
-                  echo "Next development version: $DEV_VERSION"
-                  
-                  echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
-                  echo "dev_version=$DEV_VERSION" >> $GITHUB_OUTPUT
-                  
-                  echo "### Version Summary" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Release version:** $RELEASE_VERSION" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Next development version:** $DEV_VERSION" >> $GITHUB_STEP_SUMMARY
+      - name: Determine versions
+        id: versions
+        run: |
+          CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Current pom.xml version: $CURRENT_VERSION"
 
-            - name: Update documentation with release version
-              id: update-docs
-              run: |
-                  VERSION="${{ steps.versions.outputs.release_version }}"
-                  
-                  # Read the reference implementation SDK commit hash that this release is synced to
-                  REFERENCE_IMPL_HASH=$(cat .lastmerge)
-                  REFERENCE_IMPL_SHORT="${REFERENCE_IMPL_HASH:0:7}"
-                  REFERENCE_IMPL_URL="https://github.com/github/copilot-sdk/commit/${REFERENCE_IMPL_HASH}"
-                  echo "Reference implementation SDK sync: ${REFERENCE_IMPL_SHORT} (${REFERENCE_IMPL_URL})"
-                  
-                  # Update CHANGELOG.md with release version and Reference implementation sync hash
-                  ./.github/scripts/release/update-changelog.sh "${VERSION}" "${REFERENCE_IMPL_HASH}"
-                  
-                  # Update version in README.md (supports any version qualifier like -java.N, -java-preview.N, -beta-java.N)
-                  sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*</version>|<version>${VERSION}</version>|g" README.md
-                  sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" README.md
-                  
-                  # Update snapshot version in README.md
-                  DEV_VERSION="${{ steps.versions.outputs.dev_version }}"
-                  sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*-SNAPSHOT</version>|<version>${DEV_VERSION}</version>|g" README.md
-                  
-                  # Update version in jbang-example.java
-                  sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" jbang-example.java
-                  sed -i 's|copilot-sdk-java:${project\.version}|copilot-sdk-java:'"${VERSION}"'|g' jbang-example.java
-                  
-                  # Update version in cookbook files (hardcoded for direct GitHub browsing and JBang usage)
-                  find src/site/markdown/cookbook -name "*.md" -type f -exec \
-                    sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" {} \;
-                  
-                  # Commit the documentation changes before release:prepare (requires clean working directory)
-                  git add CHANGELOG.md README.md jbang-example.java src/site/markdown/cookbook/
-                  git commit -m "docs: update version references to ${VERSION}"
-                  
-                  # Save the commit SHA for potential rollback
-                  echo "docs_commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-                  
-                  git push origin main
+          # Determine release version
+          if [ -n "${{ inputs.releaseVersion }}" ]; then
+            RELEASE_VERSION="${{ inputs.releaseVersion }}"
+          else
+            # Remove -SNAPSHOT suffix if present
+            RELEASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+          fi
+          echo "Release version: $RELEASE_VERSION"
 
-            - name: Prepare Release
-              run: |
-                  mvn -B release:prepare \
-                    -DreleaseVersion=${{ steps.versions.outputs.release_version }} \
-                    -DdevelopmentVersion=${{ steps.versions.outputs.dev_version }} \
-                    -DtagNameFormat=v@{project.version} \
-                    -DpushChanges=true \
-                    -Darguments="-DskipTests"
-              env:
-                  MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
-                  MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}
-                  JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
+          # Determine next development version
+          if [ -n "${{ inputs.developmentVersion }}" ]; then
+            DEV_VERSION="${{ inputs.developmentVersion }}"
+            if [[ "$DEV_VERSION" != *-SNAPSHOT ]]; then
+              echo "::error::developmentVersion '${DEV_VERSION}' must end with '-SNAPSHOT' (e.g., '${DEV_VERSION}-SNAPSHOT'). The maven-release-plugin requires the next development version to be a snapshot."
+              exit 1
+            fi
+          else
+            # Split version: supports "0.1.32", "0.1.32-java.0", and "0.1.32-java-preview.0" formats
+            # Validate RELEASE_VERSION format explicitly to provide clear errors
+            if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-(beta-)?java(-preview)?\.[0-9]+)?$'; then
+              echo "Error: RELEASE_VERSION '$RELEASE_VERSION' is invalid. Expected format: M.M.P, M.M.P-java.N, M.M.P-java-preview.N, M.M.P-beta-java.N, or M.M.P-beta-java-preview.N (e.g., 1.2.3, 1.2.3-java.0, 1.2.3-java-preview.0, 1.2.3-beta-java.0, or 1.2.3-beta-java-preview.0)." >&2
+              exit 1
+            fi
+            # Extract the base M.M.P portion (before any qualifier)
+            BASE_VERSION=$(echo "$RELEASE_VERSION" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+            QUALIFIER=$(echo "$RELEASE_VERSION" | sed "s|^${BASE_VERSION}||")
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+            NEXT_PATCH=$((PATCH + 1))
+            DEV_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}${QUALIFIER}-SNAPSHOT"
+          fi
+          echo "Next development version: $DEV_VERSION"
 
-            - name: Perform Release and Deploy to Maven Central
-              run: |
-                  mvn -B release:perform \
-                    -Dgoals="deploy" \
-                    -Darguments="-DskipTests -Prelease"
-              env:
-                  MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
-                  MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}
-                  JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
+          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "dev_version=$DEV_VERSION" >> $GITHUB_OUTPUT
 
-            - name: Rollback documentation commit on failure
-              if: failure() && steps.update-docs.outputs.docs_commit_sha != ''
-              run: |
-                  echo "Release failed, rolling back documentation commit..."
-                  git revert --no-edit ${{ steps.update-docs.outputs.docs_commit_sha }}
-                  git push origin main
-                  
-                  # Also run Maven release:rollback to clean up any partial release state
-                  mvn -B release:rollback || true
+          echo "### Version Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release version:** $RELEASE_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Next development version:** $DEV_VERSION" >> $GITHUB_STEP_SUMMARY
 
-    github-release:
-        name: Create GitHub Release
-        needs: publish-maven
-        if: github.ref == 'refs/heads/main'
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-              with:
-                  fetch-depth: 0
-            - name: Create GitHub Release
-              run: |
-                  VERSION="${{ needs.publish-maven.outputs.version }}"
-                  GROUP_ID="com.github"
-                  ARTIFACT_ID="copilot-sdk-java"
-                  CURRENT_TAG="v${VERSION}"
+      - name: Update documentation with release version
+        id: update-docs
+        run: |
+          VERSION="${{ steps.versions.outputs.release_version }}"
 
-                  if gh release view "${CURRENT_TAG}" >/dev/null 2>&1; then
-                    echo "Release ${CURRENT_TAG} already exists. Skipping creation."
-                    exit 0
-                  fi
-                  
-                  # Generate release notes from template
-                  export VERSION GROUP_ID ARTIFACT_ID
-                  RELEASE_NOTES=$(envsubst < .github/workflows/notes.template)
-                  
-                  # Get the previous tag for generating notes
-                  PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
-                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-java(-preview)?\.[0-9]+)?$' \
-                    | grep -Fxv "${CURRENT_TAG}" \
-                    | head -n 1)
-                  
-                  echo "Current tag: ${CURRENT_TAG}"
-                  echo "Previous tag: ${PREV_TAG}"
-                  
-                  # Build the gh release command
-                  GH_ARGS=("${CURRENT_TAG}")
-                  GH_ARGS+=("--title" "GitHub Copilot SDK for Java ${VERSION}")
-                  GH_ARGS+=("--notes" "${RELEASE_NOTES}")
-                  GH_ARGS+=("--generate-notes")
-                  
-                  if [ -n "$PREV_TAG" ]; then
-                    GH_ARGS+=("--notes-start-tag" "$PREV_TAG")
-                  fi
-                  
-                  ${{ inputs.prerelease == true && 'GH_ARGS+=("--prerelease")' || '' }}
-                  
-                  gh release create "${GH_ARGS[@]}"
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Read the reference implementation SDK commit hash that this release is synced to
+          REFERENCE_IMPL_HASH=$(cat .lastmerge)
+          REFERENCE_IMPL_SHORT="${REFERENCE_IMPL_HASH:0:7}"
+          REFERENCE_IMPL_URL="https://github.com/github/copilot-sdk/commit/${REFERENCE_IMPL_HASH}"
+          echo "Reference implementation SDK sync: ${REFERENCE_IMPL_SHORT} (${REFERENCE_IMPL_URL})"
 
-            - name: Move 'latest' tag to new release
-              run: |
-                  VERSION="${{ needs.publish-maven.outputs.version }}"
-                  git tag -f latest "v${VERSION}"
-                  git push origin latest --force
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Update CHANGELOG.md with release version and Reference implementation sync hash
+          ./.github/scripts/release/update-changelog.sh "${VERSION}" "${REFERENCE_IMPL_HASH}"
 
-    deploy-site:
-        name: Deploy Documentation
-        needs: [publish-maven, github-release]
-        runs-on: ubuntu-latest
-        permissions:
-            actions: write
-            contents: read
-        steps:
-            - name: Trigger site deployment
-              run: |
-                  gh workflow run deploy-site.yml \
-                    --repo ${{ github.repository }} \
-                    -f version="${{ needs.publish-maven.outputs.version }}" \
-                    -f publish_as_latest=true
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Update version in README.md (supports any version qualifier like -java.N, -java-preview.N, -beta-java.N)
+          sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*</version>|<version>${VERSION}</version>|g" README.md
+          sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" README.md
 
+          # Update snapshot version in README.md
+          DEV_VERSION="${{ steps.versions.outputs.dev_version }}"
+          sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*-SNAPSHOT</version>|<version>${DEV_VERSION}</version>|g" README.md
+
+          # Update version in jbang-example.java
+          sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" jbang-example.java
+          sed -i 's|copilot-sdk-java:${project\.version}|copilot-sdk-java:'"${VERSION}"'|g' jbang-example.java
+
+          # Update version in cookbook files (hardcoded for direct GitHub browsing and JBang usage)
+          find src/site/markdown/cookbook -name "*.md" -type f -exec \
+            sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" {} \;
+
+          # Commit the documentation changes before release:prepare (requires clean working directory)
+          git add CHANGELOG.md README.md jbang-example.java src/site/markdown/cookbook/
+          git commit -m "docs: update version references to ${VERSION}"
+
+          # Save the commit SHA for potential rollback
+          echo "docs_commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+          git push origin main
+
+      - name: Prepare Release
+        run: |
+          mvn -B release:prepare \
+            -DreleaseVersion=${{ steps.versions.outputs.release_version }} \
+            -DdevelopmentVersion=${{ steps.versions.outputs.dev_version }} \
+            -DtagNameFormat=v@{project.version} \
+            -DpushChanges=true \
+            -Darguments="-DskipTests"
+        env:
+          MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}
+          JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
+
+      - name: Perform Release and Deploy to Maven Central
+        run: |
+          mvn -B release:perform \
+            -Dgoals="deploy" \
+            -Darguments="-DskipTests -Prelease"
+        env:
+          MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}
+          JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
+
+      - name: Rollback documentation commit on failure
+        if: failure() && steps.update-docs.outputs.docs_commit_sha != ''
+        run: |
+          echo "Release failed, rolling back documentation commit..."
+          git revert --no-edit ${{ steps.update-docs.outputs.docs_commit_sha }}
+          git push origin main
+
+          # Also run Maven release:rollback to clean up any partial release state
+          mvn -B release:rollback || true
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish-maven
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Create GitHub Release
+        run: |
+          VERSION="${{ needs.publish-maven.outputs.version }}"
+          GROUP_ID="com.github"
+          ARTIFACT_ID="copilot-sdk-java"
+          CURRENT_TAG="v${VERSION}"
+
+          if gh release view "${CURRENT_TAG}" >/dev/null 2>&1; then
+            echo "Release ${CURRENT_TAG} already exists. Skipping creation."
+            exit 0
+          fi
+
+          # Generate release notes from template
+          export VERSION GROUP_ID ARTIFACT_ID
+          RELEASE_NOTES=$(envsubst < .github/workflows/notes.template)
+
+          # Get the previous tag for generating notes
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-java(-preview)?\.[0-9]+)?$' \
+            | grep -Fxv "${CURRENT_TAG}" \
+            | head -n 1)
+
+          echo "Current tag: ${CURRENT_TAG}"
+          echo "Previous tag: ${PREV_TAG}"
+
+          # Build the gh release command
+          GH_ARGS=("${CURRENT_TAG}")
+          GH_ARGS+=("--title" "GitHub Copilot SDK for Java ${VERSION}")
+          GH_ARGS+=("--notes" "${RELEASE_NOTES}")
+          GH_ARGS+=("--generate-notes")
+
+          if [ -n "$PREV_TAG" ]; then
+            GH_ARGS+=("--notes-start-tag" "$PREV_TAG")
+          fi
+
+          ${{ inputs.prerelease == true && 'GH_ARGS+=("--prerelease")' || '' }}
+
+          gh release create "${GH_ARGS[@]}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Move 'latest' tag to new release
+        run: |
+          VERSION="${{ needs.publish-maven.outputs.version }}"
+          git tag -f latest "v${VERSION}"
+          git push origin latest --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-site:
+    name: Deploy Documentation
+    needs: [publish-maven, github-release]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Trigger site deployment
+        run: |
+          gh workflow run deploy-site.yml \
+            --repo ${{ github.repository }} \
+            -f version="${{ needs.publish-maven.outputs.version }}" \
+            -f publish_as_latest=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

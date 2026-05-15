@@ -25,8 +25,13 @@
 - [✅] **Check Maven Central Trusted Publisher** — can `github/copilot-sdk` publish to `com.github:copilot-sdk-java`? See
 - [✅] **Check GitHub Pages** — is it enabled? Can Java docs coexist? See https://github.com/github/copilot-sdk-partners/issues/85
 - [⌛ ] **Confirm branch protection** — will new required status checks be accepted? See https://github.com/github/copilot-sdk-partners/issues/95 .
-- [✅] **Create tracking issue** in `github/copilot-sdk` for this migration. See https://github.com/github/copilot-sdk-partners/issues/80
-- [ ] **Freeze Java SDK changes** — declare a short freeze window in `copilot-sdk-java` to avoid merge conflicts during migration
+- [✅] **Create tracking issue** in `github/copilot-sdk` for this migration. See https://github.co/github/copilot-sdk-partners/issues/80
+- [✅] **Define drift-management policy** — instead of a hard freeze, adopt a manual forward-port policy:
+  1. Reduce `reference-impl-sync` schedule in `copilot-sdk-java` to weekly (Fridays only)
+  2. Perform Phase 1 copy early in the week, right after verifying `copilot-sdk-java` main is clean
+  3. After each Friday sync lands, forward-port the diff into `copilot-sdk/java/` (`git diff PREV..NEW` in java repo, applied to monorepo)
+  4. Once Phase 1 merges and the monorepo is the source of truth, disable the sync workflow in `copilot-sdk-java` entirely
+  - **Rationale:** A hard freeze is unnecessary because (a) there is a single human committer, (b) the only automated commit source is the reference-impl-sync workflow whose schedule is controllable, and (c) any drift is trivially detectable via `git log`. The one constraint: do not trigger a sync while a Phase 1 PR is under active review.
 
 ### Phase 1: Copy Source Code (No Workflows Yet)
 
