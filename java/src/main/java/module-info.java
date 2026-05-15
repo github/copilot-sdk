@@ -19,4 +19,8 @@ module com.github.copilot.sdk.java {
     exports com.github.copilot.sdk.generated;
     exports com.github.copilot.sdk.generated.rpc;
     exports com.github.copilot.sdk.json;
+
+    opens com.github.copilot.sdk to com.fasterxml.jackson.databind;
+    opens com.github.copilot.sdk.generated to com.fasterxml.jackson.databind;
+    opens com.github.copilot.sdk.json to com.fasterxml.jackson.databind;
 }
