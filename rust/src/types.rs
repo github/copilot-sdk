@@ -3209,6 +3209,31 @@ mod tests {
     }
 
     #[test]
+    fn custom_agent_config_builder_with_model() {
+        let agent = CustomAgentConfig::new("my-agent", "You are helpful.")
+            .with_model("claude-haiku-4.5")
+            .with_display_name("My Agent");
+        assert_eq!(agent.name, "my-agent");
+        assert_eq!(agent.model.as_deref(), Some("claude-haiku-4.5"));
+        assert_eq!(agent.display_name.as_deref(), Some("My Agent"));
+    }
+
+    #[test]
+    fn custom_agent_config_serializes_model() {
+        let agent = CustomAgentConfig::new("model-agent", "prompt").with_model("claude-haiku-4.5");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert_eq!(wire["model"], "claude-haiku-4.5");
+        assert_eq!(wire["name"], "model-agent");
+    }
+
+    #[test]
+    fn custom_agent_config_omits_model_when_none() {
+        let agent = CustomAgentConfig::new("no-model-agent", "prompt");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert!(wire.get("model").is_none());
+    }
+
+    #[test]
     fn tool_with_parameters_handles_non_object_value() {
         let tool = Tool::new("noop").with_parameters(json!(null));
         assert!(tool.parameters.is_empty());
