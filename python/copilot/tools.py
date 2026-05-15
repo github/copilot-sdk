@@ -75,7 +75,8 @@ def define_tool(
     description: str | None = None,
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
-) -> Callable[[Callable[..., Any]], Tool]: ...
+) -> Callable[[Callable[..., Any]], Tool]:
+    pass
 
 
 @overload
@@ -87,7 +88,8 @@ def define_tool(
     handler: None = None,
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
-) -> Tool: ...
+) -> Tool:
+    pass
 
 
 @overload
@@ -99,7 +101,8 @@ def define_tool(
     params_type: type[T],
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
-) -> Tool: ...
+) -> Tool:
+    pass
 
 
 def define_tool(
