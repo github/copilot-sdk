@@ -1,0 +1,98 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the task tool to ask a task agent to do the following: Use the sql tool to run this query: INSERT INTO
+          todos (id, title, status) VALUES ('subagent-test', 'Created by subagent', 'done')"
+      - role: assistant
+        content: I'll delegate this SQL insert task to a task agent.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Delegating SQL task"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: task
+              arguments: "{\"name\":\"sql-insert-test\",\"agent_type\":\"task\",\"description\":\"Running SQL
+                insert\",\"prompt\":\"Use the sql tool to run this exact query:\\n\\nINSERT INTO todos (id, title,
+                status) VALUES ('subagent-test', 'Created by subagent', 'done')\\n\\nMake sure to provide a description
+                for the SQL operation (e.g., \\\"Insert test todo\\\").\",\"mode\":\"sync\"}"
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Use the sql tool to run this exact query:
+
+          INSERT INTO todos (id, title, status) VALUES ('subagent-test', 'Created by subagent', 'done')
+
+          Make sure to provide a description for the SQL operation (e.g., "Insert test todo").
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert test todo\",\"query\":\"INSERT INTO todos (id, title, status) VALUES
+                ('subagent-test', 'Created by subagent', 'done')\",\"database\":\"session\"}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "1 row(s) inserted. Last inserted row ID: 1."
+      - role: assistant
+        content: >-
+          ✅ Successfully inserted the test todo into the database. The query executed exactly as requested, inserting a
+          todo with:
+
+          - ID: `subagent-test`
+
+          - Title: `Created by subagent`
+
+          - Status: `done`
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the task tool to ask a task agent to do the following: Use the sql tool to run this query: INSERT INTO
+          todos (id, title, status) VALUES ('subagent-test', 'Created by subagent', 'done')"
+      - role: assistant
+        content: I'll delegate this SQL insert task to a task agent.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Delegating SQL task"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: task
+              arguments: "{\"name\":\"sql-insert-test\",\"agent_type\":\"task\",\"description\":\"Running SQL
+                insert\",\"prompt\":\"Use the sql tool to run this exact query:\\n\\nINSERT INTO todos (id, title,
+                status) VALUES ('subagent-test', 'Created by subagent', 'done')\\n\\nMake sure to provide a description
+                for the SQL operation (e.g., \\\"Insert test todo\\\").\",\"mode\":\"sync\"}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: >-
+          ✅ Successfully inserted the test todo into the database. The query executed exactly as requested, inserting a
+          todo with:
+
+          - ID: `subagent-test`
+
+          - Title: `Created by subagent`
+
+          - Status: `done`
+      - role: assistant
+        content: Perfect! The task agent successfully ran the SQL insert query. The todo record with ID `subagent-test`, title
+          `Created by subagent`, and status `done` has been inserted into the todos table.

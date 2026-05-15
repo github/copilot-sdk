@@ -12,6 +12,7 @@ import type { SessionFsReaddirWithTypesEntry } from "../../src/generated/rpc.js"
 import {
     approveAll,
     CopilotSession,
+    SessionEvent,
     type SessionFsConfig,
     type SessionFsProvider,
     type SessionFsFileInfo,
@@ -42,6 +43,10 @@ describe("Session Fs SQLite", async () => {
 
     const createSessionFsHandler = (session: CopilotSession) =>
         createTestSessionFsHandlerWithSqlite(session, provider, sqliteCalls);
+
+    // Helpers to build session-namespaced paths for direct provider assertions
+    const p = (sessionId: string, path: string) =>
+        `/${sessionId}${path.startsWith("/") ? path : "/" + path}`;
 
     const { copilotClient: client } = await createSdkTestContext({
         copilotClientOptions: { sessionFs: sessionFsConfig },
@@ -76,6 +81,46 @@ describe("Session Fs SQLite", async () => {
         expect(sessionCalls.some((c) => c.queryType === "run")).toBe(true);
 
         await session.disconnect();
+    });
+
+    it("should allow subagents to use SQL tool via inherited sessionFs", { timeout: 60000 }, async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            createSessionFsHandler,
+        });
+
+        const events: SessionEvent[] = [];
+        session.on((event) => {
+            events.push(event);
+        });
+
+        // Ask the agent to use the task tool to spawn a subagent that uses SQL
+        const msg = await session.sendAndWait({
+            prompt:
+                'Use the task tool to ask a task agent to do the following: ' +
+                'Use the sql tool to run this query: INSERT INTO todos (id, title, status) VALUES (\'subagent-test\', \'Created by subagent\', \'done\')',
+        });
+
+        await session.disconnect();
+
+        // Verify that the subagent's SQL queries were routed through the sessionFs sqlite handler
+        const sessionCalls = sqliteCalls.filter((c) => c.sessionId === session.sessionId);
+        const insertCalls = sessionCalls.filter((c) => c.query.toUpperCase().includes("INSERT"));
+        expect(insertCalls.length).toBeGreaterThan(0);
+
+        // Verify that the sql tool execution in events.jsonl came from the subagent (has agentId)
+        const buf = await provider.readFile(
+            p(session.sessionId, `${sessionStatePath}/events.jsonl`)
+        );
+        const content = buf.toString("utf8");
+        const lines = content.split("\n").filter(Boolean);
+        const parsed = lines.map((line) => JSON.parse(line));
+        const sqlToolEvents = parsed.filter(
+            (e: { type?: string; data?: { toolName?: string } }) =>
+                e.type === "tool.execution_start" && e.data?.toolName === "sql"
+        );
+        expect(sqlToolEvents.length).toBeGreaterThan(0);
+        expect(sqlToolEvents.every((e: { agentId?: string }) => !!e.agentId)).toBe(true);
     });
 });
 
