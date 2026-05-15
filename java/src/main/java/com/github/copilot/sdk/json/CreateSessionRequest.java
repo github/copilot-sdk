@@ -124,6 +124,9 @@ public final class CreateSessionRequest {
     @JsonProperty("gitHubToken")
     private String gitHubToken;
 
+    @JsonProperty("remoteSession")
+    private String remoteSession;
+
     /** Gets the model name. @return the model */
     public String getModel() {
         return model;
@@ -527,5 +530,17 @@ public final class CreateSessionRequest {
      */
     public void setGitHubToken(String gitHubToken) {
         this.gitHubToken = gitHubToken;
+    }
+
+    /** Gets the remote session mode. @return the remote session mode */
+    public String getRemoteSession() {
+        return remoteSession;
+    }
+
+    /**
+     * Sets the remote session mode. @param remoteSession the remote session mode
+     */
+    public void setRemoteSession(String remoteSession) {
+        this.remoteSession = remoteSession;
     }
 }

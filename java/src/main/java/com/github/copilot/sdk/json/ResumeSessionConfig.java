@@ -71,6 +71,7 @@ public class ResumeSessionConfig {
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
     private String gitHubToken;
+    private String remoteSession;
 
     /**
      * Gets the AI model to use.
@@ -887,6 +888,34 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the per-session remote behavior control.
+     * <p>
+     * See {@link SessionConfig#getRemoteSession()} for details on possible values.
+     *
+     * @return the remote session mode, or {@code null} if not set
+     * @since 1.4.0
+     */
+    public String getRemoteSession() {
+        return remoteSession;
+    }
+
+    /**
+     * Sets the per-session remote behavior control.
+     * <p>
+     * See {@link SessionConfig#setRemoteSession(String)} for details on possible
+     * values.
+     *
+     * @param remoteSession
+     *            the remote session mode
+     * @return this config for method chaining
+     * @since 1.4.0
+     */
+    public ResumeSessionConfig setRemoteSession(String remoteSession) {
+        this.remoteSession = remoteSession;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -935,6 +964,7 @@ public class ResumeSessionConfig {
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.gitHubToken = this.gitHubToken;
+        copy.remoteSession = this.remoteSession;
         return copy;
     }
 }

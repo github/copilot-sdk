@@ -128,6 +128,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("gitHubToken")
     private String gitHubToken;
 
+    @JsonProperty("remoteSession")
+    private String remoteSession;
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;
@@ -554,5 +557,17 @@ public final class ResumeSessionRequest {
      */
     public void setGitHubToken(String gitHubToken) {
         this.gitHubToken = gitHubToken;
+    }
+
+    /** Gets the remote session mode. @return the remote session mode */
+    public String getRemoteSession() {
+        return remoteSession;
+    }
+
+    /**
+     * Sets the remote session mode. @param remoteSession the remote session mode
+     */
+    public void setRemoteSession(String remoteSession) {
+        this.remoteSession = remoteSession;
     }
 }
