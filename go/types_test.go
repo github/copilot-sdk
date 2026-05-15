@@ -216,3 +216,49 @@ func TestProviderConfig_JSONOmitsUnsetTokenFields(t *testing.T) {
 		}
 	}
 }
+
+func TestCustomAgentConfig_JSONIncludesModel(t *testing.T) {
+	cfg := CustomAgentConfig{
+		Name:   "model-agent",
+		Prompt: "You are a model agent.",
+		Model:  "claude-haiku-4.5",
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal CustomAgentConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal CustomAgentConfig: %v", err)
+	}
+
+	if decoded["model"] != "claude-haiku-4.5" {
+		t.Errorf("expected model 'claude-haiku-4.5', got %v", decoded["model"])
+	}
+	if decoded["name"] != "model-agent" {
+		t.Errorf("expected name 'model-agent', got %v", decoded["name"])
+	}
+}
+
+func TestCustomAgentConfig_JSONOmitsModelWhenEmpty(t *testing.T) {
+	cfg := CustomAgentConfig{
+		Name:   "no-model-agent",
+		Prompt: "You are an agent without a model.",
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal CustomAgentConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal CustomAgentConfig: %v", err)
+	}
+
+	if _, present := decoded["model"]; present {
+		t.Errorf("expected model to be omitted when empty, got %v", decoded["model"])
+	}
+}

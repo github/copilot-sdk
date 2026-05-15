@@ -2512,6 +2512,8 @@ class CopilotClient:
             wire_agent["infer"] = agent["infer"]
         if "skills" in agent:
             wire_agent["skills"] = agent["skills"]
+        if "model" in agent:
+            wire_agent["model"] = agent["model"]
         return wire_agent
 
     def _convert_default_agent_to_wire_format(

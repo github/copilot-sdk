@@ -1213,6 +1213,12 @@ export interface CustomAgentConfig {
      * When omitted, no skills are injected (opt-in model).
      */
     skills?: string[];
+    /**
+     * Model identifier for this agent (e.g. "claude-haiku-4.5").
+     * When set, the runtime will attempt to use this model for the agent,
+     * falling back to the parent session model if unavailable.
+     */
+    model?: string;
 }
 
 /**

@@ -95,7 +95,7 @@ public class CloneTests
             EnableSessionTelemetry = false,
             IncludeSubAgentStreamingEvents = false,
             McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
-            CustomAgents = [new CustomAgentConfig { Name = "agent1" }],
+            CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5" }],
             Agent = "agent1",
             DefaultAgent = new DefaultAgentConfig { ExcludedTools = ["hidden-tool"] },
             SkillDirectories = ["/skills"],
@@ -120,6 +120,7 @@ public class CloneTests
         Assert.Equal(original.IncludeSubAgentStreamingEvents, clone.IncludeSubAgentStreamingEvents);
         Assert.Equal(original.McpServers.Count, clone.McpServers!.Count);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
+        Assert.Equal(original.CustomAgents[0].Model, clone.CustomAgents[0].Model);
         Assert.Equal(original.Agent, clone.Agent);
         Assert.Equal(original.DefaultAgent!.ExcludedTools, clone.DefaultAgent!.ExcludedTools);
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);

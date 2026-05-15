@@ -1933,6 +1933,14 @@ public class CustomAgentConfig
     /// </summary>
     [JsonPropertyName("skills")]
     public IList<string>? Skills { get; set; }
+
+    /// <summary>
+    /// Model identifier for this agent (e.g. "claude-haiku-4.5").
+    /// When set, the runtime will attempt to use this model for the agent,
+    /// falling back to the parent session model if unavailable.
+    /// </summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
 }
 
 /// <summary>
