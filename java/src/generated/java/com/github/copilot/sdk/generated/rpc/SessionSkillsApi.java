@@ -75,8 +75,8 @@ public final class SessionSkillsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
-    public CompletableFuture<Void> reload() {
-        return caller.invoke("session.skills.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    public CompletableFuture<SessionSkillsReloadResult> reload() {
+        return caller.invoke("session.skills.reload", java.util.Map.of("sessionId", this.sessionId), SessionSkillsReloadResult.class);
     }
 
 }

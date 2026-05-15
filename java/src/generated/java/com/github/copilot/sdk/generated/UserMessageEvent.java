@@ -50,6 +50,8 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("source") String source,
         /** The agent mode that was active when this message was sent */
         @JsonProperty("agentMode") UserMessageAgentMode agentMode,
+        /** True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry. */
+        @JsonProperty("isAutopilotContinuation") Boolean isAutopilotContinuation,
         /** CAPI interaction ID for correlating this user message with its turn */
         @JsonProperty("interactionId") String interactionId,
         /** Parent agent task ID for background telemetry correlated to this user turn */

@@ -40,7 +40,9 @@ public final class SessionScheduleCreatedEvent extends SessionEvent {
         /** Interval between ticks in milliseconds */
         @JsonProperty("intervalMs") Long intervalMs,
         /** Prompt text that gets enqueued on every tick */
-        @JsonProperty("prompt") String prompt
+        @JsonProperty("prompt") String prompt,
+        /** Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`) */
+        @JsonProperty("recurring") Boolean recurring
     ) {
     }
 }

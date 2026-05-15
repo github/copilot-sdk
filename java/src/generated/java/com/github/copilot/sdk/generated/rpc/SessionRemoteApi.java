@@ -18,6 +18,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public final class SessionRemoteApi {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;
+
     private final RpcCaller caller;
     private final String sessionId;
 
@@ -29,12 +31,17 @@ public final class SessionRemoteApi {
 
     /**
      * Invokes {@code session.remote.enable}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
-    public CompletableFuture<SessionRemoteEnableResult> enable() {
-        return caller.invoke("session.remote.enable", java.util.Map.of("sessionId", this.sessionId), SessionRemoteEnableResult.class);
+    public CompletableFuture<SessionRemoteEnableResult> enable(SessionRemoteEnableParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.remote.enable", _p, SessionRemoteEnableResult.class);
     }
 
     /**

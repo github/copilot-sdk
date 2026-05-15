@@ -30,6 +30,27 @@ public final class SessionCommandsApi {
     }
 
     /**
+     * Invokes {@code session.commands.list}.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionCommandsListResult> list() {
+        return caller.invoke("session.commands.list", java.util.Map.of("sessionId", this.sessionId), SessionCommandsListResult.class);
+    }
+
+    /**
+     * Invokes {@code session.commands.invoke}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> invoke(SessionCommandsInvokeParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.commands.invoke", _p, Void.class);
+    }
+
+    /**
      * Invokes {@code session.commands.handlePendingCommand}.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
