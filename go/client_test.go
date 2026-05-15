@@ -865,6 +865,55 @@ func TestCreateSessionRequest_Commands(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_Cloud(t *testing.T) {
+	t.Run("forwards cloud options in session.create RPC", func(t *testing.T) {
+		req := createSessionRequest{
+			Cloud: &CloudSessionOptions{
+				Repository: &CloudSessionRepository{
+					Owner:  "github",
+					Name:   "copilot-sdk",
+					Branch: "main",
+				},
+			},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		cloud, ok := m["cloud"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected cloud to be an object, got %T", m["cloud"])
+		}
+		repository, ok := cloud["repository"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected cloud.repository to be an object, got %T", cloud["repository"])
+		}
+		if repository["owner"] != "github" {
+			t.Errorf("Expected owner 'github', got %v", repository["owner"])
+		}
+		if repository["name"] != "copilot-sdk" {
+			t.Errorf("Expected name 'copilot-sdk', got %v", repository["name"])
+		}
+		if repository["branch"] != "main" {
+			t.Errorf("Expected branch 'main', got %v", repository["branch"])
+		}
+	})
+
+	t.Run("omits cloud from JSON when unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["cloud"]; ok {
+			t.Error("Expected cloud to be omitted when unset")
+		}
+	})
+}
+
 func TestResumeSessionRequest_Commands(t *testing.T) {
 	t.Run("forwards commands in session.resume RPC", func(t *testing.T) {
 		req := resumeSessionRequest{

@@ -1981,6 +1981,32 @@ public class InfiniteSessionConfig
 }
 
 /// <summary>
+/// GitHub repository metadata to associate with a cloud session.
+/// </summary>
+public class CloudSessionRepository
+{
+    /// <summary>Repository owner.</summary>
+    public required string Owner { get; set; }
+
+    /// <summary>Repository name.</summary>
+    public required string Name { get; set; }
+
+    /// <summary>Optional branch name.</summary>
+    public string? Branch { get; set; }
+}
+
+/// <summary>
+/// Options for creating a remote session in the cloud.
+/// </summary>
+public class CloudSessionOptions
+{
+    /// <summary>
+    /// Optional GitHub repository metadata to associate with the cloud session.
+    /// </summary>
+    public CloudSessionRepository? Repository { get; set; }
+}
+
+/// <summary>
 /// Configuration options for creating a new Copilot session.
 /// </summary>
 public class SessionConfig
@@ -2029,6 +2055,7 @@ public class SessionConfig
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
+        Cloud = other.Cloud;
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
@@ -2263,6 +2290,12 @@ public class SessionConfig
     /// </list>
     /// </summary>
     public RemoteSessionMode? RemoteSession { get; set; }
+
+    /// <summary>
+    /// Creates a remote session in the cloud instead of a local session.
+    /// The optional repository is associated with the cloud session.
+    /// </summary>
+    public CloudSessionOptions? Cloud { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.

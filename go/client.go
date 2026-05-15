@@ -646,6 +646,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.InfiniteSessions = config.InfiniteSessions
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
+	req.Cloud = config.Cloud
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))

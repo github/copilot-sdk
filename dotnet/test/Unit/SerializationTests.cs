@@ -112,6 +112,31 @@ public class SerializationTests
     }
 
     [Fact]
+    public void CreateSessionRequest_CanSerializeCloudOptions_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("Cloud", new CloudSessionOptions
+            {
+                Repository = new CloudSessionRepository
+                {
+                    Owner = "github",
+                    Name = "copilot-sdk",
+                    Branch = "main"
+                }
+            }));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var repository = document.RootElement.GetProperty("cloud").GetProperty("repository");
+        Assert.Equal("github", repository.GetProperty("owner").GetString());
+        Assert.Equal("copilot-sdk", repository.GetProperty("name").GetString());
+        Assert.Equal("main", repository.GetProperty("branch").GetString());
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeModeRequestFlags_WithSdkOptions()
     {
         var options = GetSerializerOptions();

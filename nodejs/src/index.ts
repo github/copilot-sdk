@@ -21,6 +21,8 @@ export type {
     CommandContext,
     CommandDefinition,
     CommandHandler,
+    CloudSessionOptions,
+    CloudSessionRepository,
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,

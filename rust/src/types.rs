@@ -655,6 +655,56 @@ impl InfiniteSessionConfig {
     }
 }
 
+/// GitHub repository metadata to associate with a cloud session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CloudSessionRepository {
+    /// Repository owner.
+    pub owner: String,
+    /// Repository name.
+    pub name: String,
+    /// Optional branch name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+}
+
+impl CloudSessionRepository {
+    /// Create repository metadata for a cloud session.
+    pub fn new(owner: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            owner: owner.into(),
+            name: name.into(),
+            branch: None,
+        }
+    }
+
+    /// Set the branch associated with the repository.
+    pub fn with_branch(mut self, branch: impl Into<String>) -> Self {
+        self.branch = Some(branch.into());
+        self
+    }
+}
+
+/// Options for creating a remote session in the cloud.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CloudSessionOptions {
+    /// Optional GitHub repository metadata to associate with the cloud session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<CloudSessionRepository>,
+}
+
+impl CloudSessionOptions {
+    /// Create cloud session options with repository metadata.
+    pub fn with_repository(repository: CloudSessionRepository) -> Self {
+        Self {
+            repository: Some(repository),
+        }
+    }
+}
+
 /// Configuration for a single MCP server.
 ///
 /// MCP (Model Context Protocol) servers expose external tools to the
@@ -1088,6 +1138,10 @@ pub struct SessionConfig {
     /// - `On` — export to GitHub AND enable remote steering
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
+    /// Creates a remote session in the cloud instead of a local session.
+    /// The optional repository is associated with the cloud session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cloud: Option<CloudSessionOptions>,
     /// Forward sub-agent streaming events to this connection. When false,
     /// only non-streaming sub-agent events and `subagent.*` lifecycle events
     /// are delivered. Defaults to true on the CLI.
@@ -1160,6 +1214,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
             .field("remote_session", &self.remote_session)
+            .field("cloud", &self.cloud)
             .field(
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
@@ -1220,6 +1275,7 @@ impl Default for SessionConfig {
             working_directory: None,
             github_token: None,
             remote_session: None,
+            cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
@@ -1544,6 +1600,12 @@ impl SessionConfig {
         mode: crate::generated::api_types::RemoteSessionMode,
     ) -> Self {
         self.remote_session = Some(mode);
+        self
+    }
+
+    /// Create a remote session in the cloud instead of a local session.
+    pub fn with_cloud(mut self, cloud: CloudSessionOptions) -> Self {
+        self.cloud = Some(cloud);
         self
     }
 }

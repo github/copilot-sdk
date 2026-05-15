@@ -98,6 +98,18 @@ type ClientOptions struct {
 	Remote bool
 }
 
+// CloudSessionRepository is GitHub repository metadata associated with a cloud session.
+type CloudSessionRepository struct {
+	Owner  string `json:"owner"`
+	Name   string `json:"name"`
+	Branch string `json:"branch,omitempty"`
+}
+
+// CloudSessionOptions configures creation of a remote session in the cloud.
+type CloudSessionOptions struct {
+	Repository *CloudSessionRepository `json:"repository,omitempty"`
+}
+
 // TelemetryConfig configures OpenTelemetry integration for the Copilot CLI process.
 type TelemetryConfig struct {
 	// OTLPEndpoint is the OTLP HTTP endpoint URL for trace/metric export.
@@ -685,6 +697,9 @@ type SessionConfig struct {
 	//   - "export" — export session events to GitHub without enabling remote steering
 	//   - "on" — export to GitHub AND enable remote steering
 	RemoteSession rpc.RemoteSessionMode
+	// Cloud creates a remote session in the cloud instead of a local session.
+	// The optional repository is associated with the cloud session.
+	Cloud *CloudSessionOptions
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -1151,6 +1166,7 @@ type createSessionRequest struct {
 	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
+	Cloud                          *CloudSessionOptions           `json:"cloud,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
