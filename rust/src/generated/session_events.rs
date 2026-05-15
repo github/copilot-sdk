@@ -403,7 +403,7 @@ pub struct WorkingDirectoryContext {
     pub repository_host: Option<String>,
 }
 
-/// Session initialization metadata including context and configuration
+/// Session event "session.start". Session initialization metadata including context and configuration
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStartData {
@@ -420,10 +420,13 @@ pub struct SessionStartData {
     pub detached_from_spawning_parent_session_id: Option<String>,
     /// Identifier of the software producing the events (e.g., "copilot-agent")
     pub producer: String,
-    /// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
-    /// Whether this session supports remote steering via Mission Control
+    /// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_summary: Option<ReasoningSummary>,
+    /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
     /// Model selected at session creation time, if any
@@ -437,7 +440,7 @@ pub struct SessionStartData {
     pub version: f64,
 }
 
-/// Session resume metadata including current context and event count
+/// Session event "session.resume". Session resume metadata including current context and event count
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionResumeData {
@@ -452,10 +455,13 @@ pub struct SessionResumeData {
     pub continue_pending_work: Option<bool>,
     /// Total number of persisted events in the session at the time of resume
     pub event_count: f64,
-    /// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
-    /// Whether this session supports remote steering via Mission Control
+    /// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_summary: Option<ReasoningSummary>,
+    /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
     /// ISO 8601 timestamp when the session was resumed
@@ -468,15 +474,15 @@ pub struct SessionResumeData {
     pub session_was_active: Option<bool>,
 }
 
-/// Notifies Mission Control that the session's remote steering capability has changed
+/// Session event "session.remote_steerable_changed". Notifies that the session's remote steering capability has changed
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionRemoteSteerableChangedData {
-    /// Whether this session now supports remote steering via Mission Control
+    /// Whether this session now supports remote steering via GitHub
     pub remote_steerable: bool,
 }
 
-/// Error details for timeline display including message and optional diagnostic information
+/// Session event "session.error". Error details for timeline display including message and optional diagnostic information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionErrorData {
@@ -504,7 +510,7 @@ pub struct SessionErrorData {
     pub url: Option<String>,
 }
 
-/// Payload indicating the session is idle with no background agents in flight
+/// Session event "session.idle". Payload indicating the session is idle with no background agents in flight
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionIdleData {
@@ -513,7 +519,7 @@ pub struct SessionIdleData {
     pub aborted: Option<bool>,
 }
 
-/// Session title change payload containing the new display title
+/// Session event "session.title_changed". Session title change payload containing the new display title
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTitleChangedData {
@@ -521,10 +527,13 @@ pub struct SessionTitleChangedData {
     pub title: String,
 }
 
-/// Scheduled prompt registered via /every or /after
+/// Session event "session.schedule_created". Scheduled prompt registered via /every or /after
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionScheduleCreatedData {
+    /// Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_prompt: Option<String>,
     /// Sequential id assigned to the scheduled prompt within the session
     pub id: i64,
     /// Interval between ticks in milliseconds
@@ -536,7 +545,7 @@ pub struct SessionScheduleCreatedData {
     pub recurring: Option<bool>,
 }
 
-/// Scheduled prompt cancelled from the schedule manager dialog
+/// Session event "session.schedule_cancelled". Scheduled prompt cancelled from the schedule manager dialog
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionScheduleCancelledData {
@@ -544,7 +553,7 @@ pub struct SessionScheduleCancelledData {
     pub id: i64,
 }
 
-/// Informational message for timeline display with categorization
+/// Session event "session.info". Informational message for timeline display with categorization
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInfoData {
@@ -560,7 +569,7 @@ pub struct SessionInfoData {
     pub url: Option<String>,
 }
 
-/// Warning message for timeline display with categorization
+/// Session event "session.warning". Warning message for timeline display with categorization
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionWarningData {
@@ -573,7 +582,7 @@ pub struct SessionWarningData {
     pub warning_type: String,
 }
 
-/// Model change details including previous and new model identifiers
+/// Session event "session.model_change". Model change details including previous and new model identifiers
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelChangeData {
@@ -588,12 +597,18 @@ pub struct SessionModelChangeData {
     /// Reasoning effort level before the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_reasoning_effort: Option<String>,
+    /// Reasoning summary mode before the model change, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_reasoning_summary: Option<ReasoningSummary>,
     /// Reasoning effort level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    /// Reasoning summary mode after the model change, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_summary: Option<ReasoningSummary>,
 }
 
-/// Agent mode change details including previous and new modes
+/// Session event "session.mode_changed". Agent mode change details including previous and new modes
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModeChangedData {
@@ -603,7 +618,7 @@ pub struct SessionModeChangedData {
     pub previous_mode: String,
 }
 
-/// Plan file operation details indicating what changed
+/// Session event "session.plan_changed". Plan file operation details indicating what changed
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionPlanChangedData {
@@ -611,7 +626,7 @@ pub struct SessionPlanChangedData {
     pub operation: PlanChangedOperation,
 }
 
-/// Workspace file change details including path and operation type
+/// Session event "session.workspace_file_changed". Workspace file change details including path and operation type
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionWorkspaceFileChangedData {
@@ -634,7 +649,7 @@ pub struct HandoffRepository {
     pub owner: String,
 }
 
-/// Session handoff metadata including source, context, and repository information
+/// Session event "session.handoff". Session handoff metadata including source, context, and repository information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionHandoffData {
@@ -659,7 +674,7 @@ pub struct SessionHandoffData {
     pub summary: Option<String>,
 }
 
-/// Conversation truncation statistics including token counts and removed content metrics
+/// Session event "session.truncation". Conversation truncation statistics including token counts and removed content metrics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTruncationData {
@@ -681,7 +696,7 @@ pub struct SessionTruncationData {
     pub tokens_removed_during_truncation: f64,
 }
 
-/// Session rewind details including target event and count of removed events
+/// Session event "session.snapshot_rewind". Session rewind details including target event and count of removed events
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSnapshotRewindData {
@@ -713,6 +728,7 @@ pub struct ShutdownModelMetricRequests {
     pub count: f64,
 }
 
+/// Schema for the `ShutdownModelMetricTokenDetail` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownModelMetricTokenDetail {
@@ -737,6 +753,7 @@ pub struct ShutdownModelMetricUsage {
     pub reasoning_tokens: Option<f64>,
 }
 
+/// Schema for the `ShutdownModelMetric` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownModelMetric {
@@ -752,6 +769,7 @@ pub struct ShutdownModelMetric {
     pub usage: ShutdownModelMetricUsage,
 }
 
+/// Schema for the `ShutdownTokenDetail` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownTokenDetail {
@@ -759,7 +777,7 @@ pub struct ShutdownTokenDetail {
     pub token_count: f64,
 }
 
-/// Session termination metrics including usage statistics, code changes, and shutdown reason
+/// Session event "session.shutdown". Session termination metrics including usage statistics, code changes, and shutdown reason
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionShutdownData {
@@ -801,7 +819,7 @@ pub struct SessionShutdownData {
     pub total_premium_requests: f64,
 }
 
-/// Working directory and git context at session start
+/// Session event "session.context_changed". Updated working directory and git context after the change
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionContextChangedData {
@@ -830,7 +848,7 @@ pub struct SessionContextChangedData {
     pub repository_host: Option<String>,
 }
 
-/// Current context window usage statistics including token and message counts
+/// Session event "session.usage_info". Current context window usage statistics including token and message counts
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUsageInfoData {
@@ -854,7 +872,7 @@ pub struct SessionUsageInfoData {
     pub tool_definitions_tokens: Option<f64>,
 }
 
-/// Context window breakdown at the start of LLM-powered conversation compaction
+/// Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCompactionStartData {
@@ -920,7 +938,7 @@ pub struct CompactionCompleteCompactionTokensUsed {
     pub output_tokens: Option<f64>,
 }
 
-/// Conversation compaction results including success status, metrics, and optional error details
+/// Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCompactionCompleteData {
@@ -970,7 +988,7 @@ pub struct SessionCompactionCompleteData {
     pub tool_definitions_tokens: Option<f64>,
 }
 
-/// Task completion notification with summary from the agent
+/// Session event "session.task_complete". Task completion notification with summary from the agent
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTaskCompleteData {
@@ -982,6 +1000,7 @@ pub struct SessionTaskCompleteData {
     pub summary: Option<String>,
 }
 
+/// Session event "user.message".
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserMessageData {
@@ -1016,12 +1035,12 @@ pub struct UserMessageData {
     pub transformed_content: Option<String>,
 }
 
-/// Empty payload; the event signals that the pending message queue has changed
+/// Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingMessagesModifiedData {}
 
-/// Turn initialization metadata including identifier and interaction tracking
+/// Session event "assistant.turn_start". Turn initialization metadata including identifier and interaction tracking
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantTurnStartData {
@@ -1032,7 +1051,7 @@ pub struct AssistantTurnStartData {
     pub turn_id: String,
 }
 
-/// Agent intent description for current activity or plan
+/// Session event "assistant.intent". Agent intent description for current activity or plan
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantIntentData {
@@ -1040,7 +1059,7 @@ pub struct AssistantIntentData {
     pub intent: String,
 }
 
-/// Assistant reasoning content for timeline display with complete thinking text
+/// Session event "assistant.reasoning". Assistant reasoning content for timeline display with complete thinking text
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantReasoningData {
@@ -1050,7 +1069,7 @@ pub struct AssistantReasoningData {
     pub reasoning_id: String,
 }
 
-/// Streaming reasoning delta for incremental extended thinking updates
+/// Session event "assistant.reasoning_delta". Streaming reasoning delta for incremental extended thinking updates
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantReasoningDeltaData {
@@ -1060,7 +1079,7 @@ pub struct AssistantReasoningDeltaData {
     pub reasoning_id: String,
 }
 
-/// Streaming response progress with cumulative byte count
+/// Session event "assistant.streaming_delta". Streaming response progress with cumulative byte count
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantStreamingDeltaData {
@@ -1096,7 +1115,7 @@ pub struct AssistantMessageToolRequest {
     pub r#type: Option<AssistantMessageToolRequestType>,
 }
 
-/// Assistant response containing text content, optional tool requests, and interaction metadata
+/// Session event "assistant.message". Assistant response containing text content, optional tool requests, and interaction metadata
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantMessageData {
@@ -1147,7 +1166,7 @@ pub struct AssistantMessageData {
     pub turn_id: Option<String>,
 }
 
-/// Streaming assistant message start metadata
+/// Session event "assistant.message_start". Streaming assistant message start metadata
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantMessageStartData {
@@ -1158,7 +1177,7 @@ pub struct AssistantMessageStartData {
     pub phase: Option<String>,
 }
 
-/// Streaming assistant message delta for incremental response updates
+/// Session event "assistant.message_delta". Streaming assistant message delta for incremental response updates
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantMessageDeltaData {
@@ -1173,7 +1192,7 @@ pub struct AssistantMessageDeltaData {
     pub parent_tool_call_id: Option<String>,
 }
 
-/// Turn completion metadata including the turn identifier
+/// Session event "assistant.turn_end". Turn completion metadata including the turn identifier
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantTurnEndData {
@@ -1205,6 +1224,7 @@ pub struct AssistantUsageCopilotUsage {
     pub total_nano_aiu: f64,
 }
 
+/// Schema for the `AssistantUsageQuotaSnapshot` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantUsageQuotaSnapshot {
@@ -1227,7 +1247,7 @@ pub struct AssistantUsageQuotaSnapshot {
     pub used_requests: f64,
 }
 
-/// LLM API call usage metrics including tokens, costs, quotas, and billing information
+/// Session event "assistant.usage". LLM API call usage metrics including tokens, costs, quotas, and billing information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantUsageData {
@@ -1277,7 +1297,7 @@ pub struct AssistantUsageData {
     /// Per-quota resource usage snapshots, keyed by quota identifier
     #[serde(default)]
     pub quota_snapshots: HashMap<String, AssistantUsageQuotaSnapshot>,
-    /// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Number of output tokens used for reasoning (e.g., chain-of-thought)
@@ -1288,7 +1308,7 @@ pub struct AssistantUsageData {
     pub ttft_ms: Option<f64>,
 }
 
-/// Failed LLM API call metadata for telemetry
+/// Session event "model.call_failure". Failed LLM API call metadata for telemetry
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCallFailureData {
@@ -1317,7 +1337,7 @@ pub struct ModelCallFailureData {
     pub status_code: Option<i64>,
 }
 
-/// Turn abort information including the reason for termination
+/// Session event "abort". Turn abort information including the reason for termination
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AbortData {
@@ -1325,7 +1345,7 @@ pub struct AbortData {
     pub reason: AbortReason,
 }
 
-/// User-initiated tool invocation request with tool name and arguments
+/// Session event "tool.user_requested". User-initiated tool invocation request with tool name and arguments
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolUserRequestedData {
@@ -1338,7 +1358,7 @@ pub struct ToolUserRequestedData {
     pub tool_name: String,
 }
 
-/// Tool execution startup details including MCP server information when applicable
+/// Session event "tool.execution_start". Tool execution startup details including MCP server information when applicable
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionStartData {
@@ -1365,7 +1385,7 @@ pub struct ToolExecutionStartData {
     pub turn_id: Option<String>,
 }
 
-/// Streaming tool execution output for incremental result display
+/// Session event "tool.execution_partial_result". Streaming tool execution output for incremental result display
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionPartialResultData {
@@ -1375,7 +1395,7 @@ pub struct ToolExecutionPartialResultData {
     pub tool_call_id: String,
 }
 
-/// Tool execution progress notification with status message
+/// Session event "tool.execution_progress". Tool execution progress notification with status message
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionProgressData {
@@ -1490,6 +1510,7 @@ pub struct ToolExecutionCompleteContentResourceLink {
     pub uri: String,
 }
 
+/// Schema for the `EmbeddedTextResourceContents` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbeddedTextResourceContents {
@@ -1502,6 +1523,7 @@ pub struct EmbeddedTextResourceContents {
     pub uri: String,
 }
 
+/// Schema for the `EmbeddedBlobResourceContents` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbeddedBlobResourceContents {
@@ -1538,7 +1560,7 @@ pub struct ToolExecutionCompleteResult {
     pub detailed_content: Option<String>,
 }
 
-/// Tool execution completion results including success status, detailed output, and error information
+/// Session event "tool.execution_complete". Tool execution completion results including success status, detailed output, and error information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteData {
@@ -1574,7 +1596,7 @@ pub struct ToolExecutionCompleteData {
     pub turn_id: Option<String>,
 }
 
-/// Skill invocation details including content, allowed tools, and plugin metadata
+/// Session event "skill.invoked". Skill invocation details including content, allowed tools, and plugin metadata
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillInvokedData {
@@ -1598,7 +1620,7 @@ pub struct SkillInvokedData {
     pub plugin_version: Option<String>,
 }
 
-/// Sub-agent startup details including parent tool call and agent information
+/// Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubagentStartedData {
@@ -1615,7 +1637,7 @@ pub struct SubagentStartedData {
     pub tool_call_id: String,
 }
 
-/// Sub-agent completion details for successful execution
+/// Session event "subagent.completed". Sub-agent completion details for successful execution
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubagentCompletedData {
@@ -1639,7 +1661,7 @@ pub struct SubagentCompletedData {
     pub total_tool_calls: Option<f64>,
 }
 
-/// Sub-agent failure details including error message and agent information
+/// Session event "subagent.failed". Sub-agent failure details including error message and agent information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubagentFailedData {
@@ -1665,7 +1687,7 @@ pub struct SubagentFailedData {
     pub total_tool_calls: Option<f64>,
 }
 
-/// Custom agent selection details including name and available tools
+/// Session event "subagent.selected". Custom agent selection details including name and available tools
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubagentSelectedData {
@@ -1677,12 +1699,12 @@ pub struct SubagentSelectedData {
     pub tools: Vec<String>,
 }
 
-/// Empty payload; the event signals that the custom agent was deselected, returning to the default agent
+/// Session event "subagent.deselected". Empty payload; the event signals that the custom agent was deselected, returning to the default agent
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubagentDeselectedData {}
 
-/// Hook invocation start details including type and input data
+/// Session event "hook.start". Hook invocation start details including type and input data
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookStartData {
@@ -1706,7 +1728,7 @@ pub struct HookEndError {
     pub stack: Option<String>,
 }
 
-/// Hook invocation completion details including output, success status, and error information
+/// Session event "hook.end". Hook invocation completion details including output, success status, and error information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookEndData {
@@ -1736,7 +1758,7 @@ pub struct SystemMessageMetadata {
     pub variables: HashMap<String, serde_json::Value>,
 }
 
-/// System/developer instruction content with role and optional template metadata
+/// Session event "system.message". System/developer instruction content with role and optional template metadata
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageData {
@@ -1752,7 +1774,7 @@ pub struct SystemMessageData {
     pub role: SystemMessageRole,
 }
 
-/// System-generated notification for runtime events like background task completion
+/// Session event "system.notification". System-generated notification for runtime events like background task completion
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotificationData {
@@ -1762,6 +1784,7 @@ pub struct SystemNotificationData {
     pub kind: serde_json::Value,
 }
 
+/// Schema for the `PermissionRequestShellCommand` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestShellCommand {
@@ -1771,6 +1794,7 @@ pub struct PermissionRequestShellCommand {
     pub read_only: bool,
 }
 
+/// Schema for the `PermissionRequestShellPossibleUrl` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestShellPossibleUrl {
@@ -2181,7 +2205,7 @@ pub struct PermissionPromptRequestExtensionPermissionAccess {
     pub tool_call_id: Option<String>,
 }
 
-/// Permission request notification requiring client approval with request details
+/// Session event "permission.requested". Permission request notification requiring client approval with request details
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestedData {
@@ -2197,6 +2221,7 @@ pub struct PermissionRequestedData {
     pub resolved_by_hook: Option<bool>,
 }
 
+/// Schema for the `PermissionApproved` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionApproved {
@@ -2204,6 +2229,7 @@ pub struct PermissionApproved {
     pub kind: PermissionApprovedKind,
 }
 
+/// Schema for the `UserToolSessionApprovalCommands` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalCommands {
@@ -2213,6 +2239,7 @@ pub struct UserToolSessionApprovalCommands {
     pub kind: UserToolSessionApprovalCommandsKind,
 }
 
+/// Schema for the `UserToolSessionApprovalRead` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalRead {
@@ -2220,6 +2247,7 @@ pub struct UserToolSessionApprovalRead {
     pub kind: UserToolSessionApprovalReadKind,
 }
 
+/// Schema for the `UserToolSessionApprovalWrite` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalWrite {
@@ -2227,6 +2255,7 @@ pub struct UserToolSessionApprovalWrite {
     pub kind: UserToolSessionApprovalWriteKind,
 }
 
+/// Schema for the `UserToolSessionApprovalMcp` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalMcp {
@@ -2238,6 +2267,7 @@ pub struct UserToolSessionApprovalMcp {
     pub tool_name: Option<String>,
 }
 
+/// Schema for the `UserToolSessionApprovalMemory` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalMemory {
@@ -2245,6 +2275,7 @@ pub struct UserToolSessionApprovalMemory {
     pub kind: UserToolSessionApprovalMemoryKind,
 }
 
+/// Schema for the `UserToolSessionApprovalCustomTool` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalCustomTool {
@@ -2254,6 +2285,7 @@ pub struct UserToolSessionApprovalCustomTool {
     pub tool_name: String,
 }
 
+/// Schema for the `UserToolSessionApprovalExtensionManagement` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalExtensionManagement {
@@ -2264,6 +2296,7 @@ pub struct UserToolSessionApprovalExtensionManagement {
     pub operation: Option<String>,
 }
 
+/// Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalExtensionPermissionAccess {
@@ -2273,6 +2306,7 @@ pub struct UserToolSessionApprovalExtensionPermissionAccess {
     pub kind: UserToolSessionApprovalExtensionPermissionAccessKind,
 }
 
+/// Schema for the `PermissionApprovedForSession` type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionApprovedForSession {
@@ -2282,6 +2316,7 @@ pub struct PermissionApprovedForSession {
     pub kind: PermissionApprovedForSessionKind,
 }
 
+/// Schema for the `PermissionApprovedForLocation` type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionApprovedForLocation {
@@ -2293,6 +2328,7 @@ pub struct PermissionApprovedForLocation {
     pub location_key: String,
 }
 
+/// Schema for the `PermissionCancelled` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionCancelled {
@@ -2303,6 +2339,7 @@ pub struct PermissionCancelled {
     pub reason: Option<String>,
 }
 
+/// Schema for the `PermissionRule` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRule {
@@ -2312,6 +2349,7 @@ pub struct PermissionRule {
     pub kind: String,
 }
 
+/// Schema for the `PermissionDeniedByRules` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedByRules {
@@ -2321,6 +2359,7 @@ pub struct PermissionDeniedByRules {
     pub rules: Vec<PermissionRule>,
 }
 
+/// Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
@@ -2328,6 +2367,7 @@ pub struct PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
     pub kind: PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind,
 }
 
+/// Schema for the `PermissionDeniedInteractivelyByUser` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedInteractivelyByUser {
@@ -2341,6 +2381,7 @@ pub struct PermissionDeniedInteractivelyByUser {
     pub kind: PermissionDeniedInteractivelyByUserKind,
 }
 
+/// Schema for the `PermissionDeniedByContentExclusionPolicy` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedByContentExclusionPolicy {
@@ -2352,6 +2393,7 @@ pub struct PermissionDeniedByContentExclusionPolicy {
     pub path: String,
 }
 
+/// Schema for the `PermissionDeniedByPermissionRequestHook` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedByPermissionRequestHook {
@@ -2365,7 +2407,7 @@ pub struct PermissionDeniedByPermissionRequestHook {
     pub message: Option<String>,
 }
 
-/// Permission request completion notification signaling UI dismissal
+/// Session event "permission.completed". Permission request completion notification signaling UI dismissal
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionCompletedData {
@@ -2378,7 +2420,7 @@ pub struct PermissionCompletedData {
     pub tool_call_id: Option<String>,
 }
 
-/// User input request notification with question and optional predefined choices
+/// Session event "user_input.requested". User input request notification with question and optional predefined choices
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserInputRequestedData {
@@ -2397,7 +2439,7 @@ pub struct UserInputRequestedData {
     pub tool_call_id: Option<String>,
 }
 
-/// User input request completion with the user's response
+/// Session event "user_input.completed". User input request completion with the user's response
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserInputCompletedData {
@@ -2424,7 +2466,7 @@ pub struct ElicitationRequestedSchema {
     pub r#type: ElicitationRequestedSchemaType,
 }
 
-/// Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
+/// Session event "elicitation.requested". Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ElicitationRequestedData {
@@ -2449,7 +2491,7 @@ pub struct ElicitationRequestedData {
     pub url: Option<String>,
 }
 
-/// Elicitation request completion with the user's response
+/// Session event "elicitation.completed". Elicitation request completion with the user's response
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ElicitationCompletedData {
@@ -2463,7 +2505,7 @@ pub struct ElicitationCompletedData {
     pub request_id: RequestId,
 }
 
-/// Sampling request from an MCP server; contains the server name and a requestId for correlation
+/// Session event "sampling.requested". Sampling request from an MCP server; contains the server name and a requestId for correlation
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingRequestedData {
@@ -2475,7 +2517,7 @@ pub struct SamplingRequestedData {
     pub server_name: String,
 }
 
-/// Sampling request completion notification signaling UI dismissal
+/// Session event "sampling.completed". Sampling request completion notification signaling UI dismissal
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingCompletedData {
@@ -2497,7 +2539,7 @@ pub struct McpOauthRequiredStaticClientConfig {
     pub public_client: Option<bool>,
 }
 
-/// OAuth authentication request for an MCP server
+/// Session event "mcp.oauth_required". OAuth authentication request for an MCP server
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthRequiredData {
@@ -2512,7 +2554,7 @@ pub struct McpOauthRequiredData {
     pub static_client_config: Option<McpOauthRequiredStaticClientConfig>,
 }
 
-/// MCP OAuth request completion notification
+/// Session event "mcp.oauth_completed". MCP OAuth request completion notification
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthCompletedData {
@@ -2520,7 +2562,7 @@ pub struct McpOauthCompletedData {
     pub request_id: RequestId,
 }
 
-/// Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
+/// Session event "session.custom_notification". Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCustomNotificationData {
@@ -2538,7 +2580,7 @@ pub struct SessionCustomNotificationData {
     pub version: Option<i64>,
 }
 
-/// External tool invocation request for client-side tool execution
+/// Session event "external_tool.requested". External tool invocation request for client-side tool execution
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalToolRequestedData {
@@ -2561,7 +2603,7 @@ pub struct ExternalToolRequestedData {
     pub tracestate: Option<String>,
 }
 
-/// External tool completion notification signaling UI dismissal
+/// Session event "external_tool.completed". External tool completion notification signaling UI dismissal
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalToolCompletedData {
@@ -2569,7 +2611,7 @@ pub struct ExternalToolCompletedData {
     pub request_id: RequestId,
 }
 
-/// Queued slash command dispatch request for client execution
+/// Session event "command.queued". Queued slash command dispatch request for client execution
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandQueuedData {
@@ -2579,7 +2621,7 @@ pub struct CommandQueuedData {
     pub request_id: RequestId,
 }
 
-/// Registered command dispatch request routed to the owning client
+/// Session event "command.execute". Registered command dispatch request routed to the owning client
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandExecuteData {
@@ -2593,7 +2635,7 @@ pub struct CommandExecuteData {
     pub request_id: RequestId,
 }
 
-/// Queued command completion notification signaling UI dismissal
+/// Session event "command.completed". Queued command completion notification signaling UI dismissal
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandCompletedData {
@@ -2601,7 +2643,7 @@ pub struct CommandCompletedData {
     pub request_id: RequestId,
 }
 
-/// Auto mode switch request notification requiring user approval
+/// Session event "auto_mode_switch.requested". Auto mode switch request notification requiring user approval
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AutoModeSwitchRequestedData {
@@ -2615,7 +2657,7 @@ pub struct AutoModeSwitchRequestedData {
     pub retry_after_seconds: Option<f64>,
 }
 
-/// Auto mode switch completion notification
+/// Session event "auto_mode_switch.completed". Auto mode switch completion notification
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AutoModeSwitchCompletedData {
@@ -2625,15 +2667,18 @@ pub struct AutoModeSwitchCompletedData {
     pub response: String,
 }
 
+/// Schema for the `CommandsChangedCommand` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandsChangedCommand {
+    /// Optional human-readable command description.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Slash command name without the leading slash.
     pub name: String,
 }
 
-/// SDK command registration change notification
+/// Session event "commands.changed". SDK command registration change notification
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandsChangedData {
@@ -2650,7 +2695,7 @@ pub struct CapabilitiesChangedUI {
     pub elicitation: Option<bool>,
 }
 
-/// Session capability change notification
+/// Session event "capabilities.changed". Session capability change notification
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilitiesChangedData {
@@ -2659,7 +2704,7 @@ pub struct CapabilitiesChangedData {
     pub ui: Option<CapabilitiesChangedUI>,
 }
 
-/// Plan approval request with plan content and available user actions
+/// Session event "exit_plan_mode.requested". Plan approval request with plan content and available user actions
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExitPlanModeRequestedData {
@@ -2675,7 +2720,7 @@ pub struct ExitPlanModeRequestedData {
     pub summary: String,
 }
 
-/// Plan mode exit completion with the user's approval decision and optional feedback
+/// Session event "exit_plan_mode.completed". Plan mode exit completion with the user's approval decision and optional feedback
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExitPlanModeCompletedData {
@@ -2695,16 +2740,20 @@ pub struct ExitPlanModeCompletedData {
     pub selected_action: Option<String>,
 }
 
+/// Session event "session.tools_updated".
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionToolsUpdatedData {
+    /// Identifier of the model the resolved tools apply to.
     pub model: String,
 }
 
+/// Session event "session.background_tasks_changed".
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionBackgroundTasksChangedData {}
 
+/// Schema for the `SkillsLoadedSkill` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsLoadedSkill {
@@ -2723,6 +2772,7 @@ pub struct SkillsLoadedSkill {
     pub user_invocable: bool,
 }
 
+/// Session event "session.skills_loaded".
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSkillsLoadedData {
@@ -2730,6 +2780,7 @@ pub struct SessionSkillsLoadedData {
     pub skills: Vec<SkillsLoadedSkill>,
 }
 
+/// Schema for the `CustomAgentsUpdatedAgent` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomAgentsUpdatedAgent {
@@ -2752,6 +2803,7 @@ pub struct CustomAgentsUpdatedAgent {
     pub user_invocable: bool,
 }
 
+/// Session event "session.custom_agents_updated".
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCustomAgentsUpdatedData {
@@ -2763,6 +2815,7 @@ pub struct SessionCustomAgentsUpdatedData {
     pub warnings: Vec<String>,
 }
 
+/// Schema for the `McpServersLoadedServer` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServersLoadedServer {
@@ -2778,6 +2831,7 @@ pub struct McpServersLoadedServer {
     pub status: McpServersLoadedServerStatus,
 }
 
+/// Session event "session.mcp_servers_loaded".
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpServersLoadedData {
@@ -2785,6 +2839,7 @@ pub struct SessionMcpServersLoadedData {
     pub servers: Vec<McpServersLoadedServer>,
 }
 
+/// Session event "session.mcp_server_status_changed".
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpServerStatusChangedData {
@@ -2794,6 +2849,7 @@ pub struct SessionMcpServerStatusChangedData {
     pub status: McpServerStatusChangedStatus,
 }
 
+/// Schema for the `ExtensionsLoadedExtension` type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionsLoadedExtension {
@@ -2807,6 +2863,7 @@ pub struct ExtensionsLoadedExtension {
     pub status: ExtensionsLoadedExtensionStatus,
 }
 
+/// Session event "session.extensions_loaded".
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionExtensionsLoadedData {
@@ -2821,6 +2878,21 @@ pub enum WorkingDirectoryContextHostType {
     Github,
     #[serde(rename = "ado")]
     Ado,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReasoningSummary {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "concise")]
+    Concise,
+    #[serde(rename = "detailed")]
+    Detailed,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

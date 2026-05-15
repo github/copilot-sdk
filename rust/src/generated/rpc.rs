@@ -68,9 +68,17 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
-    /// Calls `ping`.
+    /// Checks server responsiveness and returns protocol information.
     ///
     /// Wire method: `ping`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional message to echo back to the caller.
+    ///
+    /// # Returns
+    ///
+    /// Server liveness response, including the echoed message, current timestamp, and protocol version.
     pub async fn ping(&self, params: PingRequest) -> Result<PingResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -80,9 +88,17 @@ impl<'a> ClientRpc<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `connect`.
+    /// Performs the SDK server connection handshake and validates the optional connection token.
     ///
     /// Wire method: `connect`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional connection token presented by the SDK client during the handshake.
+    ///
+    /// # Returns
+    ///
+    /// Handshake result reporting the server's protocol version and package version on success.
     pub async fn connect(&self, params: ConnectRequest) -> Result<ConnectResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -100,9 +116,13 @@ pub struct ClientRpcAccount<'a> {
 }
 
 impl<'a> ClientRpcAccount<'a> {
-    /// Calls `account.getQuota`.
+    /// Gets Copilot quota usage for the authenticated user or supplied GitHub token.
     ///
     /// Wire method: `account.getQuota`.
+    ///
+    /// # Returns
+    ///
+    /// Quota usage snapshots for the resolved user, keyed by quota type.
     pub async fn get_quota(&self) -> Result<AccountGetQuotaResult, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -112,9 +132,17 @@ impl<'a> ClientRpcAccount<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `account.getQuota`.
+    /// Gets Copilot quota usage for the authenticated user or supplied GitHub token.
     ///
     /// Wire method: `account.getQuota`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+    ///
+    /// # Returns
+    ///
+    /// Quota usage snapshots for the resolved user, keyed by quota type.
     pub async fn get_quota_with_params(
         &self,
         params: AccountGetQuotaRequest,
@@ -142,9 +170,17 @@ impl<'a> ClientRpcMcp<'a> {
         }
     }
 
-    /// Calls `mcp.discover`.
+    /// Discovers MCP servers from user, workspace, plugin, and builtin sources.
     ///
     /// Wire method: `mcp.discover`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional working directory used as context for MCP server discovery.
+    ///
+    /// # Returns
+    ///
+    /// MCP servers discovered from user, workspace, plugin, and built-in sources.
     pub async fn discover(&self, params: McpDiscoverRequest) -> Result<McpDiscoverResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -162,9 +198,13 @@ pub struct ClientRpcMcpConfig<'a> {
 }
 
 impl<'a> ClientRpcMcpConfig<'a> {
-    /// Calls `mcp.config.list`.
+    /// Lists MCP servers from user configuration.
     ///
     /// Wire method: `mcp.config.list`.
+    ///
+    /// # Returns
+    ///
+    /// User-configured MCP servers, keyed by server name.
     pub async fn list(&self) -> Result<McpConfigList, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -174,9 +214,13 @@ impl<'a> ClientRpcMcpConfig<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `mcp.config.add`.
+    /// Adds an MCP server to user configuration.
     ///
     /// Wire method: `mcp.config.add`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server name and configuration to add to user configuration.
     pub async fn add(&self, params: McpConfigAddRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -186,9 +230,13 @@ impl<'a> ClientRpcMcpConfig<'a> {
         Ok(())
     }
 
-    /// Calls `mcp.config.update`.
+    /// Updates an MCP server in user configuration.
     ///
     /// Wire method: `mcp.config.update`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server name and replacement configuration to write to user configuration.
     pub async fn update(&self, params: McpConfigUpdateRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -198,9 +246,13 @@ impl<'a> ClientRpcMcpConfig<'a> {
         Ok(())
     }
 
-    /// Calls `mcp.config.remove`.
+    /// Removes an MCP server from user configuration.
     ///
     /// Wire method: `mcp.config.remove`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server name to remove from user configuration.
     pub async fn remove(&self, params: McpConfigRemoveRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -210,9 +262,13 @@ impl<'a> ClientRpcMcpConfig<'a> {
         Ok(())
     }
 
-    /// Calls `mcp.config.enable`.
+    /// Enables MCP servers in user configuration for new sessions.
     ///
     /// Wire method: `mcp.config.enable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server names to enable for new sessions.
     pub async fn enable(&self, params: McpConfigEnableRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -222,9 +278,13 @@ impl<'a> ClientRpcMcpConfig<'a> {
         Ok(())
     }
 
-    /// Calls `mcp.config.disable`.
+    /// Disables MCP servers in user configuration for new sessions.
     ///
     /// Wire method: `mcp.config.disable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server names to disable for new sessions.
     pub async fn disable(&self, params: McpConfigDisableRequest) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -242,9 +302,13 @@ pub struct ClientRpcModels<'a> {
 }
 
 impl<'a> ClientRpcModels<'a> {
-    /// Calls `models.list`.
+    /// Lists Copilot models available to the authenticated user.
     ///
     /// Wire method: `models.list`.
+    ///
+    /// # Returns
+    ///
+    /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
     pub async fn list(&self) -> Result<ModelList, Error> {
         let wire_params = serde_json::json!({});
         let _value = self
@@ -254,9 +318,17 @@ impl<'a> ClientRpcModels<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `models.list`.
+    /// Lists Copilot models available to the authenticated user.
     ///
     /// Wire method: `models.list`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional GitHub token used to list models for a specific user instead of the global auth context.
+    ///
+    /// # Returns
+    ///
+    /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
     pub async fn list_with_params(&self, params: ModelsListRequest) -> Result<ModelList, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -274,9 +346,17 @@ pub struct ClientRpcSessionFs<'a> {
 }
 
 impl<'a> ClientRpcSessionFs<'a> {
-    /// Calls `sessionFs.setProvider`.
+    /// Registers an SDK client as the session filesystem provider.
     ///
     /// Wire method: `sessionFs.setProvider`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the calling client was registered as the session filesystem provider.
     pub async fn set_provider(
         &self,
         params: SessionFsSetProviderRequest,
@@ -297,9 +377,17 @@ pub struct ClientRpcSessions<'a> {
 }
 
 impl<'a> ClientRpcSessions<'a> {
-    /// Calls `sessions.fork`.
+    /// Creates a new session by forking persisted history from an existing session.
     ///
     /// Wire method: `sessions.fork`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.
+    ///
+    /// # Returns
+    ///
+    /// Identifier and optional friendly name assigned to the newly forked session.
     ///
     /// <div class="warning">
     ///
@@ -332,9 +420,17 @@ impl<'a> ClientRpcSkills<'a> {
         }
     }
 
-    /// Calls `skills.discover`.
+    /// Discovers skills across global and project sources.
     ///
     /// Wire method: `skills.discover`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths and additional skill directories to include in discovery.
+    ///
+    /// # Returns
+    ///
+    /// Skills discovered across global and project sources.
     pub async fn discover(&self, params: SkillsDiscoverRequest) -> Result<ServerSkillList, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -352,9 +448,13 @@ pub struct ClientRpcSkillsConfig<'a> {
 }
 
 impl<'a> ClientRpcSkillsConfig<'a> {
-    /// Calls `skills.config.setDisabledSkills`.
+    /// Replaces the global list of disabled skills.
     ///
     /// Wire method: `skills.config.setDisabledSkills`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Skill names to mark as disabled in global configuration, replacing any previous list.
     pub async fn set_disabled_skills(
         &self,
         params: SkillsConfigSetDisabledSkillsRequest,
@@ -378,9 +478,17 @@ pub struct ClientRpcTools<'a> {
 }
 
 impl<'a> ClientRpcTools<'a> {
-    /// Calls `tools.list`.
+    /// Lists built-in tools available for a model.
     ///
     /// Wire method: `tools.list`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional model identifier whose tool overrides should be applied to the listing.
+    ///
+    /// # Returns
+    ///
+    /// Built-in tools available for the requested model, with their parameters and instructions.
     pub async fn list(&self, params: ToolsListRequest) -> Result<ToolList, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
@@ -552,7 +660,7 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
-    /// Calls `session.suspend`.
+    /// Suspends the session while preserving persisted state for later resume.
     ///
     /// Wire method: `session.suspend`.
     pub async fn suspend(&self) -> Result<(), Error> {
@@ -565,9 +673,17 @@ impl<'a> SessionRpc<'a> {
         Ok(())
     }
 
-    /// Calls `session.log`.
+    /// Emits a user-visible session log event.
     ///
     /// Wire method: `session.log`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Message text, optional severity level, persistence flag, and optional follow-up URL.
+    ///
+    /// # Returns
+    ///
+    /// Identifier of the session event that was emitted for the log message.
     pub async fn log(&self, params: LogRequest) -> Result<LogResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -587,9 +703,13 @@ pub struct SessionRpcAgent<'a> {
 }
 
 impl<'a> SessionRpcAgent<'a> {
-    /// Calls `session.agent.list`.
+    /// Lists custom agents available to the session.
     ///
     /// Wire method: `session.agent.list`.
+    ///
+    /// # Returns
+    ///
+    /// Custom agents available to the session.
     ///
     /// <div class="warning">
     ///
@@ -608,9 +728,13 @@ impl<'a> SessionRpcAgent<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.agent.getCurrent`.
+    /// Gets the currently selected custom agent for the session.
     ///
     /// Wire method: `session.agent.getCurrent`.
+    ///
+    /// # Returns
+    ///
+    /// The currently selected custom agent, or null when using the default agent.
     ///
     /// <div class="warning">
     ///
@@ -629,9 +753,17 @@ impl<'a> SessionRpcAgent<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.agent.select`.
+    /// Selects a custom agent for subsequent turns in the session.
     ///
     /// Wire method: `session.agent.select`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Name of the custom agent to select for subsequent turns.
+    ///
+    /// # Returns
+    ///
+    /// The newly selected custom agent.
     ///
     /// <div class="warning">
     ///
@@ -651,7 +783,7 @@ impl<'a> SessionRpcAgent<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.agent.deselect`.
+    /// Clears the selected custom agent and returns the session to the default agent.
     ///
     /// Wire method: `session.agent.deselect`.
     ///
@@ -672,9 +804,13 @@ impl<'a> SessionRpcAgent<'a> {
         Ok(())
     }
 
-    /// Calls `session.agent.reload`.
+    /// Reloads custom agent definitions and returns the refreshed list.
     ///
     /// Wire method: `session.agent.reload`.
+    ///
+    /// # Returns
+    ///
+    /// Custom agents available to the session after reloading definitions from disk.
     ///
     /// <div class="warning">
     ///
@@ -701,9 +837,13 @@ pub struct SessionRpcAuth<'a> {
 }
 
 impl<'a> SessionRpcAuth<'a> {
-    /// Calls `session.auth.getStatus`.
+    /// Gets authentication status and account metadata for the session.
     ///
     /// Wire method: `session.auth.getStatus`.
+    ///
+    /// # Returns
+    ///
+    /// Authentication status and account metadata for the session.
     pub async fn get_status(&self) -> Result<SessionAuthStatus, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -722,9 +862,13 @@ pub struct SessionRpcCommands<'a> {
 }
 
 impl<'a> SessionRpcCommands<'a> {
-    /// Calls `session.commands.list`.
+    /// Lists slash commands available in the session.
     ///
     /// Wire method: `session.commands.list`.
+    ///
+    /// # Returns
+    ///
+    /// Slash commands available in the session, after applying any include/exclude filters.
     pub async fn list(&self) -> Result<CommandList, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -735,9 +879,17 @@ impl<'a> SessionRpcCommands<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.commands.list`.
+    /// Lists slash commands available in the session.
     ///
     /// Wire method: `session.commands.list`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional filters controlling which command sources to include in the listing.
+    ///
+    /// # Returns
+    ///
+    /// Slash commands available in the session, after applying any include/exclude filters.
     pub async fn list_with_params(
         &self,
         params: CommandsListRequest,
@@ -752,9 +904,17 @@ impl<'a> SessionRpcCommands<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.commands.invoke`.
+    /// Invokes a slash command in the session.
     ///
     /// Wire method: `session.commands.invoke`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Slash command name and optional raw input string to invoke.
+    ///
+    /// # Returns
+    ///
+    /// Result of invoking the slash command (text output, prompt to send to the agent, or completion).
     pub async fn invoke(
         &self,
         params: CommandsInvokeRequest,
@@ -769,9 +929,17 @@ impl<'a> SessionRpcCommands<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.commands.handlePendingCommand`.
+    /// Reports completion of a pending client-handled slash command.
     ///
     /// Wire method: `session.commands.handlePendingCommand`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pending command request ID and an optional error if the client handler failed.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the pending client-handled command was completed successfully.
     pub async fn handle_pending_command(
         &self,
         params: CommandsHandlePendingCommandRequest,
@@ -789,9 +957,17 @@ impl<'a> SessionRpcCommands<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.commands.respondToQueuedCommand`.
+    /// Responds to a queued command request from the session.
     ///
     /// Wire method: `session.commands.respondToQueuedCommand`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Queued command request ID and the result indicating whether the client handled it.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the queued-command response was accepted by the session.
     pub async fn respond_to_queued_command(
         &self,
         params: CommandsRespondToQueuedCommandRequest,
@@ -817,9 +993,13 @@ pub struct SessionRpcExtensions<'a> {
 }
 
 impl<'a> SessionRpcExtensions<'a> {
-    /// Calls `session.extensions.list`.
+    /// Lists extensions discovered for the session and their current status.
     ///
     /// Wire method: `session.extensions.list`.
+    ///
+    /// # Returns
+    ///
+    /// Extensions discovered for the session, with their current status.
     ///
     /// <div class="warning">
     ///
@@ -838,9 +1018,13 @@ impl<'a> SessionRpcExtensions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.extensions.enable`.
+    /// Enables an extension for the session.
     ///
     /// Wire method: `session.extensions.enable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Source-qualified extension identifier to enable for the session.
     ///
     /// <div class="warning">
     ///
@@ -860,9 +1044,13 @@ impl<'a> SessionRpcExtensions<'a> {
         Ok(())
     }
 
-    /// Calls `session.extensions.disable`.
+    /// Disables an extension for the session.
     ///
     /// Wire method: `session.extensions.disable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Source-qualified extension identifier to disable for the session.
     ///
     /// <div class="warning">
     ///
@@ -882,7 +1070,7 @@ impl<'a> SessionRpcExtensions<'a> {
         Ok(())
     }
 
-    /// Calls `session.extensions.reload`.
+    /// Reloads extension definitions and processes for the session.
     ///
     /// Wire method: `session.extensions.reload`.
     ///
@@ -911,9 +1099,17 @@ pub struct SessionRpcFleet<'a> {
 }
 
 impl<'a> SessionRpcFleet<'a> {
-    /// Calls `session.fleet.start`.
+    /// Starts fleet mode by submitting the fleet orchestration prompt to the session.
     ///
     /// Wire method: `session.fleet.start`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional user prompt to combine with the fleet orchestration instructions.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether fleet mode was successfully activated.
     ///
     /// <div class="warning">
     ///
@@ -941,9 +1137,13 @@ pub struct SessionRpcHistory<'a> {
 }
 
 impl<'a> SessionRpcHistory<'a> {
-    /// Calls `session.history.compact`.
+    /// Compacts the session history to reduce context usage.
     ///
     /// Wire method: `session.history.compact`.
+    ///
+    /// # Returns
+    ///
+    /// Compaction outcome with the number of tokens and messages removed and the resulting context window breakdown.
     ///
     /// <div class="warning">
     ///
@@ -962,9 +1162,17 @@ impl<'a> SessionRpcHistory<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.history.truncate`.
+    /// Truncates persisted session history to a specific event.
     ///
     /// Wire method: `session.history.truncate`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifier of the event to truncate to; this event and all later events are removed.
+    ///
+    /// # Returns
+    ///
+    /// Number of events that were removed by the truncation.
     ///
     /// <div class="warning">
     ///
@@ -995,9 +1203,13 @@ pub struct SessionRpcInstructions<'a> {
 }
 
 impl<'a> SessionRpcInstructions<'a> {
-    /// Calls `session.instructions.getSources`.
+    /// Gets instruction sources loaded for the session.
     ///
     /// Wire method: `session.instructions.getSources`.
+    ///
+    /// # Returns
+    ///
+    /// Instruction sources loaded for the session, in merge order.
     pub async fn get_sources(&self) -> Result<InstructionsGetSourcesResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1026,9 +1238,13 @@ impl<'a> SessionRpcMcp<'a> {
         }
     }
 
-    /// Calls `session.mcp.list`.
+    /// Lists MCP servers configured for the session and their connection status.
     ///
     /// Wire method: `session.mcp.list`.
+    ///
+    /// # Returns
+    ///
+    /// MCP servers configured for the session, with their connection status.
     ///
     /// <div class="warning">
     ///
@@ -1047,9 +1263,13 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.mcp.enable`.
+    /// Enables an MCP server for the session.
     ///
     /// Wire method: `session.mcp.enable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Name of the MCP server to enable for the session.
     ///
     /// <div class="warning">
     ///
@@ -1069,9 +1289,13 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(())
     }
 
-    /// Calls `session.mcp.disable`.
+    /// Disables an MCP server for the session.
     ///
     /// Wire method: `session.mcp.disable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Name of the MCP server to disable for the session.
     ///
     /// <div class="warning">
     ///
@@ -1091,7 +1315,7 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(())
     }
 
-    /// Calls `session.mcp.reload`.
+    /// Reloads MCP server connections for the session.
     ///
     /// Wire method: `session.mcp.reload`.
     ///
@@ -1120,9 +1344,17 @@ pub struct SessionRpcMcpOauth<'a> {
 }
 
 impl<'a> SessionRpcMcpOauth<'a> {
-    /// Calls `session.mcp.oauth.login`.
+    /// Starts OAuth authentication for a remote MCP server.
     ///
     /// Wire method: `session.mcp.oauth.login`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
+    ///
+    /// # Returns
+    ///
+    /// OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.
     ///
     /// <div class="warning">
     ///
@@ -1150,7 +1382,7 @@ pub struct SessionRpcMode<'a> {
 }
 
 impl<'a> SessionRpcMode<'a> {
-    /// Calls `session.mode.get`.
+    /// Gets the current agent interaction mode.
     ///
     /// Wire method: `session.mode.get`.
     ///
@@ -1167,9 +1399,13 @@ impl<'a> SessionRpcMode<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.mode.set`.
+    /// Sets the current agent interaction mode.
     ///
     /// Wire method: `session.mode.set`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Agent interaction mode to apply to the session.
     pub async fn set(&self, params: ModeSetRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1189,9 +1425,13 @@ pub struct SessionRpcModel<'a> {
 }
 
 impl<'a> SessionRpcModel<'a> {
-    /// Calls `session.model.getCurrent`.
+    /// Gets the currently selected model for the session.
     ///
     /// Wire method: `session.model.getCurrent`.
+    ///
+    /// # Returns
+    ///
+    /// The currently selected model for the session.
     pub async fn get_current(&self) -> Result<CurrentModel, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1202,9 +1442,17 @@ impl<'a> SessionRpcModel<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.model.switchTo`.
+    /// Switches the session to a model and optional reasoning configuration.
     ///
     /// Wire method: `session.model.switchTo`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Target model identifier and optional reasoning effort, summary, and capability overrides.
+    ///
+    /// # Returns
+    ///
+    /// The model identifier active on the session after the switch.
     pub async fn switch_to(
         &self,
         params: ModelSwitchToRequest,
@@ -1227,9 +1475,13 @@ pub struct SessionRpcName<'a> {
 }
 
 impl<'a> SessionRpcName<'a> {
-    /// Calls `session.name.get`.
+    /// Gets the session's friendly name.
     ///
     /// Wire method: `session.name.get`.
+    ///
+    /// # Returns
+    ///
+    /// The session's friendly name, or null when not yet set.
     pub async fn get(&self) -> Result<NameGetResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1240,9 +1492,13 @@ impl<'a> SessionRpcName<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.name.set`.
+    /// Sets the session's friendly name.
     ///
     /// Wire method: `session.name.set`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - New friendly name to apply to the session.
     pub async fn set(&self, params: NameSetRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1262,9 +1518,17 @@ pub struct SessionRpcPermissions<'a> {
 }
 
 impl<'a> SessionRpcPermissions<'a> {
-    /// Calls `session.permissions.handlePendingPermissionRequest`.
+    /// Provides a decision for a pending tool permission request.
     ///
     /// Wire method: `session.permissions.handlePendingPermissionRequest`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pending permission request ID and the decision to apply (approve/reject and scope).
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the permission decision was applied; false when the request was already resolved.
     pub async fn handle_pending_permission_request(
         &self,
         params: PermissionDecisionRequest,
@@ -1282,9 +1546,17 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.permissions.setApproveAll`.
+    /// Enables or disables automatic approval of tool permission requests for the session.
     ///
     /// Wire method: `session.permissions.setApproveAll`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Whether to auto-approve all tool permission requests for the rest of the session.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the operation succeeded.
     pub async fn set_approve_all(
         &self,
         params: PermissionsSetApproveAllRequest,
@@ -1302,9 +1574,13 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.permissions.resetSessionApprovals`.
+    /// Clears session-scoped tool permission approvals.
     ///
     /// Wire method: `session.permissions.resetSessionApprovals`.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the operation succeeded.
     pub async fn reset_session_approvals(
         &self,
     ) -> Result<PermissionsResetSessionApprovalsResult, Error> {
@@ -1328,9 +1604,13 @@ pub struct SessionRpcPlan<'a> {
 }
 
 impl<'a> SessionRpcPlan<'a> {
-    /// Calls `session.plan.read`.
+    /// Reads the session plan file from the workspace.
     ///
     /// Wire method: `session.plan.read`.
+    ///
+    /// # Returns
+    ///
+    /// Existence, contents, and resolved path of the session plan file.
     pub async fn read(&self) -> Result<PlanReadResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1341,9 +1621,13 @@ impl<'a> SessionRpcPlan<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.plan.update`.
+    /// Writes new content to the session plan file.
     ///
     /// Wire method: `session.plan.update`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Replacement contents to write to the session plan file.
     pub async fn update(&self, params: PlanUpdateRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1355,7 +1639,7 @@ impl<'a> SessionRpcPlan<'a> {
         Ok(())
     }
 
-    /// Calls `session.plan.delete`.
+    /// Deletes the session plan file from the workspace.
     ///
     /// Wire method: `session.plan.delete`.
     pub async fn delete(&self) -> Result<(), Error> {
@@ -1376,9 +1660,13 @@ pub struct SessionRpcPlugins<'a> {
 }
 
 impl<'a> SessionRpcPlugins<'a> {
-    /// Calls `session.plugins.list`.
+    /// Lists plugins installed for the session.
     ///
     /// Wire method: `session.plugins.list`.
+    ///
+    /// # Returns
+    ///
+    /// Plugins installed for the session, with their enabled state and version metadata.
     ///
     /// <div class="warning">
     ///
@@ -1405,9 +1693,17 @@ pub struct SessionRpcRemote<'a> {
 }
 
 impl<'a> SessionRpcRemote<'a> {
-    /// Calls `session.remote.enable`.
+    /// Enables remote session export or steering.
     ///
     /// Wire method: `session.remote.enable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional remote session mode ("off", "export", or "on"); defaults to enabling both export and remote steering.
+    ///
+    /// # Returns
+    ///
+    /// GitHub URL for the session and a flag indicating whether remote steering is enabled.
     ///
     /// <div class="warning">
     ///
@@ -1427,7 +1723,7 @@ impl<'a> SessionRpcRemote<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.remote.disable`.
+    /// Disables remote session export and steering.
     ///
     /// Wire method: `session.remote.disable`.
     ///
@@ -1456,9 +1752,17 @@ pub struct SessionRpcShell<'a> {
 }
 
 impl<'a> SessionRpcShell<'a> {
-    /// Calls `session.shell.exec`.
+    /// Starts a shell command and streams output through session notifications.
     ///
     /// Wire method: `session.shell.exec`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Shell command to run, with optional working directory and timeout in milliseconds.
+    ///
+    /// # Returns
+    ///
+    /// Identifier of the spawned process, used to correlate streamed output and exit notifications.
     pub async fn exec(&self, params: ShellExecRequest) -> Result<ShellExecResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1470,9 +1774,17 @@ impl<'a> SessionRpcShell<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.shell.kill`.
+    /// Sends a signal to a shell process previously started via "shell.exec".
     ///
     /// Wire method: `session.shell.kill`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifier of a process previously returned by "shell.exec" and the signal to send.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the signal was delivered; false if the process was unknown or already exited.
     pub async fn kill(&self, params: ShellKillRequest) -> Result<ShellKillResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
@@ -1492,9 +1804,13 @@ pub struct SessionRpcSkills<'a> {
 }
 
 impl<'a> SessionRpcSkills<'a> {
-    /// Calls `session.skills.list`.
+    /// Lists skills available to the session.
     ///
     /// Wire method: `session.skills.list`.
+    ///
+    /// # Returns
+    ///
+    /// Skills available to the session, with their enabled state.
     ///
     /// <div class="warning">
     ///
@@ -1513,9 +1829,13 @@ impl<'a> SessionRpcSkills<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.skills.enable`.
+    /// Enables a skill for the session.
     ///
     /// Wire method: `session.skills.enable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Name of the skill to enable for the session.
     ///
     /// <div class="warning">
     ///
@@ -1535,9 +1855,13 @@ impl<'a> SessionRpcSkills<'a> {
         Ok(())
     }
 
-    /// Calls `session.skills.disable`.
+    /// Disables a skill for the session.
     ///
     /// Wire method: `session.skills.disable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Name of the skill to disable for the session.
     ///
     /// <div class="warning">
     ///
@@ -1557,9 +1881,13 @@ impl<'a> SessionRpcSkills<'a> {
         Ok(())
     }
 
-    /// Calls `session.skills.reload`.
+    /// Reloads skill definitions for the session.
     ///
     /// Wire method: `session.skills.reload`.
+    ///
+    /// # Returns
+    ///
+    /// Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
     ///
     /// <div class="warning">
     ///
@@ -1586,9 +1914,17 @@ pub struct SessionRpcTasks<'a> {
 }
 
 impl<'a> SessionRpcTasks<'a> {
-    /// Calls `session.tasks.startAgent`.
+    /// Starts a background agent task in the session.
     ///
     /// Wire method: `session.tasks.startAgent`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Agent type, prompt, name, and optional description and model override for the new task.
+    ///
+    /// # Returns
+    ///
+    /// Identifier assigned to the newly started background agent task.
     ///
     /// <div class="warning">
     ///
@@ -1611,9 +1947,13 @@ impl<'a> SessionRpcTasks<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.tasks.list`.
+    /// Lists background tasks tracked by the session.
     ///
     /// Wire method: `session.tasks.list`.
+    ///
+    /// # Returns
+    ///
+    /// Background tasks currently tracked by the session.
     ///
     /// <div class="warning">
     ///
@@ -1632,9 +1972,17 @@ impl<'a> SessionRpcTasks<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.tasks.promoteToBackground`.
+    /// Promotes an eligible synchronously-waited task so it continues running in the background.
     ///
     /// Wire method: `session.tasks.promoteToBackground`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifier of the task to promote to background mode.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the task was successfully promoted to background mode.
     ///
     /// <div class="warning">
     ///
@@ -1660,9 +2008,17 @@ impl<'a> SessionRpcTasks<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.tasks.cancel`.
+    /// Cancels a background task.
     ///
     /// Wire method: `session.tasks.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifier of the background task to cancel.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the background task was successfully cancelled.
     ///
     /// <div class="warning">
     ///
@@ -1682,9 +2038,17 @@ impl<'a> SessionRpcTasks<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.tasks.remove`.
+    /// Removes a completed or cancelled background task from tracking.
     ///
     /// Wire method: `session.tasks.remove`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifier of the completed or cancelled task to remove from tracking.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the task was removed. False when the task does not exist or is still running/idle.
     ///
     /// <div class="warning">
     ///
@@ -1704,9 +2068,17 @@ impl<'a> SessionRpcTasks<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.tasks.sendMessage`.
+    /// Sends a message to a background agent task.
     ///
     /// Wire method: `session.tasks.sendMessage`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifier of the target agent task, message content, and optional sender agent ID.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the message was delivered, with an error message when delivery failed.
     ///
     /// <div class="warning">
     ///
@@ -1737,9 +2109,17 @@ pub struct SessionRpcTools<'a> {
 }
 
 impl<'a> SessionRpcTools<'a> {
-    /// Calls `session.tools.handlePendingToolCall`.
+    /// Provides the result for a pending external tool call.
     ///
     /// Wire method: `session.tools.handlePendingToolCall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pending external tool call request ID, with the tool result or an error describing why it failed.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the external tool call result was handled successfully.
     pub async fn handle_pending_tool_call(
         &self,
         params: HandlePendingToolCallRequest,
@@ -1765,9 +2145,13 @@ pub struct SessionRpcUi<'a> {
 }
 
 impl<'a> SessionRpcUi<'a> {
-    /// Calls `session.ui.elicitation`.
+    /// Requests structured input from a UI-capable client.
     ///
     /// Wire method: `session.ui.elicitation`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Prompt message and JSON schema describing the form fields to elicit from the user.
     ///
     /// # Returns
     ///
@@ -1786,9 +2170,17 @@ impl<'a> SessionRpcUi<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.ui.handlePendingElicitation`.
+    /// Provides the user response for a pending elicitation request.
     ///
     /// Wire method: `session.ui.handlePendingElicitation`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pending elicitation request ID and the user's response (accept/decline/cancel + form values).
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the elicitation response was accepted; false if it was already resolved by another client.
     pub async fn handle_pending_elicitation(
         &self,
         params: UIHandlePendingElicitationRequest,
@@ -1814,9 +2206,13 @@ pub struct SessionRpcUsage<'a> {
 }
 
 impl<'a> SessionRpcUsage<'a> {
-    /// Calls `session.usage.getMetrics`.
+    /// Gets accumulated usage metrics for the session.
     ///
     /// Wire method: `session.usage.getMetrics`.
+    ///
+    /// # Returns
+    ///
+    /// Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
     ///
     /// <div class="warning">
     ///
@@ -1843,9 +2239,13 @@ pub struct SessionRpcWorkspaces<'a> {
 }
 
 impl<'a> SessionRpcWorkspaces<'a> {
-    /// Calls `session.workspaces.getWorkspace`.
+    /// Gets current workspace metadata for the session.
     ///
     /// Wire method: `session.workspaces.getWorkspace`.
+    ///
+    /// # Returns
+    ///
+    /// Current workspace metadata for the session, or null when not available.
     pub async fn get_workspace(&self) -> Result<WorkspacesGetWorkspaceResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1859,9 +2259,13 @@ impl<'a> SessionRpcWorkspaces<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.workspaces.listFiles`.
+    /// Lists files stored in the session workspace files directory.
     ///
     /// Wire method: `session.workspaces.listFiles`.
+    ///
+    /// # Returns
+    ///
+    /// Relative paths of files stored in the session workspace files directory.
     pub async fn list_files(&self) -> Result<WorkspacesListFilesResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
@@ -1872,9 +2276,17 @@ impl<'a> SessionRpcWorkspaces<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.workspaces.readFile`.
+    /// Reads a file from the session workspace files directory.
     ///
     /// Wire method: `session.workspaces.readFile`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Relative path of the workspace file to read.
+    ///
+    /// # Returns
+    ///
+    /// Contents of the requested workspace file as a UTF-8 string.
     pub async fn read_file(
         &self,
         params: WorkspacesReadFileRequest,
@@ -1889,9 +2301,13 @@ impl<'a> SessionRpcWorkspaces<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Calls `session.workspaces.createFile`.
+    /// Creates or overwrites a file in the session workspace files directory.
     ///
     /// Wire method: `session.workspaces.createFile`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Relative path and UTF-8 content for the workspace file to create or overwrite.
     pub async fn create_file(&self, params: WorkspacesCreateFileRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
