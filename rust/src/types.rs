@@ -526,6 +526,12 @@ pub struct CustomAgentConfig {
     /// Skill names to preload into this agent's context at startup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills: Option<Vec<String>>,
+    /// Model identifier for this agent (e.g. `"claude-haiku-4.5"`).
+    ///
+    /// When set, the runtime will attempt to use this model for the agent,
+    /// falling back to the parent session model if unavailable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 impl CustomAgentConfig {
@@ -585,6 +591,12 @@ impl CustomAgentConfig {
         S: Into<String>,
     {
         self.skills = Some(skills.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the model identifier for this agent.
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
         self
     }
 }
