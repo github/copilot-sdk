@@ -532,6 +532,10 @@ type CustomAgentConfig struct {
 	Infer *bool `json:"infer,omitempty"`
 	// Skills is the list of skill names to preload into this agent's context at startup (opt-in; omit for none)
 	Skills []string `json:"skills,omitempty"`
+	// Model is the model identifier for this agent (e.g. "claude-haiku-4.5").
+	// When set, the runtime will attempt to use this model for the agent,
+	// falling back to the parent session model if unavailable.
+	Model string `json:"model,omitempty"`
 }
 
 // DefaultAgentConfig configures the default agent (the built-in agent that handles turns when no custom agent is selected).
