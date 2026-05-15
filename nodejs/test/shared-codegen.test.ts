@@ -36,6 +36,7 @@ describe("shared schema definition codegen utilities", () => {
                 ReasoningSummary: {
                     type: "string",
                     enum: ["concise", "detailed"],
+                    description: "Reasoning summary mode used for model calls.",
                 },
                 SharedPayload: {
                     type: "object",
@@ -74,6 +75,7 @@ describe("shared schema definition codegen utilities", () => {
                 ReasoningSummary: {
                     type: "string",
                     enum: ["concise", "detailed"],
+                    description: "Reasoning summary mode to request for supported model clients.",
                 },
                 SharedPayload: {
                     type: "object",
