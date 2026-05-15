@@ -173,7 +173,7 @@ public partial class SessionResumeEvent : SessionEvent
     public required SessionResumeData Data { get; set; }
 }
 
-/// <summary>Notifies Mission Control that the session's remote steering capability has changed.</summary>
+/// <summary>Notifies that the session's remote steering capability has changed.</summary>
 /// <remarks>Represents the <c>session.remote_steerable_changed</c> event.</remarks>
 public partial class SessionRemoteSteerableChangedEvent : SessionEvent
 {
@@ -446,7 +446,8 @@ public partial class SessionTaskCompleteEvent : SessionEvent
     public required SessionTaskCompleteData Data { get; set; }
 }
 
-/// <summary>Represents the <c>user.message</c> event.</summary>
+/// <summary>Schema for the `UserMessageData` type.</summary>
+/// <remarks>Represents the <c>user.message</c> event.</remarks>
 public partial class UserMessageEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1108,7 +1109,8 @@ public partial class ExitPlanModeCompletedEvent : SessionEvent
     public required ExitPlanModeCompletedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.tools_updated</c> event.</summary>
+/// <summary>Schema for the `ToolsUpdatedData` type.</summary>
+/// <remarks>Represents the <c>session.tools_updated</c> event.</remarks>
 public partial class SessionToolsUpdatedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1120,7 +1122,8 @@ public partial class SessionToolsUpdatedEvent : SessionEvent
     public required SessionToolsUpdatedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.background_tasks_changed</c> event.</summary>
+/// <summary>Schema for the `BackgroundTasksChangedData` type.</summary>
+/// <remarks>Represents the <c>session.background_tasks_changed</c> event.</remarks>
 public partial class SessionBackgroundTasksChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1132,7 +1135,8 @@ public partial class SessionBackgroundTasksChangedEvent : SessionEvent
     public required SessionBackgroundTasksChangedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.skills_loaded</c> event.</summary>
+/// <summary>Schema for the `SkillsLoadedData` type.</summary>
+/// <remarks>Represents the <c>session.skills_loaded</c> event.</remarks>
 public partial class SessionSkillsLoadedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1144,7 +1148,8 @@ public partial class SessionSkillsLoadedEvent : SessionEvent
     public required SessionSkillsLoadedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.custom_agents_updated</c> event.</summary>
+/// <summary>Schema for the `CustomAgentsUpdatedData` type.</summary>
+/// <remarks>Represents the <c>session.custom_agents_updated</c> event.</remarks>
 public partial class SessionCustomAgentsUpdatedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1156,7 +1161,8 @@ public partial class SessionCustomAgentsUpdatedEvent : SessionEvent
     public required SessionCustomAgentsUpdatedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.mcp_servers_loaded</c> event.</summary>
+/// <summary>Schema for the `McpServersLoadedData` type.</summary>
+/// <remarks>Represents the <c>session.mcp_servers_loaded</c> event.</remarks>
 public partial class SessionMcpServersLoadedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1168,7 +1174,8 @@ public partial class SessionMcpServersLoadedEvent : SessionEvent
     public required SessionMcpServersLoadedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.mcp_server_status_changed</c> event.</summary>
+/// <summary>Schema for the `McpServerStatusChangedData` type.</summary>
+/// <remarks>Represents the <c>session.mcp_server_status_changed</c> event.</remarks>
 public partial class SessionMcpServerStatusChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1180,7 +1187,8 @@ public partial class SessionMcpServerStatusChangedEvent : SessionEvent
     public required SessionMcpServerStatusChangedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.extensions_loaded</c> event.</summary>
+/// <summary>Schema for the `ExtensionsLoadedData` type.</summary>
+/// <remarks>Represents the <c>session.extensions_loaded</c> event.</remarks>
 public partial class SessionExtensionsLoadedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1218,12 +1226,17 @@ public partial class SessionStartData
     [JsonPropertyName("producer")]
     public required string Producer { get; set; }
 
-    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
-    /// <summary>Whether this session supports remote steering via Mission Control.</summary>
+    /// <summary>Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningSummary")]
+    public ReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>Whether this session supports remote steering via GitHub.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
@@ -1268,12 +1281,17 @@ public partial class SessionResumeData
     [JsonPropertyName("eventCount")]
     public required double EventCount { get; set; }
 
-    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
-    /// <summary>Whether this session supports remote steering via Mission Control.</summary>
+    /// <summary>Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningSummary")]
+    public ReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>Whether this session supports remote steering via GitHub.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("remoteSteerable")]
     public bool? RemoteSteerable { get; set; }
@@ -1293,10 +1311,10 @@ public partial class SessionResumeData
     public bool? SessionWasActive { get; set; }
 }
 
-/// <summary>Notifies Mission Control that the session's remote steering capability has changed.</summary>
+/// <summary>Notifies that the session's remote steering capability has changed.</summary>
 public partial class SessionRemoteSteerableChangedData
 {
-    /// <summary>Whether this session now supports remote steering via Mission Control.</summary>
+    /// <summary>Whether this session now supports remote steering via GitHub.</summary>
     [JsonPropertyName("remoteSteerable")]
     public required bool RemoteSteerable { get; set; }
 }
@@ -1365,6 +1383,11 @@ public partial class SessionTitleChangedData
 /// <summary>Scheduled prompt registered via /every or /after.</summary>
 public partial class SessionScheduleCreatedData
 {
+    /// <summary>Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayPrompt")]
+    public string? DisplayPrompt { get; set; }
+
     /// <summary>Sequential id assigned to the scheduled prompt within the session.</summary>
     [JsonPropertyName("id")]
     public required long Id { get; set; }
@@ -1456,10 +1479,20 @@ public partial class SessionModelChangeData
     [JsonPropertyName("previousReasoningEffort")]
     public string? PreviousReasoningEffort { get; set; }
 
+    /// <summary>Reasoning summary mode before the model change, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("previousReasoningSummary")]
+    public ReasoningSummary? PreviousReasoningSummary { get; set; }
+
     /// <summary>Reasoning effort level after the model change, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>Reasoning summary mode after the model change, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningSummary")]
+    public ReasoningSummary? ReasoningSummary { get; set; }
 }
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
@@ -1837,7 +1870,7 @@ public partial class SessionTaskCompleteData
     public string? Summary { get; set; }
 }
 
-/// <summary>Event payload for <see cref="UserMessageEvent"/>.</summary>
+/// <summary>Schema for the `UserMessageData` type.</summary>
 public partial class UserMessageData
 {
     /// <summary>The agent mode that was active when this message was sent.</summary>
@@ -2146,7 +2179,7 @@ public partial class AssistantUsageData
     [JsonPropertyName("quotaSnapshots")]
     public IDictionary<string, AssistantUsageQuotaSnapshot>? QuotaSnapshots { get; set; }
 
-    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
@@ -2986,20 +3019,20 @@ public partial class ExitPlanModeCompletedData
     public string? SelectedAction { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionToolsUpdatedEvent"/>.</summary>
+/// <summary>Schema for the `ToolsUpdatedData` type.</summary>
 public partial class SessionToolsUpdatedData
 {
-    /// <summary>Gets or sets the <c>model</c> value.</summary>
+    /// <summary>Identifier of the model the resolved tools apply to.</summary>
     [JsonPropertyName("model")]
     public required string Model { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionBackgroundTasksChangedEvent"/>.</summary>
+/// <summary>Schema for the `BackgroundTasksChangedData` type.</summary>
 public partial class SessionBackgroundTasksChangedData
 {
 }
 
-/// <summary>Event payload for <see cref="SessionSkillsLoadedEvent"/>.</summary>
+/// <summary>Schema for the `SkillsLoadedData` type.</summary>
 public partial class SessionSkillsLoadedData
 {
     /// <summary>Array of resolved skill metadata.</summary>
@@ -3007,7 +3040,7 @@ public partial class SessionSkillsLoadedData
     public required SkillsLoadedSkill[] Skills { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionCustomAgentsUpdatedEvent"/>.</summary>
+/// <summary>Schema for the `CustomAgentsUpdatedData` type.</summary>
 public partial class SessionCustomAgentsUpdatedData
 {
     /// <summary>Array of loaded custom agent metadata.</summary>
@@ -3023,7 +3056,7 @@ public partial class SessionCustomAgentsUpdatedData
     public required string[] Warnings { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionMcpServersLoadedEvent"/>.</summary>
+/// <summary>Schema for the `McpServersLoadedData` type.</summary>
 public partial class SessionMcpServersLoadedData
 {
     /// <summary>Array of MCP server status summaries.</summary>
@@ -3031,7 +3064,7 @@ public partial class SessionMcpServersLoadedData
     public required McpServersLoadedServer[] Servers { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionMcpServerStatusChangedEvent"/>.</summary>
+/// <summary>Schema for the `McpServerStatusChangedData` type.</summary>
 public partial class SessionMcpServerStatusChangedData
 {
     /// <summary>Name of the MCP server whose status changed.</summary>
@@ -3043,7 +3076,7 @@ public partial class SessionMcpServerStatusChangedData
     public required McpServerStatusChangedStatus Status { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionExtensionsLoadedEvent"/>.</summary>
+/// <summary>Schema for the `ExtensionsLoadedData` type.</summary>
 public partial class SessionExtensionsLoadedData
 {
     /// <summary>Array of discovered extensions and their status.</summary>
@@ -3143,7 +3176,8 @@ public partial class ShutdownModelMetricRequests
     public required double Count { get; set; }
 }
 
-/// <summary>Nested data type for <c>ShutdownModelMetricTokenDetail</c>.</summary>
+/// <summary>Schema for the `ShutdownModelMetricTokenDetail` type.</summary>
+/// <remarks>Nested data type for <c>ShutdownModelMetricTokenDetail</c>.</remarks>
 public partial class ShutdownModelMetricTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
@@ -3177,7 +3211,8 @@ public partial class ShutdownModelMetricUsage
     public double? ReasoningTokens { get; set; }
 }
 
-/// <summary>Nested data type for <c>ShutdownModelMetric</c>.</summary>
+/// <summary>Schema for the `ShutdownModelMetric` type.</summary>
+/// <remarks>Nested data type for <c>ShutdownModelMetric</c>.</remarks>
 public partial class ShutdownModelMetric
 {
     /// <summary>Request count and cost metrics.</summary>
@@ -3199,7 +3234,8 @@ public partial class ShutdownModelMetric
     public required ShutdownModelMetricUsage Usage { get; set; }
 }
 
-/// <summary>Nested data type for <c>ShutdownTokenDetail</c>.</summary>
+/// <summary>Schema for the `ShutdownTokenDetail` type.</summary>
+/// <remarks>Nested data type for <c>ShutdownTokenDetail</c>.</remarks>
 public partial class ShutdownTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
@@ -3544,7 +3580,8 @@ public partial class AssistantUsageCopilotUsage
     public required double TotalNanoAiu { get; set; }
 }
 
-/// <summary>Nested data type for <c>AssistantUsageQuotaSnapshot</c>.</summary>
+/// <summary>Schema for the `AssistantUsageQuotaSnapshot` type.</summary>
+/// <remarks>Nested data type for <c>AssistantUsageQuotaSnapshot</c>.</remarks>
 public partial class AssistantUsageQuotaSnapshot
 {
     /// <summary>Total requests allowed by the entitlement.</summary>
@@ -3733,7 +3770,8 @@ public partial class ToolExecutionCompleteContentResourceLink : ToolExecutionCom
     public required string Uri { get; set; }
 }
 
-/// <summary>Nested data type for <c>EmbeddedTextResourceContents</c>.</summary>
+/// <summary>Schema for the `EmbeddedTextResourceContents` type.</summary>
+/// <remarks>Nested data type for <c>EmbeddedTextResourceContents</c>.</remarks>
 public partial class EmbeddedTextResourceContents
 {
     /// <summary>MIME type of the text content.</summary>
@@ -3750,7 +3788,8 @@ public partial class EmbeddedTextResourceContents
     public required string Uri { get; set; }
 }
 
-/// <summary>Nested data type for <c>EmbeddedBlobResourceContents</c>.</summary>
+/// <summary>Schema for the `EmbeddedBlobResourceContents` type.</summary>
+/// <remarks>Nested data type for <c>EmbeddedBlobResourceContents</c>.</remarks>
 public partial class EmbeddedBlobResourceContents
 {
     /// <summary>Base64-encoded binary content of the resource.</summary>
@@ -3926,7 +3965,8 @@ public partial class SystemMessageMetadata
     public IDictionary<string, object>? Variables { get; set; }
 }
 
-/// <summary>The <c>agent_completed</c> variant of <see cref="SystemNotification"/>.</summary>
+/// <summary>Schema for the `SystemNotificationAgentCompleted` type.</summary>
+/// <remarks>The <c>agent_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
 public partial class SystemNotificationAgentCompleted : SystemNotification
 {
     /// <inheritdoc />
@@ -3956,7 +3996,8 @@ public partial class SystemNotificationAgentCompleted : SystemNotification
     public required SystemNotificationAgentCompletedStatus Status { get; set; }
 }
 
-/// <summary>The <c>agent_idle</c> variant of <see cref="SystemNotification"/>.</summary>
+/// <summary>Schema for the `SystemNotificationAgentIdle` type.</summary>
+/// <remarks>The <c>agent_idle</c> variant of <see cref="SystemNotification"/>.</remarks>
 public partial class SystemNotificationAgentIdle : SystemNotification
 {
     /// <inheritdoc />
@@ -3977,7 +4018,8 @@ public partial class SystemNotificationAgentIdle : SystemNotification
     public string? Description { get; set; }
 }
 
-/// <summary>The <c>new_inbox_message</c> variant of <see cref="SystemNotification"/>.</summary>
+/// <summary>Schema for the `SystemNotificationNewInboxMessage` type.</summary>
+/// <remarks>The <c>new_inbox_message</c> variant of <see cref="SystemNotification"/>.</remarks>
 public partial class SystemNotificationNewInboxMessage : SystemNotification
 {
     /// <inheritdoc />
@@ -4001,7 +4043,8 @@ public partial class SystemNotificationNewInboxMessage : SystemNotification
     public required string Summary { get; set; }
 }
 
-/// <summary>The <c>shell_completed</c> variant of <see cref="SystemNotification"/>.</summary>
+/// <summary>Schema for the `SystemNotificationShellCompleted` type.</summary>
+/// <remarks>The <c>shell_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
 public partial class SystemNotificationShellCompleted : SystemNotification
 {
     /// <inheritdoc />
@@ -4023,7 +4066,8 @@ public partial class SystemNotificationShellCompleted : SystemNotification
     public required string ShellId { get; set; }
 }
 
-/// <summary>The <c>shell_detached_completed</c> variant of <see cref="SystemNotification"/>.</summary>
+/// <summary>Schema for the `SystemNotificationShellDetachedCompleted` type.</summary>
+/// <remarks>The <c>shell_detached_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
 public partial class SystemNotificationShellDetachedCompleted : SystemNotification
 {
     /// <inheritdoc />
@@ -4040,7 +4084,8 @@ public partial class SystemNotificationShellDetachedCompleted : SystemNotificati
     public required string ShellId { get; set; }
 }
 
-/// <summary>The <c>instruction_discovered</c> variant of <see cref="SystemNotification"/>.</summary>
+/// <summary>Schema for the `SystemNotificationInstructionDiscovered` type.</summary>
+/// <remarks>The <c>instruction_discovered</c> variant of <see cref="SystemNotification"/>.</remarks>
 public partial class SystemNotificationInstructionDiscovered : SystemNotification
 {
     /// <inheritdoc />
@@ -4084,7 +4129,8 @@ public partial class SystemNotification
 }
 
 
-/// <summary>Nested data type for <c>PermissionRequestShellCommand</c>.</summary>
+/// <summary>Schema for the `PermissionRequestShellCommand` type.</summary>
+/// <remarks>Nested data type for <c>PermissionRequestShellCommand</c>.</remarks>
 public partial class PermissionRequestShellCommand
 {
     /// <summary>Command identifier (e.g., executable name).</summary>
@@ -4096,7 +4142,8 @@ public partial class PermissionRequestShellCommand
     public required bool ReadOnly { get; set; }
 }
 
-/// <summary>Nested data type for <c>PermissionRequestShellPossibleUrl</c>.</summary>
+/// <summary>Schema for the `PermissionRequestShellPossibleUrl` type.</summary>
+/// <remarks>Nested data type for <c>PermissionRequestShellPossibleUrl</c>.</remarks>
 public partial class PermissionRequestShellPossibleUrl
 {
     /// <summary>URL that may be accessed by the command.</summary>
@@ -4765,7 +4812,8 @@ public partial class PermissionPromptRequest
 }
 
 
-/// <summary>The <c>approved</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionApproved` type.</summary>
+/// <remarks>The <c>approved</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultApproved : PermissionResult
 {
     /// <inheritdoc />
@@ -4773,7 +4821,8 @@ public partial class PermissionResultApproved : PermissionResult
     public override string Kind => "approved";
 }
 
-/// <summary>The <c>commands</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+/// <summary>Schema for the `UserToolSessionApprovalCommands` type.</summary>
+/// <remarks>The <c>commands</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public partial class UserToolSessionApprovalCommands : UserToolSessionApproval
 {
     /// <inheritdoc />
@@ -4785,7 +4834,8 @@ public partial class UserToolSessionApprovalCommands : UserToolSessionApproval
     public required string[] CommandIdentifiers { get; set; }
 }
 
-/// <summary>The <c>read</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+/// <summary>Schema for the `UserToolSessionApprovalRead` type.</summary>
+/// <remarks>The <c>read</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public partial class UserToolSessionApprovalRead : UserToolSessionApproval
 {
     /// <inheritdoc />
@@ -4793,7 +4843,8 @@ public partial class UserToolSessionApprovalRead : UserToolSessionApproval
     public override string Kind => "read";
 }
 
-/// <summary>The <c>write</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+/// <summary>Schema for the `UserToolSessionApprovalWrite` type.</summary>
+/// <remarks>The <c>write</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public partial class UserToolSessionApprovalWrite : UserToolSessionApproval
 {
     /// <inheritdoc />
@@ -4801,7 +4852,8 @@ public partial class UserToolSessionApprovalWrite : UserToolSessionApproval
     public override string Kind => "write";
 }
 
-/// <summary>The <c>mcp</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+/// <summary>Schema for the `UserToolSessionApprovalMcp` type.</summary>
+/// <remarks>The <c>mcp</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public partial class UserToolSessionApprovalMcp : UserToolSessionApproval
 {
     /// <inheritdoc />
@@ -4817,7 +4869,8 @@ public partial class UserToolSessionApprovalMcp : UserToolSessionApproval
     public string? ToolName { get; set; }
 }
 
-/// <summary>The <c>memory</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+/// <summary>Schema for the `UserToolSessionApprovalMemory` type.</summary>
+/// <remarks>The <c>memory</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public partial class UserToolSessionApprovalMemory : UserToolSessionApproval
 {
     /// <inheritdoc />
@@ -4825,7 +4878,8 @@ public partial class UserToolSessionApprovalMemory : UserToolSessionApproval
     public override string Kind => "memory";
 }
 
-/// <summary>The <c>custom-tool</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+/// <summary>Schema for the `UserToolSessionApprovalCustomTool` type.</summary>
+/// <remarks>The <c>custom-tool</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public partial class UserToolSessionApprovalCustomTool : UserToolSessionApproval
 {
     /// <inheritdoc />
@@ -4837,7 +4891,8 @@ public partial class UserToolSessionApprovalCustomTool : UserToolSessionApproval
     public required string ToolName { get; set; }
 }
 
-/// <summary>The <c>extension-management</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+/// <summary>Schema for the `UserToolSessionApprovalExtensionManagement` type.</summary>
+/// <remarks>The <c>extension-management</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public partial class UserToolSessionApprovalExtensionManagement : UserToolSessionApproval
 {
     /// <inheritdoc />
@@ -4850,7 +4905,8 @@ public partial class UserToolSessionApprovalExtensionManagement : UserToolSessio
     public string? Operation { get; set; }
 }
 
-/// <summary>The <c>extension-permission-access</c> variant of <see cref="UserToolSessionApproval"/>.</summary>
+/// <summary>Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.</summary>
+/// <remarks>The <c>extension-permission-access</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public partial class UserToolSessionApprovalExtensionPermissionAccess : UserToolSessionApproval
 {
     /// <inheritdoc />
@@ -4883,7 +4939,8 @@ public partial class UserToolSessionApproval
 }
 
 
-/// <summary>The <c>approved-for-session</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionApprovedForSession` type.</summary>
+/// <remarks>The <c>approved-for-session</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultApprovedForSession : PermissionResult
 {
     /// <inheritdoc />
@@ -4895,7 +4952,8 @@ public partial class PermissionResultApprovedForSession : PermissionResult
     public required UserToolSessionApproval Approval { get; set; }
 }
 
-/// <summary>The <c>approved-for-location</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionApprovedForLocation` type.</summary>
+/// <remarks>The <c>approved-for-location</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultApprovedForLocation : PermissionResult
 {
     /// <inheritdoc />
@@ -4911,7 +4969,8 @@ public partial class PermissionResultApprovedForLocation : PermissionResult
     public required string LocationKey { get; set; }
 }
 
-/// <summary>The <c>cancelled</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionCancelled` type.</summary>
+/// <remarks>The <c>cancelled</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultCancelled : PermissionResult
 {
     /// <inheritdoc />
@@ -4924,7 +4983,8 @@ public partial class PermissionResultCancelled : PermissionResult
     public string? Reason { get; set; }
 }
 
-/// <summary>Nested data type for <c>PermissionRule</c>.</summary>
+/// <summary>Schema for the `PermissionRule` type.</summary>
+/// <remarks>Nested data type for <c>PermissionRule</c>.</remarks>
 public partial class PermissionRule
 {
     /// <summary>Optional rule argument matched against the request.</summary>
@@ -4936,7 +4996,8 @@ public partial class PermissionRule
     public required string Kind { get; set; }
 }
 
-/// <summary>The <c>denied-by-rules</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionDeniedByRules` type.</summary>
+/// <remarks>The <c>denied-by-rules</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultDeniedByRules : PermissionResult
 {
     /// <inheritdoc />
@@ -4948,7 +5009,8 @@ public partial class PermissionResultDeniedByRules : PermissionResult
     public required PermissionRule[] Rules { get; set; }
 }
 
-/// <summary>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.</summary>
+/// <remarks>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionResult
 {
     /// <inheritdoc />
@@ -4956,7 +5018,8 @@ public partial class PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromU
     public override string Kind => "denied-no-approval-rule-and-could-not-request-from-user";
 }
 
-/// <summary>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionDeniedInteractivelyByUser` type.</summary>
+/// <remarks>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultDeniedInteractivelyByUser : PermissionResult
 {
     /// <inheritdoc />
@@ -4974,7 +5037,8 @@ public partial class PermissionResultDeniedInteractivelyByUser : PermissionResul
     public bool? ForceReject { get; set; }
 }
 
-/// <summary>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionDeniedByContentExclusionPolicy` type.</summary>
+/// <remarks>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultDeniedByContentExclusionPolicy : PermissionResult
 {
     /// <inheritdoc />
@@ -4990,7 +5054,8 @@ public partial class PermissionResultDeniedByContentExclusionPolicy : Permission
     public required string Path { get; set; }
 }
 
-/// <summary>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionResult"/>.</summary>
+/// <summary>Schema for the `PermissionDeniedByPermissionRequestHook` type.</summary>
+/// <remarks>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionResult"/>.</remarks>
 public partial class PermissionResultDeniedByPermissionRequestHook : PermissionResult
 {
     /// <inheritdoc />
@@ -5067,15 +5132,16 @@ public partial class McpOauthRequiredStaticClientConfig
     public bool? PublicClient { get; set; }
 }
 
-/// <summary>Nested data type for <c>CommandsChangedCommand</c>.</summary>
+/// <summary>Schema for the `CommandsChangedCommand` type.</summary>
+/// <remarks>Nested data type for <c>CommandsChangedCommand</c>.</remarks>
 public partial class CommandsChangedCommand
 {
-    /// <summary>Gets or sets the <c>description</c> value.</summary>
+    /// <summary>Optional human-readable command description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("description")]
     public string? Description { get; set; }
 
-    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    /// <summary>Slash command name without the leading slash.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 }
@@ -5090,7 +5156,8 @@ public partial class CapabilitiesChangedUI
     public bool? Elicitation { get; set; }
 }
 
-/// <summary>Nested data type for <c>SkillsLoadedSkill</c>.</summary>
+/// <summary>Schema for the `SkillsLoadedSkill` type.</summary>
+/// <remarks>Nested data type for <c>SkillsLoadedSkill</c>.</remarks>
 public partial class SkillsLoadedSkill
 {
     /// <summary>Description of what the skill does.</summary>
@@ -5119,7 +5186,8 @@ public partial class SkillsLoadedSkill
     public required bool UserInvocable { get; set; }
 }
 
-/// <summary>Nested data type for <c>CustomAgentsUpdatedAgent</c>.</summary>
+/// <summary>Schema for the `CustomAgentsUpdatedAgent` type.</summary>
+/// <remarks>Nested data type for <c>CustomAgentsUpdatedAgent</c>.</remarks>
 public partial class CustomAgentsUpdatedAgent
 {
     /// <summary>Description of what the agent does.</summary>
@@ -5156,7 +5224,8 @@ public partial class CustomAgentsUpdatedAgent
     public required bool UserInvocable { get; set; }
 }
 
-/// <summary>Nested data type for <c>McpServersLoadedServer</c>.</summary>
+/// <summary>Schema for the `McpServersLoadedServer` type.</summary>
+/// <remarks>Nested data type for <c>McpServersLoadedServer</c>.</remarks>
 public partial class McpServersLoadedServer
 {
     /// <summary>Error message if the server failed to connect.</summary>
@@ -5178,7 +5247,8 @@ public partial class McpServersLoadedServer
     public required McpServersLoadedServerStatus Status { get; set; }
 }
 
-/// <summary>Nested data type for <c>ExtensionsLoadedExtension</c>.</summary>
+/// <summary>Schema for the `ExtensionsLoadedExtension` type.</summary>
+/// <remarks>Nested data type for <c>ExtensionsLoadedExtension</c>.</remarks>
 public partial class ExtensionsLoadedExtension
 {
     /// <summary>Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper').</summary>
@@ -5255,6 +5325,70 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
         public override void Write(Utf8JsonWriter writer, WorkingDirectoryContextHostType value, JsonSerializerOptions options)
         {
             GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkingDirectoryContextHostType));
+        }
+    }
+}
+
+/// <summary>Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed").</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ReasoningSummary"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ReasoningSummary"/>.</param>
+    [JsonConstructor]
+    public ReasoningSummary(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ReasoningSummary"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>none</c> value.</summary>
+    public static ReasoningSummary None { get; } = new("none");
+
+    /// <summary>Gets the <c>concise</c> value.</summary>
+    public static ReasoningSummary Concise { get; } = new("concise");
+
+    /// <summary>Gets the <c>detailed</c> value.</summary>
+    public static ReasoningSummary Detailed { get; } = new("detailed");
+
+    /// <summary>Returns a value indicating whether two <see cref="ReasoningSummary"/> instances are equivalent.</summary>
+    public static bool operator ==(ReasoningSummary left, ReasoningSummary right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ReasoningSummary"/> instances are not equivalent.</summary>
+    public static bool operator !=(ReasoningSummary left, ReasoningSummary right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ReasoningSummary other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ReasoningSummary other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ReasoningSummary}"/> for serializing <see cref="ReasoningSummary"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ReasoningSummary>
+    {
+        /// <inheritdoc />
+        public override ReasoningSummary Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ReasoningSummary value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ReasoningSummary));
         }
     }
 }

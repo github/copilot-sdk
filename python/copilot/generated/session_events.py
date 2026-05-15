@@ -760,6 +760,7 @@ class AssistantUsageData:
 
 @dataclass
 class AssistantUsageQuotaSnapshot:
+    "Schema for the `AssistantUsageQuotaSnapshot` type."
     entitlement_requests: float
     is_unlimited_entitlement: bool
     overage: float
@@ -972,6 +973,7 @@ class CommandQueuedData:
 
 @dataclass
 class CommandsChangedCommand:
+    "Schema for the `CommandsChangedCommand` type."
     name: str
     description: str | None = None
 
@@ -1118,6 +1120,7 @@ class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
 
 @dataclass
 class CustomAgentsUpdatedAgent:
+    "Schema for the `CustomAgentsUpdatedAgent` type."
     description: str
     display_name: str
     id: str
@@ -1270,6 +1273,7 @@ class ElicitationRequestedSchema:
 
 @dataclass
 class EmbeddedBlobResourceContents:
+    "Schema for the `EmbeddedBlobResourceContents` type."
     blob: str
     uri: str
     mime_type: str | None = None
@@ -1297,6 +1301,7 @@ class EmbeddedBlobResourceContents:
 
 @dataclass
 class EmbeddedTextResourceContents:
+    "Schema for the `EmbeddedTextResourceContents` type."
     text: str
     uri: str
     mime_type: str | None = None
@@ -1398,6 +1403,7 @@ class ExitPlanModeRequestedData:
 
 @dataclass
 class ExtensionsLoadedExtension:
+    "Schema for the `ExtensionsLoadedExtension` type."
     id: str
     name: str
     source: ExtensionsLoadedExtensionSource
@@ -1690,6 +1696,7 @@ class McpOauthRequiredStaticClientConfig:
 
 @dataclass
 class McpServersLoadedServer:
+    "Schema for the `McpServersLoadedServer` type."
     name: str
     status: McpServersLoadedServerStatus
     error: str | None = None
@@ -2154,6 +2161,7 @@ class PermissionRequest:
 
 @dataclass
 class PermissionRequestShellCommand:
+    "Schema for the `PermissionRequestShellCommand` type."
     identifier: str
     read_only: bool
 
@@ -2176,6 +2184,7 @@ class PermissionRequestShellCommand:
 
 @dataclass
 class PermissionRequestShellPossibleUrl:
+    "Schema for the `PermissionRequestShellPossibleUrl` type."
     url: str
 
     @staticmethod
@@ -2291,6 +2300,7 @@ class PermissionResult:
 
 @dataclass
 class PermissionRule:
+    "Schema for the `PermissionRule` type."
     argument: str | None
     kind: str
 
@@ -2359,6 +2369,7 @@ class SamplingRequestedData:
 
 @dataclass
 class SessionBackgroundTasksChangedData:
+    "Schema for the `BackgroundTasksChangedData` type."
     @staticmethod
     def from_dict(obj: Any) -> "SessionBackgroundTasksChangedData":
         assert isinstance(obj, dict)
@@ -2543,6 +2554,7 @@ class SessionContextChangedData:
 
 @dataclass
 class SessionCustomAgentsUpdatedData:
+    "Schema for the `CustomAgentsUpdatedData` type."
     agents: list[CustomAgentsUpdatedAgent]
     errors: list[str]
     warnings: list[str]
@@ -2659,6 +2671,7 @@ class SessionErrorData:
 
 @dataclass
 class SessionExtensionsLoadedData:
+    "Schema for the `ExtensionsLoadedData` type."
     extensions: list[ExtensionsLoadedExtension]
 
     @staticmethod
@@ -2778,6 +2791,7 @@ class SessionInfoData:
 
 @dataclass
 class SessionMcpServerStatusChangedData:
+    "Schema for the `McpServerStatusChangedData` type."
     server_name: str
     status: McpServerStatusChangedStatus
 
@@ -2800,6 +2814,7 @@ class SessionMcpServerStatusChangedData:
 
 @dataclass
 class SessionMcpServersLoadedData:
+    "Schema for the `McpServersLoadedData` type."
     servers: list[McpServersLoadedServer]
 
     @staticmethod
@@ -2846,7 +2861,9 @@ class SessionModelChangeData:
     cause: str | None = None
     previous_model: str | None = None
     previous_reasoning_effort: str | None = None
+    previous_reasoning_summary: ReasoningSummary | None = None
     reasoning_effort: str | None = None
+    reasoning_summary: ReasoningSummary | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionModelChangeData":
@@ -2855,13 +2872,17 @@ class SessionModelChangeData:
         cause = from_union([from_none, from_str], obj.get("cause"))
         previous_model = from_union([from_none, from_str], obj.get("previousModel"))
         previous_reasoning_effort = from_union([from_none, from_str], obj.get("previousReasoningEffort"))
+        previous_reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("previousReasoningSummary"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
+        reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         return SessionModelChangeData(
             new_model=new_model,
             cause=cause,
             previous_model=previous_model,
             previous_reasoning_effort=previous_reasoning_effort,
+            previous_reasoning_summary=previous_reasoning_summary,
             reasoning_effort=reasoning_effort,
+            reasoning_summary=reasoning_summary,
         )
 
     def to_dict(self) -> dict:
@@ -2873,8 +2894,12 @@ class SessionModelChangeData:
             result["previousModel"] = from_union([from_none, from_str], self.previous_model)
         if self.previous_reasoning_effort is not None:
             result["previousReasoningEffort"] = from_union([from_none, from_str], self.previous_reasoning_effort)
+        if self.previous_reasoning_summary is not None:
+            result["previousReasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.previous_reasoning_summary)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
+        if self.reasoning_summary is not None:
+            result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         return result
 
 
@@ -2899,7 +2924,7 @@ class SessionPlanChangedData:
 
 @dataclass
 class SessionRemoteSteerableChangedData:
-    "Notifies Mission Control that the session's remote steering capability has changed"
+    "Notifies that the session's remote steering capability has changed"
     remote_steerable: bool
 
     @staticmethod
@@ -2925,6 +2950,7 @@ class SessionResumeData:
     context: WorkingDirectoryContext | None = None
     continue_pending_work: bool | None = None
     reasoning_effort: str | None = None
+    reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
     selected_model: str | None = None
     session_was_active: bool | None = None
@@ -2938,6 +2964,7 @@ class SessionResumeData:
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         continue_pending_work = from_union([from_none, from_bool], obj.get("continuePendingWork"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
+        reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
         session_was_active = from_union([from_none, from_bool], obj.get("sessionWasActive"))
@@ -2948,6 +2975,7 @@ class SessionResumeData:
             context=context,
             continue_pending_work=continue_pending_work,
             reasoning_effort=reasoning_effort,
+            reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
             selected_model=selected_model,
             session_was_active=session_was_active,
@@ -2965,6 +2993,8 @@ class SessionResumeData:
             result["continuePendingWork"] = from_union([from_none, from_bool], self.continue_pending_work)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
+        if self.reasoning_summary is not None:
+            result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
         if self.selected_model is not None:
@@ -2999,6 +3029,7 @@ class SessionScheduleCreatedData:
     id: int
     interval_ms: int
     prompt: str
+    display_prompt: str | None = None
     recurring: bool | None = None
 
     @staticmethod
@@ -3007,11 +3038,13 @@ class SessionScheduleCreatedData:
         id = from_int(obj.get("id"))
         interval_ms = from_int(obj.get("intervalMs"))
         prompt = from_str(obj.get("prompt"))
+        display_prompt = from_union([from_none, from_str], obj.get("displayPrompt"))
         recurring = from_union([from_none, from_bool], obj.get("recurring"))
         return SessionScheduleCreatedData(
             id=id,
             interval_ms=interval_ms,
             prompt=prompt,
+            display_prompt=display_prompt,
             recurring=recurring,
         )
 
@@ -3020,6 +3053,8 @@ class SessionScheduleCreatedData:
         result["id"] = to_int(self.id)
         result["intervalMs"] = to_int(self.interval_ms)
         result["prompt"] = from_str(self.prompt)
+        if self.display_prompt is not None:
+            result["displayPrompt"] = from_union([from_none, from_str], self.display_prompt)
         if self.recurring is not None:
             result["recurring"] = from_union([from_none, from_bool], self.recurring)
         return result
@@ -3106,6 +3141,7 @@ class SessionShutdownData:
 
 @dataclass
 class SessionSkillsLoadedData:
+    "Schema for the `SkillsLoadedData` type."
     skills: list[SkillsLoadedSkill]
 
     @staticmethod
@@ -3157,6 +3193,7 @@ class SessionStartData:
     context: WorkingDirectoryContext | None = None
     detached_from_spawning_parent_session_id: str | None = None
     reasoning_effort: str | None = None
+    reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
     selected_model: str | None = None
 
@@ -3172,6 +3209,7 @@ class SessionStartData:
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
+        reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
         return SessionStartData(
@@ -3184,6 +3222,7 @@ class SessionStartData:
             context=context,
             detached_from_spawning_parent_session_id=detached_from_spawning_parent_session_id,
             reasoning_effort=reasoning_effort,
+            reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
             selected_model=selected_model,
         )
@@ -3203,6 +3242,8 @@ class SessionStartData:
             result["detachedFromSpawningParentSessionId"] = from_union([from_none, from_str], self.detached_from_spawning_parent_session_id)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
+        if self.reasoning_summary is not None:
+            result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.remote_steerable is not None:
             result["remoteSteerable"] = from_union([from_none, from_bool], self.remote_steerable)
         if self.selected_model is not None:
@@ -3256,6 +3297,7 @@ class SessionTitleChangedData:
 
 @dataclass
 class SessionToolsUpdatedData:
+    "Schema for the `ToolsUpdatedData` type."
     model: str
 
     @staticmethod
@@ -3446,6 +3488,7 @@ class ShutdownCodeChanges:
 
 @dataclass
 class ShutdownModelMetric:
+    "Schema for the `ShutdownModelMetric` type."
     requests: ShutdownModelMetricRequests
     usage: ShutdownModelMetricUsage
     token_details: dict[str, ShutdownModelMetricTokenDetail] | None = None
@@ -3501,6 +3544,7 @@ class ShutdownModelMetricRequests:
 
 @dataclass
 class ShutdownModelMetricTokenDetail:
+    "Schema for the `ShutdownModelMetricTokenDetail` type."
     token_count: float
 
     @staticmethod
@@ -3555,6 +3599,7 @@ class ShutdownModelMetricUsage:
 
 @dataclass
 class ShutdownTokenDetail:
+    "Schema for the `ShutdownTokenDetail` type."
     token_count: float
 
     @staticmethod
@@ -3620,6 +3665,7 @@ class SkillInvokedData:
 
 @dataclass
 class SkillsLoadedSkill:
+    "Schema for the `SkillsLoadedSkill` type."
     description: str
     enabled: bool
     name: str
@@ -4598,6 +4644,7 @@ class UserMessageAttachmentSelectionDetailsStart:
 
 @dataclass
 class UserMessageData:
+    "Schema for the `UserMessageData` type."
     content: str
     agent_mode: UserMessageAgentMode | None = None
     attachments: list[UserMessageAttachment] | None = None
@@ -4920,6 +4967,13 @@ class PlanChangedOperation(Enum):
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
+
+
+class ReasoningSummary(Enum):
+    "Reasoning summary mode used for model calls, if applicable (e.g. \"none\", \"concise\", \"detailed\")"
+    NONE = "none"
+    CONCISE = "concise"
+    DETAILED = "detailed"
 
 
 class ShutdownType(Enum):

@@ -17,7 +17,7 @@ using System.Text.Json.Serialization;
 
 namespace GitHub.Copilot.SDK.Rpc;
 
-/// <summary>RPC data type for Ping operations.</summary>
+/// <summary>Server liveness response, including the echoed message, current timestamp, and protocol version.</summary>
 public sealed class PingResult
 {
     /// <summary>Echoed message (or default greeting).</summary>
@@ -33,7 +33,7 @@ public sealed class PingResult
     public long Timestamp { get; set; }
 }
 
-/// <summary>RPC data type for Ping operations.</summary>
+/// <summary>Optional message to echo back to the caller.</summary>
 internal sealed class PingRequest
 {
     /// <summary>Optional message to echo back.</summary>
@@ -41,7 +41,7 @@ internal sealed class PingRequest
     public string? Message { get; set; }
 }
 
-/// <summary>RPC data type for Connect operations.</summary>
+/// <summary>Handshake result reporting the server's protocol version and package version on success.</summary>
 internal sealed class ConnectResult
 {
     /// <summary>Always true on success.</summary>
@@ -57,7 +57,7 @@ internal sealed class ConnectResult
     public string Version { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for Connect operations.</summary>
+/// <summary>Optional connection token presented by the SDK client during the handshake.</summary>
 internal sealed class ConnectRequest
 {
     /// <summary>Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</summary>
@@ -174,7 +174,7 @@ public sealed class ModelPolicy
     public string? Terms { get; set; }
 }
 
-/// <summary>RPC data type for Model operations.</summary>
+/// <summary>Schema for the `Model` type.</summary>
 public sealed class Model
 {
     /// <summary>Billing information.</summary>
@@ -214,7 +214,7 @@ public sealed class Model
     public IList<string>? SupportedReasoningEfforts { get; set; }
 }
 
-/// <summary>RPC data type for ModelList operations.</summary>
+/// <summary>List of Copilot models available to the resolved user, including capabilities and billing metadata.</summary>
 public sealed class ModelList
 {
     /// <summary>List of available models with full metadata.</summary>
@@ -230,7 +230,7 @@ internal sealed class ModelsListRequest
     public string? GitHubToken { get; set; }
 }
 
-/// <summary>RPC data type for Tool operations.</summary>
+/// <summary>Schema for the `Tool` type.</summary>
 public sealed class Tool
 {
     /// <summary>Description of what the tool does.</summary>
@@ -254,7 +254,7 @@ public sealed class Tool
     public IDictionary<string, object>? Parameters { get; set; }
 }
 
-/// <summary>RPC data type for ToolList operations.</summary>
+/// <summary>Built-in tools available for the requested model, with their parameters and instructions.</summary>
 public sealed class ToolList
 {
     /// <summary>List of available built-in tools with metadata.</summary>
@@ -262,7 +262,7 @@ public sealed class ToolList
     public IList<Tool> Tools { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for ToolsList operations.</summary>
+/// <summary>Optional model identifier whose tool overrides should be applied to the listing.</summary>
 internal sealed class ToolsListRequest
 {
     /// <summary>Optional model ID — when provided, the returned tool list reflects model-specific overrides.</summary>
@@ -270,7 +270,7 @@ internal sealed class ToolsListRequest
     public string? Model { get; set; }
 }
 
-/// <summary>RPC data type for AccountQuotaSnapshot operations.</summary>
+/// <summary>Schema for the `AccountQuotaSnapshot` type.</summary>
 public sealed class AccountQuotaSnapshot
 {
     /// <summary>Number of requests included in the entitlement.</summary>
@@ -308,7 +308,7 @@ public sealed class AccountQuotaSnapshot
     public long UsedRequests { get; set; }
 }
 
-/// <summary>RPC data type for AccountGetQuota operations.</summary>
+/// <summary>Quota usage snapshots for the resolved user, keyed by quota type.</summary>
 public sealed class AccountGetQuotaResult
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions).</summary>
@@ -324,7 +324,7 @@ internal sealed class AccountGetQuotaRequest
     public string? GitHubToken { get; set; }
 }
 
-/// <summary>RPC data type for DiscoveredMcpServer operations.</summary>
+/// <summary>Schema for the `DiscoveredMcpServer` type.</summary>
 public sealed class DiscoveredMcpServer
 {
     /// <summary>Whether the server is enabled (not in the disabled list).</summary>
@@ -347,7 +347,7 @@ public sealed class DiscoveredMcpServer
     public DiscoveredMcpServerType? Type { get; set; }
 }
 
-/// <summary>RPC data type for McpDiscover operations.</summary>
+/// <summary>MCP servers discovered from user, workspace, plugin, and built-in sources.</summary>
 public sealed class McpDiscoverResult
 {
     /// <summary>MCP servers discovered from all sources.</summary>
@@ -355,7 +355,7 @@ public sealed class McpDiscoverResult
     public IList<DiscoveredMcpServer> Servers { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for McpDiscover operations.</summary>
+/// <summary>Optional working directory used as context for MCP server discovery.</summary>
 internal sealed class McpDiscoverRequest
 {
     /// <summary>Working directory used as context for discovery (e.g., plugin resolution).</summary>
@@ -363,7 +363,7 @@ internal sealed class McpDiscoverRequest
     public string? WorkingDirectory { get; set; }
 }
 
-/// <summary>RPC data type for McpConfigList operations.</summary>
+/// <summary>User-configured MCP servers, keyed by server name.</summary>
 public sealed class McpConfigList
 {
     /// <summary>All MCP servers from user config, keyed by name.</summary>
@@ -371,7 +371,7 @@ public sealed class McpConfigList
     public IDictionary<string, object> Servers { get => field ??= new Dictionary<string, object>(); set; }
 }
 
-/// <summary>RPC data type for McpConfigAdd operations.</summary>
+/// <summary>MCP server name and configuration to add to user configuration.</summary>
 internal sealed class McpConfigAddRequest
 {
     /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
@@ -386,7 +386,7 @@ internal sealed class McpConfigAddRequest
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for McpConfigUpdate operations.</summary>
+/// <summary>MCP server name and replacement configuration to write to user configuration.</summary>
 internal sealed class McpConfigUpdateRequest
 {
     /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
@@ -401,7 +401,7 @@ internal sealed class McpConfigUpdateRequest
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for McpConfigRemove operations.</summary>
+/// <summary>MCP server name to remove from user configuration.</summary>
 internal sealed class McpConfigRemoveRequest
 {
     /// <summary>Name of the MCP server to remove.</summary>
@@ -412,7 +412,7 @@ internal sealed class McpConfigRemoveRequest
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for McpConfigEnable operations.</summary>
+/// <summary>MCP server names to enable for new sessions.</summary>
 internal sealed class McpConfigEnableRequest
 {
     /// <summary>Names of MCP servers to enable. Each server is removed from the persisted disabled list so new sessions spawn it. Unknown or already-enabled names are ignored.</summary>
@@ -420,7 +420,7 @@ internal sealed class McpConfigEnableRequest
     public IList<string> Names { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for McpConfigDisable operations.</summary>
+/// <summary>MCP server names to disable for new sessions.</summary>
 internal sealed class McpConfigDisableRequest
 {
     /// <summary>Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.</summary>
@@ -428,7 +428,7 @@ internal sealed class McpConfigDisableRequest
     public IList<string> Names { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for ServerSkill operations.</summary>
+/// <summary>Schema for the `ServerSkill` type.</summary>
 public sealed class ServerSkill
 {
     /// <summary>Description of what the skill does.</summary>
@@ -460,7 +460,7 @@ public sealed class ServerSkill
     public bool UserInvocable { get; set; }
 }
 
-/// <summary>RPC data type for ServerSkillList operations.</summary>
+/// <summary>Skills discovered across global and project sources.</summary>
 public sealed class ServerSkillList
 {
     /// <summary>All discovered skills across all sources.</summary>
@@ -468,7 +468,7 @@ public sealed class ServerSkillList
     public IList<ServerSkill> Skills { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SkillsDiscover operations.</summary>
+/// <summary>Optional project paths and additional skill directories to include in discovery.</summary>
 internal sealed class SkillsDiscoverRequest
 {
     /// <summary>Optional list of project directory paths to scan for project-scoped skills.</summary>
@@ -480,7 +480,7 @@ internal sealed class SkillsDiscoverRequest
     public IList<string>? SkillDirectories { get; set; }
 }
 
-/// <summary>RPC data type for SkillsConfigSetDisabledSkills operations.</summary>
+/// <summary>Skill names to mark as disabled in global configuration, replacing any previous list.</summary>
 internal sealed class SkillsConfigSetDisabledSkillsRequest
 {
     /// <summary>List of skill names to disable.</summary>
@@ -488,7 +488,7 @@ internal sealed class SkillsConfigSetDisabledSkillsRequest
     public IList<string> DisabledSkills { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionFsSetProvider operations.</summary>
+/// <summary>Indicates whether the calling client was registered as the session filesystem provider.</summary>
 public sealed class SessionFsSetProviderResult
 {
     /// <summary>Whether the provider was set successfully.</summary>
@@ -496,7 +496,7 @@ public sealed class SessionFsSetProviderResult
     public bool Success { get; set; }
 }
 
-/// <summary>RPC data type for SessionFsSetProvider operations.</summary>
+/// <summary>Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.</summary>
 internal sealed class SessionFsSetProviderRequest
 {
     /// <summary>Path conventions used by this filesystem.</summary>
@@ -512,7 +512,7 @@ internal sealed class SessionFsSetProviderRequest
     public string SessionStatePath { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionsFork operations.</summary>
+/// <summary>Identifier and optional friendly name assigned to the newly forked session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionsForkResult
 {
@@ -525,7 +525,7 @@ public sealed class SessionsForkResult
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionsFork operations.</summary>
+/// <summary>Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionsForkRequest
 {
@@ -542,7 +542,7 @@ internal sealed class SessionsForkRequest
     public string? ToEventId { get; set; }
 }
 
-/// <summary>RPC data type for SessionSuspend operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionSuspendRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -550,7 +550,7 @@ internal sealed class SessionSuspendRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for Log operations.</summary>
+/// <summary>Identifier of the session event that was emitted for the log message.</summary>
 public sealed class LogResult
 {
     /// <summary>The unique identifier of the emitted session event.</summary>
@@ -558,7 +558,7 @@ public sealed class LogResult
     public Guid EventId { get; set; }
 }
 
-/// <summary>RPC data type for Log operations.</summary>
+/// <summary>Message text, optional severity level, persistence flag, and optional follow-up URL.</summary>
 internal sealed class LogRequest
 {
     /// <summary>When true, the message is transient and not persisted to the session event log on disk.</summary>
@@ -584,7 +584,7 @@ internal sealed class LogRequest
     public string? Url { get; set; }
 }
 
-/// <summary>RPC data type for SessionAuthStatus operations.</summary>
+/// <summary>Authentication status and account metadata for the session.</summary>
 public sealed class SessionAuthStatus
 {
     /// <summary>Authentication type.</summary>
@@ -612,7 +612,7 @@ public sealed class SessionAuthStatus
     public string? StatusMessage { get; set; }
 }
 
-/// <summary>RPC data type for SessionAuthGetStatus operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionAuthGetStatusRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -620,7 +620,7 @@ internal sealed class SessionAuthGetStatusRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for CurrentModel operations.</summary>
+/// <summary>The currently selected model for the session.</summary>
 public sealed class CurrentModel
 {
     /// <summary>Currently active model identifier.</summary>
@@ -628,7 +628,7 @@ public sealed class CurrentModel
     public string? ModelId { get; set; }
 }
 
-/// <summary>RPC data type for SessionModelGetCurrent operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionModelGetCurrentRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -636,7 +636,7 @@ internal sealed class SessionModelGetCurrentRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for ModelSwitchTo operations.</summary>
+/// <summary>The model identifier active on the session after the switch.</summary>
 public sealed class ModelSwitchToResult
 {
     /// <summary>Currently active model identifier after the switch.</summary>
@@ -644,7 +644,7 @@ public sealed class ModelSwitchToResult
     public string? ModelId { get; set; }
 }
 
-/// <summary>RPC data type for ModelCapabilitiesOverrideLimitsVision operations.</summary>
+/// <summary>Vision-specific limits.</summary>
 public sealed class ModelCapabilitiesOverrideLimitsVision
 {
     /// <summary>Maximum image size in bytes.</summary>
@@ -670,17 +670,17 @@ public sealed class ModelCapabilitiesOverrideLimits
     [JsonPropertyName("max_context_window_tokens")]
     public long? MaxContextWindowTokens { get; set; }
 
-    /// <summary>Gets or sets the <c>max_output_tokens</c> value.</summary>
+    /// <summary>Maximum number of output/completion tokens.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_output_tokens")]
     public long? MaxOutputTokens { get; set; }
 
-    /// <summary>Gets or sets the <c>max_prompt_tokens</c> value.</summary>
+    /// <summary>Maximum number of prompt/input tokens.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_tokens")]
     public long? MaxPromptTokens { get; set; }
 
-    /// <summary>Gets or sets the <c>vision</c> value.</summary>
+    /// <summary>Vision-specific limits.</summary>
     [JsonPropertyName("vision")]
     public ModelCapabilitiesOverrideLimitsVision? Vision { get; set; }
 }
@@ -688,11 +688,11 @@ public sealed class ModelCapabilitiesOverrideLimits
 /// <summary>Feature flags indicating what the model supports.</summary>
 public sealed class ModelCapabilitiesOverrideSupports
 {
-    /// <summary>Gets or sets the <c>reasoningEffort</c> value.</summary>
+    /// <summary>Whether this model supports reasoning effort configuration.</summary>
     [JsonPropertyName("reasoningEffort")]
     public bool? ReasoningEffort { get; set; }
 
-    /// <summary>Gets or sets the <c>vision</c> value.</summary>
+    /// <summary>Whether this model supports vision/image input.</summary>
     [JsonPropertyName("vision")]
     public bool? Vision { get; set; }
 }
@@ -709,7 +709,7 @@ public sealed class ModelCapabilitiesOverride
     public ModelCapabilitiesOverrideSupports? Supports { get; set; }
 }
 
-/// <summary>RPC data type for ModelSwitchTo operations.</summary>
+/// <summary>Target model identifier and optional reasoning effort, summary, and capability overrides.</summary>
 internal sealed class ModelSwitchToRequest
 {
     /// <summary>Override individual model capabilities resolved by the runtime.</summary>
@@ -720,16 +720,20 @@ internal sealed class ModelSwitchToRequest
     [JsonPropertyName("modelId")]
     public string ModelId { get; set; } = string.Empty;
 
-    /// <summary>Reasoning effort level to use for the model.</summary>
+    /// <summary>Reasoning effort level to use for the model. "none" disables reasoning.</summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>Reasoning summary mode to request for supported model clients.</summary>
+    [JsonPropertyName("reasoningSummary")]
+    public ReasoningSummary? ReasoningSummary { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionModeGet operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionModeGetRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -737,7 +741,7 @@ internal sealed class SessionModeGetRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for ModeSet operations.</summary>
+/// <summary>Agent interaction mode to apply to the session.</summary>
 internal sealed class ModeSetRequest
 {
     /// <summary>The agent mode. Valid values: "interactive", "plan", "autopilot".</summary>
@@ -749,7 +753,7 @@ internal sealed class ModeSetRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for NameGet operations.</summary>
+/// <summary>The session's friendly name, or null when not yet set.</summary>
 public sealed class NameGetResult
 {
     /// <summary>The session name (user-set or auto-generated), or null if not yet set.</summary>
@@ -757,7 +761,7 @@ public sealed class NameGetResult
     public string? Name { get; set; }
 }
 
-/// <summary>RPC data type for SessionNameGet operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionNameGetRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -765,7 +769,7 @@ internal sealed class SessionNameGetRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for NameSet operations.</summary>
+/// <summary>New friendly name to apply to the session.</summary>
 internal sealed class NameSetRequest
 {
     /// <summary>New session name (1–100 characters, trimmed of leading/trailing whitespace).</summary>
@@ -780,7 +784,7 @@ internal sealed class NameSetRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for PlanRead operations.</summary>
+/// <summary>Existence, contents, and resolved path of the session plan file.</summary>
 public sealed class PlanReadResult
 {
     /// <summary>The content of the plan file, or null if it does not exist.</summary>
@@ -796,7 +800,7 @@ public sealed class PlanReadResult
     public string? Path { get; set; }
 }
 
-/// <summary>RPC data type for SessionPlanRead operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionPlanReadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -804,7 +808,7 @@ internal sealed class SessionPlanReadRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for PlanUpdate operations.</summary>
+/// <summary>Replacement contents to write to the session plan file.</summary>
 internal sealed class PlanUpdateRequest
 {
     /// <summary>The new content for the plan file.</summary>
@@ -816,7 +820,7 @@ internal sealed class PlanUpdateRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionPlanDelete operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionPlanDeleteRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -893,7 +897,7 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     public bool? UserNamed { get; set; }
 }
 
-/// <summary>RPC data type for WorkspacesGetWorkspace operations.</summary>
+/// <summary>Current workspace metadata for the session, or null when not available.</summary>
 public sealed class WorkspacesGetWorkspaceResult
 {
     /// <summary>Current workspace metadata, or null if not available.</summary>
@@ -901,7 +905,7 @@ public sealed class WorkspacesGetWorkspaceResult
     public WorkspacesGetWorkspaceResultWorkspace? Workspace { get; set; }
 }
 
-/// <summary>RPC data type for SessionWorkspacesGetWorkspace operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionWorkspacesGetWorkspaceRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -909,7 +913,7 @@ internal sealed class SessionWorkspacesGetWorkspaceRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspacesListFiles operations.</summary>
+/// <summary>Relative paths of files stored in the session workspace files directory.</summary>
 public sealed class WorkspacesListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory.</summary>
@@ -917,7 +921,7 @@ public sealed class WorkspacesListFilesResult
     public IList<string> Files { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionWorkspacesListFiles operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionWorkspacesListFilesRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -925,7 +929,7 @@ internal sealed class SessionWorkspacesListFilesRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspacesReadFile operations.</summary>
+/// <summary>Contents of the requested workspace file as a UTF-8 string.</summary>
 public sealed class WorkspacesReadFileResult
 {
     /// <summary>File content as a UTF-8 string.</summary>
@@ -933,7 +937,7 @@ public sealed class WorkspacesReadFileResult
     public string Content { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspacesReadFile operations.</summary>
+/// <summary>Relative path of the workspace file to read.</summary>
 internal sealed class WorkspacesReadFileRequest
 {
     /// <summary>Relative path within the workspace files directory.</summary>
@@ -945,7 +949,7 @@ internal sealed class WorkspacesReadFileRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspacesCreateFile operations.</summary>
+/// <summary>Relative path and UTF-8 content for the workspace file to create or overwrite.</summary>
 internal sealed class WorkspacesCreateFileRequest
 {
     /// <summary>File content to write as a UTF-8 string.</summary>
@@ -961,7 +965,7 @@ internal sealed class WorkspacesCreateFileRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for InstructionsSources operations.</summary>
+/// <summary>Schema for the `InstructionsSources` type.</summary>
 public sealed class InstructionsSources
 {
     /// <summary>Glob pattern from frontmatter — when set, this instruction applies only to matching files.</summary>
@@ -997,7 +1001,7 @@ public sealed class InstructionsSources
     public InstructionsSourcesType Type { get; set; }
 }
 
-/// <summary>RPC data type for InstructionsGetSources operations.</summary>
+/// <summary>Instruction sources loaded for the session, in merge order.</summary>
 public sealed class InstructionsGetSourcesResult
 {
     /// <summary>Instruction sources for the session.</summary>
@@ -1005,7 +1009,7 @@ public sealed class InstructionsGetSourcesResult
     public IList<InstructionsSources> Sources { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionInstructionsGetSources operations.</summary>
+/// <summary>Identifies the target session.</summary>
 internal sealed class SessionInstructionsGetSourcesRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1013,7 +1017,7 @@ internal sealed class SessionInstructionsGetSourcesRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for FleetStart operations.</summary>
+/// <summary>Indicates whether fleet mode was successfully activated.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class FleetStartResult
 {
@@ -1022,7 +1026,7 @@ public sealed class FleetStartResult
     public bool Started { get; set; }
 }
 
-/// <summary>RPC data type for FleetStart operations.</summary>
+/// <summary>Optional user prompt to combine with the fleet orchestration instructions.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class FleetStartRequest
 {
@@ -1035,7 +1039,7 @@ internal sealed class FleetStartRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentInfo operations.</summary>
+/// <summary>Schema for the `AgentInfo` type.</summary>
 public sealed class AgentInfo
 {
     /// <summary>Description of the agent's purpose.</summary>
@@ -1055,7 +1059,7 @@ public sealed class AgentInfo
     public string? Path { get; set; }
 }
 
-/// <summary>RPC data type for AgentList operations.</summary>
+/// <summary>Custom agents available to the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentList
 {
@@ -1064,7 +1068,7 @@ public sealed class AgentList
     public IList<AgentInfo> Agents { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionAgentList operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionAgentListRequest
 {
@@ -1073,7 +1077,7 @@ internal sealed class SessionAgentListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentGetCurrent operations.</summary>
+/// <summary>The currently selected custom agent, or null when using the default agent.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentGetCurrentResult
 {
@@ -1082,7 +1086,7 @@ public sealed class AgentGetCurrentResult
     public AgentInfo? Agent { get; set; }
 }
 
-/// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionAgentGetCurrentRequest
 {
@@ -1091,7 +1095,7 @@ internal sealed class SessionAgentGetCurrentRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentSelect operations.</summary>
+/// <summary>The newly selected custom agent.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentSelectResult
 {
@@ -1100,7 +1104,7 @@ public sealed class AgentSelectResult
     public AgentInfo Agent { get => field ??= new(); set; }
 }
 
-/// <summary>RPC data type for AgentSelect operations.</summary>
+/// <summary>Name of the custom agent to select for subsequent turns.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class AgentSelectRequest
 {
@@ -1113,7 +1117,7 @@ internal sealed class AgentSelectRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionAgentDeselect operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionAgentDeselectRequest
 {
@@ -1122,7 +1126,7 @@ internal sealed class SessionAgentDeselectRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentReload operations.</summary>
+/// <summary>Custom agents available to the session after reloading definitions from disk.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentReloadResult
 {
@@ -1131,7 +1135,7 @@ public sealed class AgentReloadResult
     public IList<AgentInfo> Agents { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionAgentReload operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionAgentReloadRequest
 {
@@ -1140,7 +1144,7 @@ internal sealed class SessionAgentReloadRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for TasksStartAgent operations.</summary>
+/// <summary>Identifier assigned to the newly started background agent task.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksStartAgentResult
 {
@@ -1149,7 +1153,7 @@ public sealed class TasksStartAgentResult
     public string AgentId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for TasksStartAgent operations.</summary>
+/// <summary>Agent type, prompt, name, and optional description and model override for the new task.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class TasksStartAgentRequest
 {
@@ -1178,7 +1182,8 @@ internal sealed class TasksStartAgentRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Polymorphic base type discriminated by <c>type</c>.</summary>
+/// <summary>Schema for the `TaskInfo` type.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -1192,7 +1197,8 @@ public partial class TaskInfo
 }
 
 
-/// <summary>The <c>agent</c> variant of <see cref="TaskInfo"/>.</summary>
+/// <summary>Schema for the `TaskAgentInfo` type.</summary>
+/// <remarks>The <c>agent</c> variant of <see cref="TaskInfo"/>.</remarks>
 public partial class TaskInfoAgent : TaskInfo
 {
     /// <inheritdoc />
@@ -1279,7 +1285,8 @@ public partial class TaskInfoAgent : TaskInfo
     public required string ToolCallId { get; set; }
 }
 
-/// <summary>The <c>shell</c> variant of <see cref="TaskInfo"/>.</summary>
+/// <summary>Schema for the `TaskShellInfo` type.</summary>
+/// <remarks>The <c>shell</c> variant of <see cref="TaskInfo"/>.</remarks>
 public partial class TaskInfoShell : TaskInfo
 {
     /// <inheritdoc />
@@ -1336,7 +1343,7 @@ public partial class TaskInfoShell : TaskInfo
     public required TaskShellInfoStatus Status { get; set; }
 }
 
-/// <summary>RPC data type for TaskList operations.</summary>
+/// <summary>Background tasks currently tracked by the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TaskList
 {
@@ -1345,7 +1352,7 @@ public sealed class TaskList
     public IList<TaskInfo> Tasks { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionTasksList operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionTasksListRequest
 {
@@ -1354,7 +1361,7 @@ internal sealed class SessionTasksListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for TasksPromoteToBackground operations.</summary>
+/// <summary>Indicates whether the task was successfully promoted to background mode.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksPromoteToBackgroundResult
 {
@@ -1363,7 +1370,7 @@ public sealed class TasksPromoteToBackgroundResult
     public bool Promoted { get; set; }
 }
 
-/// <summary>RPC data type for TasksPromoteToBackground operations.</summary>
+/// <summary>Identifier of the task to promote to background mode.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class TasksPromoteToBackgroundRequest
 {
@@ -1376,7 +1383,7 @@ internal sealed class TasksPromoteToBackgroundRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for TasksCancel operations.</summary>
+/// <summary>Indicates whether the background task was successfully cancelled.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksCancelResult
 {
@@ -1385,7 +1392,7 @@ public sealed class TasksCancelResult
     public bool Cancelled { get; set; }
 }
 
-/// <summary>RPC data type for TasksCancel operations.</summary>
+/// <summary>Identifier of the background task to cancel.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class TasksCancelRequest
 {
@@ -1398,7 +1405,7 @@ internal sealed class TasksCancelRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for TasksRemove operations.</summary>
+/// <summary>Indicates whether the task was removed. False when the task does not exist or is still running/idle.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksRemoveResult
 {
@@ -1407,7 +1414,7 @@ public sealed class TasksRemoveResult
     public bool Removed { get; set; }
 }
 
-/// <summary>RPC data type for TasksRemove operations.</summary>
+/// <summary>Identifier of the completed or cancelled task to remove from tracking.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class TasksRemoveRequest
 {
@@ -1420,7 +1427,7 @@ internal sealed class TasksRemoveRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for TasksSendMessage operations.</summary>
+/// <summary>Indicates whether the message was delivered, with an error message when delivery failed.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksSendMessageResult
 {
@@ -1433,7 +1440,7 @@ public sealed class TasksSendMessageResult
     public bool Sent { get; set; }
 }
 
-/// <summary>RPC data type for TasksSendMessage operations.</summary>
+/// <summary>Identifier of the target agent task, message content, and optional sender agent ID.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class TasksSendMessageRequest
 {
@@ -1454,7 +1461,7 @@ internal sealed class TasksSendMessageRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for Skill operations.</summary>
+/// <summary>Schema for the `Skill` type.</summary>
 public sealed class Skill
 {
     /// <summary>Description of what the skill does.</summary>
@@ -1482,7 +1489,7 @@ public sealed class Skill
     public bool UserInvocable { get; set; }
 }
 
-/// <summary>RPC data type for SkillList operations.</summary>
+/// <summary>Skills available to the session, with their enabled state.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SkillList
 {
@@ -1491,7 +1498,7 @@ public sealed class SkillList
     public IList<Skill> Skills { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionSkillsList operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSkillsListRequest
 {
@@ -1500,7 +1507,7 @@ internal sealed class SessionSkillsListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SkillsEnable operations.</summary>
+/// <summary>Name of the skill to enable for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SkillsEnableRequest
 {
@@ -1513,7 +1520,7 @@ internal sealed class SkillsEnableRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SkillsDisable operations.</summary>
+/// <summary>Name of the skill to disable for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SkillsDisableRequest
 {
@@ -1526,7 +1533,7 @@ internal sealed class SkillsDisableRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SkillsLoadDiagnostics operations.</summary>
+/// <summary>Diagnostics from reloading skill definitions, with warnings and errors as separate lists.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SkillsLoadDiagnostics
 {
@@ -1539,7 +1546,7 @@ public sealed class SkillsLoadDiagnostics
     public IList<string> Warnings { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionSkillsReload operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSkillsReloadRequest
 {
@@ -1548,7 +1555,7 @@ internal sealed class SessionSkillsReloadRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for McpServer operations.</summary>
+/// <summary>Schema for the `McpServer` type.</summary>
 public sealed class McpServer
 {
     /// <summary>Error message if the server failed to connect.</summary>
@@ -1571,7 +1578,7 @@ public sealed class McpServer
     public McpServerStatus Status { get; set; }
 }
 
-/// <summary>RPC data type for McpServerList operations.</summary>
+/// <summary>MCP servers configured for the session, with their connection status.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpServerList
 {
@@ -1580,7 +1587,7 @@ public sealed class McpServerList
     public IList<McpServer> Servers { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionMcpList operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionMcpListRequest
 {
@@ -1589,7 +1596,7 @@ internal sealed class SessionMcpListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for McpEnable operations.</summary>
+/// <summary>Name of the MCP server to enable for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpEnableRequest
 {
@@ -1605,7 +1612,7 @@ internal sealed class McpEnableRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for McpDisable operations.</summary>
+/// <summary>Name of the MCP server to disable for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpDisableRequest
 {
@@ -1621,7 +1628,7 @@ internal sealed class McpDisableRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionMcpReload operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionMcpReloadRequest
 {
@@ -1630,7 +1637,7 @@ internal sealed class SessionMcpReloadRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for McpOauthLogin operations.</summary>
+/// <summary>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpOauthLoginResult
 {
@@ -1639,7 +1646,7 @@ public sealed class McpOauthLoginResult
     public string? AuthorizationUrl { get; set; }
 }
 
-/// <summary>RPC data type for McpOauthLogin operations.</summary>
+/// <summary>Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpOauthLoginRequest
 {
@@ -1667,7 +1674,7 @@ internal sealed class McpOauthLoginRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for Plugin operations.</summary>
+/// <summary>Schema for the `Plugin` type.</summary>
 public sealed class Plugin
 {
     /// <summary>Whether the plugin is currently enabled.</summary>
@@ -1687,7 +1694,7 @@ public sealed class Plugin
     public string? Version { get; set; }
 }
 
-/// <summary>RPC data type for PluginList operations.</summary>
+/// <summary>Plugins installed for the session, with their enabled state and version metadata.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class PluginList
 {
@@ -1696,7 +1703,7 @@ public sealed class PluginList
     public IList<Plugin> Plugins { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionPluginsList operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionPluginsListRequest
 {
@@ -1705,7 +1712,7 @@ internal sealed class SessionPluginsListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for Extension operations.</summary>
+/// <summary>Schema for the `Extension` type.</summary>
 public sealed class Extension
 {
     /// <summary>Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper').</summary>
@@ -1729,7 +1736,7 @@ public sealed class Extension
     public ExtensionStatus Status { get; set; }
 }
 
-/// <summary>RPC data type for ExtensionList operations.</summary>
+/// <summary>Extensions discovered for the session, with their current status.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ExtensionList
 {
@@ -1738,7 +1745,7 @@ public sealed class ExtensionList
     public IList<Extension> Extensions { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for SessionExtensionsList operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionExtensionsListRequest
 {
@@ -1747,7 +1754,7 @@ internal sealed class SessionExtensionsListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for ExtensionsEnable operations.</summary>
+/// <summary>Source-qualified extension identifier to enable for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ExtensionsEnableRequest
 {
@@ -1760,7 +1767,7 @@ internal sealed class ExtensionsEnableRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for ExtensionsDisable operations.</summary>
+/// <summary>Source-qualified extension identifier to disable for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ExtensionsDisableRequest
 {
@@ -1773,7 +1780,7 @@ internal sealed class ExtensionsDisableRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionExtensionsReload operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionExtensionsReloadRequest
 {
@@ -1782,7 +1789,7 @@ internal sealed class SessionExtensionsReloadRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for HandlePendingToolCall operations.</summary>
+/// <summary>Indicates whether the external tool call result was handled successfully.</summary>
 public sealed class HandlePendingToolCallResult
 {
     /// <summary>Whether the tool call result was handled successfully.</summary>
@@ -1790,7 +1797,7 @@ public sealed class HandlePendingToolCallResult
     public bool Success { get; set; }
 }
 
-/// <summary>RPC data type for HandlePendingToolCall operations.</summary>
+/// <summary>Pending external tool call request ID, with the tool result or an error describing why it failed.</summary>
 internal sealed class HandlePendingToolCallRequest
 {
     /// <summary>Error message if the tool call failed.</summary>
@@ -1830,7 +1837,7 @@ public sealed class SlashCommandInput
     public bool? Required { get; set; }
 }
 
-/// <summary>RPC data type for SlashCommandInfo operations.</summary>
+/// <summary>Schema for the `SlashCommandInfo` type.</summary>
 public sealed class SlashCommandInfo
 {
     /// <summary>Canonical aliases without leading slashes.</summary>
@@ -1862,7 +1869,7 @@ public sealed class SlashCommandInfo
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for CommandList operations.</summary>
+/// <summary>Slash commands available in the session, after applying any include/exclude filters.</summary>
 public sealed class CommandList
 {
     /// <summary>Commands available in this session.</summary>
@@ -1870,7 +1877,7 @@ public sealed class CommandList
     public IList<SlashCommandInfo> Commands { get => field ??= []; set; }
 }
 
-/// <summary>RPC data type for CommandsList operations.</summary>
+/// <summary>Optional filters controlling which command sources to include in the listing.</summary>
 public sealed class CommandsListRequest
 {
     /// <summary>Include runtime built-in commands.</summary>
@@ -1886,7 +1893,7 @@ public sealed class CommandsListRequest
     public bool? IncludeSkills { get; set; }
 }
 
-/// <summary>RPC data type for CommandsListRequestWithSession operations.</summary>
+/// <summary>Optional filters controlling which command sources to include in the listing.</summary>
 internal sealed class CommandsListRequestWithSession
 {
     /// <summary>Include runtime built-in commands.</summary>
@@ -1906,7 +1913,8 @@ internal sealed class CommandsListRequestWithSession
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Polymorphic base type discriminated by <c>kind</c>.</summary>
+/// <summary>Result of invoking the slash command (text output, prompt to send to the agent, or completion).</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -1921,7 +1929,8 @@ public partial class SlashCommandInvocationResult
 }
 
 
-/// <summary>The <c>text</c> variant of <see cref="SlashCommandInvocationResult"/>.</summary>
+/// <summary>Schema for the `SlashCommandTextResult` type.</summary>
+/// <remarks>The <c>text</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
 public partial class SlashCommandInvocationResultText : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -1948,7 +1957,8 @@ public partial class SlashCommandInvocationResultText : SlashCommandInvocationRe
     public required string Text { get; set; }
 }
 
-/// <summary>The <c>agent-prompt</c> variant of <see cref="SlashCommandInvocationResult"/>.</summary>
+/// <summary>Schema for the `SlashCommandAgentPromptResult` type.</summary>
+/// <remarks>The <c>agent-prompt</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
 public partial class SlashCommandInvocationResultAgentPrompt : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -1974,7 +1984,8 @@ public partial class SlashCommandInvocationResultAgentPrompt : SlashCommandInvoc
     public bool? RuntimeSettingsChanged { get; set; }
 }
 
-/// <summary>The <c>completed</c> variant of <see cref="SlashCommandInvocationResult"/>.</summary>
+/// <summary>Schema for the `SlashCommandCompletedResult` type.</summary>
+/// <remarks>The <c>completed</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
 public partial class SlashCommandInvocationResultCompleted : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -1992,7 +2003,7 @@ public partial class SlashCommandInvocationResultCompleted : SlashCommandInvocat
     public bool? RuntimeSettingsChanged { get; set; }
 }
 
-/// <summary>RPC data type for CommandsInvoke operations.</summary>
+/// <summary>Slash command name and optional raw input string to invoke.</summary>
 internal sealed class CommandsInvokeRequest
 {
     /// <summary>Raw input after the command name.</summary>
@@ -2008,7 +2019,7 @@ internal sealed class CommandsInvokeRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for CommandsHandlePendingCommand operations.</summary>
+/// <summary>Indicates whether the pending client-handled command was completed successfully.</summary>
 public sealed class CommandsHandlePendingCommandResult
 {
     /// <summary>Whether the command was handled successfully.</summary>
@@ -2016,7 +2027,7 @@ public sealed class CommandsHandlePendingCommandResult
     public bool Success { get; set; }
 }
 
-/// <summary>RPC data type for CommandsHandlePendingCommand operations.</summary>
+/// <summary>Pending command request ID and an optional error if the client handler failed.</summary>
 internal sealed class CommandsHandlePendingCommandRequest
 {
     /// <summary>Error message if the command handler failed.</summary>
@@ -2032,7 +2043,7 @@ internal sealed class CommandsHandlePendingCommandRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for CommandsRespondToQueuedCommand operations.</summary>
+/// <summary>Indicates whether the queued-command response was accepted by the session.</summary>
 public sealed class CommandsRespondToQueuedCommandResult
 {
     /// <summary>Whether the response was accepted (false if the requestId was not found or already resolved).</summary>
@@ -2054,7 +2065,7 @@ public partial class QueuedCommandResult
     public bool? StopProcessingQueue { get; set; }
 }
 
-/// <summary>RPC data type for CommandsRespondToQueuedCommand operations.</summary>
+/// <summary>Queued command request ID and the result indicating whether the client handled it.</summary>
 internal sealed class CommandsRespondToQueuedCommandRequest
 {
     /// <summary>Request ID from the queued command event.</summary>
@@ -2098,7 +2109,7 @@ public sealed class UIElicitationSchema
     public string Type { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for UIElicitation operations.</summary>
+/// <summary>Prompt message and JSON schema describing the form fields to elicit from the user.</summary>
 internal sealed class UIElicitationRequest
 {
     /// <summary>Message describing what information is needed from the user.</summary>
@@ -2114,7 +2125,7 @@ internal sealed class UIElicitationRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for UIElicitation operations.</summary>
+/// <summary>Indicates whether the elicitation response was accepted; false if it was already resolved by another client.</summary>
 public sealed class UIElicitationResult
 {
     /// <summary>Whether the response was accepted. False if the request was already resolved by another client.</summary>
@@ -2122,7 +2133,7 @@ public sealed class UIElicitationResult
     public bool Success { get; set; }
 }
 
-/// <summary>RPC data type for UIHandlePendingElicitation operations.</summary>
+/// <summary>Pending elicitation request ID and the user's response (accept/decline/cancel + form values).</summary>
 internal sealed class UIHandlePendingElicitationRequest
 {
     /// <summary>The unique request ID from the elicitation.requested event.</summary>
@@ -2138,7 +2149,7 @@ internal sealed class UIHandlePendingElicitationRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for PermissionRequest operations.</summary>
+/// <summary>Indicates whether the permission decision was applied; false when the request was already resolved.</summary>
 public sealed class PermissionRequestResult
 {
     /// <summary>Whether the permission request was handled successfully.</summary>
@@ -2146,7 +2157,8 @@ public sealed class PermissionRequestResult
     public bool Success { get; set; }
 }
 
-/// <summary>Polymorphic base type discriminated by <c>kind</c>.</summary>
+/// <summary>Decision to apply to a pending permission request.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -2164,7 +2176,8 @@ public partial class PermissionDecision
 }
 
 
-/// <summary>The <c>approve-once</c> variant of <see cref="PermissionDecision"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveOnce` type.</summary>
+/// <remarks>The <c>approve-once</c> variant of <see cref="PermissionDecision"/>.</remarks>
 public partial class PermissionDecisionApproveOnce : PermissionDecision
 {
     /// <inheritdoc />
@@ -2194,19 +2207,21 @@ public partial class PermissionDecisionApproveForSessionApproval
 }
 
 
-/// <summary>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.</summary>
+/// <remarks>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalCommands : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "commands";
 
-    /// <summary>Gets or sets the <c>commandIdentifiers</c> value.</summary>
+    /// <summary>Command identifiers covered by this approval.</summary>
     [JsonPropertyName("commandIdentifiers")]
     public required IList<string> CommandIdentifiers { get; set; }
 }
 
-/// <summary>The <c>read</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.</summary>
+/// <remarks>The <c>read</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalRead : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -2214,7 +2229,8 @@ public partial class PermissionDecisionApproveForSessionApprovalRead : Permissio
     public override string Kind => "read";
 }
 
-/// <summary>The <c>write</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.</summary>
+/// <remarks>The <c>write</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalWrite : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -2222,35 +2238,38 @@ public partial class PermissionDecisionApproveForSessionApprovalWrite : Permissi
     public override string Kind => "write";
 }
 
-/// <summary>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.</summary>
+/// <remarks>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalMcp : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "mcp";
 
-    /// <summary>Gets or sets the <c>serverName</c> value.</summary>
+    /// <summary>MCP server name.</summary>
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
 
-    /// <summary>Gets or sets the <c>toolName</c> value.</summary>
+    /// <summary>MCP tool name, or null to cover every tool on the server.</summary>
     [JsonPropertyName("toolName")]
     public string? ToolName { get; set; }
 }
 
-/// <summary>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.</summary>
+/// <remarks>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalMcpSampling : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "mcp-sampling";
 
-    /// <summary>Gets or sets the <c>serverName</c> value.</summary>
+    /// <summary>MCP server name.</summary>
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
 }
 
-/// <summary>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.</summary>
+/// <remarks>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalMemory : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -2258,44 +2277,48 @@ public partial class PermissionDecisionApproveForSessionApprovalMemory : Permiss
     public override string Kind => "memory";
 }
 
-/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.</summary>
+/// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalCustomTool : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "custom-tool";
 
-    /// <summary>Gets or sets the <c>toolName</c> value.</summary>
+    /// <summary>Custom tool name.</summary>
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
 }
 
-/// <summary>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.</summary>
+/// <remarks>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalExtensionManagement : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "extension-management";
 
-    /// <summary>Gets or sets the <c>operation</c> value.</summary>
+    /// <summary>Optional operation identifier; when omitted, the approval covers all extension management operations.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("operation")]
     public string? Operation { get; set; }
 }
 
-/// <summary>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess` type.</summary>
+/// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "extension-permission-access";
 
-    /// <summary>Gets or sets the <c>extensionName</c> value.</summary>
+    /// <summary>Extension name.</summary>
     [JsonPropertyName("extensionName")]
     public required string ExtensionName { get; set; }
 }
 
-/// <summary>The <c>approve-for-session</c> variant of <see cref="PermissionDecision"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForSession` type.</summary>
+/// <remarks>The <c>approve-for-session</c> variant of <see cref="PermissionDecision"/>.</remarks>
 public partial class PermissionDecisionApproveForSession : PermissionDecision
 {
     /// <inheritdoc />
@@ -2335,19 +2358,21 @@ public partial class PermissionDecisionApproveForLocationApproval
 }
 
 
-/// <summary>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.</summary>
+/// <remarks>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalCommands : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "commands";
 
-    /// <summary>Gets or sets the <c>commandIdentifiers</c> value.</summary>
+    /// <summary>Command identifiers covered by this approval.</summary>
     [JsonPropertyName("commandIdentifiers")]
     public required IList<string> CommandIdentifiers { get; set; }
 }
 
-/// <summary>The <c>read</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.</summary>
+/// <remarks>The <c>read</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalRead : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -2355,7 +2380,8 @@ public partial class PermissionDecisionApproveForLocationApprovalRead : Permissi
     public override string Kind => "read";
 }
 
-/// <summary>The <c>write</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.</summary>
+/// <remarks>The <c>write</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalWrite : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -2363,35 +2389,38 @@ public partial class PermissionDecisionApproveForLocationApprovalWrite : Permiss
     public override string Kind => "write";
 }
 
-/// <summary>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.</summary>
+/// <remarks>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalMcp : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "mcp";
 
-    /// <summary>Gets or sets the <c>serverName</c> value.</summary>
+    /// <summary>MCP server name.</summary>
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
 
-    /// <summary>Gets or sets the <c>toolName</c> value.</summary>
+    /// <summary>MCP tool name, or null to cover every tool on the server.</summary>
     [JsonPropertyName("toolName")]
     public string? ToolName { get; set; }
 }
 
-/// <summary>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.</summary>
+/// <remarks>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalMcpSampling : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "mcp-sampling";
 
-    /// <summary>Gets or sets the <c>serverName</c> value.</summary>
+    /// <summary>MCP server name.</summary>
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
 }
 
-/// <summary>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.</summary>
+/// <remarks>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalMemory : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -2399,44 +2428,48 @@ public partial class PermissionDecisionApproveForLocationApprovalMemory : Permis
     public override string Kind => "memory";
 }
 
-/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.</summary>
+/// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalCustomTool : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "custom-tool";
 
-    /// <summary>Gets or sets the <c>toolName</c> value.</summary>
+    /// <summary>Custom tool name.</summary>
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
 }
 
-/// <summary>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.</summary>
+/// <remarks>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalExtensionManagement : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "extension-management";
 
-    /// <summary>Gets or sets the <c>operation</c> value.</summary>
+    /// <summary>Optional operation identifier; when omitted, the approval covers all extension management operations.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("operation")]
     public string? Operation { get; set; }
 }
 
-/// <summary>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess` type.</summary>
+/// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
 public partial class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "extension-permission-access";
 
-    /// <summary>Gets or sets the <c>extensionName</c> value.</summary>
+    /// <summary>Extension name.</summary>
     [JsonPropertyName("extensionName")]
     public required string ExtensionName { get; set; }
 }
 
-/// <summary>The <c>approve-for-location</c> variant of <see cref="PermissionDecision"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApproveForLocation` type.</summary>
+/// <remarks>The <c>approve-for-location</c> variant of <see cref="PermissionDecision"/>.</remarks>
 public partial class PermissionDecisionApproveForLocation : PermissionDecision
 {
     /// <inheritdoc />
@@ -2452,7 +2485,8 @@ public partial class PermissionDecisionApproveForLocation : PermissionDecision
     public required string LocationKey { get; set; }
 }
 
-/// <summary>The <c>approve-permanently</c> variant of <see cref="PermissionDecision"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionApprovePermanently` type.</summary>
+/// <remarks>The <c>approve-permanently</c> variant of <see cref="PermissionDecision"/>.</remarks>
 public partial class PermissionDecisionApprovePermanently : PermissionDecision
 {
     /// <inheritdoc />
@@ -2464,7 +2498,8 @@ public partial class PermissionDecisionApprovePermanently : PermissionDecision
     public required string Domain { get; set; }
 }
 
-/// <summary>The <c>reject</c> variant of <see cref="PermissionDecision"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionReject` type.</summary>
+/// <remarks>The <c>reject</c> variant of <see cref="PermissionDecision"/>.</remarks>
 public partial class PermissionDecisionReject : PermissionDecision
 {
     /// <inheritdoc />
@@ -2477,7 +2512,8 @@ public partial class PermissionDecisionReject : PermissionDecision
     public string? Feedback { get; set; }
 }
 
-/// <summary>The <c>user-not-available</c> variant of <see cref="PermissionDecision"/>.</summary>
+/// <summary>Schema for the `PermissionDecisionUserNotAvailable` type.</summary>
+/// <remarks>The <c>user-not-available</c> variant of <see cref="PermissionDecision"/>.</remarks>
 public partial class PermissionDecisionUserNotAvailable : PermissionDecision
 {
     /// <inheritdoc />
@@ -2485,14 +2521,14 @@ public partial class PermissionDecisionUserNotAvailable : PermissionDecision
     public override string Kind => "user-not-available";
 }
 
-/// <summary>RPC data type for PermissionDecision operations.</summary>
+/// <summary>Pending permission request ID and the decision to apply (approve/reject and scope).</summary>
 internal sealed class PermissionDecisionRequest
 {
     /// <summary>Request ID of the pending permission request.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>result</c> value.</summary>
+    /// <summary>Decision to apply to a pending permission request.</summary>
     [JsonPropertyName("result")]
     public PermissionDecision Result { get => field ??= new(); set; }
 
@@ -2501,7 +2537,7 @@ internal sealed class PermissionDecisionRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for PermissionsSetApproveAll operations.</summary>
+/// <summary>Indicates whether the operation succeeded.</summary>
 public sealed class PermissionsSetApproveAllResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -2509,7 +2545,7 @@ public sealed class PermissionsSetApproveAllResult
     public bool Success { get; set; }
 }
 
-/// <summary>RPC data type for PermissionsSetApproveAll operations.</summary>
+/// <summary>Whether to auto-approve all tool permission requests for the rest of the session.</summary>
 internal sealed class PermissionsSetApproveAllRequest
 {
     /// <summary>Whether to auto-approve all tool permission requests.</summary>
@@ -2521,7 +2557,7 @@ internal sealed class PermissionsSetApproveAllRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for PermissionsResetSessionApprovals operations.</summary>
+/// <summary>Indicates whether the operation succeeded.</summary>
 public sealed class PermissionsResetSessionApprovalsResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -2529,7 +2565,7 @@ public sealed class PermissionsResetSessionApprovalsResult
     public bool Success { get; set; }
 }
 
-/// <summary>RPC data type for PermissionsResetSessionApprovals operations.</summary>
+/// <summary>No parameters; clears all session-scoped tool permission approvals.</summary>
 internal sealed class PermissionsResetSessionApprovalsRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2537,7 +2573,7 @@ internal sealed class PermissionsResetSessionApprovalsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for ShellExec operations.</summary>
+/// <summary>Identifier of the spawned process, used to correlate streamed output and exit notifications.</summary>
 public sealed class ShellExecResult
 {
     /// <summary>Unique identifier for tracking streamed output.</summary>
@@ -2545,7 +2581,7 @@ public sealed class ShellExecResult
     public string ProcessId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for ShellExec operations.</summary>
+/// <summary>Shell command to run, with optional working directory and timeout in milliseconds.</summary>
 internal sealed class ShellExecRequest
 {
     /// <summary>Shell command to execute.</summary>
@@ -2567,7 +2603,7 @@ internal sealed class ShellExecRequest
     public TimeSpan? Timeout { get; set; }
 }
 
-/// <summary>RPC data type for ShellKill operations.</summary>
+/// <summary>Indicates whether the signal was delivered; false if the process was unknown or already exited.</summary>
 public sealed class ShellKillResult
 {
     /// <summary>Whether the signal was sent successfully.</summary>
@@ -2575,7 +2611,7 @@ public sealed class ShellKillResult
     public bool Killed { get; set; }
 }
 
-/// <summary>RPC data type for ShellKill operations.</summary>
+/// <summary>Identifier of a process previously returned by "shell.exec" and the signal to send.</summary>
 internal sealed class ShellKillRequest
 {
     /// <summary>Process identifier returned by shell.exec.</summary>
@@ -2625,7 +2661,7 @@ public sealed class HistoryCompactContextWindow
     public long? ToolDefinitionsTokens { get; set; }
 }
 
-/// <summary>RPC data type for HistoryCompact operations.</summary>
+/// <summary>Compaction outcome with the number of tokens and messages removed and the resulting context window breakdown.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class HistoryCompactResult
 {
@@ -2648,7 +2684,7 @@ public sealed class HistoryCompactResult
     public long TokensRemoved { get; set; }
 }
 
-/// <summary>RPC data type for SessionHistoryCompact operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionHistoryCompactRequest
 {
@@ -2657,7 +2693,7 @@ internal sealed class SessionHistoryCompactRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for HistoryTruncate operations.</summary>
+/// <summary>Number of events that were removed by the truncation.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class HistoryTruncateResult
 {
@@ -2667,7 +2703,7 @@ public sealed class HistoryTruncateResult
     public long EventsRemoved { get; set; }
 }
 
-/// <summary>RPC data type for HistoryTruncate operations.</summary>
+/// <summary>Identifier of the event to truncate to; this event and all later events are removed.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class HistoryTruncateRequest
 {
@@ -2708,7 +2744,7 @@ public sealed class UsageMetricsModelMetricRequests
     public long Count { get; set; }
 }
 
-/// <summary>RPC data type for UsageMetricsModelMetricTokenDetail operations.</summary>
+/// <summary>Schema for the `UsageMetricsModelMetricTokenDetail` type.</summary>
 public sealed class UsageMetricsModelMetricTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
@@ -2746,7 +2782,7 @@ public sealed class UsageMetricsModelMetricUsage
     public long? ReasoningTokens { get; set; }
 }
 
-/// <summary>RPC data type for UsageMetricsModelMetric operations.</summary>
+/// <summary>Schema for the `UsageMetricsModelMetric` type.</summary>
 public sealed class UsageMetricsModelMetric
 {
     /// <summary>Request count and cost metrics for this model.</summary>
@@ -2767,7 +2803,7 @@ public sealed class UsageMetricsModelMetric
     public UsageMetricsModelMetricUsage Usage { get => field ??= new(); set; }
 }
 
-/// <summary>RPC data type for UsageMetricsTokenDetail operations.</summary>
+/// <summary>Schema for the `UsageMetricsTokenDetail` type.</summary>
 public sealed class UsageMetricsTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
@@ -2776,7 +2812,7 @@ public sealed class UsageMetricsTokenDetail
     public long TokenCount { get; set; }
 }
 
-/// <summary>RPC data type for UsageGetMetrics operations.</summary>
+/// <summary>Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class UsageGetMetricsResult
 {
@@ -2831,7 +2867,7 @@ public sealed class UsageGetMetricsResult
     public long TotalUserRequests { get; set; }
 }
 
-/// <summary>RPC data type for SessionUsageGetMetrics operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionUsageGetMetricsRequest
 {
@@ -2840,7 +2876,7 @@ internal sealed class SessionUsageGetMetricsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for RemoteEnable operations.</summary>
+/// <summary>GitHub URL for the session and a flag indicating whether remote steering is enabled.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class RemoteEnableResult
 {
@@ -2848,16 +2884,16 @@ public sealed class RemoteEnableResult
     [JsonPropertyName("remoteSteerable")]
     public bool RemoteSteerable { get; set; }
 
-    /// <summary>Mission Control frontend URL for this session.</summary>
+    /// <summary>GitHub frontend URL for this session.</summary>
     [JsonPropertyName("url")]
     public string? Url { get; set; }
 }
 
-/// <summary>RPC data type for RemoteEnable operations.</summary>
+/// <summary>Optional remote session mode ("off", "export", or "on"); defaults to enabling both export and remote steering.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class RemoteEnableRequest
 {
-    /// <summary>Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering.</summary>
+    /// <summary>Per-session remote mode. "off" disables remote, "export" exports session events to GitHub without enabling remote steering, "on" enables both export and remote steering.</summary>
     [JsonPropertyName("mode")]
     public RemoteSessionMode? Mode { get; set; }
 
@@ -2866,7 +2902,7 @@ internal sealed class RemoteEnableRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionRemoteDisable operations.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionRemoteDisableRequest
 {
@@ -2887,7 +2923,7 @@ public sealed class SessionFsError
     public string? Message { get; set; }
 }
 
-/// <summary>RPC data type for SessionFsReadFile operations.</summary>
+/// <summary>File content as a UTF-8 string, or a filesystem error if the read failed.</summary>
 public sealed class SessionFsReadFileResult
 {
     /// <summary>File content as UTF-8 string.</summary>
@@ -2899,7 +2935,7 @@ public sealed class SessionFsReadFileResult
     public SessionFsError? Error { get; set; }
 }
 
-/// <summary>RPC data type for SessionFsReadFile operations.</summary>
+/// <summary>Path of the file to read from the client-provided session filesystem.</summary>
 public sealed class SessionFsReadFileRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -2911,7 +2947,7 @@ public sealed class SessionFsReadFileRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsWriteFile operations.</summary>
+/// <summary>File path, content to write, and optional mode for the client-provided session filesystem.</summary>
 public sealed class SessionFsWriteFileRequest
 {
     /// <summary>Content to write.</summary>
@@ -2932,7 +2968,7 @@ public sealed class SessionFsWriteFileRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsAppendFile operations.</summary>
+/// <summary>File path, content to append, and optional mode for the client-provided session filesystem.</summary>
 public sealed class SessionFsAppendFileRequest
 {
     /// <summary>Content to append.</summary>
@@ -2953,7 +2989,7 @@ public sealed class SessionFsAppendFileRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsExists operations.</summary>
+/// <summary>Indicates whether the requested path exists in the client-provided session filesystem.</summary>
 public sealed class SessionFsExistsResult
 {
     /// <summary>Whether the path exists.</summary>
@@ -2961,7 +2997,7 @@ public sealed class SessionFsExistsResult
     public bool Exists { get; set; }
 }
 
-/// <summary>RPC data type for SessionFsExists operations.</summary>
+/// <summary>Path to test for existence in the client-provided session filesystem.</summary>
 public sealed class SessionFsExistsRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -2973,7 +3009,7 @@ public sealed class SessionFsExistsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsStat operations.</summary>
+/// <summary>Filesystem metadata for the requested path, or a filesystem error if the stat failed.</summary>
 public sealed class SessionFsStatResult
 {
     /// <summary>ISO 8601 timestamp of creation.</summary>
@@ -3002,7 +3038,7 @@ public sealed class SessionFsStatResult
     public long Size { get; set; }
 }
 
-/// <summary>RPC data type for SessionFsStat operations.</summary>
+/// <summary>Path whose metadata should be returned from the client-provided session filesystem.</summary>
 public sealed class SessionFsStatRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -3014,7 +3050,7 @@ public sealed class SessionFsStatRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsMkdir operations.</summary>
+/// <summary>Directory path to create in the client-provided session filesystem, with options for recursive creation and POSIX mode.</summary>
 public sealed class SessionFsMkdirRequest
 {
     /// <summary>Optional POSIX-style mode for newly created directories.</summary>
@@ -3035,7 +3071,7 @@ public sealed class SessionFsMkdirRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsReaddir operations.</summary>
+/// <summary>Names of entries in the requested directory, or a filesystem error if the read failed.</summary>
 public sealed class SessionFsReaddirResult
 {
     /// <summary>Entry names in the directory.</summary>
@@ -3047,7 +3083,7 @@ public sealed class SessionFsReaddirResult
     public SessionFsError? Error { get; set; }
 }
 
-/// <summary>RPC data type for SessionFsReaddir operations.</summary>
+/// <summary>Directory path whose entries should be listed from the client-provided session filesystem.</summary>
 public sealed class SessionFsReaddirRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -3059,7 +3095,7 @@ public sealed class SessionFsReaddirRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsReaddirWithTypesEntry operations.</summary>
+/// <summary>Schema for the `SessionFsReaddirWithTypesEntry` type.</summary>
 public sealed class SessionFsReaddirWithTypesEntry
 {
     /// <summary>Entry name.</summary>
@@ -3071,7 +3107,7 @@ public sealed class SessionFsReaddirWithTypesEntry
     public SessionFsReaddirWithTypesEntryType Type { get; set; }
 }
 
-/// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
+/// <summary>Entries in the requested directory paired with file/directory type information, or a filesystem error if the read failed.</summary>
 public sealed class SessionFsReaddirWithTypesResult
 {
     /// <summary>Directory entries with type information.</summary>
@@ -3083,7 +3119,7 @@ public sealed class SessionFsReaddirWithTypesResult
     public SessionFsError? Error { get; set; }
 }
 
-/// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
+/// <summary>Directory path whose entries (with type information) should be listed from the client-provided session filesystem.</summary>
 public sealed class SessionFsReaddirWithTypesRequest
 {
     /// <summary>Path using SessionFs conventions.</summary>
@@ -3095,7 +3131,7 @@ public sealed class SessionFsReaddirWithTypesRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsRm operations.</summary>
+/// <summary>Path to remove from the client-provided session filesystem, with options for recursive removal and force.</summary>
 public sealed class SessionFsRmRequest
 {
     /// <summary>Ignore errors if the path does not exist.</summary>
@@ -3115,7 +3151,7 @@ public sealed class SessionFsRmRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionFsRename operations.</summary>
+/// <summary>Source and destination paths for renaming or moving an entry in the client-provided session filesystem.</summary>
 public sealed class SessionFsRenameRequest
 {
     /// <summary>Destination path using SessionFs conventions.</summary>
@@ -4789,7 +4825,7 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
 }
 
 
-/// <summary>Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering.</summary>
+/// <summary>Per-session remote mode. "off" disables remote, "export" exports session events to GitHub without enabling remote steering, "on" enables both export and remote steering.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>
@@ -4995,18 +5031,20 @@ public sealed class ServerRpc
         Sessions = new ServerSessionsApi(rpc);
     }
 
-    /// <summary>Calls "ping".</summary>
+    /// <summary>Checks server responsiveness and returns protocol information.</summary>
     /// <param name="message">Optional message to echo back.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Server liveness response, including the echoed message, current timestamp, and protocol version.</returns>
     public async Task<PingResult> PingAsync(string? message = null, CancellationToken cancellationToken = default)
     {
         var request = new PingRequest { Message = message };
         return await CopilotClient.InvokeRpcAsync<PingResult>(_rpc, "ping", [request], cancellationToken);
     }
 
-    /// <summary>Calls "connect".</summary>
+    /// <summary>Performs the SDK server connection handshake and validates the optional connection token.</summary>
     /// <param name="token">Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Handshake result reporting the server's protocol version and package version on success.</returns>
     internal async Task<ConnectResult> ConnectAsync(string? token = null, CancellationToken cancellationToken = default)
     {
         var request = new ConnectRequest { Token = token };
@@ -5045,9 +5083,10 @@ public sealed class ServerModelsApi
         _rpc = rpc;
     }
 
-    /// <summary>Calls "models.list".</summary>
+    /// <summary>Lists Copilot models available to the authenticated user.</summary>
     /// <param name="gitHubToken">GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>List of Copilot models available to the resolved user, including capabilities and billing metadata.</returns>
     public async Task<ModelList> ListAsync(string? gitHubToken = null, CancellationToken cancellationToken = default)
     {
         var request = new ModelsListRequest { GitHubToken = gitHubToken };
@@ -5065,9 +5104,10 @@ public sealed class ServerToolsApi
         _rpc = rpc;
     }
 
-    /// <summary>Calls "tools.list".</summary>
+    /// <summary>Lists built-in tools available for a model.</summary>
     /// <param name="model">Optional model ID — when provided, the returned tool list reflects model-specific overrides.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Built-in tools available for the requested model, with their parameters and instructions.</returns>
     public async Task<ToolList> ListAsync(string? model = null, CancellationToken cancellationToken = default)
     {
         var request = new ToolsListRequest { Model = model };
@@ -5085,9 +5125,10 @@ public sealed class ServerAccountApi
         _rpc = rpc;
     }
 
-    /// <summary>Calls "account.getQuota".</summary>
+    /// <summary>Gets Copilot quota usage for the authenticated user or supplied GitHub token.</summary>
     /// <param name="gitHubToken">GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Quota usage snapshots for the resolved user, keyed by quota type.</returns>
     public async Task<AccountGetQuotaResult> GetQuotaAsync(string? gitHubToken = null, CancellationToken cancellationToken = default)
     {
         var request = new AccountGetQuotaRequest { GitHubToken = gitHubToken };
@@ -5106,9 +5147,10 @@ public sealed class ServerMcpApi
         Config = new ServerMcpConfigApi(rpc);
     }
 
-    /// <summary>Calls "mcp.discover".</summary>
+    /// <summary>Discovers MCP servers from user, workspace, plugin, and builtin sources.</summary>
     /// <param name="workingDirectory">Working directory used as context for discovery (e.g., plugin resolution).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>MCP servers discovered from user, workspace, plugin, and built-in sources.</returns>
     public async Task<McpDiscoverResult> DiscoverAsync(string? workingDirectory = null, CancellationToken cancellationToken = default)
     {
         var request = new McpDiscoverRequest { WorkingDirectory = workingDirectory };
@@ -5129,14 +5171,15 @@ public sealed class ServerMcpConfigApi
         _rpc = rpc;
     }
 
-    /// <summary>Calls "mcp.config.list".</summary>
+    /// <summary>Lists MCP servers from user configuration.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>User-configured MCP servers, keyed by server name.</returns>
     public async Task<McpConfigList> ListAsync(CancellationToken cancellationToken = default)
     {
         return await CopilotClient.InvokeRpcAsync<McpConfigList>(_rpc, "mcp.config.list", [], cancellationToken);
     }
 
-    /// <summary>Calls "mcp.config.add".</summary>
+    /// <summary>Adds an MCP server to user configuration.</summary>
     /// <param name="name">Unique name for the MCP server.</param>
     /// <param name="config">MCP server configuration (local/stdio or remote/http).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -5146,7 +5189,7 @@ public sealed class ServerMcpConfigApi
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.add", [request], cancellationToken);
     }
 
-    /// <summary>Calls "mcp.config.update".</summary>
+    /// <summary>Updates an MCP server in user configuration.</summary>
     /// <param name="name">Name of the MCP server to update.</param>
     /// <param name="config">MCP server configuration (local/stdio or remote/http).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -5156,7 +5199,7 @@ public sealed class ServerMcpConfigApi
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.update", [request], cancellationToken);
     }
 
-    /// <summary>Calls "mcp.config.remove".</summary>
+    /// <summary>Removes an MCP server from user configuration.</summary>
     /// <param name="name">Name of the MCP server to remove.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task RemoveAsync(string name, CancellationToken cancellationToken = default)
@@ -5165,7 +5208,7 @@ public sealed class ServerMcpConfigApi
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.remove", [request], cancellationToken);
     }
 
-    /// <summary>Calls "mcp.config.enable".</summary>
+    /// <summary>Enables MCP servers in user configuration for new sessions.</summary>
     /// <param name="names">Names of MCP servers to enable. Each server is removed from the persisted disabled list so new sessions spawn it. Unknown or already-enabled names are ignored.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(IList<string> names, CancellationToken cancellationToken = default)
@@ -5174,7 +5217,7 @@ public sealed class ServerMcpConfigApi
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.enable", [request], cancellationToken);
     }
 
-    /// <summary>Calls "mcp.config.disable".</summary>
+    /// <summary>Disables MCP servers in user configuration for new sessions.</summary>
     /// <param name="names">Names of MCP servers to disable. Each server is added to the persisted disabled list so new sessions skip it. Already-disabled names are ignored. Active sessions keep their current connections until they end.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(IList<string> names, CancellationToken cancellationToken = default)
@@ -5195,10 +5238,11 @@ public sealed class ServerSkillsApi
         Config = new ServerSkillsConfigApi(rpc);
     }
 
-    /// <summary>Calls "skills.discover".</summary>
+    /// <summary>Discovers skills across global and project sources.</summary>
     /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped skills.</param>
     /// <param name="skillDirectories">Optional list of additional skill directory paths to include.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skills discovered across global and project sources.</returns>
     public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, CancellationToken cancellationToken = default)
     {
         var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories };
@@ -5219,7 +5263,7 @@ public sealed class ServerSkillsConfigApi
         _rpc = rpc;
     }
 
-    /// <summary>Calls "skills.config.setDisabledSkills".</summary>
+    /// <summary>Replaces the global list of disabled skills.</summary>
     /// <param name="disabledSkills">List of skill names to disable.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetDisabledSkillsAsync(IList<string> disabledSkills, CancellationToken cancellationToken = default)
@@ -5239,11 +5283,12 @@ public sealed class ServerSessionFsApi
         _rpc = rpc;
     }
 
-    /// <summary>Calls "sessionFs.setProvider".</summary>
+    /// <summary>Registers an SDK client as the session filesystem provider.</summary>
     /// <param name="initialCwd">Initial working directory for sessions.</param>
     /// <param name="sessionStatePath">Path within each session's SessionFs where the runtime stores files for that session.</param>
     /// <param name="conventions">Path conventions used by this filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the calling client was registered as the session filesystem provider.</returns>
     public async Task<SessionFsSetProviderResult> SetProviderAsync(string initialCwd, string sessionStatePath, SessionFsSetProviderConventions conventions, CancellationToken cancellationToken = default)
     {
         var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions };
@@ -5262,11 +5307,12 @@ public sealed class ServerSessionsApi
         _rpc = rpc;
     }
 
-    /// <summary>Calls "sessions.fork".</summary>
+    /// <summary>Creates a new session by forking persisted history from an existing session.</summary>
     /// <param name="sessionId">Source session ID to fork from.</param>
     /// <param name="toEventId">Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.</param>
     /// <param name="name">Optional friendly name to assign to the forked session.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Identifier and optional friendly name assigned to the newly forked session.</returns>
     public async Task<SessionsForkResult> ForkAsync(string sessionId, string? toEventId = null, string? name = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionsForkRequest { SessionId = sessionId, ToEventId = toEventId, Name = name };
@@ -5374,7 +5420,7 @@ public sealed class SessionRpc
     /// <summary>Remote APIs.</summary>
     public RemoteApi Remote { get; }
 
-    /// <summary>Calls "session.suspend".</summary>
+    /// <summary>Suspends the session while preserving persisted state for later resume.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
     {
@@ -5382,12 +5428,13 @@ public sealed class SessionRpc
         await CopilotClient.InvokeRpcAsync(_rpc, "session.suspend", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.log".</summary>
+    /// <summary>Emits a user-visible session log event.</summary>
     /// <param name="message">Human-readable message.</param>
     /// <param name="level">Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</param>
     /// <param name="ephemeral">When true, the message is transient and not persisted to the session event log on disk.</param>
     /// <param name="url">Optional URL the user can open in their browser for more details.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Identifier of the session event that was emitted for the log message.</returns>
     public async Task<LogResult> LogAsync(string message, SessionLogLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
         var request = new LogRequest { SessionId = _sessionId, Message = message, Level = level, Ephemeral = ephemeral, Url = url };
@@ -5407,8 +5454,9 @@ public sealed class AuthApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.auth.getStatus".</summary>
+    /// <summary>Gets authentication status and account metadata for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Authentication status and account metadata for the session.</returns>
     public async Task<SessionAuthStatus> GetStatusAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAuthGetStatusRequest { SessionId = _sessionId };
@@ -5428,22 +5476,25 @@ public sealed class ModelApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.model.getCurrent".</summary>
+    /// <summary>Gets the currently selected model for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The currently selected model for the session.</returns>
     public async Task<CurrentModel> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionModelGetCurrentRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<CurrentModel>(_rpc, "session.model.getCurrent", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.model.switchTo".</summary>
+    /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
     /// <param name="modelId">Model identifier to switch to.</param>
-    /// <param name="reasoningEffort">Reasoning effort level to use for the model.</param>
+    /// <param name="reasoningEffort">Reasoning effort level to use for the model. "none" disables reasoning.</param>
+    /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
+    /// <returns>The model identifier active on the session after the switch.</returns>
+    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
     {
-        var request = new ModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ModelCapabilities = modelCapabilities };
+        var request = new ModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ModelCapabilities = modelCapabilities };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
@@ -5460,7 +5511,7 @@ public sealed class ModeApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.mode.get".</summary>
+    /// <summary>Gets the current agent interaction mode.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The agent mode. Valid values: "interactive", "plan", "autopilot".</returns>
     public async Task<SessionMode> GetAsync(CancellationToken cancellationToken = default)
@@ -5469,7 +5520,7 @@ public sealed class ModeApi
         return await CopilotClient.InvokeRpcAsync<SessionMode>(_rpc, "session.mode.get", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.mode.set".</summary>
+    /// <summary>Sets the current agent interaction mode.</summary>
     /// <param name="mode">The agent mode. Valid values: "interactive", "plan", "autopilot".</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetAsync(SessionMode mode, CancellationToken cancellationToken = default)
@@ -5491,15 +5542,16 @@ public sealed class NameApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.name.get".</summary>
+    /// <summary>Gets the session's friendly name.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The session's friendly name, or null when not yet set.</returns>
     public async Task<NameGetResult> GetAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionNameGetRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<NameGetResult>(_rpc, "session.name.get", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.name.set".</summary>
+    /// <summary>Sets the session's friendly name.</summary>
     /// <param name="name">New session name (1–100 characters, trimmed of leading/trailing whitespace).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetAsync(string name, CancellationToken cancellationToken = default)
@@ -5521,15 +5573,16 @@ public sealed class PlanApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.plan.read".</summary>
+    /// <summary>Reads the session plan file from the workspace.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Existence, contents, and resolved path of the session plan file.</returns>
     public async Task<PlanReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionPlanReadRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<PlanReadResult>(_rpc, "session.plan.read", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.plan.update".</summary>
+    /// <summary>Writes new content to the session plan file.</summary>
     /// <param name="content">The new content for the plan file.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task UpdateAsync(string content, CancellationToken cancellationToken = default)
@@ -5538,7 +5591,7 @@ public sealed class PlanApi
         await CopilotClient.InvokeRpcAsync(_rpc, "session.plan.update", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.plan.delete".</summary>
+    /// <summary>Deletes the session plan file from the workspace.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DeleteAsync(CancellationToken cancellationToken = default)
     {
@@ -5559,32 +5612,35 @@ public sealed class WorkspacesApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.workspaces.getWorkspace".</summary>
+    /// <summary>Gets current workspace metadata for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Current workspace metadata for the session, or null when not available.</returns>
     public async Task<WorkspacesGetWorkspaceResult> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionWorkspacesGetWorkspaceRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<WorkspacesGetWorkspaceResult>(_rpc, "session.workspaces.getWorkspace", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.workspaces.listFiles".</summary>
+    /// <summary>Lists files stored in the session workspace files directory.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Relative paths of files stored in the session workspace files directory.</returns>
     public async Task<WorkspacesListFilesResult> ListFilesAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionWorkspacesListFilesRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<WorkspacesListFilesResult>(_rpc, "session.workspaces.listFiles", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.workspaces.readFile".</summary>
+    /// <summary>Reads a file from the session workspace files directory.</summary>
     /// <param name="path">Relative path within the workspace files directory.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Contents of the requested workspace file as a UTF-8 string.</returns>
     public async Task<WorkspacesReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
     {
         var request = new WorkspacesReadFileRequest { SessionId = _sessionId, Path = path };
         return await CopilotClient.InvokeRpcAsync<WorkspacesReadFileResult>(_rpc, "session.workspaces.readFile", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.workspaces.createFile".</summary>
+    /// <summary>Creates or overwrites a file in the session workspace files directory.</summary>
     /// <param name="path">Relative path within the workspace files directory.</param>
     /// <param name="content">File content to write as a UTF-8 string.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -5607,8 +5663,9 @@ public sealed class InstructionsApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.instructions.getSources".</summary>
+    /// <summary>Gets instruction sources loaded for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Instruction sources loaded for the session, in merge order.</returns>
     public async Task<InstructionsGetSourcesResult> GetSourcesAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionInstructionsGetSourcesRequest { SessionId = _sessionId };
@@ -5629,9 +5686,10 @@ public sealed class FleetApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.fleet.start".</summary>
+    /// <summary>Starts fleet mode by submitting the fleet orchestration prompt to the session.</summary>
     /// <param name="prompt">Optional user prompt to combine with fleet instructions.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether fleet mode was successfully activated.</returns>
     public async Task<FleetStartResult> StartAsync(string? prompt = null, CancellationToken cancellationToken = default)
     {
         var request = new FleetStartRequest { SessionId = _sessionId, Prompt = prompt };
@@ -5652,32 +5710,35 @@ public sealed class AgentApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.agent.list".</summary>
+    /// <summary>Lists custom agents available to the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Custom agents available to the session.</returns>
     public async Task<AgentList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentListRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<AgentList>(_rpc, "session.agent.list", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.agent.getCurrent".</summary>
+    /// <summary>Gets the currently selected custom agent for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The currently selected custom agent, or null when using the default agent.</returns>
     public async Task<AgentGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentGetCurrentRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<AgentGetCurrentResult>(_rpc, "session.agent.getCurrent", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.agent.select".</summary>
+    /// <summary>Selects a custom agent for subsequent turns in the session.</summary>
     /// <param name="name">Name of the custom agent to select.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The newly selected custom agent.</returns>
     public async Task<AgentSelectResult> SelectAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new AgentSelectRequest { SessionId = _sessionId, Name = name };
         return await CopilotClient.InvokeRpcAsync<AgentSelectResult>(_rpc, "session.agent.select", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.agent.deselect".</summary>
+    /// <summary>Clears the selected custom agent and returns the session to the default agent.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DeselectAsync(CancellationToken cancellationToken = default)
     {
@@ -5685,8 +5746,9 @@ public sealed class AgentApi
         await CopilotClient.InvokeRpcAsync(_rpc, "session.agent.deselect", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.agent.reload".</summary>
+    /// <summary>Reloads custom agent definitions and returns the refreshed list.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Custom agents available to the session after reloading definitions from disk.</returns>
     public async Task<AgentReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentReloadRequest { SessionId = _sessionId };
@@ -5707,59 +5769,65 @@ public sealed class TasksApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.tasks.startAgent".</summary>
+    /// <summary>Starts a background agent task in the session.</summary>
     /// <param name="agentType">Type of agent to start (e.g., 'explore', 'task', 'general-purpose').</param>
     /// <param name="prompt">Task prompt for the agent.</param>
     /// <param name="name">Short name for the agent, used to generate a human-readable ID.</param>
     /// <param name="description">Short description of the task.</param>
     /// <param name="model">Optional model override.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Identifier assigned to the newly started background agent task.</returns>
     public async Task<TasksStartAgentResult> StartAgentAsync(string agentType, string prompt, string name, string? description = null, string? model = null, CancellationToken cancellationToken = default)
     {
         var request = new TasksStartAgentRequest { SessionId = _sessionId, AgentType = agentType, Prompt = prompt, Name = name, Description = description, Model = model };
         return await CopilotClient.InvokeRpcAsync<TasksStartAgentResult>(_rpc, "session.tasks.startAgent", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.tasks.list".</summary>
+    /// <summary>Lists background tasks tracked by the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Background tasks currently tracked by the session.</returns>
     public async Task<TaskList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionTasksListRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<TaskList>(_rpc, "session.tasks.list", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.tasks.promoteToBackground".</summary>
+    /// <summary>Promotes an eligible synchronously-waited task so it continues running in the background.</summary>
     /// <param name="id">Task identifier.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the task was successfully promoted to background mode.</returns>
     public async Task<TasksPromoteToBackgroundResult> PromoteToBackgroundAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new TasksPromoteToBackgroundRequest { SessionId = _sessionId, Id = id };
         return await CopilotClient.InvokeRpcAsync<TasksPromoteToBackgroundResult>(_rpc, "session.tasks.promoteToBackground", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.tasks.cancel".</summary>
+    /// <summary>Cancels a background task.</summary>
     /// <param name="id">Task identifier.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the background task was successfully cancelled.</returns>
     public async Task<TasksCancelResult> CancelAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new TasksCancelRequest { SessionId = _sessionId, Id = id };
         return await CopilotClient.InvokeRpcAsync<TasksCancelResult>(_rpc, "session.tasks.cancel", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.tasks.remove".</summary>
+    /// <summary>Removes a completed or cancelled background task from tracking.</summary>
     /// <param name="id">Task identifier.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the task was removed. False when the task does not exist or is still running/idle.</returns>
     public async Task<TasksRemoveResult> RemoveAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new TasksRemoveRequest { SessionId = _sessionId, Id = id };
         return await CopilotClient.InvokeRpcAsync<TasksRemoveResult>(_rpc, "session.tasks.remove", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.tasks.sendMessage".</summary>
+    /// <summary>Sends a message to a background agent task.</summary>
     /// <param name="id">Agent task identifier.</param>
     /// <param name="message">Message content to send to the agent.</param>
     /// <param name="fromAgentId">Agent ID of the sender, if sent on behalf of another agent.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the message was delivered, with an error message when delivery failed.</returns>
     public async Task<TasksSendMessageResult> SendMessageAsync(string id, string message, string? fromAgentId = null, CancellationToken cancellationToken = default)
     {
         var request = new TasksSendMessageRequest { SessionId = _sessionId, Id = id, Message = message, FromAgentId = fromAgentId };
@@ -5780,15 +5848,16 @@ public sealed class SkillsApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.skills.list".</summary>
+    /// <summary>Lists skills available to the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skills available to the session, with their enabled state.</returns>
     public async Task<SkillList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionSkillsListRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<SkillList>(_rpc, "session.skills.list", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.skills.enable".</summary>
+    /// <summary>Enables a skill for the session.</summary>
     /// <param name="name">Name of the skill to enable.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string name, CancellationToken cancellationToken = default)
@@ -5797,7 +5866,7 @@ public sealed class SkillsApi
         await CopilotClient.InvokeRpcAsync(_rpc, "session.skills.enable", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.skills.disable".</summary>
+    /// <summary>Disables a skill for the session.</summary>
     /// <param name="name">Name of the skill to disable.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string name, CancellationToken cancellationToken = default)
@@ -5806,8 +5875,9 @@ public sealed class SkillsApi
         await CopilotClient.InvokeRpcAsync(_rpc, "session.skills.disable", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.skills.reload".</summary>
+    /// <summary>Reloads skill definitions for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Diagnostics from reloading skill definitions, with warnings and errors as separate lists.</returns>
     public async Task<SkillsLoadDiagnostics> ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionSkillsReloadRequest { SessionId = _sessionId };
@@ -5829,15 +5899,16 @@ public sealed class McpApi
         Oauth = new McpOauthApi(rpc, sessionId);
     }
 
-    /// <summary>Calls "session.mcp.list".</summary>
+    /// <summary>Lists MCP servers configured for the session and their connection status.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>MCP servers configured for the session, with their connection status.</returns>
     public async Task<McpServerList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionMcpListRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<McpServerList>(_rpc, "session.mcp.list", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.mcp.enable".</summary>
+    /// <summary>Enables an MCP server for the session.</summary>
     /// <param name="serverName">Name of the MCP server to enable.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string serverName, CancellationToken cancellationToken = default)
@@ -5846,7 +5917,7 @@ public sealed class McpApi
         await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.enable", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.mcp.disable".</summary>
+    /// <summary>Disables an MCP server for the session.</summary>
     /// <param name="serverName">Name of the MCP server to disable.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string serverName, CancellationToken cancellationToken = default)
@@ -5855,7 +5926,7 @@ public sealed class McpApi
         await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.disable", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.mcp.reload".</summary>
+    /// <summary>Reloads MCP server connections for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
@@ -5880,12 +5951,13 @@ public sealed class McpOauthApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.mcp.oauth.login".</summary>
+    /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
     /// <param name="serverName">Name of the remote MCP server to authenticate.</param>
     /// <param name="forceReauth">When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</param>
     /// <param name="clientName">Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</param>
     /// <param name="callbackSuccessMessage">Optional override for the body text shown on the OAuth loopback callback success page. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass surface-specific copy telling the user where to return.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</returns>
     public async Task<McpOauthLoginResult> LoginAsync(string serverName, bool? forceReauth = null, string? clientName = null, string? callbackSuccessMessage = null, CancellationToken cancellationToken = default)
     {
         var request = new McpOauthLoginRequest { SessionId = _sessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage };
@@ -5906,8 +5978,9 @@ public sealed class PluginsApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.plugins.list".</summary>
+    /// <summary>Lists plugins installed for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Plugins installed for the session, with their enabled state and version metadata.</returns>
     public async Task<PluginList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionPluginsListRequest { SessionId = _sessionId };
@@ -5928,15 +6001,16 @@ public sealed class ExtensionsApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.extensions.list".</summary>
+    /// <summary>Lists extensions discovered for the session and their current status.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Extensions discovered for the session, with their current status.</returns>
     public async Task<ExtensionList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionExtensionsListRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<ExtensionList>(_rpc, "session.extensions.list", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.extensions.enable".</summary>
+    /// <summary>Enables an extension for the session.</summary>
     /// <param name="id">Source-qualified extension ID to enable.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string id, CancellationToken cancellationToken = default)
@@ -5945,7 +6019,7 @@ public sealed class ExtensionsApi
         await CopilotClient.InvokeRpcAsync(_rpc, "session.extensions.enable", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.extensions.disable".</summary>
+    /// <summary>Disables an extension for the session.</summary>
     /// <param name="id">Source-qualified extension ID to disable.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string id, CancellationToken cancellationToken = default)
@@ -5954,7 +6028,7 @@ public sealed class ExtensionsApi
         await CopilotClient.InvokeRpcAsync(_rpc, "session.extensions.disable", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.extensions.reload".</summary>
+    /// <summary>Reloads extension definitions and processes for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
@@ -5975,11 +6049,12 @@ public sealed class ToolsApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.tools.handlePendingToolCall".</summary>
+    /// <summary>Provides the result for a pending external tool call.</summary>
     /// <param name="requestId">Request ID of the pending tool call.</param>
     /// <param name="result">Tool call result (string or expanded result object).</param>
     /// <param name="error">Error message if the tool call failed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the external tool call result was handled successfully.</returns>
     public async Task<HandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result = null, string? error = null, CancellationToken cancellationToken = default)
     {
         var request = new HandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
@@ -5999,39 +6074,43 @@ public sealed class CommandsApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.commands.list".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Lists slash commands available in the session.</summary>
+    /// <param name="request">Optional filters controlling which command sources to include in the listing.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Slash commands available in the session, after applying any include/exclude filters.</returns>
     public async Task<CommandList> ListAsync(CommandsListRequest? request = null, CancellationToken cancellationToken = default)
     {
         var rpcRequest = new CommandsListRequestWithSession { SessionId = _sessionId, IncludeBuiltins = request?.IncludeBuiltins, IncludeSkills = request?.IncludeSkills, IncludeClientCommands = request?.IncludeClientCommands };
         return await CopilotClient.InvokeRpcAsync<CommandList>(_rpc, "session.commands.list", [rpcRequest], cancellationToken);
     }
 
-    /// <summary>Calls "session.commands.invoke".</summary>
+    /// <summary>Invokes a slash command in the session.</summary>
     /// <param name="name">Command name. Leading slashes are stripped and the name is matched case-insensitively.</param>
     /// <param name="input">Raw input after the command name.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of invoking the slash command (text output, prompt to send to the agent, or completion).</returns>
     public async Task<SlashCommandInvocationResult> InvokeAsync(string name, string? input = null, CancellationToken cancellationToken = default)
     {
         var request = new CommandsInvokeRequest { SessionId = _sessionId, Name = name, Input = input };
         return await CopilotClient.InvokeRpcAsync<SlashCommandInvocationResult>(_rpc, "session.commands.invoke", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.commands.handlePendingCommand".</summary>
+    /// <summary>Reports completion of a pending client-handled slash command.</summary>
     /// <param name="requestId">Request ID from the command invocation event.</param>
     /// <param name="error">Error message if the command handler failed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the pending client-handled command was completed successfully.</returns>
     public async Task<CommandsHandlePendingCommandResult> HandlePendingCommandAsync(string requestId, string? error = null, CancellationToken cancellationToken = default)
     {
         var request = new CommandsHandlePendingCommandRequest { SessionId = _sessionId, RequestId = requestId, Error = error };
         return await CopilotClient.InvokeRpcAsync<CommandsHandlePendingCommandResult>(_rpc, "session.commands.handlePendingCommand", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.commands.respondToQueuedCommand".</summary>
+    /// <summary>Responds to a queued command request from the session.</summary>
     /// <param name="requestId">Request ID from the queued command event.</param>
     /// <param name="result">Result of the queued command execution.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the queued-command response was accepted by the session.</returns>
     public async Task<CommandsRespondToQueuedCommandResult> RespondToQueuedCommandAsync(string requestId, QueuedCommandResult result, CancellationToken cancellationToken = default)
     {
         var request = new CommandsRespondToQueuedCommandRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
@@ -6051,7 +6130,7 @@ public sealed class UiApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.ui.elicitation".</summary>
+    /// <summary>Requests structured input from a UI-capable client.</summary>
     /// <param name="message">Message describing what information is needed from the user.</param>
     /// <param name="requestedSchema">JSON Schema describing the form fields to present to the user.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -6062,10 +6141,11 @@ public sealed class UiApi
         return await CopilotClient.InvokeRpcAsync<UIElicitationResponse>(_rpc, "session.ui.elicitation", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.ui.handlePendingElicitation".</summary>
+    /// <summary>Provides the user response for a pending elicitation request.</summary>
     /// <param name="requestId">The unique request ID from the elicitation.requested event.</param>
     /// <param name="result">The elicitation response (accept with form values, decline, or cancel).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the elicitation response was accepted; false if it was already resolved by another client.</returns>
     public async Task<UIElicitationResult> HandlePendingElicitationAsync(string requestId, UIElicitationResponse result, CancellationToken cancellationToken = default)
     {
         var request = new UIHandlePendingElicitationRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
@@ -6085,27 +6165,30 @@ public sealed class PermissionsApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.permissions.handlePendingPermissionRequest".</summary>
+    /// <summary>Provides a decision for a pending tool permission request.</summary>
     /// <param name="requestId">Request ID of the pending permission request.</param>
-    /// <param name="result">The result parameter.</param>
+    /// <param name="result">Decision to apply to a pending permission request.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the permission decision was applied; false when the request was already resolved.</returns>
     public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, PermissionDecision result, CancellationToken cancellationToken = default)
     {
         var request = new PermissionDecisionRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
         return await CopilotClient.InvokeRpcAsync<PermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.permissions.setApproveAll".</summary>
+    /// <summary>Enables or disables automatic approval of tool permission requests for the session.</summary>
     /// <param name="enabled">Whether to auto-approve all tool permission requests.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the operation succeeded.</returns>
     public async Task<PermissionsSetApproveAllResult> SetApproveAllAsync(bool enabled, CancellationToken cancellationToken = default)
     {
         var request = new PermissionsSetApproveAllRequest { SessionId = _sessionId, Enabled = enabled };
         return await CopilotClient.InvokeRpcAsync<PermissionsSetApproveAllResult>(_rpc, "session.permissions.setApproveAll", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.permissions.resetSessionApprovals".</summary>
+    /// <summary>Clears session-scoped tool permission approvals.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the operation succeeded.</returns>
     public async Task<PermissionsResetSessionApprovalsResult> ResetSessionApprovalsAsync(CancellationToken cancellationToken = default)
     {
         var request = new PermissionsResetSessionApprovalsRequest { SessionId = _sessionId };
@@ -6125,21 +6208,23 @@ public sealed class ShellApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.shell.exec".</summary>
+    /// <summary>Starts a shell command and streams output through session notifications.</summary>
     /// <param name="command">Shell command to execute.</param>
     /// <param name="cwd">Working directory (defaults to session working directory).</param>
     /// <param name="timeout">Timeout in milliseconds (default: 30000).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Identifier of the spawned process, used to correlate streamed output and exit notifications.</returns>
     public async Task<ShellExecResult> ExecAsync(string command, string? cwd = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
         var request = new ShellExecRequest { SessionId = _sessionId, Command = command, Cwd = cwd, Timeout = timeout };
         return await CopilotClient.InvokeRpcAsync<ShellExecResult>(_rpc, "session.shell.exec", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.shell.kill".</summary>
+    /// <summary>Sends a signal to a shell process previously started via "shell.exec".</summary>
     /// <param name="processId">Process identifier returned by shell.exec.</param>
     /// <param name="signal">Signal to send (default: SIGTERM).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the signal was delivered; false if the process was unknown or already exited.</returns>
     public async Task<ShellKillResult> KillAsync(string processId, ShellKillSignal? signal = null, CancellationToken cancellationToken = default)
     {
         var request = new ShellKillRequest { SessionId = _sessionId, ProcessId = processId, Signal = signal };
@@ -6160,17 +6245,19 @@ public sealed class HistoryApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.history.compact".</summary>
+    /// <summary>Compacts the session history to reduce context usage.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Compaction outcome with the number of tokens and messages removed and the resulting context window breakdown.</returns>
     public async Task<HistoryCompactResult> CompactAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionHistoryCompactRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<HistoryCompactResult>(_rpc, "session.history.compact", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.history.truncate".</summary>
+    /// <summary>Truncates persisted session history to a specific event.</summary>
     /// <param name="eventId">Event ID to truncate to. This event and all events after it are removed from the session.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Number of events that were removed by the truncation.</returns>
     public async Task<HistoryTruncateResult> TruncateAsync(string eventId, CancellationToken cancellationToken = default)
     {
         var request = new HistoryTruncateRequest { SessionId = _sessionId, EventId = eventId };
@@ -6191,8 +6278,9 @@ public sealed class UsageApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.usage.getMetrics".</summary>
+    /// <summary>Gets accumulated usage metrics for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.</returns>
     public async Task<UsageGetMetricsResult> GetMetricsAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionUsageGetMetricsRequest { SessionId = _sessionId };
@@ -6213,16 +6301,17 @@ public sealed class RemoteApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.remote.enable".</summary>
-    /// <param name="mode">Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering.</param>
+    /// <summary>Enables remote session export or steering.</summary>
+    /// <param name="mode">Per-session remote mode. "off" disables remote, "export" exports session events to GitHub without enabling remote steering, "on" enables both export and remote steering.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>GitHub URL for the session and a flag indicating whether remote steering is enabled.</returns>
     public async Task<RemoteEnableResult> EnableAsync(RemoteSessionMode? mode = null, CancellationToken cancellationToken = default)
     {
         var request = new RemoteEnableRequest { SessionId = _sessionId, Mode = mode };
         return await CopilotClient.InvokeRpcAsync<RemoteEnableResult>(_rpc, "session.remote.enable", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.remote.disable".</summary>
+    /// <summary>Disables remote session export and steering.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(CancellationToken cancellationToken = default)
     {
@@ -6234,48 +6323,53 @@ public sealed class RemoteApi
 /// <summary>Handles `sessionFs` client session API methods.</summary>
 public interface ISessionFsHandler
 {
-    /// <summary>Handles "sessionFs.readFile".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Reads a file from the client-provided session filesystem.</summary>
+    /// <param name="request">Path of the file to read from the client-provided session filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>File content as a UTF-8 string, or a filesystem error if the read failed.</returns>
     Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.writeFile".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Writes a file in the client-provided session filesystem.</summary>
+    /// <param name="request">File path, content to write, and optional mode for the client-provided session filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.appendFile".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Appends content to a file in the client-provided session filesystem.</summary>
+    /// <param name="request">File path, content to append, and optional mode for the client-provided session filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.exists".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Checks whether a path exists in the client-provided session filesystem.</summary>
+    /// <param name="request">Path to test for existence in the client-provided session filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the requested path exists in the client-provided session filesystem.</returns>
     Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.stat".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Gets metadata for a path in the client-provided session filesystem.</summary>
+    /// <param name="request">Path whose metadata should be returned from the client-provided session filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Filesystem metadata for the requested path, or a filesystem error if the stat failed.</returns>
     Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.mkdir".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Creates a directory in the client-provided session filesystem.</summary>
+    /// <param name="request">Directory path to create in the client-provided session filesystem, with options for recursive creation and POSIX mode.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.readdir".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Lists entry names in a directory from the client-provided session filesystem.</summary>
+    /// <param name="request">Directory path whose entries should be listed from the client-provided session filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Names of entries in the requested directory, or a filesystem error if the read failed.</returns>
     Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.readdirWithTypes".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Lists directory entries with type information from the client-provided session filesystem.</summary>
+    /// <param name="request">Directory path whose entries (with type information) should be listed from the client-provided session filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Entries in the requested directory paired with file/directory type information, or a filesystem error if the read failed.</returns>
     Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.rm".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Removes a file or directory from the client-provided session filesystem.</summary>
+    /// <param name="request">Path to remove from the client-provided session filesystem, with options for recursive removal and force.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.rename".</summary>
-    /// <param name="request">The request parameters.</param>
+    /// <summary>Renames or moves a path in the client-provided session filesystem.</summary>
+    /// <param name="request">Source and destination paths for renaming or moving an entry in the client-provided session filesystem.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
@@ -6372,6 +6466,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(GitHub.Copilot.SDK.EmbeddedBlobResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedBlobResourceContents")]
 [JsonSerializable(typeof(GitHub.Copilot.SDK.EmbeddedTextResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedTextResourceContents")]
+[JsonSerializable(typeof(GitHub.Copilot.SDK.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
 [JsonSerializable(typeof(AccountGetQuotaRequest))]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]

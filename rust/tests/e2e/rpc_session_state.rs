@@ -67,6 +67,7 @@ async fn should_call_session_rpc_model_switchto() {
                         model_id: "gpt-4.1".to_string(),
                         reasoning_effort: Some("high".to_string()),
                         model_capabilities: None,
+                        reasoning_summary: None,
                     })
                     .await
                     .expect("switch model");

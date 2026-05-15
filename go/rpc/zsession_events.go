@@ -552,7 +552,7 @@ type AssistantUsageData struct {
 	ProviderCallID *string `json:"providerCallId,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
 	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitempty"`
-	// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
 	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
@@ -582,16 +582,20 @@ type SessionModelChangeData struct {
 	PreviousModel *string `json:"previousModel,omitempty"`
 	// Reasoning effort level before the model change, if applicable
 	PreviousReasoningEffort *string `json:"previousReasoningEffort,omitempty"`
+	// Reasoning summary mode before the model change, if applicable
+	PreviousReasoningSummary *ReasoningSummary `json:"previousReasoningSummary,omitempty"`
 	// Reasoning effort level after the model change, if applicable
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+	// Reasoning summary mode after the model change, if applicable
+	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 }
 
 func (*SessionModelChangeData) sessionEventData()      {}
 func (*SessionModelChangeData) Type() SessionEventType { return SessionEventTypeSessionModelChange }
 
-// Notifies Mission Control that the session's remote steering capability has changed
+// Notifies that the session's remote steering capability has changed
 type SessionRemoteSteerableChangedData struct {
-	// Whether this session now supports remote steering via Mission Control
+	// Whether this session now supports remote steering via GitHub
 	RemoteSteerable bool `json:"remoteSteerable"`
 }
 
@@ -797,6 +801,8 @@ func (*SessionScheduleCancelledData) Type() SessionEventType {
 
 // Scheduled prompt registered via /every or /after
 type SessionScheduleCreatedData struct {
+	// Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion)
+	DisplayPrompt *string `json:"displayPrompt,omitempty"`
 	// Sequential id assigned to the scheduled prompt within the session
 	ID int64 `json:"id"`
 	// Interval between ticks in milliseconds
@@ -811,6 +817,110 @@ func (*SessionScheduleCreatedData) sessionEventData() {}
 func (*SessionScheduleCreatedData) Type() SessionEventType {
 	return SessionEventTypeSessionScheduleCreated
 }
+
+// Schema for the `BackgroundTasksChangedData` type.
+type SessionBackgroundTasksChangedData struct {
+}
+
+func (*SessionBackgroundTasksChangedData) sessionEventData() {}
+func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionBackgroundTasksChanged
+}
+
+// Schema for the `CustomAgentsUpdatedData` type.
+type SessionCustomAgentsUpdatedData struct {
+	// Array of loaded custom agent metadata
+	Agents []CustomAgentsUpdatedAgent `json:"agents"`
+	// Fatal errors from agent loading
+	Errors []string `json:"errors"`
+	// Non-fatal warnings from agent loading
+	Warnings []string `json:"warnings"`
+}
+
+func (*SessionCustomAgentsUpdatedData) sessionEventData() {}
+func (*SessionCustomAgentsUpdatedData) Type() SessionEventType {
+	return SessionEventTypeSessionCustomAgentsUpdated
+}
+
+// Schema for the `ExtensionsLoadedData` type.
+type SessionExtensionsLoadedData struct {
+	// Array of discovered extensions and their status
+	Extensions []ExtensionsLoadedExtension `json:"extensions"`
+}
+
+func (*SessionExtensionsLoadedData) sessionEventData() {}
+func (*SessionExtensionsLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionExtensionsLoaded
+}
+
+// Schema for the `McpServerStatusChangedData` type.
+type SessionMcpServerStatusChangedData struct {
+	// Name of the MCP server whose status changed
+	ServerName string `json:"serverName"`
+	// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	Status McpServerStatusChangedStatus `json:"status"`
+}
+
+func (*SessionMcpServerStatusChangedData) sessionEventData() {}
+func (*SessionMcpServerStatusChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionMcpServerStatusChanged
+}
+
+// Schema for the `McpServersLoadedData` type.
+type SessionMcpServersLoadedData struct {
+	// Array of MCP server status summaries
+	Servers []McpServersLoadedServer `json:"servers"`
+}
+
+func (*SessionMcpServersLoadedData) sessionEventData() {}
+func (*SessionMcpServersLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionMcpServersLoaded
+}
+
+// Schema for the `SkillsLoadedData` type.
+type SessionSkillsLoadedData struct {
+	// Array of resolved skill metadata
+	Skills []SkillsLoadedSkill `json:"skills"`
+}
+
+func (*SessionSkillsLoadedData) sessionEventData()      {}
+func (*SessionSkillsLoadedData) Type() SessionEventType { return SessionEventTypeSessionSkillsLoaded }
+
+// Schema for the `ToolsUpdatedData` type.
+type SessionToolsUpdatedData struct {
+	// Identifier of the model the resolved tools apply to.
+	Model string `json:"model"`
+}
+
+func (*SessionToolsUpdatedData) sessionEventData()      {}
+func (*SessionToolsUpdatedData) Type() SessionEventType { return SessionEventTypeSessionToolsUpdated }
+
+// Schema for the `UserMessageData` type.
+type UserMessageData struct {
+	// The agent mode that was active when this message was sent
+	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
+	// Files, selections, or GitHub references attached to the message
+	Attachments []UserMessageAttachment `json:"attachments,omitempty"`
+	// The user's message text as displayed in the timeline
+	Content string `json:"content"`
+	// CAPI interaction ID for correlating this user message with its turn
+	InteractionID *string `json:"interactionId,omitempty"`
+	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
+	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
+	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
+	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitempty"`
+	// Parent agent task ID for background telemetry correlated to this user turn
+	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
+	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
+	Source *string `json:"source,omitempty"`
+	// Normalized document MIME types that were sent natively instead of through tagged_files XML
+	SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitempty"`
+	// Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
+	TransformedContent *string `json:"transformedContent,omitempty"`
+}
+
+func (*UserMessageData) sessionEventData()      {}
+func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMessage }
 
 // Session capability change notification
 type CapabilitiesChangedData struct {
@@ -854,9 +964,11 @@ type SessionStartData struct {
 	DetachedFromSpawningParentSessionID *string `json:"detachedFromSpawningParentSessionId,omitempty"`
 	// Identifier of the software producing the events (e.g., "copilot-agent")
 	Producer string `json:"producer"`
-	// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
-	// Whether this session supports remote steering via Mission Control
+	// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
+	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
 	// Model selected at session creation time, if any
 	SelectedModel *string `json:"selectedModel,omitempty"`
@@ -881,9 +993,11 @@ type SessionResumeData struct {
 	ContinuePendingWork *bool `json:"continuePendingWork,omitempty"`
 	// Total number of persisted events in the session at the time of resume
 	EventCount float64 `json:"eventCount"`
-	// Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
-	// Whether this session supports remote steering via Mission Control
+	// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
+	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Whether this session supports remote steering via GitHub
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
 	// ISO 8601 timestamp when the session was resumed
 	ResumeTime time.Time `json:"resumeTime"`
@@ -952,82 +1066,6 @@ type SessionTitleChangedData struct {
 
 func (*SessionTitleChangedData) sessionEventData()      {}
 func (*SessionTitleChangedData) Type() SessionEventType { return SessionEventTypeSessionTitleChanged }
-
-// SessionBackgroundTasksChangedData holds the payload for session.background_tasks_changed events.
-type SessionBackgroundTasksChangedData struct {
-}
-
-func (*SessionBackgroundTasksChangedData) sessionEventData() {}
-func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
-	return SessionEventTypeSessionBackgroundTasksChanged
-}
-
-// SessionCustomAgentsUpdatedData holds the payload for session.custom_agents_updated events.
-type SessionCustomAgentsUpdatedData struct {
-	// Array of loaded custom agent metadata
-	Agents []CustomAgentsUpdatedAgent `json:"agents"`
-	// Fatal errors from agent loading
-	Errors []string `json:"errors"`
-	// Non-fatal warnings from agent loading
-	Warnings []string `json:"warnings"`
-}
-
-func (*SessionCustomAgentsUpdatedData) sessionEventData() {}
-func (*SessionCustomAgentsUpdatedData) Type() SessionEventType {
-	return SessionEventTypeSessionCustomAgentsUpdated
-}
-
-// SessionExtensionsLoadedData holds the payload for session.extensions_loaded events.
-type SessionExtensionsLoadedData struct {
-	// Array of discovered extensions and their status
-	Extensions []ExtensionsLoadedExtension `json:"extensions"`
-}
-
-func (*SessionExtensionsLoadedData) sessionEventData() {}
-func (*SessionExtensionsLoadedData) Type() SessionEventType {
-	return SessionEventTypeSessionExtensionsLoaded
-}
-
-// SessionMcpServerStatusChangedData holds the payload for session.mcp_server_status_changed events.
-type SessionMcpServerStatusChangedData struct {
-	// Name of the MCP server whose status changed
-	ServerName string `json:"serverName"`
-	// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status McpServerStatusChangedStatus `json:"status"`
-}
-
-func (*SessionMcpServerStatusChangedData) sessionEventData() {}
-func (*SessionMcpServerStatusChangedData) Type() SessionEventType {
-	return SessionEventTypeSessionMcpServerStatusChanged
-}
-
-// SessionMcpServersLoadedData holds the payload for session.mcp_servers_loaded events.
-type SessionMcpServersLoadedData struct {
-	// Array of MCP server status summaries
-	Servers []McpServersLoadedServer `json:"servers"`
-}
-
-func (*SessionMcpServersLoadedData) sessionEventData() {}
-func (*SessionMcpServersLoadedData) Type() SessionEventType {
-	return SessionEventTypeSessionMcpServersLoaded
-}
-
-// SessionSkillsLoadedData holds the payload for session.skills_loaded events.
-type SessionSkillsLoadedData struct {
-	// Array of resolved skill metadata
-	Skills []SkillsLoadedSkill `json:"skills"`
-}
-
-func (*SessionSkillsLoadedData) sessionEventData()      {}
-func (*SessionSkillsLoadedData) Type() SessionEventType { return SessionEventTypeSessionSkillsLoaded }
-
-// SessionToolsUpdatedData holds the payload for session.tools_updated events.
-type SessionToolsUpdatedData struct {
-	Model string `json:"model"`
-}
-
-func (*SessionToolsUpdatedData) sessionEventData()      {}
-func (*SessionToolsUpdatedData) Type() SessionEventType { return SessionEventTypeSessionToolsUpdated }
 
 // Skill invocation details including content, allowed tools, and plugin metadata
 type SkillInvokedData struct {
@@ -1351,33 +1389,6 @@ type ToolUserRequestedData struct {
 func (*ToolUserRequestedData) sessionEventData()      {}
 func (*ToolUserRequestedData) Type() SessionEventType { return SessionEventTypeToolUserRequested }
 
-// UserMessageData holds the payload for user.message events.
-type UserMessageData struct {
-	// The agent mode that was active when this message was sent
-	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
-	// Files, selections, or GitHub references attached to the message
-	Attachments []UserMessageAttachment `json:"attachments,omitempty"`
-	// The user's message text as displayed in the timeline
-	Content string `json:"content"`
-	// CAPI interaction ID for correlating this user message with its turn
-	InteractionID *string `json:"interactionId,omitempty"`
-	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
-	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
-	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
-	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitempty"`
-	// Parent agent task ID for background telemetry correlated to this user turn
-	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
-	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
-	Source *string `json:"source,omitempty"`
-	// Normalized document MIME types that were sent natively instead of through tagged_files XML
-	SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitempty"`
-	// Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
-	TransformedContent *string `json:"transformedContent,omitempty"`
-}
-
-func (*UserMessageData) sessionEventData()      {}
-func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMessage }
-
 // Warning message for timeline display with categorization
 type SessionWarningData struct {
 	// Human-readable warning message for display in the timeline
@@ -1469,6 +1480,7 @@ type AssistantUsageCopilotUsageTokenDetail struct {
 	TokenType string `json:"tokenType"`
 }
 
+// Schema for the `AssistantUsageQuotaSnapshot` type.
 type AssistantUsageQuotaSnapshot struct {
 	// Total requests allowed by the entitlement
 	EntitlementRequests float64 `json:"entitlementRequests"`
@@ -1494,9 +1506,12 @@ type CapabilitiesChangedUI struct {
 	Elicitation *bool `json:"elicitation,omitempty"`
 }
 
+// Schema for the `CommandsChangedCommand` type.
 type CommandsChangedCommand struct {
+	// Optional human-readable command description.
 	Description *string `json:"description,omitempty"`
-	Name        string  `json:"name"`
+	// Slash command name without the leading slash.
+	Name string `json:"name"`
 }
 
 // Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
@@ -1537,6 +1552,7 @@ type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
 	TokenType string `json:"tokenType"`
 }
 
+// Schema for the `CustomAgentsUpdatedAgent` type.
 type CustomAgentsUpdatedAgent struct {
 	// Description of what the agent does
 	Description string `json:"description"`
@@ -1565,6 +1581,7 @@ type CustomNotificationPayload struct {
 	String   *string
 }
 
+// Schema for the `ElicitationCompletedContent` type.
 type ElicitationCompletedContent interface {
 	elicitationCompletedContent()
 }
@@ -1595,6 +1612,7 @@ type ElicitationRequestedSchema struct {
 	Type ElicitationRequestedSchemaType `json:"type"`
 }
 
+// Schema for the `ExtensionsLoadedExtension` type.
 type ExtensionsLoadedExtension struct {
 	// Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper')
 	ID string `json:"id"`
@@ -1634,6 +1652,7 @@ type McpOauthRequiredStaticClientConfig struct {
 	PublicClient *bool `json:"publicClient,omitempty"`
 }
 
+// Schema for the `McpServersLoadedServer` type.
 type McpServersLoadedServer struct {
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
@@ -2056,6 +2075,7 @@ func (PermissionRequestWrite) Kind() PermissionRequestKind {
 	return PermissionRequestKindWrite
 }
 
+// Schema for the `PermissionRequestShellCommand` type.
 type PermissionRequestShellCommand struct {
 	// Command identifier (e.g., executable name)
 	Identifier string `json:"identifier"`
@@ -2063,6 +2083,7 @@ type PermissionRequestShellCommand struct {
 	ReadOnly bool `json:"readOnly"`
 }
 
+// Schema for the `PermissionRequestShellPossibleUrl` type.
 type PermissionRequestShellPossibleURL struct {
 	// URL that may be accessed by the command
 	URL string `json:"url"`
@@ -2084,6 +2105,7 @@ func (r RawPermissionResult) Kind() PermissionResultKind {
 	return r.Discriminator
 }
 
+// Schema for the `PermissionApproved` type.
 type PermissionApproved struct {
 }
 
@@ -2092,6 +2114,7 @@ func (PermissionApproved) Kind() PermissionResultKind {
 	return PermissionResultKindApproved
 }
 
+// Schema for the `PermissionApprovedForLocation` type.
 type PermissionApprovedForLocation struct {
 	// The approval to persist for this location
 	Approval UserToolSessionApproval `json:"approval"`
@@ -2104,6 +2127,7 @@ func (PermissionApprovedForLocation) Kind() PermissionResultKind {
 	return PermissionResultKindApprovedForLocation
 }
 
+// Schema for the `PermissionApprovedForSession` type.
 type PermissionApprovedForSession struct {
 	// The approval to add as a session-scoped rule
 	Approval UserToolSessionApproval `json:"approval"`
@@ -2114,6 +2138,7 @@ func (PermissionApprovedForSession) Kind() PermissionResultKind {
 	return PermissionResultKindApprovedForSession
 }
 
+// Schema for the `PermissionCancelled` type.
 type PermissionCancelled struct {
 	// Optional explanation of why the request was cancelled
 	Reason *string `json:"reason,omitempty"`
@@ -2124,6 +2149,7 @@ func (PermissionCancelled) Kind() PermissionResultKind {
 	return PermissionResultKindCancelled
 }
 
+// Schema for the `PermissionDeniedByContentExclusionPolicy` type.
 type PermissionDeniedByContentExclusionPolicy struct {
 	// Human-readable explanation of why the path was excluded
 	Message string `json:"message"`
@@ -2136,6 +2162,7 @@ func (PermissionDeniedByContentExclusionPolicy) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByContentExclusionPolicy
 }
 
+// Schema for the `PermissionDeniedByPermissionRequestHook` type.
 type PermissionDeniedByPermissionRequestHook struct {
 	// Whether to interrupt the current agent turn
 	Interrupt *bool `json:"interrupt,omitempty"`
@@ -2148,6 +2175,7 @@ func (PermissionDeniedByPermissionRequestHook) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByPermissionRequestHook
 }
 
+// Schema for the `PermissionDeniedByRules` type.
 type PermissionDeniedByRules struct {
 	// Rules that denied the request
 	Rules []PermissionRule `json:"rules"`
@@ -2158,6 +2186,7 @@ func (PermissionDeniedByRules) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByRules
 }
 
+// Schema for the `PermissionDeniedInteractivelyByUser` type.
 type PermissionDeniedInteractivelyByUser struct {
 	// Optional feedback from the user explaining the denial
 	Feedback *string `json:"feedback,omitempty"`
@@ -2170,6 +2199,7 @@ func (PermissionDeniedInteractivelyByUser) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedInteractivelyByUser
 }
 
+// Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
 type PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser struct {
 }
 
@@ -2178,6 +2208,7 @@ func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() Permissio
 	return PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
+// Schema for the `PermissionRule` type.
 type PermissionRule struct {
 	// Optional rule argument matched against the request
 	Argument *string `json:"argument"`
@@ -2195,6 +2226,7 @@ type ShutdownCodeChanges struct {
 	LinesRemoved float64 `json:"linesRemoved"`
 }
 
+// Schema for the `ShutdownModelMetric` type.
 type ShutdownModelMetric struct {
 	// Request count and cost metrics
 	Requests ShutdownModelMetricRequests `json:"requests"`
@@ -2214,6 +2246,7 @@ type ShutdownModelMetricRequests struct {
 	Count float64 `json:"count"`
 }
 
+// Schema for the `ShutdownModelMetricTokenDetail` type.
 type ShutdownModelMetricTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount float64 `json:"tokenCount"`
@@ -2233,11 +2266,13 @@ type ShutdownModelMetricUsage struct {
 	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
 }
 
+// Schema for the `ShutdownTokenDetail` type.
 type ShutdownTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount float64 `json:"tokenCount"`
 }
 
+// Schema for the `SkillsLoadedSkill` type.
 type SkillsLoadedSkill struct {
 	// Description of what the skill does
 	Description string `json:"description"`
@@ -2277,6 +2312,7 @@ func (r RawSystemNotification) Type() SystemNotificationType {
 	return r.Discriminator
 }
 
+// Schema for the `SystemNotificationAgentCompleted` type.
 type SystemNotificationAgentCompleted struct {
 	// Unique identifier of the background agent
 	AgentID string `json:"agentId"`
@@ -2295,6 +2331,7 @@ func (SystemNotificationAgentCompleted) Type() SystemNotificationType {
 	return SystemNotificationTypeAgentCompleted
 }
 
+// Schema for the `SystemNotificationAgentIdle` type.
 type SystemNotificationAgentIdle struct {
 	// Unique identifier of the background agent
 	AgentID string `json:"agentId"`
@@ -2309,6 +2346,7 @@ func (SystemNotificationAgentIdle) Type() SystemNotificationType {
 	return SystemNotificationTypeAgentIdle
 }
 
+// Schema for the `SystemNotificationInstructionDiscovered` type.
 type SystemNotificationInstructionDiscovered struct {
 	// Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/')
 	Description *string `json:"description,omitempty"`
@@ -2325,6 +2363,7 @@ func (SystemNotificationInstructionDiscovered) Type() SystemNotificationType {
 	return SystemNotificationTypeInstructionDiscovered
 }
 
+// Schema for the `SystemNotificationNewInboxMessage` type.
 type SystemNotificationNewInboxMessage struct {
 	// Unique identifier of the inbox entry
 	EntryID string `json:"entryId"`
@@ -2341,6 +2380,7 @@ func (SystemNotificationNewInboxMessage) Type() SystemNotificationType {
 	return SystemNotificationTypeNewInboxMessage
 }
 
+// Schema for the `SystemNotificationShellCompleted` type.
 type SystemNotificationShellCompleted struct {
 	// Human-readable description of the command
 	Description *string `json:"description,omitempty"`
@@ -2355,6 +2395,7 @@ func (SystemNotificationShellCompleted) Type() SystemNotificationType {
 	return SystemNotificationTypeShellCompleted
 }
 
+// Schema for the `SystemNotificationShellDetachedCompleted` type.
 type SystemNotificationShellDetachedCompleted struct {
 	// Human-readable description of the command
 	Description *string `json:"description,omitempty"`
@@ -2648,6 +2689,7 @@ func (r RawUserToolSessionApproval) Kind() UserToolSessionApprovalKind {
 	return r.Discriminator
 }
 
+// Schema for the `UserToolSessionApprovalCommands` type.
 type UserToolSessionApprovalCommands struct {
 	// Command identifiers approved by the user
 	CommandIdentifiers []string `json:"commandIdentifiers"`
@@ -2658,6 +2700,7 @@ func (UserToolSessionApprovalCommands) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindCommands
 }
 
+// Schema for the `UserToolSessionApprovalCustomTool` type.
 type UserToolSessionApprovalCustomTool struct {
 	// Custom tool name
 	ToolName string `json:"toolName"`
@@ -2668,6 +2711,7 @@ func (UserToolSessionApprovalCustomTool) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindCustomTool
 }
 
+// Schema for the `UserToolSessionApprovalExtensionManagement` type.
 type UserToolSessionApprovalExtensionManagement struct {
 	// Optional operation identifier
 	Operation *string `json:"operation,omitempty"`
@@ -2678,6 +2722,7 @@ func (UserToolSessionApprovalExtensionManagement) Kind() UserToolSessionApproval
 	return UserToolSessionApprovalKindExtensionManagement
 }
 
+// Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.
 type UserToolSessionApprovalExtensionPermissionAccess struct {
 	// Extension name
 	ExtensionName string `json:"extensionName"`
@@ -2688,6 +2733,7 @@ func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionAp
 	return UserToolSessionApprovalKindExtensionPermissionAccess
 }
 
+// Schema for the `UserToolSessionApprovalMcp` type.
 type UserToolSessionApprovalMcp struct {
 	// MCP server name
 	ServerName string `json:"serverName"`
@@ -2700,6 +2746,7 @@ func (UserToolSessionApprovalMcp) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindMcp
 }
 
+// Schema for the `UserToolSessionApprovalMemory` type.
 type UserToolSessionApprovalMemory struct {
 }
 
@@ -2708,6 +2755,7 @@ func (UserToolSessionApprovalMemory) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindMemory
 }
 
+// Schema for the `UserToolSessionApprovalRead` type.
 type UserToolSessionApprovalRead struct {
 }
 
@@ -2716,6 +2764,7 @@ func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindRead
 }
 
+// Schema for the `UserToolSessionApprovalWrite` type.
 type UserToolSessionApprovalWrite struct {
 }
 

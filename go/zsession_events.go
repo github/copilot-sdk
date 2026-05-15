@@ -133,6 +133,7 @@ type (
 	RawToolExecutionCompleteContent                               = rpc.RawToolExecutionCompleteContent
 	RawUserMessageAttachment                                      = rpc.RawUserMessageAttachment
 	RawUserToolSessionApproval                                    = rpc.RawUserToolSessionApproval
+	ReasoningSummary                                              = rpc.ReasoningSummary
 	SamplingCompletedData                                         = rpc.SamplingCompletedData
 	SamplingRequestedData                                         = rpc.SamplingRequestedData
 	SessionBackgroundTasksChangedData                             = rpc.SessionBackgroundTasksChangedData
@@ -335,6 +336,9 @@ const (
 	PlanChangedOperationCreate                                         = rpc.PlanChangedOperationCreate
 	PlanChangedOperationDelete                                         = rpc.PlanChangedOperationDelete
 	PlanChangedOperationUpdate                                         = rpc.PlanChangedOperationUpdate
+	ReasoningSummaryConcise                                            = rpc.ReasoningSummaryConcise
+	ReasoningSummaryDetailed                                           = rpc.ReasoningSummaryDetailed
+	ReasoningSummaryNone                                               = rpc.ReasoningSummaryNone
 	SessionEventTypeAbort                                              = rpc.SessionEventTypeAbort
 	SessionEventTypeAssistantIntent                                    = rpc.SessionEventTypeAssistantIntent
 	SessionEventTypeAssistantMessage                                   = rpc.SessionEventTypeAssistantMessage

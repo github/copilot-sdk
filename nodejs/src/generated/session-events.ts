@@ -3,6 +3,9 @@
  * Generated from: session-events.schema.json
  */
 
+/**
+ * Union of all session event variants emitted by the Copilot CLI runtime.
+ */
 export type SessionEvent =
   | StartEvent
   | ResumeEvent
@@ -89,6 +92,10 @@ export type SessionEvent =
  * Hosting platform type of the repository (github or ado)
  */
 export type WorkingDirectoryContextHostType = "github" | "ado";
+/**
+ * Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
+ */
+export type ReasoningSummary = "none" | "concise" | "detailed";
 /**
  * The type of operation performed on the plan file
  */
@@ -256,6 +263,9 @@ export type ElicitationRequestedMode = "form" | "url";
  * The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
  */
 export type ElicitationCompletedAction = "accept" | "decline" | "cancel";
+/**
+ * Schema for the `ElicitationCompletedContent` type.
+ */
 export type ElicitationCompletedContent = string | number | boolean | string[];
 /**
  * Source-defined JSON payload for the custom notification
@@ -298,6 +308,9 @@ export type ExtensionsLoadedExtensionSource = "project" | "user";
  */
 export type ExtensionsLoadedExtensionStatus = "running" | "disabled" | "failed" | "starting";
 
+/**
+ * Session event "session.start". Session initialization metadata including context and configuration
+ */
 export interface StartEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -320,6 +333,9 @@ export interface StartEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.start".
+   */
   type: "session.start";
 }
 /**
@@ -344,11 +360,12 @@ export interface StartData {
    */
   producer: string;
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
    */
   reasoningEffort?: string;
+  reasoningSummary?: ReasoningSummary;
   /**
-   * Whether this session supports remote steering via Mission Control
+   * Whether this session supports remote steering via GitHub
    */
   remoteSteerable?: boolean;
   /**
@@ -402,6 +419,9 @@ export interface WorkingDirectoryContext {
    */
   repositoryHost?: string;
 }
+/**
+ * Session event "session.resume". Session resume metadata including current context and event count
+ */
 export interface ResumeEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -424,6 +444,9 @@ export interface ResumeEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.resume".
+   */
   type: "session.resume";
 }
 /**
@@ -444,11 +467,12 @@ export interface ResumeData {
    */
   eventCount: number;
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
    */
   reasoningEffort?: string;
+  reasoningSummary?: ReasoningSummary;
   /**
-   * Whether this session supports remote steering via Mission Control
+   * Whether this session supports remote steering via GitHub
    */
   remoteSteerable?: boolean;
   /**
@@ -464,6 +488,9 @@ export interface ResumeData {
    */
   sessionWasActive?: boolean;
 }
+/**
+ * Session event "session.remote_steerable_changed". Notifies that the session's remote steering capability has changed
+ */
 export interface RemoteSteerableChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -486,17 +513,23 @@ export interface RemoteSteerableChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.remote_steerable_changed".
+   */
   type: "session.remote_steerable_changed";
 }
 /**
- * Notifies Mission Control that the session's remote steering capability has changed
+ * Notifies that the session's remote steering capability has changed
  */
 export interface RemoteSteerableChangedData {
   /**
-   * Whether this session now supports remote steering via Mission Control
+   * Whether this session now supports remote steering via GitHub
    */
   remoteSteerable: boolean;
 }
+/**
+ * Session event "session.error". Error details for timeline display including message and optional diagnostic information
+ */
 export interface ErrorEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -519,6 +552,9 @@ export interface ErrorEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.error".
+   */
   type: "session.error";
 }
 /**
@@ -558,12 +594,18 @@ export interface ErrorData {
    */
   url?: string;
 }
+/**
+ * Session event "session.idle". Payload indicating the session is idle with no background agents in flight
+ */
 export interface IdleEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: IdleData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -577,6 +619,9 @@ export interface IdleEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.idle".
+   */
   type: "session.idle";
 }
 /**
@@ -588,12 +633,18 @@ export interface IdleData {
    */
   aborted?: boolean;
 }
+/**
+ * Session event "session.title_changed". Session title change payload containing the new display title
+ */
 export interface TitleChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: TitleChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -607,6 +658,9 @@ export interface TitleChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.title_changed".
+   */
   type: "session.title_changed";
 }
 /**
@@ -618,6 +672,9 @@ export interface TitleChangedData {
    */
   title: string;
 }
+/**
+ * Session event "session.schedule_created". Scheduled prompt registered via /every or /after
+ */
 export interface ScheduleCreatedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -640,12 +697,19 @@ export interface ScheduleCreatedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.schedule_created".
+   */
   type: "session.schedule_created";
 }
 /**
  * Scheduled prompt registered via /every or /after
  */
 export interface ScheduleCreatedData {
+  /**
+   * Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion)
+   */
+  displayPrompt?: string;
   /**
    * Sequential id assigned to the scheduled prompt within the session
    */
@@ -663,6 +727,9 @@ export interface ScheduleCreatedData {
    */
   recurring?: boolean;
 }
+/**
+ * Session event "session.schedule_cancelled". Scheduled prompt cancelled from the schedule manager dialog
+ */
 export interface ScheduleCancelledEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -685,6 +752,9 @@ export interface ScheduleCancelledEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.schedule_cancelled".
+   */
   type: "session.schedule_cancelled";
 }
 /**
@@ -696,6 +766,9 @@ export interface ScheduleCancelledData {
    */
   id: number;
 }
+/**
+ * Session event "session.info". Informational message for timeline display with categorization
+ */
 export interface InfoEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -718,6 +791,9 @@ export interface InfoEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.info".
+   */
   type: "session.info";
 }
 /**
@@ -741,6 +817,9 @@ export interface InfoData {
    */
   url?: string;
 }
+/**
+ * Session event "session.warning". Warning message for timeline display with categorization
+ */
 export interface WarningEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -763,6 +842,9 @@ export interface WarningEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.warning".
+   */
   type: "session.warning";
 }
 /**
@@ -782,6 +864,9 @@ export interface WarningData {
    */
   warningType: string;
 }
+/**
+ * Session event "session.model_change". Model change details including previous and new model identifiers
+ */
 export interface ModelChangeEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -804,6 +889,9 @@ export interface ModelChangeEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.model_change".
+   */
   type: "session.model_change";
 }
 /**
@@ -826,11 +914,16 @@ export interface ModelChangeData {
    * Reasoning effort level before the model change, if applicable
    */
   previousReasoningEffort?: string;
+  previousReasoningSummary?: ReasoningSummary;
   /**
    * Reasoning effort level after the model change, if applicable
    */
-  reasoningEffort?: string;
+  reasoningEffort?: string | null;
+  reasoningSummary?: ReasoningSummary;
 }
+/**
+ * Session event "session.mode_changed". Agent mode change details including previous and new modes
+ */
 export interface ModeChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -853,6 +946,9 @@ export interface ModeChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.mode_changed".
+   */
   type: "session.mode_changed";
 }
 /**
@@ -868,6 +964,9 @@ export interface ModeChangedData {
    */
   previousMode: string;
 }
+/**
+ * Session event "session.plan_changed". Plan file operation details indicating what changed
+ */
 export interface PlanChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -890,6 +989,9 @@ export interface PlanChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.plan_changed".
+   */
   type: "session.plan_changed";
 }
 /**
@@ -898,6 +1000,9 @@ export interface PlanChangedEvent {
 export interface PlanChangedData {
   operation: PlanChangedOperation;
 }
+/**
+ * Session event "session.workspace_file_changed". Workspace file change details including path and operation type
+ */
 export interface WorkspaceFileChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -920,6 +1025,9 @@ export interface WorkspaceFileChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.workspace_file_changed".
+   */
   type: "session.workspace_file_changed";
 }
 /**
@@ -932,6 +1040,9 @@ export interface WorkspaceFileChangedData {
    */
   path: string;
 }
+/**
+ * Session event "session.handoff". Session handoff metadata including source, context, and repository information
+ */
 export interface HandoffEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -954,6 +1065,9 @@ export interface HandoffEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.handoff".
+   */
   type: "session.handoff";
 }
 /**
@@ -1000,6 +1114,9 @@ export interface HandoffRepository {
    */
   owner: string;
 }
+/**
+ * Session event "session.truncation". Conversation truncation statistics including token counts and removed content metrics
+ */
 export interface TruncationEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1022,6 +1139,9 @@ export interface TruncationEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.truncation".
+   */
   type: "session.truncation";
 }
 /**
@@ -1061,12 +1181,18 @@ export interface TruncationData {
    */
   tokensRemovedDuringTruncation: number;
 }
+/**
+ * Session event "session.snapshot_rewind". Session rewind details including target event and count of removed events
+ */
 export interface SnapshotRewindEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: SnapshotRewindData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -1080,6 +1206,9 @@ export interface SnapshotRewindEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.snapshot_rewind".
+   */
   type: "session.snapshot_rewind";
 }
 /**
@@ -1095,6 +1224,9 @@ export interface SnapshotRewindData {
    */
   upToEventId: string;
 }
+/**
+ * Session event "session.shutdown". Session termination metrics including usage statistics, code changes, and shutdown reason
+ */
 export interface ShutdownEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1117,6 +1249,9 @@ export interface ShutdownEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.shutdown".
+   */
   type: "session.shutdown";
 }
 /**
@@ -1195,6 +1330,9 @@ export interface ShutdownCodeChanges {
    */
   linesRemoved: number;
 }
+/**
+ * Schema for the `ShutdownModelMetric` type.
+ */
 export interface ShutdownModelMetric {
   requests: ShutdownModelMetricRequests;
   /**
@@ -1222,6 +1360,9 @@ export interface ShutdownModelMetricRequests {
    */
   count: number;
 }
+/**
+ * Schema for the `ShutdownModelMetricTokenDetail` type.
+ */
 export interface ShutdownModelMetricTokenDetail {
   /**
    * Accumulated token count for this token type
@@ -1253,12 +1394,18 @@ export interface ShutdownModelMetricUsage {
    */
   reasoningTokens?: number;
 }
+/**
+ * Schema for the `ShutdownTokenDetail` type.
+ */
 export interface ShutdownTokenDetail {
   /**
    * Accumulated token count for this token type
    */
   tokenCount: number;
 }
+/**
+ * Session event "session.context_changed". Updated working directory and git context after the change
+ */
 export interface ContextChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1281,14 +1428,23 @@ export interface ContextChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.context_changed".
+   */
   type: "session.context_changed";
 }
+/**
+ * Session event "session.usage_info". Current context window usage statistics including token and message counts
+ */
 export interface UsageInfoEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: UsageInfoData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -1302,6 +1458,9 @@ export interface UsageInfoEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.usage_info".
+   */
   type: "session.usage_info";
 }
 /**
@@ -1337,6 +1496,9 @@ export interface UsageInfoData {
    */
   toolDefinitionsTokens?: number;
 }
+/**
+ * Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction
+ */
 export interface CompactionStartEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1359,6 +1521,9 @@ export interface CompactionStartEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.compaction_start".
+   */
   type: "session.compaction_start";
 }
 /**
@@ -1378,6 +1543,9 @@ export interface CompactionStartData {
    */
   toolDefinitionsTokens?: number;
 }
+/**
+ * Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
+ */
 export interface CompactionCompleteEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1400,6 +1568,9 @@ export interface CompactionCompleteEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.compaction_complete".
+   */
   type: "session.compaction_complete";
 }
 /**
@@ -1528,6 +1699,9 @@ export interface CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
    */
   tokenType: string;
 }
+/**
+ * Session event "session.task_complete". Task completion notification with summary from the agent
+ */
 export interface TaskCompleteEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1550,6 +1724,9 @@ export interface TaskCompleteEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.task_complete".
+   */
   type: "session.task_complete";
 }
 /**
@@ -1565,6 +1742,9 @@ export interface TaskCompleteData {
    */
   summary?: string;
 }
+/**
+ * Session event "user.message".
+ */
 export interface UserMessageEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1587,8 +1767,14 @@ export interface UserMessageEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "user.message".
+   */
   type: "user.message";
 }
+/**
+ * Schema for the `UserMessageData` type.
+ */
 export interface UserMessageData {
   agentMode?: UserMessageAgentMode;
   /**
@@ -1778,12 +1964,18 @@ export interface UserMessageAttachmentBlob {
    */
   type: "blob";
 }
+/**
+ * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
+ */
 export interface PendingMessagesModifiedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: PendingMessagesModifiedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -1797,12 +1989,18 @@ export interface PendingMessagesModifiedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "pending_messages.modified".
+   */
   type: "pending_messages.modified";
 }
 /**
  * Empty payload; the event signals that the pending message queue has changed
  */
 export interface PendingMessagesModifiedData {}
+/**
+ * Session event "assistant.turn_start". Turn initialization metadata including identifier and interaction tracking
+ */
 export interface AssistantTurnStartEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1825,6 +2023,9 @@ export interface AssistantTurnStartEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.turn_start".
+   */
   type: "assistant.turn_start";
 }
 /**
@@ -1840,12 +2041,18 @@ export interface AssistantTurnStartData {
    */
   turnId: string;
 }
+/**
+ * Session event "assistant.intent". Agent intent description for current activity or plan
+ */
 export interface AssistantIntentEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: AssistantIntentData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -1859,6 +2066,9 @@ export interface AssistantIntentEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.intent".
+   */
   type: "assistant.intent";
 }
 /**
@@ -1870,6 +2080,9 @@ export interface AssistantIntentData {
    */
   intent: string;
 }
+/**
+ * Session event "assistant.reasoning". Assistant reasoning content for timeline display with complete thinking text
+ */
 export interface AssistantReasoningEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1892,6 +2105,9 @@ export interface AssistantReasoningEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.reasoning".
+   */
   type: "assistant.reasoning";
 }
 /**
@@ -1907,12 +2123,18 @@ export interface AssistantReasoningData {
    */
   reasoningId: string;
 }
+/**
+ * Session event "assistant.reasoning_delta". Streaming reasoning delta for incremental extended thinking updates
+ */
 export interface AssistantReasoningDeltaEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: AssistantReasoningDeltaData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -1926,6 +2148,9 @@ export interface AssistantReasoningDeltaEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.reasoning_delta".
+   */
   type: "assistant.reasoning_delta";
 }
 /**
@@ -1941,12 +2166,18 @@ export interface AssistantReasoningDeltaData {
    */
   reasoningId: string;
 }
+/**
+ * Session event "assistant.streaming_delta". Streaming response progress with cumulative byte count
+ */
 export interface AssistantStreamingDeltaEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: AssistantStreamingDeltaData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -1960,6 +2191,9 @@ export interface AssistantStreamingDeltaEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.streaming_delta".
+   */
   type: "assistant.streaming_delta";
 }
 /**
@@ -1971,6 +2205,9 @@ export interface AssistantStreamingDeltaData {
    */
   totalResponseSizeBytes: number;
 }
+/**
+ * Session event "assistant.message". Assistant response containing text content, optional tool requests, and interaction metadata
+ */
 export interface AssistantMessageEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1993,6 +2230,9 @@ export interface AssistantMessageEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.message".
+   */
   type: "assistant.message";
 }
 /**
@@ -2097,12 +2337,18 @@ export interface AssistantMessageToolRequest {
   toolTitle?: string;
   type?: AssistantMessageToolRequestType;
 }
+/**
+ * Session event "assistant.message_start". Streaming assistant message start metadata
+ */
 export interface AssistantMessageStartEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: AssistantMessageStartData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -2116,6 +2362,9 @@ export interface AssistantMessageStartEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.message_start".
+   */
   type: "assistant.message_start";
 }
 /**
@@ -2131,12 +2380,18 @@ export interface AssistantMessageStartData {
    */
   phase?: string;
 }
+/**
+ * Session event "assistant.message_delta". Streaming assistant message delta for incremental response updates
+ */
 export interface AssistantMessageDeltaEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: AssistantMessageDeltaData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -2150,6 +2405,9 @@ export interface AssistantMessageDeltaEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.message_delta".
+   */
   type: "assistant.message_delta";
 }
 /**
@@ -2170,6 +2428,9 @@ export interface AssistantMessageDeltaData {
    */
   parentToolCallId?: string;
 }
+/**
+ * Session event "assistant.turn_end". Turn completion metadata including the turn identifier
+ */
 export interface AssistantTurnEndEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -2192,6 +2453,9 @@ export interface AssistantTurnEndEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.turn_end".
+   */
   type: "assistant.turn_end";
 }
 /**
@@ -2203,12 +2467,18 @@ export interface AssistantTurnEndData {
    */
   turnId: string;
 }
+/**
+ * Session event "assistant.usage". LLM API call usage metrics including tokens, costs, quotas, and billing information
+ */
 export interface AssistantUsageEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: AssistantUsageData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -2222,6 +2492,9 @@ export interface AssistantUsageEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.usage".
+   */
   type: "assistant.usage";
 }
 /**
@@ -2286,7 +2559,7 @@ export interface AssistantUsageData {
     [k: string]: AssistantUsageQuotaSnapshot;
   };
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
    */
   reasoningEffort?: string;
   /**
@@ -2332,6 +2605,9 @@ export interface AssistantUsageCopilotUsageTokenDetail {
    */
   tokenType: string;
 }
+/**
+ * Schema for the `AssistantUsageQuotaSnapshot` type.
+ */
 export interface AssistantUsageQuotaSnapshot {
   /**
    * Total requests allowed by the entitlement
@@ -2366,12 +2642,18 @@ export interface AssistantUsageQuotaSnapshot {
    */
   usedRequests: number;
 }
+/**
+ * Session event "model.call_failure". Failed LLM API call metadata for telemetry
+ */
 export interface ModelCallFailureEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ModelCallFailureData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -2385,6 +2667,9 @@ export interface ModelCallFailureEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "model.call_failure".
+   */
   type: "model.call_failure";
 }
 /**
@@ -2421,6 +2706,9 @@ export interface ModelCallFailureData {
    */
   statusCode?: number;
 }
+/**
+ * Session event "abort". Turn abort information including the reason for termination
+ */
 export interface AbortEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -2443,6 +2731,9 @@ export interface AbortEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "abort".
+   */
   type: "abort";
 }
 /**
@@ -2451,6 +2742,9 @@ export interface AbortEvent {
 export interface AbortData {
   reason: AbortReason;
 }
+/**
+ * Session event "tool.user_requested". User-initiated tool invocation request with tool name and arguments
+ */
 export interface ToolUserRequestedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -2473,6 +2767,9 @@ export interface ToolUserRequestedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "tool.user_requested".
+   */
   type: "tool.user_requested";
 }
 /**
@@ -2494,6 +2791,9 @@ export interface ToolUserRequestedData {
    */
   toolName: string;
 }
+/**
+ * Session event "tool.execution_start". Tool execution startup details including MCP server information when applicable
+ */
 export interface ToolExecutionStartEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -2516,6 +2816,9 @@ export interface ToolExecutionStartEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "tool.execution_start".
+   */
   type: "tool.execution_start";
 }
 /**
@@ -2554,12 +2857,18 @@ export interface ToolExecutionStartData {
    */
   turnId?: string;
 }
+/**
+ * Session event "tool.execution_partial_result". Streaming tool execution output for incremental result display
+ */
 export interface ToolExecutionPartialResultEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ToolExecutionPartialData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -2573,6 +2882,9 @@ export interface ToolExecutionPartialResultEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "tool.execution_partial_result".
+   */
   type: "tool.execution_partial_result";
 }
 /**
@@ -2588,12 +2900,18 @@ export interface ToolExecutionPartialData {
    */
   toolCallId: string;
 }
+/**
+ * Session event "tool.execution_progress". Tool execution progress notification with status message
+ */
 export interface ToolExecutionProgressEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ToolExecutionProgressData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -2607,6 +2925,9 @@ export interface ToolExecutionProgressEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "tool.execution_progress".
+   */
   type: "tool.execution_progress";
 }
 /**
@@ -2622,6 +2943,9 @@ export interface ToolExecutionProgressData {
    */
   toolCallId: string;
 }
+/**
+ * Session event "tool.execution_complete". Tool execution completion results including success status, detailed output, and error information
+ */
 export interface ToolExecutionCompleteEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -2644,6 +2968,9 @@ export interface ToolExecutionCompleteEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "tool.execution_complete".
+   */
   type: "tool.execution_complete";
 }
 /**
@@ -2851,6 +3178,9 @@ export interface ToolExecutionCompleteContentResource {
    */
   type: "resource";
 }
+/**
+ * Schema for the `EmbeddedTextResourceContents` type.
+ */
 export interface EmbeddedTextResourceContents {
   /**
    * MIME type of the text content
@@ -2865,6 +3195,9 @@ export interface EmbeddedTextResourceContents {
    */
   uri: string;
 }
+/**
+ * Schema for the `EmbeddedBlobResourceContents` type.
+ */
 export interface EmbeddedBlobResourceContents {
   /**
    * Base64-encoded binary content of the resource
@@ -2879,6 +3212,9 @@ export interface EmbeddedBlobResourceContents {
    */
   uri: string;
 }
+/**
+ * Session event "skill.invoked". Skill invocation details including content, allowed tools, and plugin metadata
+ */
 export interface SkillInvokedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -2901,6 +3237,9 @@ export interface SkillInvokedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "skill.invoked".
+   */
   type: "skill.invoked";
 }
 /**
@@ -2936,6 +3275,9 @@ export interface SkillInvokedData {
    */
   pluginVersion?: string;
 }
+/**
+ * Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
+ */
 export interface SubagentStartedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -2958,6 +3300,9 @@ export interface SubagentStartedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "subagent.started".
+   */
   type: "subagent.started";
 }
 /**
@@ -2985,6 +3330,9 @@ export interface SubagentStartedData {
    */
   toolCallId: string;
 }
+/**
+ * Session event "subagent.completed". Sub-agent completion details for successful execution
+ */
 export interface SubagentCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3007,6 +3355,9 @@ export interface SubagentCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "subagent.completed".
+   */
   type: "subagent.completed";
 }
 /**
@@ -3042,6 +3393,9 @@ export interface SubagentCompletedData {
    */
   totalToolCalls?: number;
 }
+/**
+ * Session event "subagent.failed". Sub-agent failure details including error message and agent information
+ */
 export interface SubagentFailedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3064,6 +3418,9 @@ export interface SubagentFailedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "subagent.failed".
+   */
   type: "subagent.failed";
 }
 /**
@@ -3103,6 +3460,9 @@ export interface SubagentFailedData {
    */
   totalToolCalls?: number;
 }
+/**
+ * Session event "subagent.selected". Custom agent selection details including name and available tools
+ */
 export interface SubagentSelectedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3125,6 +3485,9 @@ export interface SubagentSelectedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "subagent.selected".
+   */
   type: "subagent.selected";
 }
 /**
@@ -3144,6 +3507,9 @@ export interface SubagentSelectedData {
    */
   tools: string[] | null;
 }
+/**
+ * Session event "subagent.deselected". Empty payload; the event signals that the custom agent was deselected, returning to the default agent
+ */
 export interface SubagentDeselectedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3166,12 +3532,18 @@ export interface SubagentDeselectedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "subagent.deselected".
+   */
   type: "subagent.deselected";
 }
 /**
  * Empty payload; the event signals that the custom agent was deselected, returning to the default agent
  */
 export interface SubagentDeselectedData {}
+/**
+ * Session event "hook.start". Hook invocation start details including type and input data
+ */
 export interface HookStartEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3194,6 +3566,9 @@ export interface HookStartEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "hook.start".
+   */
   type: "hook.start";
 }
 /**
@@ -3215,6 +3590,9 @@ export interface HookStartData {
     [k: string]: unknown;
   };
 }
+/**
+ * Session event "hook.end". Hook invocation completion details including output, success status, and error information
+ */
 export interface HookEndEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3237,6 +3615,9 @@ export interface HookEndEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "hook.end".
+   */
   type: "hook.end";
 }
 /**
@@ -3276,6 +3657,9 @@ export interface HookEndError {
    */
   stack?: string;
 }
+/**
+ * Session event "system.message". System/developer instruction content with role and optional template metadata
+ */
 export interface SystemMessageEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3298,6 +3682,9 @@ export interface SystemMessageEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "system.message".
+   */
   type: "system.message";
 }
 /**
@@ -3330,6 +3717,9 @@ export interface SystemMessageMetadata {
     [k: string]: unknown;
   };
 }
+/**
+ * Session event "system.notification". System-generated notification for runtime events like background task completion
+ */
 export interface SystemNotificationEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3352,6 +3742,9 @@ export interface SystemNotificationEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "system.notification".
+   */
   type: "system.notification";
 }
 /**
@@ -3364,6 +3757,9 @@ export interface SystemNotificationData {
   content: string;
   kind: SystemNotification;
 }
+/**
+ * Schema for the `SystemNotificationAgentCompleted` type.
+ */
 export interface SystemNotificationAgentCompleted {
   /**
    * Unique identifier of the background agent
@@ -3382,8 +3778,14 @@ export interface SystemNotificationAgentCompleted {
    */
   prompt?: string;
   status: SystemNotificationAgentCompletedStatus;
+  /**
+   * Type discriminator. Always "agent_completed".
+   */
   type: "agent_completed";
 }
+/**
+ * Schema for the `SystemNotificationAgentIdle` type.
+ */
 export interface SystemNotificationAgentIdle {
   /**
    * Unique identifier of the background agent
@@ -3397,8 +3799,14 @@ export interface SystemNotificationAgentIdle {
    * Human-readable description of the agent task
    */
   description?: string;
+  /**
+   * Type discriminator. Always "agent_idle".
+   */
   type: "agent_idle";
 }
+/**
+ * Schema for the `SystemNotificationNewInboxMessage` type.
+ */
 export interface SystemNotificationNewInboxMessage {
   /**
    * Unique identifier of the inbox entry
@@ -3416,8 +3824,14 @@ export interface SystemNotificationNewInboxMessage {
    * Short summary shown before the agent decides whether to read the inbox
    */
   summary: string;
+  /**
+   * Type discriminator. Always "new_inbox_message".
+   */
   type: "new_inbox_message";
 }
+/**
+ * Schema for the `SystemNotificationShellCompleted` type.
+ */
 export interface SystemNotificationShellCompleted {
   /**
    * Human-readable description of the command
@@ -3431,8 +3845,14 @@ export interface SystemNotificationShellCompleted {
    * Unique identifier of the shell session
    */
   shellId: string;
+  /**
+   * Type discriminator. Always "shell_completed".
+   */
   type: "shell_completed";
 }
+/**
+ * Schema for the `SystemNotificationShellDetachedCompleted` type.
+ */
 export interface SystemNotificationShellDetachedCompleted {
   /**
    * Human-readable description of the command
@@ -3442,8 +3862,14 @@ export interface SystemNotificationShellDetachedCompleted {
    * Unique identifier of the detached shell session
    */
   shellId: string;
+  /**
+   * Type discriminator. Always "shell_detached_completed".
+   */
   type: "shell_detached_completed";
 }
+/**
+ * Schema for the `SystemNotificationInstructionDiscovered` type.
+ */
 export interface SystemNotificationInstructionDiscovered {
   /**
    * Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/')
@@ -3461,8 +3887,14 @@ export interface SystemNotificationInstructionDiscovered {
    * Tool command that triggered discovery (currently always 'view')
    */
   triggerTool: string;
+  /**
+   * Type discriminator. Always "instruction_discovered".
+   */
   type: "instruction_discovered";
 }
+/**
+ * Session event "permission.requested". Permission request notification requiring client approval with request details
+ */
 export interface PermissionRequestedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -3485,6 +3917,9 @@ export interface PermissionRequestedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "permission.requested".
+   */
   type: "permission.requested";
 }
 /**
@@ -3547,6 +3982,9 @@ export interface PermissionRequestShell {
    */
   warning?: string;
 }
+/**
+ * Schema for the `PermissionRequestShellCommand` type.
+ */
 export interface PermissionRequestShellCommand {
   /**
    * Command identifier (e.g., executable name)
@@ -3557,6 +3995,9 @@ export interface PermissionRequestShellCommand {
    */
   readOnly: boolean;
 }
+/**
+ * Schema for the `PermissionRequestShellPossibleUrl` type.
+ */
 export interface PermissionRequestShellPossibleUrl {
   /**
    * URL that may be accessed by the command
@@ -4079,6 +4520,9 @@ export interface PermissionPromptRequestExtensionPermissionAccess {
    */
   toolCallId?: string;
 }
+/**
+ * Session event "permission.completed". Permission request completion notification signaling UI dismissal
+ */
 export interface PermissionCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -4101,6 +4545,9 @@ export interface PermissionCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "permission.completed".
+   */
   type: "permission.completed";
 }
 /**
@@ -4117,12 +4564,18 @@ export interface PermissionCompletedData {
    */
   toolCallId?: string;
 }
+/**
+ * Schema for the `PermissionApproved` type.
+ */
 export interface PermissionApproved {
   /**
    * The permission request was approved
    */
   kind: "approved";
 }
+/**
+ * Schema for the `PermissionApprovedForSession` type.
+ */
 export interface PermissionApprovedForSession {
   approval: UserToolSessionApproval;
   /**
@@ -4130,6 +4583,9 @@ export interface PermissionApprovedForSession {
    */
   kind: "approved-for-session";
 }
+/**
+ * Schema for the `UserToolSessionApprovalCommands` type.
+ */
 export interface UserToolSessionApprovalCommands {
   /**
    * Command identifiers approved by the user
@@ -4140,18 +4596,27 @@ export interface UserToolSessionApprovalCommands {
    */
   kind: "commands";
 }
+/**
+ * Schema for the `UserToolSessionApprovalRead` type.
+ */
 export interface UserToolSessionApprovalRead {
   /**
    * Read approval kind
    */
   kind: "read";
 }
+/**
+ * Schema for the `UserToolSessionApprovalWrite` type.
+ */
 export interface UserToolSessionApprovalWrite {
   /**
    * Write approval kind
    */
   kind: "write";
 }
+/**
+ * Schema for the `UserToolSessionApprovalMcp` type.
+ */
 export interface UserToolSessionApprovalMcp {
   /**
    * MCP tool approval kind
@@ -4166,12 +4631,18 @@ export interface UserToolSessionApprovalMcp {
    */
   toolName: string | null;
 }
+/**
+ * Schema for the `UserToolSessionApprovalMemory` type.
+ */
 export interface UserToolSessionApprovalMemory {
   /**
    * Memory approval kind
    */
   kind: "memory";
 }
+/**
+ * Schema for the `UserToolSessionApprovalCustomTool` type.
+ */
 export interface UserToolSessionApprovalCustomTool {
   /**
    * Custom tool approval kind
@@ -4182,6 +4653,9 @@ export interface UserToolSessionApprovalCustomTool {
    */
   toolName: string;
 }
+/**
+ * Schema for the `UserToolSessionApprovalExtensionManagement` type.
+ */
 export interface UserToolSessionApprovalExtensionManagement {
   /**
    * Extension management approval kind
@@ -4192,6 +4666,9 @@ export interface UserToolSessionApprovalExtensionManagement {
    */
   operation?: string;
 }
+/**
+ * Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.
+ */
 export interface UserToolSessionApprovalExtensionPermissionAccess {
   /**
    * Extension name
@@ -4202,6 +4679,9 @@ export interface UserToolSessionApprovalExtensionPermissionAccess {
    */
   kind: "extension-permission-access";
 }
+/**
+ * Schema for the `PermissionApprovedForLocation` type.
+ */
 export interface PermissionApprovedForLocation {
   approval: UserToolSessionApproval;
   /**
@@ -4213,6 +4693,9 @@ export interface PermissionApprovedForLocation {
    */
   locationKey: string;
 }
+/**
+ * Schema for the `PermissionCancelled` type.
+ */
 export interface PermissionCancelled {
   /**
    * The permission request was cancelled before a response was used
@@ -4223,6 +4706,9 @@ export interface PermissionCancelled {
    */
   reason?: string;
 }
+/**
+ * Schema for the `PermissionDeniedByRules` type.
+ */
 export interface PermissionDeniedByRules {
   /**
    * Denied because approval rules explicitly blocked it
@@ -4233,6 +4719,9 @@ export interface PermissionDeniedByRules {
    */
   rules: PermissionRule[];
 }
+/**
+ * Schema for the `PermissionRule` type.
+ */
 export interface PermissionRule {
   /**
    * Optional rule argument matched against the request
@@ -4243,12 +4732,18 @@ export interface PermissionRule {
    */
   kind: string;
 }
+/**
+ * Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
+ */
 export interface PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
   /**
    * Denied because no approval rule matched and user confirmation was unavailable
    */
   kind: "denied-no-approval-rule-and-could-not-request-from-user";
 }
+/**
+ * Schema for the `PermissionDeniedInteractivelyByUser` type.
+ */
 export interface PermissionDeniedInteractivelyByUser {
   /**
    * Optional feedback from the user explaining the denial
@@ -4263,6 +4758,9 @@ export interface PermissionDeniedInteractivelyByUser {
    */
   kind: "denied-interactively-by-user";
 }
+/**
+ * Schema for the `PermissionDeniedByContentExclusionPolicy` type.
+ */
 export interface PermissionDeniedByContentExclusionPolicy {
   /**
    * Denied by the organization's content exclusion policy
@@ -4277,6 +4775,9 @@ export interface PermissionDeniedByContentExclusionPolicy {
    */
   path: string;
 }
+/**
+ * Schema for the `PermissionDeniedByPermissionRequestHook` type.
+ */
 export interface PermissionDeniedByPermissionRequestHook {
   /**
    * Whether to interrupt the current agent turn
@@ -4291,12 +4792,18 @@ export interface PermissionDeniedByPermissionRequestHook {
    */
   message?: string;
 }
+/**
+ * Session event "user_input.requested". User input request notification with question and optional predefined choices
+ */
 export interface UserInputRequestedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: UserInputRequestedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4310,6 +4817,9 @@ export interface UserInputRequestedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "user_input.requested".
+   */
   type: "user_input.requested";
 }
 /**
@@ -4337,12 +4847,18 @@ export interface UserInputRequestedData {
    */
   toolCallId?: string;
 }
+/**
+ * Session event "user_input.completed". User input request completion with the user's response
+ */
 export interface UserInputCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: UserInputCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4356,6 +4872,9 @@ export interface UserInputCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "user_input.completed".
+   */
   type: "user_input.completed";
 }
 /**
@@ -4375,12 +4894,18 @@ export interface UserInputCompletedData {
    */
   wasFreeform?: boolean;
 }
+/**
+ * Session event "elicitation.requested". Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
+ */
 export interface ElicitationRequestedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ElicitationRequestedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4394,6 +4919,9 @@ export interface ElicitationRequestedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "elicitation.requested".
+   */
   type: "elicitation.requested";
 }
 /**
@@ -4443,12 +4971,18 @@ export interface ElicitationRequestedSchema {
    */
   type: "object";
 }
+/**
+ * Session event "elicitation.completed". Elicitation request completion with the user's response
+ */
 export interface ElicitationCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ElicitationCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4462,6 +4996,9 @@ export interface ElicitationCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "elicitation.completed".
+   */
   type: "elicitation.completed";
 }
 /**
@@ -4480,12 +5017,18 @@ export interface ElicitationCompletedData {
    */
   requestId: string;
 }
+/**
+ * Session event "sampling.requested". Sampling request from an MCP server; contains the server name and a requestId for correlation
+ */
 export interface SamplingRequestedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: SamplingRequestedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4499,6 +5042,9 @@ export interface SamplingRequestedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "sampling.requested".
+   */
   type: "sampling.requested";
 }
 /**
@@ -4519,12 +5065,18 @@ export interface SamplingRequestedData {
   serverName: string;
   [k: string]: unknown;
 }
+/**
+ * Session event "sampling.completed". Sampling request completion notification signaling UI dismissal
+ */
 export interface SamplingCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: SamplingCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4538,6 +5090,9 @@ export interface SamplingCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "sampling.completed".
+   */
   type: "sampling.completed";
 }
 /**
@@ -4549,12 +5104,18 @@ export interface SamplingCompletedData {
    */
   requestId: string;
 }
+/**
+ * Session event "mcp.oauth_required". OAuth authentication request for an MCP server
+ */
 export interface McpOauthRequiredEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: McpOauthRequiredData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4568,6 +5129,9 @@ export interface McpOauthRequiredEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "mcp.oauth_required".
+   */
   type: "mcp.oauth_required";
 }
 /**
@@ -4605,12 +5169,18 @@ export interface McpOauthRequiredStaticClientConfig {
    */
   publicClient?: boolean;
 }
+/**
+ * Session event "mcp.oauth_completed". MCP OAuth request completion notification
+ */
 export interface McpOauthCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: McpOauthCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4624,6 +5194,9 @@ export interface McpOauthCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "mcp.oauth_completed".
+   */
   type: "mcp.oauth_completed";
 }
 /**
@@ -4635,12 +5208,18 @@ export interface McpOauthCompletedData {
    */
   requestId: string;
 }
+/**
+ * Session event "session.custom_notification". Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
+ */
 export interface CustomNotificationEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: CustomNotificationData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4654,6 +5233,9 @@ export interface CustomNotificationEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.custom_notification".
+   */
   type: "session.custom_notification";
 }
 /**
@@ -4681,6 +5263,9 @@ export interface CustomNotificationData {
 export interface CustomNotificationSubject {
   [k: string]: string;
 }
+/**
+ * Session event "external_tool.requested". External tool invocation request for client-side tool execution
+ */
 export interface ExternalToolRequestedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -4703,6 +5288,9 @@ export interface ExternalToolRequestedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "external_tool.requested".
+   */
   type: "external_tool.requested";
 }
 /**
@@ -4740,12 +5328,18 @@ export interface ExternalToolRequestedData {
    */
   tracestate?: string;
 }
+/**
+ * Session event "external_tool.completed". External tool completion notification signaling UI dismissal
+ */
 export interface ExternalToolCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ExternalToolCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral?: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4759,6 +5353,9 @@ export interface ExternalToolCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "external_tool.completed".
+   */
   type: "external_tool.completed";
 }
 /**
@@ -4770,12 +5367,18 @@ export interface ExternalToolCompletedData {
    */
   requestId: string;
 }
+/**
+ * Session event "command.queued". Queued slash command dispatch request for client execution
+ */
 export interface CommandQueuedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: CommandQueuedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4789,6 +5392,9 @@ export interface CommandQueuedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "command.queued".
+   */
   type: "command.queued";
 }
 /**
@@ -4804,12 +5410,18 @@ export interface CommandQueuedData {
    */
   requestId: string;
 }
+/**
+ * Session event "command.execute". Registered command dispatch request routed to the owning client
+ */
 export interface CommandExecuteEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: CommandExecuteData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4823,6 +5435,9 @@ export interface CommandExecuteEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "command.execute".
+   */
   type: "command.execute";
 }
 /**
@@ -4846,12 +5461,18 @@ export interface CommandExecuteData {
    */
   requestId: string;
 }
+/**
+ * Session event "command.completed". Queued command completion notification signaling UI dismissal
+ */
 export interface CommandCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: CommandCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4865,6 +5486,9 @@ export interface CommandCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "command.completed".
+   */
   type: "command.completed";
 }
 /**
@@ -4876,12 +5500,18 @@ export interface CommandCompletedData {
    */
   requestId: string;
 }
+/**
+ * Session event "auto_mode_switch.requested". Auto mode switch request notification requiring user approval
+ */
 export interface AutoModeSwitchRequestedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: AutoModeSwitchRequestedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4895,6 +5525,9 @@ export interface AutoModeSwitchRequestedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "auto_mode_switch.requested".
+   */
   type: "auto_mode_switch.requested";
 }
 /**
@@ -4914,12 +5547,18 @@ export interface AutoModeSwitchRequestedData {
    */
   retryAfterSeconds?: number;
 }
+/**
+ * Session event "auto_mode_switch.completed". Auto mode switch completion notification
+ */
 export interface AutoModeSwitchCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: AutoModeSwitchCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4933,6 +5572,9 @@ export interface AutoModeSwitchCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "auto_mode_switch.completed".
+   */
   type: "auto_mode_switch.completed";
 }
 /**
@@ -4948,12 +5590,18 @@ export interface AutoModeSwitchCompletedData {
    */
   response: string;
 }
+/**
+ * Session event "commands.changed". SDK command registration change notification
+ */
 export interface CommandsChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: CommandsChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -4967,6 +5615,9 @@ export interface CommandsChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "commands.changed".
+   */
   type: "commands.changed";
 }
 /**
@@ -4978,16 +5629,31 @@ export interface CommandsChangedData {
    */
   commands: CommandsChangedCommand[];
 }
+/**
+ * Schema for the `CommandsChangedCommand` type.
+ */
 export interface CommandsChangedCommand {
+  /**
+   * Optional human-readable command description.
+   */
   description?: string;
+  /**
+   * Slash command name without the leading slash.
+   */
   name: string;
 }
+/**
+ * Session event "capabilities.changed". Session capability change notification
+ */
 export interface CapabilitiesChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: CapabilitiesChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5001,6 +5667,9 @@ export interface CapabilitiesChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "capabilities.changed".
+   */
   type: "capabilities.changed";
 }
 /**
@@ -5018,12 +5687,18 @@ export interface CapabilitiesChangedUI {
    */
   elicitation?: boolean;
 }
+/**
+ * Session event "exit_plan_mode.requested". Plan approval request with plan content and available user actions
+ */
 export interface ExitPlanModeRequestedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ExitPlanModeRequestedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5037,6 +5712,9 @@ export interface ExitPlanModeRequestedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "exit_plan_mode.requested".
+   */
   type: "exit_plan_mode.requested";
 }
 /**
@@ -5064,12 +5742,18 @@ export interface ExitPlanModeRequestedData {
    */
   summary: string;
 }
+/**
+ * Session event "exit_plan_mode.completed". Plan mode exit completion with the user's approval decision and optional feedback
+ */
 export interface ExitPlanModeCompletedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ExitPlanModeCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5083,6 +5767,9 @@ export interface ExitPlanModeCompletedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "exit_plan_mode.completed".
+   */
   type: "exit_plan_mode.completed";
 }
 /**
@@ -5110,12 +5797,18 @@ export interface ExitPlanModeCompletedData {
    */
   selectedAction?: string;
 }
+/**
+ * Session event "session.tools_updated".
+ */
 export interface ToolsUpdatedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ToolsUpdatedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5129,17 +5822,32 @@ export interface ToolsUpdatedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.tools_updated".
+   */
   type: "session.tools_updated";
 }
+/**
+ * Schema for the `ToolsUpdatedData` type.
+ */
 export interface ToolsUpdatedData {
+  /**
+   * Identifier of the model the resolved tools apply to.
+   */
   model: string;
 }
+/**
+ * Session event "session.background_tasks_changed".
+ */
 export interface BackgroundTasksChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: BackgroundTasksChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5153,15 +5861,27 @@ export interface BackgroundTasksChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.background_tasks_changed".
+   */
   type: "session.background_tasks_changed";
 }
+/**
+ * Schema for the `BackgroundTasksChangedData` type.
+ */
 export interface BackgroundTasksChangedData {}
+/**
+ * Session event "session.skills_loaded".
+ */
 export interface SkillsLoadedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: SkillsLoadedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5175,14 +5895,23 @@ export interface SkillsLoadedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.skills_loaded".
+   */
   type: "session.skills_loaded";
 }
+/**
+ * Schema for the `SkillsLoadedData` type.
+ */
 export interface SkillsLoadedData {
   /**
    * Array of resolved skill metadata
    */
   skills: SkillsLoadedSkill[];
 }
+/**
+ * Schema for the `SkillsLoadedSkill` type.
+ */
 export interface SkillsLoadedSkill {
   /**
    * Description of what the skill does
@@ -5209,12 +5938,18 @@ export interface SkillsLoadedSkill {
    */
   userInvocable: boolean;
 }
+/**
+ * Session event "session.custom_agents_updated".
+ */
 export interface CustomAgentsUpdatedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: CustomAgentsUpdatedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5228,8 +5963,14 @@ export interface CustomAgentsUpdatedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.custom_agents_updated".
+   */
   type: "session.custom_agents_updated";
 }
+/**
+ * Schema for the `CustomAgentsUpdatedData` type.
+ */
 export interface CustomAgentsUpdatedData {
   /**
    * Array of loaded custom agent metadata
@@ -5244,6 +5985,9 @@ export interface CustomAgentsUpdatedData {
    */
   warnings: string[];
 }
+/**
+ * Schema for the `CustomAgentsUpdatedAgent` type.
+ */
 export interface CustomAgentsUpdatedAgent {
   /**
    * Description of what the agent does
@@ -5278,12 +6022,18 @@ export interface CustomAgentsUpdatedAgent {
    */
   userInvocable: boolean;
 }
+/**
+ * Session event "session.mcp_servers_loaded".
+ */
 export interface McpServersLoadedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: McpServersLoadedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5297,14 +6047,23 @@ export interface McpServersLoadedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.mcp_servers_loaded".
+   */
   type: "session.mcp_servers_loaded";
 }
+/**
+ * Schema for the `McpServersLoadedData` type.
+ */
 export interface McpServersLoadedData {
   /**
    * Array of MCP server status summaries
    */
   servers: McpServersLoadedServer[];
 }
+/**
+ * Schema for the `McpServersLoadedServer` type.
+ */
 export interface McpServersLoadedServer {
   /**
    * Error message if the server failed to connect
@@ -5320,12 +6079,18 @@ export interface McpServersLoadedServer {
   source?: string;
   status: McpServersLoadedServerStatus;
 }
+/**
+ * Session event "session.mcp_server_status_changed".
+ */
 export interface McpServerStatusChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: McpServerStatusChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5339,8 +6104,14 @@ export interface McpServerStatusChangedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.mcp_server_status_changed".
+   */
   type: "session.mcp_server_status_changed";
 }
+/**
+ * Schema for the `McpServerStatusChangedData` type.
+ */
 export interface McpServerStatusChangedData {
   /**
    * Name of the MCP server whose status changed
@@ -5348,12 +6119,18 @@ export interface McpServerStatusChangedData {
   serverName: string;
   status: McpServerStatusChangedStatus;
 }
+/**
+ * Session event "session.extensions_loaded".
+ */
 export interface ExtensionsLoadedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
    */
   agentId?: string;
   data: ExtensionsLoadedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
   ephemeral: true;
   /**
    * Unique event identifier (UUID v4), generated when the event is emitted
@@ -5367,14 +6144,23 @@ export interface ExtensionsLoadedEvent {
    * ISO 8601 timestamp when the event was created
    */
   timestamp: string;
+  /**
+   * Type discriminator. Always "session.extensions_loaded".
+   */
   type: "session.extensions_loaded";
 }
+/**
+ * Schema for the `ExtensionsLoadedData` type.
+ */
 export interface ExtensionsLoadedData {
   /**
    * Array of discovered extensions and their status
    */
   extensions: ExtensionsLoadedExtension[];
 }
+/**
+ * Schema for the `ExtensionsLoadedExtension` type.
+ */
 export interface ExtensionsLoadedExtension {
   /**
    * Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper')

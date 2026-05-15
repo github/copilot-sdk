@@ -483,6 +483,7 @@ impl Session {
         let request = ModelSwitchToRequest {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
+            reasoning_summary: None,
             model_capabilities: opts.model_capabilities,
         };
         self.rpc().model().switch_to(request).await?;
