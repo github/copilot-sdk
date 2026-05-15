@@ -818,6 +818,8 @@ class CustomAgentConfig(TypedDict, total=False):
     infer: NotRequired[bool]  # Whether agent is available for model inference
     # Skill names to preload into this agent's context at startup (opt-in; omit for none)
     skills: NotRequired[list[str]]
+    # Model identifier (e.g. "claude-haiku-4.5"); runtime falls back to parent model if unavailable
+    model: NotRequired[str]
 
 
 class DefaultAgentConfig(TypedDict, total=False):
