@@ -7,9 +7,11 @@ import type {
     SessionFsError,
     SessionFsStatResult,
     SessionFsReaddirWithTypesEntry,
-    SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
     SessionFsSqliteQueryType,
 } from "./generated/rpc.js";
+
+export type { SessionFsSqliteQueryType };
 
 /**
  * File metadata returned by {@link SessionFsProvider.stat}.
@@ -17,6 +19,37 @@ import type {
  * `error` field, since providers signal errors by throwing.
  */
 export type SessionFsFileInfo = Omit<SessionFsStatResult, "error">;
+
+/**
+ * Result of a SQLite query execution via {@link SessionFsSqliteProvider.query}.
+ * Same shape as the generated {@link GeneratedSqliteQueryResult} but without the
+ * `error` field, since providers signal errors by throwing.
+ */
+export type SessionFsSqliteQueryResult = Omit<GeneratedSqliteQueryResult, "error">;
+
+/**
+ * SQLite operations for the per-session database.
+ * Implementers provide query execution and existence checking.
+ */
+export interface SessionFsSqliteProvider {
+    /**
+     * Execute a SQLite query against the per-session database.
+     *
+     * @param queryType - How to execute: `"exec"` for DDL/multi-statement, `"query"` for SELECT, `"run"` for INSERT/UPDATE/DELETE.
+     * @param query - SQL query to execute.
+     * @param params - Optional named bind parameters.
+     */
+    query(
+        queryType: SessionFsSqliteQueryType,
+        query: string,
+        params?: Record<string, string | number | null>,
+    ): Promise<SessionFsSqliteQueryResult | undefined>;
+
+    /**
+     * Check whether the per-session database already exists, without creating it.
+     */
+    exists(): Promise<boolean>;
+}
 
 /**
  * Interface for session filesystem providers. Implementers use idiomatic
@@ -58,16 +91,8 @@ export interface SessionFsProvider {
     /** Renames/moves a file or directory. */
     rename(src: string, dest: string): Promise<void>;
 
-    /** Executes a SQLite query against the provider's per-session database. */
-    sqliteQuery(
-        sessionId: string,
-        query: string,
-        queryType: SessionFsSqliteQueryType,
-        params?: Record<string, string | number | null>
-    ): Promise<SessionFsSqliteQueryResult>;
-
-    /** Checks whether the provider has a SQLite database for the session. */
-    sqliteExists(sessionId: string): Promise<boolean>;
+    /** Per-session SQLite database operations. */
+    sqlite: SessionFsSqliteProvider;
 }
 
 /**
@@ -162,24 +187,12 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
                 return toSessionFsError(err);
             }
         },
-        sqliteQuery: async ({ sessionId, query, queryType, params }) => {
-            try {
-                return await provider.sqliteQuery(sessionId, query, queryType, params);
-            } catch (err) {
-                return {
-                    columns: [],
-                    rows: [],
-                    rowsAffected: 0,
-                    error: toSessionFsError(err),
-                };
-            }
+        sqliteQuery: async ({ queryType, query, params: bindParams }) => {
+            const result = await provider.sqlite.query(queryType, query, bindParams);
+            return result ?? { rows: [], columns: [], rowsAffected: 0 };
         },
-        sqliteExists: async ({ sessionId }) => {
-            try {
-                return { exists: await provider.sqliteExists(sessionId) };
-            } catch {
-                return { exists: false };
-            }
+        sqliteExists: async () => {
+            return { exists: await provider.sqlite.exists() };
         },
     };
 }

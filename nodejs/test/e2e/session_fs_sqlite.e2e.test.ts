@@ -36,8 +36,8 @@ const sessionFsConfig: SessionFsConfig = {
 
 describe("Session Fs SQLite", async () => {
     const provider = new MemoryProvider();
-    /** Track which dbNames received queries, per session */
-    const sqliteCalls: { sessionId: string; dbName: string; queryType: string; query: string }[] = [];
+    /** Track which queries were received, per session */
+    const sqliteCalls: { sessionId: string; queryType: string; query: string }[] = [];
 
     const createSessionFsHandler = (session: CopilotSession) =>
         createTestSessionFsHandlerWithSqlite(session, provider, sqliteCalls);
@@ -65,7 +65,6 @@ describe("Session Fs SQLite", async () => {
         // Verify the sqlite handler was called
         const sessionCalls = sqliteCalls.filter((c) => c.sessionId === session.sessionId);
         expect(sessionCalls.length).toBeGreaterThan(0);
-        expect(sessionCalls.some((c) => c.dbName === "session")).toBe(true);
         expect(sessionCalls.some((c) => c.query.toUpperCase().includes("CREATE TABLE"))).toBe(true);
         expect(sessionCalls.some((c) => c.query.toUpperCase().includes("INSERT"))).toBe(true);
         expect(sessionCalls.some((c) => c.query.toUpperCase().includes("SELECT"))).toBe(true);
@@ -82,20 +81,18 @@ describe("Session Fs SQLite", async () => {
 function createTestSessionFsHandlerWithSqlite(
     session: CopilotSession,
     provider: VirtualProvider,
-    sqliteCalls: { sessionId: string; dbName: string; queryType: string; query: string }[]
+    sqliteCalls: { sessionId: string; queryType: string; query: string }[]
 ): SessionFsProvider {
     const sp = (path: string) =>
         `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
 
-    // Per-session SQLite databases (in-memory)
-    const databases = new Map<string, DatabaseSync>();
+    // Per-session SQLite database (in-memory)
+    let db: DatabaseSync | undefined;
 
-    function getOrCreateDb(dbName: string): DatabaseSync {
-        let db = databases.get(dbName);
+    function getOrCreateDb(): DatabaseSync {
         if (!db) {
             db = new DatabaseSync(":memory:");
             db.exec("PRAGMA busy_timeout = 5000");
-            databases.set(dbName, db);
         }
         return db;
     }
@@ -151,51 +148,55 @@ function createTestSessionFsHandlerWithSqlite(
         async rename(src: string, dest: string): Promise<void> {
             await provider.rename(sp(src), sp(dest));
         },
-        async sqlite(
-            dbName: string,
-            queryType: SessionFsSqliteQueryType,
-            query: string,
-            params?: Record<string, string | number | null>
-        ): Promise<SessionFsSqliteQueryResult | undefined> {
-            sqliteCalls.push({ sessionId: session.sessionId, dbName, queryType, query });
+        sqlite: {
+            async query(
+                queryType: SessionFsSqliteQueryType,
+                query: string,
+                params?: Record<string, string | number | null>
+            ): Promise<SessionFsSqliteQueryResult | undefined> {
+                sqliteCalls.push({ sessionId: session.sessionId, queryType, query });
 
-            const db = getOrCreateDb(dbName);
-            const trimmed = query.trim();
-            if (trimmed.length === 0) {
-                return undefined;
-            }
-
-            switch (queryType) {
-                case "exec":
-                    db.exec(trimmed);
+                const database = getOrCreateDb();
+                const trimmed = query.trim();
+                if (trimmed.length === 0) {
                     return undefined;
-
-                case "query": {
-                    const stmt = db.prepare(trimmed);
-                    const rows = (
-                        params ? stmt.all(params) : stmt.all()
-                    ) as Record<string, unknown>[];
-                    const columns =
-                        rows.length > 0 ? Object.keys(rows[0]) : [];
-                    return { rows, columns, rowsAffected: 0 };
                 }
 
-                case "run": {
-                    const stmt = db.prepare(trimmed);
-                    const result = params
-                        ? stmt.run(params)
-                        : stmt.run();
-                    return {
-                        rows: [],
-                        columns: [],
-                        rowsAffected: Number(result.changes),
-                        lastInsertRowid:
-                            result.lastInsertRowid !== undefined
-                                ? Number(result.lastInsertRowid)
-                                : undefined,
-                    };
+                switch (queryType) {
+                    case "exec":
+                        database.exec(trimmed);
+                        return undefined;
+
+                    case "query": {
+                        const stmt = database.prepare(trimmed);
+                        const rows = (
+                            params ? stmt.all(params) : stmt.all()
+                        ) as Record<string, unknown>[];
+                        const columns =
+                            rows.length > 0 ? Object.keys(rows[0]) : [];
+                        return { rows, columns, rowsAffected: 0 };
+                    }
+
+                    case "run": {
+                        const stmt = database.prepare(trimmed);
+                        const result = params
+                            ? stmt.run(params)
+                            : stmt.run();
+                        return {
+                            rows: [],
+                            columns: [],
+                            rowsAffected: Number(result.changes),
+                            lastInsertRowid:
+                                result.lastInsertRowid !== undefined
+                                    ? Number(result.lastInsertRowid)
+                                    : undefined,
+                        };
+                    }
                 }
-            }
+            },
+            async exists(): Promise<boolean> {
+                return db !== undefined;
+            },
         },
     };
 }

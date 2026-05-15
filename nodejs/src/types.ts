@@ -18,6 +18,7 @@ export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
+export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
 
 /**
  * Options for creating a CopilotClient

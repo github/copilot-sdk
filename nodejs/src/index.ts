@@ -81,6 +81,7 @@ export type {
     SessionFsFileInfo,
     SessionFsSqliteQueryResult,
     SessionFsSqliteQueryType,
+    SessionFsSqliteProvider,
     SystemMessageAppendConfig,
     SystemMessageConfig,
     SystemMessageCustomizeConfig,

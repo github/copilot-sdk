@@ -2768,20 +2768,28 @@ export interface SessionFsSetProviderResult {
   success: boolean;
 }
 /**
- * Database name, SQL query, query type, and optional bind parameters for executing a SQLite query against a per-session database.
+ * Indicates whether the per-session SQLite database already exists.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionFsSqliteRequest".
+ * via the `definition` "SessionFsSqliteExistsResult".
  */
-export interface SessionFsSqliteRequest {
+export interface SessionFsSqliteExistsResult {
+  /**
+   * Whether the session database already exists
+   */
+  exists: boolean;
+}
+/**
+ * SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteQueryRequest".
+ */
+export interface SessionFsSqliteQueryRequest {
   /**
    * Target session identifier
    */
   sessionId: string;
-  /**
-   * Logical database name (e.g., 'session')
-   */
-  dbName: string;
   /**
    * SQL query to execute
    */
@@ -2798,9 +2806,9 @@ export interface SessionFsSqliteRequest {
  * Query results including rows, columns, and rows affected, or a filesystem error if execution failed.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionFsSqliteResult".
+ * via the `definition` "SessionFsSqliteQueryResult".
  */
-export interface SessionFsSqliteResult {
+export interface SessionFsSqliteQueryResult {
   /**
    * For SELECT: array of row objects. For others: empty array.
    */
@@ -4114,6 +4122,18 @@ export interface WorkspacesReadFileResult {
    */
   content: string;
 }
+/**
+ * Identifies the target session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteExistsRequest".
+ */
+export interface SessionFsSqliteExistsRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
 
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
@@ -4377,7 +4397,8 @@ export interface SessionFsHandler {
     readdirWithTypes(params: SessionFsReaddirWithTypesRequest): Promise<SessionFsReaddirWithTypesResult>;
     rm(params: SessionFsRmRequest): Promise<SessionFsError | undefined>;
     rename(params: SessionFsRenameRequest): Promise<SessionFsError | undefined>;
-    sqlite(params: SessionFsSqliteRequest): Promise<SessionFsSqliteResult>;
+    sqliteQuery(params: SessionFsSqliteQueryRequest): Promise<SessionFsSqliteQueryResult>;
+    sqliteExists(params: SessionFsSqliteExistsRequest): Promise<SessionFsSqliteExistsResult>;
 }
 
 /** All client session API handler groups. */
@@ -4445,9 +4466,14 @@ export function registerClientSessionApiHandlers(
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.rename(params);
     });
-    connection.onRequest("sessionFs.sqlite", async (params: SessionFsSqliteRequest) => {
+    connection.onRequest("sessionFs.sqliteQuery", async (params: SessionFsSqliteQueryRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
-        return handler.sqlite(params);
+        return handler.sqliteQuery(params);
+    });
+    connection.onRequest("sessionFs.sqliteExists", async (params: SessionFsSqliteExistsRequest) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.sqliteExists(params);
     });
 }
