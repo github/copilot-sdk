@@ -4,7 +4,10 @@
 
 package com.github.copilot.sdk.json;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.OptionalInt;
 
 /**
  * Options for the {@link SessionUiApi#input(String, InputOptions)} convenience
@@ -17,7 +20,9 @@ public class InputOptions {
 
     private String title;
     private String description;
+    @JsonProperty("minLength")
     private Integer minLength;
+    @JsonProperty("maxLength")
     private Integer maxLength;
     private String format;
     private String defaultValue;
@@ -49,31 +54,63 @@ public class InputOptions {
         return this;
     }
 
-    /** Gets the minimum character length. @return the min length */
-    public Integer getMinLength() {
-        return minLength;
+    /**
+     * Gets the minimum character length.
+     *
+     * @return an {@link java.util.OptionalInt} containing the min length, or
+     *         {@link java.util.OptionalInt#empty()} if not set
+     */
+    @JsonIgnore
+    public OptionalInt getMinLength() {
+        return minLength == null ? OptionalInt.empty() : OptionalInt.of(minLength);
     }
 
     /**
      * Sets the minimum character length. @param minLength the min length @return
      * this
      */
-    public InputOptions setMinLength(Integer minLength) {
+    public InputOptions setMinLength(int minLength) {
         this.minLength = minLength;
         return this;
     }
 
-    /** Gets the maximum character length. @return the max length */
-    public Integer getMaxLength() {
-        return maxLength;
+    /**
+     * Clears the minLength setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public InputOptions clearMinLength() {
+        this.minLength = null;
+        return this;
+    }
+
+    /**
+     * Gets the maximum character length.
+     *
+     * @return an {@link java.util.OptionalInt} containing the max length, or
+     *         {@link java.util.OptionalInt#empty()} if not set
+     */
+    @JsonIgnore
+    public OptionalInt getMaxLength() {
+        return maxLength == null ? OptionalInt.empty() : OptionalInt.of(maxLength);
     }
 
     /**
      * Sets the maximum character length. @param maxLength the max length @return
      * this
      */
-    public InputOptions setMaxLength(Integer maxLength) {
+    public InputOptions setMaxLength(int maxLength) {
         this.maxLength = maxLength;
+        return this;
+    }
+
+    /**
+     * Clears the maxLength setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public InputOptions clearMaxLength() {
+        this.maxLength = null;
         return this;
     }
 

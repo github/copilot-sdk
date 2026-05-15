@@ -1118,9 +1118,9 @@ public final class CopilotSession implements AutoCloseable {
      */
     private void assertElicitation() {
         SessionCapabilities caps = capabilities;
-        if (caps == null || caps.getUi() == null || !Boolean.TRUE.equals(caps.getUi().getElicitation())) {
+        if (caps == null || caps.getUi() == null || !caps.getUi().getElicitation().orElse(false)) {
             throw new IllegalStateException("Elicitation is not supported by the host. "
-                    + "Check session.getCapabilities().getUi()?.getElicitation() before calling UI methods.");
+                    + "Check session.getCapabilities().getUi().getElicitation().orElse(false) before calling UI methods.");
         }
     }
 
@@ -1201,10 +1201,10 @@ public final class CopilotSession implements AutoCloseable {
                     field.put("title", options.getTitle());
                 if (options.getDescription() != null)
                     field.put("description", options.getDescription());
-                if (options.getMinLength() != null)
-                    field.put("minLength", options.getMinLength());
-                if (options.getMaxLength() != null)
-                    field.put("maxLength", options.getMaxLength());
+                if (options.getMinLength().isPresent())
+                    field.put("minLength", options.getMinLength().getAsInt());
+                if (options.getMaxLength().isPresent())
+                    field.put("maxLength", options.getMaxLength().getAsInt());
                 if (options.getFormat() != null)
                     field.put("format", options.getFormat());
                 if (options.getDefaultValue() != null)
@@ -1695,7 +1695,8 @@ public final class CopilotSession implements AutoCloseable {
             ModelCapabilitiesOverrideSupports supports = null;
             if (modelCapabilities.getSupports() != null) {
                 var s = modelCapabilities.getSupports();
-                supports = new ModelCapabilitiesOverrideSupports(s.getVision(), s.getReasoningEffort());
+                supports = new ModelCapabilitiesOverrideSupports(s.getVision().orElse(null),
+                        s.getReasoningEffort().orElse(null));
             }
             ModelCapabilitiesOverrideLimits limits = null;
             if (modelCapabilities.getLimits() != null) {
