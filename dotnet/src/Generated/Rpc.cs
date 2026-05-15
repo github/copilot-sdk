@@ -496,9 +496,21 @@ public sealed class SessionFsSetProviderResult
     public bool Success { get; set; }
 }
 
+/// <summary>Optional capabilities declared by the provider.</summary>
+public sealed class SessionFsSetProviderCapabilities
+{
+    /// <summary>Whether the provider supports SQLite query/exists operations.</summary>
+    [JsonPropertyName("sqlite")]
+    public bool? Sqlite { get; set; }
+}
+
 /// <summary>Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.</summary>
 internal sealed class SessionFsSetProviderRequest
 {
+    /// <summary>Optional capabilities declared by the provider.</summary>
+    [JsonPropertyName("capabilities")]
+    public SessionFsSetProviderCapabilities? Capabilities { get; set; }
+
     /// <summary>Path conventions used by this filesystem.</summary>
     [JsonPropertyName("conventions")]
     public SessionFsSetProviderConventions Conventions { get; set; }
@@ -3168,7 +3180,7 @@ public sealed class SessionFsRenameRequest
 }
 
 /// <summary>Query results including rows, columns, and rows affected, or a filesystem error if execution failed.</summary>
-public sealed class SessionFsSqliteResult
+public sealed class SessionFsSqliteQueryResult
 {
     /// <summary>Column names from the result set.</summary>
     [JsonPropertyName("columns")]
@@ -3192,13 +3204,9 @@ public sealed class SessionFsSqliteResult
     public long RowsAffected { get; set; }
 }
 
-/// <summary>Database name, SQL query, query type, and optional bind parameters for executing a SQLite query against a per-session database.</summary>
-public sealed class SessionFsSqliteRequest
+/// <summary>SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.</summary>
+public sealed class SessionFsSqliteQueryRequest
 {
-    /// <summary>Logical database name (e.g., 'session').</summary>
-    [JsonPropertyName("dbName")]
-    public string DbName { get; set; } = string.Empty;
-
     /// <summary>Optional named bind parameters.</summary>
     [JsonPropertyName("params")]
     public IDictionary<string, object>? Params { get; set; }
@@ -3211,6 +3219,22 @@ public sealed class SessionFsSqliteRequest
     [JsonPropertyName("queryType")]
     public SessionFsSqliteQueryType QueryType { get; set; }
 
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Indicates whether the per-session SQLite database already exists.</summary>
+public sealed class SessionFsSqliteExistsResult
+{
+    /// <summary>Whether the session database already exists.</summary>
+    [JsonPropertyName("exists")]
+    public bool Exists { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+public sealed class SessionFsSqliteExistsRequest
+{
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -5425,9 +5449,9 @@ public sealed class ServerSessionFsApi
     }
 
     /// <summary>Calls "sessionFs.setProvider".</summary>
-    public async Task<SessionFsSetProviderResult> SetProviderAsync(string initialCwd, string sessionStatePath, SessionFsSetProviderConventions conventions, CancellationToken cancellationToken = default)
+    public async Task<SessionFsSetProviderResult> SetProviderAsync(string initialCwd, string sessionStatePath, SessionFsSetProviderConventions conventions, SessionFsSetProviderCapabilities? capabilities = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions };
+        var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions, Capabilities = capabilities };
         return await CopilotClient.InvokeRpcAsync<SessionFsSetProviderResult>(_rpc, "sessionFs.setProvider", [request], cancellationToken);
     }
 }
@@ -6309,8 +6333,10 @@ public interface ISessionFsHandler
     Task<SessionFsError?> RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default);
     /// <summary>Handles "sessionFs.rename".</summary>
     Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
-    /// <summary>Handles "sessionFs.sqlite".</summary>
-    Task<SessionFsSqliteResult> SqliteAsync(SessionFsSqliteRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.sqliteQuery".</summary>
+    Task<SessionFsSqliteQueryResult> SqliteQueryAsync(SessionFsSqliteQueryRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.sqliteExists".</summary>
+    Task<SessionFsSqliteExistsResult> SqliteExistsAsync(SessionFsSqliteExistsRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -6390,11 +6416,17 @@ internal static class ClientSessionApiRegistration
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.RenameAsync(request, cancellationToken);
         }), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("sessionFs.sqlite", (Func<SessionFsSqliteRequest, CancellationToken, ValueTask<SessionFsSqliteResult>>)(async (request, cancellationToken) =>
+        rpc.SetLocalRpcMethod("sessionFs.sqliteQuery", (Func<SessionFsSqliteQueryRequest, CancellationToken, ValueTask<SessionFsSqliteQueryResult>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
-            return await handler.SqliteAsync(request, cancellationToken);
+            return await handler.SqliteQueryAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.sqliteExists", (Func<SessionFsSqliteExistsRequest, CancellationToken, ValueTask<SessionFsSqliteExistsResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            return await handler.SqliteExistsAsync(request, cancellationToken);
         }), singleObjectParam: true);
     }
 }
@@ -6520,10 +6552,13 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionFsReaddirWithTypesResult))]
 [JsonSerializable(typeof(SessionFsRenameRequest))]
 [JsonSerializable(typeof(SessionFsRmRequest))]
+[JsonSerializable(typeof(SessionFsSetProviderCapabilities))]
 [JsonSerializable(typeof(SessionFsSetProviderRequest))]
 [JsonSerializable(typeof(SessionFsSetProviderResult))]
-[JsonSerializable(typeof(SessionFsSqliteRequest))]
-[JsonSerializable(typeof(SessionFsSqliteResult))]
+[JsonSerializable(typeof(SessionFsSqliteExistsRequest))]
+[JsonSerializable(typeof(SessionFsSqliteExistsResult))]
+[JsonSerializable(typeof(SessionFsSqliteQueryRequest))]
+[JsonSerializable(typeof(SessionFsSqliteQueryResult))]
 [JsonSerializable(typeof(SessionFsStatRequest))]
 [JsonSerializable(typeof(SessionFsStatResult))]
 [JsonSerializable(typeof(SessionFsWriteFileRequest))]
