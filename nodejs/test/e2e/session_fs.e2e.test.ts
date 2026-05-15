@@ -45,10 +45,17 @@ describe("Session Fs", async () => {
         copilotClientOptions: { sessionFs: sessionFsConfig },
     });
 
-    it("should route file operations through the session fs provider", async () => {
+    it("should route file operations through the session fs provider", { timeout: 60000 }, async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             createSessionFsHandler,
+        });
+
+        const errors: SessionEvent[] = [];
+        session.on((event) => {
+            if (event.type === "session.error") {
+                errors.push(event);
+            }
         });
 
         const msg = await session.sendAndWait({ prompt: "What is 100 + 200?" });
@@ -60,6 +67,9 @@ describe("Session Fs", async () => {
         );
         const content = buf.toString("utf8");
         expect(content).toContain("300");
+
+        // No sqlite capabilities declared — verify no errors from missing sqlite
+        expect(errors).toHaveLength(0);
     });
 
     it("should load session data from fs provider on resume", async () => {

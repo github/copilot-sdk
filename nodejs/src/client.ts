@@ -33,7 +33,7 @@ import {
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
-import { createSessionFsAdapter } from "./sessionFsProvider.js";
+import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     AutoModeSwitchRequest,
@@ -450,6 +450,24 @@ export class CopilotClient {
         }
     }
 
+    private setupSessionFs(session: CopilotSession, config: { createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider }): void {
+        if (!this.sessionFsConfig) {
+            return;
+        }
+        if (!config.createSessionFsHandler) {
+            throw new Error(
+                "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
+            );
+        }
+        const provider = config.createSessionFsHandler(session);
+        if (this.sessionFsConfig.capabilities?.sqlite && !provider.sqlite) {
+            throw new Error(
+                "SessionFsConfig declares capabilities.sqlite but the provider does not implement sqlite."
+            );
+        }
+        session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
+    }
+
     /**
      * Starts the CLI server and establishes a connection.
      *
@@ -493,6 +511,7 @@ export class CopilotClient {
                     initialCwd: this.sessionFsConfig.initialCwd,
                     sessionStatePath: this.sessionFsConfig.sessionStatePath,
                     conventions: this.sessionFsConfig.conventions,
+                    capabilities: this.sessionFsConfig.capabilities,
                 });
             }
 
@@ -772,17 +791,7 @@ export class CopilotClient {
             session.on(config.onEvent);
         }
         this.sessions.set(sessionId, session);
-        if (this.sessionFsConfig) {
-            if (config.createSessionFsHandler) {
-                session.clientSessionApis.sessionFs = createSessionFsAdapter(
-                    config.createSessionFsHandler(session)
-                );
-            } else {
-                throw new Error(
-                    "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
-                );
-            }
-        }
+        this.setupSessionFs(session, config);
 
         try {
             const response = await this.connection!.sendRequest("session.create", {
@@ -920,17 +929,7 @@ export class CopilotClient {
             session.on(config.onEvent);
         }
         this.sessions.set(sessionId, session);
-        if (this.sessionFsConfig) {
-            if (config.createSessionFsHandler) {
-                session.clientSessionApis.sessionFs = createSessionFsAdapter(
-                    config.createSessionFsHandler(session)
-                );
-            } else {
-                throw new Error(
-                    "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
-                );
-            }
-        }
+        this.setupSessionFs(session, config);
 
         try {
             const response = await this.connection!.sendRequest("session.resume", {

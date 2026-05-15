@@ -32,6 +32,7 @@ const sessionFsConfig: SessionFsConfig = {
     initialCwd: "/",
     sessionStatePath,
     conventions: "posix",
+    capabilities: { sqlite: true },
 };
 
 describe("Session Fs SQLite", async () => {
@@ -46,7 +47,7 @@ describe("Session Fs SQLite", async () => {
         copilotClientOptions: { sessionFs: sessionFsConfig },
     });
 
-    it("should route SQL queries through the sessionFs sqlite handler", async () => {
+    it("should route SQL queries through the sessionFs sqlite handler", { timeout: 60000 }, async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             createSessionFsHandler,

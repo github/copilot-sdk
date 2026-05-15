@@ -91,8 +91,8 @@ export interface SessionFsProvider {
     /** Renames/moves a file or directory. */
     rename(src: string, dest: string): Promise<void>;
 
-    /** Per-session SQLite database operations. */
-    sqlite: SessionFsSqliteProvider;
+    /** Per-session SQLite database operations. Optional — omit if the provider does not support SQLite. */
+    sqlite?: SessionFsSqliteProvider;
 }
 
 /**
@@ -188,10 +188,16 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
             }
         },
         sqliteQuery: async ({ queryType, query, params: bindParams }) => {
+            if (!provider.sqlite) {
+                throw new Error("SQLite is not supported by this provider");
+            }
             const result = await provider.sqlite.query(queryType, query, bindParams);
             return result ?? { rows: [], columns: [], rowsAffected: 0 };
         },
         sqliteExists: async () => {
+            if (!provider.sqlite) {
+                throw new Error("SQLite is not supported by this provider");
+            }
             return { exists: await provider.sqlite.exists() };
         },
     };

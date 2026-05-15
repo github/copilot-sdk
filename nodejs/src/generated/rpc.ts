@@ -2739,6 +2739,18 @@ export interface SessionFsRmRequest {
   force?: boolean;
 }
 /**
+ * Optional capabilities declared by the provider
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSetProviderCapabilities".
+ */
+export interface SessionFsSetProviderCapabilities {
+  /**
+   * Whether the provider supports SQLite query/exists operations
+   */
+  sqlite?: boolean;
+}
+/**
  * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2754,6 +2766,7 @@ export interface SessionFsSetProviderRequest {
    */
   sessionStatePath: string;
   conventions: SessionFsSetProviderConventions;
+  capabilities?: SessionFsSetProviderCapabilities;
 }
 /**
  * Indicates whether the calling client was registered as the session filesystem provider.
