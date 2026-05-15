@@ -542,6 +542,92 @@ internal sealed class SessionsForkRequest
     public string? ToEventId { get; set; }
 }
 
+/// <summary>Repository associated with the connected remote session.</summary>
+public sealed class ConnectedRemoteSessionMetadataRepository
+{
+    /// <summary>Branch associated with the remote session.</summary>
+    [JsonPropertyName("branch")]
+    public string Branch { get; set; } = string.Empty;
+
+    /// <summary>Repository name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Repository owner or organization login.</summary>
+    [JsonPropertyName("owner")]
+    public string Owner { get; set; } = string.Empty;
+}
+
+/// <summary>Metadata for a connected remote session.</summary>
+public sealed class ConnectedRemoteSessionMetadata
+{
+    /// <summary>Neutral SDK discriminator for the connected remote session kind.</summary>
+    [JsonPropertyName("kind")]
+    public ConnectedRemoteSessionMetadataKind Kind { get; set; }
+
+    /// <summary>Last session update time as an ISO 8601 string.</summary>
+    [JsonPropertyName("modifiedTime")]
+    public string ModifiedTime { get; set; } = string.Empty;
+
+    /// <summary>Optional friendly session name.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>Pull request number associated with the session.</summary>
+    [JsonPropertyName("pullRequestNumber")]
+    public long? PullRequestNumber { get; set; }
+
+    /// <summary>Repository associated with the connected remote session.</summary>
+    [JsonPropertyName("repository")]
+    public ConnectedRemoteSessionMetadataRepository Repository { get => field ??= new(); set; }
+
+    /// <summary>Original remote resource identifier.</summary>
+    [JsonPropertyName("resourceId")]
+    public string? ResourceId { get; set; }
+
+    /// <summary>SDK session ID for the connected remote session.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Remote session staleness deadline as an ISO 8601 string.</summary>
+    [JsonPropertyName("staleAt")]
+    public string? StaleAt { get; set; }
+
+    /// <summary>Session start time as an ISO 8601 string.</summary>
+    [JsonPropertyName("startTime")]
+    public string StartTime { get; set; } = string.Empty;
+
+    /// <summary>Remote session state returned by the backing service.</summary>
+    [JsonPropertyName("state")]
+    public string? State { get; set; }
+
+    /// <summary>Optional session summary.</summary>
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+}
+
+/// <summary>Remote session connection result.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class RemoteSessionConnectionResult
+{
+    /// <summary>Metadata for a connected remote session.</summary>
+    [JsonPropertyName("metadata")]
+    public ConnectedRemoteSessionMetadata Metadata { get => field ??= new(); set; }
+
+    /// <summary>SDK session ID for the connected remote session.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Remote session connection parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectRemoteSessionParams
+{
+    /// <summary>Session ID to connect to.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Identifies the target session.</summary>
 internal sealed class SessionSuspendRequest
 {
@@ -3498,6 +3584,68 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
 }
 
 
+/// <summary>Neutral SDK discriminator for the connected remote session kind.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectedRemoteSessionMetadataKind : IEquatable<ConnectedRemoteSessionMetadataKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectedRemoteSessionMetadataKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectedRemoteSessionMetadataKind"/>.</param>
+    [JsonConstructor]
+    public ConnectedRemoteSessionMetadataKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectedRemoteSessionMetadataKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>remote-session</c> value.</summary>
+    public static ConnectedRemoteSessionMetadataKind RemoteSession { get; } = new("remote-session");
+
+    /// <summary>Gets the <c>coding-agent</c> value.</summary>
+    public static ConnectedRemoteSessionMetadataKind CodingAgent { get; } = new("coding-agent");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectedRemoteSessionMetadataKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectedRemoteSessionMetadataKind left, ConnectedRemoteSessionMetadataKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectedRemoteSessionMetadataKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectedRemoteSessionMetadataKind left, ConnectedRemoteSessionMetadataKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectedRemoteSessionMetadataKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectedRemoteSessionMetadataKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectedRemoteSessionMetadataKind}"/> for serializing <see cref="ConnectedRemoteSessionMetadataKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectedRemoteSessionMetadataKind>
+    {
+        /// <inheritdoc />
+        public override ConnectedRemoteSessionMetadataKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectedRemoteSessionMetadataKind value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectedRemoteSessionMetadataKind));
+        }
+    }
+}
+
+
 /// <summary>Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -5318,6 +5466,16 @@ public sealed class ServerSessionsApi
         var request = new SessionsForkRequest { SessionId = sessionId, ToEventId = toEventId, Name = name };
         return await CopilotClient.InvokeRpcAsync<SessionsForkResult>(_rpc, "sessions.fork", [request], cancellationToken);
     }
+
+    /// <summary>Connects to an existing remote session and exposes it as an SDK session.</summary>
+    /// <param name="sessionId">Session ID to connect to.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Remote session connection result.</returns>
+    public async Task<RemoteSessionConnectionResult> ConnectAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        var request = new ConnectRemoteSessionParams { SessionId = sessionId };
+        return await CopilotClient.InvokeRpcAsync<RemoteSessionConnectionResult>(_rpc, "sessions.connect", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides typed session-scoped RPC methods.</summary>
@@ -6484,8 +6642,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(CommandsListRequestWithSession))]
 [JsonSerializable(typeof(CommandsRespondToQueuedCommandRequest))]
 [JsonSerializable(typeof(CommandsRespondToQueuedCommandResult))]
+[JsonSerializable(typeof(ConnectRemoteSessionParams))]
 [JsonSerializable(typeof(ConnectRequest))]
 [JsonSerializable(typeof(ConnectResult))]
+[JsonSerializable(typeof(ConnectedRemoteSessionMetadata))]
+[JsonSerializable(typeof(ConnectedRemoteSessionMetadataRepository))]
 [JsonSerializable(typeof(CurrentModel))]
 [JsonSerializable(typeof(DiscoveredMcpServer))]
 [JsonSerializable(typeof(Extension))]
@@ -6555,6 +6716,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(QueuedCommandResult))]
 [JsonSerializable(typeof(RemoteEnableRequest))]
 [JsonSerializable(typeof(RemoteEnableResult))]
+[JsonSerializable(typeof(RemoteSessionConnectionResult))]
 [JsonSerializable(typeof(ServerSkill))]
 [JsonSerializable(typeof(ServerSkillList))]
 [JsonSerializable(typeof(SessionAgentDeselectRequest))]

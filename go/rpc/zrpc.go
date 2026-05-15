@@ -149,6 +149,50 @@ type CommandsRespondToQueuedCommandResult struct {
 	Success bool `json:"success"`
 }
 
+// Metadata for a connected remote session.
+type ConnectedRemoteSessionMetadata struct {
+	// Neutral SDK discriminator for the connected remote session kind.
+	Kind ConnectedRemoteSessionMetadataKind `json:"kind"`
+	// Last session update time as an ISO 8601 string.
+	ModifiedTime string `json:"modifiedTime"`
+	// Optional friendly session name.
+	Name *string `json:"name,omitempty"`
+	// Pull request number associated with the session.
+	PullRequestNumber *int64 `json:"pullRequestNumber,omitempty"`
+	// Repository associated with the connected remote session.
+	Repository ConnectedRemoteSessionMetadataRepository `json:"repository"`
+	// Original remote resource identifier.
+	ResourceID *string `json:"resourceId,omitempty"`
+	// SDK session ID for the connected remote session.
+	SessionID string `json:"sessionId"`
+	// Remote session staleness deadline as an ISO 8601 string.
+	StaleAt *string `json:"staleAt,omitempty"`
+	// Session start time as an ISO 8601 string.
+	StartTime string `json:"startTime"`
+	// Remote session state returned by the backing service.
+	State *string `json:"state,omitempty"`
+	// Optional session summary.
+	Summary *string `json:"summary,omitempty"`
+}
+
+// Repository associated with the connected remote session.
+type ConnectedRemoteSessionMetadataRepository struct {
+	// Branch associated with the remote session.
+	Branch string `json:"branch"`
+	// Repository name.
+	Name string `json:"name"`
+	// Repository owner or organization login.
+	Owner string `json:"owner"`
+}
+
+// Remote session connection parameters.
+// Experimental: ConnectRemoteSessionParams is part of an experimental API and may change or
+// be removed.
+type ConnectRemoteSessionParams struct {
+	// Session ID to connect to.
+	SessionID string `json:"sessionId"`
+}
+
 // Optional connection token presented by the SDK client during the handshake.
 // Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
@@ -1384,6 +1428,16 @@ type RemoteEnableResult struct {
 	URL *string `json:"url,omitempty"`
 }
 
+// Remote session connection result.
+// Experimental: RemoteSessionConnectionResult is part of an experimental API and may change
+// or be removed.
+type RemoteSessionConnectionResult struct {
+	// Metadata for a connected remote session.
+	Metadata ConnectedRemoteSessionMetadata `json:"metadata"`
+	// SDK session ID for the connected remote session.
+	SessionID string `json:"sessionId"`
+}
+
 // Schema for the `ServerSkill` type.
 type ServerSkill struct {
 	// Description of what the skill does
@@ -2521,6 +2575,14 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
+// Neutral SDK discriminator for the connected remote session kind.
+type ConnectedRemoteSessionMetadataKind string
+
+const (
+	ConnectedRemoteSessionMetadataKindCodingAgent   ConnectedRemoteSessionMetadataKind = "coding-agent"
+	ConnectedRemoteSessionMetadataKindRemoteSession ConnectedRemoteSessionMetadataKind = "remote-session"
+)
+
 // Configuration source
 type DiscoveredMcpServerSource string
 
@@ -3148,6 +3210,25 @@ func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFsS
 
 // Experimental: ServerSessionsApi contains experimental APIs that may change or be removed.
 type ServerSessionsApi serverApi
+
+// Connects to an existing remote session and exposes it as an SDK session.
+//
+// RPC method: sessions.connect.
+//
+// Parameters: Remote session connection parameters.
+//
+// Returns: Remote session connection result.
+func (a *ServerSessionsApi) Connect(ctx context.Context, params *ConnectRemoteSessionParams) (*RemoteSessionConnectionResult, error) {
+	raw, err := a.client.Request("sessions.connect", params)
+	if err != nil {
+		return nil, err
+	}
+	var result RemoteSessionConnectionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // Fork creates a new session by forking persisted history from an existing session.
 //
