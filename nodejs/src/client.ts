@@ -1408,6 +1408,30 @@ export class CopilotClient {
     }
 
     /**
+     * Registers secret values with the server's SecretFilter for redaction.
+     *
+     * Dynamically generated secrets (e.g., OIDC tokens) can be injected so they
+     * are redacted from session logs, telemetry, trajectory exports, and tool output.
+     *
+     * @param values - Raw secret strings to register for redaction
+     * @throws Error if the client is not connected
+     *
+     * @example
+     * ```typescript
+     * await client.addSecretFilterValues(["my-secret-token"]);
+     * ```
+     */
+    async addSecretFilterValues(values: string[]): Promise<void> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+        if (values.length === 0) {
+            return;
+        }
+        await this.connection.sendRequest("secrets.addFilterValues", { values });
+    }
+
+    /**
      * Subscribes to a specific session lifecycle event type.
      *
      * Lifecycle events are emitted when sessions are created, deleted, updated,

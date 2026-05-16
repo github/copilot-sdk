@@ -1658,6 +1658,20 @@ impl Client {
         Ok(serde_json::from_value(value)?)
     }
 
+    /// Register secret values with the server's SecretFilter for redaction.
+    ///
+    /// Dynamically generated secrets (e.g., OIDC tokens) can be injected so
+    /// they are redacted from session logs, telemetry, trajectory exports, and
+    /// tool output.
+    pub async fn add_secret_filter_values(&self, values: &[String]) -> Result<(), Error> {
+        if values.is_empty() {
+            return Ok(());
+        }
+        let params = serde_json::json!({ "values": values });
+        self.call("secrets.addFilterValues", Some(params)).await?;
+        Ok(())
+    }
+
     /// List persisted sessions, optionally filtered by working directory,
     /// repository, or git context.
     pub async fn list_sessions(

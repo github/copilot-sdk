@@ -1425,3 +1425,44 @@ func TestStartCLIServer_StderrFieldSet(t *testing.T) {
 		t.Error("expected Stderr to be *truncbuffer.TruncBuffer after assignment")
 	}
 }
+
+func TestAddSecretFilterValuesRequest(t *testing.T) {
+	t.Run("serializes values correctly", func(t *testing.T) {
+		req := addSecretFilterValuesRequest{Values: []string{"secret1", "secret2"}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		values, ok := m["values"].([]any)
+		if !ok {
+			t.Fatalf("Expected values to be an array, got %T", m["values"])
+		}
+		if len(values) != 2 {
+			t.Fatalf("Expected 2 values, got %d", len(values))
+		}
+		if values[0] != "secret1" {
+			t.Errorf("Expected first value 'secret1', got %v", values[0])
+		}
+		if values[1] != "secret2" {
+			t.Errorf("Expected second value 'secret2', got %v", values[1])
+		}
+	})
+
+	t.Run("serializes empty values as empty array", func(t *testing.T) {
+		req := addSecretFilterValuesRequest{Values: []string{}}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		values, ok := m["values"].([]any)
+		if !ok {
+			t.Fatalf("Expected values to be an array, got %T", m["values"])
+		}
+		if len(values) != 0 {
+			t.Errorf("Expected empty values array, got %d elements", len(values))
+		}
+	})
+}

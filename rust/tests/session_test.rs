@@ -3521,3 +3521,53 @@ async fn wire_omits_trace_fields_when_unset() {
         .unwrap()
         .unwrap();
 }
+
+#[tokio::test]
+async fn add_secret_filter_values_sends_correct_rpc() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let call_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .add_secret_filter_values(&[
+                    "secret1".to_string(),
+                    "secret2".to_string(),
+                ])
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "secrets.addFilterValues");
+    assert_eq!(request["params"]["values"][0], "secret1");
+    assert_eq!(request["params"]["values"][1], "secret2");
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "ok": true },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, call_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn add_secret_filter_values_skips_empty() {
+    let (client, mut server_read, _server_write) = make_client();
+
+    // Empty values should return immediately without sending any RPC
+    client.add_secret_filter_values(&[]).await.unwrap();
+
+    // Verify no request was sent by checking the stream has no data
+    let mut buf = [0u8; 1];
+    let result = tokio::time::timeout(
+        Duration::from_millis(100),
+        tokio::io::AsyncReadExt::read(&mut server_read, &mut buf),
+    )
+    .await;
+    assert!(result.is_err(), "Expected no data on the wire for empty values");
+}

@@ -884,6 +884,30 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Registers secret values with the server's SecretFilter for redaction.
+    /// </summary>
+    /// <remarks>
+    /// Dynamically generated secrets (e.g., OIDC tokens) can be injected so they are
+    /// redacted from session logs, telemetry, trajectory exports, and tool output.
+    /// </remarks>
+    /// <param name="values">Raw secret strings to register for redaction.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that completes when the values have been registered.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
+    public async Task AddSecretFilterValuesAsync(IReadOnlyList<string> values, CancellationToken cancellationToken = default)
+    {
+        if (values.Count == 0)
+        {
+            return;
+        }
+
+        var connection = await EnsureConnectedAsync(cancellationToken);
+
+        await InvokeRpcAsync<AddSecretFilterValuesResponse>(
+            connection.Rpc, "secrets.addFilterValues", [new AddSecretFilterValuesRequest { Values = values }], cancellationToken);
+    }
+
+    /// <summary>
     /// Gets current authentication status.
     /// </summary>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>

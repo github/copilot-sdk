@@ -2059,6 +2059,30 @@ class CopilotClient:
         result = await self._client.request("status.get", {})
         return GetStatusResponse.from_dict(result)
 
+    async def add_secret_filter_values(self, values: list[str]) -> None:
+        """
+        Register secret values with the server's SecretFilter for redaction.
+
+        Dynamically generated secrets (e.g., OIDC tokens) can be injected so
+        they are redacted from session logs, telemetry, trajectory exports, and
+        tool output.
+
+        Args:
+            values: Raw secret strings to register for redaction.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> await client.add_secret_filter_values(["my-secret-token"])
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+        if not values:
+            return
+
+        await self._client.request("secrets.addFilterValues", {"values": values})
+
     async def get_auth_status(self) -> GetAuthStatusResponse:
         """
         Get current authentication status.

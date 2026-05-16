@@ -1574,4 +1574,36 @@ describe("CopilotClient", () => {
             expect((client as any).options.sessionIdleTimeoutSeconds).toBe(600);
         });
     });
+
+    describe("addSecretFilterValues", () => {
+        it("sends secrets.addFilterValues RPC with values", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest").mockResolvedValue({ ok: true });
+            await client.addSecretFilterValues(["secret1", "secret2"]);
+
+            expect(spy).toHaveBeenCalledWith("secrets.addFilterValues", { values: ["secret1", "secret2"] });
+            spy.mockRestore();
+        });
+
+        it("skips RPC call for empty arrays", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.addSecretFilterValues([]);
+
+            expect(spy).not.toHaveBeenCalledWith("secrets.addFilterValues", expect.anything());
+            spy.mockRestore();
+        });
+
+        it("throws when client is not connected", async () => {
+            const client = new CopilotClient();
+
+            await expect(client.addSecretFilterValues(["secret"])).rejects.toThrow("Client not connected");
+        });
+    });
 });

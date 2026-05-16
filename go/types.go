@@ -1309,6 +1309,11 @@ type GetStatusResponse struct {
 // getAuthStatusRequest is the request for auth.getStatus
 type getAuthStatusRequest struct{}
 
+// addSecretFilterValuesRequest is the request for secrets.addFilterValues
+type addSecretFilterValuesRequest struct {
+	Values []string `json:"values"`
+}
+
 // GetAuthStatusResponse is the response from auth.getStatus
 type GetAuthStatusResponse struct {
 	IsAuthenticated bool    `json:"isAuthenticated"`

@@ -1013,3 +1013,54 @@ class TestCustomAgentWireFormat:
         }
         wire = client._convert_custom_agent_to_wire_format(agent)
         assert "model" not in wire
+
+
+class TestAddSecretFilterValues:
+    @pytest.mark.asyncio
+    async def test_sends_rpc_with_values(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return {"ok": True}
+
+            client._client.request = mock_request
+
+            await client.add_secret_filter_values(["secret1", "secret2"])
+            assert "secrets.addFilterValues" in captured
+            assert captured["secrets.addFilterValues"]["values"] == [
+                "secret1",
+                "secret2",
+            ]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_skips_rpc_for_empty_list(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return {"ok": True}
+
+            client._client.request = mock_request
+
+            await client.add_secret_filter_values([])
+            assert "secrets.addFilterValues" not in captured
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_raises_when_not_connected(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+
+        with pytest.raises(RuntimeError, match="Client not connected"):
+            await client.add_secret_filter_values(["secret"])

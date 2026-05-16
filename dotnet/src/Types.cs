@@ -2744,6 +2744,26 @@ public class PingResponse
 }
 
 /// <summary>
+/// Request to register secret values for redaction.
+/// </summary>
+internal class AddSecretFilterValuesRequest
+{
+    /// <summary>Raw secret strings to register.</summary>
+    [JsonPropertyName("values")]
+    public IReadOnlyList<string> Values { get; set; } = [];
+}
+
+/// <summary>
+/// Response from secrets.addFilterValues.
+/// </summary>
+internal class AddSecretFilterValuesResponse
+{
+    /// <summary>Whether the operation succeeded.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+}
+
+/// <summary>
 /// Response from status.get
 /// </summary>
 public class GetStatusResponse

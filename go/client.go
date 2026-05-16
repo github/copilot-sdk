@@ -1326,6 +1326,22 @@ func (c *Client) GetStatus(ctx context.Context) (*GetStatusResponse, error) {
 	return &response, nil
 }
 
+// AddSecretFilterValues registers secret values with the server's SecretFilter
+// for redaction. Dynamically generated secrets (e.g., OIDC tokens) can be
+// injected so they are redacted from session logs, telemetry, trajectory
+// exports, and tool output.
+func (c *Client) AddSecretFilterValues(ctx context.Context, values []string) error {
+	if c.client == nil {
+		return fmt.Errorf("client not connected")
+	}
+	if len(values) == 0 {
+		return nil
+	}
+
+	_, err := c.client.Request("secrets.addFilterValues", addSecretFilterValuesRequest{Values: values})
+	return err
+}
+
 // GetAuthStatus returns current authentication status
 func (c *Client) GetAuthStatus(ctx context.Context) (*GetAuthStatusResponse, error) {
 	if c.client == nil {
