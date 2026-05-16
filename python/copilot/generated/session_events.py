@@ -1879,7 +1879,7 @@ class PermissionPromptRequest:
         assert isinstance(obj, dict)
         kind = parse_enum(PermissionPromptRequestKind, obj.get("kind"))
         access_kind = from_union([from_none, lambda x: parse_enum(PermissionPromptRequestPathAccessKind, x)], obj.get("accessKind"))
-        action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action", "store"))
+        action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
         args = from_union([from_none, lambda x: x], obj.get("args"))
         can_offer_session_approval = from_union([from_none, from_bool], obj.get("canOfferSessionApproval"))
         capabilities = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("capabilities"))
@@ -2044,7 +2044,7 @@ class PermissionRequest:
     def from_dict(obj: Any) -> "PermissionRequest":
         assert isinstance(obj, dict)
         kind = parse_enum(PermissionRequestKind, obj.get("kind"))
-        action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action", "store"))
+        action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
         args = obj.get("args")
         can_offer_session_approval = from_union([from_none, from_bool], obj.get("canOfferSessionApproval"))
         capabilities = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("capabilities"))
@@ -3280,7 +3280,7 @@ class SessionTaskCompleteData:
     def from_dict(obj: Any) -> "SessionTaskCompleteData":
         assert isinstance(obj, dict)
         success = from_union([from_none, from_bool], obj.get("success"))
-        summary = from_union([from_none, from_str], obj.get("summary", ""))
+        summary = from_union([from_none, from_str], obj.get("summary"))
         return SessionTaskCompleteData(
             success=success,
             summary=summary,
@@ -5245,4 +5245,3 @@ def session_event_from_dict(s: Any) -> SessionEvent:
 
 def session_event_to_dict(x: SessionEvent) -> Any:
     return x.to_dict()
-

@@ -918,22 +918,6 @@ function isPyBase64StringSchema(schema: JSONSchema7): boolean {
     return schema.format === "byte" || (schema as Record<string, unknown>).contentEncoding === "base64";
 }
 
-function toPythonLiteral(value: unknown): string | undefined {
-    if (typeof value === "string") {
-        return JSON.stringify(value);
-    }
-    if (typeof value === "number") {
-        return Number.isFinite(value) ? String(value) : undefined;
-    }
-    if (typeof value === "boolean") {
-        return value ? "True" : "False";
-    }
-    if (value === null) {
-        return "None";
-    }
-    return undefined;
-}
-
 function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
     const definitionCollections = collectDefinitionCollections(schema as Record<string, unknown>);
     return getSessionEventVariantSchemas(schema, definitionCollections)
@@ -1492,9 +1476,6 @@ function emitPyClass(
             fieldName: toSnakeCase(propName),
             isRequired,
             resolved,
-            defaultLiteral: isRequired ? undefined : toPythonLiteral(
-                propSchema.default ?? resolveSchema(propSchema, ctx.definitions)?.default
-            ),
         };
     });
 
@@ -1536,9 +1517,7 @@ function emitPyClass(
     lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
     lines.push(`        assert isinstance(obj, dict)`);
     for (const field of fieldInfos) {
-        const sourceExpr = field.defaultLiteral
-            ? `obj.get(${JSON.stringify(field.jsonName)}, ${field.defaultLiteral})`
-            : `obj.get(${JSON.stringify(field.jsonName)})`;
+        const sourceExpr = `obj.get(${JSON.stringify(field.jsonName)})`;
         lines.push(
             `        ${field.fieldName} = ${field.resolved.fromExpr(sourceExpr)}`
         );
@@ -1655,9 +1634,6 @@ function emitPyFlatDiscriminatedUnion(
             fieldName: toSnakeCase(propName),
             isRequired: requiredInAll,
             resolved,
-            defaultLiteral: requiredInAll ? undefined : toPythonLiteral(
-                propSchema.default ?? resolveSchema(propSchema, ctx.definitions)?.default
-            ),
         };
     });
 
@@ -1683,9 +1659,7 @@ function emitPyFlatDiscriminatedUnion(
     lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
     lines.push(`        assert isinstance(obj, dict)`);
     for (const field of fieldInfos) {
-        const sourceExpr = field.defaultLiteral
-            ? `obj.get(${JSON.stringify(field.jsonName)}, ${field.defaultLiteral})`
-            : `obj.get(${JSON.stringify(field.jsonName)})`;
+        const sourceExpr = `obj.get(${JSON.stringify(field.jsonName)})`;
         lines.push(
             `        ${field.fieldName} = ${field.resolved.fromExpr(sourceExpr)}`
         );

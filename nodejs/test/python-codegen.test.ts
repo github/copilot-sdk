@@ -74,11 +74,13 @@ describe("python session event codegen", () => {
         );
         expect(code).toContain("def to_timedelta_int(x: timedelta) -> int:");
         expect(code).toContain(
-            'action = from_union([from_none, lambda x: parse_enum(SessionSyntheticDataAction, x)], obj.get("action", "store"))'
+            'action = from_union([from_none, lambda x: parse_enum(SessionSyntheticDataAction, x)], obj.get("action"))'
         );
         expect(code).toContain(
-            'summary = from_union([from_none, from_str], obj.get("summary", ""))'
+            'summary = from_union([from_none, from_str], obj.get("summary"))'
         );
+        expect(code).not.toContain('obj.get("action", "store")');
+        expect(code).not.toContain('obj.get("summary", "")');
         expect(code).toContain("uri: str");
         expect(code).toContain("pattern: str");
         expect(code).toContain("payload: str");
