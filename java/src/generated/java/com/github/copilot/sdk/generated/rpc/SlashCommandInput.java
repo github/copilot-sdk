@@ -10,21 +10,24 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.skills.reload} RPC method.
+ * Optional unstructured input hint
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionSkillsReloadResult(
-    /** Warnings emitted while loading skills (e.g. skills that loaded but had issues) */
-    @JsonProperty("warnings") List<String> warnings,
-    /** Errors emitted while loading skills (e.g. skills that failed to load entirely) */
-    @JsonProperty("errors") List<String> errors
+public record SlashCommandInput(
+    /** Hint to display when command input has not been provided */
+    @JsonProperty("hint") String hint,
+    /** When true, the command requires non-empty input; clients should render the input hint as required */
+    @JsonProperty("required") Boolean required,
+    /** Optional completion hint for the input (e.g. 'directory' for filesystem path completion) */
+    @JsonProperty("completion") SlashCommandInputCompletion completion,
+    /** When true, clients should pass the full text after the command name as a single argument rather than splitting on whitespace */
+    @JsonProperty("preserveMultilineInput") Boolean preserveMultilineInput
 ) {
 }

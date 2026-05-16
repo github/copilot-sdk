@@ -37,7 +37,7 @@ public final class SessionErrorEvent extends SessionEvent {
     public record SessionErrorEventData(
         /** Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query") */
         @JsonProperty("errorType") String errorType,
-        /** Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). */
+        /** Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`). */
         @JsonProperty("errorCode") String errorCode,
         /** Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt. */
         @JsonProperty("eligibleForAutoSwitch") Boolean eligibleForAutoSwitch,

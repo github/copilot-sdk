@@ -71,7 +71,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = new SessionsForkParams("parent-session-id", null);
+        var params = new SessionsForkParams("parent-session-id", null, null);
         server.sessions.fork(params);
 
         assertEquals(1, stub.calls.size());
@@ -657,7 +657,7 @@ class GeneratedRpcApiCoverageTest {
 
     @Test
     void sessionsForkParams_record() {
-        var params = new SessionsForkParams("parent-id", "event-123");
+        var params = new SessionsForkParams("parent-id", "event-123", null);
         assertEquals("parent-id", params.sessionId());
         assertEquals("event-123", params.toEventId());
     }

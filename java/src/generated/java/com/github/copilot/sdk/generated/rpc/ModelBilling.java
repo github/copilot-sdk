@@ -22,6 +22,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelBilling(
     /** Billing cost multiplier relative to the base rate */
-    @JsonProperty("multiplier") Double multiplier
+    @JsonProperty("multiplier") Double multiplier,
+    /** Token-level pricing information for this model */
+    @JsonProperty("tokenPrices") ModelBillingTokenPrices tokenPrices
 ) {
 }

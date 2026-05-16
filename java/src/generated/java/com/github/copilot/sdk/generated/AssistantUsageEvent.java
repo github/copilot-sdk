@@ -62,6 +62,8 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("apiCallId") String apiCallId,
         /** GitHub request tracing ID (x-github-request-id header) for server-side log correlation */
         @JsonProperty("providerCallId") String providerCallId,
+        /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
+        @JsonProperty("apiEndpoint") AssistantUsageApiEndpoint apiEndpoint,
         /** Parent tool call ID when this usage originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Per-quota resource usage snapshots, keyed by quota identifier */

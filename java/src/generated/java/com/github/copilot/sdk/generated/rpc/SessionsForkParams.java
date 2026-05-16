@@ -24,6 +24,8 @@ public record SessionsForkParams(
     /** Source session ID to fork from */
     @JsonProperty("sessionId") String sessionId,
     /** Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included. */
-    @JsonProperty("toEventId") String toEventId
+    @JsonProperty("toEventId") String toEventId,
+    /** Optional friendly name to assign to the forked session. */
+    @JsonProperty("name") String name
 ) {
 }

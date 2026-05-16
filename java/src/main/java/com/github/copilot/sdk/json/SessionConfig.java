@@ -71,6 +71,7 @@ public class SessionConfig {
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
     private String gitHubToken;
+    private String remoteSession;
 
     /**
      * Gets the custom session ID.
@@ -940,6 +941,45 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the per-session remote behavior control.
+     * <p>
+     * Possible values:
+     * <ul>
+     * <li>{@code "off"} — local only, no remote export (default)</li>
+     * <li>{@code "export"} — export session events to GitHub without enabling
+     * remote steering</li>
+     * <li>{@code "on"} — export to GitHub AND enable remote steering</li>
+     * </ul>
+     *
+     * @return the remote session mode, or {@code null} if not set
+     * @since 1.4.0
+     */
+    public String getRemoteSession() {
+        return remoteSession;
+    }
+
+    /**
+     * Sets the per-session remote behavior control.
+     * <p>
+     * Possible values:
+     * <ul>
+     * <li>{@code "off"} — local only, no remote export (default)</li>
+     * <li>{@code "export"} — export session events to GitHub without enabling
+     * remote steering</li>
+     * <li>{@code "on"} — export to GitHub AND enable remote steering</li>
+     * </ul>
+     *
+     * @param remoteSession
+     *            the remote session mode
+     * @return this config instance for method chaining
+     * @since 1.4.0
+     */
+    public SessionConfig setRemoteSession(String remoteSession) {
+        this.remoteSession = remoteSession;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -988,6 +1028,7 @@ public class SessionConfig {
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.gitHubToken = this.gitHubToken;
+        copy.remoteSession = this.remoteSession;
         return copy;
     }
 }

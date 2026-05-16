@@ -22,6 +22,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionsForkResult(
     /** The new forked session's ID */
-    @JsonProperty("sessionId") String sessionId
+    @JsonProperty("sessionId") String sessionId,
+    /** Friendly name assigned to the forked session, if any. */
+    @JsonProperty("name") String name
 ) {
 }

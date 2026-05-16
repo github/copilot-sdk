@@ -151,6 +151,7 @@ final class SessionRequestBuilder {
             request.setRequestAutoModeSwitch(true);
         }
         request.setGitHubToken(config.getGitHubToken());
+        request.setRemoteSession(config.getRemoteSession());
 
         return request;
     }
@@ -243,6 +244,7 @@ final class SessionRequestBuilder {
             request.setRequestAutoModeSwitch(true);
         }
         request.setGitHubToken(config.getGitHubToken());
+        request.setRemoteSession(config.getRemoteSession());
 
         return request;
     }
