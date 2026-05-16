@@ -28,12 +28,16 @@ import asyncio
 
 from copilot import CopilotClient
 from copilot.generated.session_events import AssistantMessageData, SessionIdleData
+from copilot.session import PermissionHandler
 
 async def main():
     # Client automatically starts on enter and cleans up on exit
     async with CopilotClient() as client:
         # Create a session with automatic cleanup
-        async with await client.create_session(model="gpt-5") as session:
+        async with await client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            model="gpt-5",
+        ) as session:
             # Wait for response using session.idle event
             done = asyncio.Event()
 
@@ -113,7 +117,10 @@ from copilot import CopilotClient, SubprocessConfig
 from copilot.session import PermissionHandler
 
 async with CopilotClient() as client:
-    async with await client.create_session(model="gpt-5") as session:
+    async with await client.create_session(
+        on_permission_request=PermissionHandler.approve_all,
+        model="gpt-5",
+    ) as session:
         def on_event(event):
             print(f"Event: {event.type}")
 
