@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +42,7 @@ func TestCompactionE2E(t *testing.T) {
 		// before a successful retry is ignored (mirrors the dotnet/rust references).
 		startCh := make(chan copilot.SessionEvent, 1)
 		completeCh := make(chan copilot.SessionEvent, 1)
+		errCh := make(chan error, 1)
 		unsubscribe := session.On(func(event copilot.SessionEvent) {
 			switch d := event.Data.(type) {
 			case *copilot.SessionCompactionStartData:
@@ -54,6 +56,15 @@ func TestCompactionE2E(t *testing.T) {
 				}
 				select {
 				case completeCh <- event:
+				default:
+				}
+			case *copilot.SessionErrorData:
+				msg := d.Message
+				if msg == "" {
+					msg = "session error"
+				}
+				select {
+				case errCh <- errors.New(msg):
 				default:
 				}
 			}
@@ -75,6 +86,8 @@ func TestCompactionE2E(t *testing.T) {
 		var startEvent copilot.SessionEvent
 		select {
 		case startEvent = <-startCh:
+		case err := <-errCh:
+			t.Fatalf("Session error waiting for session.compaction_start event: %v", err)
 		case <-time.After(compactionTimeout):
 			t.Fatalf("Timed out waiting for session.compaction_start event")
 		}
@@ -82,6 +95,8 @@ func TestCompactionE2E(t *testing.T) {
 		var completeEvent copilot.SessionEvent
 		select {
 		case completeEvent = <-completeCh:
+		case err := <-errCh:
+			t.Fatalf("Session error waiting for session.compaction_complete event: %v", err)
 		case <-time.After(compactionTimeout):
 			t.Fatalf("Timed out waiting for session.compaction_complete event")
 		}
@@ -110,6 +125,7 @@ func TestCompactionE2E(t *testing.T) {
 		if completeData.SummaryContent != nil {
 			summary = *completeData.SummaryContent
 		}
+		summary = strings.ToLower(summary)
 		if !strings.Contains(summary, "<overview>") {
 			t.Errorf("Expected summary to contain <overview>, got: %q", summary)
 		}

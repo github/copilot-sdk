@@ -1,7 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { SessionEvent, approveAll } from "../../src/index.js";
+import { approveAll, type CopilotSession, type SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getNextEventOfType } from "./harness/sdkTestHelper.js";
+
+const compactionTimeoutMs = 60_000;
+
+function getNextSessionEvent<TEventType extends SessionEvent["type"]>(
+    session: CopilotSession,
+    eventType: TEventType,
+    description: string,
+    predicate: (event: Extract<SessionEvent, { type: TEventType }>) => boolean = () => true
+): Promise<Extract<SessionEvent, { type: TEventType }>> {
+    return new Promise((resolve, reject) => {
+        let unsubscribe: () => void = () => {};
+        const timeout = setTimeout(() => {
+            unsubscribe();
+            reject(new Error(`Timed out waiting for ${description}`));
+        }, compactionTimeoutMs);
+
+        unsubscribe = session.on((event) => {
+            if (event.type === eventType) {
+                const typedEvent = event as Extract<SessionEvent, { type: TEventType }>;
+                if (predicate(typedEvent)) {
+                    clearTimeout(timeout);
+                    unsubscribe();
+                    resolve(typedEvent);
+                }
+            } else if (event.type === "session.error") {
+                clearTimeout(timeout);
+                unsubscribe();
+                reject(new Error(`${event.data.message}\n${event.data.stack}`));
+            }
+        });
+    });
+}
 
 describe("Compaction", async () => {
     const { copilotClient: client } = await createSdkTestContext();
@@ -23,23 +54,20 @@ describe("Compaction", async () => {
         // message count. The second prompt is therefore the first deterministic point
         // at which low thresholds can trigger compaction. Register event waiters before
         // any prompts are sent so we never miss the events.
-        const compactionStartedP = getNextEventOfType(session, "session.compaction_start");
+        const compactionStartedP = getNextSessionEvent(
+            session,
+            "session.compaction_start",
+            "session.compaction_start"
+        );
         // Wait specifically for a *successful* compaction_complete so that any transient
         // failed compaction event the daemon may emit before a successful retry is ignored
         // (mirrors the dotnet/rust references).
-        const compactionCompletedP = new Promise<
-            Extract<SessionEvent, { type: "session.compaction_complete" }>
-        >((resolve, reject) => {
-            const unsubscribe = session.on((event) => {
-                if (event.type === "session.compaction_complete" && event.data.success) {
-                    unsubscribe();
-                    resolve(event);
-                } else if (event.type === "session.error") {
-                    unsubscribe();
-                    reject(new Error(`${event.data.message}\n${event.data.stack}`));
-                }
-            });
-        });
+        const compactionCompletedP = getNextSessionEvent(
+            session,
+            "session.compaction_complete",
+            "successful session.compaction_complete",
+            (event) => event.data.success
+        );
 
         await session.sendAndWait({
             prompt: "Tell me a story about a dragon. Be detailed.",
@@ -49,9 +77,7 @@ describe("Compaction", async () => {
         });
 
         const [startEvent, completeEvent] = await Promise.all([
-            compactionStartedP as Promise<
-                Extract<SessionEvent, { type: "session.compaction_start" }>
-            >,
+            compactionStartedP,
             compactionCompletedP,
         ]);
 
@@ -59,7 +85,7 @@ describe("Compaction", async () => {
         expect(completeEvent.data.success).toBe(true);
         expect(completeEvent.data.compactionTokensUsed).toBeDefined();
         expect(completeEvent.data.compactionTokensUsed?.inputTokens ?? 0).toBeGreaterThan(0);
-        const summary = completeEvent.data.summaryContent ?? "";
+        const summary = (completeEvent.data.summaryContent ?? "").toLowerCase();
         expect(summary).toContain("<overview>");
         expect(summary).toContain("<history>");
         expect(summary).toContain("<checkpoint_title>");

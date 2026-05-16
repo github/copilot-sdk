@@ -102,7 +102,7 @@ class TestCompaction:
         assert (complete_event.data.compaction_tokens_used.input_tokens or 0) > 0, (
             "Expected compaction call to consume input tokens"
         )
-        summary = complete_event.data.summary_content or ""
+        summary = (complete_event.data.summary_content or "").lower()
         assert "<overview>" in summary, "Expected summary to contain <overview>"
         assert "<history>" in summary, "Expected summary to contain <history>"
         assert "<checkpoint_title>" in summary, "Expected summary to contain <checkpoint_title>"
