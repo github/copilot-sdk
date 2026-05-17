@@ -316,12 +316,12 @@ namespace System.Diagnostics
                     }
                 }
             }
-                catch (ObjectDisposedException)
-                {
-                }
-                catch (InvalidOperationException)
-                {
-                }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
             catch (Win32Exception)
             {
             }
