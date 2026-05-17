@@ -93,6 +93,23 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             }
         });
 
+        // Regression check for https://github.com/github/copilot-sdk/issues/1194:
+        // the reject decision must round-trip through the CLI with its discriminator
+        // intact so the agent surfaces the user-rejected error to the model. The
+        // CLI uses a kind-specific error message ("The user rejected this tool call.")
+        // for the reject decision, which lets us assert the decision was honored
+        // — not merely that the operation didn't happen.
+        var userRejectedToolCall = false;
+        session.On(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Error?.Message.Contains("user rejected", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                userRejectedToolCall = true;
+            }
+        });
+
         var testFilePath = Path.Combine(Ctx.WorkDir, "protected.txt");
         await File.WriteAllTextAsync(testFilePath, "protected content");
 
@@ -102,6 +119,10 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         });
 
         await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.True(
+            userRejectedToolCall,
+            "Expected a tool.execution_complete event whose error indicates the user rejected the call.");
 
         // Verify the file was NOT modified
         var content = await File.ReadAllTextAsync(testFilePath);

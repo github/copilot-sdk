@@ -56,10 +56,34 @@ class TestPermissions:
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
+        # Regression check for https://github.com/github/copilot-sdk/issues/1194:
+        # the reject decision must round-trip through the CLI with its discriminator
+        # intact so the agent surfaces the user-rejected error to the model. The
+        # CLI emits a kind-specific error message ("The user rejected this tool call.")
+        # for the reject decision, which lets us assert the decision was honored
+        # — not merely that the operation didn't happen.
+        user_rejected_events = []
+
+        def on_event(event):
+            match event.data:
+                case ToolExecutionCompleteData(success=False) as data:
+                    error = data.error
+                    msg = (
+                        error
+                        if isinstance(error, str)
+                        else (getattr(error, "message", None) if error is not None else None)
+                    )
+                    if msg and "user rejected" in msg.lower():
+                        user_rejected_events.append(event)
+
+        session.on(on_event)
+
         original_content = "protected content"
         write_file(ctx.work_dir, "protected.txt", original_content)
 
         await session.send_and_wait("Edit protected.txt and replace 'protected' with 'hacked'.")
+
+        assert len(user_rejected_events) > 0
 
         # Verify the file was NOT modified
         content = read_file(ctx.work_dir, "protected.txt")
