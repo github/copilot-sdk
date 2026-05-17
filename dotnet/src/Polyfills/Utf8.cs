@@ -17,6 +17,17 @@ internal static class Utf8
             return false;
         }
 
+        if (byteCount == value.Length)
+        {
+            for (var i = 0; i < value.Length; i++)
+            {
+                destination[i] = (byte)value[i];
+            }
+
+            bytesWritten = byteCount;
+            return true;
+        }
+
         var bytes = Encoding.UTF8.GetBytes(value);
         bytes.CopyTo(destination);
         bytesWritten = byteCount;

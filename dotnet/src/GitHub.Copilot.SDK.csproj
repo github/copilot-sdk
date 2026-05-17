@@ -59,7 +59,7 @@
     </ItemGroup>
 
     <!-- Generate version props file at build time (gitignored) -->
-    <Target Name="_GenerateVersionProps" BeforeTargets="BeforeBuild;Pack">
+    <Target Name="_GenerateVersionProps" BeforeTargets="BeforeBuild;Pack" Condition="'$(TargetFramework)' == 'net8.0'">
         <Exec Command="node -e &quot;console.log(require('./nodejs/package-lock.json').packages['node_modules/@github/copilot'].version)&quot;" WorkingDirectory="$(MSBuildThisFileDirectory)../.." ConsoleToMSBuild="true" StandardOutputImportance="low">
             <Output TaskParameter="ConsoleOutput" PropertyName="CopilotCliVersion" />
         </Exec>

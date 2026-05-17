@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Buffers;
+using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -56,7 +57,7 @@ namespace System
     {
         extension(DateTimeOffset)
         {
-            public static DateTimeOffset UnixEpoch => new(0, TimeSpan.Zero);
+            public static DateTimeOffset UnixEpoch => new(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
         }
     }
 
@@ -170,23 +171,30 @@ namespace System.Diagnostics
         {
             public void Kill(bool entireProcessTree)
             {
-                if (entireProcessTree && OperatingSystem.IsWindows())
+                if (entireProcessTree)
                 {
-                    using var taskKill = Process.Start(new ProcessStartInfo
+                    if (OperatingSystem.IsWindows())
                     {
-                        FileName = "taskkill.exe",
-                        Arguments = string.Format(CultureInfo.InvariantCulture, "/PID {0} /T /F", process.Id),
-                        CreateNoWindow = true,
-                        RedirectStandardError = true,
-                        RedirectStandardOutput = true,
-                        UseShellExecute = false,
-                    });
+                        using var taskKill = Process.Start(new ProcessStartInfo
+                        {
+                            FileName = "taskkill.exe",
+                            Arguments = string.Format(CultureInfo.InvariantCulture, "/PID {0} /T /F", process.Id),
+                            CreateNoWindow = true,
+                            RedirectStandardError = true,
+                            RedirectStandardOutput = true,
+                            UseShellExecute = false,
+                        });
 
-                    if (taskKill is not null &&
-                        taskKill.WaitForExit(milliseconds: 30_000) &&
-                        (taskKill.ExitCode == 0 || process.HasExited))
+                        if (taskKill is not null &&
+                            taskKill.WaitForExit(milliseconds: 30_000) &&
+                            (taskKill.ExitCode == 0 || process.HasExited))
+                        {
+                            return;
+                        }
+                    }
+                    else
                     {
-                        return;
+                        KillDescendantProcesses(process.Id);
                     }
                 }
 
@@ -241,6 +249,87 @@ namespace System.Diagnostics
             {
                 process.Exited -= handler;
             }
+        }
+
+        private static void KillDescendantProcesses(int parentProcessId)
+        {
+            foreach (var childProcessId in GetChildProcessIds(parentProcessId))
+            {
+                KillDescendantProcesses(childProcessId);
+
+                try
+                {
+                    using var childProcess = Process.GetProcessById(childProcessId);
+                    if (!childProcess.HasExited)
+                    {
+                        childProcess.Kill();
+                    }
+                }
+                catch (ArgumentException)
+                {
+                }
+                catch (InvalidOperationException)
+                {
+                }
+                catch (Win32Exception)
+                {
+                }
+                catch (PlatformNotSupportedException)
+                {
+                }
+            }
+        }
+
+        private static List<int> GetChildProcessIds(int parentProcessId)
+        {
+            var childProcessIds = new List<int>();
+
+            try
+            {
+                using var pgrep = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "pgrep",
+                    Arguments = string.Format(CultureInfo.InvariantCulture, "-P {0}", parentProcessId),
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                });
+
+                if (pgrep is null)
+                {
+                    return childProcessIds;
+                }
+
+                var output = pgrep.StandardOutput.ReadToEnd();
+                if (!pgrep.WaitForExit(milliseconds: 5_000))
+                {
+                    pgrep.Kill();
+                    return childProcessIds;
+                }
+
+                foreach (var line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (int.TryParse(line, NumberStyles.None, CultureInfo.InvariantCulture, out var childProcessId))
+                    {
+                        childProcessIds.Add(childProcessId);
+                    }
+                }
+            }
+                catch (ObjectDisposedException)
+                {
+                }
+                catch (InvalidOperationException)
+                {
+                }
+            catch (Win32Exception)
+            {
+            }
+            catch (PlatformNotSupportedException)
+            {
+            }
+
+            return childProcessIds;
         }
     }
 }
