@@ -9,7 +9,7 @@ permission_log: list[str] = []
 
 async def log_permission(request, invocation):
     permission_log.append(f"approved:{request.tool_name}")
-    return {"kind": "approved"}
+    return {"kind": "approve-once"}
 
 
 async def auto_approve_tool(input_data, invocation):

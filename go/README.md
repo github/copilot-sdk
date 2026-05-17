@@ -606,7 +606,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 
         if request.Kind == copilot.KindShell {
             // Deny shell commands
-            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
+            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
         }
 
         return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
@@ -616,13 +616,16 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 
 ### Permission Result Kinds
 
-| Constant                                                   | Meaning                                                                                 |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `PermissionRequestResultKindApproved`                      | Allow the tool to run                                                                   |
-| `PermissionRequestResultKindDeniedInteractivelyByUser`     | User explicitly denied the request                                                      |
-| `PermissionRequestResultKindDeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked                                    |
-| `PermissionRequestResultKindDeniedByRules`                 | Denied by a policy rule                                                                 |
-| `PermissionRequestResultKindNoResult`                      | Leave the permission request unanswered (protocol v1 only; not allowed for protocol v2) |
+The `Kind` field must be one of the canonical `PermissionRequestResultKind` constants. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+
+| Constant                                      | Wire value             | Meaning                                                                                     |
+| --------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| `PermissionRequestResultKindApproved`         | `"approve-once"`       | Allow this single request                                                                   |
+| `PermissionRequestResultKindRejected`         | `"reject"`             | Deny the request                                                                            |
+| `PermissionRequestResultKindUserNotAvailable` | `"user-not-available"` | Deny the request because no user is available to confirm it                                 |
+| `PermissionRequestResultKindNoResult`         | `"no-result"`          | Leave the permission request unanswered (protocol v1 only; rejected by protocol v2 servers) |
+
+> The past-tense names `PermissionRequestResultKindDeniedInteractivelyByUser`, `PermissionRequestResultKindDeniedCouldNotRequestFromUser`, and `PermissionRequestResultKindDeniedByRules` remain as deprecated aliases for backward compatibility — prefer the canonical constants above in new code.
 
 ### Resuming Sessions
 

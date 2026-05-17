@@ -29,7 +29,7 @@ const session = await client.createSession({
         "./skills/code-review",
         "./skills/documentation",
     ],
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 // Copilot now has access to skills in those directories
@@ -50,7 +50,7 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        on_permission_request=lambda req, inv: {"kind": "approved"},
+        on_permission_request=lambda req, inv: {"kind": "approve-once"},
         model="gpt-4.1",
         skill_directories=[
             "./skills/code-review",
@@ -375,7 +375,7 @@ const session = await client.createSession({
         prompt: "Focus on OWASP Top 10 vulnerabilities",
         skills: ["security-scan", "dependency-check"],
     }],
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 > [!NOTE]
@@ -396,7 +396,7 @@ const session = await client.createSession({
             tools: ["*"],
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 

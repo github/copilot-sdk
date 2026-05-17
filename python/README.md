@@ -587,9 +587,9 @@ def on_permission_request(
 
     if request.kind.value == "shell":
         # Deny shell commands
-        return PermissionRequestResult(kind="denied-interactively-by-user")
+        return PermissionRequestResult(kind="reject")
 
-    return PermissionRequestResult(kind="approved")
+    return PermissionRequestResult(kind="approve-once")
 
 session = await client.create_session(
     on_permission_request=on_permission_request,
@@ -605,19 +605,19 @@ async def on_permission_request(
 ) -> PermissionRequestResult:
     # Simulate an async approval check (e.g., prompting a user over a network)
     await asyncio.sleep(0)
-    return PermissionRequestResult(kind="approved")
+    return PermissionRequestResult(kind="approve-once")
 ```
 
 ### Permission Result Kinds
 
-| `kind` value                                                | Meaning                                                                                  |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `"approved"`                                                | Allow the tool to run                                                                    |
-| `"denied-interactively-by-user"`                            | User explicitly denied the request                                                       |
-| `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked (default when no kind is specified) |
-| `"denied-by-rules"`                                         | Denied by a policy rule                                                                  |
-| `"denied-by-content-exclusion-policy"`                      | Denied due to a content exclusion policy                                                 |
-| `"no-result"`                                               | Leave the request unanswered (not allowed for protocol v2 permission requests)           |
+The handler must return a `PermissionRequestResult` with one of the kinds declared by the `PermissionRequestResultKind` type. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+
+| `kind` value           | Meaning                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| `"approve-once"`       | Allow this single request                                                                   |
+| `"reject"`             | Deny the request                                                                            |
+| `"user-not-available"` | Deny the request because no user is available to confirm it (the default)                   |
+| `"no-result"`          | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
 
 ### Resuming Sessions
 

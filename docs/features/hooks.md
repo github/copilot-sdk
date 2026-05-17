@@ -50,7 +50,7 @@ const session = await client.createSession({
         onPostToolUse:  async (input, invocation) => { /* ... */ },
         // ... add only the hooks you need
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -66,7 +66,7 @@ client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approve-once"},
     hooks={
         "on_session_start": on_session_start,
         "on_pre_tool_use":  on_pre_tool_use,
@@ -113,7 +113,7 @@ func main() {
 			OnPostToolUse:  onPostToolUse,
 		},
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: "approved"}, nil
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
 		},
 	})
 	_ = session
@@ -133,7 +133,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
         // ... add only the hooks you need
     },
     OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-        return copilot.PermissionRequestResult{Kind: "approved"}, nil
+        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
     },
 })
 ```
@@ -251,7 +251,7 @@ const session = await client.createSession({
             return { permissionDecision: "allow" };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -273,7 +273,7 @@ async def on_pre_tool_use(input_data, invocation):
     return {"permissionDecision": "allow"}
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approve-once"},
     hooks={"on_pre_tool_use": on_pre_tool_use},
 )
 ```
@@ -463,7 +463,7 @@ const session = await client.createSession({
             return { permissionDecision: "allow" };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -481,7 +481,7 @@ const session = await client.createSession({
             return { permissionDecision: "allow" };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -563,7 +563,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -626,7 +626,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approve-once"},
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
@@ -661,7 +661,7 @@ const session = await client.createSession({
                 : null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -694,7 +694,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -723,7 +723,7 @@ async def on_error_occurred(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approve-once"},
     hooks={
         "on_session_end": on_session_end,
         "on_error_occurred": on_error_occurred,
@@ -750,7 +750,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -774,7 +774,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -800,7 +800,7 @@ const session = await client.createSession({
             };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -826,7 +826,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -850,7 +850,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -871,7 +871,7 @@ const session = await client.createSession({
             };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -917,7 +917,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -956,7 +956,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approve-once"},
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
@@ -999,7 +999,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 

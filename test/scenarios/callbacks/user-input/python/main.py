@@ -8,7 +8,7 @@ input_log: list[str] = []
 
 
 async def auto_approve_permission(request, invocation):
-    return {"kind": "approved"}
+    return {"kind": "approve-once"}
 
 
 async def auto_approve_tool(input_data, invocation):

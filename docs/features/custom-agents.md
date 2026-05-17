@@ -54,7 +54,7 @@ const session = await client.createSession({
             prompt: "You are a code editor. Make minimal, surgical changes to files as requested.",
         },
     ],
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -71,7 +71,7 @@ client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     model="gpt-4.1",
     custom_agents=[
         {
@@ -284,7 +284,7 @@ const session = await client.createSession({
             skills: ["markdown-lint"],
         },
     ],
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 

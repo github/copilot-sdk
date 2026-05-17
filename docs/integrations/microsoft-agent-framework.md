@@ -217,7 +217,7 @@ const client = new CopilotClient();
 const session = await client.createSession({
     model: "gpt-4.1",
     tools: [getWeather],
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 await session.sendAndWait({ prompt: "What's the weather like in Seattle?" });
@@ -521,7 +521,7 @@ const client = new CopilotClient();
 const session = await client.createSession({
     model: "gpt-4.1",
     streaming: true,
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 session.on("assistant.message_delta", (event) => {
@@ -600,7 +600,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 const client = new CopilotClient();
 const session = await client.createSession({
     model: "gpt-4.1",
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 const response = await session.sendAndWait({ prompt: "Explain this code" });
 ```

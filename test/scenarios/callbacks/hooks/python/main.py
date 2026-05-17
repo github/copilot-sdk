@@ -8,7 +8,7 @@ hook_log: list[str] = []
 
 
 async def auto_approve_permission(request, invocation):
-    return {"kind": "approved"}
+    return {"kind": "approve-once"}
 
 
 async def on_session_start(input_data, invocation):

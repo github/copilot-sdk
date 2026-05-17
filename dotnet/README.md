@@ -758,7 +758,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
         if (request.Kind == "shell")
         {
             // Deny shell commands
-            return new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser };
+            return new PermissionRequestResult { Kind = PermissionRequestResultKind.Rejected };
         }
 
         return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
@@ -768,13 +768,16 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ### Permission Result Kinds
 
-| Value                                                       | Meaning                                                                                                                                                |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PermissionRequestResultKind.Approved`                      | Allow the tool to run                                                                                                                                  |
-| `PermissionRequestResultKind.DeniedInteractivelyByUser`     | User explicitly denied the request                                                                                                                     |
-| `PermissionRequestResultKind.DeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked                                                                                                   |
-| `PermissionRequestResultKind.DeniedByRules`                 | Denied by a policy rule                                                                                                                                |
-| `PermissionRequestResultKind.NoResult`                      | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
+The `Kind` property must be one of the canonical `PermissionRequestResultKind` values. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+
+| Value                                       | Wire value             | Meaning                                                                                                                                                |
+| ------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PermissionRequestResultKind.Approved`      | `"approve-once"`       | Allow this single request                                                                                                                              |
+| `PermissionRequestResultKind.Rejected`      | `"reject"`             | Deny the request                                                                                                                                       |
+| `PermissionRequestResultKind.UserNotAvailable` | `"user-not-available"` | Deny the request because no user is available to confirm it                                                                                            |
+| `PermissionRequestResultKind.NoResult`      | `"no-result"`          | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
+
+> The past-tense names `PermissionRequestResultKind.DeniedInteractivelyByUser`, `PermissionRequestResultKind.DeniedCouldNotRequestFromUser`, and `PermissionRequestResultKind.DeniedByRules` remain as `[Obsolete]` aliases for backward compatibility — prefer the canonical members above in new code.
 
 ### Resuming Sessions
 
