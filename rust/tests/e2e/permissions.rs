@@ -83,10 +83,24 @@ async fn should_deny_permission_when_handler_returns_denied() {
                     .await
                     .expect("create session");
 
+                // Regression check for https://github.com/github/copilot-sdk/issues/1194:
+                // the reject decision must round-trip through the CLI with its
+                // discriminator intact so the agent surfaces the user-rejected error
+                // to the model. The CLI emits a kind-specific error message
+                // ("The user rejected this tool call.") for the reject decision,
+                // which lets us assert the decision was honored — not merely that
+                // the operation didn't happen.
+                let events = session.subscribe();
+
                 session
                     .send_and_wait("Edit protected.txt and replace 'protected' with 'hacked'.")
                     .await
                     .expect("send");
+
+                wait_for_event(events, "user-rejected tool completion", |event| {
+                    is_user_rejected_tool_completion(event)
+                })
+                .await;
 
                 let content = std::fs::read_to_string(&test_file).expect("read protected file");
                 assert_eq!(content, "protected content");
@@ -543,6 +557,21 @@ fn is_permission_denied_tool_completion(event: &github_copilot_sdk::SessionEvent
             .error
             .as_ref()
             .map(|error| error.message.contains("Permission denied"))
+            .unwrap_or(false)
+}
+
+fn is_user_rejected_tool_completion(event: &github_copilot_sdk::SessionEvent) -> bool {
+    if event.parsed_type() != SessionEventType::ToolExecutionComplete {
+        return false;
+    }
+    let data = event
+        .typed_data::<ToolExecutionCompleteData>()
+        .expect("tool.execution_complete data");
+    !data.success
+        && data
+            .error
+            .as_ref()
+            .map(|error| error.message.to_lowercase().contains("user rejected"))
             .unwrap_or(false)
 }
 
