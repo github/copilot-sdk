@@ -75,7 +75,7 @@
   <!-- Download and extract CLI binary.
        Skipped when CopilotCliBinaryPath is set (consumer supplied the binary)
        or when CopilotSkipCliDownload=true (consumer opted out entirely). -->
-  <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(TargetFramework)' != '' And '$(CopilotCliBinaryPath)' == '' And '$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
+  <Target Name="_DownloadCopilotCli" DependsOnTargets="$(_CopilotCliVersionTarget)" BeforeTargets="BeforeBuild" Condition="'$(TargetFramework)' != '' And '$(CopilotCliBinaryPath)' == '' And '$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
     <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
 
     <!-- Compute paths using version (now available) -->

@@ -316,16 +316,7 @@ namespace System.Diagnostics
                     }
                 }
             }
-            catch (ObjectDisposedException)
-            {
-            }
-            catch (InvalidOperationException)
-            {
-            }
-            catch (Win32Exception)
-            {
-            }
-            catch (PlatformNotSupportedException)
+            catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException or Win32Exception or PlatformNotSupportedException)
             {
             }
 

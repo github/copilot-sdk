@@ -19,6 +19,7 @@
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <_CopilotCliVersionTarget>_GetCopilotCliVersion</_CopilotCliVersionTarget>
     </PropertyGroup>
 
   <PropertyGroup>
@@ -59,11 +60,14 @@
     </ItemGroup>
 
     <!-- Generate version props file at build time (gitignored) -->
-    <Target Name="_GenerateVersionProps" BeforeTargets="_DownloadCopilotCli;BeforeBuild;Pack">
+    <Target Name="_GetCopilotCliVersion" Condition="'$(CopilotCliVersion)' == ''">
         <Exec Command="node -e &quot;console.log(require('./nodejs/package-lock.json').packages['node_modules/@github/copilot'].version)&quot;" WorkingDirectory="$(MSBuildThisFileDirectory)../.." ConsoleToMSBuild="true" StandardOutputImportance="low">
             <Output TaskParameter="ConsoleOutput" PropertyName="CopilotCliVersion" />
         </Exec>
         <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion could not be read from nodejs/package-lock.json" />
+    </Target>
+
+    <Target Name="_GenerateVersionProps" DependsOnTargets="_GetCopilotCliVersion" BeforeTargets="Pack">
         <PropertyGroup>
             <_VersionPropsContent>
                 <![CDATA[<Project>
