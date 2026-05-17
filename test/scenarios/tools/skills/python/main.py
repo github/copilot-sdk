@@ -4,6 +4,7 @@ from pathlib import Path
 
 from copilot import CopilotClient
 from copilot.client import SubprocessConfig
+from copilot.session import PermissionRequestResult
 
 
 async def main():
@@ -16,7 +17,7 @@ async def main():
         skills_dir = str(Path(__file__).resolve().parent.parent / "sample-skills")
 
         session = await client.create_session(
-            on_permission_request=lambda _, __: {"kind": "approve-once"},
+            on_permission_request=lambda _, __: PermissionRequestResult(kind="approve-once"),
             model="claude-haiku-4.5",
             skill_directories=[skills_dir],
             hooks={

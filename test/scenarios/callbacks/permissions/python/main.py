@@ -2,6 +2,7 @@ import asyncio
 import os
 from copilot import CopilotClient
 from copilot.client import SubprocessConfig
+from copilot.session import PermissionRequestResult
 
 # Track which tools requested permission
 permission_log: list[str] = []
@@ -9,7 +10,7 @@ permission_log: list[str] = []
 
 async def log_permission(request, invocation):
     permission_log.append(f"approved:{request.tool_name}")
-    return {"kind": "approve-once"}
+    return PermissionRequestResult(kind="approve-once")
 
 
 async def auto_approve_tool(input_data, invocation):

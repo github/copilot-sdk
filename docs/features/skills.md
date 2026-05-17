@@ -50,7 +50,7 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        on_permission_request=lambda req, inv: {"kind": "approve-once"},
+        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
         model="gpt-4.1",
         skill_directories=[
             "./skills/code-review",
