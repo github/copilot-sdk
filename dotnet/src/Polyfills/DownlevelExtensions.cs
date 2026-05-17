@@ -5,6 +5,7 @@
 using System.Buffers;
 using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -265,17 +266,9 @@ namespace System.Diagnostics
                         childProcess.Kill();
                     }
                 }
-                catch (ArgumentException)
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception or PlatformNotSupportedException)
                 {
-                }
-                catch (InvalidOperationException)
-                {
-                }
-                catch (Win32Exception)
-                {
-                }
-                catch (PlatformNotSupportedException)
-                {
+                    IgnoreBestEffortProcessException(ex);
                 }
             }
         }
@@ -308,20 +301,26 @@ namespace System.Diagnostics
                     return childProcessIds;
                 }
 
-                foreach (var line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-                {
-                    if (int.TryParse(line, NumberStyles.None, CultureInfo.InvariantCulture, out var childProcessId))
-                    {
-                        childProcessIds.Add(childProcessId);
-                    }
-                }
+                childProcessIds.AddRange(
+                    output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                        .Select(static line =>
+                        {
+                            var success = int.TryParse(line, NumberStyles.None, CultureInfo.InvariantCulture, out var childProcessId);
+                            return (success, childProcessId);
+                        })
+                        .Where(static result => result.success)
+                        .Select(static result => result.childProcessId));
             }
             catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException or Win32Exception or PlatformNotSupportedException)
             {
+                IgnoreBestEffortProcessException(ex);
             }
 
             return childProcessIds;
         }
+
+        private static void IgnoreBestEffortProcessException(Exception exception) =>
+            Debug.WriteLine(exception.ToString());
     }
 }
 
