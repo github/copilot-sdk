@@ -8,10 +8,10 @@
  * payload types lived in `generated/session-events.ts` and could only be
  * reached via a deep import (`@github/copilot-sdk/dist/generated/...`).
  *
- * Most of this file exercises the *type* surface — if these imports type-check
- * the public API exposes the types. A small set of runtime assertions
- * additionally proves that a concrete `ToolExecutionStartData` value (the
- * exact type called out in the issue) round-trips through the exports.
+ * Most of this file exercises the *type* surface — if these type-only imports
+ * compile, the public API exposes the types. The runtime assertions below only
+ * validate representative object shapes for those annotations; they do not
+ * prove that type-only exports exist at runtime.
  */
 
 import { describe, expect, it } from "vitest";
@@ -83,9 +83,9 @@ const _assistantMessageEventAlignmentCheck: _AssistantMessageEventStaysAlignedWi
 
 describe("Session event type exports (#1156)", () => {
     it("exposes the headline ToolExecutionStartData type with a usable shape", () => {
-        // This is the specific type called out in issue #1156. Build a real
-        // value through the public re-export so we exercise both the type
-        // surface and the runtime shape consumers would actually use.
+        // This is the specific type called out in issue #1156. The annotation
+        // is the compile-time API-surface check; these assertions only validate
+        // the representative runtime object shape a consumer would use.
         const data: ToolExecutionStartData = {
             toolCallId: "call-1",
             toolName: "shell",
