@@ -442,8 +442,8 @@ namespace System.Net.Sockets
                 throw new OperationCanceledException(cancellationToken);
             }
 
-                await task.ConfigureAwait(false);
-            }
+            await task.ConfigureAwait(false);
+        }
 
         private static bool IsFatal(Exception exception) =>
             exception is OutOfMemoryException or StackOverflowException or AccessViolationException or AppDomainUnloadedException;

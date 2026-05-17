@@ -40,7 +40,7 @@
         <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
     </ItemGroup>
 
-    <ItemGroup Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))">
+    <ItemGroup Condition="'$(TargetFramework)' != '' and !$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))">
         <PackageReference Include="System.Text.Json" />
     </ItemGroup>
 
