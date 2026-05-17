@@ -232,6 +232,7 @@ namespace System.Diagnostics
             EventHandler handler,
             Threading.CancellationTokenRegistration cancellationRegistration)
         {
+            using var _ = cancellationRegistration;
             try
             {
                 await waitTask.ConfigureAwait(false);
@@ -239,7 +240,6 @@ namespace System.Diagnostics
             finally
             {
                 process.Exited -= handler;
-                cancellationRegistration.Dispose();
             }
         }
     }
@@ -377,14 +377,38 @@ namespace System.Net.Sockets
                                 connectState.Socket.EndConnect(asyncResult);
                                 connectState.Completion.TrySetResult(null);
                             }
-                            catch (Exception ex)
+                            catch (SocketException ex)
+                            {
+                                connectState.Completion.TrySetException(ex);
+                            }
+                            catch (ObjectDisposedException ex)
+                            {
+                                connectState.Completion.TrySetException(ex);
+                            }
+                            catch (InvalidOperationException ex)
+                            {
+                                connectState.Completion.TrySetException(ex);
+                            }
+                            catch (Exception ex) when (!IsFatal(ex))
                             {
                                 connectState.Completion.TrySetException(ex);
                             }
                         },
                         connectState);
                 }
-                catch (Exception ex)
+                catch (SocketException ex)
+                {
+                    completion.TrySetException(ex);
+                }
+                catch (ObjectDisposedException ex)
+                {
+                    completion.TrySetException(ex);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    completion.TrySetException(ex);
+                }
+                catch (Exception ex) when (!IsFatal(ex))
                 {
                     completion.TrySetException(ex);
                 }
@@ -418,8 +442,11 @@ namespace System.Net.Sockets
                 throw new OperationCanceledException(cancellationToken);
             }
 
-            await task.ConfigureAwait(false);
-        }
+                await task.ConfigureAwait(false);
+            }
+
+        private static bool IsFatal(Exception exception) =>
+            exception is OutOfMemoryException or StackOverflowException or AccessViolationException or AppDomainUnloadedException;
 
         private sealed record CancellationState(TaskCompletionSource<object?> Completion, Action CancellationAction);
 
