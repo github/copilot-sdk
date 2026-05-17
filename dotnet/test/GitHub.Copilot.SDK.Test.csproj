@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net8.0;net472</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <NoWarn>$(NoWarn);GHCP001</NoWarn>
@@ -9,11 +11,8 @@
   <PropertyGroup>
     <!--
       Disable STJ reflection-based serialization to help validate NativeAOT.
-      If in the future this test project targets multiple TFMs, this should be
-      made conditional for a subset of those TFMs in order to test with both
-      false and the default of true.
       -->
-    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <JsonSerializerIsReflectionEnabledByDefault Condition="'$(TargetFramework)' == 'net8.0'">false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,6 +30,15 @@
 
   <ItemGroup>
     <ProjectReference Include="../src/GitHub.Copilot.SDK.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <Compile Remove="ConnectionTokenTests.cs" />
+    <Compile Remove="E2E\**\*.cs" />
+    <Compile Remove="Harness\**\*.cs" />
+    <Compile Include="..\src\Polyfills\BclAttributes.cs" Link="Polyfills\BclAttributes.cs" />
+    <Compile Include="..\src\Polyfills\DownlevelExtensions.cs" Link="Polyfills\DownlevelExtensions.cs" />
+    <Compile Include="..\src\Polyfills\IsExternalInit.cs" Link="Polyfills\IsExternalInit.cs" />
   </ItemGroup>
 
 </Project>

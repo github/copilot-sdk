@@ -28,7 +28,7 @@ internal static class GeneratedStringEnumJson
             throw new JsonException($"Expected a non-empty string token when reading {typeToConvert.Name}.");
         }
 
-        return value;
+        return value!;
     }
 
     internal static void WriteValue(Utf8JsonWriter writer, string value, Type typeToConvert)

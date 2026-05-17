@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -1239,7 +1240,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             if (!string.IsNullOrEmpty(stderrOutput))
             {
-                throw new IOException(FormatCliExitedMessage("CLI process exited unexpectedly.", stderrOutput), ex);
+                throw new IOException(FormatCliExitedMessage("CLI process exited unexpectedly.", stderrOutput!), ex);
             }
             throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
         }
@@ -1560,7 +1561,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         // Always use portable RID (e.g., linux-x64) to match the build-time placement,
         // since distro-specific RIDs (e.g., ubuntu.24.04-x64) are normalized at build time.
         var rid = GetPortableRid()
-            ?? Path.GetFileName(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+            ?? Path.GetFileName(RuntimeInformation.RuntimeIdentifier);
         searchedPath = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", binaryName);
         return File.Exists(searchedPath) ? searchedPath : null;
     }
@@ -2143,8 +2144,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(UserInputResponse))]
     internal partial class ClientJsonContext : JsonSerializerContext;
 
+#if NET8_0_OR_GREATER
     [GeneratedRegex(@"listening on port ([0-9]+)", RegexOptions.IgnoreCase)]
     private static partial Regex ListeningOnPortRegex();
+#else
+    private static readonly Regex s_listeningOnPortRegex = new(@"listening on port ([0-9]+)", RegexOptions.IgnoreCase);
+
+    private static Regex ListeningOnPortRegex() => s_listeningOnPortRegex;
+#endif
 }
 
 /// <summary>

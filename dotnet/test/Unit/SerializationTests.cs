@@ -5,6 +5,9 @@
 using Xunit;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+#if !NET8_0_OR_GREATER
+using System.Runtime.Serialization;
+#endif
 using GitHub.Copilot.SDK.Rpc;
 
 namespace GitHub.Copilot.SDK.Test.Unit;
@@ -299,7 +302,11 @@ public class SerializationTests
 
     private static object CreateInternalRequest(Type type, params (string Name, object? Value)[] properties)
     {
+#if NET8_0_OR_GREATER
         var instance = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type);
+#else
+        var instance = FormatterServices.GetUninitializedObject(type);
+#endif
 
         foreach (var (name, value) in properties)
         {
