@@ -190,7 +190,9 @@ public class MSBuildTargetsTests
         {
             var preinstallDir = Path.Combine(ProjectDir, "preinstall");
             Directory.CreateDirectory(preinstallDir);
-            var path = Path.Combine(preinstallDir, fileName ?? BinaryName);
+            // Strip any path information from fileName so it cannot escape preinstallDir.
+            var safeFileName = string.IsNullOrEmpty(fileName) ? BinaryName : Path.GetFileName(fileName);
+            var path = Path.Combine(preinstallDir, safeFileName);
             File.WriteAllText(path, contents);
             return path;
         }
@@ -219,8 +221,10 @@ public class MSBuildTargetsTests
                 CreateNoWindow = true,
             };
             // Avoid inheriting the parent's MSBuildSDKsPath/RuntimeIdentifier from the
-            // running test host; the subprocess should resolve its own SDK.
+            // running test host; the subprocess should resolve its own SDK and pick the
+            // RID that matches ExpectedOutputBinary().
             psi.Environment.Remove("MSBuildSDKsPath");
+            psi.Environment.Remove("RuntimeIdentifier");
 
             using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start dotnet build subprocess.");
 
@@ -238,7 +242,10 @@ public class MSBuildTargetsTests
             }
             catch (OperationCanceledException)
             {
-                try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { /* process already exited */ }
+                catch (NotSupportedException) { /* not supported on this platform */ }
+                catch (System.ComponentModel.Win32Exception) { /* kill failed; best effort */ }
                 throw new TimeoutException($"dotnet build did not complete within the timeout for args: {args}");
             }
 
@@ -251,7 +258,9 @@ public class MSBuildTargetsTests
 
         public void Dispose()
         {
-            try { Directory.Delete(ProjectDir, recursive: true); } catch { /* best effort */ }
+            try { Directory.Delete(ProjectDir, recursive: true); }
+            catch (IOException) { /* cleanup is best effort */ }
+            catch (UnauthorizedAccessException) { /* cleanup is best effort */ }
         }
 
         private static string GetPortableRid()
