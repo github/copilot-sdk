@@ -58,7 +58,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = new SessionFsSetProviderParams("/workspace", "/state", null);
+        var params = new SessionFsSetProviderParams("/workspace", "/state", null, null);
         server.sessionFs.setProvider(params);
 
         assertEquals(1, stub.calls.size());
@@ -649,10 +649,11 @@ class GeneratedRpcApiCoverageTest {
 
     @Test
     void serverRpc_sessionFs_setProvider_params_record() {
-        var params = new SessionFsSetProviderParams("/workspace", "/state", null);
+        var params = new SessionFsSetProviderParams("/workspace", "/state", null, null);
         assertEquals("/workspace", params.initialCwd());
         assertEquals("/state", params.sessionStatePath());
         assertNull(params.conventions());
+        assertNull(params.capabilities());
     }
 
     @Test

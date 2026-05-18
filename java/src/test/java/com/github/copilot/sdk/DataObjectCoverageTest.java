@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.copilot.sdk.json.CustomAgentConfig;
 import com.github.copilot.sdk.json.GetForegroundSessionResponse;
 import com.github.copilot.sdk.json.McpHttpServerConfig;
 import com.github.copilot.sdk.json.McpStdioServerConfig;
@@ -156,6 +157,14 @@ class DataObjectCoverageTest {
         assertEquals(0L, input.getTimestamp());
         assertNull(input.getCwd());
         assertNull(input.getToolArgs());
+        assertNull(input.getSessionId());
+    }
+
+    @Test
+    void preToolUseHookInputSessionIdRoundTrip() {
+        var input = new PreToolUseHookInput();
+        input.setSessionId("session-abc");
+        assertEquals("session-abc", input.getSessionId());
     }
 
     // ===== PostToolUseHookInput getters =====
@@ -167,6 +176,55 @@ class DataObjectCoverageTest {
         assertEquals(0L, input.getTimestamp());
         assertNull(input.getCwd());
         assertNull(input.getToolArgs());
+        assertNull(input.getSessionId());
+    }
+
+    @Test
+    void postToolUseHookInputSessionIdRoundTrip() {
+        var input = new PostToolUseHookInput();
+        input.setSessionId("session-xyz");
+        assertEquals("session-xyz", input.getSessionId());
+    }
+
+    // ===== CustomAgentConfig model field =====
+
+    @Test
+    void customAgentConfigModelGetterAndSetter() {
+        var cfg = new CustomAgentConfig();
+        assertNull(cfg.getModel());
+
+        cfg.setModel("claude-haiku-4.5");
+        assertEquals("claude-haiku-4.5", cfg.getModel());
+    }
+
+    @Test
+    void customAgentConfigModelFluentChaining() {
+        var cfg = new CustomAgentConfig().setName("reviewer").setModel("gpt-5").setDescription("Code reviewer");
+        assertEquals("reviewer", cfg.getName());
+        assertEquals("gpt-5", cfg.getModel());
+        assertEquals("Code reviewer", cfg.getDescription());
+    }
+
+    @Test
+    void customAgentConfigModelSerializationRoundTrip() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var cfg = new CustomAgentConfig().setName("my-agent").setModel("claude-haiku-4.5");
+
+        var json = mapper.writeValueAsString(cfg);
+        assertTrue(json.contains("\"model\":\"claude-haiku-4.5\""));
+
+        var deserialized = mapper.readValue(json, CustomAgentConfig.class);
+        assertEquals("my-agent", deserialized.getName());
+        assertEquals("claude-haiku-4.5", deserialized.getModel());
+    }
+
+    @Test
+    void customAgentConfigModelOmittedWhenNull() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var cfg = new CustomAgentConfig().setName("no-model-agent");
+
+        var json = mapper.writeValueAsString(cfg);
+        assertFalse(json.contains("\"model\""));
     }
 
     // ===== PermissionRequestResult setRules =====

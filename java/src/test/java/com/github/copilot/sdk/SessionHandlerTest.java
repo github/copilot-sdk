@@ -262,6 +262,54 @@ public class SessionHandlerTest {
         assertEquals("summary", output.sessionSummary());
     }
 
+    // ===== handleHooksInvoke: sessionId deserialization on hook inputs =====
+
+    @Test
+    void testHookInputSessionIdDeserializedForSessionStart() throws Exception {
+        var hooks = new SessionHooks().setOnSessionStart((hookInput, invocation) -> {
+            assertEquals("runtime-session-123", hookInput.sessionId());
+            assertEquals(1735689600L, hookInput.timestamp());
+            assertEquals("/tmp", hookInput.cwd());
+            return CompletableFuture.completedFuture(new SessionStartHookOutput(null, null));
+        });
+        session.registerHooks(hooks);
+
+        JsonNode input = MAPPER.valueToTree(
+                Map.of("sessionId", "runtime-session-123", "timestamp", 1735689600L, "cwd", "/tmp", "source", "new"));
+
+        session.handleHooksInvoke("sessionStart", input).get();
+    }
+
+    @Test
+    void testHookInputSessionIdDeserializedForSessionEnd() throws Exception {
+        var hooks = new SessionHooks().setOnSessionEnd((hookInput, invocation) -> {
+            assertEquals("runtime-session-456", hookInput.sessionId());
+            assertEquals("user_closed", hookInput.reason());
+            return CompletableFuture.completedFuture(new SessionEndHookOutput(false, null, null));
+        });
+        session.registerHooks(hooks);
+
+        JsonNode input = MAPPER.valueToTree(Map.of("sessionId", "runtime-session-456", "timestamp", 1735689600L, "cwd",
+                "/tmp", "reason", "user_closed"));
+
+        session.handleHooksInvoke("sessionEnd", input).get();
+    }
+
+    @Test
+    void testHookInputSessionIdDeserializedForUserPromptSubmitted() throws Exception {
+        var hooks = new SessionHooks().setOnUserPromptSubmitted((hookInput, invocation) -> {
+            assertEquals("runtime-session-789", hookInput.sessionId());
+            assertEquals("hello", hookInput.prompt());
+            return CompletableFuture.completedFuture(new UserPromptSubmittedHookOutput(null, null, null));
+        });
+        session.registerHooks(hooks);
+
+        JsonNode input = MAPPER.valueToTree(
+                Map.of("sessionId", "runtime-session-789", "timestamp", 1735689600L, "cwd", "/tmp", "prompt", "hello"));
+
+        session.handleHooksInvoke("userPromptSubmitted", input).get();
+    }
+
     // ===== handleHooksInvoke: unhandled hook type =====
 
     @Test

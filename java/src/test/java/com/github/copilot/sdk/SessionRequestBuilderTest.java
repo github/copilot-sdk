@@ -13,6 +13,8 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.AutoModeSwitchResponse;
+import com.github.copilot.sdk.json.CloudSessionOptions;
+import com.github.copilot.sdk.json.CloudSessionRepository;
 import com.github.copilot.sdk.json.CreateSessionRequest;
 import com.github.copilot.sdk.json.DefaultAgentConfig;
 import com.github.copilot.sdk.json.ElicitationHandler;
@@ -658,5 +660,51 @@ public class SessionRequestBuilderTest {
 
         assertTrue(json.contains("\"requestExitPlanMode\":true"));
         assertTrue(json.contains("\"requestAutoModeSwitch\":true"));
+    }
+
+    // =========================================================================
+    // Cloud session options wiring
+    // =========================================================================
+
+    @Test
+    void testBuildCreateRequestPropagatesCloudSessionOptions() throws Exception {
+        var cloud = new CloudSessionOptions().setRepository(
+                new CloudSessionRepository().setOwner("my-org").setName("my-repo").setBranch("main"));
+        var config = new SessionConfig().setCloud(cloud);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertNotNull(request.getCloud());
+        assertEquals("my-org", request.getCloud().getRepository().getOwner());
+        assertEquals("my-repo", request.getCloud().getRepository().getName());
+        assertEquals("main", request.getCloud().getRepository().getBranch());
+    }
+
+    @Test
+    void testBuildCreateRequestOmitsCloudWhenNull() throws Exception {
+        var config = new SessionConfig();
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+
+        assertNull(request.getCloud());
+        assertFalse(json.contains("\"cloud\""), "cloud should be omitted when null");
+    }
+
+    @Test
+    void testCloudSessionOptionsSerializesCorrectly() throws Exception {
+        var cloud = new CloudSessionOptions().setRepository(
+                new CloudSessionRepository().setOwner("acme").setName("widgets").setBranch("feature-1"));
+        var config = new SessionConfig().setCloud(cloud);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+
+        assertTrue(json.contains("\"cloud\""));
+        assertTrue(json.contains("\"owner\":\"acme\""));
+        assertTrue(json.contains("\"name\":\"widgets\""));
+        assertTrue(json.contains("\"branch\":\"feature-1\""));
     }
 }
