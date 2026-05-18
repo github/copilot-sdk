@@ -97,6 +97,10 @@ export type WorkingDirectoryContextHostType = "github" | "ado";
  */
 export type ReasoningSummary = "none" | "concise" | "detailed";
 /**
+ * The session mode the agent is operating in
+ */
+export type SessionMode = "interactive" | "plan" | "autopilot";
+/**
  * The type of operation performed on the plan file
  */
 export type PlanChangedOperation = "create" | "update" | "delete";
@@ -219,14 +223,6 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestExtensionManagement
   | PermissionPromptRequestExtensionPermissionAccess;
 /**
- * Whether this is a store or vote memory operation
- */
-export type PermissionPromptRequestMemoryAction = "store" | "vote";
-/**
- * Vote direction (vote only)
- */
-export type PermissionPromptRequestMemoryDirection = "upvote" | "downvote";
-/**
  * Underlying permission kind that needs path approval
  */
 export type PermissionPromptRequestPathAccessKind = "read" | "shell" | "write";
@@ -280,25 +276,32 @@ export type CustomNotificationPayload =
       [k: string]: unknown;
     };
 /**
+ * The user's auto-mode-switch choice
+ */
+export type AutoModeSwitchResponse = "yes" | "yes_always" | "no";
+/**
+ * Exit plan mode action
+ */
+export type ExitPlanModeAction = "exit_only" | "interactive" | "autopilot" | "autopilot_fleet";
+/**
+ * Source location type (e.g., project, personal-copilot, plugin, builtin)
+ */
+export type SkillSource =
+  | "project"
+  | "inherited"
+  | "personal-copilot"
+  | "personal-agents"
+  | "plugin"
+  | "custom"
+  | "builtin";
+/**
+ * Configuration source: user, workspace, plugin, or builtin
+ */
+export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
+/**
  * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
  */
-export type McpServersLoadedServerStatus =
-  | "connected"
-  | "failed"
-  | "needs-auth"
-  | "pending"
-  | "disabled"
-  | "not_configured";
-/**
- * New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
- */
-export type McpServerStatusChangedStatus =
-  | "connected"
-  | "failed"
-  | "needs-auth"
-  | "pending"
-  | "disabled"
-  | "not_configured";
+export type McpServerStatus = "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
 /**
  * Discovery source
  */
@@ -360,7 +363,7 @@ export interface StartData {
    */
   producer: string;
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
@@ -467,7 +470,7 @@ export interface ResumeData {
    */
   eventCount: number;
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
@@ -955,14 +958,8 @@ export interface ModeChangedEvent {
  * Agent mode change details including previous and new modes
  */
 export interface ModeChangedData {
-  /**
-   * Agent mode after the change (e.g., "interactive", "plan", "autopilot")
-   */
-  newMode: string;
-  /**
-   * Agent mode before the change (e.g., "interactive", "plan", "autopilot")
-   */
-  previousMode: string;
+  newMode: SessionMode;
+  previousMode: SessionMode;
 }
 /**
  * Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -2559,7 +2556,7 @@ export interface AssistantUsageData {
     [k: string]: AssistantUsageQuotaSnapshot;
   };
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
   /**
@@ -4379,12 +4376,12 @@ export interface PermissionPromptRequestUrl {
  * Memory operation permission prompt
  */
 export interface PermissionPromptRequestMemory {
-  action?: PermissionPromptRequestMemoryAction;
+  action?: PermissionRequestMemoryAction;
   /**
    * Source references for the stored fact (store only)
    */
   citations?: string;
-  direction?: PermissionPromptRequestMemoryDirection;
+  direction?: PermissionRequestMemoryDirection;
   /**
    * The fact being stored or voted on
    */
@@ -5585,10 +5582,7 @@ export interface AutoModeSwitchCompletedData {
    * Request ID of the resolved request; clients should dismiss any UI for this request
    */
   requestId: string;
-  /**
-   * The user's choice: 'yes', 'yes_always', or 'no'
-   */
-  response: string;
+  response: AutoModeSwitchResponse;
 }
 /**
  * Session event "commands.changed". SDK command registration change notification
@@ -5722,17 +5716,14 @@ export interface ExitPlanModeRequestedEvent {
  */
 export interface ExitPlanModeRequestedData {
   /**
-   * Available actions the user can take (e.g., approve, edit, reject)
+   * Available actions the user can take
    */
-  actions: string[];
+  actions: ExitPlanModeAction[];
   /**
    * Full content of the plan file
    */
   planContent: string;
-  /**
-   * The recommended action for the user to take
-   */
-  recommendedAction: string;
+  recommendedAction: ExitPlanModeAction;
   /**
    * Unique identifier for this request; used to respond via session.respondToExitPlanMode()
    */
@@ -5792,10 +5783,7 @@ export interface ExitPlanModeCompletedData {
    * Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request
    */
   requestId: string;
-  /**
-   * Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only')
-   */
-  selectedAction?: string;
+  selectedAction?: ExitPlanModeAction;
 }
 /**
  * Session event "session.tools_updated".
@@ -5929,10 +5917,7 @@ export interface SkillsLoadedSkill {
    * Absolute path to the skill file, if available
    */
   path?: string;
-  /**
-   * Source location type of the skill (e.g., project, personal, plugin)
-   */
-  source: string;
+  source: SkillSource;
   /**
    * Whether the skill can be invoked by the user as a slash command
    */
@@ -6073,11 +6058,8 @@ export interface McpServersLoadedServer {
    * Server name (config key)
    */
   name: string;
-  /**
-   * Configuration source: user, workspace, plugin, or builtin
-   */
-  source?: string;
-  status: McpServersLoadedServerStatus;
+  source?: McpServerSource;
+  status: McpServerStatus;
 }
 /**
  * Session event "session.mcp_server_status_changed".
@@ -6117,7 +6099,7 @@ export interface McpServerStatusChangedData {
    * Name of the MCP server whose status changed
    */
   serverName: string;
-  status: McpServerStatusChangedStatus;
+  status: McpServerStatus;
 }
 /**
  * Session event "session.extensions_loaded".

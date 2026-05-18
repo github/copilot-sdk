@@ -5,7 +5,7 @@ Generated from: api.schema.json
 
 from typing import TYPE_CHECKING
 
-from .session_events import EmbeddedBlobResourceContents, EmbeddedTextResourceContents, ReasoningSummary
+from .session_events import EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, ReasoningSummary, SessionMode, SkillSource
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -51,6 +51,9 @@ def from_float(x: Any) -> float:
     assert isinstance(x, (float, int)) and not isinstance(x, bool)
     return float(x)
 
+def from_datetime(x: Any) -> datetime:
+    return dateutil.parser.parse(x)
+
 def to_float(x: Any) -> float:
     assert isinstance(x, (int, float))
     return x
@@ -70,9 +73,6 @@ def from_list(f: Callable[[Any], T], x: Any) -> list[T]:
 def to_enum(c: type[EnumT], x: Any) -> EnumT:
     assert isinstance(x, c)
     return x.value
-
-def from_datetime(x: Any) -> datetime:
-    return dateutil.parser.parse(x)
 
 @dataclass
 class AccountGetQuotaRequest:
@@ -98,7 +98,7 @@ class AccountQuotaSnapshot:
     """Schema for the `AccountQuotaSnapshot` type."""
 
     entitlement_requests: int
-    """Number of requests included in the entitlement"""
+    """Number of requests included in the entitlement, or -1 for unlimited entitlements"""
 
     is_unlimited_entitlement: bool
     """Whether the user has an unlimited usage entitlement"""
@@ -118,7 +118,7 @@ class AccountQuotaSnapshot:
     used_requests: int
     """Number of requests used so far this period"""
 
-    reset_date: str | None = None
+    reset_date: datetime | None = None
     """Date when the quota resets (ISO 8601 string)"""
 
     @staticmethod
@@ -131,7 +131,7 @@ class AccountQuotaSnapshot:
         remaining_percentage = from_float(obj.get("remainingPercentage"))
         usage_allowed_with_exhausted_quota = from_bool(obj.get("usageAllowedWithExhaustedQuota"))
         used_requests = from_int(obj.get("usedRequests"))
-        reset_date = from_union([from_str, from_none], obj.get("resetDate"))
+        reset_date = from_union([from_datetime, from_none], obj.get("resetDate"))
         return AccountQuotaSnapshot(entitlement_requests, is_unlimited_entitlement, overage, overage_allowed_with_exhausted_quota, remaining_percentage, usage_allowed_with_exhausted_quota, used_requests, reset_date)
 
     def to_dict(self) -> dict:
@@ -144,7 +144,7 @@ class AccountQuotaSnapshot:
         result["usageAllowedWithExhaustedQuota"] = from_bool(self.usage_allowed_with_exhausted_quota)
         result["usedRequests"] = from_int(self.used_requests)
         if self.reset_date is not None:
-            result["resetDate"] = from_union([from_str, from_none], self.reset_date)
+            result["resetDate"] = from_union([lambda x: x.isoformat(), from_none], self.reset_date)
         return result
 
 @dataclass
@@ -447,6 +447,15 @@ class ConnectedRemoteSessionMetadataRepository:
         result["owner"] = from_str(self.owner)
         return result
 
+class ContentFilterMode(Enum):
+    """Controls how MCP tool result content is filtered: none leaves content unchanged, markdown
+    sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes
+    characters that can hide directives.
+    """
+    HIDDEN_CHARACTERS = "hidden_characters"
+    MARKDOWN = "markdown"
+    NONE = "none"
+
 @dataclass
 class CurrentModel:
     """The currently selected model for the session."""
@@ -466,18 +475,25 @@ class CurrentModel:
             result["modelId"] = from_union([from_str, from_none], self.model_id)
         return result
 
-class MCPServerSource(Enum):
-    """Configuration source
+@dataclass
+class ExternalRefMCPServerSource:
+    """Configuration source: user, workspace, plugin, or builtin"""
 
-    Configuration source: user, workspace, plugin, or builtin
-    """
-    BUILTIN = "builtin"
-    PLUGIN = "plugin"
-    USER = "user"
-    WORKSPACE = "workspace"
+    external_ref_marker_external_ref_mcp_server_source: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalRefMCPServerSource':
+        assert isinstance(obj, dict)
+        external_ref_marker_external_ref_mcp_server_source = from_str(obj.get("__externalRefMarker___ExternalRef_McpServerSource"))
+        return ExternalRefMCPServerSource(external_ref_marker_external_ref_mcp_server_source)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["__externalRefMarker___ExternalRef_McpServerSource"] = from_str(self.external_ref_marker_external_ref_mcp_server_source)
+        return result
 
 class DiscoveredMCPServerType(Enum):
-    """Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)"""
+    """Server transport type: stdio, http, sse, or memory"""
 
     HTTP = "http"
     MEMORY = "memory"
@@ -536,6 +552,13 @@ class ExtensionsEnableRequest:
         result["id"] = from_str(self.id)
         return result
 
+class ExternalToolTextResultForLlmBinaryResultsForLlmType(Enum):
+    """Binary result type discriminator. Use "image" for images and "resource" for other binary
+    data.
+    """
+    IMAGE = "image"
+    RESOURCE = "resource"
+
 class ExternalToolTextResultForLlmContentResourceLinkIconTheme(Enum):
     """Theme variant this icon is intended for"""
 
@@ -567,15 +590,6 @@ class ExternalToolTextResultForLlmContentTerminalType(Enum):
 
 class KindEnum(Enum):
     TEXT = "text"
-
-class FilterMappingString(Enum):
-    """Allowed values for the `FilterMappingValue` enumeration.
-
-    Allowed values for the `FilterMappingString` enumeration.
-    """
-    HIDDEN_CHARACTERS = "hidden_characters"
-    MARKDOWN = "markdown"
-    NONE = "none"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
@@ -761,21 +775,36 @@ class LogResult:
         result["eventId"] = str(self.event_id)
         return result
 
+@dataclass
+class MCPServerConfigHTTPAuth:
+    """Additional authentication configuration for this server."""
+
+    redirect_port: int | None = None
+    """Fixed port for the OAuth redirect callback server."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPServerConfigHTTPAuth':
+        assert isinstance(obj, dict)
+        redirect_port = from_union([from_int, from_none], obj.get("redirectPort"))
+        return MCPServerConfigHTTPAuth(redirect_port)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.redirect_port is not None:
+            result["redirectPort"] = from_union([from_int, from_none], self.redirect_port)
+        return result
+
 class MCPServerConfigHTTPOauthGrantType(Enum):
     """OAuth grant type to use when authenticating to the remote MCP server."""
 
     AUTHORIZATION_CODE = "authorization_code"
     CLIENT_CREDENTIALS = "client_credentials"
 
-class MCPServerConfigType(Enum):
-    """Local transport type. Defaults to "local".
+class MCPServerConfigHTTPType(Enum):
+    """Remote transport type. Defaults to "http" when omitted."""
 
-    Remote transport type. Defaults to "http" when omitted.
-    """
     HTTP = "http"
-    LOCAL = "local"
     SSE = "sse"
-    STDIO = "stdio"
 
 @dataclass
 class MCPConfigDisableRequest:
@@ -962,36 +991,40 @@ class MCPOauthLoginResult:
             result["authorizationUrl"] = from_union([from_str, from_none], self.authorization_url)
         return result
 
-class MCPServerStatus(Enum):
+@dataclass
+class ExternalRefMCPServerStatus:
     """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
 
-    CONNECTED = "connected"
-    DISABLED = "disabled"
-    FAILED = "failed"
-    NEEDS_AUTH = "needs-auth"
-    NOT_CONFIGURED = "not_configured"
-    PENDING = "pending"
+    external_ref_marker_external_ref_mcp_server_status: str
 
-class MCPServerConfigHTTPType(Enum):
-    """Remote transport type. Defaults to "http" when omitted."""
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalRefMCPServerStatus':
+        assert isinstance(obj, dict)
+        external_ref_marker_external_ref_mcp_server_status = from_str(obj.get("__externalRefMarker___ExternalRef_McpServerStatus"))
+        return ExternalRefMCPServerStatus(external_ref_marker_external_ref_mcp_server_status)
 
-    HTTP = "http"
-    SSE = "sse"
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["__externalRefMarker___ExternalRef_McpServerStatus"] = from_str(self.external_ref_marker_external_ref_mcp_server_status)
+        return result
 
-class MCPServerConfigLocalType(Enum):
-    """Local transport type. Defaults to "local"."""
+@dataclass
+class ModeSetRequest:
+    """Agent interaction mode to apply to the session."""
 
-    LOCAL = "local"
-    STDIO = "stdio"
+    mode: SessionMode
+    """The session mode the agent is operating in"""
 
-class Mode(Enum):
-    """The agent mode. Valid values: "interactive", "plan", "autopilot".
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModeSetRequest':
+        assert isinstance(obj, dict)
+        mode = SessionMode.from_dict(obj.get("mode"))
+        return ModeSetRequest(mode)
 
-    Optional target session mode
-    """
-    AUTOPILOT = "autopilot"
-    INTERACTIVE = "interactive"
-    PLAN = "plan"
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["mode"] = to_class(SessionMode, self.mode)
+        return result
 
 @dataclass
 class ModelBillingTokenPrices:
@@ -1095,29 +1128,12 @@ class ModelPickerPriceCategory(Enum):
     MEDIUM = "medium"
     VERY_HIGH = "very_high"
 
-@dataclass
-class ModelPolicy:
-    """Policy state (if applicable)"""
-
-    state: str
+class ModelPolicyState(Enum):
     """Current policy state for this model"""
 
-    terms: str | None = None
-    """Usage terms or conditions for this model"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ModelPolicy':
-        assert isinstance(obj, dict)
-        state = from_str(obj.get("state"))
-        terms = from_union([from_str, from_none], obj.get("terms"))
-        return ModelPolicy(state, terms)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["state"] = from_str(self.state)
-        if self.terms is not None:
-            result["terms"] = from_union([from_str, from_none], self.terms)
-        return result
+    DISABLED = "disabled"
+    ENABLED = "enabled"
+    UNCONFIGURED = "unconfigured"
 
 @dataclass
 class ModelCapabilitiesOverrideLimitsVision:
@@ -1614,7 +1630,7 @@ class ServerSkill:
     name: str
     """Unique identifier for the skill"""
 
-    source: str
+    source: SkillSource
     """Source location type (e.g., project, personal-copilot, plugin, builtin)"""
 
     user_invocable: bool
@@ -1632,7 +1648,7 @@ class ServerSkill:
         description = from_str(obj.get("description"))
         enabled = from_bool(obj.get("enabled"))
         name = from_str(obj.get("name"))
-        source = from_str(obj.get("source"))
+        source = SkillSource.from_dict(obj.get("source"))
         user_invocable = from_bool(obj.get("userInvocable"))
         path = from_union([from_str, from_none], obj.get("path"))
         project_path = from_union([from_str, from_none], obj.get("projectPath"))
@@ -1643,7 +1659,7 @@ class ServerSkill:
         result["description"] = from_str(self.description)
         result["enabled"] = from_bool(self.enabled)
         result["name"] = from_str(self.name)
-        result["source"] = from_str(self.source)
+        result["source"] = to_class(SkillSource, self.source)
         result["userInvocable"] = from_bool(self.user_invocable)
         if self.path is not None:
             result["path"] = from_union([from_str, from_none], self.path)
@@ -1910,6 +1926,25 @@ class SessionFSRmRequest:
             result["recursive"] = from_union([from_bool, from_none], self.recursive)
         return result
 
+@dataclass
+class SessionFSSetProviderCapabilities:
+    """Optional capabilities declared by the provider"""
+
+    sqlite: bool | None = None
+    """Whether the provider supports SQLite query/exists operations"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSSetProviderCapabilities':
+        assert isinstance(obj, dict)
+        sqlite = from_union([from_bool, from_none], obj.get("sqlite"))
+        return SessionFSSetProviderCapabilities(sqlite)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.sqlite is not None:
+            result["sqlite"] = from_union([from_bool, from_none], self.sqlite)
+        return result
+
 class SessionFSSetProviderConventions(Enum):
     """Path conventions used by this filesystem"""
 
@@ -1933,6 +1968,50 @@ class SessionFSSetProviderResult:
         result: dict = {}
         result["success"] = from_bool(self.success)
         return result
+
+@dataclass
+class SessionFSSqliteExistsRequest:
+    """Identifies the target session."""
+
+    session_id: str
+    """Target session identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSSqliteExistsRequest':
+        assert isinstance(obj, dict)
+        session_id = from_str(obj.get("sessionId"))
+        return SessionFSSqliteExistsRequest(session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+@dataclass
+class SessionFSSqliteExistsResult:
+    """Indicates whether the per-session SQLite database already exists."""
+
+    exists: bool
+    """Whether the session database already exists"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSSqliteExistsResult':
+        assert isinstance(obj, dict)
+        exists = from_bool(obj.get("exists"))
+        return SessionFSSqliteExistsResult(exists)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["exists"] = from_bool(self.exists)
+        return result
+
+class SessionFSSqliteQueryType(Enum):
+    """How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT
+    (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
+    """
+    EXEC = "exec"
+    QUERY = "query"
+    RUN = "run"
 
 @dataclass
 class SessionFSStatRequest:
@@ -2138,8 +2217,8 @@ class Skill:
     name: str
     """Unique identifier for the skill"""
 
-    source: str
-    """Source location type (e.g., project, personal, plugin)"""
+    source: SkillSource
+    """Source location type (e.g., project, personal-copilot, plugin, builtin)"""
 
     user_invocable: bool
     """Whether the skill can be invoked by the user as a slash command"""
@@ -2153,7 +2232,7 @@ class Skill:
         description = from_str(obj.get("description"))
         enabled = from_bool(obj.get("enabled"))
         name = from_str(obj.get("name"))
-        source = from_str(obj.get("source"))
+        source = SkillSource.from_dict(obj.get("source"))
         user_invocable = from_bool(obj.get("userInvocable"))
         path = from_union([from_str, from_none], obj.get("path"))
         return Skill(description, enabled, name, source, user_invocable, path)
@@ -2163,7 +2242,7 @@ class Skill:
         result["description"] = from_str(self.description)
         result["enabled"] = from_bool(self.enabled)
         result["name"] = from_str(self.name)
-        result["source"] = from_str(self.source)
+        result["source"] = to_class(SkillSource, self.source)
         result["userInvocable"] = from_bool(self.user_invocable)
         if self.path is not None:
             result["path"] = from_union([from_str, from_none], self.path)
@@ -2267,15 +2346,13 @@ class SlashCommandInvocationResultKind(Enum):
     COMPLETED = "completed"
     TEXT = "text"
 
-class TaskInfoExecutionMode(Enum):
-    """How the agent is currently being managed by the runtime
+class TaskExecutionMode(Enum):
+    """Whether task execution is synchronously awaited or managed in the background"""
 
-    Whether the shell command is currently sync-waited or background-managed
-    """
     BACKGROUND = "background"
     SYNC = "sync"
 
-class TaskInfoStatus(Enum):
+class TaskStatus(Enum):
     """Current lifecycle status of the task"""
 
     CANCELLED = "cancelled"
@@ -3101,7 +3178,7 @@ class ConnectedRemoteSessionMetadata:
     kind: ConnectedRemoteSessionMetadataKind
     """Neutral SDK discriminator for the connected remote session kind."""
 
-    modified_time: str
+    modified_time: datetime
     """Last session update time as an ISO 8601 string."""
 
     repository: ConnectedRemoteSessionMetadataRepository
@@ -3110,7 +3187,7 @@ class ConnectedRemoteSessionMetadata:
     session_id: str
     """SDK session ID for the connected remote session."""
 
-    start_time: str
+    start_time: datetime
     """Session start time as an ISO 8601 string."""
 
     name: str | None = None
@@ -3122,7 +3199,7 @@ class ConnectedRemoteSessionMetadata:
     resource_id: str | None = None
     """Original remote resource identifier."""
 
-    stale_at: str | None = None
+    stale_at: datetime | None = None
     """Remote session staleness deadline as an ISO 8601 string."""
 
     state: str | None = None
@@ -3135,14 +3212,14 @@ class ConnectedRemoteSessionMetadata:
     def from_dict(obj: Any) -> 'ConnectedRemoteSessionMetadata':
         assert isinstance(obj, dict)
         kind = ConnectedRemoteSessionMetadataKind(obj.get("kind"))
-        modified_time = from_str(obj.get("modifiedTime"))
+        modified_time = from_datetime(obj.get("modifiedTime"))
         repository = ConnectedRemoteSessionMetadataRepository.from_dict(obj.get("repository"))
         session_id = from_str(obj.get("sessionId"))
-        start_time = from_str(obj.get("startTime"))
+        start_time = from_datetime(obj.get("startTime"))
         name = from_union([from_str, from_none], obj.get("name"))
         pull_request_number = from_union([from_int, from_none], obj.get("pullRequestNumber"))
         resource_id = from_union([from_str, from_none], obj.get("resourceId"))
-        stale_at = from_union([from_str, from_none], obj.get("staleAt"))
+        stale_at = from_union([from_datetime, from_none], obj.get("staleAt"))
         state = from_union([from_str, from_none], obj.get("state"))
         summary = from_union([from_str, from_none], obj.get("summary"))
         return ConnectedRemoteSessionMetadata(kind, modified_time, repository, session_id, start_time, name, pull_request_number, resource_id, stale_at, state, summary)
@@ -3150,10 +3227,10 @@ class ConnectedRemoteSessionMetadata:
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = to_enum(ConnectedRemoteSessionMetadataKind, self.kind)
-        result["modifiedTime"] = from_str(self.modified_time)
+        result["modifiedTime"] = self.modified_time.isoformat()
         result["repository"] = to_class(ConnectedRemoteSessionMetadataRepository, self.repository)
         result["sessionId"] = from_str(self.session_id)
-        result["startTime"] = from_str(self.start_time)
+        result["startTime"] = self.start_time.isoformat()
         if self.name is not None:
             result["name"] = from_union([from_str, from_none], self.name)
         if self.pull_request_number is not None:
@@ -3161,11 +3238,73 @@ class ConnectedRemoteSessionMetadata:
         if self.resource_id is not None:
             result["resourceId"] = from_union([from_str, from_none], self.resource_id)
         if self.stale_at is not None:
-            result["staleAt"] = from_union([from_str, from_none], self.stale_at)
+            result["staleAt"] = from_union([lambda x: x.isoformat(), from_none], self.stale_at)
         if self.state is not None:
             result["state"] = from_union([from_str, from_none], self.state)
         if self.summary is not None:
             result["summary"] = from_union([from_str, from_none], self.summary)
+        return result
+
+@dataclass
+class MCPServerConfigStdio:
+    """Stdio MCP server configuration launched as a child process."""
+
+    command: str
+    """Executable command used to start the Stdio MCP server process."""
+
+    args: list[str] | None = None
+    """Command-line arguments passed to the Stdio MCP server process."""
+
+    cwd: str | None = None
+    """Working directory for the Stdio MCP server process."""
+
+    env: dict[str, str] | None = None
+    """Environment variables to pass to the Stdio MCP server process."""
+
+    filter_mapping: dict[str, ContentFilterMode] | ContentFilterMode | None = None
+    """Content filtering mode to apply to all tools, or a map of tool name to content filtering
+    mode.
+    """
+    is_default_server: bool | None = None
+    """Whether this server is a built-in fallback used when the user has not configured their
+    own server.
+    """
+    timeout: int | None = None
+    """Timeout in milliseconds for tool calls to this server."""
+
+    tools: list[str] | None = None
+    """Tools to include. Defaults to all tools if not specified."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPServerConfigStdio':
+        assert isinstance(obj, dict)
+        command = from_str(obj.get("command"))
+        args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
+        filter_mapping = from_union([lambda x: from_dict(ContentFilterMode, x), ContentFilterMode, from_none], obj.get("filterMapping"))
+        is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
+        timeout = from_union([from_int, from_none], obj.get("timeout"))
+        tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
+        return MCPServerConfigStdio(command, args, cwd, env, filter_mapping, is_default_server, timeout, tools)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["command"] = from_str(self.command)
+        if self.args is not None:
+            result["args"] = from_union([lambda x: from_list(from_str, x), from_none], self.args)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.env is not None:
+            result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
+        if self.filter_mapping is not None:
+            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(ContentFilterMode, x), x), lambda x: to_enum(ContentFilterMode, x), from_none], self.filter_mapping)
+        if self.is_default_server is not None:
+            result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
+        if self.timeout is not None:
+            result["timeout"] = from_union([from_int, from_none], self.timeout)
+        if self.tools is not None:
+            result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
         return result
 
 @dataclass
@@ -3178,18 +3317,18 @@ class DiscoveredMCPServer:
     name: str
     """Server name (config key)"""
 
-    source: MCPServerSource
-    """Configuration source"""
+    source: ExternalRefMCPServerSource
+    """Configuration source: user, workspace, plugin, or builtin"""
 
     type: DiscoveredMCPServerType | None = None
-    """Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)"""
+    """Server transport type: stdio, http, sse, or memory"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'DiscoveredMCPServer':
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         name = from_str(obj.get("name"))
-        source = MCPServerSource(obj.get("source"))
+        source = ExternalRefMCPServerSource.from_dict(obj.get("source"))
         type = from_union([DiscoveredMCPServerType, from_none], obj.get("type"))
         return DiscoveredMCPServer(enabled, name, source, type)
 
@@ -3197,7 +3336,7 @@ class DiscoveredMCPServer:
         result: dict = {}
         result["enabled"] = from_bool(self.enabled)
         result["name"] = from_str(self.name)
-        result["source"] = to_enum(MCPServerSource, self.source)
+        result["source"] = to_class(ExternalRefMCPServerSource, self.source)
         if self.type is not None:
             result["type"] = from_union([lambda x: to_enum(DiscoveredMCPServerType, x), from_none], self.type)
         return result
@@ -3239,6 +3378,41 @@ class Extension:
         result["status"] = to_enum(ExtensionStatus, self.status)
         if self.pid is not None:
             result["pid"] = from_union([from_int, from_none], self.pid)
+        return result
+
+@dataclass
+class ExternalToolTextResultForLlmBinaryResultsForLlm:
+    """Binary result returned by a tool for the model"""
+
+    data: str
+    """Base64-encoded binary data"""
+
+    mime_type: str
+    """MIME type of the binary data"""
+
+    type: ExternalToolTextResultForLlmBinaryResultsForLlmType
+    """Binary result type discriminator. Use "image" for images and "resource" for other binary
+    data.
+    """
+    description: str | None = None
+    """Human-readable description of the binary data"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmBinaryResultsForLlm':
+        assert isinstance(obj, dict)
+        data = from_str(obj.get("data"))
+        mime_type = from_str(obj.get("mimeType"))
+        type = ExternalToolTextResultForLlmBinaryResultsForLlmType(obj.get("type"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        return ExternalToolTextResultForLlmBinaryResultsForLlm(data, mime_type, type, description)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["data"] = from_str(self.data)
+        result["mimeType"] = from_str(self.mime_type)
+        result["type"] = to_enum(ExternalToolTextResultForLlmBinaryResultsForLlmType, self.type)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
         return result
 
 @dataclass
@@ -3589,25 +3763,25 @@ class LogRequest:
 
 @dataclass
 class MCPServerConfig:
-    """MCP server configuration (local/stdio or remote/http)
+    """MCP server configuration (stdio process or remote HTTP/SSE)
 
-    Local MCP server configuration launched as a child process.
+    Stdio MCP server configuration launched as a child process.
 
     Remote MCP server configuration accessed over HTTP or SSE.
     """
     args: list[str] | None = None
-    """Command-line arguments passed to the local MCP server process."""
+    """Command-line arguments passed to the Stdio MCP server process."""
 
     command: str | None = None
-    """Executable command used to start the local MCP server process."""
+    """Executable command used to start the Stdio MCP server process."""
 
     cwd: str | None = None
-    """Working directory for the local MCP server process."""
+    """Working directory for the Stdio MCP server process."""
 
     env: dict[str, str] | None = None
-    """Environment variables to pass to the local MCP server process."""
+    """Environment variables to pass to the Stdio MCP server process."""
 
-    filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
+    filter_mapping: dict[str, ContentFilterMode] | ContentFilterMode | None = None
     """Content filtering mode to apply to all tools, or a map of tool name to content filtering
     mode.
     """
@@ -3621,11 +3795,9 @@ class MCPServerConfig:
     tools: list[str] | None = None
     """Tools to include. Defaults to all tools if not specified."""
 
-    type: MCPServerConfigType | None = None
-    """Local transport type. Defaults to "local".
+    auth: MCPServerConfigHTTPAuth | None = None
+    """Additional authentication configuration for this server."""
 
-    Remote transport type. Defaults to "http" when omitted.
-    """
     headers: dict[str, str] | None = None
     """HTTP headers to include in requests to the remote MCP server."""
 
@@ -3638,6 +3810,9 @@ class MCPServerConfig:
     oauth_public_client: bool | None = None
     """Whether the configured OAuth client is public and does not require a client secret."""
 
+    type: MCPServerConfigHTTPType | None = None
+    """Remote transport type. Defaults to "http" when omitted."""
+
     url: str | None = None
     """URL of the remote MCP server endpoint."""
 
@@ -3648,17 +3823,18 @@ class MCPServerConfig:
         command = from_union([from_str, from_none], obj.get("command"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
         env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
-        filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString, from_none], obj.get("filterMapping"))
+        filter_mapping = from_union([lambda x: from_dict(ContentFilterMode, x), ContentFilterMode, from_none], obj.get("filterMapping"))
         is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
         timeout = from_union([from_int, from_none], obj.get("timeout"))
         tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
-        type = from_union([MCPServerConfigType, from_none], obj.get("type"))
+        auth = from_union([MCPServerConfigHTTPAuth.from_dict, from_none], obj.get("auth"))
         headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("headers"))
         oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
         oauth_grant_type = from_union([MCPServerConfigHTTPOauthGrantType, from_none], obj.get("oauthGrantType"))
         oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
+        type = from_union([MCPServerConfigHTTPType, from_none], obj.get("type"))
         url = from_union([from_str, from_none], obj.get("url"))
-        return MCPServerConfig(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, type, headers, oauth_client_id, oauth_grant_type, oauth_public_client, url)
+        return MCPServerConfig(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, auth, headers, oauth_client_id, oauth_grant_type, oauth_public_client, type, url)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3671,15 +3847,15 @@ class MCPServerConfig:
         if self.env is not None:
             result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
         if self.filter_mapping is not None:
-            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x), from_none], self.filter_mapping)
+            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(ContentFilterMode, x), x), lambda x: to_enum(ContentFilterMode, x), from_none], self.filter_mapping)
         if self.is_default_server is not None:
             result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
         if self.timeout is not None:
             result["timeout"] = from_union([from_int, from_none], self.timeout)
         if self.tools is not None:
             result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
-        if self.type is not None:
-            result["type"] = from_union([lambda x: to_enum(MCPServerConfigType, x), from_none], self.type)
+        if self.auth is not None:
+            result["auth"] = from_union([lambda x: to_class(MCPServerConfigHTTPAuth, x), from_none], self.auth)
         if self.headers is not None:
             result["headers"] = from_union([lambda x: from_dict(from_str, x), from_none], self.headers)
         if self.oauth_client_id is not None:
@@ -3688,43 +3864,10 @@ class MCPServerConfig:
             result["oauthGrantType"] = from_union([lambda x: to_enum(MCPServerConfigHTTPOauthGrantType, x), from_none], self.oauth_grant_type)
         if self.oauth_public_client is not None:
             result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
+        if self.type is not None:
+            result["type"] = from_union([lambda x: to_enum(MCPServerConfigHTTPType, x), from_none], self.type)
         if self.url is not None:
             result["url"] = from_union([from_str, from_none], self.url)
-        return result
-
-@dataclass
-class MCPServer:
-    """Schema for the `McpServer` type."""
-
-    name: str
-    """Server name (config key)"""
-
-    status: MCPServerStatus
-    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
-
-    error: str | None = None
-    """Error message if the server failed to connect"""
-
-    source: MCPServerSource | None = None
-    """Configuration source: user, workspace, plugin, or builtin"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPServer':
-        assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        status = MCPServerStatus(obj.get("status"))
-        error = from_union([from_str, from_none], obj.get("error"))
-        source = from_union([MCPServerSource, from_none], obj.get("source"))
-        return MCPServer(name, status, error, source)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["name"] = from_str(self.name)
-        result["status"] = to_enum(MCPServerStatus, self.status)
-        if self.error is not None:
-            result["error"] = from_union([from_str, from_none], self.error)
-        if self.source is not None:
-            result["source"] = from_union([lambda x: to_enum(MCPServerSource, x), from_none], self.source)
         return result
 
 @dataclass
@@ -3734,7 +3877,10 @@ class MCPServerConfigHTTP:
     url: str
     """URL of the remote MCP server endpoint."""
 
-    filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
+    auth: MCPServerConfigHTTPAuth | None = None
+    """Additional authentication configuration for this server."""
+
+    filter_mapping: dict[str, ContentFilterMode] | ContentFilterMode | None = None
     """Content filtering mode to apply to all tools, or a map of tool name to content filtering
     mode.
     """
@@ -3767,7 +3913,8 @@ class MCPServerConfigHTTP:
     def from_dict(obj: Any) -> 'MCPServerConfigHTTP':
         assert isinstance(obj, dict)
         url = from_str(obj.get("url"))
-        filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString, from_none], obj.get("filterMapping"))
+        auth = from_union([MCPServerConfigHTTPAuth.from_dict, from_none], obj.get("auth"))
+        filter_mapping = from_union([lambda x: from_dict(ContentFilterMode, x), ContentFilterMode, from_none], obj.get("filterMapping"))
         headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("headers"))
         is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
         oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
@@ -3776,13 +3923,15 @@ class MCPServerConfigHTTP:
         timeout = from_union([from_int, from_none], obj.get("timeout"))
         tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
         type = from_union([MCPServerConfigHTTPType, from_none], obj.get("type"))
-        return MCPServerConfigHTTP(url, filter_mapping, headers, is_default_server, oauth_client_id, oauth_grant_type, oauth_public_client, timeout, tools, type)
+        return MCPServerConfigHTTP(url, auth, filter_mapping, headers, is_default_server, oauth_client_id, oauth_grant_type, oauth_public_client, timeout, tools, type)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["url"] = from_str(self.url)
+        if self.auth is not None:
+            result["auth"] = from_union([lambda x: to_class(MCPServerConfigHTTPAuth, x), from_none], self.auth)
         if self.filter_mapping is not None:
-            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x), from_none], self.filter_mapping)
+            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(ContentFilterMode, x), x), lambda x: to_enum(ContentFilterMode, x), from_none], self.filter_mapping)
         if self.headers is not None:
             result["headers"] = from_union([lambda x: from_dict(from_str, x), from_none], self.headers)
         if self.is_default_server is not None:
@@ -3802,88 +3951,38 @@ class MCPServerConfigHTTP:
         return result
 
 @dataclass
-class MCPServerConfigLocal:
-    """Local MCP server configuration launched as a child process."""
+class MCPServer:
+    """Schema for the `McpServer` type."""
 
-    args: list[str]
-    """Command-line arguments passed to the local MCP server process."""
+    name: str
+    """Server name (config key)"""
 
-    command: str
-    """Executable command used to start the local MCP server process."""
+    status: ExternalRefMCPServerStatus
+    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
 
-    cwd: str | None = None
-    """Working directory for the local MCP server process."""
+    error: str | None = None
+    """Error message if the server failed to connect"""
 
-    env: dict[str, str] | None = None
-    """Environment variables to pass to the local MCP server process."""
-
-    filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
-    """Content filtering mode to apply to all tools, or a map of tool name to content filtering
-    mode.
-    """
-    is_default_server: bool | None = None
-    """Whether this server is a built-in fallback used when the user has not configured their
-    own server.
-    """
-    timeout: int | None = None
-    """Timeout in milliseconds for tool calls to this server."""
-
-    tools: list[str] | None = None
-    """Tools to include. Defaults to all tools if not specified."""
-
-    type: MCPServerConfigLocalType | None = None
-    """Local transport type. Defaults to "local"."""
+    source: ExternalRefMCPServerSource | None = None
+    """Configuration source: user, workspace, plugin, or builtin"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerConfigLocal':
+    def from_dict(obj: Any) -> 'MCPServer':
         assert isinstance(obj, dict)
-        args = from_list(from_str, obj.get("args"))
-        command = from_str(obj.get("command"))
-        cwd = from_union([from_str, from_none], obj.get("cwd"))
-        env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
-        filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString, from_none], obj.get("filterMapping"))
-        is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
-        timeout = from_union([from_int, from_none], obj.get("timeout"))
-        tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
-        type = from_union([MCPServerConfigLocalType, from_none], obj.get("type"))
-        return MCPServerConfigLocal(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, type)
+        name = from_str(obj.get("name"))
+        status = ExternalRefMCPServerStatus.from_dict(obj.get("status"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        source = from_union([ExternalRefMCPServerSource.from_dict, from_none], obj.get("source"))
+        return MCPServer(name, status, error, source)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["args"] = from_list(from_str, self.args)
-        result["command"] = from_str(self.command)
-        if self.cwd is not None:
-            result["cwd"] = from_union([from_str, from_none], self.cwd)
-        if self.env is not None:
-            result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
-        if self.filter_mapping is not None:
-            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x), from_none], self.filter_mapping)
-        if self.is_default_server is not None:
-            result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
-        if self.timeout is not None:
-            result["timeout"] = from_union([from_int, from_none], self.timeout)
-        if self.tools is not None:
-            result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
-        if self.type is not None:
-            result["type"] = from_union([lambda x: to_enum(MCPServerConfigLocalType, x), from_none], self.type)
-        return result
-
-@dataclass
-class ModeSetRequest:
-    """Agent interaction mode to apply to the session."""
-
-    mode: Mode
-    """The agent mode. Valid values: "interactive", "plan", "autopilot"."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ModeSetRequest':
-        assert isinstance(obj, dict)
-        mode = Mode(obj.get("mode"))
-        return ModeSetRequest(mode)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["mode"] = to_enum(Mode, self.mode)
+        result["name"] = from_str(self.name)
+        result["status"] = to_class(ExternalRefMCPServerStatus, self.status)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.source is not None:
+            result["source"] = from_union([lambda x: to_class(ExternalRefMCPServerSource, x), from_none], self.source)
         return result
 
 @dataclass
@@ -3946,6 +4045,30 @@ class ModelCapabilitiesLimits:
             result["max_prompt_tokens"] = from_union([from_int, from_none], self.max_prompt_tokens)
         if self.vision is not None:
             result["vision"] = from_union([lambda x: to_class(ModelCapabilitiesLimitsVision, x), from_none], self.vision)
+        return result
+
+@dataclass
+class ModelPolicy:
+    """Policy state (if applicable)"""
+
+    state: ModelPolicyState
+    """Current policy state for this model"""
+
+    terms: str | None = None
+    """Usage terms or conditions for this model"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelPolicy':
+        assert isinstance(obj, dict)
+        state = ModelPolicyState(obj.get("state"))
+        terms = from_union([from_str, from_none], obj.get("terms"))
+        return ModelPolicy(state, terms)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["state"] = to_enum(ModelPolicyState, self.state)
+        if self.terms is not None:
+            result["terms"] = from_union([from_str, from_none], self.terms)
         return result
 
 @dataclass
@@ -4573,19 +4696,61 @@ class SessionFSSetProviderRequest:
     session_state_path: str
     """Path within each session's SessionFs where the runtime stores files for that session"""
 
+    capabilities: SessionFSSetProviderCapabilities | None = None
+    """Optional capabilities declared by the provider"""
+
     @staticmethod
     def from_dict(obj: Any) -> 'SessionFSSetProviderRequest':
         assert isinstance(obj, dict)
         conventions = SessionFSSetProviderConventions(obj.get("conventions"))
         initial_cwd = from_str(obj.get("initialCwd"))
         session_state_path = from_str(obj.get("sessionStatePath"))
-        return SessionFSSetProviderRequest(conventions, initial_cwd, session_state_path)
+        capabilities = from_union([SessionFSSetProviderCapabilities.from_dict, from_none], obj.get("capabilities"))
+        return SessionFSSetProviderRequest(conventions, initial_cwd, session_state_path, capabilities)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["conventions"] = to_enum(SessionFSSetProviderConventions, self.conventions)
         result["initialCwd"] = from_str(self.initial_cwd)
         result["sessionStatePath"] = from_str(self.session_state_path)
+        if self.capabilities is not None:
+            result["capabilities"] = from_union([lambda x: to_class(SessionFSSetProviderCapabilities, x), from_none], self.capabilities)
+        return result
+
+@dataclass
+class SessionFSSqliteQueryRequest:
+    """SQL query, query type, and optional bind parameters for executing a SQLite query against
+    the per-session database.
+    """
+    query: str
+    """SQL query to execute"""
+
+    query_type: SessionFSSqliteQueryType
+    """How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT
+    (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
+    """
+    session_id: str
+    """Target session identifier"""
+
+    params: dict[str, Optional[float | str]] | None = None
+    """Optional named bind parameters"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSSqliteQueryRequest':
+        assert isinstance(obj, dict)
+        query = from_str(obj.get("query"))
+        query_type = SessionFSSqliteQueryType(obj.get("queryType"))
+        session_id = from_str(obj.get("sessionId"))
+        params = from_union([lambda x: from_dict(lambda x: from_union([from_none, from_float, from_str], x), x), from_none], obj.get("params"))
+        return SessionFSSqliteQueryRequest(query, query_type, session_id, params)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["query"] = from_str(self.query)
+        result["queryType"] = to_enum(SessionFSSqliteQueryType, self.query_type)
+        result["sessionId"] = from_str(self.session_id)
+        if self.params is not None:
+            result["params"] = from_union([lambda x: from_dict(lambda x: from_union([from_none, to_float, from_str], x), x), from_none], self.params)
         return result
 
 @dataclass
@@ -4662,8 +4827,8 @@ class SlashCommandAgentPromptResult:
     prompt: str
     """Prompt to submit to the agent"""
 
-    mode: Mode | None = None
-    """Optional target session mode"""
+    mode: SessionMode | None = None
+    """Optional target session mode for the agent prompt"""
 
     runtime_settings_changed: bool | None = None
     """True when the invocation mutated user runtime settings; consumers caching settings should
@@ -4676,7 +4841,7 @@ class SlashCommandAgentPromptResult:
         display_prompt = from_str(obj.get("displayPrompt"))
         kind = SlashCommandAgentPromptResultKind(obj.get("kind"))
         prompt = from_str(obj.get("prompt"))
-        mode = from_union([Mode, from_none], obj.get("mode"))
+        mode = from_union([SessionMode.from_dict, from_none], obj.get("mode"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
         return SlashCommandAgentPromptResult(display_prompt, kind, prompt, mode, runtime_settings_changed)
 
@@ -4686,7 +4851,7 @@ class SlashCommandAgentPromptResult:
         result["kind"] = to_enum(SlashCommandAgentPromptResultKind, self.kind)
         result["prompt"] = from_str(self.prompt)
         if self.mode is not None:
-            result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
+            result["mode"] = from_union([lambda x: to_class(SessionMode, x), from_none], self.mode)
         if self.runtime_settings_changed is not None:
             result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
@@ -4743,7 +4908,7 @@ class TaskShellInfo:
     started_at: datetime
     """ISO 8601 timestamp when the task was started"""
 
-    status: TaskInfoStatus
+    status: TaskStatus
     """Current lifecycle status of the task"""
 
     type: TaskShellInfoType
@@ -4755,8 +4920,8 @@ class TaskShellInfo:
     completed_at: datetime | None = None
     """ISO 8601 timestamp when the task finished"""
 
-    execution_mode: TaskInfoExecutionMode | None = None
-    """Whether the shell command is currently sync-waited or background-managed"""
+    execution_mode: TaskExecutionMode | None = None
+    """Whether task execution is synchronously awaited or managed in the background"""
 
     log_path: str | None = None
     """Path to the detached shell log, when available"""
@@ -4772,11 +4937,11 @@ class TaskShellInfo:
         description = from_str(obj.get("description"))
         id = from_str(obj.get("id"))
         started_at = from_datetime(obj.get("startedAt"))
-        status = TaskInfoStatus(obj.get("status"))
+        status = TaskStatus(obj.get("status"))
         type = TaskShellInfoType(obj.get("type"))
         can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
         completed_at = from_union([from_datetime, from_none], obj.get("completedAt"))
-        execution_mode = from_union([TaskInfoExecutionMode, from_none], obj.get("executionMode"))
+        execution_mode = from_union([TaskExecutionMode, from_none], obj.get("executionMode"))
         log_path = from_union([from_str, from_none], obj.get("logPath"))
         pid = from_union([from_int, from_none], obj.get("pid"))
         return TaskShellInfo(attachment_mode, command, description, id, started_at, status, type, can_promote_to_background, completed_at, execution_mode, log_path, pid)
@@ -4788,14 +4953,14 @@ class TaskShellInfo:
         result["description"] = from_str(self.description)
         result["id"] = from_str(self.id)
         result["startedAt"] = self.started_at.isoformat()
-        result["status"] = to_enum(TaskInfoStatus, self.status)
+        result["status"] = to_enum(TaskStatus, self.status)
         result["type"] = to_enum(TaskShellInfoType, self.type)
         if self.can_promote_to_background is not None:
             result["canPromoteToBackground"] = from_union([from_bool, from_none], self.can_promote_to_background)
         if self.completed_at is not None:
             result["completedAt"] = from_union([lambda x: x.isoformat(), from_none], self.completed_at)
         if self.execution_mode is not None:
-            result["executionMode"] = from_union([lambda x: to_enum(TaskInfoExecutionMode, x), from_none], self.execution_mode)
+            result["executionMode"] = from_union([lambda x: to_enum(TaskExecutionMode, x), from_none], self.execution_mode)
         if self.log_path is not None:
             result["logPath"] = from_union([from_str, from_none], self.log_path)
         if self.pid is not None:
@@ -5605,7 +5770,7 @@ class MCPConfigAddRequest:
     """MCP server name and configuration to add to user configuration."""
 
     config: MCPServerConfig
-    """MCP server configuration (local/stdio or remote/http)"""
+    """MCP server configuration (stdio process or remote HTTP/SSE)"""
 
     name: str
     """Unique name for the MCP server"""
@@ -5646,7 +5811,7 @@ class MCPConfigUpdateRequest:
     """MCP server name and replacement configuration to write to user configuration."""
 
     config: MCPServerConfig
-    """MCP server configuration (local/stdio or remote/http)"""
+    """MCP server configuration (stdio process or remote HTTP/SSE)"""
 
     name: str
     """Name of the MCP server to update"""
@@ -5779,6 +5944,47 @@ class SessionFSReaddirResult:
         return result
 
 @dataclass
+class SessionFSSqliteQueryResult:
+    """Query results including rows, columns, and rows affected, or a filesystem error if
+    execution failed.
+    """
+    columns: list[str]
+    """Column names from the result set"""
+
+    rows: list[dict[str, Any]]
+    """For SELECT: array of row objects. For others: empty array."""
+
+    rows_affected: int
+    """Number of rows affected (for INSERT/UPDATE/DELETE)"""
+
+    error: SessionFSError | None = None
+    """Describes a filesystem error."""
+
+    last_insert_rowid: float | None = None
+    """Last inserted row ID (for INSERT)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSSqliteQueryResult':
+        assert isinstance(obj, dict)
+        columns = from_list(from_str, obj.get("columns"))
+        rows = from_list(lambda x: from_dict(lambda x: x, x), obj.get("rows"))
+        rows_affected = from_int(obj.get("rowsAffected"))
+        error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
+        last_insert_rowid = from_union([from_float, from_none], obj.get("lastInsertRowid"))
+        return SessionFSSqliteQueryResult(columns, rows, rows_affected, error, last_insert_rowid)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["columns"] = from_list(from_str, self.columns)
+        result["rows"] = from_list(lambda x: from_dict(lambda x: x, x), self.rows)
+        result["rowsAffected"] = from_int(self.rows_affected)
+        if self.error is not None:
+            result["error"] = from_union([lambda x: to_class(SessionFSError, x), from_none], self.error)
+        if self.last_insert_rowid is not None:
+            result["lastInsertRowid"] = from_union([to_float, from_none], self.last_insert_rowid)
+        return result
+
+@dataclass
 class SessionFSStatResult:
     """Filesystem metadata for the requested path, or a filesystem error if the stat failed."""
 
@@ -5881,8 +6087,8 @@ class SlashCommandInvocationResult:
     display_prompt: str | None = None
     """Prompt text to display to the user"""
 
-    mode: Mode | None = None
-    """Optional target session mode"""
+    mode: SessionMode | None = None
+    """Optional target session mode for the agent prompt"""
 
     prompt: str | None = None
     """Prompt to submit to the agent"""
@@ -5899,7 +6105,7 @@ class SlashCommandInvocationResult:
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
         text = from_union([from_str, from_none], obj.get("text"))
         display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
-        mode = from_union([Mode, from_none], obj.get("mode"))
+        mode = from_union([SessionMode.from_dict, from_none], obj.get("mode"))
         prompt = from_union([from_str, from_none], obj.get("prompt"))
         message = from_union([from_str, from_none], obj.get("message"))
         return SlashCommandInvocationResult(kind, markdown, preserve_ansi, runtime_settings_changed, text, display_prompt, mode, prompt, message)
@@ -5918,7 +6124,7 @@ class SlashCommandInvocationResult:
         if self.display_prompt is not None:
             result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
         if self.mode is not None:
-            result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
+            result["mode"] = from_union([lambda x: to_class(SessionMode, x), from_none], self.mode)
         if self.prompt is not None:
             result["prompt"] = from_union([from_str, from_none], self.prompt)
         if self.message is not None:
@@ -6577,6 +6783,9 @@ class ExternalToolTextResultForLlm:
     text_result_for_llm: str
     """Text result returned to the model"""
 
+    binary_results_for_llm: list[ExternalToolTextResultForLlmBinaryResultsForLlm] | None = None
+    """Base64-encoded binary results returned to the model"""
+
     contents: list[ExternalToolTextResultForLlmContent] | None = None
     """Structured content blocks from the tool"""
 
@@ -6597,16 +6806,19 @@ class ExternalToolTextResultForLlm:
     def from_dict(obj: Any) -> 'ExternalToolTextResultForLlm':
         assert isinstance(obj, dict)
         text_result_for_llm = from_str(obj.get("textResultForLlm"))
+        binary_results_for_llm = from_union([lambda x: from_list(ExternalToolTextResultForLlmBinaryResultsForLlm.from_dict, x), from_none], obj.get("binaryResultsForLlm"))
         contents = from_union([lambda x: from_list(ExternalToolTextResultForLlmContent.from_dict, x), from_none], obj.get("contents"))
         error = from_union([from_str, from_none], obj.get("error"))
         result_type = from_union([from_str, from_none], obj.get("resultType"))
         session_log = from_union([from_str, from_none], obj.get("sessionLog"))
         tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
-        return ExternalToolTextResultForLlm(text_result_for_llm, contents, error, result_type, session_log, tool_telemetry)
+        return ExternalToolTextResultForLlm(text_result_for_llm, binary_results_for_llm, contents, error, result_type, session_log, tool_telemetry)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["textResultForLlm"] = from_str(self.text_result_for_llm)
+        if self.binary_results_for_llm is not None:
+            result["binaryResultsForLlm"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmBinaryResultsForLlm, x), x), from_none], self.binary_results_for_llm)
         if self.contents is not None:
             result["contents"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmContent, x), x), from_none], self.contents)
         if self.error is not None:
@@ -7021,7 +7233,7 @@ class TaskAgentInfo:
     started_at: datetime
     """ISO 8601 timestamp when the task was started"""
 
-    status: TaskInfoStatus
+    status: TaskStatus
     """Current lifecycle status of the task"""
 
     tool_call_id: str
@@ -7047,8 +7259,8 @@ class TaskAgentInfo:
     error: str | None = None
     """Error message when the task failed"""
 
-    execution_mode: TaskInfoExecutionMode | None = None
-    """How the agent is currently being managed by the runtime"""
+    execution_mode: TaskExecutionMode | None = None
+    """Whether task execution is synchronously awaited or managed in the background"""
 
     idle_since: datetime | None = None
     """ISO 8601 timestamp when the agent entered idle state"""
@@ -7070,7 +7282,7 @@ class TaskAgentInfo:
         id = from_str(obj.get("id"))
         prompt = from_str(obj.get("prompt"))
         started_at = from_datetime(obj.get("startedAt"))
-        status = TaskInfoStatus(obj.get("status"))
+        status = TaskStatus(obj.get("status"))
         tool_call_id = from_str(obj.get("toolCallId"))
         type = TaskAgentInfoType(obj.get("type"))
         active_started_at = from_union([from_datetime, from_none], obj.get("activeStartedAt"))
@@ -7078,7 +7290,7 @@ class TaskAgentInfo:
         can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
         completed_at = from_union([from_datetime, from_none], obj.get("completedAt"))
         error = from_union([from_str, from_none], obj.get("error"))
-        execution_mode = from_union([TaskInfoExecutionMode, from_none], obj.get("executionMode"))
+        execution_mode = from_union([TaskExecutionMode, from_none], obj.get("executionMode"))
         idle_since = from_union([from_datetime, from_none], obj.get("idleSince"))
         latest_response = from_union([from_str, from_none], obj.get("latestResponse"))
         model = from_union([from_str, from_none], obj.get("model"))
@@ -7092,7 +7304,7 @@ class TaskAgentInfo:
         result["id"] = from_str(self.id)
         result["prompt"] = from_str(self.prompt)
         result["startedAt"] = self.started_at.isoformat()
-        result["status"] = to_enum(TaskInfoStatus, self.status)
+        result["status"] = to_enum(TaskStatus, self.status)
         result["toolCallId"] = from_str(self.tool_call_id)
         result["type"] = to_enum(TaskAgentInfoType, self.type)
         if self.active_started_at is not None:
@@ -7106,7 +7318,7 @@ class TaskAgentInfo:
         if self.error is not None:
             result["error"] = from_union([from_str, from_none], self.error)
         if self.execution_mode is not None:
-            result["executionMode"] = from_union([lambda x: to_enum(TaskInfoExecutionMode, x), from_none], self.execution_mode)
+            result["executionMode"] = from_union([lambda x: to_enum(TaskExecutionMode, x), from_none], self.execution_mode)
         if self.idle_since is not None:
             result["idleSince"] = from_union([lambda x: x.isoformat(), from_none], self.idle_since)
         if self.latest_response is not None:
@@ -7134,7 +7346,7 @@ class TaskInfo:
     started_at: datetime
     """ISO 8601 timestamp when the task was started"""
 
-    status: TaskInfoStatus
+    status: TaskStatus
     """Current lifecycle status of the task"""
 
     type: TaskInfoType
@@ -7162,11 +7374,9 @@ class TaskInfo:
     error: str | None = None
     """Error message when the task failed"""
 
-    execution_mode: TaskInfoExecutionMode | None = None
-    """How the agent is currently being managed by the runtime
+    execution_mode: TaskExecutionMode | None = None
+    """Whether task execution is synchronously awaited or managed in the background"""
 
-    Whether the shell command is currently sync-waited or background-managed
-    """
     idle_since: datetime | None = None
     """ISO 8601 timestamp when the agent entered idle state"""
 
@@ -7204,7 +7414,7 @@ class TaskInfo:
         description = from_str(obj.get("description"))
         id = from_str(obj.get("id"))
         started_at = from_datetime(obj.get("startedAt"))
-        status = TaskInfoStatus(obj.get("status"))
+        status = TaskStatus(obj.get("status"))
         type = TaskInfoType(obj.get("type"))
         active_started_at = from_union([from_datetime, from_none], obj.get("activeStartedAt"))
         active_time_ms = from_union([from_int, from_none], obj.get("activeTimeMs"))
@@ -7212,7 +7422,7 @@ class TaskInfo:
         can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
         completed_at = from_union([from_datetime, from_none], obj.get("completedAt"))
         error = from_union([from_str, from_none], obj.get("error"))
-        execution_mode = from_union([TaskInfoExecutionMode, from_none], obj.get("executionMode"))
+        execution_mode = from_union([TaskExecutionMode, from_none], obj.get("executionMode"))
         idle_since = from_union([from_datetime, from_none], obj.get("idleSince"))
         latest_response = from_union([from_str, from_none], obj.get("latestResponse"))
         model = from_union([from_str, from_none], obj.get("model"))
@@ -7230,7 +7440,7 @@ class TaskInfo:
         result["description"] = from_str(self.description)
         result["id"] = from_str(self.id)
         result["startedAt"] = self.started_at.isoformat()
-        result["status"] = to_enum(TaskInfoStatus, self.status)
+        result["status"] = to_enum(TaskStatus, self.status)
         result["type"] = to_enum(TaskInfoType, self.type)
         if self.active_started_at is not None:
             result["activeStartedAt"] = from_union([lambda x: x.isoformat(), from_none], self.active_started_at)
@@ -7245,7 +7455,7 @@ class TaskInfo:
         if self.error is not None:
             result["error"] = from_union([from_str, from_none], self.error)
         if self.execution_mode is not None:
-            result["executionMode"] = from_union([lambda x: to_enum(TaskInfoExecutionMode, x), from_none], self.execution_mode)
+            result["executionMode"] = from_union([lambda x: to_enum(TaskExecutionMode, x), from_none], self.execution_mode)
         if self.idle_since is not None:
             result["idleSince"] = from_union([lambda x: x.isoformat(), from_none], self.idle_since)
         if self.latest_response is not None:
@@ -7312,9 +7522,9 @@ class RPC:
     connect_remote_session_params: ConnectRemoteSessionParams
     connect_request: ConnectRequest
     connect_result: ConnectResult
+    content_filter_mode: ContentFilterMode
     current_model: CurrentModel
     discovered_mcp_server: DiscoveredMCPServer
-    discovered_mcp_server_source: MCPServerSource
     discovered_mcp_server_type: DiscoveredMCPServerType
     extension: Extension
     extension_list: ExtensionList
@@ -7324,6 +7534,8 @@ class RPC:
     extension_status: ExtensionStatus
     external_tool_result: ExternalToolTextResultForLlm | str
     external_tool_text_result_for_llm: ExternalToolTextResultForLlm
+    external_tool_text_result_for_llm_binary_results_for_llm: ExternalToolTextResultForLlmBinaryResultsForLlm
+    external_tool_text_result_for_llm_binary_results_for_llm_type: ExternalToolTextResultForLlmBinaryResultsForLlmType
     external_tool_text_result_for_llm_content: ExternalToolTextResultForLlmContent
     external_tool_text_result_for_llm_content_audio: ExternalToolTextResultForLlmContentAudio
     external_tool_text_result_for_llm_content_image: ExternalToolTextResultForLlmContentImage
@@ -7334,9 +7546,7 @@ class RPC:
     external_tool_text_result_for_llm_content_resource_link_icon_theme: ExternalToolTextResultForLlmContentResourceLinkIconTheme
     external_tool_text_result_for_llm_content_terminal: ExternalToolTextResultForLlmContentTerminal
     external_tool_text_result_for_llm_content_text: ExternalToolTextResultForLlmContentText
-    filter_mapping: dict[str, FilterMappingString] | FilterMappingString
-    filter_mapping_string: FilterMappingString
-    filter_mapping_value: FilterMappingString
+    filter_mapping: dict[str, ContentFilterMode] | ContentFilterMode
     fleet_start_request: FleetStartRequest
     fleet_start_result: FleetStartResult
     handle_pending_tool_call_request: HandlePendingToolCallRequest
@@ -7366,13 +7576,11 @@ class RPC:
     mcp_server: MCPServer
     mcp_server_config: MCPServerConfig
     mcp_server_config_http: MCPServerConfigHTTP
+    mcp_server_config_http_auth: MCPServerConfigHTTPAuth
     mcp_server_config_http_oauth_grant_type: MCPServerConfigHTTPOauthGrantType
     mcp_server_config_http_type: MCPServerConfigHTTPType
-    mcp_server_config_local: MCPServerConfigLocal
-    mcp_server_config_local_type: MCPServerConfigLocalType
+    mcp_server_config_stdio: MCPServerConfigStdio
     mcp_server_list: MCPServerList
-    mcp_server_source: MCPServerSource
-    mcp_server_status: MCPServerStatus
     model: Model
     model_billing: ModelBilling
     model_billing_token_prices: ModelBillingTokenPrices
@@ -7388,6 +7596,7 @@ class RPC:
     model_picker_category: ModelPickerCategory
     model_picker_price_category: ModelPickerPriceCategory
     model_policy: ModelPolicy
+    model_policy_state: ModelPolicyState
     models_list_request: ModelsListRequest
     model_switch_to_request: ModelSwitchToRequest
     model_switch_to_result: ModelSwitchToResult
@@ -7459,14 +7668,20 @@ class RPC:
     session_fs_read_file_result: SessionFSReadFileResult
     session_fs_rename_request: SessionFSRenameRequest
     session_fs_rm_request: SessionFSRmRequest
+    session_fs_set_provider_capabilities: SessionFSSetProviderCapabilities
     session_fs_set_provider_conventions: SessionFSSetProviderConventions
     session_fs_set_provider_request: SessionFSSetProviderRequest
     session_fs_set_provider_result: SessionFSSetProviderResult
+    session_fs_sqlite_exists_request: SessionFSSqliteExistsRequest
+    session_fs_sqlite_exists_result: SessionFSSqliteExistsResult
+    session_fs_sqlite_query_request: SessionFSSqliteQueryRequest
+    session_fs_sqlite_query_result: SessionFSSqliteQueryResult
+    session_fs_sqlite_query_type: SessionFSSqliteQueryType
     session_fs_stat_request: SessionFSStatRequest
     session_fs_stat_result: SessionFSStatResult
     session_fs_write_file_request: SessionFSWriteFileRequest
     session_log_level: SessionLogLevel
-    session_mode: Mode
+    session_mode: SessionMode
     sessions_fork_request: SessionsForkRequest
     sessions_fork_result: SessionsForkResult
     shell_exec_request: ShellExecRequest
@@ -7481,7 +7696,6 @@ class RPC:
     skills_discover_request: SkillsDiscoverRequest
     skills_enable_request: SkillsEnableRequest
     skills_load_diagnostics: SkillsLoadDiagnostics
-    slash_command_agent_prompt_mode: Mode
     slash_command_agent_prompt_result: SlashCommandAgentPromptResult
     slash_command_completed_result: SlashCommandCompletedResult
     slash_command_info: SlashCommandInfo
@@ -7491,16 +7705,13 @@ class RPC:
     slash_command_kind: SlashCommandKind
     slash_command_text_result: SlashCommandTextResult
     task_agent_info: TaskAgentInfo
-    task_agent_info_execution_mode: TaskInfoExecutionMode
-    task_agent_info_status: TaskInfoStatus
+    task_execution_mode: TaskExecutionMode
     task_info: TaskInfo
     task_list: TaskList
     tasks_cancel_request: TasksCancelRequest
     tasks_cancel_result: TasksCancelResult
     task_shell_info: TaskShellInfo
     task_shell_info_attachment_mode: TaskShellInfoAttachmentMode
-    task_shell_info_execution_mode: TaskInfoExecutionMode
-    task_shell_info_status: TaskInfoStatus
     tasks_promote_to_background_request: TasksPromoteToBackgroundRequest
     tasks_promote_to_background_result: TasksPromoteToBackgroundResult
     tasks_remove_request: TasksRemoveRequest
@@ -7509,6 +7720,7 @@ class RPC:
     tasks_send_message_result: TasksSendMessageResult
     tasks_start_agent_request: TasksStartAgentRequest
     tasks_start_agent_result: TasksStartAgentResult
+    task_status: TaskStatus
     tool: Tool
     tool_list: ToolList
     tools_list_request: ToolsListRequest
@@ -7573,9 +7785,9 @@ class RPC:
         connect_remote_session_params = ConnectRemoteSessionParams.from_dict(obj.get("ConnectRemoteSessionParams"))
         connect_request = ConnectRequest.from_dict(obj.get("ConnectRequest"))
         connect_result = ConnectResult.from_dict(obj.get("ConnectResult"))
+        content_filter_mode = ContentFilterMode(obj.get("ContentFilterMode"))
         current_model = CurrentModel.from_dict(obj.get("CurrentModel"))
         discovered_mcp_server = DiscoveredMCPServer.from_dict(obj.get("DiscoveredMcpServer"))
-        discovered_mcp_server_source = MCPServerSource(obj.get("DiscoveredMcpServerSource"))
         discovered_mcp_server_type = DiscoveredMCPServerType(obj.get("DiscoveredMcpServerType"))
         extension = Extension.from_dict(obj.get("Extension"))
         extension_list = ExtensionList.from_dict(obj.get("ExtensionList"))
@@ -7585,6 +7797,8 @@ class RPC:
         extension_status = ExtensionStatus(obj.get("ExtensionStatus"))
         external_tool_result = from_union([ExternalToolTextResultForLlm.from_dict, from_str], obj.get("ExternalToolResult"))
         external_tool_text_result_for_llm = ExternalToolTextResultForLlm.from_dict(obj.get("ExternalToolTextResultForLlm"))
+        external_tool_text_result_for_llm_binary_results_for_llm = ExternalToolTextResultForLlmBinaryResultsForLlm.from_dict(obj.get("ExternalToolTextResultForLlmBinaryResultsForLlm"))
+        external_tool_text_result_for_llm_binary_results_for_llm_type = ExternalToolTextResultForLlmBinaryResultsForLlmType(obj.get("ExternalToolTextResultForLlmBinaryResultsForLlmType"))
         external_tool_text_result_for_llm_content = ExternalToolTextResultForLlmContent.from_dict(obj.get("ExternalToolTextResultForLlmContent"))
         external_tool_text_result_for_llm_content_audio = ExternalToolTextResultForLlmContentAudio.from_dict(obj.get("ExternalToolTextResultForLlmContentAudio"))
         external_tool_text_result_for_llm_content_image = ExternalToolTextResultForLlmContentImage.from_dict(obj.get("ExternalToolTextResultForLlmContentImage"))
@@ -7595,9 +7809,7 @@ class RPC:
         external_tool_text_result_for_llm_content_resource_link_icon_theme = ExternalToolTextResultForLlmContentResourceLinkIconTheme(obj.get("ExternalToolTextResultForLlmContentResourceLinkIconTheme"))
         external_tool_text_result_for_llm_content_terminal = ExternalToolTextResultForLlmContentTerminal.from_dict(obj.get("ExternalToolTextResultForLlmContentTerminal"))
         external_tool_text_result_for_llm_content_text = ExternalToolTextResultForLlmContentText.from_dict(obj.get("ExternalToolTextResultForLlmContentText"))
-        filter_mapping = from_union([lambda x: from_dict(FilterMappingString, x), FilterMappingString], obj.get("FilterMapping"))
-        filter_mapping_string = FilterMappingString(obj.get("FilterMappingString"))
-        filter_mapping_value = FilterMappingString(obj.get("FilterMappingValue"))
+        filter_mapping = from_union([lambda x: from_dict(ContentFilterMode, x), ContentFilterMode], obj.get("FilterMapping"))
         fleet_start_request = FleetStartRequest.from_dict(obj.get("FleetStartRequest"))
         fleet_start_result = FleetStartResult.from_dict(obj.get("FleetStartResult"))
         handle_pending_tool_call_request = HandlePendingToolCallRequest.from_dict(obj.get("HandlePendingToolCallRequest"))
@@ -7627,13 +7839,11 @@ class RPC:
         mcp_server = MCPServer.from_dict(obj.get("McpServer"))
         mcp_server_config = MCPServerConfig.from_dict(obj.get("McpServerConfig"))
         mcp_server_config_http = MCPServerConfigHTTP.from_dict(obj.get("McpServerConfigHttp"))
+        mcp_server_config_http_auth = MCPServerConfigHTTPAuth.from_dict(obj.get("McpServerConfigHttpAuth"))
         mcp_server_config_http_oauth_grant_type = MCPServerConfigHTTPOauthGrantType(obj.get("McpServerConfigHttpOauthGrantType"))
         mcp_server_config_http_type = MCPServerConfigHTTPType(obj.get("McpServerConfigHttpType"))
-        mcp_server_config_local = MCPServerConfigLocal.from_dict(obj.get("McpServerConfigLocal"))
-        mcp_server_config_local_type = MCPServerConfigLocalType(obj.get("McpServerConfigLocalType"))
+        mcp_server_config_stdio = MCPServerConfigStdio.from_dict(obj.get("McpServerConfigStdio"))
         mcp_server_list = MCPServerList.from_dict(obj.get("McpServerList"))
-        mcp_server_source = MCPServerSource(obj.get("McpServerSource"))
-        mcp_server_status = MCPServerStatus(obj.get("McpServerStatus"))
         model = Model.from_dict(obj.get("Model"))
         model_billing = ModelBilling.from_dict(obj.get("ModelBilling"))
         model_billing_token_prices = ModelBillingTokenPrices.from_dict(obj.get("ModelBillingTokenPrices"))
@@ -7649,6 +7859,7 @@ class RPC:
         model_picker_category = ModelPickerCategory(obj.get("ModelPickerCategory"))
         model_picker_price_category = ModelPickerPriceCategory(obj.get("ModelPickerPriceCategory"))
         model_policy = ModelPolicy.from_dict(obj.get("ModelPolicy"))
+        model_policy_state = ModelPolicyState(obj.get("ModelPolicyState"))
         models_list_request = ModelsListRequest.from_dict(obj.get("ModelsListRequest"))
         model_switch_to_request = ModelSwitchToRequest.from_dict(obj.get("ModelSwitchToRequest"))
         model_switch_to_result = ModelSwitchToResult.from_dict(obj.get("ModelSwitchToResult"))
@@ -7720,14 +7931,20 @@ class RPC:
         session_fs_read_file_result = SessionFSReadFileResult.from_dict(obj.get("SessionFsReadFileResult"))
         session_fs_rename_request = SessionFSRenameRequest.from_dict(obj.get("SessionFsRenameRequest"))
         session_fs_rm_request = SessionFSRmRequest.from_dict(obj.get("SessionFsRmRequest"))
+        session_fs_set_provider_capabilities = SessionFSSetProviderCapabilities.from_dict(obj.get("SessionFsSetProviderCapabilities"))
         session_fs_set_provider_conventions = SessionFSSetProviderConventions(obj.get("SessionFsSetProviderConventions"))
         session_fs_set_provider_request = SessionFSSetProviderRequest.from_dict(obj.get("SessionFsSetProviderRequest"))
         session_fs_set_provider_result = SessionFSSetProviderResult.from_dict(obj.get("SessionFsSetProviderResult"))
+        session_fs_sqlite_exists_request = SessionFSSqliteExistsRequest.from_dict(obj.get("SessionFsSqliteExistsRequest"))
+        session_fs_sqlite_exists_result = SessionFSSqliteExistsResult.from_dict(obj.get("SessionFsSqliteExistsResult"))
+        session_fs_sqlite_query_request = SessionFSSqliteQueryRequest.from_dict(obj.get("SessionFsSqliteQueryRequest"))
+        session_fs_sqlite_query_result = SessionFSSqliteQueryResult.from_dict(obj.get("SessionFsSqliteQueryResult"))
+        session_fs_sqlite_query_type = SessionFSSqliteQueryType(obj.get("SessionFsSqliteQueryType"))
         session_fs_stat_request = SessionFSStatRequest.from_dict(obj.get("SessionFsStatRequest"))
         session_fs_stat_result = SessionFSStatResult.from_dict(obj.get("SessionFsStatResult"))
         session_fs_write_file_request = SessionFSWriteFileRequest.from_dict(obj.get("SessionFsWriteFileRequest"))
         session_log_level = SessionLogLevel(obj.get("SessionLogLevel"))
-        session_mode = Mode(obj.get("SessionMode"))
+        session_mode = SessionMode.from_dict(obj.get("SessionMode"))
         sessions_fork_request = SessionsForkRequest.from_dict(obj.get("SessionsForkRequest"))
         sessions_fork_result = SessionsForkResult.from_dict(obj.get("SessionsForkResult"))
         shell_exec_request = ShellExecRequest.from_dict(obj.get("ShellExecRequest"))
@@ -7742,7 +7959,6 @@ class RPC:
         skills_discover_request = SkillsDiscoverRequest.from_dict(obj.get("SkillsDiscoverRequest"))
         skills_enable_request = SkillsEnableRequest.from_dict(obj.get("SkillsEnableRequest"))
         skills_load_diagnostics = SkillsLoadDiagnostics.from_dict(obj.get("SkillsLoadDiagnostics"))
-        slash_command_agent_prompt_mode = Mode(obj.get("SlashCommandAgentPromptMode"))
         slash_command_agent_prompt_result = SlashCommandAgentPromptResult.from_dict(obj.get("SlashCommandAgentPromptResult"))
         slash_command_completed_result = SlashCommandCompletedResult.from_dict(obj.get("SlashCommandCompletedResult"))
         slash_command_info = SlashCommandInfo.from_dict(obj.get("SlashCommandInfo"))
@@ -7752,16 +7968,13 @@ class RPC:
         slash_command_kind = SlashCommandKind(obj.get("SlashCommandKind"))
         slash_command_text_result = SlashCommandTextResult.from_dict(obj.get("SlashCommandTextResult"))
         task_agent_info = TaskAgentInfo.from_dict(obj.get("TaskAgentInfo"))
-        task_agent_info_execution_mode = TaskInfoExecutionMode(obj.get("TaskAgentInfoExecutionMode"))
-        task_agent_info_status = TaskInfoStatus(obj.get("TaskAgentInfoStatus"))
+        task_execution_mode = TaskExecutionMode(obj.get("TaskExecutionMode"))
         task_info = TaskInfo.from_dict(obj.get("TaskInfo"))
         task_list = TaskList.from_dict(obj.get("TaskList"))
         tasks_cancel_request = TasksCancelRequest.from_dict(obj.get("TasksCancelRequest"))
         tasks_cancel_result = TasksCancelResult.from_dict(obj.get("TasksCancelResult"))
         task_shell_info = TaskShellInfo.from_dict(obj.get("TaskShellInfo"))
         task_shell_info_attachment_mode = TaskShellInfoAttachmentMode(obj.get("TaskShellInfoAttachmentMode"))
-        task_shell_info_execution_mode = TaskInfoExecutionMode(obj.get("TaskShellInfoExecutionMode"))
-        task_shell_info_status = TaskInfoStatus(obj.get("TaskShellInfoStatus"))
         tasks_promote_to_background_request = TasksPromoteToBackgroundRequest.from_dict(obj.get("TasksPromoteToBackgroundRequest"))
         tasks_promote_to_background_result = TasksPromoteToBackgroundResult.from_dict(obj.get("TasksPromoteToBackgroundResult"))
         tasks_remove_request = TasksRemoveRequest.from_dict(obj.get("TasksRemoveRequest"))
@@ -7770,6 +7983,7 @@ class RPC:
         tasks_send_message_result = TasksSendMessageResult.from_dict(obj.get("TasksSendMessageResult"))
         tasks_start_agent_request = TasksStartAgentRequest.from_dict(obj.get("TasksStartAgentRequest"))
         tasks_start_agent_result = TasksStartAgentResult.from_dict(obj.get("TasksStartAgentResult"))
+        task_status = TaskStatus(obj.get("TaskStatus"))
         tool = Tool.from_dict(obj.get("Tool"))
         tool_list = ToolList.from_dict(obj.get("ToolList"))
         tools_list_request = ToolsListRequest.from_dict(obj.get("ToolsListRequest"))
@@ -7807,7 +8021,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_request, remote_enable_result, remote_session_connection_result, remote_session_mode, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_mode, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, current_model, discovered_mcp_server, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_auth, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_list, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, model_policy_state, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_request, remote_enable_result, remote_session_connection_result, remote_session_mode, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_execution_mode, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -7834,9 +8048,9 @@ class RPC:
         result["ConnectRemoteSessionParams"] = to_class(ConnectRemoteSessionParams, self.connect_remote_session_params)
         result["ConnectRequest"] = to_class(ConnectRequest, self.connect_request)
         result["ConnectResult"] = to_class(ConnectResult, self.connect_result)
+        result["ContentFilterMode"] = to_enum(ContentFilterMode, self.content_filter_mode)
         result["CurrentModel"] = to_class(CurrentModel, self.current_model)
         result["DiscoveredMcpServer"] = to_class(DiscoveredMCPServer, self.discovered_mcp_server)
-        result["DiscoveredMcpServerSource"] = to_enum(MCPServerSource, self.discovered_mcp_server_source)
         result["DiscoveredMcpServerType"] = to_enum(DiscoveredMCPServerType, self.discovered_mcp_server_type)
         result["Extension"] = to_class(Extension, self.extension)
         result["ExtensionList"] = to_class(ExtensionList, self.extension_list)
@@ -7846,6 +8060,8 @@ class RPC:
         result["ExtensionStatus"] = to_enum(ExtensionStatus, self.extension_status)
         result["ExternalToolResult"] = from_union([lambda x: to_class(ExternalToolTextResultForLlm, x), from_str], self.external_tool_result)
         result["ExternalToolTextResultForLlm"] = to_class(ExternalToolTextResultForLlm, self.external_tool_text_result_for_llm)
+        result["ExternalToolTextResultForLlmBinaryResultsForLlm"] = to_class(ExternalToolTextResultForLlmBinaryResultsForLlm, self.external_tool_text_result_for_llm_binary_results_for_llm)
+        result["ExternalToolTextResultForLlmBinaryResultsForLlmType"] = to_enum(ExternalToolTextResultForLlmBinaryResultsForLlmType, self.external_tool_text_result_for_llm_binary_results_for_llm_type)
         result["ExternalToolTextResultForLlmContent"] = to_class(ExternalToolTextResultForLlmContent, self.external_tool_text_result_for_llm_content)
         result["ExternalToolTextResultForLlmContentAudio"] = to_class(ExternalToolTextResultForLlmContentAudio, self.external_tool_text_result_for_llm_content_audio)
         result["ExternalToolTextResultForLlmContentImage"] = to_class(ExternalToolTextResultForLlmContentImage, self.external_tool_text_result_for_llm_content_image)
@@ -7856,9 +8072,7 @@ class RPC:
         result["ExternalToolTextResultForLlmContentResourceLinkIconTheme"] = to_enum(ExternalToolTextResultForLlmContentResourceLinkIconTheme, self.external_tool_text_result_for_llm_content_resource_link_icon_theme)
         result["ExternalToolTextResultForLlmContentTerminal"] = to_class(ExternalToolTextResultForLlmContentTerminal, self.external_tool_text_result_for_llm_content_terminal)
         result["ExternalToolTextResultForLlmContentText"] = to_class(ExternalToolTextResultForLlmContentText, self.external_tool_text_result_for_llm_content_text)
-        result["FilterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingString, x), x), lambda x: to_enum(FilterMappingString, x)], self.filter_mapping)
-        result["FilterMappingString"] = to_enum(FilterMappingString, self.filter_mapping_string)
-        result["FilterMappingValue"] = to_enum(FilterMappingString, self.filter_mapping_value)
+        result["FilterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(ContentFilterMode, x), x), lambda x: to_enum(ContentFilterMode, x)], self.filter_mapping)
         result["FleetStartRequest"] = to_class(FleetStartRequest, self.fleet_start_request)
         result["FleetStartResult"] = to_class(FleetStartResult, self.fleet_start_result)
         result["HandlePendingToolCallRequest"] = to_class(HandlePendingToolCallRequest, self.handle_pending_tool_call_request)
@@ -7888,13 +8102,11 @@ class RPC:
         result["McpServer"] = to_class(MCPServer, self.mcp_server)
         result["McpServerConfig"] = to_class(MCPServerConfig, self.mcp_server_config)
         result["McpServerConfigHttp"] = to_class(MCPServerConfigHTTP, self.mcp_server_config_http)
+        result["McpServerConfigHttpAuth"] = to_class(MCPServerConfigHTTPAuth, self.mcp_server_config_http_auth)
         result["McpServerConfigHttpOauthGrantType"] = to_enum(MCPServerConfigHTTPOauthGrantType, self.mcp_server_config_http_oauth_grant_type)
         result["McpServerConfigHttpType"] = to_enum(MCPServerConfigHTTPType, self.mcp_server_config_http_type)
-        result["McpServerConfigLocal"] = to_class(MCPServerConfigLocal, self.mcp_server_config_local)
-        result["McpServerConfigLocalType"] = to_enum(MCPServerConfigLocalType, self.mcp_server_config_local_type)
+        result["McpServerConfigStdio"] = to_class(MCPServerConfigStdio, self.mcp_server_config_stdio)
         result["McpServerList"] = to_class(MCPServerList, self.mcp_server_list)
-        result["McpServerSource"] = to_enum(MCPServerSource, self.mcp_server_source)
-        result["McpServerStatus"] = to_enum(MCPServerStatus, self.mcp_server_status)
         result["Model"] = to_class(Model, self.model)
         result["ModelBilling"] = to_class(ModelBilling, self.model_billing)
         result["ModelBillingTokenPrices"] = to_class(ModelBillingTokenPrices, self.model_billing_token_prices)
@@ -7910,6 +8122,7 @@ class RPC:
         result["ModelPickerCategory"] = to_enum(ModelPickerCategory, self.model_picker_category)
         result["ModelPickerPriceCategory"] = to_enum(ModelPickerPriceCategory, self.model_picker_price_category)
         result["ModelPolicy"] = to_class(ModelPolicy, self.model_policy)
+        result["ModelPolicyState"] = to_enum(ModelPolicyState, self.model_policy_state)
         result["ModelsListRequest"] = to_class(ModelsListRequest, self.models_list_request)
         result["ModelSwitchToRequest"] = to_class(ModelSwitchToRequest, self.model_switch_to_request)
         result["ModelSwitchToResult"] = to_class(ModelSwitchToResult, self.model_switch_to_result)
@@ -7981,14 +8194,20 @@ class RPC:
         result["SessionFsReadFileResult"] = to_class(SessionFSReadFileResult, self.session_fs_read_file_result)
         result["SessionFsRenameRequest"] = to_class(SessionFSRenameRequest, self.session_fs_rename_request)
         result["SessionFsRmRequest"] = to_class(SessionFSRmRequest, self.session_fs_rm_request)
+        result["SessionFsSetProviderCapabilities"] = to_class(SessionFSSetProviderCapabilities, self.session_fs_set_provider_capabilities)
         result["SessionFsSetProviderConventions"] = to_enum(SessionFSSetProviderConventions, self.session_fs_set_provider_conventions)
         result["SessionFsSetProviderRequest"] = to_class(SessionFSSetProviderRequest, self.session_fs_set_provider_request)
         result["SessionFsSetProviderResult"] = to_class(SessionFSSetProviderResult, self.session_fs_set_provider_result)
+        result["SessionFsSqliteExistsRequest"] = to_class(SessionFSSqliteExistsRequest, self.session_fs_sqlite_exists_request)
+        result["SessionFsSqliteExistsResult"] = to_class(SessionFSSqliteExistsResult, self.session_fs_sqlite_exists_result)
+        result["SessionFsSqliteQueryRequest"] = to_class(SessionFSSqliteQueryRequest, self.session_fs_sqlite_query_request)
+        result["SessionFsSqliteQueryResult"] = to_class(SessionFSSqliteQueryResult, self.session_fs_sqlite_query_result)
+        result["SessionFsSqliteQueryType"] = to_enum(SessionFSSqliteQueryType, self.session_fs_sqlite_query_type)
         result["SessionFsStatRequest"] = to_class(SessionFSStatRequest, self.session_fs_stat_request)
         result["SessionFsStatResult"] = to_class(SessionFSStatResult, self.session_fs_stat_result)
         result["SessionFsWriteFileRequest"] = to_class(SessionFSWriteFileRequest, self.session_fs_write_file_request)
         result["SessionLogLevel"] = to_enum(SessionLogLevel, self.session_log_level)
-        result["SessionMode"] = to_enum(Mode, self.session_mode)
+        result["SessionMode"] = to_class(SessionMode, self.session_mode)
         result["SessionsForkRequest"] = to_class(SessionsForkRequest, self.sessions_fork_request)
         result["SessionsForkResult"] = to_class(SessionsForkResult, self.sessions_fork_result)
         result["ShellExecRequest"] = to_class(ShellExecRequest, self.shell_exec_request)
@@ -8003,7 +8222,6 @@ class RPC:
         result["SkillsDiscoverRequest"] = to_class(SkillsDiscoverRequest, self.skills_discover_request)
         result["SkillsEnableRequest"] = to_class(SkillsEnableRequest, self.skills_enable_request)
         result["SkillsLoadDiagnostics"] = to_class(SkillsLoadDiagnostics, self.skills_load_diagnostics)
-        result["SlashCommandAgentPromptMode"] = to_enum(Mode, self.slash_command_agent_prompt_mode)
         result["SlashCommandAgentPromptResult"] = to_class(SlashCommandAgentPromptResult, self.slash_command_agent_prompt_result)
         result["SlashCommandCompletedResult"] = to_class(SlashCommandCompletedResult, self.slash_command_completed_result)
         result["SlashCommandInfo"] = to_class(SlashCommandInfo, self.slash_command_info)
@@ -8013,16 +8231,13 @@ class RPC:
         result["SlashCommandKind"] = to_enum(SlashCommandKind, self.slash_command_kind)
         result["SlashCommandTextResult"] = to_class(SlashCommandTextResult, self.slash_command_text_result)
         result["TaskAgentInfo"] = to_class(TaskAgentInfo, self.task_agent_info)
-        result["TaskAgentInfoExecutionMode"] = to_enum(TaskInfoExecutionMode, self.task_agent_info_execution_mode)
-        result["TaskAgentInfoStatus"] = to_enum(TaskInfoStatus, self.task_agent_info_status)
+        result["TaskExecutionMode"] = to_enum(TaskExecutionMode, self.task_execution_mode)
         result["TaskInfo"] = to_class(TaskInfo, self.task_info)
         result["TaskList"] = to_class(TaskList, self.task_list)
         result["TasksCancelRequest"] = to_class(TasksCancelRequest, self.tasks_cancel_request)
         result["TasksCancelResult"] = to_class(TasksCancelResult, self.tasks_cancel_result)
         result["TaskShellInfo"] = to_class(TaskShellInfo, self.task_shell_info)
         result["TaskShellInfoAttachmentMode"] = to_enum(TaskShellInfoAttachmentMode, self.task_shell_info_attachment_mode)
-        result["TaskShellInfoExecutionMode"] = to_enum(TaskInfoExecutionMode, self.task_shell_info_execution_mode)
-        result["TaskShellInfoStatus"] = to_enum(TaskInfoStatus, self.task_shell_info_status)
         result["TasksPromoteToBackgroundRequest"] = to_class(TasksPromoteToBackgroundRequest, self.tasks_promote_to_background_request)
         result["TasksPromoteToBackgroundResult"] = to_class(TasksPromoteToBackgroundResult, self.tasks_promote_to_background_result)
         result["TasksRemoveRequest"] = to_class(TasksRemoveRequest, self.tasks_remove_request)
@@ -8031,6 +8246,7 @@ class RPC:
         result["TasksSendMessageResult"] = to_class(TasksSendMessageResult, self.tasks_send_message_result)
         result["TasksStartAgentRequest"] = to_class(TasksStartAgentRequest, self.tasks_start_agent_request)
         result["TasksStartAgentResult"] = to_class(TasksStartAgentResult, self.tasks_start_agent_result)
+        result["TaskStatus"] = to_enum(TaskStatus, self.task_status)
         result["Tool"] = to_class(Tool, self.tool)
         result["ToolList"] = to_class(ToolList, self.tool_list)
         result["ToolsListRequest"] = to_class(ToolsListRequest, self.tools_list_request)
@@ -8077,16 +8293,8 @@ def rpc_to_dict(x: RPC) -> Any:
     return to_class(RPC, x)
 
 
-DiscoveredMcpServerSource = MCPServerSource
 ExternalToolResult = ExternalToolTextResultForLlm
 FilterMapping = dict
-FilterMappingValue = FilterMappingString
-SessionMode = Mode
-SlashCommandAgentPromptMode = Mode
-TaskAgentInfoExecutionMode = TaskInfoExecutionMode
-TaskAgentInfoStatus = TaskInfoStatus
-TaskShellInfoExecutionMode = TaskInfoExecutionMode
-TaskShellInfoStatus = TaskInfoStatus
 
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
@@ -8298,9 +8506,9 @@ class ModeApi:
         self._client = client
         self._session_id = session_id
 
-    async def get(self, *, timeout: float | None = None) -> Mode:
-        "Gets the current agent interaction mode.\n\nReturns:\n    The agent mode. Valid values: \"interactive\", \"plan\", \"autopilot\"."
-        return Mode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def get(self, *, timeout: float | None = None) -> SessionMode:
+        "Gets the current agent interaction mode.\n\nReturns:\n    The session mode the agent is operating in"
+        return SessionMode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def set(self, params: ModeSetRequest, *, timeout: float | None = None) -> None:
         "Sets the current agent interaction mode.\n\nArgs:\n    params: Agent interaction mode to apply to the session."
@@ -8785,6 +8993,12 @@ class SessionFsHandler(Protocol):
     async def rename(self, params: SessionFSRenameRequest) -> SessionFSError | None:
         "Renames or moves a path in the client-provided session filesystem.\n\nArgs:\n    params: Source and destination paths for renaming or moving an entry in the client-provided session filesystem.\n\nReturns:\n    Describes a filesystem error."
         pass
+    async def sqlite_query(self, params: SessionFSSqliteQueryRequest) -> SessionFSSqliteQueryResult:
+        "Executes a SQLite query against the per-session database.\n\nArgs:\n    params: SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.\n\nReturns:\n    Query results including rows, columns, and rows affected, or a filesystem error if execution failed."
+        pass
+    async def sqlite_exists(self, params: SessionFSSqliteExistsRequest) -> SessionFSSqliteExistsResult:
+        "Checks whether the per-session SQLite database already exists, without creating it.\n\nArgs:\n    params: Identifies the target session.\n\nReturns:\n    Indicates whether the per-session SQLite database already exists."
+        pass
 
 @dataclass
 class ClientSessionApiHandlers:
@@ -8865,3 +9079,17 @@ def register_client_session_api_handlers(
         result = await handler.rename(request)
         return result.to_dict() if result is not None else None
     client.set_request_handler("sessionFs.rename", handle_session_fs_rename)
+    async def handle_session_fs_sqlite_query(params: dict) -> dict | None:
+        request = SessionFSSqliteQueryRequest.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        result = await handler.sqlite_query(request)
+        return result.to_dict()
+    client.set_request_handler("sessionFs.sqliteQuery", handle_session_fs_sqlite_query)
+    async def handle_session_fs_sqlite_exists(params: dict) -> dict | None:
+        request = SessionFSSqliteExistsRequest.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        result = await handler.sqlite_exists(request)
+        return result.to_dict()
+    client.set_request_handler("sessionFs.sqliteExists", handle_session_fs_sqlite_exists)

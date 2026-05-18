@@ -420,7 +420,7 @@ pub struct SessionStartData {
     pub detached_from_spawning_parent_session_id: Option<String>,
     /// Identifier of the software producing the events (e.g., "copilot-agent")
     pub producer: String,
-    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
@@ -455,7 +455,7 @@ pub struct SessionResumeData {
     pub continue_pending_work: Option<bool>,
     /// Total number of persisted events in the session at the time of resume
     pub event_count: f64,
-    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
@@ -612,10 +612,10 @@ pub struct SessionModelChangeData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModeChangedData {
-    /// Agent mode after the change (e.g., "interactive", "plan", "autopilot")
-    pub new_mode: String,
-    /// Agent mode before the change (e.g., "interactive", "plan", "autopilot")
-    pub previous_mode: String,
+    /// The session mode the agent is operating in
+    pub new_mode: SessionMode,
+    /// The session mode the agent is operating in
+    pub previous_mode: SessionMode,
 }
 
 /// Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -1297,7 +1297,7 @@ pub struct AssistantUsageData {
     /// Per-quota resource usage snapshots, keyed by quota identifier
     #[serde(default)]
     pub quota_snapshots: HashMap<String, AssistantUsageQuotaSnapshot>,
-    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+    /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Number of output tokens used for reasoning (e.g., chain-of-thought)
@@ -2100,13 +2100,13 @@ pub struct PermissionPromptRequestUrl {
 pub struct PermissionPromptRequestMemory {
     /// Whether this is a store or vote memory operation
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub action: Option<PermissionPromptRequestMemoryAction>,
+    pub action: Option<PermissionRequestMemoryAction>,
     /// Source references for the stored fact (store only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<String>,
     /// Vote direction (vote only)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub direction: Option<PermissionPromptRequestMemoryDirection>,
+    pub direction: Option<PermissionRequestMemoryDirection>,
     /// The fact being stored or voted on
     pub fact: String,
     /// Prompt kind discriminator
@@ -2663,8 +2663,8 @@ pub struct AutoModeSwitchRequestedData {
 pub struct AutoModeSwitchCompletedData {
     /// Request ID of the resolved request; clients should dismiss any UI for this request
     pub request_id: RequestId,
-    /// The user's choice: 'yes', 'yes_always', or 'no'
-    pub response: String,
+    /// The user's auto-mode-switch choice
+    pub response: AutoModeSwitchResponse,
 }
 
 /// Schema for the `CommandsChangedCommand` type.
@@ -2708,12 +2708,12 @@ pub struct CapabilitiesChangedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExitPlanModeRequestedData {
-    /// Available actions the user can take (e.g., approve, edit, reject)
-    pub actions: Vec<String>,
+    /// Available actions the user can take
+    pub actions: Vec<ExitPlanModeAction>,
     /// Full content of the plan file
     pub plan_content: String,
-    /// The recommended action for the user to take
-    pub recommended_action: String,
+    /// Recommended action to preselect for the user
+    pub recommended_action: ExitPlanModeAction,
     /// Unique identifier for this request; used to respond via session.respondToExitPlanMode()
     pub request_id: RequestId,
     /// Summary of the plan that was created
@@ -2735,9 +2735,9 @@ pub struct ExitPlanModeCompletedData {
     pub feedback: Option<String>,
     /// Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request
     pub request_id: RequestId,
-    /// Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only')
+    /// Action selected by the user
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub selected_action: Option<String>,
+    pub selected_action: Option<ExitPlanModeAction>,
 }
 
 /// Session event "session.tools_updated".
@@ -2766,8 +2766,8 @@ pub struct SkillsLoadedSkill {
     /// Absolute path to the skill file, if available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
-    /// Source location type of the skill (e.g., project, personal, plugin)
-    pub source: String,
+    /// Source location type (e.g., project, personal-copilot, plugin, builtin)
+    pub source: SkillSource,
     /// Whether the skill can be invoked by the user as a slash command
     pub user_invocable: bool,
 }
@@ -2826,9 +2826,9 @@ pub struct McpServersLoadedServer {
     pub name: String,
     /// Configuration source: user, workspace, plugin, or builtin
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
+    pub source: Option<McpServerSource>,
     /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-    pub status: McpServersLoadedServerStatus,
+    pub status: McpServerStatus,
 }
 
 /// Session event "session.mcp_servers_loaded".
@@ -2845,8 +2845,8 @@ pub struct SessionMcpServersLoadedData {
 pub struct SessionMcpServerStatusChangedData {
     /// Name of the MCP server whose status changed
     pub server_name: String,
-    /// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-    pub status: McpServerStatusChangedStatus,
+    /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+    pub status: McpServerStatus,
 }
 
 /// Schema for the `ExtensionsLoadedExtension` type.
@@ -2893,6 +2893,21 @@ pub enum ReasoningSummary {
     Concise,
     #[serde(rename = "detailed")]
     Detailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The session mode the agent is operating in
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionMode {
+    #[serde(rename = "interactive")]
+    Interactive,
+    #[serde(rename = "plan")]
+    Plan,
+    #[serde(rename = "autopilot")]
+    Autopilot,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -3286,32 +3301,6 @@ pub enum PermissionPromptRequestUrlKind {
     Url,
 }
 
-/// Whether this is a store or vote memory operation
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionPromptRequestMemoryAction {
-    #[serde(rename = "store")]
-    Store,
-    #[serde(rename = "vote")]
-    Vote,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Vote direction (vote only)
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionPromptRequestMemoryDirection {
-    #[serde(rename = "upvote")]
-    Upvote,
-    #[serde(rename = "downvote")]
-    Downvote,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Prompt kind discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionPromptRequestMemoryKind {
@@ -3603,30 +3592,81 @@ pub enum McpOauthRequiredStaticClientConfigGrantType {
     ClientCredentials,
 }
 
-/// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+/// The user's auto-mode-switch choice
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServersLoadedServerStatus {
-    #[serde(rename = "connected")]
-    Connected,
-    #[serde(rename = "failed")]
-    Failed,
-    #[serde(rename = "needs-auth")]
-    NeedsAuth,
-    #[serde(rename = "pending")]
-    Pending,
-    #[serde(rename = "disabled")]
-    Disabled,
-    #[serde(rename = "not_configured")]
-    NotConfigured,
+pub enum AutoModeSwitchResponse {
+    #[serde(rename = "yes")]
+    Yes,
+    #[serde(rename = "yes_always")]
+    YesAlways,
+    #[serde(rename = "no")]
+    No,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
     Unknown,
 }
 
-/// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+/// Exit plan mode action
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServerStatusChangedStatus {
+pub enum ExitPlanModeAction {
+    #[serde(rename = "exit_only")]
+    ExitOnly,
+    #[serde(rename = "interactive")]
+    Interactive,
+    #[serde(rename = "autopilot")]
+    Autopilot,
+    #[serde(rename = "autopilot_fleet")]
+    AutopilotFleet,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Source location type (e.g., project, personal-copilot, plugin, builtin)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillSource {
+    #[serde(rename = "project")]
+    Project,
+    #[serde(rename = "inherited")]
+    Inherited,
+    #[serde(rename = "personal-copilot")]
+    PersonalCopilot,
+    #[serde(rename = "personal-agents")]
+    PersonalAgents,
+    #[serde(rename = "plugin")]
+    Plugin,
+    #[serde(rename = "custom")]
+    Custom,
+    #[serde(rename = "builtin")]
+    Builtin,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Configuration source: user, workspace, plugin, or builtin
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerSource {
+    #[serde(rename = "user")]
+    User,
+    #[serde(rename = "workspace")]
+    Workspace,
+    #[serde(rename = "plugin")]
+    Plugin,
+    #[serde(rename = "builtin")]
+    Builtin,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerStatus {
     #[serde(rename = "connected")]
     Connected,
     #[serde(rename = "failed")]

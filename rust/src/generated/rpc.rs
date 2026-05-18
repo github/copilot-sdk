@@ -1419,7 +1419,7 @@ impl<'a> SessionRpcMode<'a> {
     ///
     /// # Returns
     ///
-    /// The agent mode. Valid values: "interactive", "plan", "autopilot".
+    /// The session mode the agent is operating in
     pub async fn get(&self) -> Result<SessionMode, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self

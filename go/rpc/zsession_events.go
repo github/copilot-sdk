@@ -147,10 +147,10 @@ func (*AssistantIntentData) Type() SessionEventType { return SessionEventTypeAss
 
 // Agent mode change details including previous and new modes
 type SessionModeChangedData struct {
-	// Agent mode after the change (e.g., "interactive", "plan", "autopilot")
-	NewMode string `json:"newMode"`
-	// Agent mode before the change (e.g., "interactive", "plan", "autopilot")
-	PreviousMode string `json:"previousMode"`
+	// The session mode the agent is operating in
+	NewMode SessionMode `json:"newMode"`
+	// The session mode the agent is operating in
+	PreviousMode SessionMode `json:"previousMode"`
 }
 
 func (*SessionModeChangedData) sessionEventData()      {}
@@ -209,8 +209,8 @@ func (*AssistantMessageData) Type() SessionEventType { return SessionEventTypeAs
 type AutoModeSwitchCompletedData struct {
 	// Request ID of the resolved request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
-	// The user's choice: 'yes', 'yes_always', or 'no'
-	Response string `json:"response"`
+	// The user's auto-mode-switch choice
+	Response AutoModeSwitchResponse `json:"response"`
 }
 
 func (*AutoModeSwitchCompletedData) sessionEventData() {}
@@ -552,7 +552,7 @@ type AssistantUsageData struct {
 	ProviderCallID *string `json:"providerCallId,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
 	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitempty"`
-	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
 	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
@@ -677,12 +677,12 @@ func (*PermissionRequestedData) Type() SessionEventType { return SessionEventTyp
 
 // Plan approval request with plan content and available user actions
 type ExitPlanModeRequestedData struct {
-	// Available actions the user can take (e.g., approve, edit, reject)
-	Actions []string `json:"actions"`
+	// Available actions the user can take
+	Actions []ExitPlanModeAction `json:"actions"`
 	// Full content of the plan file
 	PlanContent string `json:"planContent"`
-	// The recommended action for the user to take
-	RecommendedAction string `json:"recommendedAction"`
+	// Recommended action to preselect for the user
+	RecommendedAction ExitPlanModeAction `json:"recommendedAction"`
 	// Unique identifier for this request; used to respond via session.respondToExitPlanMode()
 	RequestID string `json:"requestId"`
 	// Summary of the plan that was created
@@ -713,8 +713,8 @@ type ExitPlanModeCompletedData struct {
 	Feedback *string `json:"feedback,omitempty"`
 	// Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
-	// Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only')
-	SelectedAction *string `json:"selectedAction,omitempty"`
+	// Action selected by the user
+	SelectedAction *ExitPlanModeAction `json:"selectedAction,omitempty"`
 }
 
 func (*ExitPlanModeCompletedData) sessionEventData() {}
@@ -857,8 +857,8 @@ func (*SessionExtensionsLoadedData) Type() SessionEventType {
 type SessionMcpServerStatusChangedData struct {
 	// Name of the MCP server whose status changed
 	ServerName string `json:"serverName"`
-	// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status McpServerStatusChangedStatus `json:"status"`
+	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	Status McpServerStatus `json:"status"`
 }
 
 func (*SessionMcpServerStatusChangedData) sessionEventData() {}
@@ -964,7 +964,7 @@ type SessionStartData struct {
 	DetachedFromSpawningParentSessionID *string `json:"detachedFromSpawningParentSessionId,omitempty"`
 	// Identifier of the software producing the events (e.g., "copilot-agent")
 	Producer string `json:"producer"`
-	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
@@ -993,7 +993,7 @@ type SessionResumeData struct {
 	ContinuePendingWork *bool `json:"continuePendingWork,omitempty"`
 	// Total number of persisted events in the session at the time of resume
 	EventCount float64 `json:"eventCount"`
-	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
@@ -1659,9 +1659,9 @@ type McpServersLoadedServer struct {
 	// Server name (config key)
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
-	Source *string `json:"source,omitempty"`
+	Source *McpServerSource `json:"source,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status McpServersLoadedServerStatus `json:"status"`
+	Status McpServerStatus `json:"status"`
 }
 
 // Derived user-facing permission prompt details for UI consumers
@@ -1787,11 +1787,11 @@ func (PermissionPromptRequestMcp) Kind() PermissionPromptRequestKind {
 // Memory operation permission prompt
 type PermissionPromptRequestMemory struct {
 	// Whether this is a store or vote memory operation
-	Action *PermissionPromptRequestMemoryAction `json:"action,omitempty"`
+	Action *PermissionRequestMemoryAction `json:"action,omitempty"`
 	// Source references for the stored fact (store only)
 	Citations *string `json:"citations,omitempty"`
 	// Vote direction (vote only)
-	Direction *PermissionPromptRequestMemoryDirection `json:"direction,omitempty"`
+	Direction *PermissionRequestMemoryDirection `json:"direction,omitempty"`
 	// The fact being stored or voted on
 	Fact string `json:"fact"`
 	// Reason for the vote (vote only)
@@ -2282,8 +2282,8 @@ type SkillsLoadedSkill struct {
 	Name string `json:"name"`
 	// Absolute path to the skill file, if available
 	Path *string `json:"path,omitempty"`
-	// Source location type of the skill (e.g., project, personal, plugin)
-	Source string `json:"source"`
+	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`
 }
@@ -2820,6 +2820,15 @@ const (
 	AssistantUsageAPIEndpointWsResponses     AssistantUsageAPIEndpoint = "ws:/responses"
 )
 
+// The user's auto-mode-switch choice
+type AutoModeSwitchResponse string
+
+const (
+	AutoModeSwitchResponseNo        AutoModeSwitchResponse = "no"
+	AutoModeSwitchResponseYes       AutoModeSwitchResponse = "yes"
+	AutoModeSwitchResponseYesAlways AutoModeSwitchResponse = "yes_always"
+)
+
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 type ElicitationCompletedAction string
 
@@ -2842,6 +2851,16 @@ type ElicitationRequestedSchemaType string
 
 const (
 	ElicitationRequestedSchemaTypeObject ElicitationRequestedSchemaType = "object"
+)
+
+// Exit plan mode action
+type ExitPlanModeAction string
+
+const (
+	ExitPlanModeActionAutopilot      ExitPlanModeAction = "autopilot"
+	ExitPlanModeActionAutopilotFleet ExitPlanModeAction = "autopilot_fleet"
+	ExitPlanModeActionExitOnly       ExitPlanModeAction = "exit_only"
+	ExitPlanModeActionInteractive    ExitPlanModeAction = "interactive"
 )
 
 // Discovery source
@@ -2877,30 +2896,6 @@ const (
 	McpOauthRequiredStaticClientConfigGrantTypeClientCredentials McpOauthRequiredStaticClientConfigGrantType = "client_credentials"
 )
 
-// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-type McpServersLoadedServerStatus string
-
-const (
-	McpServersLoadedServerStatusConnected     McpServersLoadedServerStatus = "connected"
-	McpServersLoadedServerStatusDisabled      McpServersLoadedServerStatus = "disabled"
-	McpServersLoadedServerStatusFailed        McpServersLoadedServerStatus = "failed"
-	McpServersLoadedServerStatusNeedsAuth     McpServersLoadedServerStatus = "needs-auth"
-	McpServersLoadedServerStatusNotConfigured McpServersLoadedServerStatus = "not_configured"
-	McpServersLoadedServerStatusPending       McpServersLoadedServerStatus = "pending"
-)
-
-// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-type McpServerStatusChangedStatus string
-
-const (
-	McpServerStatusChangedStatusConnected     McpServerStatusChangedStatus = "connected"
-	McpServerStatusChangedStatusDisabled      McpServerStatusChangedStatus = "disabled"
-	McpServerStatusChangedStatusFailed        McpServerStatusChangedStatus = "failed"
-	McpServerStatusChangedStatusNeedsAuth     McpServerStatusChangedStatus = "needs-auth"
-	McpServerStatusChangedStatusNotConfigured McpServerStatusChangedStatus = "not_configured"
-	McpServerStatusChangedStatusPending       McpServerStatusChangedStatus = "pending"
-)
-
 // Where the failed model call originated
 type ModelCallFailureSource string
 
@@ -2925,22 +2920,6 @@ const (
 	PermissionPromptRequestKindRead                      PermissionPromptRequestKind = "read"
 	PermissionPromptRequestKindURL                       PermissionPromptRequestKind = "url"
 	PermissionPromptRequestKindWrite                     PermissionPromptRequestKind = "write"
-)
-
-// Whether this is a store or vote memory operation
-type PermissionPromptRequestMemoryAction string
-
-const (
-	PermissionPromptRequestMemoryActionStore PermissionPromptRequestMemoryAction = "store"
-	PermissionPromptRequestMemoryActionVote  PermissionPromptRequestMemoryAction = "vote"
-)
-
-// Vote direction (vote only)
-type PermissionPromptRequestMemoryDirection string
-
-const (
-	PermissionPromptRequestMemoryDirectionDownvote PermissionPromptRequestMemoryDirection = "downvote"
-	PermissionPromptRequestMemoryDirectionUpvote   PermissionPromptRequestMemoryDirection = "upvote"
 )
 
 // Underlying permission kind that needs path approval

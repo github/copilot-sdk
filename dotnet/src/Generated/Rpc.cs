@@ -167,7 +167,7 @@ public sealed class ModelPolicy
 {
     /// <summary>Current policy state for this model.</summary>
     [JsonPropertyName("state")]
-    public string State { get; set; } = string.Empty;
+    public ModelPolicyState State { get; set; }
 
     /// <summary>Usage terms or conditions for this model.</summary>
     [JsonPropertyName("terms")]
@@ -273,7 +273,7 @@ internal sealed class ToolsListRequest
 /// <summary>Schema for the `AccountQuotaSnapshot` type.</summary>
 public sealed class AccountQuotaSnapshot
 {
-    /// <summary>Number of requests included in the entitlement.</summary>
+    /// <summary>Number of requests included in the entitlement, or -1 for unlimited entitlements.</summary>
     [JsonPropertyName("entitlementRequests")]
     public long EntitlementRequests { get; set; }
 
@@ -296,7 +296,7 @@ public sealed class AccountQuotaSnapshot
 
     /// <summary>Date when the quota resets (ISO 8601 string).</summary>
     [JsonPropertyName("resetDate")]
-    public string? ResetDate { get; set; }
+    public DateTimeOffset? ResetDate { get; set; }
 
     /// <summary>Whether usage is still permitted after quota exhaustion.</summary>
     [JsonPropertyName("usageAllowedWithExhaustedQuota")]
@@ -338,11 +338,11 @@ public sealed class DiscoveredMcpServer
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Configuration source.</summary>
+    /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonPropertyName("source")]
-    public DiscoveredMcpServerSource Source { get; set; }
+    public McpServerSource Source { get; set; } = null!;
 
-    /// <summary>Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio).</summary>
+    /// <summary>Server transport type: stdio, http, sse, or memory.</summary>
     [JsonPropertyName("type")]
     public DiscoveredMcpServerType? Type { get; set; }
 }
@@ -374,7 +374,7 @@ public sealed class McpConfigList
 /// <summary>MCP server name and configuration to add to user configuration.</summary>
 internal sealed class McpConfigAddRequest
 {
-    /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
+    /// <summary>MCP server configuration (stdio process or remote HTTP/SSE).</summary>
     [JsonPropertyName("config")]
     public object Config { get; set; } = null!;
 
@@ -389,7 +389,7 @@ internal sealed class McpConfigAddRequest
 /// <summary>MCP server name and replacement configuration to write to user configuration.</summary>
 internal sealed class McpConfigUpdateRequest
 {
-    /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
+    /// <summary>MCP server configuration (stdio process or remote HTTP/SSE).</summary>
     [JsonPropertyName("config")]
     public object Config { get; set; } = null!;
 
@@ -453,7 +453,7 @@ public sealed class ServerSkill
 
     /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
     [JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
+    public SkillSource Source { get; set; } = null!;
 
     /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
     [JsonPropertyName("userInvocable")]
@@ -496,9 +496,21 @@ public sealed class SessionFsSetProviderResult
     public bool Success { get; set; }
 }
 
+/// <summary>Optional capabilities declared by the provider.</summary>
+public sealed class SessionFsSetProviderCapabilities
+{
+    /// <summary>Whether the provider supports SQLite query/exists operations.</summary>
+    [JsonPropertyName("sqlite")]
+    public bool? Sqlite { get; set; }
+}
+
 /// <summary>Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.</summary>
 internal sealed class SessionFsSetProviderRequest
 {
+    /// <summary>Optional capabilities declared by the provider.</summary>
+    [JsonPropertyName("capabilities")]
+    public SessionFsSetProviderCapabilities? Capabilities { get; set; }
+
     /// <summary>Path conventions used by this filesystem.</summary>
     [JsonPropertyName("conventions")]
     public SessionFsSetProviderConventions Conventions { get; set; }
@@ -567,7 +579,7 @@ public sealed class ConnectedRemoteSessionMetadata
 
     /// <summary>Last session update time as an ISO 8601 string.</summary>
     [JsonPropertyName("modifiedTime")]
-    public string ModifiedTime { get; set; } = string.Empty;
+    public DateTimeOffset ModifiedTime { get; set; }
 
     /// <summary>Optional friendly session name.</summary>
     [JsonPropertyName("name")]
@@ -591,11 +603,11 @@ public sealed class ConnectedRemoteSessionMetadata
 
     /// <summary>Remote session staleness deadline as an ISO 8601 string.</summary>
     [JsonPropertyName("staleAt")]
-    public string? StaleAt { get; set; }
+    public DateTimeOffset? StaleAt { get; set; }
 
     /// <summary>Session start time as an ISO 8601 string.</summary>
     [JsonPropertyName("startTime")]
-    public string StartTime { get; set; } = string.Empty;
+    public DateTimeOffset StartTime { get; set; }
 
     /// <summary>Remote session state returned by the backing service.</summary>
     [JsonPropertyName("state")]
@@ -682,6 +694,8 @@ public sealed class SessionAuthStatus
     public string? CopilotPlan { get; set; }
 
     /// <summary>Authentication host URL.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("host")]
     public string? Host { get; set; }
 
@@ -830,9 +844,9 @@ internal sealed class SessionModeGetRequest
 /// <summary>Agent interaction mode to apply to the session.</summary>
 internal sealed class ModeSetRequest
 {
-    /// <summary>The agent mode. Valid values: "interactive", "plan", "autopilot".</summary>
+    /// <summary>The session mode the agent is operating in.</summary>
     [JsonPropertyName("mode")]
-    public SessionMode Mode { get; set; }
+    public SessionMode Mode { get; set; } = null!;
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1325,10 +1339,10 @@ public partial class TaskInfoAgent : TaskInfo
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
-    /// <summary>How the agent is currently being managed by the runtime.</summary>
+    /// <summary>Whether task execution is synchronously awaited or managed in the background.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("executionMode")]
-    public TaskAgentInfoExecutionMode? ExecutionMode { get; set; }
+    public TaskExecutionMode? ExecutionMode { get; set; }
 
     /// <summary>Unique task identifier.</summary>
     [JsonPropertyName("id")]
@@ -1364,7 +1378,7 @@ public partial class TaskInfoAgent : TaskInfo
 
     /// <summary>Current lifecycle status of the task.</summary>
     [JsonPropertyName("status")]
-    public required TaskAgentInfoStatus Status { get; set; }
+    public required TaskStatus Status { get; set; }
 
     /// <summary>Tool call ID associated with this agent task.</summary>
     [JsonPropertyName("toolCallId")]
@@ -1401,10 +1415,10 @@ public partial class TaskInfoShell : TaskInfo
     [JsonPropertyName("description")]
     public required string Description { get; set; }
 
-    /// <summary>Whether the shell command is currently sync-waited or background-managed.</summary>
+    /// <summary>Whether task execution is synchronously awaited or managed in the background.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("executionMode")]
-    public TaskShellInfoExecutionMode? ExecutionMode { get; set; }
+    public TaskExecutionMode? ExecutionMode { get; set; }
 
     /// <summary>Unique task identifier.</summary>
     [JsonPropertyName("id")]
@@ -1426,7 +1440,7 @@ public partial class TaskInfoShell : TaskInfo
 
     /// <summary>Current lifecycle status of the task.</summary>
     [JsonPropertyName("status")]
-    public required TaskShellInfoStatus Status { get; set; }
+    public required TaskStatus Status { get; set; }
 }
 
 /// <summary>Background tasks currently tracked by the session.</summary>
@@ -1566,9 +1580,9 @@ public sealed class Skill
     [JsonPropertyName("path")]
     public string? Path { get; set; }
 
-    /// <summary>Source location type (e.g., project, personal, plugin).</summary>
+    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
     [JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
+    public SkillSource Source { get; set; } = null!;
 
     /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
     [JsonPropertyName("userInvocable")]
@@ -1661,7 +1675,7 @@ public sealed class McpServer
 
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
-    public McpServerStatus Status { get; set; }
+    public McpServerStatus Status { get; set; } = null!;
 }
 
 /// <summary>MCP servers configured for the session, with their connection status.</summary>
@@ -1728,6 +1742,8 @@ internal sealed class SessionMcpReloadRequest
 public sealed class McpOauthLoginResult
 {
     /// <summary>URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("authorizationUrl")]
     public string? AuthorizationUrl { get; set; }
 }
@@ -2055,10 +2071,10 @@ public partial class SlashCommandInvocationResultAgentPrompt : SlashCommandInvoc
     [JsonPropertyName("displayPrompt")]
     public required string DisplayPrompt { get; set; }
 
-    /// <summary>Optional target session mode.</summary>
+    /// <summary>Optional target session mode for the agent prompt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("mode")]
-    public SlashCommandAgentPromptMode? Mode { get; set; }
+    public SessionMode? Mode { get; set; }
 
     /// <summary>Prompt to submit to the agent.</summary>
     [JsonPropertyName("prompt")]
@@ -2971,6 +2987,8 @@ public sealed class RemoteEnableResult
     public bool RemoteSteerable { get; set; }
 
     /// <summary>GitHub frontend URL for this session.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
 }
@@ -3253,6 +3271,67 @@ public sealed class SessionFsRenameRequest
     public string Src { get; set; } = string.Empty;
 }
 
+/// <summary>Query results including rows, columns, and rows affected, or a filesystem error if execution failed.</summary>
+public sealed class SessionFsSqliteQueryResult
+{
+    /// <summary>Column names from the result set.</summary>
+    [JsonPropertyName("columns")]
+    public IList<string> Columns { get => field ??= []; set; }
+
+    /// <summary>Describes a filesystem error.</summary>
+    [JsonPropertyName("error")]
+    public SessionFsError? Error { get; set; }
+
+    /// <summary>Last inserted row ID (for INSERT).</summary>
+    [JsonPropertyName("lastInsertRowid")]
+    public double? LastInsertRowid { get; set; }
+
+    /// <summary>For SELECT: array of row objects. For others: empty array.</summary>
+    [JsonPropertyName("rows")]
+    public IList<IDictionary<string, object>> Rows { get => field ??= []; set; }
+
+    /// <summary>Number of rows affected (for INSERT/UPDATE/DELETE).</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("rowsAffected")]
+    public long RowsAffected { get; set; }
+}
+
+/// <summary>SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.</summary>
+public sealed class SessionFsSqliteQueryRequest
+{
+    /// <summary>Optional named bind parameters.</summary>
+    [JsonPropertyName("params")]
+    public IDictionary<string, object>? Params { get; set; }
+
+    /// <summary>SQL query to execute.</summary>
+    [JsonPropertyName("query")]
+    public string Query { get; set; } = string.Empty;
+
+    /// <summary>How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected).</summary>
+    [JsonPropertyName("queryType")]
+    public SessionFsSqliteQueryType QueryType { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Indicates whether the per-session SQLite database already exists.</summary>
+public sealed class SessionFsSqliteExistsResult
+{
+    /// <summary>Whether the session database already exists.</summary>
+    [JsonPropertyName("exists")]
+    public bool Exists { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+public sealed class SessionFsSqliteExistsRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Model capability category for grouping in the model picker.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -3386,48 +3465,45 @@ public readonly struct ModelPickerPriceCategory : IEquatable<ModelPickerPriceCat
 }
 
 
-/// <summary>Configuration source.</summary>
+/// <summary>Current policy state for this model.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct DiscoveredMcpServerSource : IEquatable<DiscoveredMcpServerSource>
+public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="DiscoveredMcpServerSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="DiscoveredMcpServerSource"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="ModelPolicyState"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelPolicyState"/>.</param>
     [JsonConstructor]
-    public DiscoveredMcpServerSource(string value)
+    public ModelPolicyState(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="DiscoveredMcpServerSource"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="ModelPolicyState"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>user</c> value.</summary>
-    public static DiscoveredMcpServerSource User { get; } = new("user");
+    /// <summary>Gets the <c>enabled</c> value.</summary>
+    public static ModelPolicyState Enabled { get; } = new("enabled");
 
-    /// <summary>Gets the <c>workspace</c> value.</summary>
-    public static DiscoveredMcpServerSource Workspace { get; } = new("workspace");
+    /// <summary>Gets the <c>disabled</c> value.</summary>
+    public static ModelPolicyState Disabled { get; } = new("disabled");
 
-    /// <summary>Gets the <c>plugin</c> value.</summary>
-    public static DiscoveredMcpServerSource Plugin { get; } = new("plugin");
+    /// <summary>Gets the <c>unconfigured</c> value.</summary>
+    public static ModelPolicyState Unconfigured { get; } = new("unconfigured");
 
-    /// <summary>Gets the <c>builtin</c> value.</summary>
-    public static DiscoveredMcpServerSource Builtin { get; } = new("builtin");
+    /// <summary>Returns a value indicating whether two <see cref="ModelPolicyState"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelPolicyState left, ModelPolicyState right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerSource"/> instances are equivalent.</summary>
-    public static bool operator ==(DiscoveredMcpServerSource left, DiscoveredMcpServerSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(DiscoveredMcpServerSource left, DiscoveredMcpServerSource right) => !(left == right);
+    /// <summary>Returns a value indicating whether two <see cref="ModelPolicyState"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelPolicyState left, ModelPolicyState right) => !(left == right);
 
     /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is DiscoveredMcpServerSource other && Equals(other);
+    public override bool Equals(object? obj) => obj is ModelPolicyState other && Equals(other);
 
     /// <inheritdoc />
-    public bool Equals(DiscoveredMcpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public bool Equals(ModelPolicyState other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -3435,26 +3511,26 @@ public readonly struct DiscoveredMcpServerSource : IEquatable<DiscoveredMcpServe
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{DiscoveredMcpServerSource}"/> for serializing <see cref="DiscoveredMcpServerSource"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{ModelPolicyState}"/> for serializing <see cref="ModelPolicyState"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<DiscoveredMcpServerSource>
+    public sealed class Converter : JsonConverter<ModelPolicyState>
     {
         /// <inheritdoc />
-        public override DiscoveredMcpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override ModelPolicyState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, DiscoveredMcpServerSource value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, ModelPolicyState value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerSource));
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPolicyState));
         }
     }
 }
 
 
-/// <summary>Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio).</summary>
+/// <summary>Server transport type: stdio, http, sse, or memory.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerType>
@@ -3788,71 +3864,6 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 }
 
 
-/// <summary>The agent mode. Valid values: "interactive", "plan", "autopilot".</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SessionMode : IEquatable<SessionMode>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SessionMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SessionMode"/>.</param>
-    [JsonConstructor]
-    public SessionMode(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SessionMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>interactive</c> value.</summary>
-    public static SessionMode Interactive { get; } = new("interactive");
-
-    /// <summary>Gets the <c>plan</c> value.</summary>
-    public static SessionMode Plan { get; } = new("plan");
-
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
-    public static SessionMode Autopilot { get; } = new("autopilot");
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are equivalent.</summary>
-    public static bool operator ==(SessionMode left, SessionMode right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(SessionMode left, SessionMode right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SessionMode other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SessionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SessionMode}"/> for serializing <see cref="SessionMode"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SessionMode>
-    {
-        /// <inheritdoc />
-        public override SessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SessionMode value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMode));
-        }
-    }
-}
-
-
 /// <summary>Defines the allowed values.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -4054,42 +4065,42 @@ public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesT
 }
 
 
-/// <summary>How the agent is currently being managed by the runtime.</summary>
+/// <summary>Whether task execution is synchronously awaited or managed in the background.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct TaskAgentInfoExecutionMode : IEquatable<TaskAgentInfoExecutionMode>
+public readonly struct TaskExecutionMode : IEquatable<TaskExecutionMode>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="TaskAgentInfoExecutionMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="TaskAgentInfoExecutionMode"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="TaskExecutionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskExecutionMode"/>.</param>
     [JsonConstructor]
-    public TaskAgentInfoExecutionMode(string value)
+    public TaskExecutionMode(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="TaskAgentInfoExecutionMode"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="TaskExecutionMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>sync</c> value.</summary>
-    public static TaskAgentInfoExecutionMode Sync { get; } = new("sync");
+    public static TaskExecutionMode Sync { get; } = new("sync");
 
     /// <summary>Gets the <c>background</c> value.</summary>
-    public static TaskAgentInfoExecutionMode Background { get; } = new("background");
+    public static TaskExecutionMode Background { get; } = new("background");
 
-    /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoExecutionMode"/> instances are equivalent.</summary>
-    public static bool operator ==(TaskAgentInfoExecutionMode left, TaskAgentInfoExecutionMode right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="TaskExecutionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskExecutionMode left, TaskExecutionMode right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoExecutionMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(TaskAgentInfoExecutionMode left, TaskAgentInfoExecutionMode right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is TaskAgentInfoExecutionMode other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="TaskExecutionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskExecutionMode left, TaskExecutionMode right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(TaskAgentInfoExecutionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is TaskExecutionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskExecutionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -4097,20 +4108,20 @@ public readonly struct TaskAgentInfoExecutionMode : IEquatable<TaskAgentInfoExec
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{TaskAgentInfoExecutionMode}"/> for serializing <see cref="TaskAgentInfoExecutionMode"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{TaskExecutionMode}"/> for serializing <see cref="TaskExecutionMode"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<TaskAgentInfoExecutionMode>
+    public sealed class Converter : JsonConverter<TaskExecutionMode>
     {
         /// <inheritdoc />
-        public override TaskAgentInfoExecutionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override TaskExecutionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, TaskAgentInfoExecutionMode value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, TaskExecutionMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskAgentInfoExecutionMode));
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskExecutionMode));
         }
     }
 }
@@ -4119,48 +4130,48 @@ public readonly struct TaskAgentInfoExecutionMode : IEquatable<TaskAgentInfoExec
 /// <summary>Current lifecycle status of the task.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct TaskAgentInfoStatus : IEquatable<TaskAgentInfoStatus>
+public readonly struct TaskStatus : IEquatable<TaskStatus>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="TaskAgentInfoStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="TaskAgentInfoStatus"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="TaskStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskStatus"/>.</param>
     [JsonConstructor]
-    public TaskAgentInfoStatus(string value)
+    public TaskStatus(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="TaskAgentInfoStatus"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="TaskStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>Gets the <c>running</c> value.</summary>
-    public static TaskAgentInfoStatus Running { get; } = new("running");
+    public static TaskStatus Running { get; } = new("running");
 
     /// <summary>Gets the <c>idle</c> value.</summary>
-    public static TaskAgentInfoStatus Idle { get; } = new("idle");
+    public static TaskStatus Idle { get; } = new("idle");
 
     /// <summary>Gets the <c>completed</c> value.</summary>
-    public static TaskAgentInfoStatus Completed { get; } = new("completed");
+    public static TaskStatus Completed { get; } = new("completed");
 
     /// <summary>Gets the <c>failed</c> value.</summary>
-    public static TaskAgentInfoStatus Failed { get; } = new("failed");
+    public static TaskStatus Failed { get; } = new("failed");
 
     /// <summary>Gets the <c>cancelled</c> value.</summary>
-    public static TaskAgentInfoStatus Cancelled { get; } = new("cancelled");
+    public static TaskStatus Cancelled { get; } = new("cancelled");
 
-    /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(TaskAgentInfoStatus left, TaskAgentInfoStatus right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="TaskStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskStatus left, TaskStatus right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="TaskAgentInfoStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(TaskAgentInfoStatus left, TaskAgentInfoStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is TaskAgentInfoStatus other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="TaskStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskStatus left, TaskStatus right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(TaskAgentInfoStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is TaskStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -4168,20 +4179,20 @@ public readonly struct TaskAgentInfoStatus : IEquatable<TaskAgentInfoStatus>
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{TaskAgentInfoStatus}"/> for serializing <see cref="TaskAgentInfoStatus"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{TaskStatus}"/> for serializing <see cref="TaskStatus"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<TaskAgentInfoStatus>
+    public sealed class Converter : JsonConverter<TaskStatus>
     {
         /// <inheritdoc />
-        public override TaskAgentInfoStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override TaskStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, TaskAgentInfoStatus value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, TaskStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskAgentInfoStatus));
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskStatus));
         }
     }
 }
@@ -4244,281 +4255,6 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
         public override void Write(Utf8JsonWriter writer, TaskShellInfoAttachmentMode value, JsonSerializerOptions options)
         {
             GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoAttachmentMode));
-        }
-    }
-}
-
-
-/// <summary>Whether the shell command is currently sync-waited or background-managed.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct TaskShellInfoExecutionMode : IEquatable<TaskShellInfoExecutionMode>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="TaskShellInfoExecutionMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="TaskShellInfoExecutionMode"/>.</param>
-    [JsonConstructor]
-    public TaskShellInfoExecutionMode(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="TaskShellInfoExecutionMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>sync</c> value.</summary>
-    public static TaskShellInfoExecutionMode Sync { get; } = new("sync");
-
-    /// <summary>Gets the <c>background</c> value.</summary>
-    public static TaskShellInfoExecutionMode Background { get; } = new("background");
-
-    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoExecutionMode"/> instances are equivalent.</summary>
-    public static bool operator ==(TaskShellInfoExecutionMode left, TaskShellInfoExecutionMode right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoExecutionMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(TaskShellInfoExecutionMode left, TaskShellInfoExecutionMode right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is TaskShellInfoExecutionMode other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(TaskShellInfoExecutionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{TaskShellInfoExecutionMode}"/> for serializing <see cref="TaskShellInfoExecutionMode"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<TaskShellInfoExecutionMode>
-    {
-        /// <inheritdoc />
-        public override TaskShellInfoExecutionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, TaskShellInfoExecutionMode value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoExecutionMode));
-        }
-    }
-}
-
-
-/// <summary>Current lifecycle status of the task.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct TaskShellInfoStatus : IEquatable<TaskShellInfoStatus>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="TaskShellInfoStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="TaskShellInfoStatus"/>.</param>
-    [JsonConstructor]
-    public TaskShellInfoStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="TaskShellInfoStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>running</c> value.</summary>
-    public static TaskShellInfoStatus Running { get; } = new("running");
-
-    /// <summary>Gets the <c>idle</c> value.</summary>
-    public static TaskShellInfoStatus Idle { get; } = new("idle");
-
-    /// <summary>Gets the <c>completed</c> value.</summary>
-    public static TaskShellInfoStatus Completed { get; } = new("completed");
-
-    /// <summary>Gets the <c>failed</c> value.</summary>
-    public static TaskShellInfoStatus Failed { get; } = new("failed");
-
-    /// <summary>Gets the <c>cancelled</c> value.</summary>
-    public static TaskShellInfoStatus Cancelled { get; } = new("cancelled");
-
-    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(TaskShellInfoStatus left, TaskShellInfoStatus right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(TaskShellInfoStatus left, TaskShellInfoStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is TaskShellInfoStatus other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(TaskShellInfoStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{TaskShellInfoStatus}"/> for serializing <see cref="TaskShellInfoStatus"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<TaskShellInfoStatus>
-    {
-        /// <inheritdoc />
-        public override TaskShellInfoStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, TaskShellInfoStatus value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoStatus));
-        }
-    }
-}
-
-
-/// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct McpServerSource : IEquatable<McpServerSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="McpServerSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="McpServerSource"/>.</param>
-    [JsonConstructor]
-    public McpServerSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>user</c> value.</summary>
-    public static McpServerSource User { get; } = new("user");
-
-    /// <summary>Gets the <c>workspace</c> value.</summary>
-    public static McpServerSource Workspace { get; } = new("workspace");
-
-    /// <summary>Gets the <c>plugin</c> value.</summary>
-    public static McpServerSource Plugin { get; } = new("plugin");
-
-    /// <summary>Gets the <c>builtin</c> value.</summary>
-    public static McpServerSource Builtin { get; } = new("builtin");
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
-    public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(McpServerSource left, McpServerSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is McpServerSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(McpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{McpServerSource}"/> for serializing <see cref="McpServerSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<McpServerSource>
-    {
-        /// <inheritdoc />
-        public override McpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, McpServerSource value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
-        }
-    }
-}
-
-
-/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct McpServerStatus : IEquatable<McpServerStatus>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="McpServerStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="McpServerStatus"/>.</param>
-    [JsonConstructor]
-    public McpServerStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="McpServerStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>connected</c> value.</summary>
-    public static McpServerStatus Connected { get; } = new("connected");
-
-    /// <summary>Gets the <c>failed</c> value.</summary>
-    public static McpServerStatus Failed { get; } = new("failed");
-
-    /// <summary>Gets the <c>needs-auth</c> value.</summary>
-    public static McpServerStatus NeedsAuth { get; } = new("needs-auth");
-
-    /// <summary>Gets the <c>pending</c> value.</summary>
-    public static McpServerStatus Pending { get; } = new("pending");
-
-    /// <summary>Gets the <c>disabled</c> value.</summary>
-    public static McpServerStatus Disabled { get; } = new("disabled");
-
-    /// <summary>Gets the <c>not_configured</c> value.</summary>
-    public static McpServerStatus NotConfigured { get; } = new("not_configured");
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(McpServerStatus left, McpServerStatus right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(McpServerStatus left, McpServerStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is McpServerStatus other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(McpServerStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{McpServerStatus}"/> for serializing <see cref="McpServerStatus"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<McpServerStatus>
-    {
-        /// <inheritdoc />
-        public override McpServerStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, McpServerStatus value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerStatus));
         }
     }
 }
@@ -4773,71 +4509,6 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
         public override void Write(Utf8JsonWriter writer, SlashCommandKind value, JsonSerializerOptions options)
         {
             GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandKind));
-        }
-    }
-}
-
-
-/// <summary>Optional target session mode.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SlashCommandAgentPromptMode : IEquatable<SlashCommandAgentPromptMode>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SlashCommandAgentPromptMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SlashCommandAgentPromptMode"/>.</param>
-    [JsonConstructor]
-    public SlashCommandAgentPromptMode(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SlashCommandAgentPromptMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>interactive</c> value.</summary>
-    public static SlashCommandAgentPromptMode Interactive { get; } = new("interactive");
-
-    /// <summary>Gets the <c>plan</c> value.</summary>
-    public static SlashCommandAgentPromptMode Plan { get; } = new("plan");
-
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
-    public static SlashCommandAgentPromptMode Autopilot { get; } = new("autopilot");
-
-    /// <summary>Returns a value indicating whether two <see cref="SlashCommandAgentPromptMode"/> instances are equivalent.</summary>
-    public static bool operator ==(SlashCommandAgentPromptMode left, SlashCommandAgentPromptMode right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SlashCommandAgentPromptMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(SlashCommandAgentPromptMode left, SlashCommandAgentPromptMode right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SlashCommandAgentPromptMode other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SlashCommandAgentPromptMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SlashCommandAgentPromptMode}"/> for serializing <see cref="SlashCommandAgentPromptMode"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SlashCommandAgentPromptMode>
-    {
-        /// <inheritdoc />
-        public override SlashCommandAgentPromptMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SlashCommandAgentPromptMode value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandAgentPromptMode));
         }
     }
 }
@@ -5162,6 +4833,71 @@ public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFs
 }
 
 
+/// <summary>How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected).</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionFsSqliteQueryType : IEquatable<SessionFsSqliteQueryType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionFsSqliteQueryType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionFsSqliteQueryType"/>.</param>
+    [JsonConstructor]
+    public SessionFsSqliteQueryType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionFsSqliteQueryType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>exec</c> value.</summary>
+    public static SessionFsSqliteQueryType Exec { get; } = new("exec");
+
+    /// <summary>Gets the <c>query</c> value.</summary>
+    public static SessionFsSqliteQueryType Query { get; } = new("query");
+
+    /// <summary>Gets the <c>run</c> value.</summary>
+    public static SessionFsSqliteQueryType Run { get; } = new("run");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionFsSqliteQueryType"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionFsSqliteQueryType left, SessionFsSqliteQueryType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionFsSqliteQueryType"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionFsSqliteQueryType left, SessionFsSqliteQueryType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionFsSqliteQueryType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionFsSqliteQueryType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionFsSqliteQueryType}"/> for serializing <see cref="SessionFsSqliteQueryType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionFsSqliteQueryType>
+    {
+        /// <inheritdoc />
+        public override SessionFsSqliteQueryType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionFsSqliteQueryType value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSqliteQueryType));
+        }
+    }
+}
+
+
 /// <summary>Provides server-scoped RPC methods (no session required).</summary>
 public sealed class ServerRpc
 {
@@ -5329,7 +5065,7 @@ public sealed class ServerMcpConfigApi
 
     /// <summary>Adds an MCP server to user configuration.</summary>
     /// <param name="name">Unique name for the MCP server.</param>
-    /// <param name="config">MCP server configuration (local/stdio or remote/http).</param>
+    /// <param name="config">MCP server configuration (stdio process or remote HTTP/SSE).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task AddAsync(string name, object config, CancellationToken cancellationToken = default)
     {
@@ -5339,7 +5075,7 @@ public sealed class ServerMcpConfigApi
 
     /// <summary>Updates an MCP server in user configuration.</summary>
     /// <param name="name">Name of the MCP server to update.</param>
-    /// <param name="config">MCP server configuration (local/stdio or remote/http).</param>
+    /// <param name="config">MCP server configuration (stdio process or remote HTTP/SSE).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task UpdateAsync(string name, object config, CancellationToken cancellationToken = default)
     {
@@ -5435,11 +5171,12 @@ public sealed class ServerSessionFsApi
     /// <param name="initialCwd">Initial working directory for sessions.</param>
     /// <param name="sessionStatePath">Path within each session's SessionFs where the runtime stores files for that session.</param>
     /// <param name="conventions">Path conventions used by this filesystem.</param>
+    /// <param name="capabilities">Optional capabilities declared by the provider.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the calling client was registered as the session filesystem provider.</returns>
-    public async Task<SessionFsSetProviderResult> SetProviderAsync(string initialCwd, string sessionStatePath, SessionFsSetProviderConventions conventions, CancellationToken cancellationToken = default)
+    public async Task<SessionFsSetProviderResult> SetProviderAsync(string initialCwd, string sessionStatePath, SessionFsSetProviderConventions conventions, SessionFsSetProviderCapabilities? capabilities = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions };
+        var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions, Capabilities = capabilities };
         return await CopilotClient.InvokeRpcAsync<SessionFsSetProviderResult>(_rpc, "sessionFs.setProvider", [request], cancellationToken);
     }
 }
@@ -5671,7 +5408,7 @@ public sealed class ModeApi
 
     /// <summary>Gets the current agent interaction mode.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The agent mode. Valid values: "interactive", "plan", "autopilot".</returns>
+    /// <returns>The session mode the agent is operating in.</returns>
     public async Task<SessionMode> GetAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionModeGetRequest { SessionId = _sessionId };
@@ -5679,7 +5416,7 @@ public sealed class ModeApi
     }
 
     /// <summary>Sets the current agent interaction mode.</summary>
-    /// <param name="mode">The agent mode. Valid values: "interactive", "plan", "autopilot".</param>
+    /// <param name="mode">The session mode the agent is operating in.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetAsync(SessionMode mode, CancellationToken cancellationToken = default)
     {
@@ -6531,6 +6268,16 @@ public interface ISessionFsHandler
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Describes a filesystem error.</returns>
     Task<SessionFsError?> RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Executes a SQLite query against the per-session database.</summary>
+    /// <param name="request">SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Query results including rows, columns, and rows affected, or a filesystem error if execution failed.</returns>
+    Task<SessionFsSqliteQueryResult> SqliteQueryAsync(SessionFsSqliteQueryRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Checks whether the per-session SQLite database already exists, without creating it.</summary>
+    /// <param name="request">Identifies the target session.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the per-session SQLite database already exists.</returns>
+    Task<SessionFsSqliteExistsResult> SqliteExistsAsync(SessionFsSqliteExistsRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -6610,6 +6357,18 @@ internal static class ClientSessionApiRegistration
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.RenameAsync(request, cancellationToken);
         }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.sqliteQuery", (Func<SessionFsSqliteQueryRequest, CancellationToken, ValueTask<SessionFsSqliteQueryResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            return await handler.SqliteQueryAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("sessionFs.sqliteExists", (Func<SessionFsSqliteExistsRequest, CancellationToken, ValueTask<SessionFsSqliteExistsResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            return await handler.SqliteExistsAsync(request, cancellationToken);
+        }), singleObjectParam: true);
     }
 }
 
@@ -6624,7 +6383,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(GitHub.Copilot.SDK.EmbeddedBlobResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedBlobResourceContents")]
 [JsonSerializable(typeof(GitHub.Copilot.SDK.EmbeddedTextResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedTextResourceContents")]
+[JsonSerializable(typeof(GitHub.Copilot.SDK.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
+[JsonSerializable(typeof(GitHub.Copilot.SDK.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.SDK.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
+[JsonSerializable(typeof(GitHub.Copilot.SDK.SessionMode), TypeInfoPropertyName = "SessionEventsSessionMode")]
+[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillSource), TypeInfoPropertyName = "SessionEventsSkillSource")]
 [JsonSerializable(typeof(AccountGetQuotaRequest))]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]
@@ -6741,8 +6504,13 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionFsReaddirWithTypesResult))]
 [JsonSerializable(typeof(SessionFsRenameRequest))]
 [JsonSerializable(typeof(SessionFsRmRequest))]
+[JsonSerializable(typeof(SessionFsSetProviderCapabilities))]
 [JsonSerializable(typeof(SessionFsSetProviderRequest))]
 [JsonSerializable(typeof(SessionFsSetProviderResult))]
+[JsonSerializable(typeof(SessionFsSqliteExistsRequest))]
+[JsonSerializable(typeof(SessionFsSqliteExistsResult))]
+[JsonSerializable(typeof(SessionFsSqliteQueryRequest))]
+[JsonSerializable(typeof(SessionFsSqliteQueryResult))]
 [JsonSerializable(typeof(SessionFsStatRequest))]
 [JsonSerializable(typeof(SessionFsStatResult))]
 [JsonSerializable(typeof(SessionFsWriteFileRequest))]

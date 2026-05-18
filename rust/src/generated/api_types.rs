@@ -6,7 +6,9 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::session_events::ReasoningSummary;
+use super::session_events::{
+    McpServerSource, McpServerStatus, ReasoningSummary, SessionMode, SkillSource,
+};
 use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
@@ -188,6 +190,10 @@ pub mod rpc_methods {
     pub const SESSIONFS_RM: &str = "sessionFs.rm";
     /// `sessionFs.rename`
     pub const SESSIONFS_RENAME: &str = "sessionFs.rename";
+    /// `sessionFs.sqliteQuery`
+    pub const SESSIONFS_SQLITEQUERY: &str = "sessionFs.sqliteQuery";
+    /// `sessionFs.sqliteExists`
+    pub const SESSIONFS_SQLITEEXISTS: &str = "sessionFs.sqliteExists";
 }
 
 /// Optional GitHub token used to look up quota for a specific user instead of the global auth context.
@@ -203,7 +209,7 @@ pub struct AccountGetQuotaRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountQuotaSnapshot {
-    /// Number of requests included in the entitlement
+    /// Number of requests included in the entitlement, or -1 for unlimited entitlements
     pub entitlement_requests: i64,
     /// Whether the user has an unlimited usage entitlement
     pub is_unlimited_entitlement: bool,
@@ -488,9 +494,9 @@ pub struct DiscoveredMcpServer {
     pub enabled: bool,
     /// Server name (config key)
     pub name: String,
-    /// Configuration source
-    pub source: DiscoveredMcpServerSource,
-    /// Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+    /// Configuration source: user, workspace, plugin, or builtin
+    pub source: McpServerSource,
+    /// Server transport type: stdio, http, sse, or memory
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<DiscoveredMcpServerType>,
 }
@@ -536,10 +542,28 @@ pub struct ExtensionsEnableRequest {
     pub id: String,
 }
 
+/// Binary result returned by a tool for the model
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmBinaryResultsForLlm {
+    /// Base64-encoded binary data
+    pub data: String,
+    /// Human-readable description of the binary data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// MIME type of the binary data
+    pub mime_type: String,
+    /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+    pub r#type: ExternalToolTextResultForLlmBinaryResultsForLlmType,
+}
+
 /// Expanded external tool result payload
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalToolTextResultForLlm {
+    /// Base64-encoded binary results returned to the model
+    #[serde(default)]
+    pub binary_results_for_llm: Vec<ExternalToolTextResultForLlmBinaryResultsForLlm>,
     /// Structured content blocks from the tool
     #[serde(default)]
     pub contents: Vec<serde_json::Value>,
@@ -815,7 +839,7 @@ pub struct LogResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigAddRequest {
-    /// MCP server configuration (local/stdio or remote/http)
+    /// MCP server configuration (stdio process or remote HTTP/SSE)
     pub config: serde_json::Value,
     /// Unique name for the MCP server
     pub name: String,
@@ -857,7 +881,7 @@ pub struct McpConfigRemoveRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigUpdateRequest {
-    /// MCP server configuration (local/stdio or remote/http)
+    /// MCP server configuration (stdio process or remote HTTP/SSE)
     pub config: serde_json::Value,
     /// Name of the MCP server to update
     pub name: String,
@@ -938,10 +962,22 @@ pub struct McpServer {
     pub status: McpServerStatus,
 }
 
+/// Additional authentication configuration for this server.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerConfigHttpAuth {
+    /// Fixed port for the OAuth redirect callback server.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirect_port: Option<i64>,
+}
+
 /// Remote MCP server configuration accessed over HTTP or SSE.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerConfigHttp {
+    /// Additional authentication configuration for this server.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<McpServerConfigHttpAuth>,
     /// Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter_mapping: Option<serde_json::Value>,
@@ -973,18 +1009,19 @@ pub struct McpServerConfigHttp {
     pub url: String,
 }
 
-/// Local MCP server configuration launched as a child process.
+/// Stdio MCP server configuration launched as a child process.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct McpServerConfigLocal {
-    /// Command-line arguments passed to the local MCP server process.
+pub struct McpServerConfigStdio {
+    /// Command-line arguments passed to the Stdio MCP server process.
+    #[serde(default)]
     pub args: Vec<String>,
-    /// Executable command used to start the local MCP server process.
+    /// Executable command used to start the Stdio MCP server process.
     pub command: String,
-    /// Working directory for the local MCP server process.
+    /// Working directory for the Stdio MCP server process.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
-    /// Environment variables to pass to the local MCP server process.
+    /// Environment variables to pass to the Stdio MCP server process.
     #[serde(default)]
     pub env: HashMap<String, String>,
     /// Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
@@ -999,9 +1036,6 @@ pub struct McpServerConfigLocal {
     /// Tools to include. Defaults to all tools if not specified.
     #[serde(default)]
     pub tools: Vec<String>,
-    /// Local transport type. Defaults to "local".
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<McpServerConfigLocalType>,
 }
 
 /// MCP servers configured for the session, with their connection status.
@@ -1107,7 +1141,7 @@ pub struct ModelCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct ModelPolicy {
     /// Current policy state for this model
-    pub state: String,
+    pub state: ModelPolicyState,
     /// Usage terms or conditions for this model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terms: Option<String>,
@@ -1253,7 +1287,7 @@ pub struct ModelSwitchToResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModeSetRequest {
-    /// The agent mode. Valid values: "interactive", "plan", "autopilot".
+    /// The session mode the agent is operating in
     pub mode: SessionMode,
 }
 
@@ -1687,7 +1721,7 @@ pub struct ServerSkill {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_path: Option<String>,
     /// Source location type (e.g., project, personal-copilot, plugin, builtin)
-    pub source: String,
+    pub source: SkillSource,
     /// Whether the skill can be invoked by the user as a slash command
     pub user_invocable: bool,
 }
@@ -1868,10 +1902,22 @@ pub struct SessionFsRmRequest {
     pub recursive: Option<bool>,
 }
 
+/// Optional capabilities declared by the provider
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFsSetProviderCapabilities {
+    /// Whether the provider supports SQLite query/exists operations
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sqlite: Option<bool>,
+}
+
 /// Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSetProviderRequest {
+    /// Optional capabilities declared by the provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<SessionFsSetProviderCapabilities>,
     /// Path conventions used by this filesystem
     pub conventions: SessionFsSetProviderConventions,
     /// Initial working directory for sessions
@@ -1886,6 +1932,45 @@ pub struct SessionFsSetProviderRequest {
 pub struct SessionFsSetProviderResult {
     /// Whether the provider was set successfully
     pub success: bool,
+}
+
+/// Indicates whether the per-session SQLite database already exists.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFsSqliteExistsResult {
+    /// Whether the session database already exists
+    pub exists: bool,
+}
+
+/// SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFsSqliteQueryRequest {
+    /// Optional named bind parameters
+    #[serde(default)]
+    pub params: HashMap<String, serde_json::Value>,
+    /// SQL query to execute
+    pub query: String,
+    /// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
+    pub query_type: SessionFsSqliteQueryType,
+}
+
+/// Query results including rows, columns, and rows affected, or a filesystem error if execution failed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFsSqliteQueryResult {
+    /// Column names from the result set
+    pub columns: Vec<String>,
+    /// Describes a filesystem error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<SessionFsError>,
+    /// Last inserted row ID (for INSERT)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_insert_rowid: Option<f64>,
+    /// For SELECT: array of row objects. For others: empty array.
+    pub rows: Vec<HashMap<String, serde_json::Value>>,
+    /// Number of rows affected (for INSERT/UPDATE/DELETE)
+    pub rows_affected: i64,
 }
 
 /// Path whose metadata should be returned from the client-provided session filesystem.
@@ -2007,8 +2092,8 @@ pub struct Skill {
     /// Absolute path to the skill file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
-    /// Source location type (e.g., project, personal, plugin)
-    pub source: String,
+    /// Source location type (e.g., project, personal-copilot, plugin, builtin)
+    pub source: SkillSource,
     /// Whether the skill can be invoked by the user as a slash command
     pub user_invocable: bool,
 }
@@ -2075,9 +2160,9 @@ pub struct SlashCommandAgentPromptResult {
     pub display_prompt: String,
     /// Agent prompt result discriminator
     pub kind: SlashCommandAgentPromptResultKind,
-    /// Optional target session mode
+    /// Optional target session mode for the agent prompt
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<SlashCommandAgentPromptMode>,
+    pub mode: Option<SessionMode>,
     /// Prompt to submit to the agent
     pub prompt: String,
     /// True when the invocation mutated user runtime settings; consumers caching settings should refresh
@@ -2141,9 +2226,9 @@ pub struct TaskAgentInfo {
     /// Error message when the task failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// How the agent is currently being managed by the runtime
+    /// Whether task execution is synchronously awaited or managed in the background
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution_mode: Option<TaskAgentInfoExecutionMode>,
+    pub execution_mode: Option<TaskExecutionMode>,
     /// Unique task identifier
     pub id: String,
     /// ISO 8601 timestamp when the agent entered idle state
@@ -2163,7 +2248,7 @@ pub struct TaskAgentInfo {
     /// ISO 8601 timestamp when the task was started
     pub started_at: String,
     /// Current lifecycle status of the task
-    pub status: TaskAgentInfoStatus,
+    pub status: TaskStatus,
     /// Tool call ID associated with this agent task
     pub tool_call_id: String,
     /// Task kind
@@ -2210,9 +2295,9 @@ pub struct TaskShellInfo {
     pub completed_at: Option<String>,
     /// Short description of the task
     pub description: String,
-    /// Whether the shell command is currently sync-waited or background-managed
+    /// Whether task execution is synchronously awaited or managed in the background
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution_mode: Option<TaskShellInfoExecutionMode>,
+    pub execution_mode: Option<TaskExecutionMode>,
     /// Unique task identifier
     pub id: String,
     /// Path to the detached shell log, when available
@@ -2224,7 +2309,7 @@ pub struct TaskShellInfo {
     /// ISO 8601 timestamp when the task was started
     pub started_at: String,
     /// Current lifecycle status of the task
-    pub status: TaskShellInfoStatus,
+    pub status: TaskStatus,
     /// Task kind
     pub r#type: TaskShellInfoType,
 }
@@ -3457,6 +3542,14 @@ pub struct SessionRemoteDisableParams {
     pub session_id: SessionId,
 }
 
+/// Identifies the target session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFsSqliteExistsParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
 /// Authentication type
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuthInfoType {
@@ -3519,24 +3612,22 @@ pub enum ConnectedRemoteSessionMetadataKind {
     Unknown,
 }
 
-/// Configuration source
+/// Controls how MCP tool result content is filtered: none leaves content unchanged, markdown sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes characters that can hide directives.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DiscoveredMcpServerSource {
-    #[serde(rename = "user")]
-    User,
-    #[serde(rename = "workspace")]
-    Workspace,
-    #[serde(rename = "plugin")]
-    Plugin,
-    #[serde(rename = "builtin")]
-    Builtin,
+pub enum ContentFilterMode {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "markdown")]
+    Markdown,
+    #[serde(rename = "hidden_characters")]
+    HiddenCharacters,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
     Unknown,
 }
 
-/// Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+/// Server transport type: stdio, http, sse, or memory
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiscoveredMcpServerType {
     #[serde(rename = "stdio")]
@@ -3577,6 +3668,19 @@ pub enum ExtensionStatus {
     Failed,
     #[serde(rename = "starting")]
     Starting,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmBinaryResultsForLlmType {
+    #[serde(rename = "image")]
+    Image,
+    #[serde(rename = "resource")]
+    Resource,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -3644,36 +3748,6 @@ pub enum ExternalToolTextResultForLlmContentTextType {
     Text,
 }
 
-/// Allowed values for the `FilterMappingString` enumeration.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FilterMappingString {
-    #[serde(rename = "none")]
-    None,
-    #[serde(rename = "markdown")]
-    Markdown,
-    #[serde(rename = "hidden_characters")]
-    HiddenCharacters,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Allowed values for the `FilterMappingValue` enumeration.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FilterMappingValue {
-    #[serde(rename = "none")]
-    None,
-    #[serde(rename = "markdown")]
-    Markdown,
-    #[serde(rename = "hidden_characters")]
-    HiddenCharacters,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Where this source lives — used for UI grouping
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InstructionsSourcesLocation {
@@ -3725,44 +3799,6 @@ pub enum SessionLogLevel {
     Unknown,
 }
 
-/// Configuration source: user, workspace, plugin, or builtin
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServerSource {
-    #[serde(rename = "user")]
-    User,
-    #[serde(rename = "workspace")]
-    Workspace,
-    #[serde(rename = "plugin")]
-    Plugin,
-    #[serde(rename = "builtin")]
-    Builtin,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServerStatus {
-    #[serde(rename = "connected")]
-    Connected,
-    #[serde(rename = "failed")]
-    Failed,
-    #[serde(rename = "needs-auth")]
-    NeedsAuth,
-    #[serde(rename = "pending")]
-    Pending,
-    #[serde(rename = "disabled")]
-    Disabled,
-    #[serde(rename = "not_configured")]
-    NotConfigured,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// OAuth grant type to use when authenticating to the remote MCP server.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerConfigHttpOauthGrantType {
@@ -3783,19 +3819,6 @@ pub enum McpServerConfigHttpType {
     Http,
     #[serde(rename = "sse")]
     Sse,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Local transport type. Defaults to "local".
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServerConfigLocalType {
-    #[serde(rename = "local")]
-    Local,
-    #[serde(rename = "stdio")]
-    Stdio,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -3834,15 +3857,15 @@ pub enum ModelPickerPriceCategory {
     Unknown,
 }
 
-/// The agent mode. Valid values: "interactive", "plan", "autopilot".
+/// Current policy state for this model
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SessionMode {
-    #[serde(rename = "interactive")]
-    Interactive,
-    #[serde(rename = "plan")]
-    Plan,
-    #[serde(rename = "autopilot")]
-    Autopilot,
+pub enum ModelPolicyState {
+    #[serde(rename = "enabled")]
+    Enabled,
+    #[serde(rename = "disabled")]
+    Disabled,
+    #[serde(rename = "unconfigured")]
+    Unconfigured,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -4137,27 +4160,27 @@ pub enum SessionFsSetProviderConventions {
     Unknown,
 }
 
-/// Signal to send (default: SIGTERM)
+/// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ShellKillSignal {
-    SIGTERM,
-    SIGKILL,
-    SIGINT,
+pub enum SessionFsSqliteQueryType {
+    #[serde(rename = "exec")]
+    Exec,
+    #[serde(rename = "query")]
+    Query,
+    #[serde(rename = "run")]
+    Run,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
     Unknown,
 }
 
-/// Optional target session mode
+/// Signal to send (default: SIGTERM)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SlashCommandAgentPromptMode {
-    #[serde(rename = "interactive")]
-    Interactive,
-    #[serde(rename = "plan")]
-    Plan,
-    #[serde(rename = "autopilot")]
-    Autopilot,
+pub enum ShellKillSignal {
+    SIGTERM,
+    SIGKILL,
+    SIGINT,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -4197,9 +4220,9 @@ pub enum SlashCommandInvocationResult {
     Completed(SlashCommandCompletedResult),
 }
 
-/// How the agent is currently being managed by the runtime
+/// Whether task execution is synchronously awaited or managed in the background
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskAgentInfoExecutionMode {
+pub enum TaskExecutionMode {
     #[serde(rename = "sync")]
     Sync,
     #[serde(rename = "background")]
@@ -4212,7 +4235,7 @@ pub enum TaskAgentInfoExecutionMode {
 
 /// Current lifecycle status of the task
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskAgentInfoStatus {
+pub enum TaskStatus {
     #[serde(rename = "running")]
     Running,
     #[serde(rename = "idle")]
@@ -4244,38 +4267,6 @@ pub enum TaskShellInfoAttachmentMode {
     Attached,
     #[serde(rename = "detached")]
     Detached,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Whether the shell command is currently sync-waited or background-managed
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskShellInfoExecutionMode {
-    #[serde(rename = "sync")]
-    Sync,
-    #[serde(rename = "background")]
-    Background,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Current lifecycle status of the task
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskShellInfoStatus {
-    #[serde(rename = "running")]
-    Running,
-    #[serde(rename = "idle")]
-    Idle,
-    #[serde(rename = "completed")]
-    Completed,
-    #[serde(rename = "failed")]
-    Failed,
-    #[serde(rename = "cancelled")]
-    Cancelled,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
