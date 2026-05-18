@@ -3541,10 +3541,7 @@ async fn add_secret_filter_values_sends_correct_rpc() {
         let client = client.clone();
         async move {
             client
-                .add_secret_filter_values(&[
-                    "secret1".to_string(),
-                    "secret2".to_string(),
-                ])
+                .add_secret_filter_values(&["secret1".to_string(), "secret2".to_string()])
                 .await
                 .unwrap()
         }
@@ -3580,5 +3577,8 @@ async fn add_secret_filter_values_skips_empty() {
         tokio::io::AsyncReadExt::read(&mut server_read, &mut buf),
     )
     .await;
-    assert!(result.is_err(), "Expected no data on the wire for empty values");
+    assert!(
+        result.is_err(),
+        "Expected no data on the wire for empty values"
+    );
 }

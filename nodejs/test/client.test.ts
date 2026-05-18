@@ -1606,10 +1606,14 @@ describe("CopilotClient", () => {
             await client.start();
             onTestFinished(() => client.forceStop());
 
-            const spy = vi.spyOn((client as any).connection!, "sendRequest").mockResolvedValue({ ok: true });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockResolvedValue({ ok: true });
             await client.addSecretFilterValues(["secret1", "secret2"]);
 
-            expect(spy).toHaveBeenCalledWith("secrets.addFilterValues", { values: ["secret1", "secret2"] });
+            expect(spy).toHaveBeenCalledWith("secrets.addFilterValues", {
+                values: ["secret1", "secret2"],
+            });
             spy.mockRestore();
         });
 
@@ -1628,7 +1632,9 @@ describe("CopilotClient", () => {
         it("throws when client is not connected", async () => {
             const client = new CopilotClient();
 
-            await expect(client.addSecretFilterValues(["secret"])).rejects.toThrow("Client not connected");
+            await expect(client.addSecretFilterValues(["secret"])).rejects.toThrow(
+                "Client not connected"
+            );
         });
     });
 });
