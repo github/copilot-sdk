@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System;
 using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 

@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Linq;
-using System.Text.Json;
 using GitHub.Copilot.SDK.Rpc;
 using GitHub.Copilot.SDK.Test.Harness;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 

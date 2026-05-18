@@ -5,7 +5,6 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using GitHub.Copilot.SDK.Rpc;
 using Xunit;
 
 namespace GitHub.Copilot.SDK.Test.Unit;

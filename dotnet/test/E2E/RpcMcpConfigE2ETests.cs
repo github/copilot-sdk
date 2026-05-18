@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Text.Json;
 using GitHub.Copilot.SDK.Rpc;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
