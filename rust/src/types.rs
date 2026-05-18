@@ -1052,6 +1052,23 @@ pub struct SessionConfig {
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
+    /// When `Some(true)`, requests on-demand discovery of custom instruction
+    /// files after the agent successfully reads or views files. Discovered
+    /// instruction files are treated as model instructions and may influence
+    /// agent behavior.
+    ///
+    /// Runtime-gated: only takes effect when custom instructions are enabled
+    /// and the connected runtime supports and enables on-demand custom
+    /// instruction discovery. Otherwise the runtime accepts the option but
+    /// performs no on-demand instruction discovery.
+    ///
+    /// Security: enable only for trusted repositories or workspaces.
+    /// Discovered instruction files may be stored or replayed with session
+    /// history. Do not enable for untrusted content, CI jobs processing
+    /// untrusted forks, or directories writable by untrusted users or
+    /// processes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_on_demand_instruction_discovery: Option<bool>,
     /// Enable the `ask_user` tool for interactive user input. Defaults to
     /// `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1203,6 +1220,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field(
+                "enable_on_demand_instruction_discovery",
+                &self.enable_on_demand_instruction_discovery,
+            )
             .field("request_user_input", &self.request_user_input)
             .field("request_permission", &self.request_permission)
             .field("request_exit_plan_mode", &self.request_exit_plan_mode)
@@ -1266,6 +1287,7 @@ impl Default for SessionConfig {
             mcp_servers: None,
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
+            enable_on_demand_instruction_discovery: None,
             request_user_input: Some(true),
             request_permission: Some(true),
             request_exit_plan_mode: Some(true),
@@ -1458,6 +1480,14 @@ impl SessionConfig {
     /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// Enable or disable on-demand discovery of custom instruction files.
+    /// See [`Self::enable_on_demand_instruction_discovery`] for details,
+    /// runtime gating, and security considerations.
+    pub fn with_enable_on_demand_instruction_discovery(mut self, enable: bool) -> Self {
+        self.enable_on_demand_instruction_discovery = Some(enable);
         self
     }
 
@@ -1662,6 +1692,15 @@ pub struct ResumeSessionConfig {
     /// Enable config discovery on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
+    /// When `Some(true)`, requests on-demand discovery of custom instruction
+    /// files after the agent successfully reads or views files on resume.
+    /// See [`SessionConfig::enable_on_demand_instruction_discovery`] for
+    /// runtime gating and security details.
+    ///
+    /// On resume, omitting this option leaves the existing session setting
+    /// unchanged; pass `Some(false)` to disable future on-demand discovery.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_on_demand_instruction_discovery: Option<bool>,
     /// Enable the ask_user tool.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_user_input: Option<bool>,
@@ -1785,6 +1824,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field(
+                "enable_on_demand_instruction_discovery",
+                &self.enable_on_demand_instruction_discovery,
+            )
             .field("request_user_input", &self.request_user_input)
             .field("request_permission", &self.request_permission)
             .field("request_exit_plan_mode", &self.request_exit_plan_mode)
@@ -1847,6 +1890,7 @@ impl ResumeSessionConfig {
             mcp_servers: None,
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
+            enable_on_demand_instruction_discovery: None,
             request_user_input: Some(true),
             request_permission: Some(true),
             request_exit_plan_mode: Some(true),
@@ -2010,6 +2054,16 @@ impl ResumeSessionConfig {
     /// Enable or disable CLI config discovery on resume.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// Enable or disable on-demand discovery of custom instruction files on
+    /// resume. See
+    /// [`SessionConfig::with_enable_on_demand_instruction_discovery`] for
+    /// details. On resume, omitting this leaves the existing session setting
+    /// unchanged; pass `false` to disable future on-demand discovery.
+    pub fn with_enable_on_demand_instruction_discovery(mut self, enable: bool) -> Self {
+        self.enable_on_demand_instruction_discovery = Some(enable);
         self
     }
 
@@ -3393,6 +3447,7 @@ mod tests {
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
             .with_enable_config_discovery(true)
+            .with_enable_on_demand_instruction_discovery(true)
             .with_request_user_input(false)
             .with_request_exit_plan_mode(false)
             .with_request_auto_mode_switch(false)
@@ -3421,6 +3476,7 @@ mod tests {
         );
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.enable_config_discovery, Some(true));
+        assert_eq!(cfg.enable_on_demand_instruction_discovery, Some(true));
         assert_eq!(cfg.request_user_input, Some(false)); // overrode default
         assert_eq!(cfg.request_permission, Some(true)); // default preserved
         assert_eq!(cfg.request_exit_plan_mode, Some(false));
@@ -3453,6 +3509,7 @@ mod tests {
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
             .with_enable_config_discovery(true)
+            .with_enable_on_demand_instruction_discovery(false)
             .with_request_user_input(false)
             .with_request_exit_plan_mode(false)
             .with_request_auto_mode_switch(false)
@@ -3481,6 +3538,7 @@ mod tests {
         );
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.enable_config_discovery, Some(true));
+        assert_eq!(cfg.enable_on_demand_instruction_discovery, Some(false));
         assert_eq!(cfg.request_user_input, Some(false)); // overrode default
         assert_eq!(cfg.request_permission, Some(true)); // default preserved
         assert_eq!(cfg.request_exit_plan_mode, Some(false));

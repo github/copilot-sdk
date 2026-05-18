@@ -2058,6 +2058,7 @@ public class SessionConfig
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        EnableOnDemandInstructionDiscovery = other.EnableOnDemandInstructionDiscovery;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -2137,6 +2138,25 @@ public class SessionConfig
     /// </para>
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, requests on-demand discovery of custom instruction
+    /// files after the agent successfully reads or views files. Discovered instruction
+    /// files are treated as model instructions and may influence agent behavior.
+    /// <para>
+    /// Runtime-gated: only takes effect when custom instructions are enabled and the
+    /// connected runtime supports and enables on-demand custom instruction discovery.
+    /// Otherwise the runtime accepts the option but performs no on-demand instruction
+    /// discovery.
+    /// </para>
+    /// <para>
+    /// Security: enable only for trusted repositories or workspaces. Discovered
+    /// instruction files may be stored or replayed with session history. Do not enable
+    /// for untrusted content, CI jobs processing untrusted forks, or directories
+    /// writable by untrusted users or processes.
+    /// </para>
+    /// </summary>
+    public bool? EnableOnDemandInstructionDiscovery { get; set; }
 
     /// <summary>
     /// Custom tool declarations available to the language model during the session.
@@ -2368,6 +2388,7 @@ public class ResumeSessionConfig
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         DisableResume = other.DisableResume;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        EnableOnDemandInstructionDiscovery = other.EnableOnDemandInstructionDiscovery;
         ContinuePendingWork = other.ContinuePendingWork;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
@@ -2527,6 +2548,17 @@ public class ResumeSessionConfig
     /// </para>
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, requests on-demand discovery of custom instruction
+    /// files after the agent successfully reads or views files. See
+    /// <see cref="SessionConfig.EnableOnDemandInstructionDiscovery"/> for details.
+    /// <para>
+    /// For resumed sessions, omitting this option leaves the existing session setting
+    /// unchanged; set <see langword="false"/> to disable future on-demand discovery.
+    /// </para>
+    /// </summary>
+    public bool? EnableOnDemandInstructionDiscovery { get; set; }
 
     /// <summary>
     /// When true, the session.resume event is not emitted.

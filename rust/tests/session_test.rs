@@ -2665,6 +2665,47 @@ fn resume_session_config_serializes_bucket_b_fields() {
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
 }
 
+#[test]
+fn session_config_serializes_enable_on_demand_instruction_discovery() {
+    use github_copilot_sdk::SessionConfig;
+
+    let mut cfg_true = SessionConfig::default();
+    cfg_true.enable_on_demand_instruction_discovery = Some(true);
+    let json_true = serde_json::to_value(&cfg_true).unwrap();
+    assert_eq!(json_true["enableOnDemandInstructionDiscovery"], true);
+
+    let mut cfg_false = SessionConfig::default();
+    cfg_false.enable_on_demand_instruction_discovery = Some(false);
+    let json_false = serde_json::to_value(&cfg_false).unwrap();
+    assert_eq!(json_false["enableOnDemandInstructionDiscovery"], false);
+
+    let empty = serde_json::to_value(SessionConfig::default()).unwrap();
+    assert!(empty.get("enableOnDemandInstructionDiscovery").is_none());
+}
+
+#[test]
+fn resume_session_config_serializes_enable_on_demand_instruction_discovery() {
+    use github_copilot_sdk::{ResumeSessionConfig, SessionId};
+
+    let mut cfg_true = ResumeSessionConfig::new(SessionId::from("sess-true"));
+    cfg_true.enable_on_demand_instruction_discovery = Some(true);
+    let json_true = serde_json::to_value(&cfg_true).unwrap();
+    assert_eq!(json_true["enableOnDemandInstructionDiscovery"], true);
+
+    let mut cfg_false = ResumeSessionConfig::new(SessionId::from("sess-false"));
+    cfg_false.enable_on_demand_instruction_discovery = Some(false);
+    let json_false = serde_json::to_value(&cfg_false).unwrap();
+    assert_eq!(json_false["enableOnDemandInstructionDiscovery"], false);
+
+    let empty = ResumeSessionConfig::new(SessionId::from("sess-omitted"));
+    let empty_json = serde_json::to_value(&empty).unwrap();
+    assert!(
+        empty_json
+            .get("enableOnDemandInstructionDiscovery")
+            .is_none()
+    );
+}
+
 // =====================================================================
 // Slash commands (§ 4.1)
 // =====================================================================

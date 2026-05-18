@@ -1339,6 +1339,28 @@ export interface SessionConfig {
     enableConfigDiscovery?: boolean;
 
     /**
+     * When true, requests on-demand discovery of custom instruction files after
+     * the agent successfully reads or views files. Discovered instruction files
+     * are treated as model instructions and may influence agent behavior.
+     *
+     * Runtime-gated: this only takes effect when custom instructions are enabled
+     * and the connected runtime supports and enables on-demand custom instruction
+     * discovery. Otherwise the runtime accepts the option but performs no
+     * on-demand instruction discovery.
+     *
+     * Security: enable only for trusted repositories or workspaces. Discovered
+     * instruction files may be stored or replayed with session history. Do not
+     * enable for untrusted content, CI jobs processing untrusted forks, or
+     * directories writable by untrusted users or processes.
+     *
+     * For resumed sessions, omitting this option leaves the existing session
+     * setting unchanged; pass `false` to disable future on-demand discovery.
+     *
+     * @default false
+     */
+    enableOnDemandInstructionDiscovery?: boolean;
+
+    /**
      * Tools exposed to the CLI server. Tools without a handler are declaration-only
      * and must be resolved by the consumer via pending external tool request RPCs.
      */
@@ -1569,6 +1591,7 @@ export type ResumeSessionConfig = Pick<
     | "workingDirectory"
     | "configDir"
     | "enableConfigDiscovery"
+    | "enableOnDemandInstructionDiscovery"
     | "mcpServers"
     | "customAgents"
     | "defaultAgent"

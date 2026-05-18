@@ -625,6 +625,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.EnableConfigDiscovery {
 		req.EnableConfigDiscovery = Bool(true)
 	}
+	req.EnableOnDemandInstructionDiscovery = config.EnableOnDemandInstructionDiscovery
 	req.Tools = config.Tools
 	wireSystemMessage, transformCallbacks := extractTransformCallbacks(config.SystemMessage)
 	req.SystemMessage = wireSystemMessage
@@ -831,6 +832,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.EnableConfigDiscovery {
 		req.EnableConfigDiscovery = Bool(true)
 	}
+	req.EnableOnDemandInstructionDiscovery = config.EnableOnDemandInstructionDiscovery
 	if config.DisableResume {
 		req.DisableResume = Bool(true)
 	}

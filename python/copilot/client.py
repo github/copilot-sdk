@@ -1345,6 +1345,7 @@ class CopilotClient:
         agent: str | None = None,
         config_dir: str | None = None,
         enable_config_discovery: bool | None = None,
+        enable_on_demand_instruction_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
@@ -1415,6 +1416,17 @@ class CopilotClient:
                 explicit values taking precedence on name collision. Custom instruction
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
+            enable_on_demand_instruction_discovery: When True, requests on-demand
+                discovery of custom instruction files after the agent successfully
+                reads or views files. Discovered instruction files are treated as
+                model instructions and may influence agent behavior. Runtime-gated:
+                only takes effect when custom instructions are enabled and the
+                connected runtime supports and enables on-demand custom instruction
+                discovery. Enable only for trusted repositories or workspaces;
+                discovered instruction files may be stored or replayed with session
+                history. For resumed sessions, omitting this option leaves the
+                existing session setting unchanged; pass False to disable future
+                on-demand discovery.
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.
@@ -1573,6 +1585,10 @@ class CopilotClient:
         if enable_config_discovery is not None:
             payload["enableConfigDiscovery"] = enable_config_discovery
 
+        # Add on-demand instruction discovery flag if provided
+        if enable_on_demand_instruction_discovery is not None:
+            payload["enableOnDemandInstructionDiscovery"] = enable_on_demand_instruction_discovery
+
         # Add skill directories configuration if provided
         if skill_directories:
             payload["skillDirectories"] = skill_directories
@@ -1716,6 +1732,7 @@ class CopilotClient:
         agent: str | None = None,
         config_dir: str | None = None,
         enable_config_discovery: bool | None = None,
+        enable_on_demand_instruction_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
@@ -1786,6 +1803,17 @@ class CopilotClient:
                 explicit values taking precedence on name collision. Custom instruction
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
+            enable_on_demand_instruction_discovery: When True, requests on-demand
+                discovery of custom instruction files after the agent successfully
+                reads or views files. Discovered instruction files are treated as
+                model instructions and may influence agent behavior. Runtime-gated:
+                only takes effect when custom instructions are enabled and the
+                connected runtime supports and enables on-demand custom instruction
+                discovery. Enable only for trusted repositories or workspaces;
+                discovered instruction files may be stored or replayed with session
+                history. For resumed sessions, omitting this option leaves the
+                existing session setting unchanged; pass False to disable future
+                on-demand discovery.
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.
@@ -1907,6 +1935,8 @@ class CopilotClient:
             payload["configDir"] = config_dir
         if enable_config_discovery is not None:
             payload["enableConfigDiscovery"] = enable_config_discovery
+        if enable_on_demand_instruction_discovery is not None:
+            payload["enableOnDemandInstructionDiscovery"] = enable_on_demand_instruction_discovery
 
         if continue_pending_work is not None:
             payload["continuePendingWork"] = continue_pending_work

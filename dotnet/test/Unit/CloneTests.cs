@@ -92,6 +92,7 @@ public class CloneTests
             WorkingDirectory = "/workspace",
             Streaming = true,
             EnableSessionTelemetry = false,
+            EnableOnDemandInstructionDiscovery = true,
             IncludeSubAgentStreamingEvents = false,
             McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5" }],
@@ -125,6 +126,7 @@ public class CloneTests
         Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
         Assert.Equal(original.Streaming, clone.Streaming);
         Assert.Equal(original.EnableSessionTelemetry, clone.EnableSessionTelemetry);
+        Assert.Equal(original.EnableOnDemandInstructionDiscovery, clone.EnableOnDemandInstructionDiscovery);
         Assert.Equal(original.IncludeSubAgentStreamingEvents, clone.IncludeSubAgentStreamingEvents);
         Assert.Equal(original.McpServers.Count, clone.McpServers!.Count);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
@@ -402,5 +404,51 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Null(clone.EnableSessionTelemetry);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesEnableOnDemandInstructionDiscovery()
+    {
+        var original = new SessionConfig
+        {
+            EnableOnDemandInstructionDiscovery = false,
+        };
+
+        var clone = original.Clone();
+
+        Assert.False(clone.EnableOnDemandInstructionDiscovery);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesEnableOnDemandInstructionDiscovery()
+    {
+        var original = new ResumeSessionConfig
+        {
+            EnableOnDemandInstructionDiscovery = true,
+        };
+
+        var clone = original.Clone();
+
+        Assert.True(clone.EnableOnDemandInstructionDiscovery);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_PreservesEnableOnDemandInstructionDiscoveryDefault()
+    {
+        var original = new SessionConfig();
+
+        var clone = original.Clone();
+
+        Assert.Null(clone.EnableOnDemandInstructionDiscovery);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_PreservesEnableOnDemandInstructionDiscoveryDefault()
+    {
+        var original = new ResumeSessionConfig();
+
+        var clone = original.Clone();
+
+        Assert.Null(clone.EnableOnDemandInstructionDiscovery);
     }
 }

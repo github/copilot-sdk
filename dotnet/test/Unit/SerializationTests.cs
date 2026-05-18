@@ -204,6 +204,60 @@ public class SerializationTests
     }
 
     [Fact]
+    public void CreateSessionRequest_CanSerializeEnableOnDemandInstructionDiscovery_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+
+        var requestTrue = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableOnDemandInstructionDiscovery", true));
+        var rootTrue = JsonDocument.Parse(JsonSerializer.Serialize(requestTrue, requestType, options)).RootElement;
+        Assert.True(rootTrue.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+
+        var requestFalse = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableOnDemandInstructionDiscovery", false));
+        var rootFalse = JsonDocument.Parse(JsonSerializer.Serialize(requestFalse, requestType, options)).RootElement;
+        Assert.False(rootFalse.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+
+        var requestOmitted = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"));
+        var rootOmitted = JsonDocument.Parse(JsonSerializer.Serialize(requestOmitted, requestType, options)).RootElement;
+        Assert.False(rootOmitted.TryGetProperty("enableOnDemandInstructionDiscovery", out _));
+    }
+
+    [Fact]
+    public void ResumeSessionRequest_CanSerializeEnableOnDemandInstructionDiscovery_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+
+        var requestTrue = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableOnDemandInstructionDiscovery", true));
+        var rootTrue = JsonDocument.Parse(JsonSerializer.Serialize(requestTrue, requestType, options)).RootElement;
+        Assert.True(rootTrue.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+
+        var requestFalse = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableOnDemandInstructionDiscovery", false));
+        var rootFalse = JsonDocument.Parse(JsonSerializer.Serialize(requestFalse, requestType, options)).RootElement;
+        Assert.False(rootFalse.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+
+        var requestOmitted = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"));
+        var rootOmitted = JsonDocument.Parse(JsonSerializer.Serialize(requestOmitted, requestType, options)).RootElement;
+        Assert.False(rootOmitted.TryGetProperty("enableOnDemandInstructionDiscovery", out _));
+    }
+
+    [Fact]
     public void ResumeSessionRequest_CanSerializeModeRequestFlags_WithSdkOptions()
     {
         var options = GetSerializerOptions();

@@ -1318,6 +1318,100 @@ func TestResumeSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_EnableOnDemandInstructionDiscovery(t *testing.T) {
+	t.Run("forwards explicit true", func(t *testing.T) {
+		req := createSessionRequest{
+			EnableOnDemandInstructionDiscovery: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableOnDemandInstructionDiscovery"] != true {
+			t.Errorf("Expected enableOnDemandInstructionDiscovery to be true, got %v", m["enableOnDemandInstructionDiscovery"])
+		}
+	})
+
+	t.Run("preserves explicit false", func(t *testing.T) {
+		req := createSessionRequest{
+			EnableOnDemandInstructionDiscovery: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableOnDemandInstructionDiscovery"] != false {
+			t.Errorf("Expected enableOnDemandInstructionDiscovery to be false, got %v", m["enableOnDemandInstructionDiscovery"])
+		}
+	})
+
+	t.Run("omits enableOnDemandInstructionDiscovery when not set", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableOnDemandInstructionDiscovery"]; ok {
+			t.Error("Expected enableOnDemandInstructionDiscovery to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_EnableOnDemandInstructionDiscovery(t *testing.T) {
+	t.Run("forwards explicit true", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:                          "s1",
+			EnableOnDemandInstructionDiscovery: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableOnDemandInstructionDiscovery"] != true {
+			t.Errorf("Expected enableOnDemandInstructionDiscovery to be true, got %v", m["enableOnDemandInstructionDiscovery"])
+		}
+	})
+
+	t.Run("preserves explicit false", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:                          "s1",
+			EnableOnDemandInstructionDiscovery: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableOnDemandInstructionDiscovery"] != false {
+			t.Errorf("Expected enableOnDemandInstructionDiscovery to be false, got %v", m["enableOnDemandInstructionDiscovery"])
+		}
+	})
+
+	t.Run("omits enableOnDemandInstructionDiscovery when not set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableOnDemandInstructionDiscovery"]; ok {
+			t.Error("Expected enableOnDemandInstructionDiscovery to be omitted when not set")
+		}
+	})
+}
+
 func TestCreateSessionResponse_Capabilities(t *testing.T) {
 	t.Run("reads capabilities from session.create response", func(t *testing.T) {
 		responseJSON := `{"sessionId":"s1","workspacePath":"/tmp","capabilities":{"ui":{"elicitation":true}}}`
