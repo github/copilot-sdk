@@ -44,9 +44,9 @@
    - `scripts/codegen/` → merge `java.ts` into `copilot-sdk-00/scripts/codegen/`
    - `CHANGELOG.md`, `README.md`, `jbang-example.java`
    - `.lastmerge` → `java/.lastmerge`
-   - `.githooks/` → `java/.githooks/`
+   - ~~`.githooks/` → `java/.githooks/`~~
    - `docs/adr/` → `java/docs/adr/`
-   - `instructions/copilot-sdk-java.instructions.md` → `.github/skills/java-coding-skill/SKILL.md` (follows the `rust-coding-skill` pattern); Java repo governance merged into `.github/copilot-instructions.md`
+   - ~~`instructions/copilot-sdk-java.instructions.md` → `.github/skills/java-coding-skill/SKILL.md` (follows the `rust-coding-skill` pattern); Java repo governance merged into `.github/copilot-instructions.md`~~
 
 2. Update `pom.xml` paths if needed (should be self-contained under `java/`).
 

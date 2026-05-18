@@ -4,13 +4,14 @@
 
 ## Big picture 🔧
 
-- The repo implements language SDKs (Node/TS, Python, Go, .NET) that speak to the **Copilot CLI** via **JSON‑RPC** (see `README.md` and `nodejs/src/client.ts`).
-- Typical flow: your App → SDK client → JSON-RPC → Copilot CLI (server mode). The CLI must be installed or you can connect to an external CLI server via the `CLI URL option (language-specific casing)` (Node: `cliUrl`, Go: `CLIUrl`, .NET: `CliUrl`, Python: `cli_url`).
+- The repo implements language SDKs (Node/TS, Python, Go, .NET, Java) that speak to the **Copilot CLI** via **JSON‑RPC** (see `README.md` and `nodejs/src/client.ts`).
+- Typical flow: your App → SDK client → JSON-RPC → Copilot CLI (server mode). The CLI must be installed or you can connect to an external CLI server via the `CLI URL option (language-specific casing)` (Node: `cliUrl`, Go: `CLIUrl`, .NET: `CliUrl`, Python: `cli_url`, Java: `cliUrl`).
 
 ## Most important files to read first 📚
 
 - Top-level: `README.md` (architecture + quick start)
 - Language entry points: `nodejs/src/client.ts`, `python/README.md`, `go/README.md`, `dotnet/README.md`
+- Java: `java/README.md`, `java/pom.xml`
 - Test harness & E2E: `test/harness/*`, Python harness wrapper `python/e2e/testharness/proxy.py`
 - Schemas & type generation: `nodejs/scripts/generate-session-types.ts`
 - Session snapshots used by E2E: `test/snapshots/` (used by the replay proxy)
@@ -26,12 +27,15 @@
   - Go: `cd go && go test ./...`
   - .NET: `cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj`
   - **.NET testing note:** Never add `InternalsVisibleTo` to any project file when writing tests. Tests must only access public APIs.
+  - Java: `cd java && mvn clean verify` (full build + tests), `mvn spotless:apply` (format code before commit)
+  - **Java testing note:** Always use `mvn verify` without `-q` and without piping through `grep`. Never add `InternalsVisibleTo` equivalent — tests must only access public APIs.
 
 ## Testing & E2E tips ⚙️
 
 - E2E runs against a local **replaying CAPI proxy** (see `test/harness/server.ts`). Most language E2E harnesses spawn that server automatically (see `python/e2e/testharness/proxy.py`).
 - Tests rely on YAML snapshot exchanges under `test/snapshots/` — to add test scenarios, add or edit the appropriate YAML files and update tests.
 - The harness prints `Listening: http://...` — tests parse this URL to configure CLI or proxy.
+- Java E2E tests use `E2ETestContext` which manages a `CapiProxy` (Node.js replaying proxy). The harness is cloned during Maven's `generate-test-resources` phase to `java/target/copilot-sdk/`.
 
 ## Project-specific conventions & patterns ✅
 
@@ -42,13 +46,14 @@
 
 ## Integration & environment notes ⚠️
 
-- The SDK requires a Copilot CLI installation or an external server reachable via the `CLI URL option (language-specific casing)` (Node: `cliUrl`, Go: `CLIUrl`, .NET: `CliUrl`, Python: `cli_url`) or `COPILOT_CLI_PATH`.
+- The SDK requires a Copilot CLI installation or an external server reachable via the `CLI URL option (language-specific casing)` (Node: `cliUrl`, Go: `CLIUrl`, .NET: `CliUrl`, Python: `cli_url`, Java: `cliUrl`) or `COPILOT_CLI_PATH`.
 - Some scripts (typegen, formatting) call external tools: `gofmt`, `dotnet format`, `tsx` (available via npm), `quicktype`/`quicktype-core` (used by the Node typegen script), and `prettier` (provided as an npm devDependency). Most of these are available through the repo's package scripts or devDependencies—run `just install` (and `cd nodejs && npm ci`) to install them. Ensure the required tools are available in CI / developer machines.
 - Tests may assume `node >= 18`, `python >= 3.9`, platform differences handled (Windows uses `shell=True` for npx in harness).
+- Java requires JDK 17+ and Maven 3.9+. Java E2E tests also require Node.js (for the replay proxy).
 
 ## Where to add new code or tests 🧭
 
-- SDK code: `nodejs/src`, `python/copilot`, `go`, `dotnet/src`, `rust/src`
-- Unit tests: `nodejs/test`, `python/*`, `go/*`, `dotnet/test`, `rust/tests`
-- E2E tests: `*/e2e/` folders that use the shared replay proxy and `test/snapshots/`
-- Generated types: update schema in `@github/copilot` then run `cd nodejs && npm run generate:session-types` and commit generated files in `src/generated` or language generated location.
+- SDK code: `nodejs/src`, `python/copilot`, `go`, `dotnet/src`, `rust/src`, `java/src/main/java`
+- Unit tests: `nodejs/test`, `python/*`, `go/*`, `dotnet/test`, `rust/tests`, `java/src/test/java`
+- E2E tests: `*/e2e/` folders that use the shared replay proxy and `test/snapshots/`, `java/src/test/java/**/e2e/`
+- Generated types: update schema in `@github/copilot` then run `cd nodejs && npm run generate:session-types` and commit generated files in `src/generated` or language generated location. Java generated types: `java/src/generated/java`
