@@ -16,6 +16,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PostToolUseHookInput {
 
+    @JsonProperty("sessionId")
+    private String sessionId;
+
     @JsonProperty("timestamp")
     private long timestamp;
 
@@ -30,6 +33,27 @@ public class PostToolUseHookInput {
 
     @JsonProperty("toolResult")
     private JsonNode toolResult;
+
+    /**
+     * Gets the runtime session ID of the session that triggered the hook.
+     *
+     * @return the session ID
+     */
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    /**
+     * Sets the runtime session ID of the session that triggered the hook.
+     *
+     * @param sessionId
+     *            the session ID
+     * @return this instance for method chaining
+     */
+    public PostToolUseHookInput setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+        return this;
+    }
 
     /**
      * Gets the timestamp of the hook invocation.

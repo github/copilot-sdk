@@ -13,6 +13,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * This hook is invoked when the user submits a prompt, allowing you to
  * intercept and modify the prompt before it is processed.
  *
+ * @param sessionId
+ *            the runtime session ID of the session that triggered the hook
  * @param timestamp
  *            the timestamp in milliseconds since epoch when the prompt was
  *            submitted
@@ -23,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.0.7
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record UserPromptSubmittedHookInput(@JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
+public record UserPromptSubmittedHookInput(@JsonProperty("sessionId") String sessionId,
+        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
         @JsonProperty("prompt") String prompt) {
 }

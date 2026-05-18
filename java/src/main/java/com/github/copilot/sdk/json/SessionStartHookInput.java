@@ -13,6 +13,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * This hook is invoked when a session starts, allowing you to perform
  * initialization or modify the session configuration.
  *
+ * @param sessionId
+ *            the runtime session ID of the session that triggered the hook
  * @param timestamp
  *            the timestamp in milliseconds since epoch when the session started
  * @param cwd
@@ -24,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.0.7
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionStartHookInput(@JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
+public record SessionStartHookInput(@JsonProperty("sessionId") String sessionId,
+        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
         @JsonProperty("source") String source, @JsonProperty("initialPrompt") String initialPrompt) {
 }

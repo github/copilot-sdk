@@ -127,6 +127,9 @@ public final class CreateSessionRequest {
     @JsonProperty("remoteSession")
     private String remoteSession;
 
+    @JsonProperty("cloud")
+    private CloudSessionOptions cloud;
+
     /** Gets the model name. @return the model */
     public String getModel() {
         return model;
@@ -542,5 +545,15 @@ public final class CreateSessionRequest {
      */
     public void setRemoteSession(String remoteSession) {
         this.remoteSession = remoteSession;
+    }
+
+    /** Gets the cloud session options. @return the cloud session options */
+    public CloudSessionOptions getCloud() {
+        return cloud;
+    }
+
+    /** Sets the cloud session options. @param cloud the cloud session options */
+    public void setCloud(CloudSessionOptions cloud) {
+        this.cloud = cloud;
     }
 }

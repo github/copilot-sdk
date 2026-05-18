@@ -13,6 +13,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * This hook is invoked when a session ends, allowing you to perform cleanup or
  * logging.
  *
+ * @param sessionId
+ *            the runtime session ID of the session that triggered the hook
  * @param timestamp
  *            the timestamp in milliseconds since epoch when the session ended
  * @param cwd
@@ -27,7 +29,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.0.7
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionEndHookInput(@JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
+public record SessionEndHookInput(@JsonProperty("sessionId") String sessionId,
+        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
         @JsonProperty("reason") String reason, @JsonProperty("finalMessage") String finalMessage,
         @JsonProperty("error") String error) {
 }

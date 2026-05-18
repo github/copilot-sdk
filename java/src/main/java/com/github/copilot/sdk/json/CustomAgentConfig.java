@@ -60,6 +60,9 @@ public class CustomAgentConfig {
     @JsonProperty("skills")
     private List<String> skills;
 
+    @JsonProperty("model")
+    private String model;
+
     /**
      * Gets the unique identifier name for this agent.
      *
@@ -253,6 +256,30 @@ public class CustomAgentConfig {
      */
     public CustomAgentConfig setSkills(List<String> skills) {
         this.skills = skills;
+        return this;
+    }
+
+    /**
+     * Gets the model identifier for this agent.
+     *
+     * @return the model identifier, or {@code null} if not set
+     */
+    public String getModel() {
+        return model;
+    }
+
+    /**
+     * Sets the model identifier for this agent.
+     * <p>
+     * When set, the runtime will attempt to use this model for the agent, falling
+     * back to the parent session model if unavailable.
+     *
+     * @param model
+     *            the model identifier (e.g., "claude-haiku-4.5")
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setModel(String model) {
+        this.model = model;
         return this;
     }
 }

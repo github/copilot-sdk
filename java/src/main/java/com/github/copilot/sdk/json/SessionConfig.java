@@ -72,6 +72,7 @@ public class SessionConfig {
     private AutoModeSwitchHandler onAutoModeSwitch;
     private String gitHubToken;
     private String remoteSession;
+    private CloudSessionOptions cloud;
 
     /**
      * Gets the custom session ID.
@@ -980,6 +981,35 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the cloud session options.
+     * <p>
+     * When set, creates a remote session in the cloud instead of a local session.
+     * The optional repository is associated with the cloud session.
+     *
+     * @return the cloud session options, or {@code null} if not set
+     * @since 1.5.0
+     */
+    public CloudSessionOptions getCloud() {
+        return cloud;
+    }
+
+    /**
+     * Sets the cloud session options.
+     * <p>
+     * When set, creates a remote session in the cloud instead of a local session.
+     * The optional repository is associated with the cloud session.
+     *
+     * @param cloud
+     *            the cloud session options
+     * @return this config instance for method chaining
+     * @since 1.5.0
+     */
+    public SessionConfig setCloud(CloudSessionOptions cloud) {
+        this.cloud = cloud;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -1029,6 +1059,7 @@ public class SessionConfig {
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
+        copy.cloud = this.cloud;
         return copy;
     }
 }
