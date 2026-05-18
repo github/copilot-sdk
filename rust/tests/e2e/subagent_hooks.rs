@@ -17,8 +17,11 @@ async fn should_invoke_pretooluse_and_posttooluse_hooks_for_sub_agent_tool_calls
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                std::fs::write(ctx.work_dir().join("subagent-test.txt"), "Hello from subagent test!")
-                    .expect("write test file");
+                std::fs::write(
+                    ctx.work_dir().join("subagent-test.txt"),
+                    "Hello from subagent test!",
+                )
+                .expect("write test file");
 
                 let hook_log = Arc::new(Mutex::new(Vec::<HookEntry>::new()));
 
@@ -33,11 +36,11 @@ async fn should_invoke_pretooluse_and_posttooluse_hooks_for_sub_agent_tool_calls
                     .expect("start client");
 
                 let session = client
-                    .create_session(
-                        ctx.approve_all_session_config().with_hooks(Arc::new(RecordingHooks {
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        RecordingHooks {
                             log: Arc::clone(&hook_log),
-                        })),
-                    )
+                        },
+                    )))
                     .await
                     .expect("create session");
 
@@ -81,7 +84,8 @@ async fn should_invoke_pretooluse_and_posttooluse_hooks_for_sub_agent_tool_calls
 
                 // input.session_id distinguishes parent from sub-agent
                 assert_ne!(
-                    view_pre[0].session_id, task_pre.unwrap().session_id,
+                    view_pre[0].session_id,
+                    task_pre.unwrap().session_id,
                     "Sub-agent tool hooks should have a different sessionId than parent tool hooks"
                 );
 
