@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code skills.config.setDisabledSkills} RPC method.
+ * Skill names to mark as disabled in global configuration, replacing any previous list.
  *
  * @since 1.0.0
  */

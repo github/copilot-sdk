@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.start} session event.
+ * Session event "session.start". Session initialization metadata including context and configuration
  *
  * @since 1.0.0
  */
@@ -48,13 +48,15 @@ public final class SessionStartEvent extends SessionEvent {
         @JsonProperty("startTime") OffsetDateTime startTime,
         /** Model selected at session creation time, if any */
         @JsonProperty("selectedModel") String selectedModel,
-        /** Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh") */
+        /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed") */
+        @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Working directory and git context at session start */
         @JsonProperty("context") WorkingDirectoryContext context,
         /** Whether the session was already in use by another client at start time */
         @JsonProperty("alreadyInUse") Boolean alreadyInUse,
-        /** Whether this session supports remote steering via Mission Control */
+        /** Whether this session supports remote steering via GitHub */
         @JsonProperty("remoteSteerable") Boolean remoteSteerable,
         /** When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id. */
         @JsonProperty("detachedFromSpawningParentSessionId") String detachedFromSpawningParentSessionId

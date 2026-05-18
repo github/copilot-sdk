@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code account.getQuota} RPC method.
+ * Quota usage snapshots for the resolved user, keyed by quota type.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code subagent.completed} session event.
+ * Session event "subagent.completed". Sub-agent completion details for successful execution
  *
  * @since 1.0.0
  */

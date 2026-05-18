@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.extensions.list} RPC method.
+ * Extensions discovered for the session, with their current status.
  *
  * @since 1.0.0
  */

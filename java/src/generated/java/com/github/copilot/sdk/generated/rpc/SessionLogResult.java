@@ -14,7 +14,7 @@ import java.util.UUID;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.log} RPC method.
+ * Identifier of the session event that was emitted for the log message.
  *
  * @since 1.0.0
  */

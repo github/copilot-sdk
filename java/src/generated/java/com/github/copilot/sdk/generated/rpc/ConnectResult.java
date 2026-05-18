@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code connect} RPC method.
+ * Handshake result reporting the server's protocol version and package version on success.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.info} session event.
+ * Session event "session.info". Informational message for timeline display with categorization
  *
  * @since 1.0.0
  */

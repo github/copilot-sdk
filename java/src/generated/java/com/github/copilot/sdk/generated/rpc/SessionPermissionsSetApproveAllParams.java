@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.permissions.setApproveAll} RPC method.
+ * Whether to auto-approve all tool permission requests for the rest of the session.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code subagent.deselected} session event.
+ * Session event "subagent.deselected". Empty payload; the event signals that the custom agent was deselected, returning to the default agent
  *
  * @since 1.0.0
  */

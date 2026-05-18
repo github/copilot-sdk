@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.tools_updated} session event.
+ * Session event "session.tools_updated".
  *
  * @since 1.0.0
  */
@@ -35,6 +35,7 @@ public final class SessionToolsUpdatedEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionToolsUpdatedEventData(
+        /** Identifier of the model the resolved tools apply to. */
         @JsonProperty("model") String model
     ) {
     }

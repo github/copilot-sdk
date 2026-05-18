@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.fleet.start} RPC method.
+ * Indicates whether fleet mode was successfully activated.
  *
  * @since 1.0.0
  */

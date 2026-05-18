@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.permissions.handlePendingPermissionRequest} RPC method.
+ * Indicates whether the permission decision was applied; false when the request was already resolved.
  *
  * @since 1.0.0
  */

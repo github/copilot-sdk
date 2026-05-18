@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code capabilities.changed} session event.
+ * Session event "capabilities.changed". Session capability change notification
  *
  * @since 1.0.0
  */

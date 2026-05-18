@@ -28,7 +28,7 @@ public final class SessionUsageApi {
     }
 
     /**
-     * Invokes {@code session.usage.getMetrics}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

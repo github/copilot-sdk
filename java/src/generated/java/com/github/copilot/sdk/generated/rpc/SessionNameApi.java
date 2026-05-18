@@ -30,7 +30,7 @@ public final class SessionNameApi {
     }
 
     /**
-     * Invokes {@code session.name.get}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<SessionNameGetResult> get() {
@@ -38,7 +38,7 @@ public final class SessionNameApi {
     }
 
     /**
-     * Invokes {@code session.name.set}.
+     * New friendly name to apply to the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

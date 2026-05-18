@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code exit_plan_mode.completed} session event.
+ * Session event "exit_plan_mode.completed". Plan mode exit completion with the user's approval decision and optional feedback
  *
  * @since 1.0.0
  */
@@ -39,8 +39,8 @@ public final class ExitPlanModeCompletedEvent extends SessionEvent {
         @JsonProperty("requestId") String requestId,
         /** Whether the plan was approved by the user */
         @JsonProperty("approved") Boolean approved,
-        /** Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only') */
-        @JsonProperty("selectedAction") String selectedAction,
+        /** Action selected by the user */
+        @JsonProperty("selectedAction") ExitPlanModeAction selectedAction,
         /** Whether edits should be auto-approved without confirmation */
         @JsonProperty("autoApproveEdits") Boolean autoApproveEdits,
         /** Free-form feedback from the user if they requested changes to the plan */

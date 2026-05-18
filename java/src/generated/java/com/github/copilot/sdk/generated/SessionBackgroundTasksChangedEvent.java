@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.background_tasks_changed} session event.
+ * Session event "session.background_tasks_changed".
  *
  * @since 1.0.0
  */

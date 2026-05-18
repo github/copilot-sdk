@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.shell.exec} RPC method.
+ * Shell command to run, with optional working directory and timeout in milliseconds.
  *
  * @since 1.0.0
  */

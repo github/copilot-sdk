@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.task_complete} session event.
+ * Session event "session.task_complete". Task completion notification with summary from the agent
  *
  * @since 1.0.0
  */

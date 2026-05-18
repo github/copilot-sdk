@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code abort} session event.
+ * Session event "abort". Turn abort information including the reason for termination
  *
  * @since 1.0.0
  */

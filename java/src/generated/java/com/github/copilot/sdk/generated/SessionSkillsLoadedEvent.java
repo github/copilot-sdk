@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.skills_loaded} session event.
+ * Session event "session.skills_loaded".
  *
  * @since 1.0.0
  */

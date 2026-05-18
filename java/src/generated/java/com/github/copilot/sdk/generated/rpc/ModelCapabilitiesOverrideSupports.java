@@ -21,7 +21,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelCapabilitiesOverrideSupports(
+    /** Whether this model supports vision/image input */
     @JsonProperty("vision") Boolean vision,
+    /** Whether this model supports reasoning effort configuration */
     @JsonProperty("reasoningEffort") Boolean reasoningEffort
 ) {
 }

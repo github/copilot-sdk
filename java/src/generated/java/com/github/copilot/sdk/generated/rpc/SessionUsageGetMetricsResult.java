@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.usage.getMetrics} RPC method.
+ * Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
  *
  * @since 1.0.0
  */

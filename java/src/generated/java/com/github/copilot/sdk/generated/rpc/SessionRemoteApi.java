@@ -30,7 +30,7 @@ public final class SessionRemoteApi {
     }
 
     /**
-     * Invokes {@code session.remote.enable}.
+     * Optional remote session mode ("off", "export", or "on"); defaults to enabling both export and remote steering.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -45,7 +45,7 @@ public final class SessionRemoteApi {
     }
 
     /**
-     * Invokes {@code session.remote.disable}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

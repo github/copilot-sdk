@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.log} RPC method.
+ * Message text, optional severity level, persistence flag, and optional follow-up URL.
  *
  * @since 1.0.0
  */

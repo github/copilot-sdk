@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code ping} RPC method.
+ * Server liveness response, including the echoed message, current timestamp, and protocol version.
  *
  * @since 1.0.0
  */

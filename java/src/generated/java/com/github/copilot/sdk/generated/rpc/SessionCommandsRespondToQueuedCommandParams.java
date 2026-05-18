@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.commands.respondToQueuedCommand} RPC method.
+ * Queued command request ID and the result indicating whether the client handled it.
  *
  * @since 1.0.0
  */

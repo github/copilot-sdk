@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.compaction_start} session event.
+ * Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction
  *
  * @since 1.0.0
  */

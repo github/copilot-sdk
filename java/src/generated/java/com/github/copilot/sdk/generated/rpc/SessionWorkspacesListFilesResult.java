@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.workspaces.listFiles} RPC method.
+ * Relative paths of files stored in the session workspace files directory.
  *
  * @since 1.0.0
  */

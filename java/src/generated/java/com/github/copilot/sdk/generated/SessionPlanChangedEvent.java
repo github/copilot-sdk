@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.plan_changed} session event.
+ * Session event "session.plan_changed". Plan file operation details indicating what changed
  *
  * @since 1.0.0
  */

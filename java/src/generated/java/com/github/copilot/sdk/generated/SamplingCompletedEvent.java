@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code sampling.completed} session event.
+ * Session event "sampling.completed". Sampling request completion notification signaling UI dismissal
  *
  * @since 1.0.0
  */

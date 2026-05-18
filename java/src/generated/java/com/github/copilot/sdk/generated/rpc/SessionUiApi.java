@@ -30,7 +30,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * The elicitation response (accept with form values, decline, or cancel)
+     * Prompt message and JSON schema describing the form fields to elicit from the user.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -43,7 +43,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Invokes {@code session.ui.handlePendingElicitation}.
+     * Pending elicitation request ID and the user's response (accept/decline/cancel + form values).
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.model_change} session event.
+ * Session event "session.model_change". Model change details including previous and new model identifiers
  *
  * @since 1.0.0
  */
@@ -43,6 +43,10 @@ public final class SessionModelChangeEvent extends SessionEvent {
         @JsonProperty("previousReasoningEffort") String previousReasoningEffort,
         /** Reasoning effort level after the model change, if applicable */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Reasoning summary mode before the model change, if applicable */
+        @JsonProperty("previousReasoningSummary") ReasoningSummary previousReasoningSummary,
+        /** Reasoning summary mode after the model change, if applicable */
+        @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy. */
         @JsonProperty("cause") String cause
     ) {

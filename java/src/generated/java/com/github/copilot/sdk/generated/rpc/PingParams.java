@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code ping} RPC method.
+ * Optional message to echo back to the caller.
  *
  * @since 1.0.0
  */

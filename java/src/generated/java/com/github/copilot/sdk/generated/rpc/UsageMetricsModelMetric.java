@@ -13,6 +13,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
+/**
+ * Schema for the `UsageMetricsModelMetric` type.
+ *
+ * @since 1.0.0
+ */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)

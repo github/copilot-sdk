@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code skills.discover} RPC method.
+ * Skills discovered across global and project sources.
  *
  * @since 1.0.0
  */

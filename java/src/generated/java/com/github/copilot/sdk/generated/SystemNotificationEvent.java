@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code system.notification} session event.
+ * Session event "system.notification". System-generated notification for runtime events like background task completion
  *
  * @since 1.0.0
  */

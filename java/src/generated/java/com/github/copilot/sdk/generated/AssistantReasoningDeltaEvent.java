@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.reasoning_delta} session event.
+ * Session event "assistant.reasoning_delta". Streaming reasoning delta for incremental extended thinking updates
  *
  * @since 1.0.0
  */

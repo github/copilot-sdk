@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.permissions.resetSessionApprovals} RPC method.
+ * No parameters; clears all session-scoped tool permission approvals.
  *
  * @since 1.0.0
  */

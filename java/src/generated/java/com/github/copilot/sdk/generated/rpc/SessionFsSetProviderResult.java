@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code sessionFs.setProvider} RPC method.
+ * Indicates whether the calling client was registered as the session filesystem provider.
  *
  * @since 1.0.0
  */

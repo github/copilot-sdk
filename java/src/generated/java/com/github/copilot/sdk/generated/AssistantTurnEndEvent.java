@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.turn_end} session event.
+ * Session event "assistant.turn_end". Turn completion metadata including the turn identifier
  *
  * @since 1.0.0
  */

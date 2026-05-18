@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code connect} RPC method.
+ * Optional connection token presented by the SDK client during the handshake.
  *
  * @since 1.0.0
  */

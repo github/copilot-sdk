@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code models.list} RPC method.
+ * List of Copilot models available to the resolved user, including capabilities and billing metadata.
  *
  * @since 1.0.0
  */

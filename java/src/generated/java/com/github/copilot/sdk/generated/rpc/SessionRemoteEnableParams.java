@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.remote.enable} RPC method.
+ * Optional remote session mode ("off", "export", or "on"); defaults to enabling both export and remote steering.
  *
  * @since 1.0.0
  */
@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record SessionRemoteEnableParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering. */
+    /** Per-session remote mode. "off" disables remote, "export" exports session events to GitHub without enabling remote steering, "on" enables both export and remote steering. */
     @JsonProperty("mode") RemoteSessionMode mode
 ) {
 }

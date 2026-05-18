@@ -30,7 +30,7 @@ public final class ServerSkillsApi {
     }
 
     /**
-     * Invokes {@code skills.discover}.
+     * Optional project paths and additional skill directories to include in discovery.
      * @since 1.0.0
      */
     public CompletableFuture<SkillsDiscoverResult> discover(SkillsDiscoverParams params) {

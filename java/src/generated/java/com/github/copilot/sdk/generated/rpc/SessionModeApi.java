@@ -30,7 +30,7 @@ public final class SessionModeApi {
     }
 
     /**
-     * The agent mode. Valid values: "interactive", "plan", "autopilot".
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<Void> get() {
@@ -38,7 +38,7 @@ public final class SessionModeApi {
     }
 
     /**
-     * Invokes {@code session.mode.set}.
+     * Agent interaction mode to apply to the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

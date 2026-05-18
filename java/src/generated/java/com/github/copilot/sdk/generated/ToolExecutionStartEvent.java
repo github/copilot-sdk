@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code tool.execution_start} session event.
+ * Session event "tool.execution_start". Tool execution startup details including MCP server information when applicable
  *
  * @since 1.0.0
  */

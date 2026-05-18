@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code subagent.started} session event.
+ * Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
  *
  * @since 1.0.0
  */

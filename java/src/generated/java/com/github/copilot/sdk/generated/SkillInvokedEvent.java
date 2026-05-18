@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code skill.invoked} session event.
+ * Session event "skill.invoked". Skill invocation details including content, allowed tools, and plugin metadata
  *
  * @since 1.0.0
  */

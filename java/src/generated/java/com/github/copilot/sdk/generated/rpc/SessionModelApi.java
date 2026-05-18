@@ -30,7 +30,7 @@ public final class SessionModelApi {
     }
 
     /**
-     * Invokes {@code session.model.getCurrent}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<SessionModelGetCurrentResult> getCurrent() {
@@ -38,7 +38,7 @@ public final class SessionModelApi {
     }
 
     /**
-     * Invokes {@code session.model.switchTo}.
+     * Target model identifier and optional reasoning effort, summary, and capability overrides.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code sessionFs.exists} RPC method.
+ * Indicates whether the requested path exists in the client-provided session filesystem.
  *
  * @since 1.0.0
  */

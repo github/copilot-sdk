@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code sampling.requested} session event.
+ * Session event "sampling.requested". Sampling request from an MCP server; contains the server name and a requestId for correlation
  *
  * @since 1.0.0
  */

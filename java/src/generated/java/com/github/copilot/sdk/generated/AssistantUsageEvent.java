@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.usage} session event.
+ * Session event "assistant.usage". LLM API call usage metrics including tokens, costs, quotas, and billing information
  *
  * @since 1.0.0
  */
@@ -70,7 +70,7 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("quotaSnapshots") Map<String, AssistantUsageQuotaSnapshot> quotaSnapshots,
         /** Per-request cost and usage data from the CAPI copilot_usage response field */
         @JsonProperty("copilotUsage") AssistantUsageCopilotUsage copilotUsage,
-        /** Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh") */
+        /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort
     ) {
     }

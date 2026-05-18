@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code elicitation.requested} session event.
+ * Session event "elicitation.requested". Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
  *
  * @since 1.0.0
  */

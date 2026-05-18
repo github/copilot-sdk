@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.skills.reload} RPC method.
+ * Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
  *
  * @since 1.0.0
  */

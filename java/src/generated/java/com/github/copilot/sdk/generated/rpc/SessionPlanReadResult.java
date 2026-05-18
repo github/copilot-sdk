@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.plan.read} RPC method.
+ * Existence, contents, and resolved path of the session plan file.
  *
  * @since 1.0.0
  */

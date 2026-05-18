@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.agent.select} RPC method.
+ * Name of the custom agent to select for subsequent turns.
  *
  * @since 1.0.0
  */

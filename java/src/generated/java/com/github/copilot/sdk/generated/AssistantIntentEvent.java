@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.intent} session event.
+ * Session event "assistant.intent". Agent intent description for current activity or plan
  *
  * @since 1.0.0
  */

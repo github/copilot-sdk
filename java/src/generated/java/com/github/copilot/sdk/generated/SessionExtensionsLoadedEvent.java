@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.extensions_loaded} session event.
+ * Session event "session.extensions_loaded".
  *
  * @since 1.0.0
  */

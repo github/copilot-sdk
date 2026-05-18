@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.schedule_created} session event.
+ * Session event "session.schedule_created". Scheduled prompt registered via /every or /after
  *
  * @since 1.0.0
  */
@@ -42,7 +42,9 @@ public final class SessionScheduleCreatedEvent extends SessionEvent {
         /** Prompt text that gets enqueued on every tick */
         @JsonProperty("prompt") String prompt,
         /** Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`) */
-        @JsonProperty("recurring") Boolean recurring
+        @JsonProperty("recurring") Boolean recurring,
+        /** Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion) */
+        @JsonProperty("displayPrompt") String displayPrompt
     ) {
     }
 }

@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code exit_plan_mode.requested} session event.
+ * Session event "exit_plan_mode.requested". Plan approval request with plan content and available user actions
  *
  * @since 1.0.0
  */
@@ -42,10 +42,10 @@ public final class ExitPlanModeRequestedEvent extends SessionEvent {
         @JsonProperty("summary") String summary,
         /** Full content of the plan file */
         @JsonProperty("planContent") String planContent,
-        /** Available actions the user can take (e.g., approve, edit, reject) */
-        @JsonProperty("actions") List<String> actions,
-        /** The recommended action for the user to take */
-        @JsonProperty("recommendedAction") String recommendedAction
+        /** Available actions the user can take */
+        @JsonProperty("actions") List<ExitPlanModeAction> actions,
+        /** Recommended action to preselect for the user */
+        @JsonProperty("recommendedAction") ExitPlanModeAction recommendedAction
     ) {
     }
 }

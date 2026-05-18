@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.message} session event.
+ * Session event "assistant.message". Assistant response containing text content, optional tool requests, and interaction metadata
  *
  * @since 1.0.0
  */

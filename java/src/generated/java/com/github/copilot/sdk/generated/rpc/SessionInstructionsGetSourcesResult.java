@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.instructions.getSources} RPC method.
+ * Instruction sources loaded for the session, in merge order.
  *
  * @since 1.0.0
  */

@@ -26,7 +26,7 @@ public final class ServerSessionFsApi {
     }
 
     /**
-     * Invokes {@code sessionFs.setProvider}.
+     * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
      * @since 1.0.0
      */
     public CompletableFuture<SessionFsSetProviderResult> setProvider(SessionFsSetProviderParams params) {

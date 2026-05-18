@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.message_delta} session event.
+ * Session event "assistant.message_delta". Streaming assistant message delta for incremental response updates
  *
  * @since 1.0.0
  */

@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.agent.reload} RPC method.
+ * Custom agents available to the session after reloading definitions from disk.
  *
  * @since 1.0.0
  */

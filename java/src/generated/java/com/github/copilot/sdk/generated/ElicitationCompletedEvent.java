@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code elicitation.completed} session event.
+ * Session event "elicitation.completed". Elicitation request completion with the user's response
  *
  * @since 1.0.0
  */

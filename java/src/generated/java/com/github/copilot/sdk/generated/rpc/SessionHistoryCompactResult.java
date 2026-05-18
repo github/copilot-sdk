@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.history.compact} RPC method.
+ * Compaction outcome with the number of tokens and messages removed and the resulting context window breakdown.
  *
  * @since 1.0.0
  */

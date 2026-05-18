@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.tools.handlePendingToolCall} RPC method.
+ * Indicates whether the external tool call result was handled successfully.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.reasoning} session event.
+ * Session event "assistant.reasoning". Assistant reasoning content for timeline display with complete thinking text
  *
  * @since 1.0.0
  */

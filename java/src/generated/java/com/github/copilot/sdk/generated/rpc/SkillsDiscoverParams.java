@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code skills.discover} RPC method.
+ * Optional project paths and additional skill directories to include in discovery.
  *
  * @since 1.0.0
  */

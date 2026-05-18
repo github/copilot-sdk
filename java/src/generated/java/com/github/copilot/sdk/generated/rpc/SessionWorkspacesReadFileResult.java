@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.workspaces.readFile} RPC method.
+ * Contents of the requested workspace file as a UTF-8 string.
  *
  * @since 1.0.0
  */

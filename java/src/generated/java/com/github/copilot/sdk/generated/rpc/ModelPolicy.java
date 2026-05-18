@@ -22,7 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelPolicy(
     /** Current policy state for this model */
-    @JsonProperty("state") String state,
+    @JsonProperty("state") ModelPolicyState state,
     /** Usage terms or conditions for this model */
     @JsonProperty("terms") String terms
 ) {

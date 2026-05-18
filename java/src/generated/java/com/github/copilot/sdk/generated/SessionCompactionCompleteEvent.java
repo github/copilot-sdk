@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.compaction_complete} session event.
+ * Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.commands.list} RPC method.
+ * Optional filters controlling which command sources to include in the listing.
  *
  * @since 1.0.0
  */

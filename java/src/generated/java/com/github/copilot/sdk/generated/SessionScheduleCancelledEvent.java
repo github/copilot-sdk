@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.schedule_cancelled} session event.
+ * Session event "session.schedule_cancelled". Scheduled prompt cancelled from the schedule manager dialog
  *
  * @since 1.0.0
  */

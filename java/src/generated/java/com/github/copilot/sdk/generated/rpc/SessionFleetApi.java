@@ -30,7 +30,7 @@ public final class SessionFleetApi {
     }
 
     /**
-     * Invokes {@code session.fleet.start}.
+     * Optional user prompt to combine with the fleet orchestration instructions.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

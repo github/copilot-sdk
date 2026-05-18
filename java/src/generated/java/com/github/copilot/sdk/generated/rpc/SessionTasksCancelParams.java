@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.tasks.cancel} RPC method.
+ * Identifier of the background task to cancel.
  *
  * @since 1.0.0
  */

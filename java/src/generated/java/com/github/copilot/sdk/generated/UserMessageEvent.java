@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code user.message} session event.
+ * Session event "user.message".
  *
  * @since 1.0.0
  */

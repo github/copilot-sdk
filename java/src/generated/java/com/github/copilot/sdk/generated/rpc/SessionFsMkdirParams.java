@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessionFs.mkdir} RPC method.
+ * Directory path to create in the client-provided session filesystem, with options for recursive creation and POSIX mode.
  *
  * @since 1.0.0
  */

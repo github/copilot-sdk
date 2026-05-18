@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.ui.handlePendingElicitation} RPC method.
+ * Indicates whether the elicitation response was accepted; false if it was already resolved by another client.
  *
  * @since 1.0.0
  */

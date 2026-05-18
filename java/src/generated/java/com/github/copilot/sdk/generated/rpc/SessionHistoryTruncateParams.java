@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.history.truncate} RPC method.
+ * Identifier of the event to truncate to; this event and all later events are removed.
  *
  * @since 1.0.0
  */

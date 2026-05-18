@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code sessionFs.stat} RPC method.
+ * Filesystem metadata for the requested path, or a filesystem error if the stat failed.
  *
  * @since 1.0.0
  */

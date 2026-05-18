@@ -56,7 +56,7 @@ public final class ServerRpc {
     }
 
     /**
-     * Invokes {@code ping}.
+     * Optional message to echo back to the caller.
      * @since 1.0.0
      */
     public CompletableFuture<PingResult> ping(PingParams params) {
@@ -64,7 +64,7 @@ public final class ServerRpc {
     }
 
     /**
-     * Invokes {@code connect}.
+     * Optional connection token presented by the SDK client during the handshake.
      * @since 1.0.0
      */
     public CompletableFuture<ConnectResult> connect(ConnectParams params) {

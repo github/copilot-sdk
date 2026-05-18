@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code subagent.selected} session event.
+ * Session event "subagent.selected". Custom agent selection details including name and available tools
  *
  * @since 1.0.0
  */

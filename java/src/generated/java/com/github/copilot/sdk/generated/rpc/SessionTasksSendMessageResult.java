@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.tasks.sendMessage} RPC method.
+ * Indicates whether the message was delivered, with an error message when delivery failed.
  *
  * @since 1.0.0
  */

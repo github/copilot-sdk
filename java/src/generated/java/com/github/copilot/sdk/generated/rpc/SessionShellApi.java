@@ -30,7 +30,7 @@ public final class SessionShellApi {
     }
 
     /**
-     * Invokes {@code session.shell.exec}.
+     * Shell command to run, with optional working directory and timeout in milliseconds.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -43,7 +43,7 @@ public final class SessionShellApi {
     }
 
     /**
-     * Invokes {@code session.shell.kill}.
+     * Identifier of a process previously returned by "shell.exec" and the signal to send.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

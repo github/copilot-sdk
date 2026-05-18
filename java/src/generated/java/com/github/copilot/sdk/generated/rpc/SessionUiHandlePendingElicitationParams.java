@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.ui.handlePendingElicitation} RPC method.
+ * Pending elicitation request ID and the user's response (accept/decline/cancel + form values).
  *
  * @since 1.0.0
  */

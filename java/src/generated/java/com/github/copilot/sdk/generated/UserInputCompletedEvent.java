@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code user_input.completed} session event.
+ * Session event "user_input.completed". User input request completion with the user's response
  *
  * @since 1.0.0
  */

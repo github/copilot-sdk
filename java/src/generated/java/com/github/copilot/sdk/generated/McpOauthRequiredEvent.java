@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code mcp.oauth_required} session event.
+ * Session event "mcp.oauth_required". OAuth authentication request for an MCP server
  *
  * @since 1.0.0
  */

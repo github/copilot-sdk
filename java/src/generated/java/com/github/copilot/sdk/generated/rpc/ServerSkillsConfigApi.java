@@ -26,7 +26,7 @@ public final class ServerSkillsConfigApi {
     }
 
     /**
-     * Invokes {@code skills.config.setDisabledSkills}.
+     * Skill names to mark as disabled in global configuration, replacing any previous list.
      * @since 1.0.0
      */
     public CompletableFuture<Void> setDisabledSkills(SkillsConfigSetDisabledSkillsParams params) {

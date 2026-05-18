@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.fleet.start} RPC method.
+ * Optional user prompt to combine with the fleet orchestration instructions.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code auto_mode_switch.requested} session event.
+ * Session event "auto_mode_switch.requested". Auto mode switch request notification requiring user approval
  *
  * @since 1.0.0
  */

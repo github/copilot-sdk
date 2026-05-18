@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.shell.kill} RPC method.
+ * Identifier of a process previously returned by "shell.exec" and the signal to send.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.remote.enable} RPC method.
+ * GitHub URL for the session and a flag indicating whether remote steering is enabled.
  *
  * @since 1.0.0
  */
@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionRemoteEnableResult(
-    /** Mission Control frontend URL for this session */
+    /** GitHub frontend URL for this session */
     @JsonProperty("url") String url,
     /** Whether remote steering is enabled */
     @JsonProperty("remoteSteerable") Boolean remoteSteerable

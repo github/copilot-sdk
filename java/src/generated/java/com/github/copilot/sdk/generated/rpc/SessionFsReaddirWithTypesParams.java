@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessionFs.readdirWithTypes} RPC method.
+ * Directory path whose entries (with type information) should be listed from the client-provided session filesystem.
  *
  * @since 1.0.0
  */

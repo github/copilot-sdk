@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code tool.execution_progress} session event.
+ * Session event "tool.execution_progress". Tool execution progress notification with status message
  *
  * @since 1.0.0
  */

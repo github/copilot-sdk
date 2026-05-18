@@ -10,7 +10,7 @@ package com.github.copilot.sdk.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * The agent mode. Valid values: "interactive", "plan", "autopilot".
+ * The session mode the agent is operating in
  *
  * @since 1.0.0
  */

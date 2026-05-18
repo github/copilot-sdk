@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.workspaces.createFile} RPC method.
+ * Relative path and UTF-8 content for the workspace file to create or overwrite.
  *
  * @since 1.0.0
  */

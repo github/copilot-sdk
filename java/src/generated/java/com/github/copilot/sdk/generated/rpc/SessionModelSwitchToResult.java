@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.model.switchTo} RPC method.
+ * The model identifier active on the session after the switch.
  *
  * @since 1.0.0
  */

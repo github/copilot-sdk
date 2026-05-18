@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code subagent.failed} session event.
+ * Session event "subagent.failed". Sub-agent failure details including error message and agent information
  *
  * @since 1.0.0
  */

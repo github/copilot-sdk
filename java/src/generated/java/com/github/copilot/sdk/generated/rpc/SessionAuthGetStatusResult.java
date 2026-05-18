@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.auth.getStatus} RPC method.
+ * Authentication status and account metadata for the session.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.permissions.resetSessionApprovals} RPC method.
+ * Indicates whether the operation succeeded.
  *
  * @since 1.0.0
  */

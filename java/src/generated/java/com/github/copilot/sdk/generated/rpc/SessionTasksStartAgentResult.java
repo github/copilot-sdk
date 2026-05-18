@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.tasks.startAgent} RPC method.
+ * Identifier assigned to the newly started background agent task.
  *
  * @since 1.0.0
  */

@@ -30,7 +30,7 @@ public final class SessionPlanApi {
     }
 
     /**
-     * Invokes {@code session.plan.read}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<SessionPlanReadResult> read() {
@@ -38,7 +38,7 @@ public final class SessionPlanApi {
     }
 
     /**
-     * Invokes {@code session.plan.update}.
+     * Replacement contents to write to the session plan file.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -51,7 +51,7 @@ public final class SessionPlanApi {
     }
 
     /**
-     * Invokes {@code session.plan.delete}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<Void> delete() {

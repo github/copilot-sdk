@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.mcp_server_status_changed} session event.
+ * Session event "session.mcp_server_status_changed".
  *
  * @since 1.0.0
  */
@@ -37,8 +37,8 @@ public final class SessionMcpServerStatusChangedEvent extends SessionEvent {
     public record SessionMcpServerStatusChangedEventData(
         /** Name of the MCP server whose status changed */
         @JsonProperty("serverName") String serverName,
-        /** New connection status: connected, failed, needs-auth, pending, disabled, or not_configured */
-        @JsonProperty("status") McpServerStatusChangedStatus status
+        /** Connection status: connected, failed, needs-auth, pending, disabled, or not_configured */
+        @JsonProperty("status") McpServerStatus status
     ) {
     }
 }

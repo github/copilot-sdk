@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.remote_steerable_changed} session event.
+ * Session event "session.remote_steerable_changed". Notifies that the session's remote steering capability has changed
  *
  * @since 1.0.0
  */
@@ -35,7 +35,7 @@ public final class SessionRemoteSteerableChangedEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionRemoteSteerableChangedEventData(
-        /** Whether this session now supports remote steering via Mission Control */
+        /** Whether this session now supports remote steering via GitHub */
         @JsonProperty("remoteSteerable") Boolean remoteSteerable
     ) {
     }

@@ -12,6 +12,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
+/**
+ * Schema for the `McpServersLoadedServer` type.
+ *
+ * @since 1.0.0
+ */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -19,9 +24,9 @@ public record McpServersLoadedServer(
     /** Server name (config key) */
     @JsonProperty("name") String name,
     /** Connection status: connected, failed, needs-auth, pending, disabled, or not_configured */
-    @JsonProperty("status") McpServersLoadedServerStatus status,
+    @JsonProperty("status") McpServerStatus status,
     /** Configuration source: user, workspace, plugin, or builtin */
-    @JsonProperty("source") String source,
+    @JsonProperty("source") McpServerSource source,
     /** Error message if the server failed to connect */
     @JsonProperty("error") String error
 ) {

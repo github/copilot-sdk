@@ -10,15 +10,21 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
+/**
+ * Schema for the `AccountQuotaSnapshot` type.
+ *
+ * @since 1.0.0
+ */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AccountQuotaSnapshot(
     /** Whether the user has an unlimited usage entitlement */
     @JsonProperty("isUnlimitedEntitlement") Boolean isUnlimitedEntitlement,
-    /** Number of requests included in the entitlement */
+    /** Number of requests included in the entitlement, or -1 for unlimited entitlements */
     @JsonProperty("entitlementRequests") Long entitlementRequests,
     /** Number of requests used so far this period */
     @JsonProperty("usedRequests") Long usedRequests,
@@ -31,6 +37,6 @@ public record AccountQuotaSnapshot(
     /** Whether overage is allowed when quota is exhausted */
     @JsonProperty("overageAllowedWithExhaustedQuota") Boolean overageAllowedWithExhaustedQuota,
     /** Date when the quota resets (ISO 8601 string) */
-    @JsonProperty("resetDate") String resetDate
+    @JsonProperty("resetDate") OffsetDateTime resetDate
 ) {
 }

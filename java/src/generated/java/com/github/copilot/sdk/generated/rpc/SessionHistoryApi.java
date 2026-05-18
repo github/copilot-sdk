@@ -30,7 +30,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Invokes {@code session.history.compact}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -40,7 +40,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Invokes {@code session.history.truncate}.
+     * Identifier of the event to truncate to; this event and all later events are removed.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

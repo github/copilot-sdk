@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code sessionFs.readdir} RPC method.
+ * Names of entries in the requested directory, or a filesystem error if the read failed.
  *
  * @since 1.0.0
  */

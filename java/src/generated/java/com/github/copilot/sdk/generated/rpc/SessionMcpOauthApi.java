@@ -30,7 +30,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Invokes {@code session.mcp.oauth.login}.
+     * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

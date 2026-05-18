@@ -30,7 +30,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Invokes {@code session.commands.list}.
+     * Optional filters controlling which command sources to include in the listing.
      * @since 1.0.0
      */
     public CompletableFuture<SessionCommandsListResult> list() {
@@ -38,7 +38,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Invokes {@code session.commands.invoke}.
+     * Slash command name and optional raw input string to invoke.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -51,7 +51,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Invokes {@code session.commands.handlePendingCommand}.
+     * Pending command request ID and an optional error if the client handler failed.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -64,7 +64,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Invokes {@code session.commands.respondToQueuedCommand}.
+     * Queued command request ID and the result indicating whether the client handled it.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

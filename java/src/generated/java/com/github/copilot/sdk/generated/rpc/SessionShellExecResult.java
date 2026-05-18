@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.shell.exec} RPC method.
+ * Identifier of the spawned process, used to correlate streamed output and exit notifications.
  *
  * @since 1.0.0
  */

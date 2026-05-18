@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.custom_agents_updated} session event.
+ * Session event "session.custom_agents_updated".
  *
  * @since 1.0.0
  */

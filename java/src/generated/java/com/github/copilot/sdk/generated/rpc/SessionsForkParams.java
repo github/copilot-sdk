@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessions.fork} RPC method.
+ * Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.
  *
  * @since 1.0.0
  */

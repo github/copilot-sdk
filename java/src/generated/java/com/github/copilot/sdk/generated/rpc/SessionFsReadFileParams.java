@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessionFs.readFile} RPC method.
+ * Path of the file to read from the client-provided session filesystem.
  *
  * @since 1.0.0
  */

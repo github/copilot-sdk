@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code hook.start} session event.
+ * Session event "hook.start". Hook invocation start details including type and input data
  *
  * @since 1.0.0
  */

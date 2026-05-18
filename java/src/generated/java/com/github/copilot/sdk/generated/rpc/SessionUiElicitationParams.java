@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.ui.elicitation} RPC method.
+ * Prompt message and JSON schema describing the form fields to elicit from the user.
  *
  * @since 1.0.0
  */

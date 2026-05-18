@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.commands.list} RPC method.
+ * Slash commands available in the session, after applying any include/exclude filters.
  *
  * @since 1.0.0
  */

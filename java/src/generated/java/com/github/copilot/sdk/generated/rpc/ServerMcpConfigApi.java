@@ -26,7 +26,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * Invokes {@code mcp.config.list}.
+     * User-configured MCP servers, keyed by server name.
      * @since 1.0.0
      */
     public CompletableFuture<McpConfigListResult> list() {
@@ -34,7 +34,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * Invokes {@code mcp.config.add}.
+     * MCP server name and configuration to add to user configuration.
      * @since 1.0.0
      */
     public CompletableFuture<Void> add(McpConfigAddParams params) {
@@ -42,7 +42,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * Invokes {@code mcp.config.update}.
+     * MCP server name and replacement configuration to write to user configuration.
      * @since 1.0.0
      */
     public CompletableFuture<Void> update(McpConfigUpdateParams params) {
@@ -50,7 +50,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * Invokes {@code mcp.config.remove}.
+     * MCP server name to remove from user configuration.
      * @since 1.0.0
      */
     public CompletableFuture<Void> remove(McpConfigRemoveParams params) {
@@ -58,7 +58,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * Invokes {@code mcp.config.enable}.
+     * MCP server names to enable for new sessions.
      * @since 1.0.0
      */
     public CompletableFuture<Void> enable(McpConfigEnableParams params) {
@@ -66,7 +66,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * Invokes {@code mcp.config.disable}.
+     * MCP server names to disable for new sessions.
      * @since 1.0.0
      */
     public CompletableFuture<Void> disable(McpConfigDisableParams params) {

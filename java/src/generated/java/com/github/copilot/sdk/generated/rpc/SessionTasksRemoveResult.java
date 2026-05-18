@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.tasks.remove} RPC method.
+ * Indicates whether the task was removed. False when the task does not exist or is still running/idle.
  *
  * @since 1.0.0
  */

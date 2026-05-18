@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code model.call_failure} session event.
+ * Session event "model.call_failure". Failed LLM API call metadata for telemetry
  *
  * @since 1.0.0
  */

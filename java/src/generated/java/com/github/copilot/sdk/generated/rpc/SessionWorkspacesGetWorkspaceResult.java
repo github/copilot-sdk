@@ -15,7 +15,7 @@ import java.util.UUID;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.workspaces.getWorkspace} RPC method.
+ * Current workspace metadata for the session, or null when not available.
  *
  * @since 1.0.0
  */

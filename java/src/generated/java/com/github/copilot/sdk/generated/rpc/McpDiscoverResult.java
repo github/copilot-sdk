@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code mcp.discover} RPC method.
+ * MCP servers discovered from user, workspace, plugin, and built-in sources.
  *
  * @since 1.0.0
  */

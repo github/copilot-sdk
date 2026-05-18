@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.streaming_delta} session event.
+ * Session event "assistant.streaming_delta". Streaming response progress with cumulative byte count
  *
  * @since 1.0.0
  */

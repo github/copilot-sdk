@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.name.get} RPC method.
+ * The session's friendly name, or null when not yet set.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.snapshot_rewind} session event.
+ * Session event "session.snapshot_rewind". Session rewind details including target event and count of removed events
  *
  * @since 1.0.0
  */

@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code commands.changed} session event.
+ * Session event "commands.changed". SDK command registration change notification
  *
  * @since 1.0.0
  */

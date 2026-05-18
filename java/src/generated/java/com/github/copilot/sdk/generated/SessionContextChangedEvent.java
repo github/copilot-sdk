@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.context_changed} session event.
+ * Session event "session.context_changed". Updated working directory and git context after the change
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code assistant.message_start} session event.
+ * Session event "assistant.message_start". Streaming assistant message start metadata
  *
  * @since 1.0.0
  */

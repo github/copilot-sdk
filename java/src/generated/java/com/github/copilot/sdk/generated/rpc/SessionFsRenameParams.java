@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessionFs.rename} RPC method.
+ * Source and destination paths for renaming or moving an entry in the client-provided session filesystem.
  *
  * @since 1.0.0
  */

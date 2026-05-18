@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code external_tool.requested} session event.
+ * Session event "external_tool.requested". External tool invocation request for client-side tool execution
  *
  * @since 1.0.0
  */

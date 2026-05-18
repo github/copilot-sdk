@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.shell.kill} RPC method.
+ * Indicates whether the signal was delivered; false if the process was unknown or already exited.
  *
  * @since 1.0.0
  */

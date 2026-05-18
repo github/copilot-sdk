@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code auto_mode_switch.completed} session event.
+ * Session event "auto_mode_switch.completed". Auto mode switch completion notification
  *
  * @since 1.0.0
  */
@@ -37,8 +37,8 @@ public final class AutoModeSwitchCompletedEvent extends SessionEvent {
     public record AutoModeSwitchCompletedEventData(
         /** Request ID of the resolved request; clients should dismiss any UI for this request */
         @JsonProperty("requestId") String requestId,
-        /** The user's choice: 'yes', 'yes_always', or 'no' */
-        @JsonProperty("response") String response
+        /** The user's auto-mode-switch choice */
+        @JsonProperty("response") AutoModeSwitchResponse response
     ) {
     }
 }

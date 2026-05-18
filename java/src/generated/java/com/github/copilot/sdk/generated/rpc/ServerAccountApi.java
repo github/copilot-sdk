@@ -26,7 +26,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Invokes {@code account.getQuota}.
+     * Optional GitHub token used to look up quota for a specific user instead of the global auth context.
      * @since 1.0.0
      */
     public CompletableFuture<AccountGetQuotaResult> getQuota() {

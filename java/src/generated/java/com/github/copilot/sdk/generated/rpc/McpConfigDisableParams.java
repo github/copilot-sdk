@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code mcp.config.disable} RPC method.
+ * MCP server names to disable for new sessions.
  *
  * @since 1.0.0
  */

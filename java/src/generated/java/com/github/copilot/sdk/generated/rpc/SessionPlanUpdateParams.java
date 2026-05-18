@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.plan.update} RPC method.
+ * Replacement contents to write to the session plan file.
  *
  * @since 1.0.0
  */

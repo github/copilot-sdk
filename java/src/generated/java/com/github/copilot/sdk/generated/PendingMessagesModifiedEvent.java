@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code pending_messages.modified} session event.
+ * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
  *
  * @since 1.0.0
  */

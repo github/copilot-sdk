@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.shutdown} session event.
+ * Session event "session.shutdown". Session termination metrics including usage statistics, code changes, and shutdown reason
  *
  * @since 1.0.0
  */

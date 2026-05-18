@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code mcp.config.update} RPC method.
+ * MCP server name and replacement configuration to write to user configuration.
  *
  * @since 1.0.0
  */
@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record McpConfigUpdateParams(
     /** Name of the MCP server to update */
     @JsonProperty("name") String name,
-    /** MCP server configuration (local/stdio or remote/http) */
+    /** MCP server configuration (stdio process or remote HTTP/SSE) */
     @JsonProperty("config") Object config
 ) {
 }

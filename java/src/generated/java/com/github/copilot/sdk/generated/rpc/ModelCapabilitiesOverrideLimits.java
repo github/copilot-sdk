@@ -21,10 +21,13 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelCapabilitiesOverrideLimits(
+    /** Maximum number of prompt/input tokens */
     @JsonProperty("max_prompt_tokens") Long maxPromptTokens,
+    /** Maximum number of output/completion tokens */
     @JsonProperty("max_output_tokens") Long maxOutputTokens,
     /** Maximum total context window size in tokens */
     @JsonProperty("max_context_window_tokens") Long maxContextWindowTokens,
+    /** Vision-specific limits */
     @JsonProperty("vision") ModelCapabilitiesOverrideLimitsVision vision
 ) {
 }

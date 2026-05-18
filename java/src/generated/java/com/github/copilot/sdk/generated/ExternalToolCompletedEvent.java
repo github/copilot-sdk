@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code external_tool.completed} session event.
+ * Session event "external_tool.completed". External tool completion notification signaling UI dismissal
  *
  * @since 1.0.0
  */

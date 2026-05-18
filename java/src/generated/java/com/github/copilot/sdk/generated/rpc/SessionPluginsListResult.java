@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.plugins.list} RPC method.
+ * Plugins installed for the session, with their enabled state and version metadata.
  *
  * @since 1.0.0
  */

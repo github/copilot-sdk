@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.mode.set} RPC method.
+ * Agent interaction mode to apply to the session.
  *
  * @since 1.0.0
  */
@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record SessionModeSetParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** The agent mode. Valid values: "interactive", "plan", "autopilot". */
+    /** The session mode the agent is operating in */
     @JsonProperty("mode") SessionMode mode
 ) {
 }

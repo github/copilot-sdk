@@ -30,7 +30,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Invokes {@code session.agent.list}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -40,7 +40,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Invokes {@code session.agent.getCurrent}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -50,7 +50,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Invokes {@code session.agent.select}.
+     * Name of the custom agent to select for subsequent turns.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -65,7 +65,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Invokes {@code session.agent.deselect}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -75,7 +75,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Invokes {@code session.agent.reload}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

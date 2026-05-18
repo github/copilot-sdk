@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.title_changed} session event.
+ * Session event "session.title_changed". Session title change payload containing the new display title
  *
  * @since 1.0.0
  */

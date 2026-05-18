@@ -30,7 +30,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Invokes {@code session.tasks.startAgent}.
+     * Agent type, prompt, name, and optional description and model override for the new task.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -45,7 +45,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Invokes {@code session.tasks.list}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -55,7 +55,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Invokes {@code session.tasks.promoteToBackground}.
+     * Identifier of the task to promote to background mode.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -70,7 +70,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Invokes {@code session.tasks.cancel}.
+     * Identifier of the background task to cancel.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -85,7 +85,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Invokes {@code session.tasks.remove}.
+     * Identifier of the completed or cancelled task to remove from tracking.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -100,7 +100,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Invokes {@code session.tasks.sendMessage}.
+     * Identifier of the target agent task, message content, and optional sender agent ID.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.tasks.promoteToBackground} RPC method.
+ * Identifier of the task to promote to background mode.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.permissions.handlePendingPermissionRequest} RPC method.
+ * Pending permission request ID and the decision to apply (approve/reject and scope).
  *
  * @since 1.0.0
  */
@@ -25,6 +25,7 @@ public record SessionPermissionsHandlePendingPermissionRequestParams(
     @JsonProperty("sessionId") String sessionId,
     /** Request ID of the pending permission request */
     @JsonProperty("requestId") String requestId,
+    /** Decision to apply to a pending permission request. */
     @JsonProperty("result") Object result
 ) {
 }

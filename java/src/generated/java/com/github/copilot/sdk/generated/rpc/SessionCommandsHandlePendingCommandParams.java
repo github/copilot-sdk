@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.commands.handlePendingCommand} RPC method.
+ * Pending command request ID and an optional error if the client handler failed.
  *
  * @since 1.0.0
  */

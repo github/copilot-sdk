@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code permission.requested} session event.
+ * Session event "permission.requested". Permission request notification requiring client approval with request details
  *
  * @since 1.0.0
  */

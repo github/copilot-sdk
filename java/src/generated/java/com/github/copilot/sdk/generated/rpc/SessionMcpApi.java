@@ -34,7 +34,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Invokes {@code session.mcp.list}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -44,7 +44,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Invokes {@code session.mcp.enable}.
+     * Name of the MCP server to enable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -59,7 +59,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Invokes {@code session.mcp.disable}.
+     * Name of the MCP server to disable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -74,7 +74,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Invokes {@code session.mcp.reload}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

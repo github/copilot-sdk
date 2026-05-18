@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code mcp.config.remove} RPC method.
+ * MCP server name to remove from user configuration.
  *
  * @since 1.0.0
  */

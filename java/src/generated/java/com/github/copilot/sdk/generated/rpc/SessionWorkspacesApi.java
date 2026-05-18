@@ -30,7 +30,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Invokes {@code session.workspaces.getWorkspace}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<SessionWorkspacesGetWorkspaceResult> getWorkspace() {
@@ -38,7 +38,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Invokes {@code session.workspaces.listFiles}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<SessionWorkspacesListFilesResult> listFiles() {
@@ -46,7 +46,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Invokes {@code session.workspaces.readFile}.
+     * Relative path of the workspace file to read.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -59,7 +59,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Invokes {@code session.workspaces.createFile}.
+     * Relative path and UTF-8 content for the workspace file to create or overwrite.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

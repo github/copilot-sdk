@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.usage_info} session event.
+ * Session event "session.usage_info". Current context window usage statistics including token and message counts
  *
  * @since 1.0.0
  */

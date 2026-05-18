@@ -26,7 +26,7 @@ public final class ServerToolsApi {
     }
 
     /**
-     * Invokes {@code tools.list}.
+     * Optional model identifier whose tool overrides should be applied to the listing.
      * @since 1.0.0
      */
     public CompletableFuture<ToolsListResult> list(ToolsListParams params) {

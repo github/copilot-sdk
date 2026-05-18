@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code mcp.discover} RPC method.
+ * Optional working directory used as context for MCP server discovery.
  *
  * @since 1.0.0
  */

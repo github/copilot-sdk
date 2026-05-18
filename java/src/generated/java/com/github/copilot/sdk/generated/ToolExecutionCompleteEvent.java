@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code tool.execution_complete} session event.
+ * Session event "tool.execution_complete". Tool execution completion results including success status, detailed output, and error information
  *
  * @since 1.0.0
  */

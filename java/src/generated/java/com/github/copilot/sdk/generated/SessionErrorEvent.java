@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.error} session event.
+ * Session event "session.error". Error details for timeline display including message and optional diagnostic information
  *
  * @since 1.0.0
  */

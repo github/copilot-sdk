@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code mcp.config.list} RPC method.
+ * User-configured MCP servers, keyed by server name.
  *
  * @since 1.0.0
  */

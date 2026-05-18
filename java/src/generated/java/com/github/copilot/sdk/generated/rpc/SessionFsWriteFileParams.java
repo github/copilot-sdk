@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessionFs.writeFile} RPC method.
+ * File path, content to write, and optional mode for the client-provided session filesystem.
  *
  * @since 1.0.0
  */

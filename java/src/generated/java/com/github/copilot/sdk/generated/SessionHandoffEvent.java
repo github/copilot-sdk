@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.handoff} session event.
+ * Session event "session.handoff". Session handoff metadata including source, context, and repository information
  *
  * @since 1.0.0
  */

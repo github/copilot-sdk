@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code command.completed} session event.
+ * Session event "command.completed". Queued command completion notification signaling UI dismissal
  *
  * @since 1.0.0
  */

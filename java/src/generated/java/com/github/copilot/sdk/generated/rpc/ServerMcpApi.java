@@ -30,7 +30,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * Invokes {@code mcp.discover}.
+     * Optional working directory used as context for MCP server discovery.
      * @since 1.0.0
      */
     public CompletableFuture<McpDiscoverResult> discover(McpDiscoverParams params) {

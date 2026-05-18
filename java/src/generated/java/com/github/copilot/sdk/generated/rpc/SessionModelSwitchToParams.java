@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.model.switchTo} RPC method.
+ * Target model identifier and optional reasoning effort, summary, and capability overrides.
  *
  * @since 1.0.0
  */
@@ -25,8 +25,10 @@ public record SessionModelSwitchToParams(
     @JsonProperty("sessionId") String sessionId,
     /** Model identifier to switch to */
     @JsonProperty("modelId") String modelId,
-    /** Reasoning effort level to use for the model */
+    /** Reasoning effort level to use for the model. "none" disables reasoning. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
+    /** Reasoning summary mode to request for supported model clients */
+    @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
     /** Override individual model capabilities resolved by the runtime */
     @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities
 ) {

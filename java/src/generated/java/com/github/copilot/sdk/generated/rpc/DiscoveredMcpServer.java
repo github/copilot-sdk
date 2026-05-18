@@ -12,16 +12,21 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
+/**
+ * Schema for the `DiscoveredMcpServer` type.
+ *
+ * @since 1.0.0
+ */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DiscoveredMcpServer(
     /** Server name (config key) */
     @JsonProperty("name") String name,
-    /** Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio) */
+    /** Server transport type: stdio, http, sse, or memory */
     @JsonProperty("type") DiscoveredMcpServerType type,
-    /** Configuration source */
-    @JsonProperty("source") DiscoveredMcpServerSource source,
+    /** Configuration source: user, workspace, plugin, or builtin */
+    @JsonProperty("source") McpServerSource source,
     /** Whether the server is enabled (not in the disabled list) */
     @JsonProperty("enabled") Boolean enabled
 ) {

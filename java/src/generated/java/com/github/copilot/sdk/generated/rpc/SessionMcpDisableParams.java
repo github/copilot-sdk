@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.mcp.disable} RPC method.
+ * Name of the MCP server to disable for the session.
  *
  * @since 1.0.0
  */

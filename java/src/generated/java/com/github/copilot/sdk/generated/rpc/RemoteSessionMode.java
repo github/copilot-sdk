@@ -10,7 +10,7 @@ package com.github.copilot.sdk.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Per-session remote mode. "off" disables remote, "export" exports session events to Mission Control without enabling remote steering, "on" enables both export and remote steering.
+ * Per-session remote mode. "off" disables remote, "export" exports session events to GitHub without enabling remote steering, "on" enables both export and remote steering.
  *
  * @since 1.0.0
  */

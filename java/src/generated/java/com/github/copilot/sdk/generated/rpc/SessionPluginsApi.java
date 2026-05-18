@@ -28,7 +28,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Invokes {@code session.plugins.list}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

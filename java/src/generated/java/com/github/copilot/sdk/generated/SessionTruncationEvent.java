@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.truncation} session event.
+ * Session event "session.truncation". Conversation truncation statistics including token counts and removed content metrics
  *
  * @since 1.0.0
  */

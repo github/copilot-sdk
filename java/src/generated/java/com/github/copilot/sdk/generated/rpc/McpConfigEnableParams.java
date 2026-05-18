@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code mcp.config.enable} RPC method.
+ * MCP server names to enable for new sessions.
  *
  * @since 1.0.0
  */

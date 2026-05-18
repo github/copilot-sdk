@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.mcp_servers_loaded} session event.
+ * Session event "session.mcp_servers_loaded".
  *
  * @since 1.0.0
  */

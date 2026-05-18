@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.mcp.oauth.login} RPC method.
+ * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
  *
  * @since 1.0.0
  */

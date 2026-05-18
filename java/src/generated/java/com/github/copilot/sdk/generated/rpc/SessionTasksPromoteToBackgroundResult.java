@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.tasks.promoteToBackground} RPC method.
+ * Indicates whether the task was successfully promoted to background mode.
  *
  * @since 1.0.0
  */

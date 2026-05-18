@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code tools.list} RPC method.
+ * Optional model identifier whose tool overrides should be applied to the listing.
  *
  * @since 1.0.0
  */

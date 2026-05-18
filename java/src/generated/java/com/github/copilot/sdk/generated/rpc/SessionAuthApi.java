@@ -28,7 +28,7 @@ public final class SessionAuthApi {
     }
 
     /**
-     * Invokes {@code session.auth.getStatus}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<SessionAuthGetStatusResult> getStatus() {

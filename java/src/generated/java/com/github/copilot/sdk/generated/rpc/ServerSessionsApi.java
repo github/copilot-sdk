@@ -26,13 +26,23 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Invokes {@code sessions.fork}.
+     * Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionsForkResult> fork(SessionsForkParams params) {
         return caller.invoke("sessions.fork", params, SessionsForkResult.class);
+    }
+
+    /**
+     * Remote session connection parameters.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsConnectResult> connect() {
+        return caller.invoke("sessions.connect", java.util.Map.of(), SessionsConnectResult.class);
     }
 
 }

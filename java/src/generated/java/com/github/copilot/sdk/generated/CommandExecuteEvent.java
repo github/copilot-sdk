@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code command.execute} session event.
+ * Session event "command.execute". Registered command dispatch request routed to the owning client
  *
  * @since 1.0.0
  */

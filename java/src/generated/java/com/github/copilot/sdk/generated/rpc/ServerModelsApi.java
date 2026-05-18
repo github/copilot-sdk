@@ -26,7 +26,7 @@ public final class ServerModelsApi {
     }
 
     /**
-     * Invokes {@code models.list}.
+     * Optional GitHub token used to list models for a specific user instead of the global auth context.
      * @since 1.0.0
      */
     public CompletableFuture<ModelsListResult> list() {

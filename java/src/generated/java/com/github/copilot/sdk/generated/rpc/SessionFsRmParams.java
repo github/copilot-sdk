@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessionFs.rm} RPC method.
+ * Path to remove from the client-provided session filesystem, with options for recursive removal and force.
  *
  * @since 1.0.0
  */

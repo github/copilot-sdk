@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessionFs.setProvider} RPC method.
+ * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
  *
  * @since 1.0.0
  */
@@ -26,6 +26,8 @@ public record SessionFsSetProviderParams(
     /** Path within each session's SessionFs where the runtime stores files for that session */
     @JsonProperty("sessionStatePath") String sessionStatePath,
     /** Path conventions used by this filesystem */
-    @JsonProperty("conventions") SessionFsSetProviderConventions conventions
+    @JsonProperty("conventions") SessionFsSetProviderConventions conventions,
+    /** Optional capabilities declared by the provider */
+    @JsonProperty("capabilities") SessionFsSetProviderCapabilities capabilities
 ) {
 }

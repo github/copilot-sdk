@@ -30,7 +30,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Invokes {@code session.permissions.handlePendingPermissionRequest}.
+     * Pending permission request ID and the decision to apply (approve/reject and scope).
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -43,7 +43,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Invokes {@code session.permissions.setApproveAll}.
+     * Whether to auto-approve all tool permission requests for the rest of the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -56,7 +56,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Invokes {@code session.permissions.resetSessionApprovals}.
+     * No parameters; clears all session-scoped tool permission approvals.
      * @since 1.0.0
      */
     public CompletableFuture<SessionPermissionsResetSessionApprovalsResult> resetSessionApprovals() {

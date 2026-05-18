@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.mcp.oauth.login} RPC method.
+ * OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.
  *
  * @since 1.0.0
  */

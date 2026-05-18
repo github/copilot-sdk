@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.workspace_file_changed} session event.
+ * Session event "session.workspace_file_changed". Workspace file change details including path and operation type
  *
  * @since 1.0.0
  */

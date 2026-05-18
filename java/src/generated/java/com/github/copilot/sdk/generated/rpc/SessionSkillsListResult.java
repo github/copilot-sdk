@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.skills.list} RPC method.
+ * Skills available to the session, with their enabled state.
  *
  * @since 1.0.0
  */

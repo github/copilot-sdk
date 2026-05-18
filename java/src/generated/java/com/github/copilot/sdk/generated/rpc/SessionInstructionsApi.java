@@ -28,7 +28,7 @@ public final class SessionInstructionsApi {
     }
 
     /**
-     * Invokes {@code session.instructions.getSources}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<SessionInstructionsGetSourcesResult> getSources() {

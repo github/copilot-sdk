@@ -30,7 +30,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Invokes {@code session.tools.handlePendingToolCall}.
+     * Pending external tool call request ID, with the tool result or an error describing why it failed.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

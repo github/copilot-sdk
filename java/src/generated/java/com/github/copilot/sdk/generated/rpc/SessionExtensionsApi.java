@@ -30,7 +30,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Invokes {@code session.extensions.list}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -40,7 +40,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Invokes {@code session.extensions.enable}.
+     * Source-qualified extension identifier to enable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -55,7 +55,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Invokes {@code session.extensions.disable}.
+     * Source-qualified extension identifier to disable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -70,7 +70,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Invokes {@code session.extensions.reload}.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

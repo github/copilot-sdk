@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code session.mcp.list} RPC method.
+ * MCP servers configured for the session, with their connection status.
  *
  * @since 1.0.0
  */

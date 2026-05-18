@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code sessionFs.readFile} RPC method.
+ * File content as a UTF-8 string, or a filesystem error if the read failed.
  *
  * @since 1.0.0
  */

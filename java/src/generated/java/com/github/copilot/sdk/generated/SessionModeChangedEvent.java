@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code session.mode_changed} session event.
+ * Session event "session.mode_changed". Agent mode change details including previous and new modes
  *
  * @since 1.0.0
  */
@@ -35,10 +35,10 @@ public final class SessionModeChangedEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionModeChangedEventData(
-        /** Agent mode before the change (e.g., "interactive", "plan", "autopilot") */
-        @JsonProperty("previousMode") String previousMode,
-        /** Agent mode after the change (e.g., "interactive", "plan", "autopilot") */
-        @JsonProperty("newMode") String newMode
+        /** The session mode the agent is operating in */
+        @JsonProperty("previousMode") SessionMode previousMode,
+        /** The session mode the agent is operating in */
+        @JsonProperty("newMode") SessionMode newMode
     ) {
     }
 }

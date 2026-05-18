@@ -107,7 +107,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Invokes {@code session.suspend}.
+     * Identifies the target session.
      * @since 1.0.0
      */
     public CompletableFuture<Void> suspend() {
@@ -115,7 +115,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Invokes {@code session.log}.
+     * Message text, optional severity level, persistence flag, and optional follow-up URL.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

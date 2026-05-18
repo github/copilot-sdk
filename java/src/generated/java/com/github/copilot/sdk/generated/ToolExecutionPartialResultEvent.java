@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code tool.execution_partial_result} session event.
+ * Session event "tool.execution_partial_result". Streaming tool execution output for incremental result display
  *
  * @since 1.0.0
  */

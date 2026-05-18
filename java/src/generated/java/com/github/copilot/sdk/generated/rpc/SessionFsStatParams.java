@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code sessionFs.stat} RPC method.
+ * Path whose metadata should be returned from the client-provided session filesystem.
  *
  * @since 1.0.0
  */

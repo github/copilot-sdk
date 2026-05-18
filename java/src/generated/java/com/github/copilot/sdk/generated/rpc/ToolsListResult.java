@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Result for the {@code tools.list} RPC method.
+ * Built-in tools available for the requested model, with their parameters and instructions.
  *
  * @since 1.0.0
  */

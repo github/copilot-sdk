@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code command.queued} session event.
+ * Session event "command.queued". Queued slash command dispatch request for client execution
  *
  * @since 1.0.0
  */

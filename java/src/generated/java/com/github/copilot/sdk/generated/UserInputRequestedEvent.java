@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The {@code user_input.requested} session event.
+ * Session event "user_input.requested". User input request notification with question and optional predefined choices
  *
  * @since 1.0.0
  */

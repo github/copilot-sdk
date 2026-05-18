@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Request parameters for the {@code session.tasks.startAgent} RPC method.
+ * Agent type, prompt, name, and optional description and model override for the new task.
  *
  * @since 1.0.0
  */
