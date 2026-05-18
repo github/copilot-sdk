@@ -27,8 +27,8 @@ public static class CopilotTool
     /// <remarks>
     /// This is a helper on top of <see cref="AIFunctionFactory.Create(Delegate, AIFunctionFactoryOptions)"/> that applies additional configuration to support
     /// Copilot tools, such as binding a <see cref="ToolInvocation"/> parameter and adding Copilot-specific metadata properties based on the provided
-    /// <see cref="CopilotToolOptions"/>. Any <see cref="AIFunction"/> may be used as a Copilot tool; this helper simply provides additional conveniences 
-    /// when tools that opt-in to using advanced features.
+    /// <see cref="CopilotToolOptions"/>. Any <see cref="AIFunction"/> may be used as a Copilot tool; this helper simply provides additional conveniences
+    /// for tools that opt in to advanced features.
     /// </remarks>
     public static AIFunction DefineTool(
         Delegate method,
