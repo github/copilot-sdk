@@ -17,7 +17,11 @@ import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
 describe("Subagent hooks", async () => {
     // For snapshot recording (non-CI), use RECORD_GH_TOKEN if available
     const recordToken = !isCI ? process.env.RECORD_GH_TOKEN : undefined;
-    const { copilotClient: client, workDir, env } = await createSdkTestContext({
+    const {
+        copilotClient: client,
+        workDir,
+        env,
+    } = await createSdkTestContext({
         ...(recordToken ? { copilotClientOptions: { gitHubToken: recordToken } } : {}),
     });
     // Sub-agent hook propagation requires the session-based subagents feature flag.
@@ -32,11 +36,19 @@ describe("Subagent hooks", async () => {
             onPermissionRequest: approveAll,
             hooks: {
                 onPreToolUse: async (input: PreToolUseHookInput) => {
-                    hookLog.push({ kind: "pre", toolName: input.toolName, sessionId: input.sessionId });
+                    hookLog.push({
+                        kind: "pre",
+                        toolName: input.toolName,
+                        sessionId: input.sessionId,
+                    });
                     return { permissionDecision: "allow" } as PreToolUseHookOutput;
                 },
                 onPostToolUse: async (input: PostToolUseHookInput) => {
-                    hookLog.push({ kind: "post", toolName: input.toolName, sessionId: input.sessionId });
+                    hookLog.push({
+                        kind: "post",
+                        toolName: input.toolName,
+                        sessionId: input.sessionId,
+                    });
                     return null as PostToolUseHookOutput;
                 },
             },
@@ -46,8 +58,7 @@ describe("Subagent hooks", async () => {
         await writeFile(join(workDir, "subagent-test.txt"), "Hello from subagent test!");
 
         await session.sendAndWait({
-            prompt:
-                "Use the task tool to spawn an explore agent that reads the file subagent-test.txt in the current directory and reports its contents. You must use the task tool.",
+            prompt: "Use the task tool to spawn an explore agent that reads the file subagent-test.txt in the current directory and reports its contents. You must use the task tool.",
         });
 
         // Parent tool hooks fire for "task"
@@ -57,8 +68,14 @@ describe("Subagent hooks", async () => {
         // Sub-agent tool hooks fire for "view"
         const viewPre = hookLog.filter((h) => h.kind === "pre" && h.toolName === "view");
         const viewPost = hookLog.filter((h) => h.kind === "post" && h.toolName === "view");
-        expect(viewPre.length, "preToolUse should fire for the sub-agent's 'view' tool call").toBeGreaterThan(0);
-        expect(viewPost.length, "postToolUse should fire for the sub-agent's 'view' tool call").toBeGreaterThan(0);
+        expect(
+            viewPre.length,
+            "preToolUse should fire for the sub-agent's 'view' tool call"
+        ).toBeGreaterThan(0);
+        expect(
+            viewPost.length,
+            "postToolUse should fire for the sub-agent's 'view' tool call"
+        ).toBeGreaterThan(0);
 
         // input.sessionId distinguishes parent from sub-agent: parent tools and
         // sub-agent tools carry different sessionIds
