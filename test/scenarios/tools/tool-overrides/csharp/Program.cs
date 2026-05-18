@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.AI;
@@ -17,11 +16,13 @@ try
     {
         Model = "claude-haiku-4.5",
         OnPermissionRequest = PermissionHandler.ApproveAll,
-        Tools = [AIFunctionFactory.Create((Delegate)CustomGrep, new AIFunctionFactoryOptions
+        Tools = [CopilotTool.DefineTool((Delegate)CustomGrep, new CopilotToolOptions
+        {
+            OverridesBuiltInTool = true
+        }, new AIFunctionFactoryOptions
         {
             Name = "grep",
-            AdditionalProperties = new ReadOnlyDictionary<string, object?>(
-                new Dictionary<string, object?> { ["is_override"] = true })
+            Description = "A custom grep implementation that overrides the built-in",
         })],
     });
 

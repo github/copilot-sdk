@@ -151,10 +151,13 @@ using Microsoft.Extensions.AI;
 using Microsoft.Agents.AI;
 
 // Define a custom tool
-AIFunction weatherTool = AIFunctionFactory.Create(
+AIFunction weatherTool = CopilotTool.DefineTool(
     (string location) => $"The weather in {location} is sunny with a high of 25°C.",
-    "GetWeather",
-    "Get the current weather for a given location."
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "GetWeather",
+        Description = "Get the current weather for a given location.",
+    }
 );
 
 await using var copilotClient = new CopilotClient();

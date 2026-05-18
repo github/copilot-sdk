@@ -425,7 +425,7 @@ await client.StopAsync();
 
 ### Tools
 
-You can let the CLI call back into your process when the model needs capabilities you own. Use `AIFunctionFactory.Create` from Microsoft.Extensions.AI for type-safe tool definitions:
+You can let the CLI call back into your process when the model needs capabilities you own. Use `CopilotTool.DefineTool` for type-safe tool definitions:
 
 ```csharp
 using Microsoft.Extensions.AI;
@@ -435,34 +435,39 @@ var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
     Tools = [
-        AIFunctionFactory.Create(
+        CopilotTool.DefineTool(
             async ([Description("Issue identifier")] string id) => {
                 var issue = await FetchIssueAsync(id);
                 return issue;
             },
-            "lookup_issue",
-            "Fetch issue details from our tracker"),
+            factoryOptions: new AIFunctionFactoryOptions
+            {
+                Name = "lookup_issue",
+                Description = "Fetch issue details from our tracker",
+            }),
     ]
 });
 ```
 
-When Copilot invokes `lookup_issue`, the client automatically runs your handler and responds to the CLI. Handlers can return any JSON-serializable value (automatically wrapped), or a `ToolResultAIContent` wrapping a `ToolResultObject` for full control over result metadata.
+When Copilot invokes `lookup_issue`, the client automatically runs your handler and responds to the CLI. Handlers can return any JSON-serializable value (automatically wrapped), or a `ToolResultAIContent` wrapping a `ToolResultObject` for full control over result metadata. Include a `ToolInvocation` parameter in your handler if you need the session ID, tool call ID, tool name, or raw arguments.
 
 #### Overriding Built-in Tools
 
-If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the runtime will return an error unless you explicitly opt in by setting `is_override` in the tool's `AdditionalProperties`. This flag signals that you intend to replace the built-in tool with your custom implementation.
+If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the runtime will return an error unless you explicitly opt in with `CopilotToolOptions.OverridesBuiltInTool`. This flag signals that you intend to replace the built-in tool with your custom implementation.
 
 ```csharp
-var editFile = AIFunctionFactory.Create(
+var editFile = CopilotTool.DefineTool(
     async ([Description("File path")] string path, [Description("New content")] string content) => {
         // your logic
     },
-    "edit_file",
-    "Custom file editor with project-specific validation",
-    new AIFunctionFactoryOptions
+    toolOptions: new CopilotToolOptions
     {
-        AdditionalProperties = new ReadOnlyDictionary<string, object?>(
-            new Dictionary<string, object?> { ["is_override"] = true })
+        OverridesBuiltInTool = true
+    },
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "edit_file",
+        Description = "Custom file editor with project-specific validation",
     });
 
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -474,21 +479,27 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 #### Skipping Permission Prompts
 
-Set `skip_permission` in the tool's `AdditionalProperties` to allow it to execute without triggering a permission prompt:
+Set `CopilotToolOptions.SkipPermission` to allow a tool to execute without triggering a permission prompt:
 
 ```csharp
-var safeLookup = AIFunctionFactory.Create(
+var safeLookup = CopilotTool.DefineTool(
     async ([Description("Lookup ID")] string id) => {
         // your logic
     },
-    "safe_lookup",
-    "A read-only lookup that needs no confirmation",
-    new AIFunctionFactoryOptions
+    toolOptions: new CopilotToolOptions
     {
-        AdditionalProperties = new ReadOnlyDictionary<string, object?>(
-            new Dictionary<string, object?> { ["skip_permission"] = true })
+        SkipPermission = true
+    },
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "safe_lookup",
+        Description = "A read-only lookup that needs no confirmation",
     });
 ```
+
+`DefineTool` delegates to `AIFunctionFactory.Create`, so advanced `AIFunctionFactoryOptions` remain available through the overload that accepts both `AIFunctionFactoryOptions` and `CopilotToolOptions`.
+
+If you want to use `AIFunctionFactory.Create` directly, you can set `skip_permission` in the tool's `AdditionalProperties`.
 
 ## Commands
 
@@ -789,7 +800,7 @@ var session = await client.ResumeSessionAsync("session-id", new ResumeSessionCon
 
 ### Per-Tool Skip Permission
 
-To let a specific custom tool bypass the permission prompt entirely, set `skip_permission = true` in the tool's `AdditionalProperties`. See [Skipping Permission Prompts](#skipping-permission-prompts) under Tools.
+To let a specific custom tool bypass the permission prompt entirely, set `SkipPermission = true` in `CopilotToolOptions`. See [Skipping Permission Prompts](#skipping-permission-prompts) under Tools.
 
 ## User Input Requests
 

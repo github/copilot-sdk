@@ -1166,7 +1166,7 @@ using System.ComponentModel;
 await using var client = new CopilotClient();
 
 // Define a tool that Copilot can call
-var getWeather = AIFunctionFactory.Create(
+var getWeather = CopilotTool.DefineTool(
     ([Description("The city name")] string city) =>
     {
         // In a real app, you'd call a weather API here
@@ -1175,8 +1175,11 @@ var getWeather = AIFunctionFactory.Create(
         var condition = conditions[Random.Shared.Next(conditions.Length)];
         return new { city, temperature = $"{temp}°F", condition };
     },
-    "get_weather",
-    "Get the current weather for a city"
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "get_weather",
+        Description = "Get the current weather for a city",
+    }
 );
 
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -1648,8 +1651,8 @@ using GitHub.Copilot.SDK;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
-// Define the weather tool using AIFunctionFactory
-var getWeather = AIFunctionFactory.Create(
+// Define the weather tool
+var getWeather = CopilotTool.DefineTool(
     ([Description("The city name")] string city) =>
     {
         var conditions = new[] { "sunny", "cloudy", "rainy", "partly cloudy" };
@@ -1657,8 +1660,11 @@ var getWeather = AIFunctionFactory.Create(
         var condition = conditions[Random.Shared.Next(conditions.Length)];
         return new { city, temperature = $"{temp}°F", condition };
     },
-    "get_weather",
-    "Get the current weather for a city");
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "get_weather",
+        Description = "Get the current weather for a city",
+    });
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
