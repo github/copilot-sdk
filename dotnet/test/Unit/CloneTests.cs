@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using Microsoft.Extensions.AI;
 using Xunit;
 
 namespace GitHub.Copilot.SDK.Test.Unit;

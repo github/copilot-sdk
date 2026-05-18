@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Text;
-
 namespace System.Text.Unicode;
 
 internal static class Utf8

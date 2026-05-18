@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.ComponentModel;
-using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
+using System.ComponentModel;
 using Xunit;
 using Xunit.Abstractions;
 

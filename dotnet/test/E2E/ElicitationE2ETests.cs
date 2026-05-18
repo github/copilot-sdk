@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 

@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
 using GitHub.Copilot.SDK.Rpc;
+using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 

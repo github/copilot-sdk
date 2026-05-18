@@ -79,6 +79,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsReadFileResult> ISessionFsHandler.ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             var content = await ReadFileAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -92,6 +94,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await WriteFileAsync(request.Path, request.Content, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
@@ -105,6 +109,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await AppendFileAsync(request.Path, request.Content, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
@@ -118,6 +124,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsExistsResult> ISessionFsHandler.ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             var exists = await ExistsAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -131,6 +139,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsStatResult> ISessionFsHandler.StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             return await StatAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -143,6 +153,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await MkdirAsync(request.Path, request.Recursive ?? false, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
@@ -156,6 +168,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsReaddirResult> ISessionFsHandler.ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             var entries = await ReaddirAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -169,6 +183,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsReaddirWithTypesResult> ISessionFsHandler.ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             var entries = await ReaddirWithTypesAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -182,6 +198,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await RmAsync(request.Path, request.Recursive ?? false, request.Force ?? false, cancellationToken).ConfigureAwait(false);
@@ -195,6 +213,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await RenameAsync(request.Src, request.Dest, cancellationToken).ConfigureAwait(false);
