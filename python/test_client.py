@@ -10,6 +10,8 @@ import pytest
 
 from copilot import CopilotClient, define_tool
 from copilot.client import (
+    CloudSessionOptions,
+    CloudSessionRepository,
     ExternalServerConfig,
     ModelCapabilities,
     ModelInfo,
@@ -72,6 +74,43 @@ class TestPermissionHandlerRequired:
             )
             with pytest.raises(ValueError, match="on_permission_request.*is required"):
                 await client.resume_session(session.session_id, on_permission_request=None)
+        finally:
+            await client.force_stop()
+
+
+class TestCreateSessionConfig:
+    @pytest.mark.asyncio
+    async def test_create_session_forwards_cloud_options(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                cloud=CloudSessionOptions(
+                    repository=CloudSessionRepository(
+                        owner="github",
+                        name="copilot-sdk",
+                        branch="main",
+                    )
+                ),
+            )
+
+            assert captured["session.create"]["cloud"] == {
+                "repository": {
+                    "owner": "github",
+                    "name": "copilot-sdk",
+                    "branch": "main",
+                }
+            }
         finally:
             await client.force_stop()
 

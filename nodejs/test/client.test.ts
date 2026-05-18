@@ -73,6 +73,31 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("forwards cloud options in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockResolvedValue({ sessionId: "cloud-session" });
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            cloud: {
+                repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+            },
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({
+                cloud: {
+                    repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+                },
+            })
+        );
+    });
+
     it("forwards clientName in session.resume request", async () => {
         const client = new CopilotClient();
         await client.start();

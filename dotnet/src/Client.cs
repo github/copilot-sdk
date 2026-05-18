@@ -632,6 +632,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ModelCapabilities: config.ModelCapabilities,
                 GitHubToken: config.GitHubToken,
                 RemoteSession: config.RemoteSession,
+                Cloud: config.Cloud,
                 InstructionDirectories: config.InstructionDirectories);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -2001,6 +2002,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ModelCapabilitiesOverride? ModelCapabilities = null,
         string? GitHubToken = null,
         RemoteSessionMode? RemoteSession = null,
+        CloudSessionOptions? Cloud = null,
         IList<string>? InstructionDirectories = null);
 
     internal record ToolDefinition(

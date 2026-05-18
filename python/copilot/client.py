@@ -82,6 +82,35 @@ ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
 
 
+@dataclass
+class CloudSessionRepository:
+    """GitHub repository metadata to associate with a cloud session."""
+
+    owner: str
+    name: str
+    branch: str | None = None
+
+
+@dataclass
+class CloudSessionOptions:
+    """Options for creating a remote session in the cloud."""
+
+    repository: CloudSessionRepository | None = None
+
+
+def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    if options.repository is not None:
+        repository: dict[str, Any] = {
+            "owner": options.repository.owner,
+            "name": options.repository.name,
+        }
+        if options.repository.branch is not None:
+            repository["branch"] = options.repository.branch
+        result["repository"] = repository
+    return result
+
+
 def _validate_session_fs_config(config: SessionFsConfig) -> None:
     if not config.get("initial_cwd"):
         raise ValueError("session_fs.initial_cwd is required")
@@ -1328,6 +1357,7 @@ class CopilotClient:
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
+        cloud: CloudSessionOptions | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1389,6 +1419,9 @@ class CopilotClient:
                 instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
+            cloud: Creates a remote session in the cloud instead of a local
+                session. Optionally associates repository metadata with the
+                cloud session.
             on_event: Callback for session events.
 
         Returns:
@@ -1484,6 +1517,10 @@ class CopilotClient:
         # Add remote session mode if provided
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
+
+        # Add cloud session options if provided
+        if cloud is not None:
+            payload["cloud"] = _cloud_session_options_to_dict(cloud)
 
         # Add working directory if provided
         if working_directory:
