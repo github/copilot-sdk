@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Collections.Concurrent;
-using System.ComponentModel;
-using System.Text.RegularExpressions;
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
+using System.Collections.Concurrent;
+using System.ComponentModel;
 using Xunit;
 using Xunit.Abstractions;
 

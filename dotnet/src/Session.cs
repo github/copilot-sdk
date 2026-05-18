@@ -186,6 +186,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task<string> SendAsync(MessageOptions options, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
 
         var request = new SendMessageRequest
@@ -243,6 +245,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         var totalTimestamp = Stopwatch.GetTimestamp();
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(60);
         var tcs = new TaskCompletionSource<AssistantMessageEvent?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -361,6 +365,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public IDisposable On(SessionEventHandler handler)
     {
+        ArgumentNullException.ThrowIfNull(handler);
+
         ImmutableInterlocked.Update(ref _eventHandlers, array => array.Add(handler));
         return new ActionDisposable(() => ImmutableInterlocked.Update(ref _eventHandlers, array => array.Remove(handler)));
     }
@@ -1320,7 +1326,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task SetModelAsync(string model, string? reasoningEffort, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
     {
-        await Rpc.Model.SwitchToAsync(model, reasoningEffort, modelCapabilities, cancellationToken);
+        ArgumentNullException.ThrowIfNull(model);
+
+        await Rpc.Model.SwitchToAsync(model, reasoningEffort, reasoningSummary: null, modelCapabilities: modelCapabilities, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -1351,6 +1359,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task LogAsync(string message, SessionLogLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(message);
+
         await Rpc.LogAsync(message, level, ephemeral, url, cancellationToken);
     }
 

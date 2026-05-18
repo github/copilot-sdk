@@ -526,6 +526,12 @@ pub struct CustomAgentConfig {
     /// Skill names to preload into this agent's context at startup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills: Option<Vec<String>>,
+    /// Model identifier for this agent (e.g. `"claude-haiku-4.5"`).
+    ///
+    /// When set, the runtime will attempt to use this model for the agent,
+    /// falling back to the parent session model if unavailable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 impl CustomAgentConfig {
@@ -585,6 +591,12 @@ impl CustomAgentConfig {
         S: Into<String>,
     {
         self.skills = Some(skills.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the model identifier for this agent.
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
         self
     }
 }
@@ -3256,6 +3268,31 @@ mod tests {
         assert_eq!(tool.parameters.get("type").unwrap(), &json!("object"));
         assert!(tool.overrides_built_in_tool);
         assert!(tool.skip_permission);
+    }
+
+    #[test]
+    fn custom_agent_config_builder_with_model() {
+        let agent = CustomAgentConfig::new("my-agent", "You are helpful.")
+            .with_model("claude-haiku-4.5")
+            .with_display_name("My Agent");
+        assert_eq!(agent.name, "my-agent");
+        assert_eq!(agent.model.as_deref(), Some("claude-haiku-4.5"));
+        assert_eq!(agent.display_name.as_deref(), Some("My Agent"));
+    }
+
+    #[test]
+    fn custom_agent_config_serializes_model() {
+        let agent = CustomAgentConfig::new("model-agent", "prompt").with_model("claude-haiku-4.5");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert_eq!(wire["model"], "claude-haiku-4.5");
+        assert_eq!(wire["name"], "model-agent");
+    }
+
+    #[test]
+    fn custom_agent_config_omits_model_when_none() {
+        let agent = CustomAgentConfig::new("no-model-agent", "prompt");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert!(wire.get("model").is_none());
     }
 
     #[test]

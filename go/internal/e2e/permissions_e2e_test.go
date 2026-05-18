@@ -130,6 +130,26 @@ func TestPermissionsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
+		// Regression check for https://github.com/github/copilot-sdk/issues/1194:
+		// the reject decision must round-trip through the CLI with its discriminator
+		// intact so the agent surfaces the user-rejected error to the model. The
+		// CLI emits a kind-specific error message ("The user rejected this tool call.")
+		// for the reject decision, which lets us assert the decision was honored
+		// — not merely that the operation didn't happen.
+		var mu sync.Mutex
+		userRejectedToolCall := false
+
+		session.On(func(event copilot.SessionEvent) {
+			if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok &&
+				!d.Success &&
+				d.Error != nil &&
+				strings.Contains(strings.ToLower(d.Error.Message), "user rejected") {
+				mu.Lock()
+				userRejectedToolCall = true
+				mu.Unlock()
+			}
+		})
+
 		testFile := filepath.Join(ctx.WorkDir, "protected.txt")
 		originalContent := []byte("protected content")
 		err = os.WriteFile(testFile, originalContent, 0644)
@@ -148,6 +168,12 @@ func TestPermissionsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
+
+		mu.Lock()
+		if !userRejectedToolCall {
+			t.Error("Expected a tool.execution_complete event whose error indicates the user rejected the call.")
+		}
+		mu.Unlock()
 
 		// Verify the file was NOT modified
 		content, err := os.ReadFile(testFile)

@@ -15,7 +15,7 @@ Demonstrates how to override a built-in tool with a custom implementation using 
 | `tools` | Custom `grep` tool | Provides a custom grep implementation |
 | `overridesBuiltInTool` | `true` | Tells the SDK to disable the built-in `grep` in favor of the custom one |
 
-The flag is set per-tool in TypeScript (`overridesBuiltInTool: true`), Python (`overrides_built_in_tool=True`), and Go (`OverridesBuiltInTool: true`). In C#, set `is_override` in the tool's `AdditionalProperties` via `AIFunctionFactoryOptions`.
+The flag is set per-tool in TypeScript (`overridesBuiltInTool: true`), Python (`overrides_built_in_tool=True`), Go (`OverridesBuiltInTool: true`), and .NET (`new CopilotToolOptions { OverridesBuiltInTool = true }`).
 
 ## Run
 

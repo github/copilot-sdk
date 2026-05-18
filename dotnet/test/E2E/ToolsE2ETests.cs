@@ -6,7 +6,6 @@ using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;

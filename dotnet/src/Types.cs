@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Rpc;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using GitHub.Copilot.SDK.Rpc;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Logging;
 
 namespace GitHub.Copilot.SDK;
 
@@ -28,7 +28,7 @@ internal static class GeneratedStringEnumJson
             throw new JsonException($"Expected a non-empty string token when reading {typeToConvert.Name}.");
         }
 
-        return value;
+        return value!;
     }
 
     internal static void WriteValue(Utf8JsonWriter writer, string value, Type typeToConvert)
@@ -1933,6 +1933,14 @@ public class CustomAgentConfig
     /// </summary>
     [JsonPropertyName("skills")]
     public IList<string>? Skills { get; set; }
+
+    /// <summary>
+    /// Model identifier for this agent (e.g. "claude-haiku-4.5").
+    /// When set, the runtime will attempt to use this model for the agent,
+    /// falling back to the parent session model if unavailable.
+    /// </summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
 }
 
 /// <summary>

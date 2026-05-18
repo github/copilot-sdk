@@ -2,20 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Rpc;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
-using GitHub.Copilot.SDK.Rpc;
-using System.Globalization;
 using static GitHub.Copilot.SDK.LoggingHelpers;
 
 namespace GitHub.Copilot.SDK;
@@ -532,6 +532,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task<CopilotSession> CreateSessionAsync(SessionConfig config, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(config);
+
         if (config.OnPermissionRequest == null)
         {
             throw new ArgumentException(
@@ -692,6 +694,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task<CopilotSession> ResumeSessionAsync(string sessionId, ResumeSessionConfig config, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        ArgumentNullException.ThrowIfNull(config);
+
         if (config.OnPermissionRequest == null)
         {
             throw new ArgumentException(
@@ -991,6 +996,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
         var connection = await EnsureConnectedAsync(cancellationToken);
 
         var response = await InvokeRpcAsync<DeleteSessionResponse>(
@@ -1052,6 +1059,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task<SessionMetadata?> GetSessionMetadataAsync(string sessionId, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
         var connection = await EnsureConnectedAsync(cancellationToken);
 
         var response = await InvokeRpcAsync<GetSessionMetadataResponse>(
@@ -1105,6 +1114,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task SetForegroundSessionIdAsync(string sessionId, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
         var connection = await EnsureConnectedAsync(cancellationToken);
 
         var response = await InvokeRpcAsync<SetForegroundSessionResponse>(
@@ -1135,6 +1146,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public IDisposable On(Action<SessionLifecycleEvent> handler)
     {
+        ArgumentNullException.ThrowIfNull(handler);
+
         lock (_lifecycleHandlersLock)
         {
             _lifecycleHandlers.Add(handler);
@@ -1165,6 +1178,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public IDisposable On(string eventType, Action<SessionLifecycleEvent> handler)
     {
+        ArgumentNullException.ThrowIfNull(eventType);
+        ArgumentNullException.ThrowIfNull(handler);
+
         lock (_lifecycleHandlersLock)
         {
             if (!_typedLifecycleHandlers.TryGetValue(eventType, out var handlers))
@@ -1172,6 +1188,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 handlers = [];
                 _typedLifecycleHandlers[eventType] = handlers;
             }
+
             handlers.Add(handler);
         }
 
@@ -1240,7 +1257,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             if (!string.IsNullOrEmpty(stderrOutput))
             {
-                throw new IOException(FormatCliExitedMessage("CLI process exited unexpectedly.", stderrOutput), ex);
+                throw new IOException(FormatCliExitedMessage("CLI process exited unexpectedly.", stderrOutput!), ex);
             }
             throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
         }
@@ -1561,7 +1578,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         // Always use portable RID (e.g., linux-x64) to match the build-time placement,
         // since distro-specific RIDs (e.g., ubuntu.24.04-x64) are normalized at build time.
         var rid = GetPortableRid()
-            ?? Path.GetFileName(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+            ?? Path.GetFileName(RuntimeInformation.RuntimeIdentifier);
         searchedPath = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", binaryName);
         return File.Exists(searchedPath) ? searchedPath : null;
     }
@@ -1997,8 +2014,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         public static ToolDefinition FromAIFunction(AIFunction function)
         {
-            var overrides = function.AdditionalProperties.TryGetValue("is_override", out var val) && val is true;
-            var skipPerm = function.AdditionalProperties.TryGetValue("skip_permission", out var skipVal) && skipVal is true;
+            var overrides = function.AdditionalProperties.TryGetValue(CopilotTool.OverridesBuiltInToolKey, out var val) && val is true;
+            var skipPerm = function.AdditionalProperties.TryGetValue(CopilotTool.SkipPermissionKey, out var skipVal) && skipVal is true;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
                 overrides ? true : null,
                 skipPerm ? true : null);
@@ -2145,8 +2162,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(UserInputResponse))]
     internal partial class ClientJsonContext : JsonSerializerContext;
 
+#if NET8_0_OR_GREATER
     [GeneratedRegex(@"listening on port ([0-9]+)", RegexOptions.IgnoreCase)]
     private static partial Regex ListeningOnPortRegex();
+#else
+    private static readonly Regex s_listeningOnPortRegex = new(@"listening on port ([0-9]+)", RegexOptions.IgnoreCase);
+
+    private static Regex ListeningOnPortRegex() => s_listeningOnPortRegex;
+#endif
 }
 
 /// <summary>

@@ -5,7 +5,7 @@ Generated from: api.schema.json
 
 from typing import TYPE_CHECKING
 
-from .session_events import EmbeddedBlobResourceContents, EmbeddedTextResourceContents
+from .session_events import EmbeddedBlobResourceContents, EmbeddedTextResourceContents, ReasoningSummary
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -95,6 +95,8 @@ class AccountGetQuotaRequest:
 
 @dataclass
 class AccountQuotaSnapshot:
+    """Schema for the `AccountQuotaSnapshot` type."""
+
     entitlement_requests: int
     """Number of requests included in the entitlement"""
 
@@ -147,8 +149,10 @@ class AccountQuotaSnapshot:
 
 @dataclass
 class AgentInfo:
-    """The newly selected custom agent"""
+    """Schema for the `AgentInfo` type.
 
+    The newly selected custom agent
+    """
     description: str
     """Description of the agent's purpose"""
 
@@ -184,6 +188,8 @@ class AgentInfo:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AgentSelectRequest:
+    """Name of the custom agent to select for subsequent turns."""
+
     name: str
     """Name of the custom agent to select"""
 
@@ -224,6 +230,8 @@ class SlashCommandKind(Enum):
 
 @dataclass
 class CommandsHandlePendingCommandRequest:
+    """Pending command request ID and an optional error if the client handler failed."""
+
     request_id: str
     """Request ID from the command invocation event"""
 
@@ -246,6 +254,8 @@ class CommandsHandlePendingCommandRequest:
 
 @dataclass
 class CommandsHandlePendingCommandResult:
+    """Indicates whether the pending client-handled command was completed successfully."""
+
     success: bool
     """Whether the command was handled successfully"""
 
@@ -262,6 +272,8 @@ class CommandsHandlePendingCommandResult:
 
 @dataclass
 class CommandsInvokeRequest:
+    """Slash command name and optional raw input string to invoke."""
+
     name: str
     """Command name. Leading slashes are stripped and the name is matched case-insensitively."""
 
@@ -284,6 +296,8 @@ class CommandsInvokeRequest:
 
 @dataclass
 class CommandsListRequest:
+    """Optional filters controlling which command sources to include in the listing."""
+
     include_builtins: bool | None = None
     """Include runtime built-in commands"""
 
@@ -312,33 +326,9 @@ class CommandsListRequest:
         return result
 
 @dataclass
-class QueuedCommandResult:
-    """Result of the queued command execution"""
-
-    handled: bool
-    """The command was handled
-
-    The command was not handled
-    """
-    stop_processing_queue: bool | None = None
-    """If true, stop processing remaining queued items"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'QueuedCommandResult':
-        assert isinstance(obj, dict)
-        handled = from_bool(obj.get("handled"))
-        stop_processing_queue = from_union([from_bool, from_none], obj.get("stopProcessingQueue"))
-        return QueuedCommandResult(handled, stop_processing_queue)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["handled"] = from_bool(self.handled)
-        if self.stop_processing_queue is not None:
-            result["stopProcessingQueue"] = from_union([from_bool, from_none], self.stop_processing_queue)
-        return result
-
-@dataclass
 class CommandsRespondToQueuedCommandResult:
+    """Indicates whether the queued-command response was accepted by the session."""
+
     success: bool
     """Whether the response was accepted (false if the requestId was not found or already
     resolved)
@@ -355,9 +345,30 @@ class CommandsRespondToQueuedCommandResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class ConnectRemoteSessionParams:
+    """Remote session connection parameters."""
+
+    session_id: str
+    """Session ID to connect to."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ConnectRemoteSessionParams':
+        assert isinstance(obj, dict)
+        session_id = from_str(obj.get("sessionId"))
+        return ConnectRemoteSessionParams(session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
 class ConnectRequest:
+    """Optional connection token presented by the SDK client during the handshake."""
+
     token: str | None = None
     """Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN"""
 
@@ -376,6 +387,8 @@ class ConnectRequest:
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
 class ConnectResult:
+    """Handshake result reporting the server's protocol version and package version on success."""
+
     ok: bool
     """Always true on success"""
 
@@ -400,8 +413,44 @@ class ConnectResult:
         result["version"] = from_str(self.version)
         return result
 
+class ConnectedRemoteSessionMetadataKind(Enum):
+    """Neutral SDK discriminator for the connected remote session kind."""
+
+    CODING_AGENT = "coding-agent"
+    REMOTE_SESSION = "remote-session"
+
+@dataclass
+class ConnectedRemoteSessionMetadataRepository:
+    """Repository associated with the connected remote session."""
+
+    branch: str
+    """Branch associated with the remote session."""
+
+    name: str
+    """Repository name."""
+
+    owner: str
+    """Repository owner or organization login."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ConnectedRemoteSessionMetadataRepository':
+        assert isinstance(obj, dict)
+        branch = from_str(obj.get("branch"))
+        name = from_str(obj.get("name"))
+        owner = from_str(obj.get("owner"))
+        return ConnectedRemoteSessionMetadataRepository(branch, name, owner)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["branch"] = from_str(self.branch)
+        result["name"] = from_str(self.name)
+        result["owner"] = from_str(self.owner)
+        return result
+
 @dataclass
 class CurrentModel:
+    """The currently selected model for the session."""
+
     model_id: str | None = None
     """Currently active model identifier"""
 
@@ -452,6 +501,8 @@ class ExtensionStatus(Enum):
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExtensionsDisableRequest:
+    """Source-qualified extension identifier to disable for the session."""
+
     id: str
     """Source-qualified extension ID to disable"""
 
@@ -469,6 +520,8 @@ class ExtensionsDisableRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExtensionsEnableRequest:
+    """Source-qualified extension identifier to enable for the session."""
+
     id: str
     """Source-qualified extension ID to enable"""
 
@@ -516,6 +569,10 @@ class KindEnum(Enum):
     TEXT = "text"
 
 class FilterMappingString(Enum):
+    """Allowed values for the `FilterMappingValue` enumeration.
+
+    Allowed values for the `FilterMappingString` enumeration.
+    """
     HIDDEN_CHARACTERS = "hidden_characters"
     MARKDOWN = "markdown"
     NONE = "none"
@@ -523,6 +580,8 @@ class FilterMappingString(Enum):
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class FleetStartRequest:
+    """Optional user prompt to combine with the fleet orchestration instructions."""
+
     prompt: str | None = None
     """Optional user prompt to combine with fleet instructions"""
 
@@ -541,6 +600,8 @@ class FleetStartRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class FleetStartResult:
+    """Indicates whether fleet mode was successfully activated."""
+
     started: bool
     """Whether fleet mode was successfully activated"""
 
@@ -557,6 +618,8 @@ class FleetStartResult:
 
 @dataclass
 class HandlePendingToolCallResult:
+    """Indicates whether the external tool call result was handled successfully."""
+
     success: bool
     """Whether the tool call result was handled successfully"""
 
@@ -620,6 +683,8 @@ class HistoryCompactContextWindow:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HistoryTruncateRequest:
+    """Identifier of the event to truncate to; this event and all later events are removed."""
+
     event_id: str
     """Event ID to truncate to. This event and all events after it are removed from the session."""
 
@@ -637,6 +702,8 @@ class HistoryTruncateRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HistoryTruncateResult:
+    """Number of events that were removed by the truncation."""
+
     events_removed: int
     """Number of events that were removed"""
 
@@ -678,6 +745,8 @@ class SessionLogLevel(Enum):
 
 @dataclass
 class LogResult:
+    """Identifier of the session event that was emitted for the log message."""
+
     event_id: UUID
     """The unique identifier of the emitted session event"""
 
@@ -693,12 +762,16 @@ class LogResult:
         return result
 
 class MCPServerConfigHTTPOauthGrantType(Enum):
+    """OAuth grant type to use when authenticating to the remote MCP server."""
+
     AUTHORIZATION_CODE = "authorization_code"
     CLIENT_CREDENTIALS = "client_credentials"
 
 class MCPServerConfigType(Enum):
-    """Remote transport type. Defaults to "http" when omitted."""
+    """Local transport type. Defaults to "local".
 
+    Remote transport type. Defaults to "http" when omitted.
+    """
     HTTP = "http"
     LOCAL = "local"
     SSE = "sse"
@@ -706,6 +779,8 @@ class MCPServerConfigType(Enum):
 
 @dataclass
 class MCPConfigDisableRequest:
+    """MCP server names to disable for new sessions."""
+
     names: list[str]
     """Names of MCP servers to disable. Each server is added to the persisted disabled list so
     new sessions skip it. Already-disabled names are ignored. Active sessions keep their
@@ -725,6 +800,8 @@ class MCPConfigDisableRequest:
 
 @dataclass
 class MCPConfigEnableRequest:
+    """MCP server names to enable for new sessions."""
+
     names: list[str]
     """Names of MCP servers to enable. Each server is removed from the persisted disabled list
     so new sessions spawn it. Unknown or already-enabled names are ignored.
@@ -743,6 +820,8 @@ class MCPConfigEnableRequest:
 
 @dataclass
 class MCPConfigRemoveRequest:
+    """MCP server name to remove from user configuration."""
+
     name: str
     """Name of the MCP server to remove"""
 
@@ -759,6 +838,8 @@ class MCPConfigRemoveRequest:
 
 @dataclass
 class MCPDisableRequest:
+    """Name of the MCP server to disable for the session."""
+
     server_name: str
     """Name of the MCP server to disable"""
 
@@ -775,6 +856,8 @@ class MCPDisableRequest:
 
 @dataclass
 class MCPDiscoverRequest:
+    """Optional working directory used as context for MCP server discovery."""
+
     working_directory: str | None = None
     """Working directory used as context for discovery (e.g., plugin resolution)"""
 
@@ -792,6 +875,8 @@ class MCPDiscoverRequest:
 
 @dataclass
 class MCPEnableRequest:
+    """Name of the MCP server to enable for the session."""
+
     server_name: str
     """Name of the MCP server to enable"""
 
@@ -808,6 +893,9 @@ class MCPEnableRequest:
 
 @dataclass
 class MCPOauthLoginRequest:
+    """Remote MCP server name and optional overrides controlling reauthentication, OAuth client
+    display name, and the callback success-page copy.
+    """
     server_name: str
     """Name of the remote MCP server to authenticate"""
 
@@ -851,6 +939,9 @@ class MCPOauthLoginRequest:
 
 @dataclass
 class MCPOauthLoginResult:
+    """OAuth authorization URL the caller should open, or empty when cached tokens already
+    authenticated the server.
+    """
     authorization_url: str | None = None
     """URL the caller should open in a browser to complete OAuth. Omitted when cached tokens
     were still valid and no browser interaction was needed — the server is already
@@ -888,6 +979,8 @@ class MCPServerConfigHTTPType(Enum):
     SSE = "sse"
 
 class MCPServerConfigLocalType(Enum):
+    """Local transport type. Defaults to "local"."""
+
     LOCAL = "local"
     STDIO = "stdio"
 
@@ -1028,6 +1121,8 @@ class ModelPolicy:
 
 @dataclass
 class ModelCapabilitiesOverrideLimitsVision:
+    """Vision-specific limits"""
+
     max_prompt_image_size: int | None = None
     """Maximum image size in bytes"""
 
@@ -1060,7 +1155,10 @@ class ModelCapabilitiesOverrideSupports:
     """Feature flags indicating what the model supports"""
 
     reasoning_effort: bool | None = None
+    """Whether this model supports reasoning effort configuration"""
+
     vision: bool | None = None
+    """Whether this model supports vision/image input"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelCapabilitiesOverrideSupports':
@@ -1079,6 +1177,8 @@ class ModelCapabilitiesOverrideSupports:
 
 @dataclass
 class ModelSwitchToResult:
+    """The model identifier active on the session after the switch."""
+
     model_id: str | None = None
     """Currently active model identifier after the switch"""
 
@@ -1115,6 +1215,8 @@ class ModelsListRequest:
 
 @dataclass
 class NameGetResult:
+    """The session's friendly name, or null when not yet set."""
+
     name: str | None = None
     """The session name (user-set or auto-generated), or null if not yet set"""
 
@@ -1131,6 +1233,8 @@ class NameGetResult:
 
 @dataclass
 class NameSetRequest:
+    """New friendly name to apply to the session."""
+
     name: str
     """New session name (1–100 characters, trimmed of leading/trailing whitespace)"""
 
@@ -1211,6 +1315,9 @@ class PermissionDecisionUserNotAvailableKind(Enum):
 
 @dataclass
 class PermissionRequestResult:
+    """Indicates whether the permission decision was applied; false when the request was already
+    resolved.
+    """
     success: bool
     """Whether the permission request was handled successfully"""
 
@@ -1227,6 +1334,7 @@ class PermissionRequestResult:
 
 @dataclass
 class PermissionsResetSessionApprovalsRequest:
+    """No parameters; clears all session-scoped tool permission approvals."""
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsResetSessionApprovalsRequest':
         assert isinstance(obj, dict)
@@ -1238,6 +1346,8 @@ class PermissionsResetSessionApprovalsRequest:
 
 @dataclass
 class PermissionsResetSessionApprovalsResult:
+    """Indicates whether the operation succeeded."""
+
     success: bool
     """Whether the operation succeeded"""
 
@@ -1254,6 +1364,8 @@ class PermissionsResetSessionApprovalsResult:
 
 @dataclass
 class PermissionsSetApproveAllRequest:
+    """Whether to auto-approve all tool permission requests for the rest of the session."""
+
     enabled: bool
     """Whether to auto-approve all tool permission requests"""
 
@@ -1270,6 +1382,8 @@ class PermissionsSetApproveAllRequest:
 
 @dataclass
 class PermissionsSetApproveAllResult:
+    """Indicates whether the operation succeeded."""
+
     success: bool
     """Whether the operation succeeded"""
 
@@ -1286,6 +1400,8 @@ class PermissionsSetApproveAllResult:
 
 @dataclass
 class PingRequest:
+    """Optional message to echo back to the caller."""
+
     message: str | None = None
     """Optional message to echo back"""
 
@@ -1303,6 +1419,9 @@ class PingRequest:
 
 @dataclass
 class PingResult:
+    """Server liveness response, including the echoed message, current timestamp, and protocol
+    version.
+    """
     message: str
     """Echoed message (or default greeting)"""
 
@@ -1329,6 +1448,8 @@ class PingResult:
 
 @dataclass
 class PlanReadResult:
+    """Existence, contents, and resolved path of the session plan file."""
+
     exists: bool
     """Whether the plan file exists in the workspace"""
 
@@ -1355,6 +1476,8 @@ class PlanReadResult:
 
 @dataclass
 class PlanUpdateRequest:
+    """Replacement contents to write to the session plan file."""
+
     content: str
     """The new content for the plan file"""
 
@@ -1371,6 +1494,8 @@ class PlanUpdateRequest:
 
 @dataclass
 class Plugin:
+    """Schema for the `Plugin` type."""
+
     enabled: bool
     """Whether the plugin is currently enabled"""
 
@@ -1403,6 +1528,8 @@ class Plugin:
 
 @dataclass
 class QueuedCommandHandled:
+    """Schema for the `QueuedCommandHandled` type."""
+
     handled: bool
     """The command was handled"""
 
@@ -1425,6 +1552,8 @@ class QueuedCommandHandled:
 
 @dataclass
 class QueuedCommandNotHandled:
+    """Schema for the `QueuedCommandNotHandled` type."""
+
     handled: bool
     """The command was not handled"""
 
@@ -1440,9 +1569,8 @@ class QueuedCommandNotHandled:
         return result
 
 class RemoteSessionMode(Enum):
-    """Per-session remote mode. "off" disables remote, "export" exports session events to
-    Mission Control without enabling remote steering, "on" enables both export and remote
-    steering.
+    """Per-session remote mode. "off" disables remote, "export" exports session events to GitHub
+    without enabling remote steering, "on" enables both export and remote steering.
     """
     EXPORT = "export"
     OFF = "off"
@@ -1451,11 +1579,13 @@ class RemoteSessionMode(Enum):
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class RemoteEnableResult:
+    """GitHub URL for the session and a flag indicating whether remote steering is enabled."""
+
     remote_steerable: bool
     """Whether remote steering is enabled"""
 
     url: str | None = None
-    """Mission Control frontend URL for this session"""
+    """GitHub frontend URL for this session"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'RemoteEnableResult':
@@ -1473,6 +1603,8 @@ class RemoteEnableResult:
 
 @dataclass
 class ServerSkill:
+    """Schema for the `ServerSkill` type."""
+
     description: str
     """Description of what the skill does"""
 
@@ -1521,6 +1653,9 @@ class ServerSkill:
 
 @dataclass
 class SessionFSAppendFileRequest:
+    """File path, content to append, and optional mode for the client-provided session
+    filesystem.
+    """
     content: str
     """Content to append"""
 
@@ -1559,6 +1694,8 @@ class SessionFSErrorCode(Enum):
 
 @dataclass
 class SessionFSExistsRequest:
+    """Path to test for existence in the client-provided session filesystem."""
+
     path: str
     """Path using SessionFs conventions"""
 
@@ -1580,6 +1717,8 @@ class SessionFSExistsRequest:
 
 @dataclass
 class SessionFSExistsResult:
+    """Indicates whether the requested path exists in the client-provided session filesystem."""
+
     exists: bool
     """Whether the path exists"""
 
@@ -1596,6 +1735,9 @@ class SessionFSExistsResult:
 
 @dataclass
 class SessionFSMkdirRequest:
+    """Directory path to create in the client-provided session filesystem, with options for
+    recursive creation and POSIX mode.
+    """
     path: str
     """Path using SessionFs conventions"""
 
@@ -1629,6 +1771,8 @@ class SessionFSMkdirRequest:
 
 @dataclass
 class SessionFSReadFileRequest:
+    """Path of the file to read from the client-provided session filesystem."""
+
     path: str
     """Path using SessionFs conventions"""
 
@@ -1650,6 +1794,8 @@ class SessionFSReadFileRequest:
 
 @dataclass
 class SessionFSReaddirRequest:
+    """Directory path whose entries should be listed from the client-provided session filesystem."""
+
     path: str
     """Path using SessionFs conventions"""
 
@@ -1677,6 +1823,9 @@ class SessionFSReaddirWithTypesEntryType(Enum):
 
 @dataclass
 class SessionFSReaddirWithTypesRequest:
+    """Directory path whose entries (with type information) should be listed from the
+    client-provided session filesystem.
+    """
     path: str
     """Path using SessionFs conventions"""
 
@@ -1698,6 +1847,9 @@ class SessionFSReaddirWithTypesRequest:
 
 @dataclass
 class SessionFSRenameRequest:
+    """Source and destination paths for renaming or moving an entry in the client-provided
+    session filesystem.
+    """
     dest: str
     """Destination path using SessionFs conventions"""
 
@@ -1724,6 +1876,9 @@ class SessionFSRenameRequest:
 
 @dataclass
 class SessionFSRmRequest:
+    """Path to remove from the client-provided session filesystem, with options for recursive
+    removal and force.
+    """
     path: str
     """Path using SessionFs conventions"""
 
@@ -1763,6 +1918,8 @@ class SessionFSSetProviderConventions(Enum):
 
 @dataclass
 class SessionFSSetProviderResult:
+    """Indicates whether the calling client was registered as the session filesystem provider."""
+
     success: bool
     """Whether the provider was set successfully"""
 
@@ -1779,6 +1936,8 @@ class SessionFSSetProviderResult:
 
 @dataclass
 class SessionFSStatRequest:
+    """Path whose metadata should be returned from the client-provided session filesystem."""
+
     path: str
     """Path using SessionFs conventions"""
 
@@ -1800,6 +1959,8 @@ class SessionFSStatRequest:
 
 @dataclass
 class SessionFSWriteFileRequest:
+    """File path, content to write, and optional mode for the client-provided session filesystem."""
+
     content: str
     """Content to write"""
 
@@ -1833,6 +1994,9 @@ class SessionFSWriteFileRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionsForkRequest:
+    """Source session identifier to fork from, optional event-ID boundary, and optional friendly
+    name for the new session.
+    """
     session_id: str
     """Source session ID to fork from"""
 
@@ -1864,6 +2028,8 @@ class SessionsForkRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionsForkResult:
+    """Identifier and optional friendly name assigned to the newly forked session."""
+
     session_id: str
     """The new forked session's ID"""
 
@@ -1886,6 +2052,8 @@ class SessionsForkResult:
 
 @dataclass
 class ShellExecRequest:
+    """Shell command to run, with optional working directory and timeout in milliseconds."""
+
     command: str
     """Shell command to execute"""
 
@@ -1914,6 +2082,9 @@ class ShellExecRequest:
 
 @dataclass
 class ShellExecResult:
+    """Identifier of the spawned process, used to correlate streamed output and exit
+    notifications.
+    """
     process_id: str
     """Unique identifier for tracking streamed output"""
 
@@ -1937,6 +2108,9 @@ class ShellKillSignal(Enum):
 
 @dataclass
 class ShellKillResult:
+    """Indicates whether the signal was delivered; false if the process was unknown or already
+    exited.
+    """
     killed: bool
     """Whether the signal was sent successfully"""
 
@@ -1953,6 +2127,8 @@ class ShellKillResult:
 
 @dataclass
 class Skill:
+    """Schema for the `Skill` type."""
+
     description: str
     """Description of what the skill does"""
 
@@ -1993,25 +2169,11 @@ class Skill:
             result["path"] = from_union([from_str, from_none], self.path)
         return result
 
-@dataclass
-class SkillsConfigSetDisabledSkillsRequest:
-    disabled_skills: list[str]
-    """List of skill names to disable"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SkillsConfigSetDisabledSkillsRequest':
-        assert isinstance(obj, dict)
-        disabled_skills = from_list(from_str, obj.get("disabledSkills"))
-        return SkillsConfigSetDisabledSkillsRequest(disabled_skills)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["disabledSkills"] = from_list(from_str, self.disabled_skills)
-        return result
-
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SkillsDisableRequest:
+    """Name of the skill to disable for the session."""
+
     name: str
     """Name of the skill to disable"""
 
@@ -2028,6 +2190,8 @@ class SkillsDisableRequest:
 
 @dataclass
 class SkillsDiscoverRequest:
+    """Optional project paths and additional skill directories to include in discovery."""
+
     project_paths: list[str] | None = None
     """Optional list of project directory paths to scan for project-scoped skills"""
 
@@ -2052,6 +2216,8 @@ class SkillsDiscoverRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SkillsEnableRequest:
+    """Name of the skill to enable for the session."""
+
     name: str
     """Name of the skill to enable"""
 
@@ -2069,6 +2235,8 @@ class SkillsEnableRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SkillsLoadDiagnostics:
+    """Diagnostics from reloading skill definitions, with warnings and errors as separate lists."""
+
     errors: list[str]
     """Errors emitted while loading skills (e.g. skills that failed to load entirely)"""
 
@@ -2136,6 +2304,8 @@ class TaskShellInfoType(Enum):
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksCancelRequest:
+    """Identifier of the background task to cancel."""
+
     id: str
     """Task identifier"""
 
@@ -2153,6 +2323,8 @@ class TasksCancelRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksCancelResult:
+    """Indicates whether the background task was successfully cancelled."""
+
     cancelled: bool
     """Whether the task was successfully cancelled"""
 
@@ -2170,6 +2342,8 @@ class TasksCancelResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksPromoteToBackgroundRequest:
+    """Identifier of the task to promote to background mode."""
+
     id: str
     """Task identifier"""
 
@@ -2187,6 +2361,8 @@ class TasksPromoteToBackgroundRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksPromoteToBackgroundResult:
+    """Indicates whether the task was successfully promoted to background mode."""
+
     promoted: bool
     """Whether the task was successfully promoted to background mode"""
 
@@ -2204,6 +2380,8 @@ class TasksPromoteToBackgroundResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksRemoveRequest:
+    """Identifier of the completed or cancelled task to remove from tracking."""
+
     id: str
     """Task identifier"""
 
@@ -2221,6 +2399,9 @@ class TasksRemoveRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksRemoveResult:
+    """Indicates whether the task was removed. False when the task does not exist or is still
+    running/idle.
+    """
     removed: bool
     """Whether the task was removed. Returns false if the task does not exist or is still
     running/idle (cancel it first).
@@ -2240,6 +2421,8 @@ class TasksRemoveResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksSendMessageRequest:
+    """Identifier of the target agent task, message content, and optional sender agent ID."""
+
     id: str
     """Agent task identifier"""
 
@@ -2268,6 +2451,8 @@ class TasksSendMessageRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksSendMessageResult:
+    """Indicates whether the message was delivered, with an error message when delivery failed."""
+
     sent: bool
     """Whether the message was successfully delivered or steered"""
 
@@ -2291,6 +2476,8 @@ class TasksSendMessageResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksStartAgentRequest:
+    """Agent type, prompt, name, and optional description and model override for the new task."""
+
     agent_type: str
     """Type of agent to start (e.g., 'explore', 'task', 'general-purpose')"""
 
@@ -2330,6 +2517,8 @@ class TasksStartAgentRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksStartAgentResult:
+    """Identifier assigned to the newly started background agent task."""
+
     agent_id: str
     """Generated agent ID for the background task"""
 
@@ -2346,6 +2535,8 @@ class TasksStartAgentResult:
 
 @dataclass
 class Tool:
+    """Schema for the `Tool` type."""
+
     description: str
     """Description of what the tool does"""
 
@@ -2386,6 +2577,8 @@ class Tool:
 
 @dataclass
 class ToolsListRequest:
+    """Optional model identifier whose tool overrides should be applied to the listing."""
+
     model: str | None = None
     """Optional model ID — when provided, the returned tool list reflects model-specific
     overrides
@@ -2405,8 +2598,13 @@ class ToolsListRequest:
 
 @dataclass
 class UIElicitationArrayAnyOfFieldItemsAnyOf:
+    """Schema for the `UIElicitationArrayAnyOfFieldItemsAnyOf` type."""
+
     const: str
+    """Value submitted when this option is selected."""
+
     title: str
+    """Display label for this option."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationArrayAnyOfFieldItemsAnyOf':
@@ -2428,6 +2626,8 @@ class UIElicitationArrayEnumFieldItemsType(Enum):
     STRING = "string"
 
 class UIElicitationSchemaPropertyStringFormat(Enum):
+    """Optional format hint that constrains the accepted input."""
+
     DATE = "date"
     DATE_TIME = "date-time"
     EMAIL = "email"
@@ -2435,8 +2635,13 @@ class UIElicitationSchemaPropertyStringFormat(Enum):
 
 @dataclass
 class UIElicitationStringOneOfFieldOneOf:
+    """Schema for the `UIElicitationStringOneOfFieldOneOf` type."""
+
     const: str
+    """Value submitted when this option is selected."""
+
     title: str
+    """Display label for this option."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationStringOneOfFieldOneOf':
@@ -2452,6 +2657,8 @@ class UIElicitationStringOneOfFieldOneOf:
         return result
 
 class UIElicitationSchemaPropertyType(Enum):
+    """Numeric type accepted by the field."""
+
     ARRAY = "array"
     BOOLEAN = "boolean"
     INTEGER = "integer"
@@ -2470,6 +2677,9 @@ class UIElicitationResponseAction(Enum):
 
 @dataclass
 class UIElicitationResult:
+    """Indicates whether the elicitation response was accepted; false if it was already resolved
+    by another client.
+    """
     success: bool
     """Whether the response was accepted. False if the request was already resolved by another
     client.
@@ -2490,6 +2700,8 @@ class UIElicitationSchemaPropertyBooleanType(Enum):
     BOOLEAN = "boolean"
 
 class UIElicitationSchemaPropertyNumberType(Enum):
+    """Numeric type accepted by the field."""
+
     INTEGER = "integer"
     NUMBER = "number"
 
@@ -2546,6 +2758,8 @@ class UsageMetricsModelMetricRequests:
 
 @dataclass
 class UsageMetricsModelMetricTokenDetail:
+    """Schema for the `UsageMetricsModelMetricTokenDetail` type."""
+
     token_count: int
     """Accumulated token count for this token type"""
 
@@ -2601,6 +2815,8 @@ class UsageMetricsModelMetricUsage:
 
 @dataclass
 class UsageMetricsTokenDetail:
+    """Schema for the `UsageMetricsTokenDetail` type."""
+
     token_count: int
     """Accumulated token count for this token type"""
 
@@ -2617,6 +2833,8 @@ class UsageMetricsTokenDetail:
 
 @dataclass
 class WorkspacesCreateFileRequest:
+    """Relative path and UTF-8 content for the workspace file to create or overwrite."""
+
     content: str
     """File content to write as a UTF-8 string"""
 
@@ -2642,6 +2860,8 @@ class HostType(Enum):
 
 @dataclass
 class WorkspacesListFilesResult:
+    """Relative paths of files stored in the session workspace files directory."""
+
     files: list[str]
     """Relative file paths in the workspace files directory"""
 
@@ -2658,6 +2878,8 @@ class WorkspacesListFilesResult:
 
 @dataclass
 class WorkspacesReadFileRequest:
+    """Relative path of the workspace file to read."""
+
     path: str
     """Relative path within the workspace files directory"""
 
@@ -2674,6 +2896,8 @@ class WorkspacesReadFileRequest:
 
 @dataclass
 class WorkspacesReadFileResult:
+    """Contents of the requested workspace file as a UTF-8 string."""
+
     content: str
     """File content as a UTF-8 string"""
 
@@ -2690,6 +2914,8 @@ class WorkspacesReadFileResult:
 
 @dataclass
 class AccountGetQuotaResult:
+    """Quota usage snapshots for the resolved user, keyed by quota type."""
+
     quota_snapshots: dict[str, AccountQuotaSnapshot]
     """Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)"""
 
@@ -2707,6 +2933,8 @@ class AccountGetQuotaResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AgentGetCurrentResult:
+    """The currently selected custom agent, or null when using the default agent."""
+
     agent: AgentInfo | None = None
     """Currently selected custom agent, or null if using the default agent"""
 
@@ -2725,6 +2953,8 @@ class AgentGetCurrentResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AgentList:
+    """Custom agents available to the session."""
+
     agents: list[AgentInfo]
     """Available custom agents"""
 
@@ -2742,6 +2972,8 @@ class AgentList:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AgentReloadResult:
+    """Custom agents available to the session after reloading definitions from disk."""
+
     agents: list[AgentInfo]
     """Reloaded custom agents"""
 
@@ -2759,6 +2991,8 @@ class AgentReloadResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AgentSelectResult:
+    """The newly selected custom agent."""
+
     agent: AgentInfo
     """The newly selected custom agent"""
 
@@ -2775,6 +3009,8 @@ class AgentSelectResult:
 
 @dataclass
 class SessionAuthStatus:
+    """Authentication status and account metadata for the session."""
+
     is_authenticated: bool
     """Whether the session has resolved authentication"""
 
@@ -2859,28 +3095,83 @@ class SlashCommandInput:
         return result
 
 @dataclass
-class CommandsRespondToQueuedCommandRequest:
-    request_id: str
-    """Request ID from the queued command event"""
+class ConnectedRemoteSessionMetadata:
+    """Metadata for a connected remote session."""
 
-    result: QueuedCommandResult
-    """Result of the queued command execution"""
+    kind: ConnectedRemoteSessionMetadataKind
+    """Neutral SDK discriminator for the connected remote session kind."""
+
+    modified_time: str
+    """Last session update time as an ISO 8601 string."""
+
+    repository: ConnectedRemoteSessionMetadataRepository
+    """Repository associated with the connected remote session."""
+
+    session_id: str
+    """SDK session ID for the connected remote session."""
+
+    start_time: str
+    """Session start time as an ISO 8601 string."""
+
+    name: str | None = None
+    """Optional friendly session name."""
+
+    pull_request_number: int | None = None
+    """Pull request number associated with the session."""
+
+    resource_id: str | None = None
+    """Original remote resource identifier."""
+
+    stale_at: str | None = None
+    """Remote session staleness deadline as an ISO 8601 string."""
+
+    state: str | None = None
+    """Remote session state returned by the backing service."""
+
+    summary: str | None = None
+    """Optional session summary."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CommandsRespondToQueuedCommandRequest':
+    def from_dict(obj: Any) -> 'ConnectedRemoteSessionMetadata':
         assert isinstance(obj, dict)
-        request_id = from_str(obj.get("requestId"))
-        result = QueuedCommandResult.from_dict(obj.get("result"))
-        return CommandsRespondToQueuedCommandRequest(request_id, result)
+        kind = ConnectedRemoteSessionMetadataKind(obj.get("kind"))
+        modified_time = from_str(obj.get("modifiedTime"))
+        repository = ConnectedRemoteSessionMetadataRepository.from_dict(obj.get("repository"))
+        session_id = from_str(obj.get("sessionId"))
+        start_time = from_str(obj.get("startTime"))
+        name = from_union([from_str, from_none], obj.get("name"))
+        pull_request_number = from_union([from_int, from_none], obj.get("pullRequestNumber"))
+        resource_id = from_union([from_str, from_none], obj.get("resourceId"))
+        stale_at = from_union([from_str, from_none], obj.get("staleAt"))
+        state = from_union([from_str, from_none], obj.get("state"))
+        summary = from_union([from_str, from_none], obj.get("summary"))
+        return ConnectedRemoteSessionMetadata(kind, modified_time, repository, session_id, start_time, name, pull_request_number, resource_id, stale_at, state, summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["requestId"] = from_str(self.request_id)
-        result["result"] = to_class(QueuedCommandResult, self.result)
+        result["kind"] = to_enum(ConnectedRemoteSessionMetadataKind, self.kind)
+        result["modifiedTime"] = from_str(self.modified_time)
+        result["repository"] = to_class(ConnectedRemoteSessionMetadataRepository, self.repository)
+        result["sessionId"] = from_str(self.session_id)
+        result["startTime"] = from_str(self.start_time)
+        if self.name is not None:
+            result["name"] = from_union([from_str, from_none], self.name)
+        if self.pull_request_number is not None:
+            result["pullRequestNumber"] = from_union([from_int, from_none], self.pull_request_number)
+        if self.resource_id is not None:
+            result["resourceId"] = from_union([from_str, from_none], self.resource_id)
+        if self.stale_at is not None:
+            result["staleAt"] = from_union([from_str, from_none], self.stale_at)
+        if self.state is not None:
+            result["state"] = from_union([from_str, from_none], self.state)
+        if self.summary is not None:
+            result["summary"] = from_union([from_str, from_none], self.summary)
         return result
 
 @dataclass
 class DiscoveredMCPServer:
+    """Schema for the `DiscoveredMcpServer` type."""
+
     enabled: bool
     """Whether the server is enabled (not in the disabled list)"""
 
@@ -2913,6 +3204,8 @@ class DiscoveredMCPServer:
 
 @dataclass
 class Extension:
+    """Schema for the `Extension` type."""
+
     id: str
     """Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')"""
 
@@ -3125,6 +3418,8 @@ class ExternalToolTextResultForLlmContentText:
 
 @dataclass
 class SlashCommandTextResult:
+    """Schema for the `SlashCommandTextResult` type."""
+
     kind: KindEnum
     """Text result discriminator"""
 
@@ -3167,6 +3462,9 @@ class SlashCommandTextResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HistoryCompactResult:
+    """Compaction outcome with the number of tokens and messages removed and the resulting
+    context window breakdown.
+    """
     messages_removed: int
     """Number of messages removed during compaction"""
 
@@ -3199,6 +3497,8 @@ class HistoryCompactResult:
 
 @dataclass
 class InstructionsSources:
+    """Schema for the `InstructionsSources` type."""
+
     content: str
     """Raw content of the instruction file"""
 
@@ -3252,6 +3552,8 @@ class InstructionsSources:
 
 @dataclass
 class LogRequest:
+    """Message text, optional severity level, persistence flag, and optional follow-up URL."""
+
     message: str
     """Human-readable message"""
 
@@ -3287,14 +3589,32 @@ class LogRequest:
 
 @dataclass
 class MCPServerConfig:
-    """MCP server configuration (local/stdio or remote/http)"""
+    """MCP server configuration (local/stdio or remote/http)
 
+    Local MCP server configuration launched as a child process.
+
+    Remote MCP server configuration accessed over HTTP or SSE.
+    """
     args: list[str] | None = None
+    """Command-line arguments passed to the local MCP server process."""
+
     command: str | None = None
+    """Executable command used to start the local MCP server process."""
+
     cwd: str | None = None
+    """Working directory for the local MCP server process."""
+
     env: dict[str, str] | None = None
+    """Environment variables to pass to the local MCP server process."""
+
     filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
+    """Content filtering mode to apply to all tools, or a map of tool name to content filtering
+    mode.
+    """
     is_default_server: bool | None = None
+    """Whether this server is a built-in fallback used when the user has not configured their
+    own server.
+    """
     timeout: int | None = None
     """Timeout in milliseconds for tool calls to this server."""
 
@@ -3302,13 +3622,24 @@ class MCPServerConfig:
     """Tools to include. Defaults to all tools if not specified."""
 
     type: MCPServerConfigType | None = None
-    """Remote transport type. Defaults to "http" when omitted."""
+    """Local transport type. Defaults to "local".
 
+    Remote transport type. Defaults to "http" when omitted.
+    """
     headers: dict[str, str] | None = None
+    """HTTP headers to include in requests to the remote MCP server."""
+
     oauth_client_id: str | None = None
+    """OAuth client ID for a pre-registered remote MCP OAuth client."""
+
     oauth_grant_type: MCPServerConfigHTTPOauthGrantType | None = None
+    """OAuth grant type to use when authenticating to the remote MCP server."""
+
     oauth_public_client: bool | None = None
+    """Whether the configured OAuth client is public and does not require a client secret."""
+
     url: str | None = None
+    """URL of the remote MCP server endpoint."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'MCPServerConfig':
@@ -3363,6 +3694,8 @@ class MCPServerConfig:
 
 @dataclass
 class MCPServer:
+    """Schema for the `McpServer` type."""
+
     name: str
     """Server name (config key)"""
 
@@ -3396,13 +3729,31 @@ class MCPServer:
 
 @dataclass
 class MCPServerConfigHTTP:
+    """Remote MCP server configuration accessed over HTTP or SSE."""
+
     url: str
+    """URL of the remote MCP server endpoint."""
+
     filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
+    """Content filtering mode to apply to all tools, or a map of tool name to content filtering
+    mode.
+    """
     headers: dict[str, str] | None = None
+    """HTTP headers to include in requests to the remote MCP server."""
+
     is_default_server: bool | None = None
+    """Whether this server is a built-in fallback used when the user has not configured their
+    own server.
+    """
     oauth_client_id: str | None = None
+    """OAuth client ID for a pre-registered remote MCP OAuth client."""
+
     oauth_grant_type: MCPServerConfigHTTPOauthGrantType | None = None
+    """OAuth grant type to use when authenticating to the remote MCP server."""
+
     oauth_public_client: bool | None = None
+    """Whether the configured OAuth client is public and does not require a client secret."""
+
     timeout: int | None = None
     """Timeout in milliseconds for tool calls to this server."""
 
@@ -3452,12 +3803,28 @@ class MCPServerConfigHTTP:
 
 @dataclass
 class MCPServerConfigLocal:
+    """Local MCP server configuration launched as a child process."""
+
     args: list[str]
+    """Command-line arguments passed to the local MCP server process."""
+
     command: str
+    """Executable command used to start the local MCP server process."""
+
     cwd: str | None = None
+    """Working directory for the local MCP server process."""
+
     env: dict[str, str] | None = None
+    """Environment variables to pass to the local MCP server process."""
+
     filter_mapping: dict[str, FilterMappingString] | FilterMappingString | None = None
+    """Content filtering mode to apply to all tools, or a map of tool name to content filtering
+    mode.
+    """
     is_default_server: bool | None = None
+    """Whether this server is a built-in fallback used when the user has not configured their
+    own server.
+    """
     timeout: int | None = None
     """Timeout in milliseconds for tool calls to this server."""
 
@@ -3465,6 +3832,7 @@ class MCPServerConfigLocal:
     """Tools to include. Defaults to all tools if not specified."""
 
     type: MCPServerConfigLocalType | None = None
+    """Local transport type. Defaults to "local"."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'MCPServerConfigLocal':
@@ -3502,6 +3870,8 @@ class MCPServerConfigLocal:
 
 @dataclass
 class ModeSetRequest:
+    """Agent interaction mode to apply to the session."""
+
     mode: Mode
     """The agent mode. Valid values: "interactive", "plan", "autopilot"."""
 
@@ -3586,8 +3956,13 @@ class ModelCapabilitiesOverrideLimits:
     """Maximum total context window size in tokens"""
 
     max_output_tokens: int | None = None
+    """Maximum number of output/completion tokens"""
+
     max_prompt_tokens: int | None = None
+    """Maximum number of prompt/input tokens"""
+
     vision: ModelCapabilitiesOverrideLimitsVision | None = None
+    """Vision-specific limits"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelCapabilitiesOverrideLimits':
@@ -3611,122 +3986,14 @@ class ModelCapabilitiesOverrideLimits:
         return result
 
 @dataclass
-class PermissionDecisionApproveForIonApproval:
-    """The approval to add as a session-scoped rule
-
-    The approval to persist for this location
-    """
-    kind: ApprovalKind
-    command_identifiers: list[str] | None = None
-    server_name: str | None = None
-    tool_name: str | None = None
-    operation: str | None = None
-    extension_name: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForIonApproval':
-        assert isinstance(obj, dict)
-        kind = ApprovalKind(obj.get("kind"))
-        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
-        server_name = from_union([from_str, from_none], obj.get("serverName"))
-        tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        operation = from_union([from_str, from_none], obj.get("operation"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        return PermissionDecisionApproveForIonApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(ApprovalKind, self.kind)
-        if self.command_identifiers is not None:
-            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
-        if self.server_name is not None:
-            result["serverName"] = from_union([from_str, from_none], self.server_name)
-        if self.tool_name is not None:
-            result["toolName"] = from_union([from_none, from_str], self.tool_name)
-        if self.operation is not None:
-            result["operation"] = from_union([from_str, from_none], self.operation)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        return result
-
-@dataclass
-class PermissionDecisionApproveForLocationApproval:
-    """The approval to persist for this location"""
-
-    kind: ApprovalKind
-    command_identifiers: list[str] | None = None
-    server_name: str | None = None
-    tool_name: str | None = None
-    operation: str | None = None
-    extension_name: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApproval':
-        assert isinstance(obj, dict)
-        kind = ApprovalKind(obj.get("kind"))
-        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
-        server_name = from_union([from_str, from_none], obj.get("serverName"))
-        tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        operation = from_union([from_str, from_none], obj.get("operation"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        return PermissionDecisionApproveForLocationApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(ApprovalKind, self.kind)
-        if self.command_identifiers is not None:
-            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
-        if self.server_name is not None:
-            result["serverName"] = from_union([from_str, from_none], self.server_name)
-        if self.tool_name is not None:
-            result["toolName"] = from_union([from_none, from_str], self.tool_name)
-        if self.operation is not None:
-            result["operation"] = from_union([from_str, from_none], self.operation)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        return result
-
-@dataclass
-class PermissionDecisionApproveForSessionApproval:
-    """The approval to add as a session-scoped rule"""
-
-    kind: ApprovalKind
-    command_identifiers: list[str] | None = None
-    server_name: str | None = None
-    tool_name: str | None = None
-    operation: str | None = None
-    extension_name: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApproval':
-        assert isinstance(obj, dict)
-        kind = ApprovalKind(obj.get("kind"))
-        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
-        server_name = from_union([from_str, from_none], obj.get("serverName"))
-        tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        operation = from_union([from_str, from_none], obj.get("operation"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        return PermissionDecisionApproveForSessionApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(ApprovalKind, self.kind)
-        if self.command_identifiers is not None:
-            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
-        if self.server_name is not None:
-            result["serverName"] = from_union([from_str, from_none], self.server_name)
-        if self.tool_name is not None:
-            result["toolName"] = from_union([from_none, from_str], self.tool_name)
-        if self.operation is not None:
-            result["operation"] = from_union([from_str, from_none], self.operation)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        return result
-
-@dataclass
 class PermissionDecisionApproveForLocationApprovalCommands:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type."""
+
     command_identifiers: list[str]
+    """Command identifiers covered by this approval."""
+
     kind: PermissionDecisionApproveForLocationApprovalCommandsKind
+    """Approval scoped to specific command identifiers."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalCommands':
@@ -3743,8 +4010,13 @@ class PermissionDecisionApproveForLocationApprovalCommands:
 
 @dataclass
 class PermissionDecisionApproveForSessionApprovalCommands:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type."""
+
     command_identifiers: list[str]
+    """Command identifiers covered by this approval."""
+
     kind: PermissionDecisionApproveForLocationApprovalCommandsKind
+    """Approval scoped to specific command identifiers."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalCommands':
@@ -3761,8 +4033,13 @@ class PermissionDecisionApproveForSessionApprovalCommands:
 
 @dataclass
 class PermissionDecisionApproveForLocationApprovalCustomTool:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
+    """Approval covering a custom tool."""
+
     tool_name: str
+    """Custom tool name."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalCustomTool':
@@ -3779,8 +4056,13 @@ class PermissionDecisionApproveForLocationApprovalCustomTool:
 
 @dataclass
 class PermissionDecisionApproveForSessionApprovalCustomTool:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
+    """Approval covering a custom tool."""
+
     tool_name: str
+    """Custom tool name."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalCustomTool':
@@ -3797,8 +4079,15 @@ class PermissionDecisionApproveForSessionApprovalCustomTool:
 
 @dataclass
 class PermissionDecisionApproveForLocationApprovalExtensionManagement:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
+    """Approval covering extension lifecycle operations such as enable, disable, or reload."""
+
     operation: str | None = None
+    """Optional operation identifier; when omitted, the approval covers all extension management
+    operations.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionManagement':
@@ -3816,8 +4105,15 @@ class PermissionDecisionApproveForLocationApprovalExtensionManagement:
 
 @dataclass
 class PermissionDecisionApproveForSessionApprovalExtensionManagement:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
+    """Approval covering extension lifecycle operations such as enable, disable, or reload."""
+
     operation: str | None = None
+    """Optional operation identifier; when omitted, the approval covers all extension management
+    operations.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionManagement':
@@ -3834,46 +4130,17 @@ class PermissionDecisionApproveForSessionApprovalExtensionManagement:
         return result
 
 @dataclass
-class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess:
-    extension_name: str
-    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess':
-        assert isinstance(obj, dict)
-        extension_name = from_str(obj.get("extensionName"))
-        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
-        return PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess(extension_name, kind)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["extensionName"] = from_str(self.extension_name)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
-        return result
-
-@dataclass
-class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess:
-    extension_name: str
-    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess':
-        assert isinstance(obj, dict)
-        extension_name = from_str(obj.get("extensionName"))
-        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
-        return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess(extension_name, kind)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["extensionName"] = from_str(self.extension_name)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
-        return result
-
-@dataclass
 class PermissionDecisionApproveForLocationApprovalMCP:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalMCPKind
+    """Approval covering an MCP tool."""
+
     server_name: str
+    """MCP server name."""
+
     tool_name: str | None = None
+    """MCP tool name, or null to cover every tool on the server."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMCP':
@@ -3892,9 +4159,16 @@ class PermissionDecisionApproveForLocationApprovalMCP:
 
 @dataclass
 class PermissionDecisionApproveForSessionApprovalMCP:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalMCPKind
+    """Approval covering an MCP tool."""
+
     server_name: str
+    """MCP server name."""
+
     tool_name: str | None = None
+    """MCP tool name, or null to cover every tool on the server."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMCP':
@@ -3913,8 +4187,13 @@ class PermissionDecisionApproveForSessionApprovalMCP:
 
 @dataclass
 class PermissionDecisionApproveForLocationApprovalMCPSampling:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalMCPSamplingKind
+    """Approval covering MCP sampling requests for a server."""
+
     server_name: str
+    """MCP server name."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMCPSampling':
@@ -3931,8 +4210,13 @@ class PermissionDecisionApproveForLocationApprovalMCPSampling:
 
 @dataclass
 class PermissionDecisionApproveForSessionApprovalMCPSampling:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalMCPSamplingKind
+    """Approval covering MCP sampling requests for a server."""
+
     server_name: str
+    """MCP server name."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMCPSampling':
@@ -3949,7 +4233,10 @@ class PermissionDecisionApproveForSessionApprovalMCPSampling:
 
 @dataclass
 class PermissionDecisionApproveForLocationApprovalMemory:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalMemoryKind
+    """Approval covering writes to long-term memory."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMemory':
@@ -3964,7 +4251,10 @@ class PermissionDecisionApproveForLocationApprovalMemory:
 
 @dataclass
 class PermissionDecisionApproveForSessionApprovalMemory:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalMemoryKind
+    """Approval covering writes to long-term memory."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMemory':
@@ -3979,7 +4269,10 @@ class PermissionDecisionApproveForSessionApprovalMemory:
 
 @dataclass
 class PermissionDecisionApproveForLocationApprovalRead:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalRead` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalReadKind
+    """Approval covering read-only filesystem operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalRead':
@@ -3994,7 +4287,10 @@ class PermissionDecisionApproveForLocationApprovalRead:
 
 @dataclass
 class PermissionDecisionApproveForSessionApprovalRead:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalRead` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalReadKind
+    """Approval covering read-only filesystem operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalRead':
@@ -4009,7 +4305,10 @@ class PermissionDecisionApproveForSessionApprovalRead:
 
 @dataclass
 class PermissionDecisionApproveForLocationApprovalWrite:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalWriteKind
+    """Approval covering filesystem write operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalWrite':
@@ -4024,7 +4323,10 @@ class PermissionDecisionApproveForLocationApprovalWrite:
 
 @dataclass
 class PermissionDecisionApproveForSessionApprovalWrite:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type."""
+
     kind: PermissionDecisionApproveForLocationApprovalWriteKind
+    """Approval covering filesystem write operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalWrite':
@@ -4039,6 +4341,8 @@ class PermissionDecisionApproveForSessionApprovalWrite:
 
 @dataclass
 class PermissionDecisionApproveOnce:
+    """Schema for the `PermissionDecisionApproveOnce` type."""
+
     kind: PermissionDecisionApproveOnceKind
     """The permission request was approved for this one instance"""
 
@@ -4055,6 +4359,8 @@ class PermissionDecisionApproveOnce:
 
 @dataclass
 class PermissionDecisionApprovePermanently:
+    """Schema for the `PermissionDecisionApprovePermanently` type."""
+
     domain: str
     """The URL domain to approve permanently"""
 
@@ -4076,6 +4382,8 @@ class PermissionDecisionApprovePermanently:
 
 @dataclass
 class PermissionDecisionReject:
+    """Schema for the `PermissionDecisionReject` type."""
+
     kind: PermissionDecisionRejectKind
     """Denied by the user during an interactive prompt"""
 
@@ -4098,6 +4406,8 @@ class PermissionDecisionReject:
 
 @dataclass
 class PermissionDecisionUserNotAvailable:
+    """Schema for the `PermissionDecisionUserNotAvailable` type."""
+
     kind: PermissionDecisionUserNotAvailableKind
     """Denied because user confirmation was unavailable"""
 
@@ -4115,6 +4425,8 @@ class PermissionDecisionUserNotAvailable:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PluginList:
+    """Plugins installed for the session, with their enabled state and version metadata."""
+
     plugins: list[Plugin]
     """Installed plugins"""
 
@@ -4129,13 +4441,45 @@ class PluginList:
         result["plugins"] = from_list(lambda x: to_class(Plugin, x), self.plugins)
         return result
 
+@dataclass
+class QueuedCommandResult:
+    """Result of the queued command execution
+
+    Schema for the `QueuedCommandHandled` type.
+
+    Schema for the `QueuedCommandNotHandled` type.
+    """
+    handled: bool
+    """The command was handled
+
+    The command was not handled
+    """
+    stop_processing_queue: bool | None = None
+    """If true, stop processing remaining queued items"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'QueuedCommandResult':
+        assert isinstance(obj, dict)
+        handled = from_bool(obj.get("handled"))
+        stop_processing_queue = from_union([from_bool, from_none], obj.get("stopProcessingQueue"))
+        return QueuedCommandResult(handled, stop_processing_queue)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["handled"] = from_bool(self.handled)
+        if self.stop_processing_queue is not None:
+            result["stopProcessingQueue"] = from_union([from_bool, from_none], self.stop_processing_queue)
+        return result
+
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class RemoteEnableRequest:
+    """Optional remote session mode ("off", "export", or "on"); defaults to enabling both export
+    and remote steering.
+    """
     mode: RemoteSessionMode | None = None
-    """Per-session remote mode. "off" disables remote, "export" exports session events to
-    Mission Control without enabling remote steering, "on" enables both export and remote
-    steering.
+    """Per-session remote mode. "off" disables remote, "export" exports session events to GitHub
+    without enabling remote steering, "on" enables both export and remote steering.
     """
 
     @staticmethod
@@ -4152,6 +4496,8 @@ class RemoteEnableRequest:
 
 @dataclass
 class ServerSkillList:
+    """Skills discovered across global and project sources."""
+
     skills: list[ServerSkill]
     """All discovered skills across all sources"""
 
@@ -4192,6 +4538,8 @@ class SessionFSError:
 
 @dataclass
 class SessionFSReaddirWithTypesEntry:
+    """Schema for the `SessionFsReaddirWithTypesEntry` type."""
+
     name: str
     """Entry name"""
 
@@ -4213,6 +4561,9 @@ class SessionFSReaddirWithTypesEntry:
 
 @dataclass
 class SessionFSSetProviderRequest:
+    """Initial working directory, session-state path layout, and path conventions used to
+    register the calling SDK client as the session filesystem provider.
+    """
     conventions: SessionFSSetProviderConventions
     """Path conventions used by this filesystem"""
 
@@ -4239,6 +4590,8 @@ class SessionFSSetProviderRequest:
 
 @dataclass
 class ShellKillRequest:
+    """Identifier of a process previously returned by "shell.exec" and the signal to send."""
+
     process_id: str
     """Process identifier returned by shell.exec"""
 
@@ -4262,6 +4615,8 @@ class ShellKillRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SkillList:
+    """Skills available to the session, with their enabled state."""
+
     skills: list[Skill]
     """Available skills"""
 
@@ -4277,7 +4632,27 @@ class SkillList:
         return result
 
 @dataclass
+class SkillsConfigSetDisabledSkillsRequest:
+    """Skill names to mark as disabled in global configuration, replacing any previous list."""
+
+    disabled_skills: list[str]
+    """List of skill names to disable"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillsConfigSetDisabledSkillsRequest':
+        assert isinstance(obj, dict)
+        disabled_skills = from_list(from_str, obj.get("disabledSkills"))
+        return SkillsConfigSetDisabledSkillsRequest(disabled_skills)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["disabledSkills"] = from_list(from_str, self.disabled_skills)
+        return result
+
+@dataclass
 class SlashCommandAgentPromptResult:
+    """Schema for the `SlashCommandAgentPromptResult` type."""
+
     display_prompt: str
     """Prompt text to display to the user"""
 
@@ -4318,6 +4693,8 @@ class SlashCommandAgentPromptResult:
 
 @dataclass
 class SlashCommandCompletedResult:
+    """Schema for the `SlashCommandCompletedResult` type."""
+
     kind: SlashCommandCompletedResultKind
     """Completed result discriminator"""
 
@@ -4347,76 +4724,9 @@ class SlashCommandCompletedResult:
         return result
 
 @dataclass
-class SlashCommandInvocationResult:
-    kind: SlashCommandInvocationResultKind
-    """Text result discriminator
-
-    Agent prompt result discriminator
-
-    Completed result discriminator
-    """
-    markdown: bool | None = None
-    """Whether text contains Markdown"""
-
-    preserve_ansi: bool | None = None
-    """Whether ANSI sequences should be preserved"""
-
-    runtime_settings_changed: bool | None = None
-    """True when the invocation mutated user runtime settings; consumers caching settings should
-    refresh
-    """
-    text: str | None = None
-    """Text output for the client to render"""
-
-    display_prompt: str | None = None
-    """Prompt text to display to the user"""
-
-    mode: Mode | None = None
-    """Optional target session mode"""
-
-    prompt: str | None = None
-    """Prompt to submit to the agent"""
-
-    message: str | None = None
-    """Optional user-facing message describing the completed command"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandInvocationResult':
-        assert isinstance(obj, dict)
-        kind = SlashCommandInvocationResultKind(obj.get("kind"))
-        markdown = from_union([from_bool, from_none], obj.get("markdown"))
-        preserve_ansi = from_union([from_bool, from_none], obj.get("preserveAnsi"))
-        runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        text = from_union([from_str, from_none], obj.get("text"))
-        display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
-        mode = from_union([Mode, from_none], obj.get("mode"))
-        prompt = from_union([from_str, from_none], obj.get("prompt"))
-        message = from_union([from_str, from_none], obj.get("message"))
-        return SlashCommandInvocationResult(kind, markdown, preserve_ansi, runtime_settings_changed, text, display_prompt, mode, prompt, message)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(SlashCommandInvocationResultKind, self.kind)
-        if self.markdown is not None:
-            result["markdown"] = from_union([from_bool, from_none], self.markdown)
-        if self.preserve_ansi is not None:
-            result["preserveAnsi"] = from_union([from_bool, from_none], self.preserve_ansi)
-        if self.runtime_settings_changed is not None:
-            result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
-        if self.text is not None:
-            result["text"] = from_union([from_str, from_none], self.text)
-        if self.display_prompt is not None:
-            result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
-        if self.mode is not None:
-            result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
-        if self.prompt is not None:
-            result["prompt"] = from_union([from_str, from_none], self.prompt)
-        if self.message is not None:
-            result["message"] = from_union([from_str, from_none], self.message)
-        return result
-
-@dataclass
 class TaskShellInfo:
+    """Schema for the `TaskShellInfo` type."""
+
     attachment_mode: TaskShellInfoAttachmentMode
     """Whether the shell runs inside a managed PTY session or as an independent background
     process
@@ -4494,6 +4804,8 @@ class TaskShellInfo:
 
 @dataclass
 class ToolList:
+    """Built-in tools available for the requested model, with their parameters and instructions."""
+
     tools: list[Tool]
     """List of available built-in tools with metadata"""
 
@@ -4510,7 +4822,10 @@ class ToolList:
 
 @dataclass
 class UIElicitationArrayAnyOfFieldItems:
+    """Schema applied to each item in the array."""
+
     any_of: list[UIElicitationArrayAnyOfFieldItemsAnyOf]
+    """Selectable options, each with a value and a display label."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationArrayAnyOfFieldItems':
@@ -4525,8 +4840,13 @@ class UIElicitationArrayAnyOfFieldItems:
 
 @dataclass
 class UIElicitationArrayEnumFieldItems:
+    """Schema applied to each item in the array."""
+
     enum: list[str]
+    """Allowed string values for each selected item."""
+
     type: UIElicitationArrayEnumFieldItemsType
+    """Type discriminator. Always "string"."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationArrayEnumFieldItems':
@@ -4543,9 +4863,16 @@ class UIElicitationArrayEnumFieldItems:
 
 @dataclass
 class UIElicitationArrayFieldItems:
+    """Schema applied to each item in the array."""
+
     enum: list[str] | None = None
+    """Allowed string values for each selected item."""
+
     type: UIElicitationArrayEnumFieldItemsType | None = None
+    """Type discriminator. Always "string"."""
+
     any_of: list[UIElicitationArrayAnyOfFieldItemsAnyOf] | None = None
+    """Selectable options, each with a value and a display label."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationArrayFieldItems':
@@ -4567,12 +4894,25 @@ class UIElicitationArrayFieldItems:
 
 @dataclass
 class UIElicitationStringEnumField:
+    """Single-select string field whose allowed values are defined inline."""
+
     enum: list[str]
+    """Allowed string values."""
+
     type: UIElicitationArrayEnumFieldItemsType
+    """Type discriminator. Always "string"."""
+
     default: str | None = None
+    """Default value selected when the form is first shown."""
+
     description: str | None = None
+    """Help text describing the field."""
+
     enum_names: list[str] | None = None
+    """Optional display labels for each enum value, in the same order as `enum`."""
+
     title: str | None = None
+    """Human-readable label for the field."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationStringEnumField':
@@ -4601,13 +4941,28 @@ class UIElicitationStringEnumField:
 
 @dataclass
 class UIElicitationSchemaPropertyString:
+    """Free-text string field with optional length and format constraints."""
+
     type: UIElicitationArrayEnumFieldItemsType
+    """Type discriminator. Always "string"."""
+
     default: str | None = None
+    """Default value populated in the input when the form is first shown."""
+
     description: str | None = None
+    """Help text describing the field."""
+
     format: UIElicitationSchemaPropertyStringFormat | None = None
+    """Optional format hint that constrains the accepted input."""
+
     max_length: float | None = None
+    """Maximum number of characters allowed."""
+
     min_length: float | None = None
+    """Minimum number of characters required."""
+
     title: str | None = None
+    """Human-readable label for the field."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyString':
@@ -4640,11 +4995,22 @@ class UIElicitationSchemaPropertyString:
 
 @dataclass
 class UIElicitationStringOneOfField:
+    """Single-select string field where each option pairs a value with a display label."""
+
     one_of: list[UIElicitationStringOneOfFieldOneOf]
+    """Selectable options, each with a value and a display label."""
+
     type: UIElicitationArrayEnumFieldItemsType
+    """Type discriminator. Always "string"."""
+
     default: str | None = None
+    """Default value selected when the form is first shown."""
+
     description: str | None = None
+    """Help text describing the field."""
+
     title: str | None = None
+    """Human-readable label for the field."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationStringOneOfField':
@@ -4694,10 +5060,19 @@ class UIElicitationResponse:
 
 @dataclass
 class UIElicitationSchemaPropertyBoolean:
+    """Boolean field rendered as a yes/no toggle."""
+
     type: UIElicitationSchemaPropertyBooleanType
+    """Type discriminator. Always "boolean"."""
+
     default: bool | None = None
+    """Default value selected when the form is first shown."""
+
     description: str | None = None
+    """Help text describing the field."""
+
     title: str | None = None
+    """Human-readable label for the field."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyBoolean':
@@ -4721,12 +5096,25 @@ class UIElicitationSchemaPropertyBoolean:
 
 @dataclass
 class UIElicitationSchemaPropertyNumber:
+    """Numeric field accepting either a number or an integer."""
+
     type: UIElicitationSchemaPropertyNumberType
+    """Numeric type accepted by the field."""
+
     default: float | None = None
+    """Default value populated in the input when the form is first shown."""
+
     description: str | None = None
+    """Help text describing the field."""
+
     maximum: float | None = None
+    """Maximum allowed value (inclusive)."""
+
     minimum: float | None = None
+    """Minimum allowed value (inclusive)."""
+
     title: str | None = None
+    """Human-readable label for the field."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyNumber':
@@ -4756,6 +5144,8 @@ class UIElicitationSchemaPropertyNumber:
 
 @dataclass
 class UsageMetricsModelMetric:
+    """Schema for the `UsageMetricsModelMetric` type."""
+
     requests: UsageMetricsModelMetricRequests
     """Request count and cost metrics for this model"""
 
@@ -4864,6 +5254,8 @@ class Workspace:
 
 @dataclass
 class SlashCommandInfo:
+    """Schema for the `SlashCommandInfo` type."""
+
     allow_during_agent_execution: bool
     """Whether the command may run while an agent turn is active"""
 
@@ -4912,8 +5304,34 @@ class SlashCommandInfo:
             result["input"] = from_union([lambda x: to_class(SlashCommandInput, x), from_none], self.input)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class RemoteSessionConnectionResult:
+    """Remote session connection result."""
+
+    metadata: ConnectedRemoteSessionMetadata
+    """Metadata for a connected remote session."""
+
+    session_id: str
+    """SDK session ID for the connected remote session."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'RemoteSessionConnectionResult':
+        assert isinstance(obj, dict)
+        metadata = ConnectedRemoteSessionMetadata.from_dict(obj.get("metadata"))
+        session_id = from_str(obj.get("sessionId"))
+        return RemoteSessionConnectionResult(metadata, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["metadata"] = to_class(ConnectedRemoteSessionMetadata, self.metadata)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
 @dataclass
 class MCPDiscoverResult:
+    """MCP servers discovered from user, workspace, plugin, and built-in sources."""
+
     servers: list[DiscoveredMCPServer]
     """MCP servers discovered from all sources"""
 
@@ -4931,6 +5349,8 @@ class MCPDiscoverResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExtensionList:
+    """Extensions discovered for the session, with their current status."""
+
     extensions: list[Extension]
     """Discovered extensions and their current status"""
 
@@ -4943,6 +5363,54 @@ class ExtensionList:
     def to_dict(self) -> dict:
         result: dict = {}
         result["extensions"] = from_list(lambda x: to_class(Extension, x), self.extensions)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess:
+    """Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess`
+    type.
+    """
+    extension_name: str
+    """Extension name."""
+
+    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
+    """Approval covering an extension's request to access a permission-gated capability."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess':
+        assert isinstance(obj, dict)
+        extension_name = from_str(obj.get("extensionName"))
+        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
+        return PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess(extension_name, kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["extensionName"] = from_str(self.extension_name)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess:
+    """Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess`
+    type.
+    """
+    extension_name: str
+    """Extension name."""
+
+    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
+    """Approval covering an extension's request to access a permission-gated capability."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess':
+        assert isinstance(obj, dict)
+        extension_name = from_str(obj.get("extensionName"))
+        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
+        return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess(extension_name, kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["extensionName"] = from_str(self.extension_name)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
         return result
 
 @dataclass
@@ -5116,6 +5584,8 @@ class ExternalToolTextResultForLlmContentResourceLink:
 
 @dataclass
 class InstructionsGetSourcesResult:
+    """Instruction sources loaded for the session, in merge order."""
+
     sources: list[InstructionsSources]
     """Instruction sources for the session"""
 
@@ -5132,6 +5602,8 @@ class InstructionsGetSourcesResult:
 
 @dataclass
 class MCPConfigAddRequest:
+    """MCP server name and configuration to add to user configuration."""
+
     config: MCPServerConfig
     """MCP server configuration (local/stdio or remote/http)"""
 
@@ -5153,6 +5625,8 @@ class MCPConfigAddRequest:
 
 @dataclass
 class MCPConfigList:
+    """User-configured MCP servers, keyed by server name."""
+
     servers: dict[str, MCPServerConfig]
     """All MCP servers from user config, keyed by name"""
 
@@ -5169,6 +5643,8 @@ class MCPConfigList:
 
 @dataclass
 class MCPConfigUpdateRequest:
+    """MCP server name and replacement configuration to write to user configuration."""
+
     config: MCPServerConfig
     """MCP server configuration (local/stdio or remote/http)"""
 
@@ -5190,6 +5666,8 @@ class MCPConfigUpdateRequest:
 
 @dataclass
 class MCPServerList:
+    """MCP servers configured for the session, with their connection status."""
+
     servers: list[MCPServer]
     """Configured MCP servers"""
 
@@ -5230,115 +5708,32 @@ class ModelCapabilitiesOverride:
         return result
 
 @dataclass
-class PermissionDecision:
-    kind: PermissionDecisionKind
-    """The permission request was approved for this one instance
+class CommandsRespondToQueuedCommandRequest:
+    """Queued command request ID and the result indicating whether the client handled it."""
 
-    Approved and remembered for the rest of the session
+    request_id: str
+    """Request ID from the queued command event"""
 
-    Approved and persisted for this project location
-
-    Approved and persisted across sessions
-
-    Denied by the user during an interactive prompt
-
-    Denied because user confirmation was unavailable
-    """
-    approval: PermissionDecisionApproveForIonApproval | None = None
-    """The approval to add as a session-scoped rule
-
-    The approval to persist for this location
-    """
-    domain: str | None = None
-    """The URL domain to approve for this session
-
-    The URL domain to approve permanently
-    """
-    location_key: str | None = None
-    """The location key (git root or cwd) to persist the approval to"""
-
-    feedback: str | None = None
-    """Optional feedback from the user explaining the denial"""
+    result: QueuedCommandResult
+    """Result of the queued command execution"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecision':
+    def from_dict(obj: Any) -> 'CommandsRespondToQueuedCommandRequest':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionKind(obj.get("kind"))
-        approval = from_union([PermissionDecisionApproveForIonApproval.from_dict, from_none], obj.get("approval"))
-        domain = from_union([from_str, from_none], obj.get("domain"))
-        location_key = from_union([from_str, from_none], obj.get("locationKey"))
-        feedback = from_union([from_str, from_none], obj.get("feedback"))
-        return PermissionDecision(kind, approval, domain, location_key, feedback)
+        request_id = from_str(obj.get("requestId"))
+        result = QueuedCommandResult.from_dict(obj.get("result"))
+        return CommandsRespondToQueuedCommandRequest(request_id, result)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionKind, self.kind)
-        if self.approval is not None:
-            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForIonApproval, x), from_none], self.approval)
-        if self.domain is not None:
-            result["domain"] = from_union([from_str, from_none], self.domain)
-        if self.location_key is not None:
-            result["locationKey"] = from_union([from_str, from_none], self.location_key)
-        if self.feedback is not None:
-            result["feedback"] = from_union([from_str, from_none], self.feedback)
-        return result
-
-@dataclass
-class PermissionDecisionApproveForLocation:
-    approval: PermissionDecisionApproveForLocationApproval
-    """The approval to persist for this location"""
-
-    kind: PermissionDecisionApproveForLocationKind
-    """Approved and persisted for this project location"""
-
-    location_key: str
-    """The location key (git root or cwd) to persist the approval to"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocation':
-        assert isinstance(obj, dict)
-        approval = PermissionDecisionApproveForLocationApproval.from_dict(obj.get("approval"))
-        kind = PermissionDecisionApproveForLocationKind(obj.get("kind"))
-        location_key = from_str(obj.get("locationKey"))
-        return PermissionDecisionApproveForLocation(approval, kind, location_key)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["approval"] = to_class(PermissionDecisionApproveForLocationApproval, self.approval)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationKind, self.kind)
-        result["locationKey"] = from_str(self.location_key)
-        return result
-
-@dataclass
-class PermissionDecisionApproveForSession:
-    kind: PermissionDecisionApproveForSessionKind
-    """Approved and remembered for the rest of the session"""
-
-    approval: PermissionDecisionApproveForSessionApproval | None = None
-    """The approval to add as a session-scoped rule"""
-
-    domain: str | None = None
-    """The URL domain to approve for this session"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSession':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForSessionKind(obj.get("kind"))
-        approval = from_union([PermissionDecisionApproveForSessionApproval.from_dict, from_none], obj.get("approval"))
-        domain = from_union([from_str, from_none], obj.get("domain"))
-        return PermissionDecisionApproveForSession(kind, approval, domain)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForSessionKind, self.kind)
-        if self.approval is not None:
-            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForSessionApproval, x), from_none], self.approval)
-        if self.domain is not None:
-            result["domain"] = from_union([from_str, from_none], self.domain)
+        result["requestId"] = from_str(self.request_id)
+        result["result"] = to_class(QueuedCommandResult, self.result)
         return result
 
 @dataclass
 class SessionFSReadFileResult:
+    """File content as a UTF-8 string, or a filesystem error if the read failed."""
+
     content: str
     """File content as UTF-8 string"""
 
@@ -5361,6 +5756,8 @@ class SessionFSReadFileResult:
 
 @dataclass
 class SessionFSReaddirResult:
+    """Names of entries in the requested directory, or a filesystem error if the read failed."""
+
     entries: list[str]
     """Entry names in the directory"""
 
@@ -5383,6 +5780,8 @@ class SessionFSReaddirResult:
 
 @dataclass
 class SessionFSStatResult:
+    """Filesystem metadata for the requested path, or a filesystem error if the stat failed."""
+
     birthtime: datetime
     """ISO 8601 timestamp of creation"""
 
@@ -5425,6 +5824,9 @@ class SessionFSStatResult:
 
 @dataclass
 class SessionFSReaddirWithTypesResult:
+    """Entries in the requested directory paired with file/directory type information, or a
+    filesystem error if the read failed.
+    """
     entries: list[SessionFSReaddirWithTypesEntry]
     """Directory entries with type information"""
 
@@ -5446,14 +5848,107 @@ class SessionFSReaddirWithTypesResult:
         return result
 
 @dataclass
+class SlashCommandInvocationResult:
+    """Result of invoking the slash command (text output, prompt to send to the agent, or
+    completion).
+
+    Schema for the `SlashCommandTextResult` type.
+
+    Schema for the `SlashCommandAgentPromptResult` type.
+
+    Schema for the `SlashCommandCompletedResult` type.
+    """
+    kind: SlashCommandInvocationResultKind
+    """Text result discriminator
+
+    Agent prompt result discriminator
+
+    Completed result discriminator
+    """
+    markdown: bool | None = None
+    """Whether text contains Markdown"""
+
+    preserve_ansi: bool | None = None
+    """Whether ANSI sequences should be preserved"""
+
+    runtime_settings_changed: bool | None = None
+    """True when the invocation mutated user runtime settings; consumers caching settings should
+    refresh
+    """
+    text: str | None = None
+    """Text output for the client to render"""
+
+    display_prompt: str | None = None
+    """Prompt text to display to the user"""
+
+    mode: Mode | None = None
+    """Optional target session mode"""
+
+    prompt: str | None = None
+    """Prompt to submit to the agent"""
+
+    message: str | None = None
+    """Optional user-facing message describing the completed command"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SlashCommandInvocationResult':
+        assert isinstance(obj, dict)
+        kind = SlashCommandInvocationResultKind(obj.get("kind"))
+        markdown = from_union([from_bool, from_none], obj.get("markdown"))
+        preserve_ansi = from_union([from_bool, from_none], obj.get("preserveAnsi"))
+        runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
+        text = from_union([from_str, from_none], obj.get("text"))
+        display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
+        mode = from_union([Mode, from_none], obj.get("mode"))
+        prompt = from_union([from_str, from_none], obj.get("prompt"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        return SlashCommandInvocationResult(kind, markdown, preserve_ansi, runtime_settings_changed, text, display_prompt, mode, prompt, message)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(SlashCommandInvocationResultKind, self.kind)
+        if self.markdown is not None:
+            result["markdown"] = from_union([from_bool, from_none], self.markdown)
+        if self.preserve_ansi is not None:
+            result["preserveAnsi"] = from_union([from_bool, from_none], self.preserve_ansi)
+        if self.runtime_settings_changed is not None:
+            result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
+        if self.text is not None:
+            result["text"] = from_union([from_str, from_none], self.text)
+        if self.display_prompt is not None:
+            result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
+        if self.mode is not None:
+            result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
+        if self.prompt is not None:
+            result["prompt"] = from_union([from_str, from_none], self.prompt)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        return result
+
+@dataclass
 class UIElicitationArrayAnyOfField:
+    """Multi-select string field where each option pairs a value with a display label."""
+
     items: UIElicitationArrayAnyOfFieldItems
+    """Schema applied to each item in the array."""
+
     type: UIElicitationArrayAnyOfFieldType
+    """Type discriminator. Always "array"."""
+
     default: list[str] | None = None
+    """Default values selected when the form is first shown."""
+
     description: str | None = None
+    """Help text describing the field."""
+
     max_items: float | None = None
+    """Maximum number of items the user may select."""
+
     min_items: float | None = None
+    """Minimum number of items the user must select."""
+
     title: str | None = None
+    """Human-readable label for the field."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationArrayAnyOfField':
@@ -5485,13 +5980,28 @@ class UIElicitationArrayAnyOfField:
 
 @dataclass
 class UIElicitationArrayEnumField:
+    """Multi-select string field whose allowed values are defined inline."""
+
     items: UIElicitationArrayEnumFieldItems
+    """Schema applied to each item in the array."""
+
     type: UIElicitationArrayAnyOfFieldType
+    """Type discriminator. Always "array"."""
+
     default: list[str] | None = None
+    """Default values selected when the form is first shown."""
+
     description: str | None = None
+    """Help text describing the field."""
+
     max_items: float | None = None
+    """Maximum number of items the user may select."""
+
     min_items: float | None = None
+    """Minimum number of items the user must select."""
+
     title: str | None = None
+    """Human-readable label for the field."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationArrayEnumField':
@@ -5523,21 +6033,76 @@ class UIElicitationArrayEnumField:
 
 @dataclass
 class UIElicitationSchemaProperty:
+    """Definition for a single elicitation form field.
+
+    Single-select string field whose allowed values are defined inline.
+
+    Single-select string field where each option pairs a value with a display label.
+
+    Multi-select string field whose allowed values are defined inline.
+
+    Multi-select string field where each option pairs a value with a display label.
+
+    Boolean field rendered as a yes/no toggle.
+
+    Free-text string field with optional length and format constraints.
+
+    Numeric field accepting either a number or an integer.
+    """
     type: UIElicitationSchemaPropertyType
+    """Type discriminator. Always "string".
+
+    Type discriminator. Always "array".
+
+    Type discriminator. Always "boolean".
+
+    Numeric type accepted by the field.
+    """
     default: float | bool | list[str] | str | None = None
+    """Default value selected when the form is first shown.
+
+    Default values selected when the form is first shown.
+
+    Default value populated in the input when the form is first shown.
+    """
     description: str | None = None
+    """Help text describing the field."""
+
     enum: list[str] | None = None
+    """Allowed string values."""
+
     enum_names: list[str] | None = None
+    """Optional display labels for each enum value, in the same order as `enum`."""
+
     title: str | None = None
+    """Human-readable label for the field."""
+
     one_of: list[UIElicitationStringOneOfFieldOneOf] | None = None
+    """Selectable options, each with a value and a display label."""
+
     items: UIElicitationArrayFieldItems | None = None
+    """Schema applied to each item in the array."""
+
     max_items: float | None = None
+    """Maximum number of items the user may select."""
+
     min_items: float | None = None
+    """Minimum number of items the user must select."""
+
     format: UIElicitationSchemaPropertyStringFormat | None = None
+    """Optional format hint that constrains the accepted input."""
+
     max_length: float | None = None
+    """Maximum number of characters allowed."""
+
     min_length: float | None = None
+    """Minimum number of characters required."""
+
     maximum: float | None = None
+    """Maximum allowed value (inclusive)."""
+
     minimum: float | None = None
+    """Minimum allowed value (inclusive)."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationSchemaProperty':
@@ -5594,6 +6159,9 @@ class UIElicitationSchemaProperty:
 
 @dataclass
 class UIHandlePendingElicitationRequest:
+    """Pending elicitation request ID and the user's response (accept/decline/cancel + form
+    values).
+    """
     request_id: str
     """The unique request ID from the elicitation.requested event"""
 
@@ -5616,6 +6184,9 @@ class UIHandlePendingElicitationRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UsageGetMetricsResult:
+    """Accumulated session usage metrics, including premium request cost, token counts, model
+    breakdown, and code-change totals.
+    """
     code_changes: UsageMetricsCodeChanges
     """Aggregated code change metrics"""
 
@@ -5686,6 +6257,8 @@ class UsageGetMetricsResult:
 
 @dataclass
 class WorkspacesGetWorkspaceResult:
+    """Current workspace metadata for the session, or null when not available."""
+
     workspace: Workspace | None = None
     """Current workspace metadata, or null if not available"""
 
@@ -5702,6 +6275,8 @@ class WorkspacesGetWorkspaceResult:
 
 @dataclass
 class CommandList:
+    """Slash commands available in the session, after applying any include/exclude filters."""
+
     commands: list[SlashCommandInfo]
     """Commands available in this session"""
 
@@ -5714,6 +6289,285 @@ class CommandList:
     def to_dict(self) -> dict:
         result: dict = {}
         result["commands"] = from_list(lambda x: to_class(SlashCommandInfo, x), self.commands)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForLocationApproval:
+    """The approval to persist for this location
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess`
+    type.
+    """
+    kind: ApprovalKind
+    """Approval scoped to specific command identifiers.
+
+    Approval covering read-only filesystem operations.
+
+    Approval covering filesystem write operations.
+
+    Approval covering an MCP tool.
+
+    Approval covering MCP sampling requests for a server.
+
+    Approval covering writes to long-term memory.
+
+    Approval covering a custom tool.
+
+    Approval covering extension lifecycle operations such as enable, disable, or reload.
+
+    Approval covering an extension's request to access a permission-gated capability.
+    """
+    command_identifiers: list[str] | None = None
+    """Command identifiers covered by this approval."""
+
+    server_name: str | None = None
+    """MCP server name."""
+
+    tool_name: str | None = None
+    """MCP tool name, or null to cover every tool on the server.
+
+    Custom tool name.
+    """
+    operation: str | None = None
+    """Optional operation identifier; when omitted, the approval covers all extension management
+    operations.
+    """
+    extension_name: str | None = None
+    """Extension name."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApproval':
+        assert isinstance(obj, dict)
+        kind = ApprovalKind(obj.get("kind"))
+        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
+        server_name = from_union([from_str, from_none], obj.get("serverName"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        return PermissionDecisionApproveForLocationApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(ApprovalKind, self.kind)
+        if self.command_identifiers is not None:
+            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
+        if self.server_name is not None:
+            result["serverName"] = from_union([from_str, from_none], self.server_name)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForIonApproval:
+    """The approval to add as a session-scoped rule
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess`
+    type.
+
+    The approval to persist for this location
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess`
+    type.
+    """
+    kind: ApprovalKind
+    """Approval scoped to specific command identifiers.
+
+    Approval covering read-only filesystem operations.
+
+    Approval covering filesystem write operations.
+
+    Approval covering an MCP tool.
+
+    Approval covering MCP sampling requests for a server.
+
+    Approval covering writes to long-term memory.
+
+    Approval covering a custom tool.
+
+    Approval covering extension lifecycle operations such as enable, disable, or reload.
+
+    Approval covering an extension's request to access a permission-gated capability.
+    """
+    command_identifiers: list[str] | None = None
+    """Command identifiers covered by this approval."""
+
+    server_name: str | None = None
+    """MCP server name."""
+
+    tool_name: str | None = None
+    """MCP tool name, or null to cover every tool on the server.
+
+    Custom tool name.
+    """
+    operation: str | None = None
+    """Optional operation identifier; when omitted, the approval covers all extension management
+    operations.
+    """
+    extension_name: str | None = None
+    """Extension name."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForIonApproval':
+        assert isinstance(obj, dict)
+        kind = ApprovalKind(obj.get("kind"))
+        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
+        server_name = from_union([from_str, from_none], obj.get("serverName"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        return PermissionDecisionApproveForIonApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(ApprovalKind, self.kind)
+        if self.command_identifiers is not None:
+            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
+        if self.server_name is not None:
+            result["serverName"] = from_union([from_str, from_none], self.server_name)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForSessionApproval:
+    """The approval to add as a session-scoped rule
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess`
+    type.
+    """
+    kind: ApprovalKind
+    """Approval scoped to specific command identifiers.
+
+    Approval covering read-only filesystem operations.
+
+    Approval covering filesystem write operations.
+
+    Approval covering an MCP tool.
+
+    Approval covering MCP sampling requests for a server.
+
+    Approval covering writes to long-term memory.
+
+    Approval covering a custom tool.
+
+    Approval covering extension lifecycle operations such as enable, disable, or reload.
+
+    Approval covering an extension's request to access a permission-gated capability.
+    """
+    command_identifiers: list[str] | None = None
+    """Command identifiers covered by this approval."""
+
+    server_name: str | None = None
+    """MCP server name."""
+
+    tool_name: str | None = None
+    """MCP tool name, or null to cover every tool on the server.
+
+    Custom tool name.
+    """
+    operation: str | None = None
+    """Optional operation identifier; when omitted, the approval covers all extension management
+    operations.
+    """
+    extension_name: str | None = None
+    """Extension name."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApproval':
+        assert isinstance(obj, dict)
+        kind = ApprovalKind(obj.get("kind"))
+        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
+        server_name = from_union([from_str, from_none], obj.get("serverName"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        return PermissionDecisionApproveForSessionApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(ApprovalKind, self.kind)
+        if self.command_identifiers is not None:
+            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
+        if self.server_name is not None:
+            result["serverName"] = from_union([from_str, from_none], self.server_name)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
         return result
 
 @dataclass
@@ -5766,26 +6620,6 @@ class ExternalToolTextResultForLlm:
         return result
 
 @dataclass
-class PermissionDecisionRequest:
-    request_id: str
-    """Request ID of the pending permission request"""
-
-    result: PermissionDecision
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionRequest':
-        assert isinstance(obj, dict)
-        request_id = from_str(obj.get("requestId"))
-        result = PermissionDecision.from_dict(obj.get("result"))
-        return PermissionDecisionRequest(request_id, result)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["requestId"] = from_str(self.request_id)
-        result["result"] = to_class(PermissionDecision, self.result)
-        return result
-
-@dataclass
 class UIElicitationSchema:
     """JSON Schema describing the form fields to present to the user"""
 
@@ -5815,7 +6649,68 @@ class UIElicitationSchema:
         return result
 
 @dataclass
+class PermissionDecisionApproveForLocation:
+    """Schema for the `PermissionDecisionApproveForLocation` type."""
+
+    approval: PermissionDecisionApproveForLocationApproval
+    """The approval to persist for this location"""
+
+    kind: PermissionDecisionApproveForLocationKind
+    """Approved and persisted for this project location"""
+
+    location_key: str
+    """The location key (git root or cwd) to persist the approval to"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocation':
+        assert isinstance(obj, dict)
+        approval = PermissionDecisionApproveForLocationApproval.from_dict(obj.get("approval"))
+        kind = PermissionDecisionApproveForLocationKind(obj.get("kind"))
+        location_key = from_str(obj.get("locationKey"))
+        return PermissionDecisionApproveForLocation(approval, kind, location_key)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["approval"] = to_class(PermissionDecisionApproveForLocationApproval, self.approval)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationKind, self.kind)
+        result["locationKey"] = from_str(self.location_key)
+        return result
+
+@dataclass
+class PermissionDecisionApproveForSession:
+    """Schema for the `PermissionDecisionApproveForSession` type."""
+
+    kind: PermissionDecisionApproveForSessionKind
+    """Approved and remembered for the rest of the session"""
+
+    approval: PermissionDecisionApproveForSessionApproval | None = None
+    """The approval to add as a session-scoped rule"""
+
+    domain: str | None = None
+    """The URL domain to approve for this session"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSession':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForSessionKind(obj.get("kind"))
+        approval = from_union([PermissionDecisionApproveForSessionApproval.from_dict, from_none], obj.get("approval"))
+        domain = from_union([from_str, from_none], obj.get("domain"))
+        return PermissionDecisionApproveForSession(kind, approval, domain)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForSessionKind, self.kind)
+        if self.approval is not None:
+            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForSessionApproval, x), from_none], self.approval)
+        if self.domain is not None:
+            result["domain"] = from_union([from_str, from_none], self.domain)
+        return result
+
+@dataclass
 class HandlePendingToolCallRequest:
+    """Pending external tool call request ID, with the tool result or an error describing why it
+    failed.
+    """
     request_id: str
     """Request ID of the pending tool call"""
 
@@ -5844,6 +6739,8 @@ class HandlePendingToolCallRequest:
 
 @dataclass
 class UIElicitationRequest:
+    """Prompt message and JSON schema describing the form fields to elicit from the user."""
+
     message: str
     """Message describing what information is needed from the user"""
 
@@ -5861,6 +6758,97 @@ class UIElicitationRequest:
         result: dict = {}
         result["message"] = from_str(self.message)
         result["requestedSchema"] = to_class(UIElicitationSchema, self.requested_schema)
+        return result
+
+@dataclass
+class PermissionDecision:
+    """Decision to apply to a pending permission request.
+
+    Schema for the `PermissionDecisionApproveOnce` type.
+
+    Schema for the `PermissionDecisionApproveForSession` type.
+
+    Schema for the `PermissionDecisionApproveForLocation` type.
+
+    Schema for the `PermissionDecisionApprovePermanently` type.
+
+    Schema for the `PermissionDecisionReject` type.
+
+    Schema for the `PermissionDecisionUserNotAvailable` type.
+    """
+    kind: PermissionDecisionKind
+    """The permission request was approved for this one instance
+
+    Approved and remembered for the rest of the session
+
+    Approved and persisted for this project location
+
+    Approved and persisted across sessions
+
+    Denied by the user during an interactive prompt
+
+    Denied because user confirmation was unavailable
+    """
+    approval: PermissionDecisionApproveForIonApproval | None = None
+    """The approval to add as a session-scoped rule
+
+    The approval to persist for this location
+    """
+    domain: str | None = None
+    """The URL domain to approve for this session
+
+    The URL domain to approve permanently
+    """
+    location_key: str | None = None
+    """The location key (git root or cwd) to persist the approval to"""
+
+    feedback: str | None = None
+    """Optional feedback from the user explaining the denial"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecision':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionKind(obj.get("kind"))
+        approval = from_union([PermissionDecisionApproveForIonApproval.from_dict, from_none], obj.get("approval"))
+        domain = from_union([from_str, from_none], obj.get("domain"))
+        location_key = from_union([from_str, from_none], obj.get("locationKey"))
+        feedback = from_union([from_str, from_none], obj.get("feedback"))
+        return PermissionDecision(kind, approval, domain, location_key, feedback)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionKind, self.kind)
+        if self.approval is not None:
+            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForIonApproval, x), from_none], self.approval)
+        if self.domain is not None:
+            result["domain"] = from_union([from_str, from_none], self.domain)
+        if self.location_key is not None:
+            result["locationKey"] = from_union([from_str, from_none], self.location_key)
+        if self.feedback is not None:
+            result["feedback"] = from_union([from_str, from_none], self.feedback)
+        return result
+
+@dataclass
+class PermissionDecisionRequest:
+    """Pending permission request ID and the decision to apply (approve/reject and scope)."""
+
+    request_id: str
+    """Request ID of the pending permission request"""
+
+    result: PermissionDecision
+    """Decision to apply to a pending permission request."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionRequest':
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        result = PermissionDecision.from_dict(obj.get("result"))
+        return PermissionDecisionRequest(request_id, result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["result"] = to_class(PermissionDecision, self.result)
         return result
 
 @dataclass
@@ -5897,6 +6885,8 @@ class ModelPickerCategory(Enum):
 
 @dataclass
 class Model:
+    """Schema for the `Model` type."""
+
     capabilities: ModelCapabilities
     """Model capabilities and limits"""
 
@@ -5959,6 +6949,9 @@ class Model:
 
 @dataclass
 class ModelList:
+    """List of Copilot models available to the resolved user, including capabilities and billing
+    metadata.
+    """
     models: list[Model]
     """List of available models with full metadata"""
 
@@ -5975,6 +6968,8 @@ class ModelList:
 
 @dataclass
 class ModelSwitchToRequest:
+    """Target model identifier and optional reasoning effort, summary, and capability overrides."""
+
     model_id: str
     """Model identifier to switch to"""
 
@@ -5982,7 +6977,10 @@ class ModelSwitchToRequest:
     """Override individual model capabilities resolved by the runtime"""
 
     reasoning_effort: str | None = None
-    """Reasoning effort level to use for the model"""
+    """Reasoning effort level to use for the model. "none" disables reasoning."""
+
+    reasoning_summary: ReasoningSummary | None = None
+    """Reasoning summary mode to request for supported model clients"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelSwitchToRequest':
@@ -5990,7 +6988,8 @@ class ModelSwitchToRequest:
         model_id = from_str(obj.get("modelId"))
         model_capabilities = from_union([ModelCapabilitiesOverride.from_dict, from_none], obj.get("modelCapabilities"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
-        return ModelSwitchToRequest(model_id, model_capabilities, reasoning_effort)
+        reasoning_summary = from_union([ReasoningSummary.from_dict, from_none], obj.get("reasoningSummary"))
+        return ModelSwitchToRequest(model_id, model_capabilities, reasoning_effort, reasoning_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -5999,10 +6998,14 @@ class ModelSwitchToRequest:
             result["modelCapabilities"] = from_union([lambda x: to_class(ModelCapabilitiesOverride, x), from_none], self.model_capabilities)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_str, from_none], self.reasoning_effort)
+        if self.reasoning_summary is not None:
+            result["reasoningSummary"] = from_union([lambda x: to_class(ReasoningSummary, x), from_none], self.reasoning_summary)
         return result
 
 @dataclass
 class TaskAgentInfo:
+    """Schema for the `TaskAgentInfo` type."""
+
     agent_type: str
     """Type of agent running this task"""
 
@@ -6116,6 +7119,12 @@ class TaskAgentInfo:
 
 @dataclass
 class TaskInfo:
+    """Schema for the `TaskInfo` type.
+
+    Schema for the `TaskAgentInfo` type.
+
+    Schema for the `TaskShellInfo` type.
+    """
     description: str
     """Short description of the task"""
 
@@ -6262,6 +7271,8 @@ class TaskInfo:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TaskList:
+    """Background tasks currently tracked by the session."""
+
     tasks: list[TaskInfo]
     """Currently tracked tasks"""
 
@@ -6295,6 +7306,10 @@ class RPC:
     commands_list_request: CommandsListRequest
     commands_respond_to_queued_command_request: CommandsRespondToQueuedCommandRequest
     commands_respond_to_queued_command_result: CommandsRespondToQueuedCommandResult
+    connected_remote_session_metadata: ConnectedRemoteSessionMetadata
+    connected_remote_session_metadata_kind: ConnectedRemoteSessionMetadataKind
+    connected_remote_session_metadata_repository: ConnectedRemoteSessionMetadataRepository
+    connect_remote_session_params: ConnectRemoteSessionParams
     connect_request: ConnectRequest
     connect_result: ConnectResult
     current_model: CurrentModel
@@ -6423,6 +7438,7 @@ class RPC:
     queued_command_result: QueuedCommandResult
     remote_enable_request: RemoteEnableRequest
     remote_enable_result: RemoteEnableResult
+    remote_session_connection_result: RemoteSessionConnectionResult
     remote_session_mode: RemoteSessionMode
     server_skill: ServerSkill
     server_skill_list: ServerSkillList
@@ -6551,6 +7567,10 @@ class RPC:
         commands_list_request = CommandsListRequest.from_dict(obj.get("CommandsListRequest"))
         commands_respond_to_queued_command_request = CommandsRespondToQueuedCommandRequest.from_dict(obj.get("CommandsRespondToQueuedCommandRequest"))
         commands_respond_to_queued_command_result = CommandsRespondToQueuedCommandResult.from_dict(obj.get("CommandsRespondToQueuedCommandResult"))
+        connected_remote_session_metadata = ConnectedRemoteSessionMetadata.from_dict(obj.get("ConnectedRemoteSessionMetadata"))
+        connected_remote_session_metadata_kind = ConnectedRemoteSessionMetadataKind(obj.get("ConnectedRemoteSessionMetadataKind"))
+        connected_remote_session_metadata_repository = ConnectedRemoteSessionMetadataRepository.from_dict(obj.get("ConnectedRemoteSessionMetadataRepository"))
+        connect_remote_session_params = ConnectRemoteSessionParams.from_dict(obj.get("ConnectRemoteSessionParams"))
         connect_request = ConnectRequest.from_dict(obj.get("ConnectRequest"))
         connect_result = ConnectResult.from_dict(obj.get("ConnectResult"))
         current_model = CurrentModel.from_dict(obj.get("CurrentModel"))
@@ -6679,6 +7699,7 @@ class RPC:
         queued_command_result = QueuedCommandResult.from_dict(obj.get("QueuedCommandResult"))
         remote_enable_request = RemoteEnableRequest.from_dict(obj.get("RemoteEnableRequest"))
         remote_enable_result = RemoteEnableResult.from_dict(obj.get("RemoteEnableResult"))
+        remote_session_connection_result = RemoteSessionConnectionResult.from_dict(obj.get("RemoteSessionConnectionResult"))
         remote_session_mode = RemoteSessionMode(obj.get("RemoteSessionMode"))
         server_skill = ServerSkill.from_dict(obj.get("ServerSkill"))
         server_skill_list = ServerSkillList.from_dict(obj.get("ServerSkillList"))
@@ -6786,7 +7807,7 @@ class RPC:
         workspaces_list_files_result = WorkspacesListFilesResult.from_dict(obj.get("WorkspacesListFilesResult"))
         workspaces_read_file_request = WorkspacesReadFileRequest.from_dict(obj.get("WorkspacesReadFileRequest"))
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
-        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_request, remote_enable_result, remote_session_mode, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_mode, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
+        return RPC(account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_list, agent_reload_result, agent_select_request, agent_select_result, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, current_model, discovered_mcp_server, discovered_mcp_server_source, discovered_mcp_server_type, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, filter_mapping_string, filter_mapping_value, fleet_start_request, fleet_start_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_compact_context_window, history_compact_result, history_truncate_request, history_truncate_result, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_oauth_login_request, mcp_oauth_login_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_local, mcp_server_config_local_type, mcp_server_list, mcp_server_source, mcp_server_status, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_request, permission_decision, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_request_result, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, remote_enable_request, remote_enable_result, remote_session_connection_result, remote_session_mode, server_skill, server_skill_list, session_auth_status, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_log_level, session_mode, sessions_fork_request, sessions_fork_result, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_load_diagnostics, slash_command_agent_prompt_mode, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_text_result, task_agent_info, task_agent_info_execution_mode, task_agent_info_status, task_info, task_list, tasks_cancel_request, tasks_cancel_result, task_shell_info, task_shell_info_attachment_mode, task_shell_info_execution_mode, task_shell_info_status, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, tool, tool_list, tools_list_request, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_handle_pending_elicitation_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_files_result, workspaces_read_file_request, workspaces_read_file_result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -6807,6 +7828,10 @@ class RPC:
         result["CommandsListRequest"] = to_class(CommandsListRequest, self.commands_list_request)
         result["CommandsRespondToQueuedCommandRequest"] = to_class(CommandsRespondToQueuedCommandRequest, self.commands_respond_to_queued_command_request)
         result["CommandsRespondToQueuedCommandResult"] = to_class(CommandsRespondToQueuedCommandResult, self.commands_respond_to_queued_command_result)
+        result["ConnectedRemoteSessionMetadata"] = to_class(ConnectedRemoteSessionMetadata, self.connected_remote_session_metadata)
+        result["ConnectedRemoteSessionMetadataKind"] = to_enum(ConnectedRemoteSessionMetadataKind, self.connected_remote_session_metadata_kind)
+        result["ConnectedRemoteSessionMetadataRepository"] = to_class(ConnectedRemoteSessionMetadataRepository, self.connected_remote_session_metadata_repository)
+        result["ConnectRemoteSessionParams"] = to_class(ConnectRemoteSessionParams, self.connect_remote_session_params)
         result["ConnectRequest"] = to_class(ConnectRequest, self.connect_request)
         result["ConnectResult"] = to_class(ConnectResult, self.connect_result)
         result["CurrentModel"] = to_class(CurrentModel, self.current_model)
@@ -6935,6 +7960,7 @@ class RPC:
         result["QueuedCommandResult"] = to_class(QueuedCommandResult, self.queued_command_result)
         result["RemoteEnableRequest"] = to_class(RemoteEnableRequest, self.remote_enable_request)
         result["RemoteEnableResult"] = to_class(RemoteEnableResult, self.remote_enable_result)
+        result["RemoteSessionConnectionResult"] = to_class(RemoteSessionConnectionResult, self.remote_session_connection_result)
         result["RemoteSessionMode"] = to_enum(RemoteSessionMode, self.remote_session_mode)
         result["ServerSkill"] = to_class(ServerSkill, self.server_skill)
         result["ServerSkillList"] = to_class(ServerSkillList, self.server_skill_list)
@@ -7095,7 +8121,7 @@ class ServerModelsApi:
         self._client = client
 
     async def list(self, params: ModelsListRequest, *, timeout: float | None = None) -> ModelList:
-        "Calls models.list."
+        "Lists Copilot models available to the authenticated user.\n\nArgs:\n    params: Optional GitHub token used to list models for a specific user instead of the global auth context.\n\nReturns:\n    List of Copilot models available to the resolved user, including capabilities and billing metadata."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list", params_dict, **_timeout_kwargs(timeout))))
 
@@ -7105,7 +8131,7 @@ class ServerToolsApi:
         self._client = client
 
     async def list(self, params: ToolsListRequest, *, timeout: float | None = None) -> ToolList:
-        "Calls tools.list."
+        "Lists built-in tools available for a model.\n\nArgs:\n    params: Optional model identifier whose tool overrides should be applied to the listing.\n\nReturns:\n    Built-in tools available for the requested model, with their parameters and instructions."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ToolList.from_dict(await self._client.request("tools.list", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7115,7 +8141,7 @@ class ServerAccountApi:
         self._client = client
 
     async def get_quota(self, params: AccountGetQuotaRequest, *, timeout: float | None = None) -> AccountGetQuotaResult:
-        "Calls account.getQuota."
+        "Gets Copilot quota usage for the authenticated user or supplied GitHub token.\n\nArgs:\n    params: Optional GitHub token used to look up quota for a specific user instead of the global auth context.\n\nReturns:\n    Quota usage snapshots for the resolved user, keyed by quota type."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7125,31 +8151,31 @@ class ServerMcpConfigApi:
         self._client = client
 
     async def list(self, *, timeout: float | None = None) -> MCPConfigList:
-        "Calls mcp.config.list."
+        "Lists MCP servers from user configuration.\n\nReturns:\n    User-configured MCP servers, keyed by server name."
         return MCPConfigList.from_dict(await self._client.request("mcp.config.list", {}, **_timeout_kwargs(timeout)))
 
     async def add(self, params: MCPConfigAddRequest, *, timeout: float | None = None) -> None:
-        "Calls mcp.config.add."
+        "Adds an MCP server to user configuration.\n\nArgs:\n    params: MCP server name and configuration to add to user configuration."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.add", params_dict, **_timeout_kwargs(timeout))
 
     async def update(self, params: MCPConfigUpdateRequest, *, timeout: float | None = None) -> None:
-        "Calls mcp.config.update."
+        "Updates an MCP server in user configuration.\n\nArgs:\n    params: MCP server name and replacement configuration to write to user configuration."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.update", params_dict, **_timeout_kwargs(timeout))
 
     async def remove(self, params: MCPConfigRemoveRequest, *, timeout: float | None = None) -> None:
-        "Calls mcp.config.remove."
+        "Removes an MCP server from user configuration.\n\nArgs:\n    params: MCP server name to remove from user configuration."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.remove", params_dict, **_timeout_kwargs(timeout))
 
     async def enable(self, params: MCPConfigEnableRequest, *, timeout: float | None = None) -> None:
-        "Calls mcp.config.enable."
+        "Enables MCP servers in user configuration for new sessions.\n\nArgs:\n    params: MCP server names to enable for new sessions."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: MCPConfigDisableRequest, *, timeout: float | None = None) -> None:
-        "Calls mcp.config.disable."
+        "Disables MCP servers in user configuration for new sessions.\n\nArgs:\n    params: MCP server names to disable for new sessions."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("mcp.config.disable", params_dict, **_timeout_kwargs(timeout))
 
@@ -7160,7 +8186,7 @@ class ServerMcpApi:
         self.config = ServerMcpConfigApi(client)
 
     async def discover(self, params: MCPDiscoverRequest, *, timeout: float | None = None) -> MCPDiscoverResult:
-        "Calls mcp.discover."
+        "Discovers MCP servers from user, workspace, plugin, and builtin sources.\n\nArgs:\n    params: Optional working directory used as context for MCP server discovery.\n\nReturns:\n    MCP servers discovered from user, workspace, plugin, and built-in sources."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MCPDiscoverResult.from_dict(await self._client.request("mcp.discover", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7170,7 +8196,7 @@ class ServerSkillsConfigApi:
         self._client = client
 
     async def set_disabled_skills(self, params: SkillsConfigSetDisabledSkillsRequest, *, timeout: float | None = None) -> None:
-        "Calls skills.config.setDisabledSkills."
+        "Replaces the global list of disabled skills.\n\nArgs:\n    params: Skill names to mark as disabled in global configuration, replacing any previous list."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("skills.config.setDisabledSkills", params_dict, **_timeout_kwargs(timeout))
 
@@ -7181,7 +8207,7 @@ class ServerSkillsApi:
         self.config = ServerSkillsConfigApi(client)
 
     async def discover(self, params: SkillsDiscoverRequest, *, timeout: float | None = None) -> ServerSkillList:
-        "Calls skills.discover."
+        "Discovers skills across global and project sources.\n\nArgs:\n    params: Optional project paths and additional skill directories to include in discovery.\n\nReturns:\n    Skills discovered across global and project sources."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ServerSkillList.from_dict(await self._client.request("skills.discover", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7191,7 +8217,7 @@ class ServerSessionFsApi:
         self._client = client
 
     async def set_provider(self, params: SessionFSSetProviderRequest, *, timeout: float | None = None) -> SessionFSSetProviderResult:
-        "Calls sessionFs.setProvider."
+        "Registers an SDK client as the session filesystem provider.\n\nArgs:\n    params: Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.\n\nReturns:\n    Indicates whether the calling client was registered as the session filesystem provider."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionFSSetProviderResult.from_dict(await self._client.request("sessionFs.setProvider", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7202,9 +8228,14 @@ class ServerSessionsApi:
         self._client = client
 
     async def fork(self, params: SessionsForkRequest, *, timeout: float | None = None) -> SessionsForkResult:
-        "Calls sessions.fork."
+        "Creates a new session by forking persisted history from an existing session.\n\nArgs:\n    params: Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.\n\nReturns:\n    Identifier and optional friendly name assigned to the newly forked session."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return SessionsForkResult.from_dict(await self._client.request("sessions.fork", params_dict, **_timeout_kwargs(timeout)))
+
+    async def connect(self, params: ConnectRemoteSessionParams, *, timeout: float | None = None) -> RemoteSessionConnectionResult:
+        "Connects to an existing remote session and exposes it as an SDK session.\n\nArgs:\n    params: Remote session connection parameters.\n\nReturns:\n    Remote session connection result."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return RemoteSessionConnectionResult.from_dict(await self._client.request("sessions.connect", params_dict, **_timeout_kwargs(timeout)))
 
 
 class ServerRpc:
@@ -7220,7 +8251,7 @@ class ServerRpc:
         self.sessions = ServerSessionsApi(client)
 
     async def ping(self, params: PingRequest, *, timeout: float | None = None) -> PingResult:
-        "Calls ping."
+        "Checks server responsiveness and returns protocol information.\n\nArgs:\n    params: Optional message to echo back to the caller.\n\nReturns:\n    Server liveness response, including the echoed message, current timestamp, and protocol version."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return PingResult.from_dict(await self._client.request("ping", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7231,7 +8262,7 @@ class _InternalServerRpc:
         self._client = client
 
     async def connect(self, params: ConnectRequest, *, timeout: float | None = None) -> ConnectResult:
-        "Calls connect.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        "Performs the SDK server connection handshake and validates the optional connection token.\n\nArgs:\n    params: Optional connection token presented by the SDK client during the handshake.\n\nReturns:\n    Handshake result reporting the server's protocol version and package version on success.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return ConnectResult.from_dict(await self._client.request("connect", params_dict, **_timeout_kwargs(timeout)))
 
@@ -7242,7 +8273,7 @@ class AuthApi:
         self._session_id = session_id
 
     async def get_status(self, *, timeout: float | None = None) -> SessionAuthStatus:
-        "Calls session.auth.getStatus."
+        "Gets authentication status and account metadata for the session.\n\nReturns:\n    Authentication status and account metadata for the session."
         return SessionAuthStatus.from_dict(await self._client.request("session.auth.getStatus", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7252,11 +8283,11 @@ class ModelApi:
         self._session_id = session_id
 
     async def get_current(self, *, timeout: float | None = None) -> CurrentModel:
-        "Calls session.model.getCurrent."
+        "Gets the currently selected model for the session.\n\nReturns:\n    The currently selected model for the session."
         return CurrentModel.from_dict(await self._client.request("session.model.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def switch_to(self, params: ModelSwitchToRequest, *, timeout: float | None = None) -> ModelSwitchToResult:
-        "Calls session.model.switchTo."
+        "Switches the session to a model and optional reasoning configuration.\n\nArgs:\n    params: Target model identifier and optional reasoning effort, summary, and capability overrides.\n\nReturns:\n    The model identifier active on the session after the switch."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ModelSwitchToResult.from_dict(await self._client.request("session.model.switchTo", params_dict, **_timeout_kwargs(timeout)))
@@ -7268,11 +8299,11 @@ class ModeApi:
         self._session_id = session_id
 
     async def get(self, *, timeout: float | None = None) -> Mode:
-        "Calls session.mode.get.\n\nReturns:\n    The agent mode. Valid values: \"interactive\", \"plan\", \"autopilot\"."
+        "Gets the current agent interaction mode.\n\nReturns:\n    The agent mode. Valid values: \"interactive\", \"plan\", \"autopilot\"."
         return Mode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def set(self, params: ModeSetRequest, *, timeout: float | None = None) -> None:
-        "Calls session.mode.set."
+        "Sets the current agent interaction mode.\n\nArgs:\n    params: Agent interaction mode to apply to the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mode.set", params_dict, **_timeout_kwargs(timeout))
@@ -7284,11 +8315,11 @@ class NameApi:
         self._session_id = session_id
 
     async def get(self, *, timeout: float | None = None) -> NameGetResult:
-        "Calls session.name.get."
+        "Gets the session's friendly name.\n\nReturns:\n    The session's friendly name, or null when not yet set."
         return NameGetResult.from_dict(await self._client.request("session.name.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def set(self, params: NameSetRequest, *, timeout: float | None = None) -> None:
-        "Calls session.name.set."
+        "Sets the session's friendly name.\n\nArgs:\n    params: New friendly name to apply to the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.name.set", params_dict, **_timeout_kwargs(timeout))
@@ -7300,17 +8331,17 @@ class PlanApi:
         self._session_id = session_id
 
     async def read(self, *, timeout: float | None = None) -> PlanReadResult:
-        "Calls session.plan.read."
+        "Reads the session plan file from the workspace.\n\nReturns:\n    Existence, contents, and resolved path of the session plan file."
         return PlanReadResult.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def update(self, params: PlanUpdateRequest, *, timeout: float | None = None) -> None:
-        "Calls session.plan.update."
+        "Writes new content to the session plan file.\n\nArgs:\n    params: Replacement contents to write to the session plan file."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.plan.update", params_dict, **_timeout_kwargs(timeout))
 
     async def delete(self, *, timeout: float | None = None) -> None:
-        "Calls session.plan.delete."
+        "Deletes the session plan file from the workspace."
         await self._client.request("session.plan.delete", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
@@ -7320,21 +8351,21 @@ class WorkspacesApi:
         self._session_id = session_id
 
     async def get_workspace(self, *, timeout: float | None = None) -> WorkspacesGetWorkspaceResult:
-        "Calls session.workspaces.getWorkspace."
+        "Gets current workspace metadata for the session.\n\nReturns:\n    Current workspace metadata for the session, or null when not available."
         return WorkspacesGetWorkspaceResult.from_dict(await self._client.request("session.workspaces.getWorkspace", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def list_files(self, *, timeout: float | None = None) -> WorkspacesListFilesResult:
-        "Calls session.workspaces.listFiles."
+        "Lists files stored in the session workspace files directory.\n\nReturns:\n    Relative paths of files stored in the session workspace files directory."
         return WorkspacesListFilesResult.from_dict(await self._client.request("session.workspaces.listFiles", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def read_file(self, params: WorkspacesReadFileRequest, *, timeout: float | None = None) -> WorkspacesReadFileResult:
-        "Calls session.workspaces.readFile."
+        "Reads a file from the session workspace files directory.\n\nArgs:\n    params: Relative path of the workspace file to read.\n\nReturns:\n    Contents of the requested workspace file as a UTF-8 string."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return WorkspacesReadFileResult.from_dict(await self._client.request("session.workspaces.readFile", params_dict, **_timeout_kwargs(timeout)))
 
     async def create_file(self, params: WorkspacesCreateFileRequest, *, timeout: float | None = None) -> None:
-        "Calls session.workspaces.createFile."
+        "Creates or overwrites a file in the session workspace files directory.\n\nArgs:\n    params: Relative path and UTF-8 content for the workspace file to create or overwrite."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.workspaces.createFile", params_dict, **_timeout_kwargs(timeout))
@@ -7346,7 +8377,7 @@ class InstructionsApi:
         self._session_id = session_id
 
     async def get_sources(self, *, timeout: float | None = None) -> InstructionsGetSourcesResult:
-        "Calls session.instructions.getSources."
+        "Gets instruction sources loaded for the session.\n\nReturns:\n    Instruction sources loaded for the session, in merge order."
         return InstructionsGetSourcesResult.from_dict(await self._client.request("session.instructions.getSources", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7357,7 +8388,7 @@ class FleetApi:
         self._session_id = session_id
 
     async def start(self, params: FleetStartRequest, *, timeout: float | None = None) -> FleetStartResult:
-        "Calls session.fleet.start."
+        "Starts fleet mode by submitting the fleet orchestration prompt to the session.\n\nArgs:\n    params: Optional user prompt to combine with the fleet orchestration instructions.\n\nReturns:\n    Indicates whether fleet mode was successfully activated."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return FleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict, **_timeout_kwargs(timeout)))
@@ -7370,25 +8401,25 @@ class AgentApi:
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> AgentList:
-        "Calls session.agent.list."
+        "Lists custom agents available to the session.\n\nReturns:\n    Custom agents available to the session."
         return AgentList.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def get_current(self, *, timeout: float | None = None) -> AgentGetCurrentResult:
-        "Calls session.agent.getCurrent."
+        "Gets the currently selected custom agent for the session.\n\nReturns:\n    The currently selected custom agent, or null when using the default agent."
         return AgentGetCurrentResult.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def select(self, params: AgentSelectRequest, *, timeout: float | None = None) -> AgentSelectResult:
-        "Calls session.agent.select."
+        "Selects a custom agent for subsequent turns in the session.\n\nArgs:\n    params: Name of the custom agent to select for subsequent turns.\n\nReturns:\n    The newly selected custom agent."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return AgentSelectResult.from_dict(await self._client.request("session.agent.select", params_dict, **_timeout_kwargs(timeout)))
 
     async def deselect(self, *, timeout: float | None = None) -> None:
-        "Calls session.agent.deselect."
+        "Clears the selected custom agent and returns the session to the default agent."
         await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> AgentReloadResult:
-        "Calls session.agent.reload."
+        "Reloads custom agent definitions and returns the refreshed list.\n\nReturns:\n    Custom agents available to the session after reloading definitions from disk."
         return AgentReloadResult.from_dict(await self._client.request("session.agent.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7399,35 +8430,35 @@ class TasksApi:
         self._session_id = session_id
 
     async def start_agent(self, params: TasksStartAgentRequest, *, timeout: float | None = None) -> TasksStartAgentResult:
-        "Calls session.tasks.startAgent."
+        "Starts a background agent task in the session.\n\nArgs:\n    params: Agent type, prompt, name, and optional description and model override for the new task.\n\nReturns:\n    Identifier assigned to the newly started background agent task."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksStartAgentResult.from_dict(await self._client.request("session.tasks.startAgent", params_dict, **_timeout_kwargs(timeout)))
 
     async def list(self, *, timeout: float | None = None) -> TaskList:
-        "Calls session.tasks.list."
+        "Lists background tasks tracked by the session.\n\nReturns:\n    Background tasks currently tracked by the session."
         return TaskList.from_dict(await self._client.request("session.tasks.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def promote_to_background(self, params: TasksPromoteToBackgroundRequest, *, timeout: float | None = None) -> TasksPromoteToBackgroundResult:
-        "Calls session.tasks.promoteToBackground."
+        "Promotes an eligible synchronously-waited task so it continues running in the background.\n\nArgs:\n    params: Identifier of the task to promote to background mode.\n\nReturns:\n    Indicates whether the task was successfully promoted to background mode."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksPromoteToBackgroundResult.from_dict(await self._client.request("session.tasks.promoteToBackground", params_dict, **_timeout_kwargs(timeout)))
 
     async def cancel(self, params: TasksCancelRequest, *, timeout: float | None = None) -> TasksCancelResult:
-        "Calls session.tasks.cancel."
+        "Cancels a background task.\n\nArgs:\n    params: Identifier of the background task to cancel.\n\nReturns:\n    Indicates whether the background task was successfully cancelled."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksCancelResult.from_dict(await self._client.request("session.tasks.cancel", params_dict, **_timeout_kwargs(timeout)))
 
     async def remove(self, params: TasksRemoveRequest, *, timeout: float | None = None) -> TasksRemoveResult:
-        "Calls session.tasks.remove."
+        "Removes a completed or cancelled background task from tracking.\n\nArgs:\n    params: Identifier of the completed or cancelled task to remove from tracking.\n\nReturns:\n    Indicates whether the task was removed. False when the task does not exist or is still running/idle."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksRemoveResult.from_dict(await self._client.request("session.tasks.remove", params_dict, **_timeout_kwargs(timeout)))
 
     async def send_message(self, params: TasksSendMessageRequest, *, timeout: float | None = None) -> TasksSendMessageResult:
-        "Calls session.tasks.sendMessage."
+        "Sends a message to a background agent task.\n\nArgs:\n    params: Identifier of the target agent task, message content, and optional sender agent ID.\n\nReturns:\n    Indicates whether the message was delivered, with an error message when delivery failed."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return TasksSendMessageResult.from_dict(await self._client.request("session.tasks.sendMessage", params_dict, **_timeout_kwargs(timeout)))
@@ -7440,23 +8471,23 @@ class SkillsApi:
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> SkillList:
-        "Calls session.skills.list."
+        "Lists skills available to the session.\n\nReturns:\n    Skills available to the session, with their enabled state."
         return SkillList.from_dict(await self._client.request("session.skills.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: SkillsEnableRequest, *, timeout: float | None = None) -> None:
-        "Calls session.skills.enable."
+        "Enables a skill for the session.\n\nArgs:\n    params: Name of the skill to enable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: SkillsDisableRequest, *, timeout: float | None = None) -> None:
-        "Calls session.skills.disable."
+        "Disables a skill for the session.\n\nArgs:\n    params: Name of the skill to disable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.disable", params_dict, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> SkillsLoadDiagnostics:
-        "Calls session.skills.reload."
+        "Reloads skill definitions for the session.\n\nReturns:\n    Diagnostics from reloading skill definitions, with warnings and errors as separate lists."
         return SkillsLoadDiagnostics.from_dict(await self._client.request("session.skills.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7467,7 +8498,7 @@ class McpOauthApi:
         self._session_id = session_id
 
     async def login(self, params: MCPOauthLoginRequest, *, timeout: float | None = None) -> MCPOauthLoginResult:
-        "Calls session.mcp.oauth.login."
+        "Starts OAuth authentication for a remote MCP server.\n\nArgs:\n    params: Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.\n\nReturns:\n    OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPOauthLoginResult.from_dict(await self._client.request("session.mcp.oauth.login", params_dict, **_timeout_kwargs(timeout)))
@@ -7481,23 +8512,23 @@ class McpApi:
         self.oauth = McpOauthApi(client, session_id)
 
     async def list(self, *, timeout: float | None = None) -> MCPServerList:
-        "Calls session.mcp.list."
+        "Lists MCP servers configured for the session and their connection status.\n\nReturns:\n    MCP servers configured for the session, with their connection status."
         return MCPServerList.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: MCPEnableRequest, *, timeout: float | None = None) -> None:
-        "Calls session.mcp.enable."
+        "Enables an MCP server for the session.\n\nArgs:\n    params: Name of the MCP server to enable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: MCPDisableRequest, *, timeout: float | None = None) -> None:
-        "Calls session.mcp.disable."
+        "Disables an MCP server for the session.\n\nArgs:\n    params: Name of the MCP server to disable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.disable", params_dict, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> None:
-        "Calls session.mcp.reload."
+        "Reloads MCP server connections for the session."
         await self._client.request("session.mcp.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
@@ -7508,7 +8539,7 @@ class PluginsApi:
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> PluginList:
-        "Calls session.plugins.list."
+        "Lists plugins installed for the session.\n\nReturns:\n    Plugins installed for the session, with their enabled state and version metadata."
         return PluginList.from_dict(await self._client.request("session.plugins.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7519,23 +8550,23 @@ class ExtensionsApi:
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> ExtensionList:
-        "Calls session.extensions.list."
+        "Lists extensions discovered for the session and their current status.\n\nReturns:\n    Extensions discovered for the session, with their current status."
         return ExtensionList.from_dict(await self._client.request("session.extensions.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: ExtensionsEnableRequest, *, timeout: float | None = None) -> None:
-        "Calls session.extensions.enable."
+        "Enables an extension for the session.\n\nArgs:\n    params: Source-qualified extension identifier to enable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.extensions.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: ExtensionsDisableRequest, *, timeout: float | None = None) -> None:
-        "Calls session.extensions.disable."
+        "Disables an extension for the session.\n\nArgs:\n    params: Source-qualified extension identifier to disable for the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.extensions.disable", params_dict, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> None:
-        "Calls session.extensions.reload."
+        "Reloads extension definitions and processes for the session."
         await self._client.request("session.extensions.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
@@ -7545,7 +8576,7 @@ class ToolsApi:
         self._session_id = session_id
 
     async def handle_pending_tool_call(self, params: HandlePendingToolCallRequest, *, timeout: float | None = None) -> HandlePendingToolCallResult:
-        "Calls session.tools.handlePendingToolCall."
+        "Provides the result for a pending external tool call.\n\nArgs:\n    params: Pending external tool call request ID, with the tool result or an error describing why it failed.\n\nReturns:\n    Indicates whether the external tool call result was handled successfully."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return HandlePendingToolCallResult.from_dict(await self._client.request("session.tools.handlePendingToolCall", params_dict, **_timeout_kwargs(timeout)))
@@ -7557,25 +8588,25 @@ class CommandsApi:
         self._session_id = session_id
 
     async def list(self, params: CommandsListRequest | None = None, *, timeout: float | None = None) -> CommandList:
-        "Calls session.commands.list."
+        "Lists slash commands available in the session.\n\nArgs:\n    params: Optional filters controlling which command sources to include in the listing.\n\nReturns:\n    Slash commands available in the session, after applying any include/exclude filters."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         params_dict["sessionId"] = self._session_id
         return CommandList.from_dict(await self._client.request("session.commands.list", params_dict, **_timeout_kwargs(timeout)))
 
     async def invoke(self, params: CommandsInvokeRequest, *, timeout: float | None = None) -> SlashCommandInvocationResult:
-        "Calls session.commands.invoke."
+        "Invokes a slash command in the session.\n\nArgs:\n    params: Slash command name and optional raw input string to invoke.\n\nReturns:\n    Result of invoking the slash command (text output, prompt to send to the agent, or completion)."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return SlashCommandInvocationResult.from_dict(await self._client.request("session.commands.invoke", params_dict, **_timeout_kwargs(timeout)))
 
     async def handle_pending_command(self, params: CommandsHandlePendingCommandRequest, *, timeout: float | None = None) -> CommandsHandlePendingCommandResult:
-        "Calls session.commands.handlePendingCommand."
+        "Reports completion of a pending client-handled slash command.\n\nArgs:\n    params: Pending command request ID and an optional error if the client handler failed.\n\nReturns:\n    Indicates whether the pending client-handled command was completed successfully."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return CommandsHandlePendingCommandResult.from_dict(await self._client.request("session.commands.handlePendingCommand", params_dict, **_timeout_kwargs(timeout)))
 
     async def respond_to_queued_command(self, params: CommandsRespondToQueuedCommandRequest, *, timeout: float | None = None) -> CommandsRespondToQueuedCommandResult:
-        "Calls session.commands.respondToQueuedCommand."
+        "Responds to a queued command request from the session.\n\nArgs:\n    params: Queued command request ID and the result indicating whether the client handled it.\n\nReturns:\n    Indicates whether the queued-command response was accepted by the session."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return CommandsRespondToQueuedCommandResult.from_dict(await self._client.request("session.commands.respondToQueuedCommand", params_dict, **_timeout_kwargs(timeout)))
@@ -7587,13 +8618,13 @@ class UiApi:
         self._session_id = session_id
 
     async def elicitation(self, params: UIElicitationRequest, *, timeout: float | None = None) -> UIElicitationResponse:
-        "Calls session.ui.elicitation.\n\nReturns:\n    The elicitation response (accept with form values, decline, or cancel)"
+        "Requests structured input from a UI-capable client.\n\nArgs:\n    params: Prompt message and JSON schema describing the form fields to elicit from the user.\n\nReturns:\n    The elicitation response (accept with form values, decline, or cancel)"
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIElicitationResponse.from_dict(await self._client.request("session.ui.elicitation", params_dict, **_timeout_kwargs(timeout)))
 
     async def handle_pending_elicitation(self, params: UIHandlePendingElicitationRequest, *, timeout: float | None = None) -> UIElicitationResult:
-        "Calls session.ui.handlePendingElicitation."
+        "Provides the user response for a pending elicitation request.\n\nArgs:\n    params: Pending elicitation request ID and the user's response (accept/decline/cancel + form values).\n\nReturns:\n    Indicates whether the elicitation response was accepted; false if it was already resolved by another client."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIElicitationResult.from_dict(await self._client.request("session.ui.handlePendingElicitation", params_dict, **_timeout_kwargs(timeout)))
@@ -7605,19 +8636,19 @@ class PermissionsApi:
         self._session_id = session_id
 
     async def handle_pending_permission_request(self, params: PermissionDecisionRequest, *, timeout: float | None = None) -> PermissionRequestResult:
-        "Calls session.permissions.handlePendingPermissionRequest."
+        "Provides a decision for a pending tool permission request.\n\nArgs:\n    params: Pending permission request ID and the decision to apply (approve/reject and scope).\n\nReturns:\n    Indicates whether the permission decision was applied; false when the request was already resolved."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionRequestResult.from_dict(await self._client.request("session.permissions.handlePendingPermissionRequest", params_dict, **_timeout_kwargs(timeout)))
 
     async def set_approve_all(self, params: PermissionsSetApproveAllRequest, *, timeout: float | None = None) -> PermissionsSetApproveAllResult:
-        "Calls session.permissions.setApproveAll."
+        "Enables or disables automatic approval of tool permission requests for the session.\n\nArgs:\n    params: Whether to auto-approve all tool permission requests for the rest of the session.\n\nReturns:\n    Indicates whether the operation succeeded."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return PermissionsSetApproveAllResult.from_dict(await self._client.request("session.permissions.setApproveAll", params_dict, **_timeout_kwargs(timeout)))
 
     async def reset_session_approvals(self, *, timeout: float | None = None) -> PermissionsResetSessionApprovalsResult:
-        "Calls session.permissions.resetSessionApprovals."
+        "Clears session-scoped tool permission approvals.\n\nReturns:\n    Indicates whether the operation succeeded."
         return PermissionsResetSessionApprovalsResult.from_dict(await self._client.request("session.permissions.resetSessionApprovals", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7627,13 +8658,13 @@ class ShellApi:
         self._session_id = session_id
 
     async def exec(self, params: ShellExecRequest, *, timeout: float | None = None) -> ShellExecResult:
-        "Calls session.shell.exec."
+        "Starts a shell command and streams output through session notifications.\n\nArgs:\n    params: Shell command to run, with optional working directory and timeout in milliseconds.\n\nReturns:\n    Identifier of the spawned process, used to correlate streamed output and exit notifications."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ShellExecResult.from_dict(await self._client.request("session.shell.exec", params_dict, **_timeout_kwargs(timeout)))
 
     async def kill(self, params: ShellKillRequest, *, timeout: float | None = None) -> ShellKillResult:
-        "Calls session.shell.kill."
+        "Sends a signal to a shell process previously started via \"shell.exec\".\n\nArgs:\n    params: Identifier of a process previously returned by \"shell.exec\" and the signal to send.\n\nReturns:\n    Indicates whether the signal was delivered; false if the process was unknown or already exited."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return ShellKillResult.from_dict(await self._client.request("session.shell.kill", params_dict, **_timeout_kwargs(timeout)))
@@ -7646,11 +8677,11 @@ class HistoryApi:
         self._session_id = session_id
 
     async def compact(self, *, timeout: float | None = None) -> HistoryCompactResult:
-        "Calls session.history.compact."
+        "Compacts the session history to reduce context usage.\n\nReturns:\n    Compaction outcome with the number of tokens and messages removed and the resulting context window breakdown."
         return HistoryCompactResult.from_dict(await self._client.request("session.history.compact", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def truncate(self, params: HistoryTruncateRequest, *, timeout: float | None = None) -> HistoryTruncateResult:
-        "Calls session.history.truncate."
+        "Truncates persisted session history to a specific event.\n\nArgs:\n    params: Identifier of the event to truncate to; this event and all later events are removed.\n\nReturns:\n    Number of events that were removed by the truncation."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return HistoryTruncateResult.from_dict(await self._client.request("session.history.truncate", params_dict, **_timeout_kwargs(timeout)))
@@ -7663,7 +8694,7 @@ class UsageApi:
         self._session_id = session_id
 
     async def get_metrics(self, *, timeout: float | None = None) -> UsageGetMetricsResult:
-        "Calls session.usage.getMetrics."
+        "Gets accumulated usage metrics for the session.\n\nReturns:\n    Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals."
         return UsageGetMetricsResult.from_dict(await self._client.request("session.usage.getMetrics", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
@@ -7674,13 +8705,13 @@ class RemoteApi:
         self._session_id = session_id
 
     async def enable(self, params: RemoteEnableRequest, *, timeout: float | None = None) -> RemoteEnableResult:
-        "Calls session.remote.enable."
+        "Enables remote session export or steering.\n\nArgs:\n    params: Optional remote session mode (\"off\", \"export\", or \"on\"); defaults to enabling both export and remote steering.\n\nReturns:\n    GitHub URL for the session and a flag indicating whether remote steering is enabled."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return RemoteEnableResult.from_dict(await self._client.request("session.remote.enable", params_dict, **_timeout_kwargs(timeout)))
 
     async def disable(self, *, timeout: float | None = None) -> None:
-        "Calls session.remote.disable."
+        "Disables remote session export and steering."
         await self._client.request("session.remote.disable", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
@@ -7713,11 +8744,11 @@ class SessionRpc:
         self.remote = RemoteApi(client, session_id)
 
     async def suspend(self, *, timeout: float | None = None) -> None:
-        "Calls session.suspend."
+        "Suspends the session while preserving persisted state for later resume."
         await self._client.request("session.suspend", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
     async def log(self, params: LogRequest, *, timeout: float | None = None) -> LogResult:
-        "Calls session.log."
+        "Emits a user-visible session log event.\n\nArgs:\n    params: Message text, optional severity level, persistence flag, and optional follow-up URL.\n\nReturns:\n    Identifier of the session event that was emitted for the log message."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return LogResult.from_dict(await self._client.request("session.log", params_dict, **_timeout_kwargs(timeout)))
@@ -7725,34 +8756,34 @@ class SessionRpc:
 
 class SessionFsHandler(Protocol):
     async def read_file(self, params: SessionFSReadFileRequest) -> SessionFSReadFileResult:
-        "Calls sessionFs.readFile."
+        "Reads a file from the client-provided session filesystem.\n\nArgs:\n    params: Path of the file to read from the client-provided session filesystem.\n\nReturns:\n    File content as a UTF-8 string, or a filesystem error if the read failed."
         pass
     async def write_file(self, params: SessionFSWriteFileRequest) -> SessionFSError | None:
-        "Calls sessionFs.writeFile.\n\nReturns:\n    Describes a filesystem error."
+        "Writes a file in the client-provided session filesystem.\n\nArgs:\n    params: File path, content to write, and optional mode for the client-provided session filesystem.\n\nReturns:\n    Describes a filesystem error."
         pass
     async def append_file(self, params: SessionFSAppendFileRequest) -> SessionFSError | None:
-        "Calls sessionFs.appendFile.\n\nReturns:\n    Describes a filesystem error."
+        "Appends content to a file in the client-provided session filesystem.\n\nArgs:\n    params: File path, content to append, and optional mode for the client-provided session filesystem.\n\nReturns:\n    Describes a filesystem error."
         pass
     async def exists(self, params: SessionFSExistsRequest) -> SessionFSExistsResult:
-        "Calls sessionFs.exists."
+        "Checks whether a path exists in the client-provided session filesystem.\n\nArgs:\n    params: Path to test for existence in the client-provided session filesystem.\n\nReturns:\n    Indicates whether the requested path exists in the client-provided session filesystem."
         pass
     async def stat(self, params: SessionFSStatRequest) -> SessionFSStatResult:
-        "Calls sessionFs.stat."
+        "Gets metadata for a path in the client-provided session filesystem.\n\nArgs:\n    params: Path whose metadata should be returned from the client-provided session filesystem.\n\nReturns:\n    Filesystem metadata for the requested path, or a filesystem error if the stat failed."
         pass
     async def mkdir(self, params: SessionFSMkdirRequest) -> SessionFSError | None:
-        "Calls sessionFs.mkdir.\n\nReturns:\n    Describes a filesystem error."
+        "Creates a directory in the client-provided session filesystem.\n\nArgs:\n    params: Directory path to create in the client-provided session filesystem, with options for recursive creation and POSIX mode.\n\nReturns:\n    Describes a filesystem error."
         pass
     async def readdir(self, params: SessionFSReaddirRequest) -> SessionFSReaddirResult:
-        "Calls sessionFs.readdir."
+        "Lists entry names in a directory from the client-provided session filesystem.\n\nArgs:\n    params: Directory path whose entries should be listed from the client-provided session filesystem.\n\nReturns:\n    Names of entries in the requested directory, or a filesystem error if the read failed."
         pass
     async def readdir_with_types(self, params: SessionFSReaddirWithTypesRequest) -> SessionFSReaddirWithTypesResult:
-        "Calls sessionFs.readdirWithTypes."
+        "Lists directory entries with type information from the client-provided session filesystem.\n\nArgs:\n    params: Directory path whose entries (with type information) should be listed from the client-provided session filesystem.\n\nReturns:\n    Entries in the requested directory paired with file/directory type information, or a filesystem error if the read failed."
         pass
     async def rm(self, params: SessionFSRmRequest) -> SessionFSError | None:
-        "Calls sessionFs.rm.\n\nReturns:\n    Describes a filesystem error."
+        "Removes a file or directory from the client-provided session filesystem.\n\nArgs:\n    params: Path to remove from the client-provided session filesystem, with options for recursive removal and force.\n\nReturns:\n    Describes a filesystem error."
         pass
     async def rename(self, params: SessionFSRenameRequest) -> SessionFSError | None:
-        "Calls sessionFs.rename.\n\nReturns:\n    Describes a filesystem error."
+        "Renames or moves a path in the client-provided session filesystem.\n\nArgs:\n    params: Source and destination paths for renaming or moving an entry in the client-provided session filesystem.\n\nReturns:\n    Describes a filesystem error."
         pass
 
 @dataclass

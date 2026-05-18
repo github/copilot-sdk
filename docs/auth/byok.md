@@ -49,7 +49,7 @@ async def main():
             done.set()
 
     session.on(on_event)
-    await session.send({"prompt": "What is 2+2?"})
+    await session.send("What is 2+2?")
     await done.wait()
 
     await session.disconnect()

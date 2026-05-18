@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Data;
-using System.Reflection;
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.Logging;
+using System.Data;
+using System.Reflection;
 using Xunit;
 using Xunit.Abstractions;
 

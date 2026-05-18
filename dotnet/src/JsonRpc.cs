@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.Unicode;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GitHub.Copilot.SDK;
 
@@ -609,12 +607,11 @@ internal sealed partial class JsonRpc : IDisposable
             return null;
         }
 
-        if (result is not null && registration.ReturnsValueTaskOfT)
+        if (result is not null && registration.ValueTaskAsTaskMethod is { } valueTaskAsTaskMethod)
         {
-            var resultType = result.GetType();
-            var asTask = (Task)resultType.GetMethod("AsTask")!.Invoke(result, null)!;
+            var asTask = (Task)valueTaskAsTaskMethod.Invoke(result, null)!;
             await asTask.ConfigureAwait(false);
-            return asTask.GetType().GetProperty("Result")!.GetValue(asTask);
+            return registration.TaskResultGetter!.Invoke(asTask, null);
         }
 
         return result;
@@ -756,6 +753,9 @@ internal sealed partial class JsonRpc : IDisposable
 
     private sealed class PendingRequest() : TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    private static readonly MethodInfo s_taskGetResult = typeof(Task<>).GetProperty(nameof(Task<int>.Result), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
+    private static readonly MethodInfo s_valueTaskAsTask = typeof(ValueTask<>).GetMethod(nameof(ValueTask<int>.AsTask), BindingFlags.Instance | BindingFlags.Public)!;
+
     private sealed class MethodRegistration
     {
         public MethodRegistration(Delegate handler, bool singleObjectParam)
@@ -763,15 +763,32 @@ internal sealed partial class JsonRpc : IDisposable
             Handler = handler;
             SingleObjectParam = singleObjectParam;
             Parameters = handler.Method.GetParameters();
-            ReturnsValueTaskOfT =
-                handler.Method.ReturnType.IsGenericType &&
-                handler.Method.ReturnType.GetGenericTypeDefinition() == typeof(ValueTask<>);
+            var returnType = handler.Method.ReturnType;
+            if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(ValueTask<>))
+            {
+                ValueTaskAsTaskMethod = GetMethodFromGenericMethodDefinition(returnType, s_valueTaskAsTask);
+                TaskResultGetter = GetMethodFromGenericMethodDefinition(ValueTaskAsTaskMethod.ReturnType, s_taskGetResult);
+            }
         }
 
         public Delegate Handler { get; }
         public bool SingleObjectParam { get; }
         public ParameterInfo[] Parameters { get; }
-        public bool ReturnsValueTaskOfT { get; }
+        public MethodInfo? ValueTaskAsTaskMethod { get; }
+        public MethodInfo? TaskResultGetter { get; }
+    }
+
+    private static MethodInfo GetMethodFromGenericMethodDefinition(Type specializedType, MethodInfo genericMethodDefinition)
+    {
+        Debug.Assert(
+            specializedType.IsGenericType && specializedType.GetGenericTypeDefinition() == genericMethodDefinition.DeclaringType,
+            "Generic member definition doesn't match type.");
+#if NET8_0_OR_GREATER
+        return (MethodInfo)specializedType.GetMemberWithSameMetadataDefinitionAs(genericMethodDefinition);
+#else
+        const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+        return specializedType.GetMethods(All).First(m => m.MetadataToken == genericMethodDefinition.MetadataToken);
+#endif
     }
 
     [JsonSourceGenerationOptions(

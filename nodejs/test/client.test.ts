@@ -893,6 +893,29 @@ describe("CopilotClient", () => {
             expect(payload.customAgents).toEqual([expect.objectContaining({ name: "test-agent" })]);
         });
 
+        it("forwards custom agent model in session.create request", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                customAgents: [
+                    {
+                        name: "model-agent",
+                        prompt: "You are a model agent.",
+                        model: "claude-haiku-4.5",
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.customAgents).toEqual([
+                expect.objectContaining({ name: "model-agent", model: "claude-haiku-4.5" }),
+            ]);
+        });
+
         it("forwards agent in session.resume request", async () => {
             const client = new CopilotClient();
             await client.start();
