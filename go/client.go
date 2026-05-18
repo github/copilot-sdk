@@ -555,16 +555,15 @@ func (c *Client) ensureConnected(ctx context.Context) error {
 // If the client is not connected and AutoStart is enabled, this will automatically
 // start the connection.
 //
-// The config parameter is required and must include an OnPermissionRequest handler.
+// The config parameter is optional. If no OnPermissionRequest handler is provided,
+// permission requests are surfaced as events for the caller to resolve manually.
 //
 // Returns the created session or an error if session creation fails.
 //
 // Example:
 //
 //	// Basic session
-//	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
-//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-//	})
+//	session, err := client.CreateSession(context.Background(), nil)
 //
 //	// Session with model and tools
 //	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
@@ -610,8 +609,8 @@ func extractTransformCallbacks(config *SystemMessageConfig) (*SystemMessageConfi
 }
 
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
-	if config == nil || config.OnPermissionRequest == nil {
-		return nil, fmt.Errorf("an OnPermissionRequest handler is required when creating a session. For example, to allow all permissions, use &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll}")
+	if config == nil {
+		config = &SessionConfig{}
 	}
 
 	if err := c.ensureConnected(ctx); err != nil {
@@ -766,8 +765,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 // ResumeSession resumes an existing conversation session by its ID.
 //
 // This is a convenience method that calls [Client.ResumeSessionWithOptions].
-// The config must include an OnPermissionRequest handler.
-//
 // Example:
 //
 //	session, err := client.ResumeSession(context.Background(), "session-123", &copilot.ResumeSessionConfig{
@@ -789,8 +786,8 @@ func (c *Client) ResumeSession(ctx context.Context, sessionID string, config *Re
 //	    Tools: []copilot.Tool{myNewTool},
 //	})
 func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
-	if config == nil || config.OnPermissionRequest == nil {
-		return nil, fmt.Errorf("an OnPermissionRequest handler is required when resuming a session. For example, to allow all permissions, use &copilot.ResumeSessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll}")
+	if config == nil {
+		config = &ResumeSessionConfig{}
 	}
 
 	if err := c.ensureConnected(ctx); err != nil {

@@ -221,6 +221,22 @@ class TestDefineTool:
         )
         assert result.text_result_for_llm == "HELLO"
 
+    def test_function_style_can_create_declaration_only_tool(self):
+        class Params(BaseModel):
+            value: str = Field(description="Value to look up")
+
+        tool = define_tool(
+            "my_tool",
+            description="My tool",
+            params_type=Params,
+        )
+
+        assert tool.name == "my_tool"
+        assert tool.description == "My tool"
+        assert tool.handler is None
+        assert tool.parameters is not None
+        assert tool.parameters["properties"]["value"]["description"] == "Value to look up"
+
     def test_function_style_requires_name(self):
         class Params(BaseModel):
             value: str

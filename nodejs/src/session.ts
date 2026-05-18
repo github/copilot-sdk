@@ -580,8 +580,8 @@ export class CopilotSession {
     /**
      * Registers custom tool handlers for this session.
      *
-     * Tools allow the assistant to execute custom functions. When the assistant
-     * invokes a tool, the corresponding handler is called with the tool arguments.
+     * Tools with handlers allow the assistant to execute custom functions automatically.
+     * Declaration-only tools are surfaced as events and left pending for the consumer.
      *
      * @param tools - An array of tool definitions with their handlers, or undefined to clear all tools
      * @internal This method is typically called internally when creating a session with tools.
@@ -593,7 +593,9 @@ export class CopilotSession {
         }
 
         for (const tool of tools) {
-            this.toolHandlers.set(tool.name, tool.handler);
+            if (tool.handler) {
+                this.toolHandlers.set(tool.name, tool.handler);
+            }
         }
     }
 

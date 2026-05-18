@@ -248,39 +248,31 @@ class TestClient:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_should_throw_when_create_session_called_without_permission_handler(self):
-        """`create_session` requires an `on_permission_request` handler."""
+    async def test_should_create_session_without_permission_handler(self):
+        """`create_session` allows omitting an `on_permission_request` handler."""
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
 
         try:
             await client.start()
-            with pytest.raises((TypeError, ValueError)) as exc_info:
-                await client.create_session()  # type: ignore[call-arg]
+            session = await client.create_session()
 
-            message = str(exc_info.value)
-            # Accept either 'on_permission_request' missing-arg or runtime validation error.
-            assert "on_permission_request" in message or "permission" in message.lower(), (
-                f"Expected message to reference permission handler, got: {message}"
-            )
+            assert session.session_id
 
             await client.stop()
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_should_throw_when_resume_session_called_without_permission_handler(self):
-        """`resume_session` requires an `on_permission_request` handler."""
+    async def test_should_resume_session_without_permission_handler(self):
+        """`resume_session` allows omitting an `on_permission_request` handler."""
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
 
         try:
             await client.start()
-            with pytest.raises((TypeError, ValueError)) as exc_info:
-                await client.resume_session("some-session-id")  # type: ignore[call-arg]
+            session = await client.create_session()
+            resumed = await client.resume_session(session.session_id)
 
-            message = str(exc_info.value)
-            assert "on_permission_request" in message or "permission" in message.lower(), (
-                f"Expected message to reference permission handler, got: {message}"
-            )
+            assert resumed.session_id == session.session_id
 
             await client.stop()
         finally:

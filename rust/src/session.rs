@@ -31,7 +31,8 @@ use crate::types::{
     ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
     PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
     SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultResponse, TraceContext, ensure_attachment_display_names,
+    ToolResult, ToolResultExpanded, ToolResultResponse, TraceContext,
+    ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -750,14 +751,14 @@ impl Client {
     /// the session.
     ///
     /// If [`handler`](SessionConfig::handler) is `None`, the session uses
-    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
-    /// requests are denied; other events are no-ops.
+    /// [`NoopHandler`](crate::handler::NoopHandler) — permission requests and
+    /// external tool calls are left pending for the consumer to resolve.
     pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
         let handler = config
             .handler
             .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
         let tools_count = config.tools.as_ref().map_or(0, Vec::len);
@@ -878,7 +879,7 @@ impl Client {
         let handler = config
             .handler
             .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
         let tools_count = config.tools.as_ref().map_or(0, Vec::len);
@@ -1105,10 +1106,9 @@ fn pending_permission_result_kind(response: &HandlerResponse) -> &'static str {
     match response {
         HandlerResponse::Permission(PermissionResult::Approved) => "approve-once",
         HandlerResponse::Permission(PermissionResult::Denied) => "reject",
-        HandlerResponse::Permission(PermissionResult::NoResult) => "no-result",
         // Fallback to "user-not-available" for UserNotAvailable, Deferred (when
         // forced through this path), Custom (handled separately upstream), and
-        // any non-permission HandlerResponse that gets here defensively.
+        // any non-permission/no-result HandlerResponse that gets here defensively.
         _ => "user-not-available",
     }
 }
@@ -1156,12 +1156,46 @@ fn direct_permission_payload(response: &HandlerResponse) -> Value {
             permission_request_response(&HandlerResponse::Permission(PermissionResult::Approved)),
         )
         .expect("serializing direct permission response should succeed"),
-        HandlerResponse::Permission(PermissionResult::NoResult)
-        | HandlerResponse::Permission(PermissionResult::UserNotAvailable) => serde_json::json!({
+        HandlerResponse::Permission(
+            PermissionResult::NoResult | PermissionResult::UserNotAvailable,
+        ) => serde_json::json!({
             "kind": pending_permission_result_kind(response),
         }),
         _ => serde_json::to_value(permission_request_response(response))
             .expect("serializing direct permission response should succeed"),
+    }
+}
+
+fn tool_failure_result(message: impl Into<String>) -> ToolResult {
+    let message = message.into();
+    ToolResult::Expanded(ToolResultExpanded {
+        text_result_for_llm: message.clone(),
+        result_type: "failure".to_string(),
+        binary_results_for_llm: None,
+        session_log: None,
+        error: Some(message),
+        tool_telemetry: None,
+    })
+}
+
+fn notification_tool_payload(response: HandlerResponse) -> Option<Value> {
+    match response {
+        HandlerResponse::ToolResult(result) => {
+            Some(serde_json::to_value(result).unwrap_or(Value::Null))
+        }
+        HandlerResponse::NoResult => None,
+        _ => Some(
+            serde_json::to_value(tool_failure_result("Unexpected handler response"))
+                .unwrap_or(Value::Null),
+        ),
+    }
+}
+
+fn direct_tool_result(response: HandlerResponse) -> ToolResult {
+    match response {
+        HandlerResponse::ToolResult(result) => result,
+        HandlerResponse::NoResult => tool_failure_result("No tool handler available"),
+        _ => tool_failure_result("Unexpected handler response"),
     }
 }
 
@@ -1437,11 +1471,9 @@ async fn handle_notification(
                         tool_name = %tool_name,
                         "ToolHandler::call dispatch"
                     );
-                    let tool_result = match response {
-                        HandlerResponse::ToolResult(r) => r,
-                        _ => ToolResult::Text("Unexpected handler response".to_string()),
+                    let Some(result_value) = notification_tool_payload(response) else {
+                        return;
                     };
-                    let result_value = serde_json::to_value(&tool_result).unwrap_or(Value::Null);
                     let rpc_start = Instant::now();
                     let _ = client
                         .call(
@@ -1731,10 +1763,7 @@ async fn handle_request(
                 tool_name = %tool_name,
                 "ToolHandler::call dispatch"
             );
-            let tool_result = match response {
-                HandlerResponse::ToolResult(r) => r,
-                _ => ToolResult::Text("Unexpected handler response".to_string()),
-            };
+            let tool_result = direct_tool_result(response);
             let rpc_response = JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
@@ -2177,6 +2206,12 @@ mod tests {
         assert_eq!(
             direct_permission_payload(&HandlerResponse::Permission(PermissionResult::Deferred)),
             json!({ "kind": "approve-once" })
+        );
+
+        // NoResult -> direct RPC cannot be left pending, so report no user.
+        assert_eq!(
+            direct_permission_payload(&HandlerResponse::Permission(PermissionResult::NoResult)),
+            json!({ "kind": "user-not-available" })
         );
 
         // Approved/Denied → existing kind-only shape.

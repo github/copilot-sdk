@@ -10,13 +10,18 @@ SDK for programmatic control of GitHub Copilot CLI.
 dotnet add package GitHub.Copilot.SDK
 ```
 
-## Run the Sample
+## Run the Samples
 
 Try the interactive chat sample (from the repo root):
 
 ```bash
-cd dotnet/samples
-dotnet run
+dotnet run --file dotnet/samples/Chat.cs
+```
+
+The manual permission/tool-result resume sample can be run the same way:
+
+```bash
+dotnet run --file dotnet/samples/ManualToolResume.cs
 ```
 
 ## Quick Start
@@ -28,7 +33,7 @@ using GitHub.Copilot.SDK;
 await using var client = new CopilotClient();
 await client.StartAsync();
 
-// Create a session (OnPermissionRequest is required)
+// Create a session (OnPermissionRequest is optional; ApproveAll allows every tool)
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
@@ -105,14 +110,14 @@ Create a new conversation session.
 - `SessionId` - Custom session ID
 - `Model` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
 - `ReasoningEffort` - Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModelsAsync()` to check which models support this option.
-- `Tools` - Custom tools exposed to the CLI
+- `Tools` - Custom tool declarations exposed to the CLI. Declarations without an invocable `AIFunction` are left pending for manual resolution.
 - `SystemMessage` - System message customization
 - `AvailableTools` - List of tool names to allow
 - `ExcludedTools` - List of tool names to disable
 - `Provider` - Custom API provider configuration (BYOK)
 - `Streaming` - Enable streaming of response chunks (default: false)
 - `InfiniteSessions` - Configure automatic context compaction (see below)
-- `OnPermissionRequest` - **Required.** Handler called before each tool execution to approve or deny it. Use `PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
@@ -122,7 +127,7 @@ Resume an existing session. Returns the session with `WorkspacePath` populated i
 
 **ResumeSessionConfig:**
 
-- `OnPermissionRequest` - **Required.** Handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 
 ##### `PingAsync(string? message = null): Task<PingResponse>`
 
@@ -726,7 +731,7 @@ No extra dependencies — uses built-in `System.Diagnostics.Activity`.
 
 ## Permission Handling
 
-An `OnPermissionRequest` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+An `OnPermissionRequest` handler is optional when you create or resume a session. When provided, it is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When omitted, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
 
 ### Approve All (simplest)
 
@@ -789,7 +794,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ### Resuming Sessions
 
-Pass `OnPermissionRequest` when resuming a session too — it is required:
+You may pass `OnPermissionRequest` when resuming a session too:
 
 ```csharp
 var session = await client.ResumeSessionAsync("session-id", new ResumeSessionConfig

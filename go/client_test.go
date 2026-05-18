@@ -656,42 +656,39 @@ func TestOverridesBuiltInTool(t *testing.T) {
 	})
 }
 
-func TestClient_CreateSession_RequiresPermissionHandler(t *testing.T) {
-	t.Run("returns error when config is nil", func(t *testing.T) {
-		client := NewClient(nil)
+func TestClient_CreateSession_AllowsMissingPermissionHandler(t *testing.T) {
+	t.Run("accepts nil config before connection validation", func(t *testing.T) {
+		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
 		_, err := client.CreateSession(t.Context(), nil)
 		if err == nil {
-			t.Fatal("Expected error when OnPermissionRequest is nil")
+			t.Fatal("Expected error when client is not connected")
 		}
-		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
-		if !matched {
-			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
+		if strings.Contains(err.Error(), "OnPermissionRequest") {
+			t.Errorf("Did not expect permission handler validation error, got: %v", err)
 		}
 	})
 
-	t.Run("returns error when OnPermissionRequest is not set", func(t *testing.T) {
-		client := NewClient(nil)
+	t.Run("accepts missing OnPermissionRequest before connection validation", func(t *testing.T) {
+		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
 		_, err := client.CreateSession(t.Context(), &SessionConfig{})
 		if err == nil {
-			t.Fatal("Expected error when OnPermissionRequest is nil")
+			t.Fatal("Expected error when client is not connected")
 		}
-		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
-		if !matched {
-			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
+		if strings.Contains(err.Error(), "OnPermissionRequest") {
+			t.Errorf("Did not expect permission handler validation error, got: %v", err)
 		}
 	})
 }
 
-func TestClient_ResumeSession_RequiresPermissionHandler(t *testing.T) {
-	t.Run("returns error when config is nil", func(t *testing.T) {
-		client := NewClient(nil)
+func TestClient_ResumeSession_AllowsMissingPermissionHandler(t *testing.T) {
+	t.Run("accepts nil config before connection validation", func(t *testing.T) {
+		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
 		_, err := client.ResumeSessionWithOptions(t.Context(), "some-id", nil)
 		if err == nil {
-			t.Fatal("Expected error when OnPermissionRequest is nil")
+			t.Fatal("Expected error when client is not connected")
 		}
-		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
-		if !matched {
-			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
+		if strings.Contains(err.Error(), "OnPermissionRequest") {
+			t.Errorf("Did not expect permission handler validation error, got: %v", err)
 		}
 	})
 }

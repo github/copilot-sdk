@@ -58,7 +58,7 @@ ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]
 class Tool:
     name: str
     description: str
-    handler: ToolHandler
+    handler: ToolHandler | None = None
     parameters: dict[str, Any] | None = None
     overrides_built_in_tool: bool = False
     skip_permission: bool = False
@@ -75,7 +75,21 @@ def define_tool(
     description: str | None = None,
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
-) -> Callable[[Callable[..., Any]], Tool]: ...
+) -> Callable[[Callable[..., Any]], Tool]:
+    pass
+
+
+@overload
+def define_tool(
+    name: str,
+    *,
+    description: str | None = None,
+    params_type: type[T],
+    handler: None = None,
+    overrides_built_in_tool: bool = False,
+    skip_permission: bool = False,
+) -> Tool:
+    pass
 
 
 @overload
@@ -87,7 +101,8 @@ def define_tool(
     params_type: type[T],
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
-) -> Tool: ...
+) -> Tool:
+    pass
 
 
 def define_tool(
@@ -122,6 +137,14 @@ def define_tool(
             description="Fetch issue details",
             handler=lambda params, inv: fetch_issue(params.id).summary,
             params_type=LookupIssueParams
+        )
+
+    Declaration-only usage:
+
+        tool = define_tool(
+            "lookup_issue",
+            description="Fetch issue details",
+            params_type=LookupIssueParams,
         )
 
     Args:
@@ -220,6 +243,18 @@ def define_tool(
         if name is None:
             raise ValueError("name is required when using define_tool with handler=")
         return decorator(handler)
+
+    # If a parameter model is provided without a handler, expose a declaration-only tool.
+    if name is not None and params_type is not None:
+        schema = params_type.model_json_schema() if _is_pydantic_model(params_type) else None
+        return Tool(
+            name=name,
+            description=description or "",
+            parameters=schema,
+            handler=None,
+            overrides_built_in_tool=overrides_built_in_tool,
+            skip_permission=skip_permission,
+        )
 
     # Otherwise return decorator for @define_tool(...) usage
     return decorator

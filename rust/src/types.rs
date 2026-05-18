@@ -1032,7 +1032,7 @@ pub struct SessionConfig {
     /// Custom system message configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
-    /// Client-defined tools to expose to the agent.
+    /// Client-defined tool declarations to expose to the agent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
     /// Allowlist of built-in tool names the agent may use.
@@ -1058,8 +1058,8 @@ pub struct SessionConfig {
     pub request_user_input: Option<bool>,
     /// Enable `permission.request` JSON-RPC calls from the CLI. Defaults
     /// to `Some(true)` via [`SessionConfig::default`]; the default
-    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) refuses all
-    /// requests so the wire surface is safe out-of-the-box.
+    /// [`NoopHandler`](crate::handler::NoopHandler) leaves requests pending
+    /// for the consumer to resolve.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_permission: Option<bool>,
     /// Enable `exitPlanMode.request` JSON-RPC calls for plan approval.
@@ -1171,9 +1171,9 @@ pub struct SessionConfig {
     #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Session-level event handler. The default is
-    /// [`DenyAllHandler`](crate::handler::DenyAllHandler) — permission
-    /// requests are denied; other events are no-ops. Use
-    /// [`with_handler`](Self::with_handler) to install a custom handler.
+    /// [`NoopHandler`](crate::handler::NoopHandler) — permission requests
+    /// and external tool calls are left pending for the consumer to resolve.
+    /// Use [`with_handler`](Self::with_handler) to install a custom handler.
     #[serde(skip)]
     pub handler: Option<Arc<dyn SessionHandler>>,
     /// Session lifecycle hook handler (pre/post tool use, session
@@ -1247,12 +1247,11 @@ impl std::fmt::Debug for SessionConfig {
 }
 
 impl Default for SessionConfig {
-    /// Permission and elicitation flows are enabled by default. With
-    /// Rust's trait-based handlers, the SDK installs `DenyAllHandler` when
-    /// no handler is provided, so these flags being `Some(true)` means the
-    /// wire surface advertises the capabilities — and the default handler
-    /// safely refuses requests. Callers that want the wire surface fully
-    /// disabled set these explicitly to `Some(false)`.
+    /// Permission and elicitation flows are enabled by default. When no handler
+    /// is provided, the SDK installs `NoopHandler`, so permission and external
+    /// tool requests remain pending until the consumer responds out-of-band.
+    /// Callers that want the wire surface fully disabled set these explicitly
+    /// to `Some(false)`.
     fn default() -> Self {
         Self {
             session_id: None,
@@ -1342,9 +1341,8 @@ impl SessionConfig {
     /// handler unchanged.
     ///
     /// If no handler has been installed via [`with_handler`](Self::with_handler),
-    /// wraps a [`DenyAllHandler`](crate::handler::DenyAllHandler) — useful
-    /// when you only care about permission policy and want the trait
-    /// fallback responses for everything else.
+    /// wraps a [`NoopHandler`](crate::handler::NoopHandler), so declaration-only
+    /// tools remain pending for manual resolution.
     ///
     /// Order-independent: `with_handler(...).approve_all_permissions()` and
     /// `approve_all_permissions().with_handler(...)` are NOT equivalent —
@@ -1355,7 +1353,7 @@ impl SessionConfig {
         let inner = self
             .handler
             .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
         self.handler = Some(crate::permission::approve_all(inner));
         self
     }
@@ -1367,7 +1365,7 @@ impl SessionConfig {
         let inner = self
             .handler
             .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
         self.handler = Some(crate::permission::deny_all(inner));
         self
     }
@@ -1384,7 +1382,7 @@ impl SessionConfig {
         let inner = self
             .handler
             .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
         self.handler = Some(crate::permission::approve_if(inner, predicate));
         self
     }
@@ -1646,7 +1644,7 @@ pub struct ResumeSessionConfig {
     /// across CLI process restarts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
-    /// Client-defined tools to re-supply on resume.
+    /// Client-defined tool declarations to re-supply on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
     /// Allowlist of tool names the agent may use.
@@ -1667,7 +1665,8 @@ pub struct ResumeSessionConfig {
     /// Enable the ask_user tool.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_user_input: Option<bool>,
-    /// Enable permission request RPCs.
+    /// Enable permission request RPCs. When no handler is set, permission requests
+    /// remain pending until the consumer responds out-of-band.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_permission: Option<bool>,
     /// Enable exit-plan-mode request RPCs.
@@ -1920,7 +1919,7 @@ impl ResumeSessionConfig {
         let inner = self
             .handler
             .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
         self.handler = Some(crate::permission::approve_all(inner));
         self
     }
@@ -1932,7 +1931,7 @@ impl ResumeSessionConfig {
         let inner = self
             .handler
             .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
         self.handler = Some(crate::permission::deny_all(inner));
         self
     }
@@ -1946,7 +1945,7 @@ impl ResumeSessionConfig {
         let inner = self
             .handler
             .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::DenyAllHandler));
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
         self.handler = Some(crate::permission::approve_if(inner, predicate));
         self
     }
@@ -3935,8 +3934,8 @@ mod permission_builder_tests {
     }
 
     #[tokio::test]
-    async fn session_config_approve_all_defaults_to_deny_inner() {
-        // Without with_handler, the wrap defaults to DenyAllHandler. The
+    async fn session_config_approve_all_defaults_to_noop_inner() {
+        // Without with_handler, the wrap defaults to NoopHandler. The
         // approve-all wrap intercepts permission events, so they're still
         // approved -- the inner handler is consulted only for other events.
         let cfg = SessionConfig::default().approve_all_permissions();

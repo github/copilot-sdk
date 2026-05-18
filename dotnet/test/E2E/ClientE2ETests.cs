@@ -181,27 +181,24 @@ public class ClientE2ETests
     [Theory]
     [InlineData(true)]   // stdio transport
     [InlineData(false)]  // TCP transport
-    public async Task Should_Throw_When_CreateSession_Called_Without_PermissionHandler(bool useStdio)
+    public async Task Should_Allow_CreateSession_Called_Without_PermissionHandler(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => client.CreateSessionAsync(new SessionConfig()));
-
-        Assert.Contains("OnPermissionRequest", ex.Message);
-        Assert.Contains("is required", ex.Message);
+        Assert.NotNull(session.SessionId);
     }
 
     [Theory]
     [InlineData(true)]   // stdio transport
     [InlineData(false)]  // TCP transport
-    public async Task Should_Throw_When_ResumeSession_Called_Without_PermissionHandler(bool useStdio)
+    public async Task Should_Allow_ResumeSession_Called_Without_PermissionHandler(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var originalSession = await client.CreateSessionAsync(new SessionConfig());
+        await using var resumedSession = await client.ResumeSessionAsync(originalSession.SessionId, new());
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => client.ResumeSessionAsync("some-session-id", new()));
-
-        Assert.Contains("OnPermissionRequest", ex.Message);
-        Assert.Contains("is required", ex.Message);
+        Assert.Equal(originalSession.SessionId, resumedSession.SessionId);
     }
 
     [Theory]

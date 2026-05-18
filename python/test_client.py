@@ -23,24 +23,24 @@ from copilot.session import PermissionHandler, PermissionRequestResult
 from e2e.testharness import CLI_PATH
 
 
-class TestPermissionHandlerRequired:
+class TestPermissionHandlerOptional:
     @pytest.mark.asyncio
-    async def test_create_session_raises_without_permission_handler(self):
+    async def test_create_session_allows_missing_permission_handler(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
         try:
-            with pytest.raises(TypeError, match="on_permission_request"):
-                await client.create_session()  # type: ignore[call-arg]
+            session = await client.create_session()
+            assert session.session_id
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_create_session_raises_with_none_permission_handler(self):
+    async def test_create_session_allows_none_permission_handler(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
         try:
-            with pytest.raises(ValueError, match="on_permission_request handler is required"):
-                await client.create_session(on_permission_request=None)  # type: ignore[arg-type]
+            session = await client.create_session(on_permission_request=None)
+            assert session.session_id
         finally:
             await client.force_stop()
 
@@ -65,15 +65,15 @@ class TestPermissionHandlerRequired:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_resume_session_raises_without_permission_handler(self):
+    async def test_resume_session_allows_none_permission_handler(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
         try:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all
             )
-            with pytest.raises(ValueError, match="on_permission_request.*is required"):
-                await client.resume_session(session.session_id, on_permission_request=None)
+            resumed = await client.resume_session(session.session_id, on_permission_request=None)
+            assert resumed.session_id == session.session_id
         finally:
             await client.force_stop()
 

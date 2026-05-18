@@ -283,8 +283,8 @@ func (s *Session) On(handler SessionEventHandler) func() {
 
 // registerTools registers tool handlers for this session.
 //
-// Tools allow the assistant to execute custom functions. When the assistant
-// invokes a tool, the corresponding handler is called with the tool arguments.
+// Tools with handlers allow the assistant to execute custom functions automatically.
+// Declaration-only tools are surfaced as events and left pending for the consumer.
 //
 // This method is internal and typically called when creating a session with tools.
 func (s *Session) registerTools(tools []Tool) {

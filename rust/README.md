@@ -68,15 +68,15 @@ client.stop().await?;
 
 **`ClientOptions`:**
 
-| Field | Type | Description |
-|---|---|---|
-| `program` | `CliProgram` | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit) |
-| `prefix_args` | `Vec<OsString>` | Args before `--server` (e.g. script path for node) |
-| `cwd` | `PathBuf` | Working directory for CLI process |
-| `env` | `Vec<(OsString, OsString)>` | Environment variables for CLI process |
-| `env_remove` | `Vec<OsString>` | Environment variables to remove |
-| `extra_args` | `Vec<String>` | Extra CLI flags |
-| `transport` | `Transport` | `Stdio` (default), `Tcp { port }`, or `External { host, port }` |
+| Field         | Type                        | Description                                                     |
+| ------------- | --------------------------- | --------------------------------------------------------------- |
+| `program`     | `CliProgram`                | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit)  |
+| `prefix_args` | `Vec<OsString>`             | Args before `--server` (e.g. script path for node)              |
+| `cwd`         | `PathBuf`                   | Working directory for CLI process                               |
+| `env`         | `Vec<(OsString, OsString)>` | Environment variables for CLI process                           |
+| `env_remove`  | `Vec<OsString>`             | Environment variables to remove                                 |
+| `extra_args`  | `Vec<String>`               | Extra CLI flags                                                 |
+| `transport`   | `Transport`                 | `Stdio` (default), `Tcp { port }`, or `External { host, port }` |
 
 With the default `CliProgram::Resolve`, `Client::start()` automatically resolves the binary via `github_copilot_sdk::resolve::copilot_binary()` — checking `COPILOT_CLI_PATH`, the [embedded CLI](#embedded-cli), and then the system PATH. Use `CliProgram::Path(path)` to skip resolution.
 
@@ -180,7 +180,7 @@ maintenance.
 
 Implement this trait to control how a session responds to CLI events. Two styles are supported:
 
-**1. Per-event methods (recommended).** Override only the callbacks you care about; every method has a safe default (permission → deny, user input → none, external tool → "no handler", elicitation → cancel, exit plan → default). This is the `serenity::EventHandler` pattern.
+**1. Per-event methods (recommended).** Override only the callbacks you care about; every method has a safe default (permission → deny, user input → none, external tool → "no handler", elicitation → cancel, exit plan → default). When no handler is installed on a session, the SDK uses `NoopHandler`, which leaves permission and external tool requests pending for manual resolution. This is the `serenity::EventHandler` pattern.
 
 ```rust,ignore
 use async_trait::async_trait;
@@ -429,7 +429,7 @@ Reach for the `ToolHandler` trait directly when you need shared state across mul
 
 ### Permission Policies
 
-Set a permission policy directly on `SessionConfig` with the chainable builders. They wrap whatever handler you've installed (defaulting to `DenyAllHandler` if none) so only permission requests are intercepted; every other event flows through unchanged.
+Set a permission policy directly on `SessionConfig` with the chainable builders. They wrap whatever handler you've installed (defaulting to `NoopHandler` if none) so only permission requests are intercepted; every other event flows through unchanged.
 
 ```rust,ignore
 let session = client
@@ -723,20 +723,20 @@ none of them are scheduled for removal.
 
 ## Layout
 
-| File | Description |
-|---|---|
-| `lib.rs` | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error` |
-| `session.rs` | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session` |
+| File              | Description                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`          | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error`                                                              |
+| `session.rs`      | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`                            |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
-| `handler.rs` | `SessionHandler` trait, `HandlerEvent`/`HandlerResponse` enums, `ApproveAllHandler` |
-| `hooks.rs` | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs |
-| `transforms.rs` | `SystemMessageTransform` trait, section-level system message customization |
-| `tool.rs` | `ToolHandler` trait, `ToolHandlerRouter`, `schema_for::<T>()` (with `derive` feature) |
-| `types.rs` | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.) |
-| `resolve.rs` | Binary resolution (`copilot_binary`, `node_binary`, `extended_path`) |
-| `embeddedcli.rs` | Embedded CLI extraction (`embedded-cli` feature) |
-| `router.rs` | Internal per-session event demux |
-| `jsonrpc.rs` | Internal Content-Length framed JSON-RPC transport |
+| `handler.rs`      | `SessionHandler` trait, `HandlerEvent`/`HandlerResponse` enums, `ApproveAllHandler`, `DenyAllHandler`, `NoopHandler`       |
+| `hooks.rs`        | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs                                            |
+| `transforms.rs`   | `SystemMessageTransform` trait, section-level system message customization                                                 |
+| `tool.rs`         | `ToolHandler` trait, `ToolHandlerRouter`, `schema_for::<T>()` (with `derive` feature)                                      |
+| `types.rs`        | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.)                                            |
+| `resolve.rs`      | Binary resolution (`copilot_binary`, `node_binary`, `extended_path`)                                                       |
+| `embeddedcli.rs`  | Embedded CLI extraction (`embedded-cli` feature)                                                                           |
+| `router.rs`       | Internal per-session event demux                                                                                           |
+| `jsonrpc.rs`      | Internal Content-Length framed JSON-RPC transport                                                                          |
 
 ## Embedded CLI
 
@@ -770,10 +770,10 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 
 No features are enabled by default — the bare SDK resolves the CLI from `COPILOT_CLI_PATH` or the system PATH without pulling in additional feature-gated dependencies.
 
-| Feature | Default | Description |
-|---|---|---|
-| `embedded-cli` | — | Build-time CLI embedding via `COPILOT_CLI_VERSION` (adds `sha2`, `zstd`). Enable when you need to ship a self-contained binary with a pinned CLI version. |
-| `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration). |
+| Feature        | Default | Description                                                                                                                                               |
+| -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `embedded-cli` | —       | Build-time CLI embedding via `COPILOT_CLI_VERSION` (adds `sha2`, `zstd`). Enable when you need to ship a self-contained binary with a pinned CLI version. |
+| `derive`       | —       | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration).             |
 
 ```toml
 # These examples use registry syntax for illustration; until the crate is
