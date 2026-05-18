@@ -2326,8 +2326,8 @@ public class SessionEventDeserializationTest {
                         "requestId": "plan-req-001",
                         "summary": "Plan is ready",
                         "planContent": "## Plan\\n1. Do thing",
-                        "actions": ["approve", "edit", "reject"],
-                        "recommendedAction": "approve"
+                        "actions": ["exit_only", "interactive", "autopilot"],
+                        "recommendedAction": "interactive"
                     }
                 }
                 """;
@@ -2338,7 +2338,7 @@ public class SessionEventDeserializationTest {
         assertEquals("plan-req-001", event.getData().requestId());
         assertEquals("Plan is ready", event.getData().summary());
         assertEquals(3, event.getData().actions().size());
-        assertEquals("approve", event.getData().recommendedAction());
+        assertEquals(ExitPlanModeAction.INTERACTIVE, event.getData().recommendedAction());
     }
 
     @Test

@@ -210,14 +210,14 @@ public class GeneratedEventTypesCoverageTest {
     void testParseExitPlanModeRequestedEvent() throws Exception {
         var event = parse(
                 """
-                        {"type":"exit_plan_mode.requested","data":{"requestId":"epm-1","summary":"Implement login","planContent":"# Plan\\n1. Create login","actions":["approve","edit","reject"],"recommendedAction":"approve"}}
+                        {"type":"exit_plan_mode.requested","data":{"requestId":"epm-1","summary":"Implement login","planContent":"# Plan\\n1. Create login","actions":["exit_only","interactive","autopilot"],"recommendedAction":"interactive"}}
                         """);
         assertInstanceOf(ExitPlanModeRequestedEvent.class, event);
         assertEquals("exit_plan_mode.requested", event.getType());
         var typed = (ExitPlanModeRequestedEvent) event;
         assertEquals("epm-1", typed.getData().requestId());
         assertEquals("Implement login", typed.getData().summary());
-        assertEquals("approve", typed.getData().recommendedAction());
+        assertEquals(ExitPlanModeAction.INTERACTIVE, typed.getData().recommendedAction());
         assertEquals(3, typed.getData().actions().size());
     }
 
@@ -464,7 +464,7 @@ public class GeneratedEventTypesCoverageTest {
         assertNotNull(typed.getData().servers());
         assertEquals(1, typed.getData().servers().size());
         assertEquals("mcp1", typed.getData().servers().get(0).name());
-        assertEquals(McpServersLoadedServerStatus.CONNECTED, typed.getData().servers().get(0).status());
+        assertEquals(McpServerStatus.CONNECTED, typed.getData().servers().get(0).status());
     }
 
     @Test
@@ -529,7 +529,7 @@ public class GeneratedEventTypesCoverageTest {
         assertEquals(1, typed.getData().skills().size());
         var skill = typed.getData().skills().get(0);
         assertEquals("deploy", skill.name());
-        assertEquals("project", skill.source());
+        assertEquals(SkillSource.PROJECT, skill.source());
         assertTrue(skill.userInvocable());
         assertTrue(skill.enabled());
     }
@@ -699,6 +699,6 @@ public class GeneratedEventTypesCoverageTest {
 
     @Test
     void testSessionMcpServersLoadedStatusEnumFromValue() {
-        assertThrows(IllegalArgumentException.class, () -> McpServersLoadedServerStatus.fromValue("unknown"));
+        assertThrows(IllegalArgumentException.class, () -> McpServerStatus.fromValue("unknown"));
     }
 }

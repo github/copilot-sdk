@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.sdk.generated.ExitPlanModeAction;
 import com.github.copilot.sdk.generated.ExitPlanModeCompletedEvent;
 import com.github.copilot.sdk.generated.ExitPlanModeRequestedEvent;
 import com.github.copilot.sdk.json.AutoModeSwitchRequest;
@@ -89,7 +90,7 @@ public class ModeHandlersTest {
                     requestedEvent.complete(requested);
                 } else if (event instanceof ExitPlanModeCompletedEvent completed
                         && Boolean.TRUE.equals(completed.getData().approved())
-                        && "interactive".equals(completed.getData().selectedAction())) {
+                        && ExitPlanModeAction.INTERACTIVE == completed.getData().selectedAction()) {
                     completedEvent.complete(completed);
                 }
             });
@@ -109,7 +110,7 @@ public class ModeHandlersTest {
 
             var compEvent = completedEvent.get(10, TimeUnit.SECONDS);
             assertTrue(compEvent.getData().approved());
-            assertEquals("interactive", compEvent.getData().selectedAction());
+            assertEquals(ExitPlanModeAction.INTERACTIVE, compEvent.getData().selectedAction());
 
             assertNotNull(response);
 
