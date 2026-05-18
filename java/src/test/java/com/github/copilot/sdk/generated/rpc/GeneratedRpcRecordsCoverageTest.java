@@ -872,7 +872,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void accountGetQuotaResult_nested() {
-        var snapshot = new AccountQuotaSnapshot(null, 100L, 40L, null, 60.0, 5.0, true, java.time.OffsetDateTime.parse("2026-05-01T00:00:00Z"));
+        var snapshot = new AccountQuotaSnapshot(null, 100L, 40L, null, 60.0, 5.0, true,
+                java.time.OffsetDateTime.parse("2026-05-01T00:00:00Z"));
         var result = new AccountGetQuotaResult(Map.of("chat", snapshot));
         assertEquals(1, result.quotaSnapshots().size());
         var s = result.quotaSnapshots().get("chat");
@@ -893,8 +894,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void mcpDiscoverResult_nested() {
-        var server = new DiscoveredMcpServer("discovered-server", DiscoveredMcpServerType.STDIO,
-                McpServerSource.USER, true);
+        var server = new DiscoveredMcpServer("discovered-server", DiscoveredMcpServerType.STDIO, McpServerSource.USER,
+                true);
         var result = new McpDiscoverResult(List.of(server));
         assertEquals(1, result.servers().size());
         assertEquals("discovered-server", result.servers().get(0).name());

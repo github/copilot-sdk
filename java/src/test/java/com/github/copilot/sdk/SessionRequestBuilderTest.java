@@ -668,8 +668,8 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildCreateRequestPropagatesCloudSessionOptions() throws Exception {
-        var cloud = new CloudSessionOptions().setRepository(
-                new CloudSessionRepository().setOwner("my-org").setName("my-repo").setBranch("main"));
+        var cloud = new CloudSessionOptions()
+                .setRepository(new CloudSessionRepository().setOwner("my-org").setName("my-repo").setBranch("main"));
         var config = new SessionConfig().setCloud(cloud);
 
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
@@ -694,8 +694,8 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testCloudSessionOptionsSerializesCorrectly() throws Exception {
-        var cloud = new CloudSessionOptions().setRepository(
-                new CloudSessionRepository().setOwner("acme").setName("widgets").setBranch("feature-1"));
+        var cloud = new CloudSessionOptions()
+                .setRepository(new CloudSessionRepository().setOwner("acme").setName("widgets").setBranch("feature-1"));
         var config = new SessionConfig().setCloud(cloud);
 
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
