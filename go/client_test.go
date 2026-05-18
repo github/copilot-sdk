@@ -615,9 +615,9 @@ func TestResumeSessionRequest_InstructionDirectories(t *testing.T) {
 	})
 }
 
-func TestCreateSessionRequest_McpOAuthTokenStorage(t *testing.T) {
+func TestCreateSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
 	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
-		req := createSessionRequest{McpOAuthTokenStorage: "in-memory"}
+		req := createSessionRequest{MCPOAuthTokenStorage: "in-memory"}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -642,9 +642,9 @@ func TestCreateSessionRequest_McpOAuthTokenStorage(t *testing.T) {
 	})
 }
 
-func TestResumeSessionRequest_McpOAuthTokenStorage(t *testing.T) {
+func TestResumeSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
 	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", McpOAuthTokenStorage: "persistent"}
+		req := resumeSessionRequest{SessionID: "s1", MCPOAuthTokenStorage: "persistent"}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)

@@ -658,11 +658,11 @@ type SessionConfig struct {
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
-	// McpOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
+	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// "persistent" stores tokens in the OS keychain (shared across sessions).
 	// "in-memory" stores tokens in memory and discards them when the session ends.
 	// Defaults to "in-memory" for safe multitenant behavior.
-	McpOAuthTokenStorage string
+	MCPOAuthTokenStorage string
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
 	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
@@ -907,11 +907,11 @@ type ResumeSessionConfig struct {
 	IncludeSubAgentStreamingEvents *bool
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
-	// McpOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
+	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// "persistent" stores tokens in the OS keychain (shared across sessions).
 	// "in-memory" stores tokens in memory and discards them when the session ends.
 	// Defaults to "in-memory" for safe multitenant behavior.
-	McpOAuthTokenStorage string
+	MCPOAuthTokenStorage string
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
 	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
@@ -1172,7 +1172,7 @@ type createSessionRequest struct {
 	Streaming                      *bool                          `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents *bool                          `json:"includeSubAgentStreamingEvents,omitempty"`
 	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
-	McpOAuthTokenStorage           string                         `json:"mcpOAuthTokenStorage,omitempty"`
+	MCPOAuthTokenStorage           string                         `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                   string                         `json:"envValueMode,omitempty"`
 	CustomAgents                   []CustomAgentConfig            `json:"customAgents,omitempty"`
 	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
@@ -1231,7 +1231,7 @@ type resumeSessionRequest struct {
 	Streaming                      *bool                          `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents *bool                          `json:"includeSubAgentStreamingEvents,omitempty"`
 	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
-	McpOAuthTokenStorage           string                         `json:"mcpOAuthTokenStorage,omitempty"`
+	MCPOAuthTokenStorage           string                         `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                   string                         `json:"envValueMode,omitempty"`
 	CustomAgents                   []CustomAgentConfig            `json:"customAgents,omitempty"`
 	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
