@@ -12,7 +12,7 @@ This pattern is the foundation for:
 
 1. **Enable `onPermissionRequest` handler** on the session config
 2. **Track which tools requested permission** in a log array
-3. **Approve all permission requests** (return `kind: "approved"`)
+3. **Approve all permission requests** (return `kind: "approve-once"`)
 4. **Send a prompt that triggers tool use** (e.g., listing files via glob)
 5. **Print the permission log** showing which tools were approved
 
@@ -29,12 +29,12 @@ This pattern is the foundation for:
 
 | Option | Value | Effect |
 |--------|-------|--------|
-| `onPermissionRequest` | Log + approve | Records tool name, returns `approved` |
+| `onPermissionRequest` | Log + approve | Records tool name, returns `approve-once` |
 | `hooks.onPreToolUse` | Auto-allow | No tool confirmation prompts |
 
 ## Key Insight
 
-The `onPermissionRequest` handler gives the integrator full control over which tools the agent can execute. By inspecting the request (tool name, arguments), you can implement allow/deny lists, require human approval for dangerous operations, or log every action for compliance. Returning `{ kind: "denied" }` blocks the tool from running.
+The `onPermissionRequest` handler gives the integrator full control over which tools the agent can execute. By inspecting the request (tool name, arguments), you can implement allow/deny lists, require human approval for dangerous operations, or log every action for compliance. Returning `{ kind: "reject" }` blocks the tool from running.
 
 ## Run
 

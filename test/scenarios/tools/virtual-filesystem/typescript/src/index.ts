@@ -51,7 +51,7 @@ async function main() {
       // Remove all built-in tools — only our custom virtual FS tools are available
       availableTools: [],
       tools: [createFile, readFile, listFiles],
-      onPermissionRequest: async () => ({ kind: "approved" as const }),
+      onPermissionRequest: async () => ({ kind: "approve-once" as const }),
       hooks: {
         onPreToolUse: async () => ({ permissionDecision: "allow" as const }),
       },

@@ -671,7 +671,7 @@ from copilot.session import PermissionRequestResult
 
 client = CopilotClient()
 
-session = await client.create_session(on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"))
+session = await client.create_session(on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"))
 
 # Subscribe to all events
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))

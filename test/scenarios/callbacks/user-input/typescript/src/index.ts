@@ -11,7 +11,7 @@ async function main() {
   try {
     const session = await client.createSession({
       model: "claude-haiku-4.5",
-      onPermissionRequest: async () => ({ kind: "approved" as const }),
+      onPermissionRequest: async () => ({ kind: "approve-once" as const }),
       onUserInputRequest: async (request) => {
         inputLog.push(`question: ${request.question}`);
         return { answer: "Paris", wasFreeform: true };

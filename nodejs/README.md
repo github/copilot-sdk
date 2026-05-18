@@ -843,25 +843,28 @@ const session = await client.createSession({
         // request.fullCommandText — full shell command (for shell)
 
         if (request.kind === "shell") {
-            // Deny shell commands
-            return { kind: "denied-interactively-by-user" };
+            // Deny shell commands, optionally telling the model why
+            return { kind: "reject", feedback: "Shell commands are not allowed." };
         }
 
-        return { kind: "approved" };
+        return { kind: "approve-once" };
     },
 });
 ```
 
 ### Permission Result Kinds
 
-| Kind                                                        | Meaning                                                                                     |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `"approved"`                                                | Allow the tool to run                                                                       |
-| `"denied-interactively-by-user"`                            | User explicitly denied the request                                                          |
-| `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked                                        |
-| `"denied-by-rules"`                                         | Denied by a policy rule                                                                     |
-| `"denied-by-content-exclusion-policy"`                      | Denied due to a content exclusion policy                                                    |
-| `"no-result"`                                               | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
+The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-result" }`). Approval scopes are present-tense — they describe the decision to apply, not the outcome reported back on session events:
+
+| Kind                     | Meaning                                                                                       | Extra fields                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `"approve-once"`         | Allow this single request                                                                     | —                                                                       |
+| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                      | `approval?` (rule to remember), `domain?` (for URL approvals)           |
+| `"approve-for-location"` | Allow this request and persist the approval for this project location (git root or cwd)      | `approval` (rule to persist), `locationKey` (location to persist under) |
+| `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains) | `domain` (URL domain to approve)                                        |
+| `"reject"`               | Deny the request                                                                              | `feedback?` (optional string surfaced to the agent)                     |
+| `"user-not-available"`   | Deny the request because no user is available to confirm it                                   | —                                                                       |
+| `"no-result"`            | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers)   | —                                                                       |
 
 ### Resuming Sessions
 

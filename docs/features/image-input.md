@@ -48,7 +48,7 @@ await client.start();
 
 const session = await client.createSession({
     model: "gpt-4.1",
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 await session.send({
@@ -75,7 +75,7 @@ client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     model="gpt-4.1",
 )
 
@@ -263,7 +263,7 @@ await client.start();
 
 const session = await client.createSession({
     model: "gpt-4.1",
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 const base64ImageData = "..."; // your base64-encoded image
@@ -293,7 +293,7 @@ client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     model="gpt-4.1",
 )
 

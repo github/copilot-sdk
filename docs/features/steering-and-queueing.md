@@ -48,7 +48,7 @@ await client.start();
 
 const session = await client.createSession({
     model: "gpt-4.1",
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 // Start a long-running task
@@ -77,7 +77,7 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
         model="gpt-4.1",
     )
 
@@ -235,7 +235,7 @@ await client.start();
 
 const session = await client.createSession({
     model: "gpt-4.1",
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 // Send an initial task
@@ -269,7 +269,7 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
         model="gpt-4.1",
     )
 
@@ -476,7 +476,7 @@ You can use both patterns together in a single session. Steering affects the cur
 ```typescript
 const session = await client.createSession({
     model: "gpt-4.1",
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 // Start a task
@@ -502,7 +502,7 @@ await session.send({
 
 ```python
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     model="gpt-4.1",
 )
 
