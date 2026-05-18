@@ -24,19 +24,23 @@ class TestSubagentHooks:
         hook_log = []
 
         async def on_pre_tool_use(input_data, invocation):
-            hook_log.append({
-                "kind": "pre",
-                "toolName": input_data.get("toolName"),
-                "sessionId": input_data.get("sessionId"),
-            })
+            hook_log.append(
+                {
+                    "kind": "pre",
+                    "toolName": input_data.get("toolName"),
+                    "sessionId": input_data.get("sessionId"),
+                }
+            )
             return {"permissionDecision": "allow"}
 
         async def on_post_tool_use(input_data, invocation):
-            hook_log.append({
-                "kind": "post",
-                "toolName": input_data.get("toolName"),
-                "sessionId": input_data.get("sessionId"),
-            })
+            hook_log.append(
+                {
+                    "kind": "post",
+                    "toolName": input_data.get("toolName"),
+                    "sessionId": input_data.get("sessionId"),
+                }
+            )
             return None
 
         # Create a client with the session-based subagents feature flag

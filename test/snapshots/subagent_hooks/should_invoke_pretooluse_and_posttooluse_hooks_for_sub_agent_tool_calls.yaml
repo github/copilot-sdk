@@ -101,7 +101,7 @@ conversations:
           <system_notification>
 
           Agent "read-file" (explore) has completed successfully. Use read_agent with agent_id "read-file" to retrieve
-          the full results.
+          unread results.
 
           </system_notification>
       - role: assistant
