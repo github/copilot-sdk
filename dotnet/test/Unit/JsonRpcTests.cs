@@ -5,7 +5,6 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using GitHub.Copilot.SDK.Rpc;
 using Xunit;
 
 namespace GitHub.Copilot.SDK.Test.Unit;
@@ -234,7 +233,15 @@ public class JsonRpcTests
         public override int Read(byte[] buffer, int offset, int count) =>
             ReadAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
 
-        public override async ValueTask<int> ReadAsync(Memory<byte> destination, CancellationToken cancellationToken = default)
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+#if NET8_0_OR_GREATER
+        public override
+#else
+        internal
+#endif
+        async ValueTask<int> ReadAsync(Memory<byte> destination, CancellationToken cancellationToken = default)
         {
             while (true)
             {
@@ -242,13 +249,14 @@ public class JsonRpcTests
                 {
                     if (_buffer.Count > 0)
                     {
-                        var count = Math.Min(destination.Length, _buffer.Count);
-                        for (var i = 0; i < count; i++)
+                        var bytesRead = Math.Min(destination.Length, _buffer.Count);
+                        var span = destination.Span;
+                        for (var i = 0; i < bytesRead; i++)
                         {
-                            destination.Span[i] = _buffer.Dequeue();
+                            span[i] = _buffer.Dequeue();
                         }
 
-                        return count;
+                        return bytesRead;
                     }
 
                     if (_completed)
@@ -264,11 +272,19 @@ public class JsonRpcTests
         public override void Write(byte[] buffer, int offset, int count) =>
             WriteAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
 
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> source, CancellationToken cancellationToken = default)
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+#if NET8_0_OR_GREATER
+        public override
+#else
+        internal
+#endif
+        ValueTask WriteAsync(ReadOnlyMemory<byte> source, CancellationToken cancellationToken = default)
         {
             var peer = _peer ?? throw new ObjectDisposedException(nameof(InMemoryDuplexStream));
             peer.Enqueue(source.Span);
-            return ValueTask.CompletedTask;
+            return default;
         }
 
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();

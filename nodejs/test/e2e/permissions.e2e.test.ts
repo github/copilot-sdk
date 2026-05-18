@@ -55,6 +55,23 @@ describe("Permission callbacks", async () => {
             },
         });
 
+        // Regression check for https://github.com/github/copilot-sdk/issues/1194:
+        // the reject decision must round-trip through the CLI with its discriminator
+        // intact so the agent surfaces the user-rejected error to the model. The
+        // CLI emits a kind-specific error message ("The user rejected this tool call.")
+        // for the reject decision, which lets us assert the decision was honored
+        // — not merely that the operation didn't happen.
+        let userRejectedToolCall = false;
+        session.on((event) => {
+            if (
+                event.type === "tool.execution_complete" &&
+                !event.data.success &&
+                event.data.error?.message.toLowerCase().includes("user rejected")
+            ) {
+                userRejectedToolCall = true;
+            }
+        });
+
         const originalContent = "protected content";
         const testFile = join(workDir, "protected.txt");
         await writeFile(testFile, originalContent);
@@ -62,6 +79,8 @@ describe("Permission callbacks", async () => {
         await session.sendAndWait({
             prompt: "Edit protected.txt and replace 'protected' with 'hacked'.",
         });
+
+        expect(userRejectedToolCall).toBe(true);
 
         // Verify the file was NOT modified
         const content = await readFile(testFile, "utf-8");

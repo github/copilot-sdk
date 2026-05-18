@@ -4,7 +4,9 @@
 
 using Xunit;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+#if !NET8_0_OR_GREATER
+using System.Runtime.Serialization;
+#endif
 using GitHub.Copilot.SDK.Rpc;
 
 namespace GitHub.Copilot.SDK.Test.Unit;
@@ -109,6 +111,31 @@ public class SerializationTests
         var root = document.RootElement;
         Assert.Equal("C:\\extra-instructions", root.GetProperty("instructionDirectories")[0].GetString());
         Assert.Equal("C:\\more-instructions", root.GetProperty("instructionDirectories")[1].GetString());
+    }
+
+    [Fact]
+    public void CreateSessionRequest_CanSerializeCloudOptions_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("Cloud", new CloudSessionOptions
+            {
+                Repository = new CloudSessionRepository
+                {
+                    Owner = "github",
+                    Name = "copilot-sdk",
+                    Branch = "main"
+                }
+            }));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var repository = document.RootElement.GetProperty("cloud").GetProperty("repository");
+        Assert.Equal("github", repository.GetProperty("owner").GetString());
+        Assert.Equal("copilot-sdk", repository.GetProperty("name").GetString());
+        Assert.Equal("main", repository.GetProperty("branch").GetString());
     }
 
     [Fact]
@@ -299,7 +326,11 @@ public class SerializationTests
 
     private static object CreateInternalRequest(Type type, params (string Name, object? Value)[] properties)
     {
+#if NET8_0_OR_GREATER
         var instance = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type);
+#else
+        var instance = FormatterServices.GetUninitializedObject(type);
+#endif
 
         foreach (var (name, value) in properties)
         {

@@ -98,6 +98,18 @@ type ClientOptions struct {
 	Remote bool
 }
 
+// CloudSessionRepository is GitHub repository metadata associated with a cloud session.
+type CloudSessionRepository struct {
+	Owner  string `json:"owner"`
+	Name   string `json:"name"`
+	Branch string `json:"branch,omitempty"`
+}
+
+// CloudSessionOptions configures creation of a remote session in the cloud.
+type CloudSessionOptions struct {
+	Repository *CloudSessionRepository `json:"repository,omitempty"`
+}
+
 // TelemetryConfig configures OpenTelemetry integration for the Copilot CLI process.
 type TelemetryConfig struct {
 	// OTLPEndpoint is the OTLP HTTP endpoint URL for trace/metric export.
@@ -337,6 +349,7 @@ type AutoModeSwitchHandler func(request AutoModeSwitchRequest, invocation AutoMo
 
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
+	SessionID string `json:"sessionId"`
 	Timestamp int64  `json:"timestamp"`
 	Cwd       string `json:"cwd"`
 	ToolName  string `json:"toolName"`
@@ -357,6 +370,7 @@ type PreToolUseHandler func(input PreToolUseHookInput, invocation HookInvocation
 
 // PostToolUseHookInput is the input for a post-tool-use hook
 type PostToolUseHookInput struct {
+	SessionID  string `json:"sessionId"`
 	Timestamp  int64  `json:"timestamp"`
 	Cwd        string `json:"cwd"`
 	ToolName   string `json:"toolName"`
@@ -376,6 +390,7 @@ type PostToolUseHandler func(input PostToolUseHookInput, invocation HookInvocati
 
 // UserPromptSubmittedHookInput is the input for a user-prompt-submitted hook
 type UserPromptSubmittedHookInput struct {
+	SessionID string `json:"sessionId"`
 	Timestamp int64  `json:"timestamp"`
 	Cwd       string `json:"cwd"`
 	Prompt    string `json:"prompt"`
@@ -393,6 +408,7 @@ type UserPromptSubmittedHandler func(input UserPromptSubmittedHookInput, invocat
 
 // SessionStartHookInput is the input for a session-start hook
 type SessionStartHookInput struct {
+	SessionID     string `json:"sessionId"`
 	Timestamp     int64  `json:"timestamp"`
 	Cwd           string `json:"cwd"`
 	Source        string `json:"source"` // "startup", "resume", "new"
@@ -410,6 +426,7 @@ type SessionStartHandler func(input SessionStartHookInput, invocation HookInvoca
 
 // SessionEndHookInput is the input for a session-end hook
 type SessionEndHookInput struct {
+	SessionID    string `json:"sessionId"`
 	Timestamp    int64  `json:"timestamp"`
 	Cwd          string `json:"cwd"`
 	Reason       string `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
@@ -429,6 +446,7 @@ type SessionEndHandler func(input SessionEndHookInput, invocation HookInvocation
 
 // ErrorOccurredHookInput is the input for an error-occurred hook
 type ErrorOccurredHookInput struct {
+	SessionID    string `json:"sessionId"`
 	Timestamp    int64  `json:"timestamp"`
 	Cwd          string `json:"cwd"`
 	Error        string `json:"error"`
@@ -689,6 +707,9 @@ type SessionConfig struct {
 	//   - "export" — export session events to GitHub without enabling remote steering
 	//   - "on" — export to GitHub AND enable remote steering
 	RemoteSession rpc.RemoteSessionMode
+	// Cloud creates a remote session in the cloud instead of a local session.
+	// The optional repository is associated with the cloud session.
+	Cloud *CloudSessionOptions
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -1155,6 +1176,7 @@ type createSessionRequest struct {
 	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
+	Cloud                          *CloudSessionOptions           `json:"cloud,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }

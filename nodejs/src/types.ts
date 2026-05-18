@@ -248,6 +248,22 @@ export type ToolResultObject = {
 
 export type ToolResult = string | ToolResultObject;
 
+/**
+ * GitHub repository metadata to associate with a cloud session.
+ */
+export interface CloudSessionRepository {
+    owner: string;
+    name: string;
+    branch?: string;
+}
+
+/**
+ * Options for creating a remote session in the cloud.
+ */
+export interface CloudSessionOptions {
+    repository?: CloudSessionRepository;
+}
+
 // ============================================================================
 // MCP CallToolResult support
 // ============================================================================
@@ -917,6 +933,9 @@ export type AutoModeSwitchHandler = (
  * Base interface for all hook inputs
  */
 export interface BaseHookInput {
+    /** The runtime session ID of the session that triggered the hook.
+     * For sub-agent hooks this differs from `invocation.sessionId`. */
+    sessionId: string;
     timestamp: number;
     cwd: string;
 }
@@ -1492,6 +1511,12 @@ export interface SessionConfig {
      * - `"on"` — export to GitHub AND enable remote steering
      */
     remoteSession?: RemoteSessionMode;
+
+    /**
+     * Creates a remote session in the cloud instead of a local session.
+     * The optional repository is associated with the cloud session.
+     */
+    cloud?: CloudSessionOptions;
 
     /**
      * Optional event handler that is registered on the session before the

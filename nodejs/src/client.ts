@@ -836,6 +836,7 @@ export class CopilotClient {
                 infiniteSessions: config.infiniteSessions,
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
+                cloud: config.cloud,
             });
 
             const { workspacePath, capabilities } = response as {

@@ -2245,6 +2245,7 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
                 "sessionId": server.session_id,
                 "hookType": "preToolUse",
                 "input": {
+                    "sessionId": "test-session",
                     "timestamp": 1234567890,
                     "cwd": "/tmp",
                     "toolName": "rm",
@@ -2282,6 +2283,7 @@ async fn hooks_invoke_returns_empty_for_unregistered_hook() {
                 "sessionId": server.session_id,
                 "hookType": "sessionEnd",
                 "input": {
+                    "sessionId": "test-session",
                     "timestamp": 1234567890,
                     "cwd": "/tmp",
                     "reason": "complete"
@@ -2587,7 +2589,9 @@ async fn client_stop_aggregates_session_destroy_errors() {
 fn session_config_serializes_bucket_b_fields() {
     use std::path::PathBuf;
 
-    use github_copilot_sdk::{SessionConfig, SessionId};
+    use github_copilot_sdk::{
+        CloudSessionOptions, CloudSessionRepository, SessionConfig, SessionId,
+    };
 
     let cfg = {
         let mut cfg = SessionConfig::default();
@@ -2599,6 +2603,9 @@ fn session_config_serializes_bucket_b_fields() {
         cfg.enable_session_telemetry = Some(false);
         cfg.remote_session =
             Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::Export);
+        cfg.cloud = Some(CloudSessionOptions::with_repository(
+            CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
+        ));
         cfg
     };
     let json = serde_json::to_value(&cfg).unwrap();
@@ -2609,6 +2616,9 @@ fn session_config_serializes_bucket_b_fields() {
     assert_eq!(json["includeSubAgentStreamingEvents"], false);
     assert_eq!(json["enableSessionTelemetry"], false);
     assert_eq!(json["remoteSession"], "export");
+    assert_eq!(json["cloud"]["repository"]["owner"], "github");
+    assert_eq!(json["cloud"]["repository"]["name"], "copilot-sdk");
+    assert_eq!(json["cloud"]["repository"]["branch"], "main");
 
     // Debug never leaks the token.
     let debug = format!("{cfg:?}");
@@ -2621,6 +2631,7 @@ fn session_config_serializes_bucket_b_fields() {
     assert!(empty.get("gitHubToken").is_none());
     assert!(empty.get("enableSessionTelemetry").is_none());
     assert!(empty.get("remoteSession").is_none());
+    assert!(empty.get("cloud").is_none());
 }
 
 #[test]

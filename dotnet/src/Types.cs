@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Rpc;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using GitHub.Copilot.SDK.Rpc;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Logging;
 
 namespace GitHub.Copilot.SDK;
 
@@ -28,7 +28,7 @@ internal static class GeneratedStringEnumJson
             throw new JsonException($"Expected a non-empty string token when reading {typeToConvert.Name}.");
         }
 
-        return value;
+        return value!;
     }
 
     internal static void WriteValue(Utf8JsonWriter writer, string value, Type typeToConvert)
@@ -1101,6 +1101,12 @@ public class HookInvocation
 public class PreToolUseHookInput
 {
     /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unix timestamp in milliseconds when the tool use was initiated.
     /// </summary>
     [JsonPropertyName("timestamp")]
@@ -1177,6 +1183,12 @@ public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(PreToolUseHookInpu
 public class PostToolUseHookInput
 {
     /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unix timestamp in milliseconds when the tool execution completed.
     /// </summary>
     [JsonPropertyName("timestamp")]
@@ -1242,6 +1254,12 @@ public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(PostToolUseHookI
 public class UserPromptSubmittedHookInput
 {
     /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unix timestamp in milliseconds when the prompt was submitted.
     /// </summary>
     [JsonPropertyName("timestamp")]
@@ -1294,6 +1312,12 @@ public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
 /// </summary>
 public class SessionStartHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the session started.
     /// </summary>
@@ -1352,6 +1376,12 @@ public delegate Task<SessionStartHookOutput?> SessionStartHandler(SessionStartHo
 /// </summary>
 public class SessionEndHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the session ended.
     /// </summary>
@@ -1424,6 +1454,12 @@ public delegate Task<SessionEndHookOutput?> SessionEndHandler(SessionEndHookInpu
 /// </summary>
 public class ErrorOccurredHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the error occurred.
     /// </summary>
@@ -1989,6 +2025,32 @@ public class InfiniteSessionConfig
 }
 
 /// <summary>
+/// GitHub repository metadata to associate with a cloud session.
+/// </summary>
+public class CloudSessionRepository
+{
+    /// <summary>Repository owner.</summary>
+    public required string Owner { get; set; }
+
+    /// <summary>Repository name.</summary>
+    public required string Name { get; set; }
+
+    /// <summary>Optional branch name.</summary>
+    public string? Branch { get; set; }
+}
+
+/// <summary>
+/// Options for creating a remote session in the cloud.
+/// </summary>
+public class CloudSessionOptions
+{
+    /// <summary>
+    /// Optional GitHub repository metadata to associate with the cloud session.
+    /// </summary>
+    public CloudSessionRepository? Repository { get; set; }
+}
+
+/// <summary>
 /// Configuration options for creating a new Copilot session.
 /// </summary>
 public class SessionConfig
@@ -2037,6 +2099,7 @@ public class SessionConfig
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
+        Cloud = other.Cloud;
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
@@ -2271,6 +2334,12 @@ public class SessionConfig
     /// </list>
     /// </summary>
     public RemoteSessionMode? RemoteSession { get; set; }
+
+    /// <summary>
+    /// Creates a remote session in the cloud instead of a local session.
+    /// The optional repository is associated with the cloud session.
+    /// </summary>
+    public CloudSessionOptions? Cloud { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.

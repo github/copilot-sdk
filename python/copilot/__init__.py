@@ -5,6 +5,8 @@ JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
 from .client import (
+    CloudSessionOptions,
+    CloudSessionRepository,
     CopilotClient,
     ExternalServerConfig,
     ModelCapabilitiesOverride,
@@ -51,6 +53,8 @@ __all__ = [
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
     "CommandDefinition",
+    "CloudSessionOptions",
+    "CloudSessionRepository",
     "CopilotClient",
     "CopilotSession",
     "CreateSessionFsHandler",
