@@ -1503,9 +1503,14 @@ func TestAddSecretFilterValuesRequest(t *testing.T) {
 
 	t.Run("serializes empty values as empty array", func(t *testing.T) {
 		req := addSecretFilterValuesRequest{Values: []string{}}
-		data, _ := json.Marshal(req)
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("json.Marshal failed: %v", err)
+		}
 		var m map[string]any
-		json.Unmarshal(data, &m)
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
 		values, ok := m["values"].([]any)
 		if !ok {
 			t.Fatalf("Expected values to be an array, got %T", m["values"])

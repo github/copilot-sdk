@@ -1663,11 +1663,12 @@ impl Client {
     /// Dynamically generated secrets (e.g., OIDC tokens) can be injected so
     /// they are redacted from session logs, telemetry, trajectory exports, and
     /// tool output.
-    pub async fn add_secret_filter_values(&self, values: &[String]) -> Result<(), Error> {
+    pub async fn add_secret_filter_values(&self, values: &[impl AsRef<str>]) -> Result<(), Error> {
         if values.is_empty() {
             return Ok(());
         }
-        let params = serde_json::json!({ "values": values });
+        let strs: Vec<&str> = values.iter().map(AsRef::as_ref).collect();
+        let params = serde_json::json!({ "values": strs });
         self.call("secrets.addFilterValues", Some(params)).await?;
         Ok(())
     }

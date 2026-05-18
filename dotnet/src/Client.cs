@@ -902,12 +902,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
     public async Task AddSecretFilterValuesAsync(IReadOnlyList<string> values, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(values);
+
+        var connection = await EnsureConnectedAsync(cancellationToken);
+
         if (values.Count == 0)
         {
             return;
         }
-
-        var connection = await EnsureConnectedAsync(cancellationToken);
 
         await InvokeRpcAsync<AddSecretFilterValuesResponse>(
             connection.Rpc, "secrets.addFilterValues", [new AddSecretFilterValuesRequest { Values = values }], cancellationToken);

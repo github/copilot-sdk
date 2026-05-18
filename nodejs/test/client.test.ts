@@ -375,7 +375,13 @@ describe("CopilotClient", () => {
         onTestFinished(() => client.forceStop());
 
         const session = await client.createSession({ onPermissionRequest: approveAll });
-        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (...args: any[]) => {
+                const [method, params] = args;
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
         await client.resumeSession(session.sessionId, {
             defaultAgent: { excludedTools: ["heavy-tool"] },
             onPermissionRequest: approveAll,

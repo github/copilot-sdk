@@ -3541,7 +3541,7 @@ async fn add_secret_filter_values_sends_correct_rpc() {
         let client = client.clone();
         async move {
             client
-                .add_secret_filter_values(&["secret1".to_string(), "secret2".to_string()])
+                .add_secret_filter_values(&["secret1", "secret2"])
                 .await
                 .unwrap()
         }
@@ -3568,7 +3568,10 @@ async fn add_secret_filter_values_skips_empty() {
     let (client, mut server_read, _server_write) = make_client();
 
     // Empty values should return immediately without sending any RPC
-    client.add_secret_filter_values(&[]).await.unwrap();
+    client
+        .add_secret_filter_values(&[] as &[&str])
+        .await
+        .unwrap();
 
     // Verify no request was sent by checking the stream has no data
     let mut buf = [0u8; 1];
