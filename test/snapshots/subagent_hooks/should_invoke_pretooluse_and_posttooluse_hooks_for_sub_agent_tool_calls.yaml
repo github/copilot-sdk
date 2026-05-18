@@ -1,0 +1,138 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the task tool to spawn an explore agent that reads the file subagent-test.txt in the current directory and
+          reports its contents. You must use the task tool.
+      - role: assistant
+        content: I'll spawn an explore agent to read the file and report its contents.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Spawning explore agent"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: task
+              arguments: '{"agent_type":"explore","name":"read-file","description":"Reading subagent-test.txt","prompt":"Read the file
+                \"subagent-test.txt\" in the current directory (${workdir}) and report its complete contents. Use the
+                view tool to read the file and provide the full content in your response.","mode":"background"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the file "subagent-test.txt" in the current directory (${workdir}) and report its complete contents. Use
+          the view tool to read the file and provide the full content in your response.
+      - role: assistant
+        content: I'll read the file "subagent-test.txt" from the current directory.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/subagent-test.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the file "subagent-test.txt" in the current directory (${workdir}) and report its complete contents. Use
+          the view tool to read the file and provide the full content in your response.
+      - role: assistant
+        content: I'll read the file "subagent-test.txt" from the current directory.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/subagent-test.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: 1. Hello from subagent test!
+      - role: assistant
+        content: |-
+          The complete contents of the file "subagent-test.txt" are:
+
+          ```
+          Hello from subagent test!
+          ```
+
+          The file contains a single line with the text "Hello from subagent test!".
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the task tool to spawn an explore agent that reads the file subagent-test.txt in the current directory and
+          reports its contents. You must use the task tool.
+      - role: assistant
+        content: I'll spawn an explore agent to read the file and report its contents.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Spawning explore agent"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: task
+              arguments: '{"agent_type":"explore","name":"read-file","description":"Reading subagent-test.txt","prompt":"Read the file
+                \"subagent-test.txt\" in the current directory (${workdir}) and report its complete contents. Use the
+                view tool to read the file and provide the full content in your response.","mode":"background"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: "Agent started in background with agent_id: read-file. You'll be notified when it completes. Tell the user
+          you're waiting and end your response, or continue unrelated work until notified."
+      - role: assistant
+        content: I've spawned an explore agent to read the file. Waiting for it to complete...
+      - role: user
+        content: >-
+          <system_notification>
+
+          Agent "read-file" (explore) has completed successfully. Use read_agent with agent_id "read-file" to retrieve
+          unread results.
+
+          </system_notification>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: read_agent
+              arguments: '{"agent_id":"read-file","wait":true}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: >-
+          Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading
+          subagent-test.txt, elapsed: 0s, total_turns: 0, duration: 0s
+
+
+          The complete contents of the file "subagent-test.txt" are:
+
+
+          ```
+
+          Hello from subagent test!
+
+          ```
+
+
+          The file contains a single line with the text "Hello from subagent test!".
+      - role: assistant
+        content: |-
+          The explore agent successfully read the file. The contents of `subagent-test.txt` are:
+
+          ```
+          Hello from subagent test!
+          ```

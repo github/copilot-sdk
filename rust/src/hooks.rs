@@ -25,6 +25,8 @@ pub struct HookContext {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreToolUseInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
@@ -60,6 +62,8 @@ pub struct PreToolUseOutput {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PostToolUseInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
@@ -91,6 +95,8 @@ pub struct PostToolUseOutput {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserPromptSubmittedInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
@@ -118,6 +124,8 @@ pub struct UserPromptSubmittedOutput {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStartInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
@@ -145,6 +153,8 @@ pub struct SessionStartOutput {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionEndInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
@@ -178,6 +188,8 @@ pub struct SessionEndOutput {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorOccurredInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
@@ -540,6 +552,7 @@ mod tests {
     async fn dispatch_pre_tool_use_deny() {
         let hooks = TestHooks;
         let input = serde_json::json!({
+            "sessionId": "sess-1",
             "timestamp": 1234567890,
             "cwd": "/tmp",
             "toolName": "dangerous_tool",
@@ -557,6 +570,7 @@ mod tests {
     async fn dispatch_pre_tool_use_passthrough() {
         let hooks = TestHooks;
         let input = serde_json::json!({
+            "sessionId": "sess-1",
             "timestamp": 1234567890,
             "cwd": "/tmp",
             "toolName": "safe_tool",
@@ -573,6 +587,7 @@ mod tests {
     async fn dispatch_user_prompt_submitted() {
         let hooks = TestHooks;
         let input = serde_json::json!({
+            "sessionId": "sess-1",
             "timestamp": 1234567890,
             "cwd": "/tmp",
             "prompt": "hello world"
@@ -592,6 +607,7 @@ mod tests {
     async fn dispatch_unregistered_hook_returns_empty() {
         let hooks = TestHooks;
         let input = serde_json::json!({
+            "sessionId": "sess-1",
             "timestamp": 1234567890,
             "cwd": "/tmp",
             "reason": "complete"
@@ -629,6 +645,7 @@ mod tests {
 
         let hooks = MismatchHooks;
         let input = serde_json::json!({
+            "sessionId": "sess-1",
             "timestamp": 1234567890,
             "cwd": "/tmp",
             "toolName": "some_tool",
@@ -645,6 +662,7 @@ mod tests {
     async fn dispatch_post_tool_use_default() {
         let hooks = TestHooks;
         let input = serde_json::json!({
+            "sessionId": "sess-1",
             "timestamp": 1234567890,
             "cwd": "/tmp",
             "toolName": "some_tool",
@@ -677,6 +695,7 @@ mod tests {
 
         let hooks = StartHooks;
         let input = serde_json::json!({
+            "sessionId": "sess-1",
             "timestamp": 1234567890,
             "cwd": "/tmp",
             "source": "new"
@@ -708,6 +727,7 @@ mod tests {
 
         let hooks = ErrorHooks;
         let input = serde_json::json!({
+            "sessionId": "sess-1",
             "timestamp": 1234567890,
             "cwd": "/tmp",
             "error": "model timeout",

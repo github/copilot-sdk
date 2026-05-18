@@ -933,6 +933,9 @@ export type AutoModeSwitchHandler = (
  * Base interface for all hook inputs
  */
 export interface BaseHookInput {
+    /** The runtime session ID of the session that triggered the hook.
+     * For sub-agent hooks this differs from `invocation.sessionId`. */
+    sessionId: string;
     timestamp: number;
     cwd: string;
 }

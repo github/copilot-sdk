@@ -610,16 +610,10 @@ class SessionUiApi:
 # ============================================================================
 
 
-class BaseHookInput(TypedDict):
-    """Base interface for all hook inputs"""
-
-    timestamp: int
-    cwd: str
-
-
 class PreToolUseHookInput(TypedDict):
     """Input for pre-tool-use hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     toolName: str
@@ -645,6 +639,7 @@ PreToolUseHandler = Callable[
 class PostToolUseHookInput(TypedDict):
     """Input for post-tool-use hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     toolName: str
@@ -669,6 +664,7 @@ PostToolUseHandler = Callable[
 class UserPromptSubmittedHookInput(TypedDict):
     """Input for user-prompt-submitted hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     prompt: str
@@ -691,6 +687,7 @@ UserPromptSubmittedHandler = Callable[
 class SessionStartHookInput(TypedDict):
     """Input for session-start hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     source: Literal["startup", "resume", "new"]
@@ -713,6 +710,7 @@ SessionStartHandler = Callable[
 class SessionEndHookInput(TypedDict):
     """Input for session-end hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     reason: Literal["complete", "error", "abort", "timeout", "user_exit"]
@@ -737,6 +735,7 @@ SessionEndHandler = Callable[
 class ErrorOccurredHookInput(TypedDict):
     """Input for error-occurred hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     error: str

@@ -77,6 +77,8 @@ mod session_lifecycle;
 mod skills;
 #[path = "e2e/streaming_fidelity.rs"]
 mod streaming_fidelity;
+#[path = "e2e/subagent_hooks.rs"]
+mod subagent_hooks;
 #[path = "e2e/support.rs"]
 mod support;
 #[path = "e2e/suspend.rs"]

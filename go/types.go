@@ -349,6 +349,7 @@ type AutoModeSwitchHandler func(request AutoModeSwitchRequest, invocation AutoMo
 
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
+	SessionID string `json:"sessionId"`
 	Timestamp int64  `json:"timestamp"`
 	Cwd       string `json:"cwd"`
 	ToolName  string `json:"toolName"`
@@ -369,6 +370,7 @@ type PreToolUseHandler func(input PreToolUseHookInput, invocation HookInvocation
 
 // PostToolUseHookInput is the input for a post-tool-use hook
 type PostToolUseHookInput struct {
+	SessionID  string `json:"sessionId"`
 	Timestamp  int64  `json:"timestamp"`
 	Cwd        string `json:"cwd"`
 	ToolName   string `json:"toolName"`
@@ -388,6 +390,7 @@ type PostToolUseHandler func(input PostToolUseHookInput, invocation HookInvocati
 
 // UserPromptSubmittedHookInput is the input for a user-prompt-submitted hook
 type UserPromptSubmittedHookInput struct {
+	SessionID string `json:"sessionId"`
 	Timestamp int64  `json:"timestamp"`
 	Cwd       string `json:"cwd"`
 	Prompt    string `json:"prompt"`
@@ -405,6 +408,7 @@ type UserPromptSubmittedHandler func(input UserPromptSubmittedHookInput, invocat
 
 // SessionStartHookInput is the input for a session-start hook
 type SessionStartHookInput struct {
+	SessionID     string `json:"sessionId"`
 	Timestamp     int64  `json:"timestamp"`
 	Cwd           string `json:"cwd"`
 	Source        string `json:"source"` // "startup", "resume", "new"
@@ -422,6 +426,7 @@ type SessionStartHandler func(input SessionStartHookInput, invocation HookInvoca
 
 // SessionEndHookInput is the input for a session-end hook
 type SessionEndHookInput struct {
+	SessionID    string `json:"sessionId"`
 	Timestamp    int64  `json:"timestamp"`
 	Cwd          string `json:"cwd"`
 	Reason       string `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
@@ -441,6 +446,7 @@ type SessionEndHandler func(input SessionEndHookInput, invocation HookInvocation
 
 // ErrorOccurredHookInput is the input for an error-occurred hook
 type ErrorOccurredHookInput struct {
+	SessionID    string `json:"sessionId"`
 	Timestamp    int64  `json:"timestamp"`
 	Cwd          string `json:"cwd"`
 	Error        string `json:"error"`
