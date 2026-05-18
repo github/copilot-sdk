@@ -97,7 +97,7 @@ session.On((SessionEvent e) =>
 
 <!-- docs-validate: skip -->
 ```rust
-use copilot_sdk::{Client, ClientOptions};
+use github_copilot_sdk::{Client, ClientOptions, PermissionRequestResult, SessionConfig};
 
 let client = Client::start(
     ClientOptions::new().with_remote(true)
