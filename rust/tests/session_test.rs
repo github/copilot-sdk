@@ -2245,6 +2245,7 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
                 "sessionId": server.session_id,
                 "hookType": "preToolUse",
                 "input": {
+                    "sessionId": "test-session",
                     "timestamp": 1234567890,
                     "cwd": "/tmp",
                     "toolName": "rm",
@@ -2282,6 +2283,7 @@ async fn hooks_invoke_returns_empty_for_unregistered_hook() {
                 "sessionId": server.session_id,
                 "hookType": "sessionEnd",
                 "input": {
+                    "sessionId": "test-session",
                     "timestamp": 1234567890,
                     "cwd": "/tmp",
                     "reason": "complete"
