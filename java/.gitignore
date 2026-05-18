@@ -1,0 +1,16 @@
+.DS_Store
+target
+examples-test/
+.merge-env
+blog-copilotsdk/
+.claude/worktrees
+smoke-test
+*job-logs.txt*
+temporary-prompts/
+changebundle.txt*
+.classpath
+.project
+.settings
+scripts/codegen/node_modules/
+*~
+*.sln
