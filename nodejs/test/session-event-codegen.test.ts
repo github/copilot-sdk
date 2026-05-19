@@ -6,7 +6,7 @@ import { generateGoSessionEventsCode } from "../../scripts/codegen/go.ts";
 import { generatePythonSessionEventsCode } from "../../scripts/codegen/python.ts";
 import { generateSessionEventsCode as generateRustSessionEventsCode } from "../../scripts/codegen/rust.ts";
 
-describe("python session event codegen", () => {
+describe("session event codegen", () => {
     it("maps special schema formats to the expected Python types", () => {
         const schema: JSONSchema7 = {
             definitions: {
@@ -131,7 +131,9 @@ describe("python session event codegen", () => {
         expect(pythonCode).toContain("urlms: timedelta");
         expect(pythonCode).toContain('duration = from_timedelta(obj.get("durationMs"))');
         expect(pythonCode).toContain('result["durationMs"] = to_timedelta(self.duration)');
-        expect(pythonCode).toContain('integer_duration = from_timedelta(obj.get("integerDurationMs"))');
+        expect(pythonCode).toContain(
+            'integer_duration = from_timedelta(obj.get("integerDurationMs"))'
+        );
         expect(pythonCode).toContain(
             'result["integerDurationMs"] = to_timedelta_int(self.integer_duration)'
         );
