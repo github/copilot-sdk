@@ -2912,7 +2912,7 @@ async fn command_execute_handler_error_propagates_to_ack() {
 
 use github_copilot_sdk::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConventions, SessionFsProvider,
-    SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
+    SessionFsSqliteProvider, SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
 };
 
 struct RecordingFsProvider {
@@ -2985,6 +2985,13 @@ impl SessionFsProvider for RecordingFsProvider {
         Ok(())
     }
 
+    fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+        Some(self)
+    }
+}
+
+#[async_trait]
+impl SessionFsSqliteProvider for RecordingFsProvider {
     async fn sqlite_query(
         &self,
         session_id: &str,
@@ -3216,6 +3223,12 @@ async fn session_fs_maps_sqlite_errors_to_results() {
     struct AlwaysFails;
     #[async_trait]
     impl SessionFsProvider for AlwaysFails {
+        fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+            Some(self)
+        }
+    }
+    #[async_trait]
+    impl SessionFsSqliteProvider for AlwaysFails {
         async fn sqlite_query(
             &self,
             _session_id: &str,

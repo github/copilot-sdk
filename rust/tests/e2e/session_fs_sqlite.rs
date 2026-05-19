@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use github_copilot_sdk::{
     Client, DirEntry, DirEntryKind, FileInfo, FsError, SessionConfig, SessionFsCapabilities,
-    SessionFsConfig, SessionFsConventions, SessionFsProvider, SessionFsSqliteQueryResult,
-    SessionFsSqliteQueryType,
+    SessionFsConfig, SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider,
+    SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
 };
 use rusqlite::Connection;
 
@@ -202,6 +202,13 @@ impl SessionFsProvider for InMemorySqliteProvider {
         Ok(())
     }
 
+    fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+        Some(self)
+    }
+}
+
+#[async_trait]
+impl SessionFsSqliteProvider for InMemorySqliteProvider {
     async fn sqlite_query(
         &self,
         session_id: &str,

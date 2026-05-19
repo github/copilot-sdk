@@ -1621,8 +1621,18 @@ class CopilotClient:
                     "create_session_fs_handler is required in session config when "
                     "session_fs is enabled in client options."
                 )
+            provider = create_session_fs_handler(session)
+            caps = self._session_fs_config.get("capabilities")
+            if caps and caps.get("sqlite"):
+                from .session_fs_provider import SessionFsSqliteProvider
+
+                if not isinstance(provider, SessionFsSqliteProvider):
+                    raise ValueError(
+                        "SessionFs capabilities declare SQLite support but the provider "
+                        "does not implement SessionFsSqliteProvider"
+                    )
             session._client_session_apis.session_fs = create_session_fs_adapter(
-                create_session_fs_handler(session)
+                provider
             )
         session._register_tools(tools)
         session._register_commands(commands)
@@ -1966,8 +1976,18 @@ class CopilotClient:
                     "create_session_fs_handler is required in session config when "
                     "session_fs is enabled in client options."
                 )
+            provider = create_session_fs_handler(session)
+            caps = self._session_fs_config.get("capabilities")
+            if caps and caps.get("sqlite"):
+                from .session_fs_provider import SessionFsSqliteProvider
+
+                if not isinstance(provider, SessionFsSqliteProvider):
+                    raise ValueError(
+                        "SessionFs capabilities declare SQLite support but the provider "
+                        "does not implement SessionFsSqliteProvider"
+                    )
             session._client_session_apis.session_fs = create_session_fs_adapter(
-                create_session_fs_handler(session)
+                provider
             )
         session._register_tools(tools)
         session._register_commands(commands)

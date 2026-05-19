@@ -15,6 +15,8 @@ import (
 // SessionFsProvider is the interface that SDK users implement to provide
 // a session filesystem. Methods use idiomatic Go error handling: return an
 // error for failures (the adapter maps os.ErrNotExist → ENOENT automatically).
+//
+// To add SQLite support, also implement [SessionFsSqliteProvider] on the same type.
 type SessionFsProvider interface {
 	// ReadFile reads the full content of a file. Return os.ErrNotExist (or wrap it)
 	// if the file does not exist.
@@ -44,6 +46,13 @@ type SessionFsProvider interface {
 	Rm(path string, recursive bool, force bool) error
 	// Rename moves/renames a file or directory.
 	Rename(src string, dest string) error
+}
+
+// SessionFsSqliteProvider is an optional interface that a [SessionFsProvider]
+// may also implement to support per-session SQLite databases. The adapter
+// checks for this interface at runtime using a type assertion. If the
+// provider does not implement it, SQLite requests return an "unsupported" error.
+type SessionFsSqliteProvider interface {
 	// SqliteQuery executes a SQLite query against the provider's per-session database.
 	SqliteQuery(sessionID string, query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*rpc.SessionFsSqliteQueryResult, error)
 	// SqliteExists checks whether the provider has a SQLite database for the session.
@@ -169,7 +178,17 @@ func (a *sessionFsAdapter) Rename(request *rpc.SessionFsRenameRequest) (*rpc.Ses
 }
 
 func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest) (*rpc.SessionFsSqliteQueryResult, error) {
-	result, err := a.provider.SqliteQuery(request.SessionID, request.Query, request.QueryType, request.Params)
+	sp, ok := a.provider.(SessionFsSqliteProvider)
+	if !ok {
+		msg := "SQLite is not supported by this session filesystem provider"
+		return &rpc.SessionFsSqliteQueryResult{
+			Columns:      []string{},
+			Rows:         []map[string]any{},
+			RowsAffected: 0,
+			Error:        &rpc.SessionFsError{Code: rpc.SessionFsErrorCodeUNKNOWN, Message: &msg},
+		}, nil
+	}
+	result, err := sp.SqliteQuery(request.SessionID, request.Query, request.QueryType, request.Params)
 	if err != nil {
 		return &rpc.SessionFsSqliteQueryResult{
 			Columns:      []string{},
@@ -182,7 +201,11 @@ func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest)
 }
 
 func (a *sessionFsAdapter) SqliteExists(request *rpc.SessionFsSqliteExistsRequest) (*rpc.SessionFsSqliteExistsResult, error) {
-	exists, err := a.provider.SqliteExists(request.SessionID)
+	sp, ok := a.provider.(SessionFsSqliteProvider)
+	if !ok {
+		return &rpc.SessionFsSqliteExistsResult{Exists: false}, nil
+	}
+	exists, err := sp.SqliteExists(request.SessionID)
 	if err != nil {
 		return &rpc.SessionFsSqliteExistsResult{Exists: false}, nil
 	}

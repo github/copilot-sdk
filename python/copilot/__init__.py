@@ -42,6 +42,7 @@ from .session import (
 from .session_fs_provider import (
     SessionFsFileInfo,
     SessionFsProvider,
+    SessionFsSqliteProvider,
     create_session_fs_adapter,
 )
 from .tools import (

@@ -473,23 +473,6 @@ func (h *testSessionFsHandler) Rename(src string, dest string) error {
 	return os.Rename(providerPath(h.root, h.sessionID, src), destPath)
 }
 
-func (h *testSessionFsHandler) SqliteQuery(sessionID string, query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*rpc.SessionFsSqliteQueryResult, error) {
-	return &rpc.SessionFsSqliteQueryResult{
-		Columns: []string{"sessionId", "query", "queryType", "answer"},
-		Rows: []map[string]any{{
-			"sessionId": sessionID,
-			"query":     query,
-			"queryType": string(queryType),
-			"answer":    params["answer"],
-		}},
-		RowsAffected: 0,
-	}, nil
-}
-
-func (h *testSessionFsHandler) SqliteExists(sessionID string) (bool, error) {
-	return sessionID == h.sessionID, nil
-}
-
 func providerPath(root string, sessionID string, path string) string {
 	trimmed := strings.TrimPrefix(path, "/")
 	if trimmed == "" {
@@ -652,28 +635,6 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 	// Stat on a missing file should return os.ErrNotExist.
 	if _, err := handler.Stat("/workspace/nested/missing.txt"); err == nil || !os.IsNotExist(err) {
 		t.Errorf("Expected os.ErrNotExist from Stat on missing file, got %v", err)
-	}
-
-	sqliteResult, err := handler.SqliteQuery(sessionID, "select :answer as answer", rpc.SessionFsSqliteQueryTypeQuery, map[string]any{"answer": 42})
-	if err != nil {
-		t.Fatalf("SqliteQuery failed: %v", err)
-	}
-	if len(sqliteResult.Columns) != 4 || sqliteResult.Columns[3] != "answer" {
-		t.Errorf("Expected SQLite result columns to include answer, got %v", sqliteResult.Columns)
-	}
-	if len(sqliteResult.Rows) != 1 || sqliteResult.Rows[0]["answer"] != 42 {
-		t.Errorf("Expected SQLite result row to include answer=42, got %+v", sqliteResult.Rows)
-	}
-	if sqliteResult.RowsAffected != 0 {
-		t.Errorf("Expected RowsAffected=0, got %d", sqliteResult.RowsAffected)
-	}
-
-	sqliteExists, err := handler.SqliteExists(sessionID)
-	if err != nil {
-		t.Fatalf("SqliteExists failed: %v", err)
-	}
-	if !sqliteExists {
-		t.Error("Expected SQLite database to exist for the handler session")
 	}
 }
 

@@ -12,13 +12,13 @@ use serde_json::Value;
 use tracing::warn;
 
 use crate::generated::api_types::{
-    SessionFsAppendFileRequest, SessionFsExistsRequest, SessionFsExistsResult,
-    SessionFsMkdirRequest, SessionFsReadFileRequest, SessionFsReadFileResult,
-    SessionFsReaddirRequest, SessionFsReaddirResult, SessionFsReaddirWithTypesRequest,
-    SessionFsReaddirWithTypesResult, SessionFsRenameRequest, SessionFsRmRequest,
-    SessionFsSqliteExistsParams, SessionFsSqliteExistsResult, SessionFsSqliteQueryRequest,
-    SessionFsSqliteQueryResult, SessionFsStatRequest, SessionFsStatResult,
-    SessionFsWriteFileRequest,
+    SessionFsAppendFileRequest, SessionFsError, SessionFsErrorCode, SessionFsExistsRequest,
+    SessionFsExistsResult, SessionFsMkdirRequest, SessionFsReadFileRequest,
+    SessionFsReadFileResult, SessionFsReaddirRequest, SessionFsReaddirResult,
+    SessionFsReaddirWithTypesRequest, SessionFsReaddirWithTypesResult, SessionFsRenameRequest,
+    SessionFsRmRequest, SessionFsSqliteExistsParams, SessionFsSqliteExistsResult,
+    SessionFsSqliteQueryRequest, SessionFsSqliteQueryResult, SessionFsStatRequest,
+    SessionFsStatResult, SessionFsWriteFileRequest,
 };
 use crate::session_fs::SessionFsProvider;
 use crate::{Client, JsonRpcRequest, JsonRpcResponse, error_codes};
@@ -316,8 +316,31 @@ pub(crate) async fn sqlite_query(
         }
     };
     let id = request.id;
+    let sqlite = match provider.sqlite() {
+        Some(s) => s,
+        None => {
+            // SQLite not supported — return a result-level error, not a
+            // transport error, so the CLI can surface it gracefully.
+            respond(
+                client,
+                id,
+                SessionFsSqliteQueryResult {
+                    columns: Vec::new(),
+                    error: Some(SessionFsError {
+                        code: SessionFsErrorCode::UNKNOWN,
+                        message: Some("SQLite is not supported by this SessionFs provider".to_string()),
+                    }),
+                    last_insert_rowid: None,
+                    rows: Vec::new(),
+                    rows_affected: 0,
+                },
+            )
+            .await;
+            return;
+        }
+    };
     let sqlite_params = (!params.params.is_empty()).then_some(&params.params);
-    let result = match provider
+    let result = match sqlite
         .sqlite_query(
             params.session_id.as_ref(),
             &params.query,
@@ -351,9 +374,12 @@ pub(crate) async fn sqlite_exists(
         }
     };
     let id = request.id;
-    let result = match provider.sqlite_exists(params.session_id.as_ref()).await {
-        Ok(exists) => SessionFsSqliteExistsResult { exists },
-        Err(_) => SessionFsSqliteExistsResult { exists: false },
+    let result = match provider.sqlite() {
+        Some(sqlite) => match sqlite.sqlite_exists(params.session_id.as_ref()).await {
+            Ok(exists) => SessionFsSqliteExistsResult { exists },
+            Err(_) => SessionFsSqliteExistsResult { exists: false },
+        },
+        None => SessionFsSqliteExistsResult { exists: false },
     };
     respond(client, id, result).await;
 }

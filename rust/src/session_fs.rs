@@ -377,6 +377,33 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         Err(FsError::Other("rename not supported".to_string()))
     }
 
+    /// Return a reference to the SQLite provider, if this provider supports
+    /// SQLite operations. The default returns `None`. Providers that support
+    /// SQLite should also implement [`SessionFsSqliteProvider`] and override
+    /// this to return `Some(self)`.
+    fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+        None
+    }
+}
+
+/// Optional trait for providers that support SQLite operations.
+///
+/// To opt in, implement this trait on your provider and override
+/// [`SessionFsProvider::sqlite`] to return `Some(self)`:
+///
+/// ```ignore
+/// impl SessionFsSqliteProvider for MyProvider { /* ... */ }
+///
+/// #[async_trait]
+/// impl SessionFsProvider for MyProvider {
+///     fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+///         Some(self)
+///     }
+///     // ... other methods ...
+/// }
+/// ```
+#[async_trait]
+pub trait SessionFsSqliteProvider: Send + Sync {
     /// Execute a SQLite query against the provider's per-session database.
     async fn sqlite_query(
         &self,
@@ -384,16 +411,10 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         query: &str,
         query_type: SessionFsSqliteQueryType,
         params: Option<&HashMap<String, serde_json::Value>>,
-    ) -> Result<SessionFsSqliteQueryResult, FsError> {
-        let _ = (session_id, query, query_type, params);
-        Err(FsError::Other("sqlite_query not supported".to_string()))
-    }
+    ) -> Result<SessionFsSqliteQueryResult, FsError>;
 
     /// Check whether the provider has a SQLite database for the session.
-    async fn sqlite_exists(&self, session_id: &str) -> Result<bool, FsError> {
-        let _ = session_id;
-        Err(FsError::Other("sqlite_exists not supported".to_string()))
-    }
+    async fn sqlite_exists(&self, session_id: &str) -> Result<bool, FsError>;
 }
 
 #[cfg(test)]

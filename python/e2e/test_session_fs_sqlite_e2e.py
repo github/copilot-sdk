@@ -21,7 +21,7 @@ from copilot.generated.rpc import (
     SessionFSSqliteQueryType,
 )
 from copilot.session import PermissionHandler
-from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider
+from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider, SessionFsSqliteProvider
 
 from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
 
@@ -44,7 +44,7 @@ SESSION_FS_CONFIG: SessionFsConfig = {
 }
 
 
-class _InMemorySessionFsSqliteProvider(SessionFsProvider):
+class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvider):
     """In-memory SessionFsProvider with real SQLite for E2E tests."""
 
     def __init__(self, session_id: str, sqlite_calls: list[dict]):

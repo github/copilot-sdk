@@ -99,6 +99,20 @@ class SessionFsProvider(abc.ABC):
     async def rename(self, src: str, dest: str) -> None:
         """Rename / move a file or directory."""
 
+
+class SessionFsSqliteProvider(abc.ABC):
+    """Optional ABC for providers that support SQLite operations.
+
+    To add SQLite support, subclass *both* :class:`SessionFsProvider` and
+    :class:`SessionFsSqliteProvider`::
+
+        class MyProvider(SessionFsProvider, SessionFsSqliteProvider):
+            ...
+
+    The adapter checks ``isinstance(provider, SessionFsSqliteProvider)`` at
+    runtime to decide whether SQLite calls should be dispatched.
+    """
+
     @abc.abstractmethod
     async def sqlite_query(
         self,
@@ -228,22 +242,29 @@ class _SessionFsAdapter:
             return _to_session_fs_error(exc)
 
     async def sqlite_query(self, params: Any) -> SessionFSSqliteQueryResult:
-        try:
-            return await self._p.sqlite_query(  # type: ignore[attr-defined]
-                params.session_id,
-                params.query,
-                params.query_type,
-                getattr(params, "params", None),
-            )
-        except Exception as exc:
+        # SQLite methods intentionally skip toSessionFsError wrapping — FS errno
+        # mapping (ENOENT) isn't meaningful for SQL errors and the JSON-RPC layer
+        # already handles uncaught exceptions.
+        if not isinstance(self._p, SessionFsSqliteProvider):
             return SessionFSSqliteQueryResult(
                 columns=[],
                 rows=[],
                 rows_affected=0,
-                error=_to_session_fs_error(exc),
+                error=SessionFSError(
+                    code=SessionFSErrorCode.UNKNOWN,
+                    message="SQLite is not supported by this SessionFs provider",
+                ),
             )
+        return await self._p.sqlite_query(
+            params.session_id,
+            params.query,
+            params.query_type,
+            getattr(params, "params", None),
+        )
 
     async def sqlite_exists(self, params: Any) -> SessionFSSqliteExistsResult:
+        if not isinstance(self._p, SessionFsSqliteProvider):
+            return SessionFSSqliteExistsResult.from_dict({"exists": False})
         try:
             result = await self._p.sqlite_exists(params.session_id)  # type: ignore[attr-defined]
             return SessionFSSqliteExistsResult.from_dict({"exists": result})
