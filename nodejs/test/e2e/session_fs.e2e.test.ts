@@ -470,18 +470,18 @@ describe("Session Fs Adapter", () => {
         assertEnoent((await handler.readdirWithTypes({ path: "missing-dir" } as never)).error);
         assertEnoent(await handler.rm({ path: "missing.txt" } as never));
         assertEnoent(await handler.rename({ src: "missing.txt", dest: "dest.txt" } as never));
-        const sqliteQuery = await handler.sqliteQuery({
-            sessionId: "throw-session",
-            query: "select 1",
-            queryType: "query",
-        });
-        assertEnoent(sqliteQuery.error);
-        expect(sqliteQuery.columns).toEqual([]);
-        expect(sqliteQuery.rows).toEqual([]);
-        expect(sqliteQuery.rowsAffected).toBe(0);
 
-        const sqliteExistsResult = await handler.sqliteExists({ sessionId: "throw-session" });
-        expect(sqliteExistsResult.exists).toBe(false);
+        // sqlite methods let errors propagate (no try/catch wrapping)
+        await expect(
+            handler.sqliteQuery({
+                sessionId: "throw-session",
+                query: "select 1",
+                queryType: "query",
+            })
+        ).rejects.toThrow("missing");
+        await expect(handler.sqliteExists({ sessionId: "throw-session" })).rejects.toThrow(
+            "missing"
+        );
 
         // Non-ENOENT errors map to UNKNOWN.
         const unknown: SessionFsProvider = {

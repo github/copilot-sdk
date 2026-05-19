@@ -237,16 +237,12 @@ describe("SessionFsAdapter", () => {
         assertEnoent((await handler.readdirWithTypes({ sessionId, path: "missing-dir" })).error);
         assertEnoent(await handler.rm({ sessionId, path: "missing.txt" }));
         assertEnoent(await handler.rename({ sessionId, src: "missing.txt", dest: "dest.txt" }));
-        const sqliteQuery = await handler.sqliteQuery({
-            sessionId,
-            query: "select 1",
-            queryType: "query",
-        });
-        assertEnoent(sqliteQuery.error);
-        expect(sqliteQuery.columns).toEqual([]);
-        expect(sqliteQuery.rows).toEqual([]);
-        expect(sqliteQuery.rowsAffected).toBe(0);
-        expect((await handler.sqliteExists({ sessionId })).exists).toBe(false);
+
+        // sqlite methods let errors propagate (no try/catch wrapping)
+        await expect(
+            handler.sqliteQuery({ sessionId, query: "select 1", queryType: "query" })
+        ).rejects.toThrow("missing file");
+        await expect(handler.sqliteExists({ sessionId })).rejects.toThrow("missing file");
 
         const unknownProvider = createSessionFsAdapter(makeThrowingProvider(makeError("bad path")));
         const unknownError = await unknownProvider.writeFile({
