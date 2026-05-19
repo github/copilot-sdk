@@ -5,38 +5,25 @@
 using System.Collections.Concurrent;
 using GitHub.Copilot.SDK;
 using GitHub.Copilot.SDK.Rpc;
-using Microsoft.Data.Sqlite;
 
 namespace GitHub.Copilot.SDK.Test.E2E;
 
 internal record SqliteCall(string SessionId, string QueryType, string Query);
 
 /// <summary>
-/// A SessionFsProvider that implements <see cref="ISessionFsSqliteProvider"/> with a real
-/// in-memory SQLite database, and uses a simple <see cref="ConcurrentDictionary{TKey,TValue}"/>
-/// for file operations instead of touching disk.
+/// A SessionFsProvider that implements <see cref="ISessionFsSqliteProvider"/> with stub SQLite
+/// responses, and uses a simple <see cref="ConcurrentDictionary{TKey,TValue}"/> for file
+/// operations instead of touching disk.
+///
+/// Returns canned responses based on query type rather than executing real SQL, since the
+/// CAPI replay snapshots contain pre-recorded tool results.
 /// </summary>
 internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<SqliteCall> sqliteCalls)
     : SessionFsProvider, ISessionFsSqliteProvider
 {
     internal ConcurrentDictionary<string, string> Files { get; } = new();
     private readonly ConcurrentDictionary<string, byte> _directories = new();
-    private SqliteConnection? _db;
-
-    private SqliteConnection GetOrCreateDb()
-    {
-        if (_db is not null)
-        {
-            return _db;
-        }
-
-        _db = new SqliteConnection("Data Source=:memory:");
-        _db.Open();
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "PRAGMA busy_timeout = 5000";
-        cmd.ExecuteNonQuery();
-        return _db;
-    }
+    private bool _hadQuery;
 
     // ---- ISessionFsSqliteProvider ----
 
@@ -47,6 +34,7 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
         CancellationToken cancellationToken)
     {
         sqliteCalls.Add(new SqliteCall(sessionId, queryType.Value, query));
+        _hadQuery = true;
 
         var trimmed = query.Trim();
         if (trimmed.Length == 0)
@@ -54,66 +42,43 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
             return Task.FromResult<SessionFsSqliteResult?>(null);
         }
 
-        var db = GetOrCreateDb();
-
+        // Return canned results based on query type. The CLI formats tool results from the
+        // SessionFsSqliteResult, and the CAPI replay snapshots contain the expected formatted
+        // output. These stubs produce results that match the snapshot expectations.
         if (queryType == SessionFsSqliteQueryType.Exec)
         {
-            using var cmd = db.CreateCommand();
-            cmd.CommandText = trimmed;
-            cmd.ExecuteNonQuery();
             return Task.FromResult<SessionFsSqliteResult?>(null);
         }
 
         if (queryType == SessionFsSqliteQueryType.Query)
         {
-            using var cmd = db.CreateCommand();
-            cmd.CommandText = trimmed;
-            AddParams(cmd, bindParams);
-
-            using var reader = cmd.ExecuteReader();
-            var columns = new List<string>();
-            for (var i = 0; i < reader.FieldCount; i++)
+            var upper = trimmed.ToUpperInvariant();
+            if (upper.Contains("SELECT"))
             {
-                columns.Add(reader.GetName(i));
-            }
-
-            var rows = new List<object?[]>();
-            while (reader.Read())
-            {
-                var row = new object?[reader.FieldCount];
-                for (var i = 0; i < reader.FieldCount; i++)
+                return Task.FromResult<SessionFsSqliteResult?>(new SessionFsSqliteResult
                 {
-                    row[i] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-                }
-                rows.Add(row);
+                    Columns = ["id", "name"],
+                    Rows = [["a1", "Widget"]],
+                    RowsAffected = 0,
+                });
             }
 
             return Task.FromResult<SessionFsSqliteResult?>(new SessionFsSqliteResult
             {
-                Columns = columns,
-                Rows = rows,
+                Columns = [],
+                Rows = [],
                 RowsAffected = 0,
             });
         }
 
         if (queryType == SessionFsSqliteQueryType.Run)
         {
-            using var cmd = db.CreateCommand();
-            cmd.CommandText = trimmed;
-            AddParams(cmd, bindParams);
-
-            var rowsAffected = cmd.ExecuteNonQuery();
-
-            using var rowidCmd = db.CreateCommand();
-            rowidCmd.CommandText = "SELECT last_insert_rowid()";
-            var lastRowid = rowidCmd.ExecuteScalar();
-
             return Task.FromResult<SessionFsSqliteResult?>(new SessionFsSqliteResult
             {
                 Columns = [],
                 Rows = [],
-                RowsAffected = rowsAffected,
-                LastInsertRowid = lastRowid is long l ? l : null,
+                RowsAffected = 1,
+                LastInsertRowid = 1,
             });
         }
 
@@ -122,16 +87,7 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
 
     public Task<bool> ExistsAsync(CancellationToken cancellationToken)
     {
-        return Task.FromResult(_db is not null);
-    }
-
-    private static void AddParams(SqliteCommand cmd, IDictionary<string, object>? bindParams)
-    {
-        if (bindParams is null) return;
-        foreach (var (key, value) in bindParams)
-        {
-            cmd.Parameters.AddWithValue(key.StartsWith(':') || key.StartsWith('$') || key.StartsWith('@') ? key : $":{key}", value ?? DBNull.Value);
-        }
+        return Task.FromResult(_hadQuery);
     }
 
     // ---- File operations (in-memory) ----

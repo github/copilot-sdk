@@ -7,7 +7,6 @@
   <ItemGroup>
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.6" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.2.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
