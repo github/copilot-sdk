@@ -1460,9 +1460,6 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	)) {
 		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
 	}
-	if (externalImports.size > 0) {
-		out.push("");
-	}
 	out.push("use crate::types::{RequestId, SessionId};");
 	out.push("");
 
