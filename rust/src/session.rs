@@ -769,16 +769,15 @@ impl Client {
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(Error::Session(SessionError::SessionFsProviderRequired));
         }
-        if self.inner.session_fs_sqlite_declared {
-            if let Some(ref provider) = session_fs_provider {
-                if provider.sqlite().is_none() {
-                    return Err(Error::InvalidConfig(
-                        "SessionFs capabilities declare SQLite support but the provider \
-                         does not implement SessionFsSqliteProvider"
-                            .to_string(),
-                    ));
-                }
-            }
+        if self.inner.session_fs_sqlite_declared
+            && let Some(ref provider) = session_fs_provider
+            && provider.sqlite().is_none()
+        {
+            return Err(Error::InvalidConfig(
+                "SessionFs capabilities declare SQLite support but the provider \
+                 does not implement SessionFsSqliteProvider"
+                    .to_string(),
+            ));
         }
 
         if hooks.is_some() && config.hooks.is_none() {
@@ -901,16 +900,15 @@ impl Client {
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(Error::Session(SessionError::SessionFsProviderRequired));
         }
-        if self.inner.session_fs_sqlite_declared {
-            if let Some(ref provider) = session_fs_provider {
-                if provider.sqlite().is_none() {
-                    return Err(Error::InvalidConfig(
-                        "SessionFs capabilities declare SQLite support but the provider \
-                         does not implement SessionFsSqliteProvider"
-                            .to_string(),
-                    ));
-                }
-            }
+        if self.inner.session_fs_sqlite_declared
+            && let Some(ref provider) = session_fs_provider
+            && provider.sqlite().is_none()
+        {
+            return Err(Error::InvalidConfig(
+                "SessionFs capabilities declare SQLite support but the provider \
+                 does not implement SessionFsSqliteProvider"
+                    .to_string(),
+            ));
         }
 
         if hooks.is_some() && config.hooks.is_none() {
