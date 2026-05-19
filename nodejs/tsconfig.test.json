@@ -1,0 +1,10 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "emitDeclarationOnly": false,
+        "types": ["node"]
+    },
+    "include": ["src/**/*", "test/session-event-types.test.ts"],
+    "exclude": ["node_modules", "dist"]
+}
