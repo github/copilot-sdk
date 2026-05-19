@@ -216,7 +216,11 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => ResumeSessionAsync(sessionId));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+            }));
         Assert.Contains(sessionId, exception.Message);
     }
 
