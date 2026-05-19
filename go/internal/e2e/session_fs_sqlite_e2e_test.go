@@ -21,9 +21,9 @@ type sqliteCall struct {
 }
 
 // inMemorySqliteProvider is a SessionFsProvider backed by in-memory maps with a stub SQLite handler.
-// The stub returns canned responses based on query type rather than executing real SQL, since the
-// CAPI replay snapshots contain pre-recorded tool results. This avoids pulling in a real SQLite
-// dependency (which would force a go directive bump across all scenario go.mod files).
+// The stub returns plausible canned responses based on query type rather than executing real SQL.
+// This avoids pulling in a real SQLite dependency (which would force a go directive bump across
+// all scenario go.mod files).
 type inMemorySqliteProvider struct {
 	mu          sync.Mutex
 	sessionID   string
@@ -205,9 +205,10 @@ func (p *inMemorySqliteProvider) SqliteQuery(sessionID string, query string, que
 		Query:     query,
 	})
 
-	// Return canned results based on query type. The CLI formats tool results from the
-	// SessionFsSqliteQueryResult, and the CAPI replay snapshots contain the expected formatted
-	// output. These stubs produce results that match the snapshot expectations.
+	// Return canned results based on query type. The agent doesn't know or care
+	// whether a real SQLite database is behind this — it just receives SQL tool
+	// results. These stubs return plausible responses so the agent can proceed
+	// normally without pulling in a real SQLite dependency.
 	upper := strings.ToUpper(strings.TrimSpace(query))
 	switch queryType {
 	case rpc.SessionFsSqliteQueryTypeExec:

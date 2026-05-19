@@ -7,6 +7,7 @@ use github_copilot_sdk::{
     SessionFsConfig, SessionFsConventions, SessionFsProvider, SessionFsSqliteQueryResult,
     SessionFsSqliteQueryType,
 };
+use rusqlite::Connection;
 
 use super::support::{assistant_message_content, with_e2e_context};
 
@@ -17,14 +18,10 @@ struct SqliteCall {
     query: String,
 }
 
-/// In-memory SessionFsProvider with stub SQLite handler.
-///
-/// Returns canned responses based on query type rather than executing real SQL,
-/// since the CAPI replay snapshots contain pre-recorded tool results.
 struct InMemorySqliteProvider {
     files: Mutex<HashMap<String, String>>,
     dirs: Mutex<std::collections::HashSet<String>>,
-    had_query: Mutex<bool>,
+    db: Mutex<Option<Connection>>,
     sqlite_calls: Arc<Mutex<Vec<SqliteCall>>>,
 }
 
@@ -35,7 +32,7 @@ impl InMemorySqliteProvider {
         Self {
             files: Mutex::new(HashMap::new()),
             dirs: Mutex::new(dirs),
-            had_query: Mutex::new(false),
+            db: Mutex::new(None),
             sqlite_calls: calls,
         }
     }
@@ -50,6 +47,16 @@ impl InMemorySqliteProvider {
                 dirs.insert(parent);
             }
         }
+    }
+
+    fn get_or_create_db(db: &mut Option<Connection>) -> Result<&mut Connection, FsError> {
+        if db.is_none() {
+            let conn = Connection::open_in_memory().map_err(|e| FsError::Other(e.to_string()))?;
+            conn.execute_batch("PRAGMA busy_timeout = 5000;")
+                .map_err(|e| FsError::Other(e.to_string()))?;
+            *db = Some(conn);
+        }
+        Ok(db.as_mut().unwrap())
     }
 }
 
@@ -213,56 +220,87 @@ impl SessionFsProvider for InMemorySqliteProvider {
             query_type: qt_str.to_string(),
             query: query.to_string(),
         });
-        *self.had_query.lock().unwrap() = true;
 
-        // Return canned results based on query type. The CLI formats tool results from the
-        // SessionFsSqliteQueryResult, and the CAPI replay snapshots contain the expected formatted
-        // output. These stubs produce results that match the snapshot expectations.
-        let upper = query.trim().to_uppercase();
-        match query_type {
-            SessionFsSqliteQueryType::Exec => Ok(SessionFsSqliteQueryResult {
+        let mut db_guard = self.db.lock().unwrap();
+        let db = Self::get_or_create_db(&mut db_guard)?;
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return Ok(SessionFsSqliteQueryResult {
                 columns: vec![],
                 rows: vec![],
                 rows_affected: 0,
                 last_insert_rowid: None,
                 error: None,
-            }),
-            SessionFsSqliteQueryType::Run => Ok(SessionFsSqliteQueryResult {
-                columns: vec![],
-                rows: vec![],
-                rows_affected: 1,
-                last_insert_rowid: Some(1.0),
-                error: None,
-            }),
+            });
+        }
+
+        match query_type {
+            SessionFsSqliteQueryType::Exec => {
+                db.execute_batch(trimmed)
+                    .map_err(|e| FsError::Other(e.to_string()))?;
+                Ok(SessionFsSqliteQueryResult {
+                    columns: vec![],
+                    rows: vec![],
+                    rows_affected: 0,
+                    last_insert_rowid: None,
+                    error: None,
+                })
+            }
             SessionFsSqliteQueryType::Query => {
-                if upper.contains("SELECT") {
-                    Ok(SessionFsSqliteQueryResult {
-                        columns: vec!["id".to_string(), "name".to_string()],
-                        rows: vec![{
-                            let mut m = HashMap::new();
-                            m.insert(
-                                "id".to_string(),
-                                serde_json::Value::String("a1".to_string()),
-                            );
-                            m.insert(
-                                "name".to_string(),
-                                serde_json::Value::String("Widget".to_string()),
-                            );
-                            m
-                        }],
-                        rows_affected: 0,
-                        last_insert_rowid: None,
-                        error: None,
-                    })
-                } else {
-                    Ok(SessionFsSqliteQueryResult {
-                        columns: vec![],
-                        rows: vec![],
-                        rows_affected: 0,
-                        last_insert_rowid: None,
-                        error: None,
-                    })
+                let mut stmt = db
+                    .prepare(trimmed)
+                    .map_err(|e| FsError::Other(e.to_string()))?;
+                let col_count = stmt.column_count();
+                let columns: Vec<String> = (0..col_count)
+                    .map(|i| stmt.column_name(i).unwrap().to_string())
+                    .collect();
+                let mut rows = vec![];
+                let mut query_rows = stmt.query([]).map_err(|e| FsError::Other(e.to_string()))?;
+                while let Some(row) = query_rows
+                    .next()
+                    .map_err(|e| FsError::Other(e.to_string()))?
+                {
+                    let mut map = HashMap::new();
+                    for (i, col) in columns.iter().enumerate() {
+                        let val: rusqlite::types::Value =
+                            row.get(i).map_err(|e| FsError::Other(e.to_string()))?;
+                        let json_val = match val {
+                            rusqlite::types::Value::Null => serde_json::Value::Null,
+                            rusqlite::types::Value::Integer(n) => {
+                                serde_json::Value::Number(n.into())
+                            }
+                            rusqlite::types::Value::Real(f) => serde_json::Value::Number(
+                                serde_json::Number::from_f64(f).unwrap_or(0.into()),
+                            ),
+                            rusqlite::types::Value::Text(s) => serde_json::Value::String(s),
+                            rusqlite::types::Value::Blob(b) => {
+                                serde_json::Value::String(String::from_utf8_lossy(&b).into_owned())
+                            }
+                        };
+                        map.insert(col.clone(), json_val);
+                    }
+                    rows.push(map);
                 }
+                Ok(SessionFsSqliteQueryResult {
+                    columns,
+                    rows,
+                    rows_affected: 0,
+                    last_insert_rowid: None,
+                    error: None,
+                })
+            }
+            SessionFsSqliteQueryType::Run => {
+                let affected = db
+                    .execute(trimmed, [])
+                    .map_err(|e| FsError::Other(e.to_string()))?;
+                let last_id = db.last_insert_rowid();
+                Ok(SessionFsSqliteQueryResult {
+                    columns: vec![],
+                    rows: vec![],
+                    rows_affected: affected as i64,
+                    last_insert_rowid: Some(last_id as f64),
+                    error: None,
+                })
             }
             _ => Ok(SessionFsSqliteQueryResult {
                 columns: vec![],
@@ -275,12 +313,20 @@ impl SessionFsProvider for InMemorySqliteProvider {
     }
 
     async fn sqlite_exists(&self, _session_id: &str) -> Result<bool, FsError> {
-        Ok(*self.had_query.lock().unwrap())
+        Ok(self.db.lock().unwrap().is_some())
     }
 }
 
 fn session_state_path_sqlite() -> String {
-    "/session-state".to_string()
+    if cfg!(windows) {
+        "/session-state".to_string()
+    } else {
+        std::env::temp_dir()
+            .join("copilot-rust-sessionfs-sqlite-state")
+            .join("session-state")
+            .to_string_lossy()
+            .replace('\\', "/")
+    }
 }
 
 fn sqlite_session_fs_config() -> SessionFsConfig {
