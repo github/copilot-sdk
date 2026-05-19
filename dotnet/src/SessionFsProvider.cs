@@ -16,8 +16,8 @@ public class SessionFsSqliteResult
     /// <summary>Column names from the result set.</summary>
     public IList<string> Columns { get; set; } = [];
 
-    /// <summary>For SELECT: rows as positional arrays aligned with <see cref="Columns"/>. For others: empty.</summary>
-    public IList<object?[]> Rows { get; set; } = [];
+    /// <summary>For SELECT: rows as column-keyed dictionaries. For others: empty.</summary>
+    public IList<IDictionary<string, object>> Rows { get; set; } = [];
 
     /// <summary>Number of rows affected (for INSERT/UPDATE/DELETE).</summary>
     public long RowsAffected { get; set; }
@@ -288,25 +288,11 @@ public abstract class SessionFsProvider : ISessionFsHandler
         try
         {
             var result = await sqliteProvider.QueryAsync(request.QueryType, request.Query, request.Params, cancellationToken).ConfigureAwait(false);
-            var columns = result?.Columns ?? [];
-            var rows = result?.Rows ?? [];
-
-            // Convert positional arrays to keyed dictionaries for the wire format.
-            var keyedRows = new List<IDictionary<string, object>>(rows.Count);
-            foreach (var row in rows)
-            {
-                var dict = new Dictionary<string, object>(columns.Count);
-                for (var i = 0; i < columns.Count && i < row.Length; i++)
-                {
-                    dict[columns[i]] = row[i]!;
-                }
-                keyedRows.Add(dict);
-            }
 
             return new SessionFsSqliteQueryResult
             {
-                Rows = keyedRows,
-                Columns = columns,
+                Rows = result?.Rows ?? [],
+                Columns = result?.Columns ?? [],
                 RowsAffected = result?.RowsAffected ?? 0,
                 LastInsertRowid = result?.LastInsertRowid,
             };
