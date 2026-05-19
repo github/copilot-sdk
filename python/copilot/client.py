@@ -2940,14 +2940,15 @@ class CopilotClient:
         if not self._session_fs_config or not self._client:
             return
 
-        await self._client.request(
-            "sessionFs.setProvider",
-            {
-                "initialCwd": self._session_fs_config["initial_cwd"],
-                "sessionStatePath": self._session_fs_config["session_state_path"],
-                "conventions": self._session_fs_config["conventions"],
-            },
-        )
+        params: dict[str, Any] = {
+            "initialCwd": self._session_fs_config["initial_cwd"],
+            "sessionStatePath": self._session_fs_config["session_state_path"],
+            "conventions": self._session_fs_config["conventions"],
+        }
+        if "capabilities" in self._session_fs_config:
+            params["capabilities"] = self._session_fs_config["capabilities"]
+
+        await self._client.request("sessionFs.setProvider", params)
 
     def _get_client_session_handlers(self, session_id: str) -> ClientSessionApiHandlers:
         with self._sessions_lock:

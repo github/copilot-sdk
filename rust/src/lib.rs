@@ -1061,8 +1061,13 @@ impl Client {
         );
         if let Some(cfg) = session_fs_config {
             let session_fs_start = Instant::now();
+            let capabilities = cfg.capabilities.as_ref().map(|c| {
+                crate::generated::api_types::SessionFsSetProviderCapabilities {
+                    sqlite: Some(c.sqlite),
+                }
+            });
             let request = crate::generated::api_types::SessionFsSetProviderRequest {
-                capabilities: None,
+                capabilities,
                 conventions: cfg.conventions.into_wire(),
                 initial_cwd: cfg.initial_cwd,
                 session_state_path: cfg.session_state_path,

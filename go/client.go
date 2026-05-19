@@ -373,11 +373,18 @@ func (c *Client) Start(ctx context.Context) error {
 
 	// If a session filesystem provider was configured, register it.
 	if c.options.SessionFs != nil {
-		_, err := c.RPC.SessionFs.SetProvider(ctx, &rpc.SessionFsSetProviderRequest{
+		req := &rpc.SessionFsSetProviderRequest{
 			InitialCwd:       c.options.SessionFs.InitialCwd,
 			SessionStatePath: c.options.SessionFs.SessionStatePath,
 			Conventions:      c.options.SessionFs.Conventions,
-		})
+		}
+		if c.options.SessionFs.Capabilities != nil {
+			sqlite := c.options.SessionFs.Capabilities.Sqlite
+			req.Capabilities = &rpc.SessionFsSetProviderCapabilities{
+				Sqlite: &sqlite,
+			}
+		}
+		_, err := c.RPC.SessionFs.SetProvider(ctx, req)
 		if err != nil {
 			killErr := c.killProcess()
 			c.state = StateError

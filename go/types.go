@@ -567,6 +567,12 @@ type InfiniteSessionConfig struct {
 	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
+// SessionFsCapabilities declares optional provider capabilities.
+type SessionFsCapabilities struct {
+	// Sqlite indicates whether the provider supports SQLite query/exists operations.
+	Sqlite bool
+}
+
 // SessionFsConfig configures a custom session filesystem provider.
 type SessionFsConfig struct {
 	// InitialCwd is the initial working directory for sessions.
@@ -576,6 +582,8 @@ type SessionFsConfig struct {
 	SessionStatePath string
 	// Conventions identifies the path conventions used by this filesystem provider.
 	Conventions rpc.SessionFsSetProviderConventions
+	// Capabilities declares optional provider capabilities such as SQLite support.
+	Capabilities *SessionFsCapabilities
 }
 
 // SessionConfig configures a new session

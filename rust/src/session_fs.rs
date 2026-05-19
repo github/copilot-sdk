@@ -50,6 +50,27 @@ use crate::generated::api_types::{
 };
 pub use crate::generated::api_types::{SessionFsSqliteQueryResult, SessionFsSqliteQueryType};
 
+/// Optional capabilities declared by a session filesystem provider.
+#[non_exhaustive]
+#[derive(Debug, Clone, Default)]
+pub struct SessionFsCapabilities {
+    /// Whether the provider supports SQLite query/exists operations.
+    pub sqlite: bool,
+}
+
+impl SessionFsCapabilities {
+    /// Create a new capabilities struct with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Enable SQLite support.
+    pub fn with_sqlite(mut self, sqlite: bool) -> Self {
+        self.sqlite = sqlite;
+        self
+    }
+}
+
 /// Configuration for a custom session filesystem provider.
 ///
 /// When set on [`ClientOptions::session_fs`](crate::ClientOptions::session_fs),
@@ -65,6 +86,8 @@ pub struct SessionFsConfig {
     pub session_state_path: String,
     /// Path conventions used by this filesystem provider.
     pub conventions: SessionFsConventions,
+    /// Optional capabilities such as SQLite support.
+    pub capabilities: Option<SessionFsCapabilities>,
 }
 
 impl SessionFsConfig {
@@ -78,7 +101,14 @@ impl SessionFsConfig {
             initial_cwd: initial_cwd.into(),
             session_state_path: session_state_path.into(),
             conventions,
+            capabilities: None,
         }
+    }
+
+    /// Set the capabilities on this config and return it (builder pattern).
+    pub fn with_capabilities(mut self, capabilities: SessionFsCapabilities) -> Self {
+        self.capabilities = Some(capabilities);
+        self
     }
 }
 
