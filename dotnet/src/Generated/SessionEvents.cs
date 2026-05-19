@@ -1256,7 +1256,7 @@ public sealed partial class SessionStartData
 
     /// <summary>Schema version number for the session event format.</summary>
     [JsonPropertyName("version")]
-    public required double Version { get; set; }
+    public required long Version { get; set; }
 }
 
 /// <summary>Session resume metadata including current context and event count.</summary>
@@ -1278,8 +1278,9 @@ public sealed partial class SessionResumeData
     public bool? ContinuePendingWork { get; set; }
 
     /// <summary>Total number of persisted events in the session at the time of resume.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("eventCount")]
-    public required double EventCount { get; set; }
+    public required long EventCount { get; set; }
 
     /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1351,9 +1352,10 @@ public sealed partial class SessionErrorData
     public string? Stack { get; set; }
 
     /// <summary>HTTP status code from the upstream request, if applicable.</summary>
+    [Range((double)100, (double)599)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("statusCode")]
-    public long? StatusCode { get; set; }
+    public int? StatusCode { get; set; }
 
     /// <summary>Optional URL associated with this error that the user can open in a browser.</summary>
     [Url]
@@ -1571,44 +1573,52 @@ public sealed partial class SessionHandoffData
 public sealed partial class SessionTruncationData
 {
     /// <summary>Number of messages removed by truncation.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("messagesRemovedDuringTruncation")]
-    public required double MessagesRemovedDuringTruncation { get; set; }
+    public required long MessagesRemovedDuringTruncation { get; set; }
 
     /// <summary>Identifier of the component that performed truncation (e.g., "BasicTruncator").</summary>
     [JsonPropertyName("performedBy")]
     public required string PerformedBy { get; set; }
 
     /// <summary>Number of conversation messages after truncation.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("postTruncationMessagesLength")]
-    public required double PostTruncationMessagesLength { get; set; }
+    public required long PostTruncationMessagesLength { get; set; }
 
     /// <summary>Total tokens in conversation messages after truncation.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("postTruncationTokensInMessages")]
-    public required double PostTruncationTokensInMessages { get; set; }
+    public required long PostTruncationTokensInMessages { get; set; }
 
     /// <summary>Number of conversation messages before truncation.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("preTruncationMessagesLength")]
-    public required double PreTruncationMessagesLength { get; set; }
+    public required long PreTruncationMessagesLength { get; set; }
 
     /// <summary>Total tokens in conversation messages before truncation.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("preTruncationTokensInMessages")]
-    public required double PreTruncationTokensInMessages { get; set; }
+    public required long PreTruncationTokensInMessages { get; set; }
 
     /// <summary>Maximum token count for the model's context window.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenLimit")]
-    public required double TokenLimit { get; set; }
+    public required long TokenLimit { get; set; }
 
     /// <summary>Number of tokens removed by truncation.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokensRemovedDuringTruncation")]
-    public required double TokensRemovedDuringTruncation { get; set; }
+    public required long TokensRemovedDuringTruncation { get; set; }
 }
 
 /// <summary>Session rewind details including target event and count of removed events.</summary>
 public sealed partial class SessionSnapshotRewindData
 {
     /// <summary>Number of events that were removed by the rewind.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("eventsRemoved")]
-    public required double EventsRemoved { get; set; }
+    public required long EventsRemoved { get; set; }
 
     /// <summary>Event ID that was rewound to; this event and all after it were removed.</summary>
     [JsonPropertyName("upToEventId")]
@@ -1623,9 +1633,10 @@ public sealed partial class SessionShutdownData
     public required ShutdownCodeChanges CodeChanges { get; set; }
 
     /// <summary>Non-system message token count at shutdown.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("conversationTokens")]
-    public double? ConversationTokens { get; set; }
+    public long? ConversationTokens { get; set; }
 
     /// <summary>Model that was selected at the time of shutdown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1633,9 +1644,10 @@ public sealed partial class SessionShutdownData
     public string? CurrentModel { get; set; }
 
     /// <summary>Total tokens in context window at shutdown.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("currentTokens")]
-    public double? CurrentTokens { get; set; }
+    public long? CurrentTokens { get; set; }
 
     /// <summary>Error description when shutdownType is "error".</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1647,17 +1659,19 @@ public sealed partial class SessionShutdownData
     public required IDictionary<string, ShutdownModelMetric> ModelMetrics { get; set; }
 
     /// <summary>Unix timestamp (milliseconds) when the session started.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("sessionStartTime")]
-    public required double SessionStartTime { get; set; }
+    public required long SessionStartTime { get; set; }
 
     /// <summary>Whether the session ended normally ("routine") or due to a crash/fatal error ("error").</summary>
     [JsonPropertyName("shutdownType")]
     public required ShutdownType ShutdownType { get; set; }
 
     /// <summary>System message token count at shutdown.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("systemTokens")]
-    public double? SystemTokens { get; set; }
+    public long? SystemTokens { get; set; }
 
     /// <summary>Session-wide per-token-type accumulated token counts.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1665,23 +1679,27 @@ public sealed partial class SessionShutdownData
     public IDictionary<string, ShutdownTokenDetail>? TokenDetails { get; set; }
 
     /// <summary>Tool definitions token count at shutdown.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolDefinitionsTokens")]
-    public double? ToolDefinitionsTokens { get; set; }
+    public long? ToolDefinitionsTokens { get; set; }
 
     /// <summary>Cumulative time spent in API calls during the session, in milliseconds.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("totalApiDurationMs")]
     public required TimeSpan TotalApiDuration { get; set; }
 
     /// <summary>Session-wide accumulated nano-AI units cost.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalNanoAiu")]
-    public double? TotalNanoAiu { get; set; }
+    public long? TotalNanoAiu { get; set; }
 
     /// <summary>Total number of premium API requests used during the session.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalPremiumRequests")]
-    public required double TotalPremiumRequests { get; set; }
+    public required long TotalPremiumRequests { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -1731,13 +1749,15 @@ public sealed partial class SessionContextChangedData
 public sealed partial class SessionUsageInfoData
 {
     /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("conversationTokens")]
-    public double? ConversationTokens { get; set; }
+    public long? ConversationTokens { get; set; }
 
     /// <summary>Current number of tokens in the context window.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("currentTokens")]
-    public required double CurrentTokens { get; set; }
+    public required long CurrentTokens { get; set; }
 
     /// <summary>Whether this is the first usage_info event emitted in this session.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1745,50 +1765,58 @@ public sealed partial class SessionUsageInfoData
     public bool? IsInitial { get; set; }
 
     /// <summary>Current number of messages in the conversation.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("messagesLength")]
-    public required double MessagesLength { get; set; }
+    public required long MessagesLength { get; set; }
 
     /// <summary>Token count from system message(s).</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("systemTokens")]
-    public double? SystemTokens { get; set; }
+    public long? SystemTokens { get; set; }
 
     /// <summary>Maximum token count for the model's context window.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenLimit")]
-    public required double TokenLimit { get; set; }
+    public required long TokenLimit { get; set; }
 
     /// <summary>Token count from tool definitions.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolDefinitionsTokens")]
-    public double? ToolDefinitionsTokens { get; set; }
+    public long? ToolDefinitionsTokens { get; set; }
 }
 
 /// <summary>Context window breakdown at the start of LLM-powered conversation compaction.</summary>
 public sealed partial class SessionCompactionStartData
 {
     /// <summary>Token count from non-system messages (user, assistant, tool) at compaction start.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("conversationTokens")]
-    public double? ConversationTokens { get; set; }
+    public long? ConversationTokens { get; set; }
 
     /// <summary>Token count from system message(s) at compaction start.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("systemTokens")]
-    public double? SystemTokens { get; set; }
+    public long? SystemTokens { get; set; }
 
     /// <summary>Token count from tool definitions at compaction start.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolDefinitionsTokens")]
-    public double? ToolDefinitionsTokens { get; set; }
+    public long? ToolDefinitionsTokens { get; set; }
 }
 
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
 public sealed partial class SessionCompactionCompleteData
 {
     /// <summary>Checkpoint snapshot number created for recovery.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("checkpointNumber")]
-    public double? CheckpointNumber { get; set; }
+    public long? CheckpointNumber { get; set; }
 
     /// <summary>File path where the checkpoint was stored.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1801,9 +1829,10 @@ public sealed partial class SessionCompactionCompleteData
     public CompactionCompleteCompactionTokensUsed? CompactionTokensUsed { get; set; }
 
     /// <summary>Token count from non-system messages (user, assistant, tool) after compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("conversationTokens")]
-    public double? ConversationTokens { get; set; }
+    public long? ConversationTokens { get; set; }
 
     /// <summary>Error message if compaction failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1811,24 +1840,28 @@ public sealed partial class SessionCompactionCompleteData
     public string? Error { get; set; }
 
     /// <summary>Number of messages removed during compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("messagesRemoved")]
-    public double? MessagesRemoved { get; set; }
+    public long? MessagesRemoved { get; set; }
 
     /// <summary>Total tokens in conversation after compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("postCompactionTokens")]
-    public double? PostCompactionTokens { get; set; }
+    public long? PostCompactionTokens { get; set; }
 
     /// <summary>Number of messages before compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("preCompactionMessagesLength")]
-    public double? PreCompactionMessagesLength { get; set; }
+    public long? PreCompactionMessagesLength { get; set; }
 
     /// <summary>Total tokens in conversation before compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("preCompactionTokens")]
-    public double? PreCompactionTokens { get; set; }
+    public long? PreCompactionTokens { get; set; }
 
     /// <summary>GitHub request tracing ID (x-github-request-id header) for the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1845,19 +1878,22 @@ public sealed partial class SessionCompactionCompleteData
     public string? SummaryContent { get; set; }
 
     /// <summary>Token count from system message(s) after compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("systemTokens")]
-    public double? SystemTokens { get; set; }
+    public long? SystemTokens { get; set; }
 
     /// <summary>Number of tokens removed during compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("tokensRemoved")]
-    public double? TokensRemoved { get; set; }
+    public long? TokensRemoved { get; set; }
 
     /// <summary>Token count from tool definitions after compaction.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolDefinitionsTokens")]
-    public double? ToolDefinitionsTokens { get; set; }
+    public long? ToolDefinitionsTokens { get; set; }
 }
 
 /// <summary>Task completion notification with summary from the agent.</summary>
@@ -1901,7 +1937,7 @@ public sealed partial class UserMessageData
     [JsonPropertyName("isAutopilotContinuation")]
     public bool? IsAutopilotContinuation { get; set; }
 
-    /// <summary>Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit.</summary>
+    /// <summary>Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("nativeDocumentPathFallbackPaths")]
     public string[]? NativeDocumentPathFallbackPaths { get; set; }
@@ -1981,8 +2017,9 @@ public sealed partial class AssistantReasoningDeltaData
 public sealed partial class AssistantStreamingDeltaData
 {
     /// <summary>Cumulative total bytes received from the streaming response so far.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalResponseSizeBytes")]
-    public required double TotalResponseSizeBytes { get; set; }
+    public required long TotalResponseSizeBytes { get; set; }
 }
 
 /// <summary>Assistant response containing text content, optional tool requests, and interaction metadata.</summary>
@@ -2022,9 +2059,10 @@ public sealed partial class AssistantMessageData
     public string? Model { get; set; }
 
     /// <summary>Actual output token count from the API response (completion_tokens), used for accurate token accounting.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
-    public double? OutputTokens { get; set; }
+    public long? OutputTokens { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -2118,14 +2156,16 @@ public sealed partial class AssistantUsageData
     public AssistantUsageApiEndpoint? ApiEndpoint { get; set; }
 
     /// <summary>Number of tokens read from prompt cache.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cacheReadTokens")]
-    public double? CacheReadTokens { get; set; }
+    public long? CacheReadTokens { get; set; }
 
     /// <summary>Number of tokens written to prompt cache.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cacheWriteTokens")]
-    public double? CacheWriteTokens { get; set; }
+    public long? CacheWriteTokens { get; set; }
 
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2138,6 +2178,7 @@ public sealed partial class AssistantUsageData
     public double? Cost { get; set; }
 
     /// <summary>Duration of the API call in milliseconds.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("duration")]
@@ -2149,11 +2190,13 @@ public sealed partial class AssistantUsageData
     public string? Initiator { get; set; }
 
     /// <summary>Number of input tokens consumed.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("inputTokens")]
-    public double? InputTokens { get; set; }
+    public long? InputTokens { get; set; }
 
     /// <summary>Average inter-token latency in milliseconds. Only available for streaming requests.</summary>
+    [Range(0, double.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("interTokenLatencyMs")]
@@ -2164,9 +2207,10 @@ public sealed partial class AssistantUsageData
     public required string Model { get; set; }
 
     /// <summary>Number of output tokens produced.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
-    public double? OutputTokens { get; set; }
+    public long? OutputTokens { get; set; }
 
     /// <summary>Parent tool call ID when this usage originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -2191,11 +2235,13 @@ public sealed partial class AssistantUsageData
     public string? ReasoningEffort { get; set; }
 
     /// <summary>Number of output tokens used for reasoning (e.g., chain-of-thought).</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningTokens")]
-    public double? ReasoningTokens { get; set; }
+    public long? ReasoningTokens { get; set; }
 
     /// <summary>Time to first token in milliseconds. Only available for streaming requests.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ttftMs")]
@@ -2211,6 +2257,7 @@ public sealed partial class ModelCallFailureData
     public string? ApiCallId { get; set; }
 
     /// <summary>Duration of the failed API call in milliseconds.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
@@ -2241,9 +2288,10 @@ public sealed partial class ModelCallFailureData
     public required ModelCallFailureSource Source { get; set; }
 
     /// <summary>HTTP status code from the failed request.</summary>
+    [Range((double)100, (double)599)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("statusCode")]
-    public long? StatusCode { get; set; }
+    public int? StatusCode { get; set; }
 }
 
 /// <summary>Turn abort information including the reason for termination.</summary>
@@ -2461,6 +2509,7 @@ public sealed partial class SubagentCompletedData
     public required string AgentName { get; set; }
 
     /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
@@ -2476,14 +2525,16 @@ public sealed partial class SubagentCompletedData
     public required string ToolCallId { get; set; }
 
     /// <summary>Total tokens (input + output) consumed by the sub-agent.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalTokens")]
-    public double? TotalTokens { get; set; }
+    public long? TotalTokens { get; set; }
 
     /// <summary>Total number of tool calls made by the sub-agent.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalToolCalls")]
-    public double? TotalToolCalls { get; set; }
+    public long? TotalToolCalls { get; set; }
 }
 
 /// <summary>Sub-agent failure details including error message and agent information.</summary>
@@ -2498,6 +2549,7 @@ public sealed partial class SubagentFailedData
     public required string AgentName { get; set; }
 
     /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
@@ -2517,14 +2569,16 @@ public sealed partial class SubagentFailedData
     public required string ToolCallId { get; set; }
 
     /// <summary>Total tokens (input + output) consumed before the sub-agent failed.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalTokens")]
-    public double? TotalTokens { get; set; }
+    public long? TotalTokens { get; set; }
 
     /// <summary>Total number of tool calls made before the sub-agent failed.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalToolCalls")]
-    public double? TotalToolCalls { get; set; }
+    public long? TotalToolCalls { get; set; }
 }
 
 /// <summary>Custom agent selection details including name and available tools.</summary>
@@ -2945,9 +2999,11 @@ public sealed partial class AutoModeSwitchRequestedData
     public required string RequestId { get; set; }
 
     /// <summary>Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("retryAfterSeconds")]
-    public double? RetryAfterSeconds { get; set; }
+    public TimeSpan? RetryAfterSeconds { get; set; }
 }
 
 /// <summary>Auto mode switch completion notification.</summary>
@@ -3167,12 +3223,14 @@ public sealed partial class ShutdownCodeChanges
     public required string[] FilesModified { get; set; }
 
     /// <summary>Total number of lines added during the session.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("linesAdded")]
-    public required double LinesAdded { get; set; }
+    public required long LinesAdded { get; set; }
 
     /// <summary>Total number of lines removed during the session.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("linesRemoved")]
-    public required double LinesRemoved { get; set; }
+    public required long LinesRemoved { get; set; }
 }
 
 /// <summary>Request count and cost metrics.</summary>
@@ -3184,8 +3242,9 @@ public sealed partial class ShutdownModelMetricRequests
     public required double Cost { get; set; }
 
     /// <summary>Total number of API requests made to this model.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("count")]
-    public required double Count { get; set; }
+    public required long Count { get; set; }
 }
 
 /// <summary>Schema for the `ShutdownModelMetricTokenDetail` type.</summary>
@@ -3193,8 +3252,9 @@ public sealed partial class ShutdownModelMetricRequests
 public sealed partial class ShutdownModelMetricTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenCount")]
-    public required double TokenCount { get; set; }
+    public required long TokenCount { get; set; }
 }
 
 /// <summary>Token usage breakdown.</summary>
@@ -3202,25 +3262,30 @@ public sealed partial class ShutdownModelMetricTokenDetail
 public sealed partial class ShutdownModelMetricUsage
 {
     /// <summary>Total tokens read from prompt cache across all requests.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cacheReadTokens")]
-    public required double CacheReadTokens { get; set; }
+    public required long CacheReadTokens { get; set; }
 
     /// <summary>Total tokens written to prompt cache across all requests.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cacheWriteTokens")]
-    public required double CacheWriteTokens { get; set; }
+    public required long CacheWriteTokens { get; set; }
 
     /// <summary>Total input tokens consumed across all requests to this model.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("inputTokens")]
-    public required double InputTokens { get; set; }
+    public required long InputTokens { get; set; }
 
     /// <summary>Total output tokens produced across all requests to this model.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("outputTokens")]
-    public required double OutputTokens { get; set; }
+    public required long OutputTokens { get; set; }
 
     /// <summary>Total reasoning tokens produced across all requests to this model.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningTokens")]
-    public double? ReasoningTokens { get; set; }
+    public long? ReasoningTokens { get; set; }
 }
 
 /// <summary>Schema for the `ShutdownModelMetric` type.</summary>
@@ -3237,9 +3302,10 @@ public sealed partial class ShutdownModelMetric
     public IDictionary<string, ShutdownModelMetricTokenDetail>? TokenDetails { get; set; }
 
     /// <summary>Accumulated nano-AI units cost for this model.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalNanoAiu")]
-    public double? TotalNanoAiu { get; set; }
+    public long? TotalNanoAiu { get; set; }
 
     /// <summary>Token usage breakdown.</summary>
     [JsonPropertyName("usage")]
@@ -3251,8 +3317,9 @@ public sealed partial class ShutdownModelMetric
 public sealed partial class ShutdownTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenCount")]
-    public required double TokenCount { get; set; }
+    public required long TokenCount { get; set; }
 }
 
 /// <summary>Token usage detail for a single billing category.</summary>
@@ -3261,15 +3328,17 @@ public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsageTo
 {
     /// <summary>Number of tokens in this billing batch.</summary>
     [JsonPropertyName("batchSize")]
-    public required double BatchSize { get; set; }
+    public required long BatchSize { get; set; }
 
     /// <summary>Cost per batch of tokens.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("costPerBatch")]
-    public required double CostPerBatch { get; set; }
+    public required long CostPerBatch { get; set; }
 
     /// <summary>Total token count for this entry.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenCount")]
-    public required double TokenCount { get; set; }
+    public required long TokenCount { get; set; }
 
     /// <summary>Token category (e.g., "input", "output").</summary>
     [JsonPropertyName("tokenType")]
@@ -3285,8 +3354,9 @@ public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsage
     public required CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail[] TokenDetails { get; set; }
 
     /// <summary>Total cost in nano-AI units for this request.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalNanoAiu")]
-    public required double TotalNanoAiu { get; set; }
+    public required long TotalNanoAiu { get; set; }
 }
 
 /// <summary>Token usage breakdown for the compaction LLM call (aligned with assistant.usage format).</summary>
@@ -3294,14 +3364,16 @@ public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsage
 public sealed partial class CompactionCompleteCompactionTokensUsed
 {
     /// <summary>Cached input tokens reused in the compaction LLM call.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cacheReadTokens")]
-    public double? CacheReadTokens { get; set; }
+    public long? CacheReadTokens { get; set; }
 
     /// <summary>Tokens written to prompt cache in the compaction LLM call.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cacheWriteTokens")]
-    public double? CacheWriteTokens { get; set; }
+    public long? CacheWriteTokens { get; set; }
 
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3309,15 +3381,17 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
     public CompactionCompleteCompactionTokensUsedCopilotUsage? CopilotUsage { get; set; }
 
     /// <summary>Duration of the compaction LLM call in milliseconds.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("duration")]
     public TimeSpan? Duration { get; set; }
 
     /// <summary>Input tokens consumed by the compaction LLM call.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("inputTokens")]
-    public double? InputTokens { get; set; }
+    public long? InputTokens { get; set; }
 
     /// <summary>Model identifier used for the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3325,9 +3399,10 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
     public string? Model { get; set; }
 
     /// <summary>Output tokens produced by the compaction LLM call.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
-    public double? OutputTokens { get; set; }
+    public long? OutputTokens { get; set; }
 }
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
@@ -3336,11 +3411,11 @@ public sealed partial class UserMessageAttachmentFileLineRange
 {
     /// <summary>End line number (1-based, inclusive).</summary>
     [JsonPropertyName("end")]
-    public required double End { get; set; }
+    public required long End { get; set; }
 
     /// <summary>Start line number (1-based).</summary>
     [JsonPropertyName("start")]
-    public required double Start { get; set; }
+    public required long Start { get; set; }
 }
 
 /// <summary>File attachment.</summary>
@@ -3387,12 +3462,14 @@ public sealed partial class UserMessageAttachmentDirectory : UserMessageAttachme
 public sealed partial class UserMessageAttachmentSelectionDetailsEnd
 {
     /// <summary>End character offset within the line (0-based).</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("character")]
-    public required double Character { get; set; }
+    public required long Character { get; set; }
 
     /// <summary>End line number (0-based).</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("line")]
-    public required double Line { get; set; }
+    public required long Line { get; set; }
 }
 
 /// <summary>Start position of the selection.</summary>
@@ -3400,12 +3477,14 @@ public sealed partial class UserMessageAttachmentSelectionDetailsEnd
 public sealed partial class UserMessageAttachmentSelectionDetailsStart
 {
     /// <summary>Start character offset within the line (0-based).</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("character")]
-    public required double Character { get; set; }
+    public required long Character { get; set; }
 
     /// <summary>Start line number (0-based).</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("line")]
-    public required double Line { get; set; }
+    public required long Line { get; set; }
 }
 
 /// <summary>Position range of the selection within the file.</summary>
@@ -3456,7 +3535,7 @@ public sealed partial class UserMessageAttachmentGithubReference : UserMessageAt
 
     /// <summary>Issue, pull request, or discussion number.</summary>
     [JsonPropertyName("number")]
-    public required double Number { get; set; }
+    public required long Number { get; set; }
 
     /// <summary>Type of GitHub reference.</summary>
     [JsonPropertyName("referenceType")]
@@ -3567,15 +3646,17 @@ public sealed partial class AssistantUsageCopilotUsageTokenDetail
 {
     /// <summary>Number of tokens in this billing batch.</summary>
     [JsonPropertyName("batchSize")]
-    public required double BatchSize { get; set; }
+    public required long BatchSize { get; set; }
 
     /// <summary>Cost per batch of tokens.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("costPerBatch")]
-    public required double CostPerBatch { get; set; }
+    public required long CostPerBatch { get; set; }
 
     /// <summary>Total token count for this entry.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenCount")]
-    public required double TokenCount { get; set; }
+    public required long TokenCount { get; set; }
 
     /// <summary>Token category (e.g., "input", "output").</summary>
     [JsonPropertyName("tokenType")]
@@ -3591,8 +3672,9 @@ public sealed partial class AssistantUsageCopilotUsage
     public required AssistantUsageCopilotUsageTokenDetail[] TokenDetails { get; set; }
 
     /// <summary>Total cost in nano-AI units for this request.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalNanoAiu")]
-    public required double TotalNanoAiu { get; set; }
+    public required long TotalNanoAiu { get; set; }
 }
 
 /// <summary>Schema for the `AssistantUsageQuotaSnapshot` type.</summary>
@@ -3600,14 +3682,16 @@ public sealed partial class AssistantUsageCopilotUsage
 public sealed partial class AssistantUsageQuotaSnapshot
 {
     /// <summary>Total requests allowed by the entitlement.</summary>
+    [Range((double)-1, (double)long.MaxValue)]
     [JsonPropertyName("entitlementRequests")]
-    public required double EntitlementRequests { get; set; }
+    public required long EntitlementRequests { get; set; }
 
     /// <summary>Whether the user has an unlimited usage entitlement.</summary>
     [JsonPropertyName("isUnlimitedEntitlement")]
     public required bool IsUnlimitedEntitlement { get; set; }
 
     /// <summary>Number of requests over the entitlement limit.</summary>
+    [Range(0, double.MaxValue)]
     [JsonPropertyName("overage")]
     public required double Overage { get; set; }
 
@@ -3615,7 +3699,8 @@ public sealed partial class AssistantUsageQuotaSnapshot
     [JsonPropertyName("overageAllowedWithExhaustedQuota")]
     public required bool OverageAllowedWithExhaustedQuota { get; set; }
 
-    /// <summary>Percentage of quota remaining (0.0 to 1.0).</summary>
+    /// <summary>Percentage of quota remaining (0 to 100).</summary>
+    [Range(0, 100)]
     [JsonPropertyName("remainingPercentage")]
     public required double RemainingPercentage { get; set; }
 
@@ -3629,8 +3714,9 @@ public sealed partial class AssistantUsageQuotaSnapshot
     public required bool UsageAllowedWithExhaustedQuota { get; set; }
 
     /// <summary>Number of requests already consumed.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("usedRequests")]
-    public required double UsedRequests { get; set; }
+    public required long UsedRequests { get; set; }
 }
 
 /// <summary>Error details when the tool execution failed.</summary>
@@ -3674,9 +3760,10 @@ public sealed partial class ToolExecutionCompleteContentTerminal : ToolExecution
     public string? Cwd { get; set; }
 
     /// <summary>Process exit code, if the command has completed.</summary>
+    [Range((double)0, (double)4294967295)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("exitCode")]
-    public double? ExitCode { get; set; }
+    public long? ExitCode { get; set; }
 
     /// <summary>Terminal/shell output text.</summary>
     [JsonPropertyName("text")]
@@ -3771,9 +3858,10 @@ public sealed partial class ToolExecutionCompleteContentResourceLink : ToolExecu
     public required string Name { get; set; }
 
     /// <summary>Size of the resource in bytes.</summary>
+    [Range((double)0, (double)long.MaxValue)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("size")]
-    public double? Size { get; set; }
+    public long? Size { get; set; }
 
     /// <summary>Human-readable display title for the resource.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4072,9 +4160,10 @@ public sealed partial class SystemNotificationShellCompleted : SystemNotificatio
     public string? Description { get; set; }
 
     /// <summary>Exit code of the shell command, if available.</summary>
+    [Range((double)0, (double)4294967295)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("exitCode")]
-    public double? ExitCode { get; set; }
+    public long? ExitCode { get; set; }
 
     /// <summary>Unique identifier of the shell session.</summary>
     [JsonPropertyName("shellId")]
@@ -5008,7 +5097,7 @@ public sealed partial class PermissionResultCancelled : PermissionResult
 /// <remarks>Nested data type for <c>PermissionRule</c>.</remarks>
 public sealed partial class PermissionRule
 {
-    /// <summary>Optional rule argument matched against the request.</summary>
+    /// <summary>Argument value matched against the request, or null when the rule kind has no argument (e.g. 'read', 'write', 'memory').</summary>
     [JsonPropertyName("argument")]
     public string? Argument { get; set; }
 

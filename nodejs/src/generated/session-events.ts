@@ -1791,7 +1791,7 @@ export interface UserMessageData {
    */
   isAutopilotContinuation?: boolean;
   /**
-   * Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
+   * Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
    */
   nativeDocumentPathFallbackPaths?: string[];
   /**
@@ -2623,7 +2623,7 @@ export interface AssistantUsageQuotaSnapshot {
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**
-   * Percentage of quota remaining (0.0 to 1.0)
+   * Percentage of quota remaining (0 to 100)
    */
   remainingPercentage: number;
   /**
@@ -4721,7 +4721,7 @@ export interface PermissionDeniedByRules {
  */
 export interface PermissionRule {
   /**
-   * Optional rule argument matched against the request
+   * Argument value matched against the request, or null when the rule kind has no argument (e.g. 'read', 'write', 'memory').
    */
   argument: string | null;
   /**

@@ -325,7 +325,7 @@ class AssistantMessageData:
     encrypted_content: str | None = None
     interaction_id: str | None = None
     model: str | None = None
-    output_tokens: float | None = None
+    output_tokens: int | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     phase: str | None = None
@@ -345,7 +345,7 @@ class AssistantMessageData:
         encrypted_content = from_union([from_none, from_str], obj.get("encryptedContent"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
-        output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
+        output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         phase = from_union([from_none, from_str], obj.get("phase"))
         reasoning_opaque = from_union([from_none, from_str], obj.get("reasoningOpaque"))
@@ -386,7 +386,7 @@ class AssistantMessageData:
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.output_tokens is not None:
-            result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
+            result["outputTokens"] = from_union([from_none, to_int], self.output_tokens)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.phase is not None:
@@ -559,19 +559,19 @@ class AssistantReasoningDeltaData:
 @dataclass
 class AssistantStreamingDeltaData:
     "Streaming response progress with cumulative byte count"
-    total_response_size_bytes: float
+    total_response_size_bytes: int
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantStreamingDeltaData":
         assert isinstance(obj, dict)
-        total_response_size_bytes = from_float(obj.get("totalResponseSizeBytes"))
+        total_response_size_bytes = from_int(obj.get("totalResponseSizeBytes"))
         return AssistantStreamingDeltaData(
             total_response_size_bytes=total_response_size_bytes,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["totalResponseSizeBytes"] = to_float(self.total_response_size_bytes)
+        result["totalResponseSizeBytes"] = to_int(self.total_response_size_bytes)
         return result
 
 
@@ -622,13 +622,13 @@ class AssistantTurnStartData:
 class AssistantUsageCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
     token_details: list[AssistantUsageCopilotUsageTokenDetail]
-    total_nano_aiu: float
+    total_nano_aiu: int
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageCopilotUsage":
         assert isinstance(obj, dict)
         token_details = from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
-        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        total_nano_aiu = from_int(obj.get("totalNanoAiu"))
         return AssistantUsageCopilotUsage(
             token_details=token_details,
             total_nano_aiu=total_nano_aiu,
@@ -637,24 +637,24 @@ class AssistantUsageCopilotUsage:
     def to_dict(self) -> dict:
         result: dict = {}
         result["tokenDetails"] = from_list(lambda x: to_class(AssistantUsageCopilotUsageTokenDetail, x), self.token_details)
-        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        result["totalNanoAiu"] = to_int(self.total_nano_aiu)
         return result
 
 
 @dataclass
 class AssistantUsageCopilotUsageTokenDetail:
     "Token usage detail for a single billing category"
-    batch_size: float
-    cost_per_batch: float
-    token_count: float
+    batch_size: int
+    cost_per_batch: int
+    token_count: int
     token_type: str
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageCopilotUsageTokenDetail":
         assert isinstance(obj, dict)
-        batch_size = from_float(obj.get("batchSize"))
-        cost_per_batch = from_float(obj.get("costPerBatch"))
-        token_count = from_float(obj.get("tokenCount"))
+        batch_size = from_int(obj.get("batchSize"))
+        cost_per_batch = from_int(obj.get("costPerBatch"))
+        token_count = from_int(obj.get("tokenCount"))
         token_type = from_str(obj.get("tokenType"))
         return AssistantUsageCopilotUsageTokenDetail(
             batch_size=batch_size,
@@ -665,9 +665,9 @@ class AssistantUsageCopilotUsageTokenDetail:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["batchSize"] = to_float(self.batch_size)
-        result["costPerBatch"] = to_float(self.cost_per_batch)
-        result["tokenCount"] = to_float(self.token_count)
+        result["batchSize"] = to_int(self.batch_size)
+        result["costPerBatch"] = to_int(self.cost_per_batch)
+        result["tokenCount"] = to_int(self.token_count)
         result["tokenType"] = from_str(self.token_type)
         return result
 
@@ -678,21 +678,21 @@ class AssistantUsageData:
     model: str
     api_call_id: str | None = None
     api_endpoint: AssistantUsageApiEndpoint | None = None
-    cache_read_tokens: float | None = None
-    cache_write_tokens: float | None = None
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
     copilot_usage: AssistantUsageCopilotUsage | None = None
     cost: float | None = None
     duration: timedelta | None = None
     initiator: str | None = None
-    input_tokens: float | None = None
+    input_tokens: int | None = None
     inter_token_latency: timedelta | None = None
-    output_tokens: float | None = None
+    output_tokens: int | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     provider_call_id: str | None = None
     quota_snapshots: dict[str, AssistantUsageQuotaSnapshot] | None = None
     reasoning_effort: str | None = None
-    reasoning_tokens: float | None = None
+    reasoning_tokens: int | None = None
     ttft: timedelta | None = None
 
     @staticmethod
@@ -701,20 +701,20 @@ class AssistantUsageData:
         model = from_str(obj.get("model"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
         api_endpoint = from_union([from_none, lambda x: parse_enum(AssistantUsageApiEndpoint, x)], obj.get("apiEndpoint"))
-        cache_read_tokens = from_union([from_none, from_float], obj.get("cacheReadTokens"))
-        cache_write_tokens = from_union([from_none, from_float], obj.get("cacheWriteTokens"))
+        cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
+        cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
         copilot_usage = from_union([from_none, AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
         cost = from_union([from_none, from_float], obj.get("cost"))
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
-        input_tokens = from_union([from_none, from_float], obj.get("inputTokens"))
+        input_tokens = from_union([from_none, from_int], obj.get("inputTokens"))
         inter_token_latency = from_union([from_none, from_timedelta], obj.get("interTokenLatencyMs"))
-        output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
+        output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         quota_snapshots = from_union([from_none, lambda x: from_dict(AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
-        reasoning_tokens = from_union([from_none, from_float], obj.get("reasoningTokens"))
+        reasoning_tokens = from_union([from_none, from_int], obj.get("reasoningTokens"))
         ttft = from_union([from_none, from_timedelta], obj.get("ttftMs"))
         return AssistantUsageData(
             model=model,
@@ -745,23 +745,23 @@ class AssistantUsageData:
         if self.api_endpoint is not None:
             result["apiEndpoint"] = from_union([from_none, lambda x: to_enum(AssistantUsageApiEndpoint, x)], self.api_endpoint)
         if self.cache_read_tokens is not None:
-            result["cacheReadTokens"] = from_union([from_none, to_float], self.cache_read_tokens)
+            result["cacheReadTokens"] = from_union([from_none, to_int], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
-            result["cacheWriteTokens"] = from_union([from_none, to_float], self.cache_write_tokens)
+            result["cacheWriteTokens"] = from_union([from_none, to_int], self.cache_write_tokens)
         if self.copilot_usage is not None:
             result["copilotUsage"] = from_union([from_none, lambda x: to_class(AssistantUsageCopilotUsage, x)], self.copilot_usage)
         if self.cost is not None:
             result["cost"] = from_union([from_none, to_float], self.cost)
         if self.duration is not None:
-            result["duration"] = from_union([from_none, to_timedelta], self.duration)
+            result["duration"] = from_union([from_none, to_timedelta_int], self.duration)
         if self.initiator is not None:
             result["initiator"] = from_union([from_none, from_str], self.initiator)
         if self.input_tokens is not None:
-            result["inputTokens"] = from_union([from_none, to_float], self.input_tokens)
+            result["inputTokens"] = from_union([from_none, to_int], self.input_tokens)
         if self.inter_token_latency is not None:
             result["interTokenLatencyMs"] = from_union([from_none, to_timedelta], self.inter_token_latency)
         if self.output_tokens is not None:
-            result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
+            result["outputTokens"] = from_union([from_none, to_int], self.output_tokens)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.provider_call_id is not None:
@@ -771,34 +771,34 @@ class AssistantUsageData:
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_tokens is not None:
-            result["reasoningTokens"] = from_union([from_none, to_float], self.reasoning_tokens)
+            result["reasoningTokens"] = from_union([from_none, to_int], self.reasoning_tokens)
         if self.ttft is not None:
-            result["ttftMs"] = from_union([from_none, to_timedelta], self.ttft)
+            result["ttftMs"] = from_union([from_none, to_timedelta_int], self.ttft)
         return result
 
 
 @dataclass
 class AssistantUsageQuotaSnapshot:
     "Schema for the `AssistantUsageQuotaSnapshot` type."
-    entitlement_requests: float
+    entitlement_requests: int
     is_unlimited_entitlement: bool
     overage: float
     overage_allowed_with_exhausted_quota: bool
     remaining_percentage: float
     usage_allowed_with_exhausted_quota: bool
-    used_requests: float
+    used_requests: int
     reset_date: datetime | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageQuotaSnapshot":
         assert isinstance(obj, dict)
-        entitlement_requests = from_float(obj.get("entitlementRequests"))
+        entitlement_requests = from_int(obj.get("entitlementRequests"))
         is_unlimited_entitlement = from_bool(obj.get("isUnlimitedEntitlement"))
         overage = from_float(obj.get("overage"))
         overage_allowed_with_exhausted_quota = from_bool(obj.get("overageAllowedWithExhaustedQuota"))
         remaining_percentage = from_float(obj.get("remainingPercentage"))
         usage_allowed_with_exhausted_quota = from_bool(obj.get("usageAllowedWithExhaustedQuota"))
-        used_requests = from_float(obj.get("usedRequests"))
+        used_requests = from_int(obj.get("usedRequests"))
         reset_date = from_union([from_none, from_datetime], obj.get("resetDate"))
         return AssistantUsageQuotaSnapshot(
             entitlement_requests=entitlement_requests,
@@ -813,13 +813,13 @@ class AssistantUsageQuotaSnapshot:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["entitlementRequests"] = to_float(self.entitlement_requests)
+        result["entitlementRequests"] = to_int(self.entitlement_requests)
         result["isUnlimitedEntitlement"] = from_bool(self.is_unlimited_entitlement)
         result["overage"] = to_float(self.overage)
         result["overageAllowedWithExhaustedQuota"] = from_bool(self.overage_allowed_with_exhausted_quota)
         result["remainingPercentage"] = to_float(self.remaining_percentage)
         result["usageAllowedWithExhaustedQuota"] = from_bool(self.usage_allowed_with_exhausted_quota)
-        result["usedRequests"] = to_float(self.used_requests)
+        result["usedRequests"] = to_int(self.used_requests)
         if self.reset_date is not None:
             result["resetDate"] = from_union([from_none, to_datetime], self.reset_date)
         return result
@@ -853,14 +853,14 @@ class AutoModeSwitchRequestedData:
     "Auto mode switch request notification requiring user approval"
     request_id: str
     error_code: str | None = None
-    retry_after_seconds: float | None = None
+    retry_after_seconds: timedelta | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AutoModeSwitchRequestedData":
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         error_code = from_union([from_none, from_str], obj.get("errorCode"))
-        retry_after_seconds = from_union([from_none, from_float], obj.get("retryAfterSeconds"))
+        retry_after_seconds = from_union([from_none, from_timedelta], obj.get("retryAfterSeconds"))
         return AutoModeSwitchRequestedData(
             request_id=request_id,
             error_code=error_code,
@@ -873,7 +873,7 @@ class AutoModeSwitchRequestedData:
         if self.error_code is not None:
             result["errorCode"] = from_union([from_none, from_str], self.error_code)
         if self.retry_after_seconds is not None:
-            result["retryAfterSeconds"] = from_union([from_none, to_float], self.retry_after_seconds)
+            result["retryAfterSeconds"] = from_union([from_none, to_timedelta_int], self.retry_after_seconds)
         return result
 
 
@@ -1036,24 +1036,24 @@ class CommandsChangedData:
 @dataclass
 class CompactionCompleteCompactionTokensUsed:
     "Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)"
-    cache_read_tokens: float | None = None
-    cache_write_tokens: float | None = None
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
     copilot_usage: CompactionCompleteCompactionTokensUsedCopilotUsage | None = None
     duration: timedelta | None = None
-    input_tokens: float | None = None
+    input_tokens: int | None = None
     model: str | None = None
-    output_tokens: float | None = None
+    output_tokens: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsed":
         assert isinstance(obj, dict)
-        cache_read_tokens = from_union([from_none, from_float], obj.get("cacheReadTokens"))
-        cache_write_tokens = from_union([from_none, from_float], obj.get("cacheWriteTokens"))
+        cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
+        cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
         copilot_usage = from_union([from_none, CompactionCompleteCompactionTokensUsedCopilotUsage.from_dict], obj.get("copilotUsage"))
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
-        input_tokens = from_union([from_none, from_float], obj.get("inputTokens"))
+        input_tokens = from_union([from_none, from_int], obj.get("inputTokens"))
         model = from_union([from_none, from_str], obj.get("model"))
-        output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
+        output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         return CompactionCompleteCompactionTokensUsed(
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
@@ -1067,19 +1067,19 @@ class CompactionCompleteCompactionTokensUsed:
     def to_dict(self) -> dict:
         result: dict = {}
         if self.cache_read_tokens is not None:
-            result["cacheReadTokens"] = from_union([from_none, to_float], self.cache_read_tokens)
+            result["cacheReadTokens"] = from_union([from_none, to_int], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
-            result["cacheWriteTokens"] = from_union([from_none, to_float], self.cache_write_tokens)
+            result["cacheWriteTokens"] = from_union([from_none, to_int], self.cache_write_tokens)
         if self.copilot_usage is not None:
             result["copilotUsage"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsage, x)], self.copilot_usage)
         if self.duration is not None:
-            result["duration"] = from_union([from_none, to_timedelta], self.duration)
+            result["duration"] = from_union([from_none, to_timedelta_int], self.duration)
         if self.input_tokens is not None:
-            result["inputTokens"] = from_union([from_none, to_float], self.input_tokens)
+            result["inputTokens"] = from_union([from_none, to_int], self.input_tokens)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.output_tokens is not None:
-            result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
+            result["outputTokens"] = from_union([from_none, to_int], self.output_tokens)
         return result
 
 
@@ -1087,13 +1087,13 @@ class CompactionCompleteCompactionTokensUsed:
 class CompactionCompleteCompactionTokensUsedCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
     token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail]
-    total_nano_aiu: float
+    total_nano_aiu: int
 
     @staticmethod
     def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsage":
         assert isinstance(obj, dict)
         token_details = from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
-        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        total_nano_aiu = from_int(obj.get("totalNanoAiu"))
         return CompactionCompleteCompactionTokensUsedCopilotUsage(
             token_details=token_details,
             total_nano_aiu=total_nano_aiu,
@@ -1102,24 +1102,24 @@ class CompactionCompleteCompactionTokensUsedCopilotUsage:
     def to_dict(self) -> dict:
         result: dict = {}
         result["tokenDetails"] = from_list(lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail, x), self.token_details)
-        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        result["totalNanoAiu"] = to_int(self.total_nano_aiu)
         return result
 
 
 @dataclass
 class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
     "Token usage detail for a single billing category"
-    batch_size: float
-    cost_per_batch: float
-    token_count: float
+    batch_size: int
+    cost_per_batch: int
+    token_count: int
     token_type: str
 
     @staticmethod
     def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail":
         assert isinstance(obj, dict)
-        batch_size = from_float(obj.get("batchSize"))
-        cost_per_batch = from_float(obj.get("costPerBatch"))
-        token_count = from_float(obj.get("tokenCount"))
+        batch_size = from_int(obj.get("batchSize"))
+        cost_per_batch = from_int(obj.get("costPerBatch"))
+        token_count = from_int(obj.get("tokenCount"))
         token_type = from_str(obj.get("tokenType"))
         return CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail(
             batch_size=batch_size,
@@ -1130,9 +1130,9 @@ class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["batchSize"] = to_float(self.batch_size)
-        result["costPerBatch"] = to_float(self.cost_per_batch)
-        result["tokenCount"] = to_float(self.token_count)
+        result["batchSize"] = to_int(self.batch_size)
+        result["costPerBatch"] = to_int(self.cost_per_batch)
+        result["tokenCount"] = to_int(self.token_count)
         result["tokenType"] = from_str(self.token_type)
         return result
 
@@ -1786,7 +1786,7 @@ class ModelCallFailureData:
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
         if self.duration is not None:
-            result["durationMs"] = from_union([from_none, to_timedelta], self.duration)
+            result["durationMs"] = from_union([from_none, to_timedelta_int], self.duration)
         if self.error_message is not None:
             result["errorMessage"] = from_union([from_none, from_str], self.error_message)
         if self.initiator is not None:
@@ -2402,39 +2402,39 @@ class SessionBackgroundTasksChangedData:
 class SessionCompactionCompleteData:
     "Conversation compaction results including success status, metrics, and optional error details"
     success: bool
-    checkpoint_number: float | None = None
+    checkpoint_number: int | None = None
     checkpoint_path: str | None = None
     compaction_tokens_used: CompactionCompleteCompactionTokensUsed | None = None
-    conversation_tokens: float | None = None
+    conversation_tokens: int | None = None
     error: str | None = None
-    messages_removed: float | None = None
-    post_compaction_tokens: float | None = None
-    pre_compaction_messages_length: float | None = None
-    pre_compaction_tokens: float | None = None
+    messages_removed: int | None = None
+    post_compaction_tokens: int | None = None
+    pre_compaction_messages_length: int | None = None
+    pre_compaction_tokens: int | None = None
     request_id: str | None = None
     summary_content: str | None = None
-    system_tokens: float | None = None
-    tokens_removed: float | None = None
-    tool_definitions_tokens: float | None = None
+    system_tokens: int | None = None
+    tokens_removed: int | None = None
+    tool_definitions_tokens: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionCompactionCompleteData":
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
-        checkpoint_number = from_union([from_none, from_float], obj.get("checkpointNumber"))
+        checkpoint_number = from_union([from_none, from_int], obj.get("checkpointNumber"))
         checkpoint_path = from_union([from_none, from_str], obj.get("checkpointPath"))
         compaction_tokens_used = from_union([from_none, CompactionCompleteCompactionTokensUsed.from_dict], obj.get("compactionTokensUsed"))
-        conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
+        conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         error = from_union([from_none, from_str], obj.get("error"))
-        messages_removed = from_union([from_none, from_float], obj.get("messagesRemoved"))
-        post_compaction_tokens = from_union([from_none, from_float], obj.get("postCompactionTokens"))
-        pre_compaction_messages_length = from_union([from_none, from_float], obj.get("preCompactionMessagesLength"))
-        pre_compaction_tokens = from_union([from_none, from_float], obj.get("preCompactionTokens"))
+        messages_removed = from_union([from_none, from_int], obj.get("messagesRemoved"))
+        post_compaction_tokens = from_union([from_none, from_int], obj.get("postCompactionTokens"))
+        pre_compaction_messages_length = from_union([from_none, from_int], obj.get("preCompactionMessagesLength"))
+        pre_compaction_tokens = from_union([from_none, from_int], obj.get("preCompactionTokens"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
         summary_content = from_union([from_none, from_str], obj.get("summaryContent"))
-        system_tokens = from_union([from_none, from_float], obj.get("systemTokens"))
-        tokens_removed = from_union([from_none, from_float], obj.get("tokensRemoved"))
-        tool_definitions_tokens = from_union([from_none, from_float], obj.get("toolDefinitionsTokens"))
+        system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
+        tokens_removed = from_union([from_none, from_int], obj.get("tokensRemoved"))
+        tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
         return SessionCompactionCompleteData(
             success=success,
             checkpoint_number=checkpoint_number,
@@ -2457,49 +2457,49 @@ class SessionCompactionCompleteData:
         result: dict = {}
         result["success"] = from_bool(self.success)
         if self.checkpoint_number is not None:
-            result["checkpointNumber"] = from_union([from_none, to_float], self.checkpoint_number)
+            result["checkpointNumber"] = from_union([from_none, to_int], self.checkpoint_number)
         if self.checkpoint_path is not None:
             result["checkpointPath"] = from_union([from_none, from_str], self.checkpoint_path)
         if self.compaction_tokens_used is not None:
             result["compactionTokensUsed"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsed, x)], self.compaction_tokens_used)
         if self.conversation_tokens is not None:
-            result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
+            result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
         if self.messages_removed is not None:
-            result["messagesRemoved"] = from_union([from_none, to_float], self.messages_removed)
+            result["messagesRemoved"] = from_union([from_none, to_int], self.messages_removed)
         if self.post_compaction_tokens is not None:
-            result["postCompactionTokens"] = from_union([from_none, to_float], self.post_compaction_tokens)
+            result["postCompactionTokens"] = from_union([from_none, to_int], self.post_compaction_tokens)
         if self.pre_compaction_messages_length is not None:
-            result["preCompactionMessagesLength"] = from_union([from_none, to_float], self.pre_compaction_messages_length)
+            result["preCompactionMessagesLength"] = from_union([from_none, to_int], self.pre_compaction_messages_length)
         if self.pre_compaction_tokens is not None:
-            result["preCompactionTokens"] = from_union([from_none, to_float], self.pre_compaction_tokens)
+            result["preCompactionTokens"] = from_union([from_none, to_int], self.pre_compaction_tokens)
         if self.request_id is not None:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
         if self.summary_content is not None:
             result["summaryContent"] = from_union([from_none, from_str], self.summary_content)
         if self.system_tokens is not None:
-            result["systemTokens"] = from_union([from_none, to_float], self.system_tokens)
+            result["systemTokens"] = from_union([from_none, to_int], self.system_tokens)
         if self.tokens_removed is not None:
-            result["tokensRemoved"] = from_union([from_none, to_float], self.tokens_removed)
+            result["tokensRemoved"] = from_union([from_none, to_int], self.tokens_removed)
         if self.tool_definitions_tokens is not None:
-            result["toolDefinitionsTokens"] = from_union([from_none, to_float], self.tool_definitions_tokens)
+            result["toolDefinitionsTokens"] = from_union([from_none, to_int], self.tool_definitions_tokens)
         return result
 
 
 @dataclass
 class SessionCompactionStartData:
     "Context window breakdown at the start of LLM-powered conversation compaction"
-    conversation_tokens: float | None = None
-    system_tokens: float | None = None
-    tool_definitions_tokens: float | None = None
+    conversation_tokens: int | None = None
+    system_tokens: int | None = None
+    tool_definitions_tokens: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionCompactionStartData":
         assert isinstance(obj, dict)
-        conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
-        system_tokens = from_union([from_none, from_float], obj.get("systemTokens"))
-        tool_definitions_tokens = from_union([from_none, from_float], obj.get("toolDefinitionsTokens"))
+        conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
+        system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
+        tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
         return SessionCompactionStartData(
             conversation_tokens=conversation_tokens,
             system_tokens=system_tokens,
@@ -2509,11 +2509,11 @@ class SessionCompactionStartData:
     def to_dict(self) -> dict:
         result: dict = {}
         if self.conversation_tokens is not None:
-            result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
+            result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
         if self.system_tokens is not None:
-            result["systemTokens"] = from_union([from_none, to_float], self.system_tokens)
+            result["systemTokens"] = from_union([from_none, to_int], self.system_tokens)
         if self.tool_definitions_tokens is not None:
-            result["toolDefinitionsTokens"] = from_union([from_none, to_float], self.tool_definitions_tokens)
+            result["toolDefinitionsTokens"] = from_union([from_none, to_int], self.tool_definitions_tokens)
         return result
 
 
@@ -2963,7 +2963,7 @@ class SessionRemoteSteerableChangedData:
 @dataclass
 class SessionResumeData:
     "Session resume metadata including current context and event count"
-    event_count: float
+    event_count: int
     resume_time: datetime
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
@@ -2977,7 +2977,7 @@ class SessionResumeData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionResumeData":
         assert isinstance(obj, dict)
-        event_count = from_float(obj.get("eventCount"))
+        event_count = from_int(obj.get("eventCount"))
         resume_time = from_datetime(obj.get("resumeTime"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
@@ -3002,7 +3002,7 @@ class SessionResumeData:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["eventCount"] = to_float(self.event_count)
+        result["eventCount"] = to_int(self.event_count)
         result["resumeTime"] = to_datetime(self.resume_time)
         if self.already_in_use is not None:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
@@ -3084,36 +3084,36 @@ class SessionShutdownData:
     "Session termination metrics including usage statistics, code changes, and shutdown reason"
     code_changes: ShutdownCodeChanges
     model_metrics: dict[str, ShutdownModelMetric]
-    session_start_time: float
+    session_start_time: int
     shutdown_type: ShutdownType
     total_api_duration: timedelta
-    total_premium_requests: float
-    conversation_tokens: float | None = None
+    total_premium_requests: int
+    conversation_tokens: int | None = None
     current_model: str | None = None
-    current_tokens: float | None = None
+    current_tokens: int | None = None
     error_reason: str | None = None
-    system_tokens: float | None = None
+    system_tokens: int | None = None
     token_details: dict[str, ShutdownTokenDetail] | None = None
-    tool_definitions_tokens: float | None = None
-    total_nano_aiu: float | None = None
+    tool_definitions_tokens: int | None = None
+    total_nano_aiu: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionShutdownData":
         assert isinstance(obj, dict)
         code_changes = ShutdownCodeChanges.from_dict(obj.get("codeChanges"))
         model_metrics = from_dict(ShutdownModelMetric.from_dict, obj.get("modelMetrics"))
-        session_start_time = from_float(obj.get("sessionStartTime"))
+        session_start_time = from_int(obj.get("sessionStartTime"))
         shutdown_type = parse_enum(ShutdownType, obj.get("shutdownType"))
         total_api_duration = from_timedelta(obj.get("totalApiDurationMs"))
-        total_premium_requests = from_float(obj.get("totalPremiumRequests"))
-        conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
+        total_premium_requests = from_int(obj.get("totalPremiumRequests"))
+        conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         current_model = from_union([from_none, from_str], obj.get("currentModel"))
-        current_tokens = from_union([from_none, from_float], obj.get("currentTokens"))
+        current_tokens = from_union([from_none, from_int], obj.get("currentTokens"))
         error_reason = from_union([from_none, from_str], obj.get("errorReason"))
-        system_tokens = from_union([from_none, from_float], obj.get("systemTokens"))
+        system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
         token_details = from_union([from_none, lambda x: from_dict(ShutdownTokenDetail.from_dict, x)], obj.get("tokenDetails"))
-        tool_definitions_tokens = from_union([from_none, from_float], obj.get("toolDefinitionsTokens"))
-        total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
+        tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
+        total_nano_aiu = from_union([from_none, from_int], obj.get("totalNanoAiu"))
         return SessionShutdownData(
             code_changes=code_changes,
             model_metrics=model_metrics,
@@ -3135,26 +3135,26 @@ class SessionShutdownData:
         result: dict = {}
         result["codeChanges"] = to_class(ShutdownCodeChanges, self.code_changes)
         result["modelMetrics"] = from_dict(lambda x: to_class(ShutdownModelMetric, x), self.model_metrics)
-        result["sessionStartTime"] = to_float(self.session_start_time)
+        result["sessionStartTime"] = to_int(self.session_start_time)
         result["shutdownType"] = to_enum(ShutdownType, self.shutdown_type)
-        result["totalApiDurationMs"] = to_timedelta(self.total_api_duration)
-        result["totalPremiumRequests"] = to_float(self.total_premium_requests)
+        result["totalApiDurationMs"] = to_timedelta_int(self.total_api_duration)
+        result["totalPremiumRequests"] = to_int(self.total_premium_requests)
         if self.conversation_tokens is not None:
-            result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
+            result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
         if self.current_model is not None:
             result["currentModel"] = from_union([from_none, from_str], self.current_model)
         if self.current_tokens is not None:
-            result["currentTokens"] = from_union([from_none, to_float], self.current_tokens)
+            result["currentTokens"] = from_union([from_none, to_int], self.current_tokens)
         if self.error_reason is not None:
             result["errorReason"] = from_union([from_none, from_str], self.error_reason)
         if self.system_tokens is not None:
-            result["systemTokens"] = from_union([from_none, to_float], self.system_tokens)
+            result["systemTokens"] = from_union([from_none, to_int], self.system_tokens)
         if self.token_details is not None:
             result["tokenDetails"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(ShutdownTokenDetail, x), x)], self.token_details)
         if self.tool_definitions_tokens is not None:
-            result["toolDefinitionsTokens"] = from_union([from_none, to_float], self.tool_definitions_tokens)
+            result["toolDefinitionsTokens"] = from_union([from_none, to_int], self.tool_definitions_tokens)
         if self.total_nano_aiu is not None:
-            result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
+            result["totalNanoAiu"] = from_union([from_none, to_int], self.total_nano_aiu)
         return result
 
 
@@ -3180,13 +3180,13 @@ class SessionSkillsLoadedData:
 @dataclass
 class SessionSnapshotRewindData:
     "Session rewind details including target event and count of removed events"
-    events_removed: float
+    events_removed: int
     up_to_event_id: str
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionSnapshotRewindData":
         assert isinstance(obj, dict)
-        events_removed = from_float(obj.get("eventsRemoved"))
+        events_removed = from_int(obj.get("eventsRemoved"))
         up_to_event_id = from_str(obj.get("upToEventId"))
         return SessionSnapshotRewindData(
             events_removed=events_removed,
@@ -3195,7 +3195,7 @@ class SessionSnapshotRewindData:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["eventsRemoved"] = to_float(self.events_removed)
+        result["eventsRemoved"] = to_int(self.events_removed)
         result["upToEventId"] = from_str(self.up_to_event_id)
         return result
 
@@ -3207,7 +3207,7 @@ class SessionStartData:
     producer: str
     session_id: str
     start_time: datetime
-    version: float
+    version: int
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
     detached_from_spawning_parent_session_id: str | None = None
@@ -3223,7 +3223,7 @@ class SessionStartData:
         producer = from_str(obj.get("producer"))
         session_id = from_str(obj.get("sessionId"))
         start_time = from_datetime(obj.get("startTime"))
-        version = from_float(obj.get("version"))
+        version = from_int(obj.get("version"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
@@ -3252,7 +3252,7 @@ class SessionStartData:
         result["producer"] = from_str(self.producer)
         result["sessionId"] = from_str(self.session_id)
         result["startTime"] = to_datetime(self.start_time)
-        result["version"] = to_float(self.version)
+        result["version"] = to_int(self.version)
         if self.already_in_use is not None:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
         if self.context is not None:
@@ -3336,26 +3336,26 @@ class SessionToolsUpdatedData:
 @dataclass
 class SessionTruncationData:
     "Conversation truncation statistics including token counts and removed content metrics"
-    messages_removed_during_truncation: float
+    messages_removed_during_truncation: int
     performed_by: str
-    post_truncation_messages_length: float
-    post_truncation_tokens_in_messages: float
-    pre_truncation_messages_length: float
-    pre_truncation_tokens_in_messages: float
-    token_limit: float
-    tokens_removed_during_truncation: float
+    post_truncation_messages_length: int
+    post_truncation_tokens_in_messages: int
+    pre_truncation_messages_length: int
+    pre_truncation_tokens_in_messages: int
+    token_limit: int
+    tokens_removed_during_truncation: int
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionTruncationData":
         assert isinstance(obj, dict)
-        messages_removed_during_truncation = from_float(obj.get("messagesRemovedDuringTruncation"))
+        messages_removed_during_truncation = from_int(obj.get("messagesRemovedDuringTruncation"))
         performed_by = from_str(obj.get("performedBy"))
-        post_truncation_messages_length = from_float(obj.get("postTruncationMessagesLength"))
-        post_truncation_tokens_in_messages = from_float(obj.get("postTruncationTokensInMessages"))
-        pre_truncation_messages_length = from_float(obj.get("preTruncationMessagesLength"))
-        pre_truncation_tokens_in_messages = from_float(obj.get("preTruncationTokensInMessages"))
-        token_limit = from_float(obj.get("tokenLimit"))
-        tokens_removed_during_truncation = from_float(obj.get("tokensRemovedDuringTruncation"))
+        post_truncation_messages_length = from_int(obj.get("postTruncationMessagesLength"))
+        post_truncation_tokens_in_messages = from_int(obj.get("postTruncationTokensInMessages"))
+        pre_truncation_messages_length = from_int(obj.get("preTruncationMessagesLength"))
+        pre_truncation_tokens_in_messages = from_int(obj.get("preTruncationTokensInMessages"))
+        token_limit = from_int(obj.get("tokenLimit"))
+        tokens_removed_during_truncation = from_int(obj.get("tokensRemovedDuringTruncation"))
         return SessionTruncationData(
             messages_removed_during_truncation=messages_removed_during_truncation,
             performed_by=performed_by,
@@ -3369,38 +3369,38 @@ class SessionTruncationData:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["messagesRemovedDuringTruncation"] = to_float(self.messages_removed_during_truncation)
+        result["messagesRemovedDuringTruncation"] = to_int(self.messages_removed_during_truncation)
         result["performedBy"] = from_str(self.performed_by)
-        result["postTruncationMessagesLength"] = to_float(self.post_truncation_messages_length)
-        result["postTruncationTokensInMessages"] = to_float(self.post_truncation_tokens_in_messages)
-        result["preTruncationMessagesLength"] = to_float(self.pre_truncation_messages_length)
-        result["preTruncationTokensInMessages"] = to_float(self.pre_truncation_tokens_in_messages)
-        result["tokenLimit"] = to_float(self.token_limit)
-        result["tokensRemovedDuringTruncation"] = to_float(self.tokens_removed_during_truncation)
+        result["postTruncationMessagesLength"] = to_int(self.post_truncation_messages_length)
+        result["postTruncationTokensInMessages"] = to_int(self.post_truncation_tokens_in_messages)
+        result["preTruncationMessagesLength"] = to_int(self.pre_truncation_messages_length)
+        result["preTruncationTokensInMessages"] = to_int(self.pre_truncation_tokens_in_messages)
+        result["tokenLimit"] = to_int(self.token_limit)
+        result["tokensRemovedDuringTruncation"] = to_int(self.tokens_removed_during_truncation)
         return result
 
 
 @dataclass
 class SessionUsageInfoData:
     "Current context window usage statistics including token and message counts"
-    current_tokens: float
-    messages_length: float
-    token_limit: float
-    conversation_tokens: float | None = None
+    current_tokens: int
+    messages_length: int
+    token_limit: int
+    conversation_tokens: int | None = None
     is_initial: bool | None = None
-    system_tokens: float | None = None
-    tool_definitions_tokens: float | None = None
+    system_tokens: int | None = None
+    tool_definitions_tokens: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionUsageInfoData":
         assert isinstance(obj, dict)
-        current_tokens = from_float(obj.get("currentTokens"))
-        messages_length = from_float(obj.get("messagesLength"))
-        token_limit = from_float(obj.get("tokenLimit"))
-        conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
+        current_tokens = from_int(obj.get("currentTokens"))
+        messages_length = from_int(obj.get("messagesLength"))
+        token_limit = from_int(obj.get("tokenLimit"))
+        conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         is_initial = from_union([from_none, from_bool], obj.get("isInitial"))
-        system_tokens = from_union([from_none, from_float], obj.get("systemTokens"))
-        tool_definitions_tokens = from_union([from_none, from_float], obj.get("toolDefinitionsTokens"))
+        system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
+        tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
         return SessionUsageInfoData(
             current_tokens=current_tokens,
             messages_length=messages_length,
@@ -3413,17 +3413,17 @@ class SessionUsageInfoData:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["currentTokens"] = to_float(self.current_tokens)
-        result["messagesLength"] = to_float(self.messages_length)
-        result["tokenLimit"] = to_float(self.token_limit)
+        result["currentTokens"] = to_int(self.current_tokens)
+        result["messagesLength"] = to_int(self.messages_length)
+        result["tokenLimit"] = to_int(self.token_limit)
         if self.conversation_tokens is not None:
-            result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
+            result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
         if self.is_initial is not None:
             result["isInitial"] = from_union([from_none, from_bool], self.is_initial)
         if self.system_tokens is not None:
-            result["systemTokens"] = from_union([from_none, to_float], self.system_tokens)
+            result["systemTokens"] = from_union([from_none, to_int], self.system_tokens)
         if self.tool_definitions_tokens is not None:
-            result["toolDefinitionsTokens"] = from_union([from_none, to_float], self.tool_definitions_tokens)
+            result["toolDefinitionsTokens"] = from_union([from_none, to_int], self.tool_definitions_tokens)
         return result
 
 
@@ -3482,15 +3482,15 @@ class SessionWorkspaceFileChangedData:
 class ShutdownCodeChanges:
     "Aggregate code change metrics for the session"
     files_modified: list[str]
-    lines_added: float
-    lines_removed: float
+    lines_added: int
+    lines_removed: int
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownCodeChanges":
         assert isinstance(obj, dict)
         files_modified = from_list(from_str, obj.get("filesModified"))
-        lines_added = from_float(obj.get("linesAdded"))
-        lines_removed = from_float(obj.get("linesRemoved"))
+        lines_added = from_int(obj.get("linesAdded"))
+        lines_removed = from_int(obj.get("linesRemoved"))
         return ShutdownCodeChanges(
             files_modified=files_modified,
             lines_added=lines_added,
@@ -3500,8 +3500,8 @@ class ShutdownCodeChanges:
     def to_dict(self) -> dict:
         result: dict = {}
         result["filesModified"] = from_list(from_str, self.files_modified)
-        result["linesAdded"] = to_float(self.lines_added)
-        result["linesRemoved"] = to_float(self.lines_removed)
+        result["linesAdded"] = to_int(self.lines_added)
+        result["linesRemoved"] = to_int(self.lines_removed)
         return result
 
 
@@ -3511,7 +3511,7 @@ class ShutdownModelMetric:
     requests: ShutdownModelMetricRequests
     usage: ShutdownModelMetricUsage
     token_details: dict[str, ShutdownModelMetricTokenDetail] | None = None
-    total_nano_aiu: float | None = None
+    total_nano_aiu: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownModelMetric":
@@ -3519,7 +3519,7 @@ class ShutdownModelMetric:
         requests = ShutdownModelMetricRequests.from_dict(obj.get("requests"))
         usage = ShutdownModelMetricUsage.from_dict(obj.get("usage"))
         token_details = from_union([from_none, lambda x: from_dict(ShutdownModelMetricTokenDetail.from_dict, x)], obj.get("tokenDetails"))
-        total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
+        total_nano_aiu = from_union([from_none, from_int], obj.get("totalNanoAiu"))
         return ShutdownModelMetric(
             requests=requests,
             usage=usage,
@@ -3534,7 +3534,7 @@ class ShutdownModelMetric:
         if self.token_details is not None:
             result["tokenDetails"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(ShutdownModelMetricTokenDetail, x), x)], self.token_details)
         if self.total_nano_aiu is not None:
-            result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
+            result["totalNanoAiu"] = from_union([from_none, to_int], self.total_nano_aiu)
         return result
 
 
@@ -3542,13 +3542,13 @@ class ShutdownModelMetric:
 class ShutdownModelMetricRequests:
     "Request count and cost metrics"
     cost: float
-    count: float
+    count: int
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownModelMetricRequests":
         assert isinstance(obj, dict)
         cost = from_float(obj.get("cost"))
-        count = from_float(obj.get("count"))
+        count = from_int(obj.get("count"))
         return ShutdownModelMetricRequests(
             cost=cost,
             count=count,
@@ -3557,46 +3557,46 @@ class ShutdownModelMetricRequests:
     def to_dict(self) -> dict:
         result: dict = {}
         result["cost"] = to_float(self.cost)
-        result["count"] = to_float(self.count)
+        result["count"] = to_int(self.count)
         return result
 
 
 @dataclass
 class ShutdownModelMetricTokenDetail:
     "Schema for the `ShutdownModelMetricTokenDetail` type."
-    token_count: float
+    token_count: int
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownModelMetricTokenDetail":
         assert isinstance(obj, dict)
-        token_count = from_float(obj.get("tokenCount"))
+        token_count = from_int(obj.get("tokenCount"))
         return ShutdownModelMetricTokenDetail(
             token_count=token_count,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["tokenCount"] = to_float(self.token_count)
+        result["tokenCount"] = to_int(self.token_count)
         return result
 
 
 @dataclass
 class ShutdownModelMetricUsage:
     "Token usage breakdown"
-    cache_read_tokens: float
-    cache_write_tokens: float
-    input_tokens: float
-    output_tokens: float
-    reasoning_tokens: float | None = None
+    cache_read_tokens: int
+    cache_write_tokens: int
+    input_tokens: int
+    output_tokens: int
+    reasoning_tokens: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownModelMetricUsage":
         assert isinstance(obj, dict)
-        cache_read_tokens = from_float(obj.get("cacheReadTokens"))
-        cache_write_tokens = from_float(obj.get("cacheWriteTokens"))
-        input_tokens = from_float(obj.get("inputTokens"))
-        output_tokens = from_float(obj.get("outputTokens"))
-        reasoning_tokens = from_union([from_none, from_float], obj.get("reasoningTokens"))
+        cache_read_tokens = from_int(obj.get("cacheReadTokens"))
+        cache_write_tokens = from_int(obj.get("cacheWriteTokens"))
+        input_tokens = from_int(obj.get("inputTokens"))
+        output_tokens = from_int(obj.get("outputTokens"))
+        reasoning_tokens = from_union([from_none, from_int], obj.get("reasoningTokens"))
         return ShutdownModelMetricUsage(
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
@@ -3607,31 +3607,31 @@ class ShutdownModelMetricUsage:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["cacheReadTokens"] = to_float(self.cache_read_tokens)
-        result["cacheWriteTokens"] = to_float(self.cache_write_tokens)
-        result["inputTokens"] = to_float(self.input_tokens)
-        result["outputTokens"] = to_float(self.output_tokens)
+        result["cacheReadTokens"] = to_int(self.cache_read_tokens)
+        result["cacheWriteTokens"] = to_int(self.cache_write_tokens)
+        result["inputTokens"] = to_int(self.input_tokens)
+        result["outputTokens"] = to_int(self.output_tokens)
         if self.reasoning_tokens is not None:
-            result["reasoningTokens"] = from_union([from_none, to_float], self.reasoning_tokens)
+            result["reasoningTokens"] = from_union([from_none, to_int], self.reasoning_tokens)
         return result
 
 
 @dataclass
 class ShutdownTokenDetail:
     "Schema for the `ShutdownTokenDetail` type."
-    token_count: float
+    token_count: int
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownTokenDetail":
         assert isinstance(obj, dict)
-        token_count = from_float(obj.get("tokenCount"))
+        token_count = from_int(obj.get("tokenCount"))
         return ShutdownTokenDetail(
             token_count=token_count,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["tokenCount"] = to_float(self.token_count)
+        result["tokenCount"] = to_int(self.token_count)
         return result
 
 
@@ -3730,8 +3730,8 @@ class SubagentCompletedData:
     tool_call_id: str
     duration: timedelta | None = None
     model: str | None = None
-    total_tokens: float | None = None
-    total_tool_calls: float | None = None
+    total_tokens: int | None = None
+    total_tool_calls: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SubagentCompletedData":
@@ -3741,8 +3741,8 @@ class SubagentCompletedData:
         tool_call_id = from_str(obj.get("toolCallId"))
         duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
         model = from_union([from_none, from_str], obj.get("model"))
-        total_tokens = from_union([from_none, from_float], obj.get("totalTokens"))
-        total_tool_calls = from_union([from_none, from_float], obj.get("totalToolCalls"))
+        total_tokens = from_union([from_none, from_int], obj.get("totalTokens"))
+        total_tool_calls = from_union([from_none, from_int], obj.get("totalToolCalls"))
         return SubagentCompletedData(
             agent_display_name=agent_display_name,
             agent_name=agent_name,
@@ -3759,13 +3759,13 @@ class SubagentCompletedData:
         result["agentName"] = from_str(self.agent_name)
         result["toolCallId"] = from_str(self.tool_call_id)
         if self.duration is not None:
-            result["durationMs"] = from_union([from_none, to_timedelta], self.duration)
+            result["durationMs"] = from_union([from_none, to_timedelta_int], self.duration)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.total_tokens is not None:
-            result["totalTokens"] = from_union([from_none, to_float], self.total_tokens)
+            result["totalTokens"] = from_union([from_none, to_int], self.total_tokens)
         if self.total_tool_calls is not None:
-            result["totalToolCalls"] = from_union([from_none, to_float], self.total_tool_calls)
+            result["totalToolCalls"] = from_union([from_none, to_int], self.total_tool_calls)
         return result
 
 
@@ -3790,8 +3790,8 @@ class SubagentFailedData:
     tool_call_id: str
     duration: timedelta | None = None
     model: str | None = None
-    total_tokens: float | None = None
-    total_tool_calls: float | None = None
+    total_tokens: int | None = None
+    total_tool_calls: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SubagentFailedData":
@@ -3802,8 +3802,8 @@ class SubagentFailedData:
         tool_call_id = from_str(obj.get("toolCallId"))
         duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
         model = from_union([from_none, from_str], obj.get("model"))
-        total_tokens = from_union([from_none, from_float], obj.get("totalTokens"))
-        total_tool_calls = from_union([from_none, from_float], obj.get("totalToolCalls"))
+        total_tokens = from_union([from_none, from_int], obj.get("totalTokens"))
+        total_tool_calls = from_union([from_none, from_int], obj.get("totalToolCalls"))
         return SubagentFailedData(
             agent_display_name=agent_display_name,
             agent_name=agent_name,
@@ -3822,13 +3822,13 @@ class SubagentFailedData:
         result["error"] = from_str(self.error)
         result["toolCallId"] = from_str(self.tool_call_id)
         if self.duration is not None:
-            result["durationMs"] = from_union([from_none, to_timedelta], self.duration)
+            result["durationMs"] = from_union([from_none, to_timedelta_int], self.duration)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.total_tokens is not None:
-            result["totalTokens"] = from_union([from_none, to_float], self.total_tokens)
+            result["totalTokens"] = from_union([from_none, to_int], self.total_tokens)
         if self.total_tool_calls is not None:
-            result["totalToolCalls"] = from_union([from_none, to_float], self.total_tool_calls)
+            result["totalToolCalls"] = from_union([from_none, to_int], self.total_tool_calls)
         return result
 
 
@@ -3961,7 +3961,7 @@ class SystemNotification:
     agent_type: str | None = None
     description: str | None = None
     entry_id: str | None = None
-    exit_code: float | None = None
+    exit_code: int | None = None
     prompt: str | None = None
     sender_name: str | None = None
     sender_type: str | None = None
@@ -3980,7 +3980,7 @@ class SystemNotification:
         agent_type = from_union([from_none, from_str], obj.get("agentType"))
         description = from_union([from_none, from_str], obj.get("description"))
         entry_id = from_union([from_none, from_str], obj.get("entryId"))
-        exit_code = from_union([from_none, from_float], obj.get("exitCode"))
+        exit_code = from_union([from_none, from_int], obj.get("exitCode"))
         prompt = from_union([from_none, from_str], obj.get("prompt"))
         sender_name = from_union([from_none, from_str], obj.get("senderName"))
         sender_type = from_union([from_none, from_str], obj.get("senderType"))
@@ -4020,7 +4020,7 @@ class SystemNotification:
         if self.entry_id is not None:
             result["entryId"] = from_union([from_none, from_str], self.entry_id)
         if self.exit_code is not None:
-            result["exitCode"] = from_union([from_none, to_float], self.exit_code)
+            result["exitCode"] = from_union([from_none, to_int], self.exit_code)
         if self.prompt is not None:
             result["prompt"] = from_union([from_none, from_str], self.prompt)
         if self.sender_name is not None:
@@ -4072,12 +4072,12 @@ class ToolExecutionCompleteContent:
     cwd: str | None = None
     data: str | None = None
     description: str | None = None
-    exit_code: float | None = None
+    exit_code: int | None = None
     icons: list[ToolExecutionCompleteContentResourceLinkIcon] | None = None
     mime_type: str | None = None
     name: str | None = None
     resource: ToolExecutionCompleteContentResourceDetails | None = None
-    size: float | None = None
+    size: int | None = None
     text: str | None = None
     title: str | None = None
     uri: str | None = None
@@ -4089,12 +4089,12 @@ class ToolExecutionCompleteContent:
         cwd = from_union([from_none, from_str], obj.get("cwd"))
         data = from_union([from_none, from_str], obj.get("data"))
         description = from_union([from_none, from_str], obj.get("description"))
-        exit_code = from_union([from_none, from_float], obj.get("exitCode"))
+        exit_code = from_union([from_none, from_int], obj.get("exitCode"))
         icons = from_union([from_none, lambda x: from_list(ToolExecutionCompleteContentResourceLinkIcon.from_dict, x)], obj.get("icons"))
         mime_type = from_union([from_none, from_str], obj.get("mimeType"))
         name = from_union([from_none, from_str], obj.get("name"))
         resource = from_union([from_none, lambda x: from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], x)], obj.get("resource"))
-        size = from_union([from_none, from_float], obj.get("size"))
+        size = from_union([from_none, from_int], obj.get("size"))
         text = from_union([from_none, from_str], obj.get("text"))
         title = from_union([from_none, from_str], obj.get("title"))
         uri = from_union([from_none, from_str], obj.get("uri"))
@@ -4124,7 +4124,7 @@ class ToolExecutionCompleteContent:
         if self.description is not None:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.exit_code is not None:
-            result["exitCode"] = from_union([from_none, to_float], self.exit_code)
+            result["exitCode"] = from_union([from_none, to_int], self.exit_code)
         if self.icons is not None:
             result["icons"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ToolExecutionCompleteContentResourceLinkIcon, x), x)], self.icons)
         if self.mime_type is not None:
@@ -4134,7 +4134,7 @@ class ToolExecutionCompleteContent:
         if self.resource is not None:
             result["resource"] = from_union([from_none, lambda x: from_union([lambda x: to_class(EmbeddedTextResourceContents, x), lambda x: to_class(EmbeddedBlobResourceContents, x)], x)], self.resource)
         if self.size is not None:
-            result["size"] = from_union([from_none, to_float], self.size)
+            result["size"] = from_union([from_none, to_int], self.size)
         if self.text is not None:
             result["text"] = from_union([from_none, from_str], self.text)
         if self.title is not None:
@@ -4494,7 +4494,7 @@ class UserMessageAttachment:
     file_path: str | None = None
     line_range: UserMessageAttachmentFileLineRange | None = None
     mime_type: str | None = None
-    number: float | None = None
+    number: int | None = None
     path: str | None = None
     reference_type: UserMessageAttachmentGithubReferenceType | None = None
     selection: UserMessageAttachmentSelectionDetails | None = None
@@ -4512,7 +4512,7 @@ class UserMessageAttachment:
         file_path = from_union([from_none, from_str], obj.get("filePath"))
         line_range = from_union([from_none, UserMessageAttachmentFileLineRange.from_dict], obj.get("lineRange"))
         mime_type = from_union([from_none, from_str], obj.get("mimeType"))
-        number = from_union([from_none, from_float], obj.get("number"))
+        number = from_union([from_none, from_int], obj.get("number"))
         path = from_union([from_none, from_str], obj.get("path"))
         reference_type = from_union([from_none, lambda x: parse_enum(UserMessageAttachmentGithubReferenceType, x)], obj.get("referenceType"))
         selection = from_union([from_none, UserMessageAttachmentSelectionDetails.from_dict], obj.get("selection"))
@@ -4551,7 +4551,7 @@ class UserMessageAttachment:
         if self.mime_type is not None:
             result["mimeType"] = from_union([from_none, from_str], self.mime_type)
         if self.number is not None:
-            result["number"] = from_union([from_none, to_float], self.number)
+            result["number"] = from_union([from_none, to_int], self.number)
         if self.path is not None:
             result["path"] = from_union([from_none, from_str], self.path)
         if self.reference_type is not None:
@@ -4572,14 +4572,14 @@ class UserMessageAttachment:
 @dataclass
 class UserMessageAttachmentFileLineRange:
     "Optional line range to scope the attachment to a specific section of the file"
-    end: float
-    start: float
+    end: int
+    start: int
 
     @staticmethod
     def from_dict(obj: Any) -> "UserMessageAttachmentFileLineRange":
         assert isinstance(obj, dict)
-        end = from_float(obj.get("end"))
-        start = from_float(obj.get("start"))
+        end = from_int(obj.get("end"))
+        start = from_int(obj.get("start"))
         return UserMessageAttachmentFileLineRange(
             end=end,
             start=start,
@@ -4587,8 +4587,8 @@ class UserMessageAttachmentFileLineRange:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["end"] = to_float(self.end)
-        result["start"] = to_float(self.start)
+        result["end"] = to_int(self.end)
+        result["start"] = to_int(self.start)
         return result
 
 
@@ -4618,14 +4618,14 @@ class UserMessageAttachmentSelectionDetails:
 @dataclass
 class UserMessageAttachmentSelectionDetailsEnd:
     "End position of the selection"
-    character: float
-    line: float
+    character: int
+    line: int
 
     @staticmethod
     def from_dict(obj: Any) -> "UserMessageAttachmentSelectionDetailsEnd":
         assert isinstance(obj, dict)
-        character = from_float(obj.get("character"))
-        line = from_float(obj.get("line"))
+        character = from_int(obj.get("character"))
+        line = from_int(obj.get("line"))
         return UserMessageAttachmentSelectionDetailsEnd(
             character=character,
             line=line,
@@ -4633,22 +4633,22 @@ class UserMessageAttachmentSelectionDetailsEnd:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["character"] = to_float(self.character)
-        result["line"] = to_float(self.line)
+        result["character"] = to_int(self.character)
+        result["line"] = to_int(self.line)
         return result
 
 
 @dataclass
 class UserMessageAttachmentSelectionDetailsStart:
     "Start position of the selection"
-    character: float
-    line: float
+    character: int
+    line: int
 
     @staticmethod
     def from_dict(obj: Any) -> "UserMessageAttachmentSelectionDetailsStart":
         assert isinstance(obj, dict)
-        character = from_float(obj.get("character"))
-        line = from_float(obj.get("line"))
+        character = from_int(obj.get("character"))
+        line = from_int(obj.get("line"))
         return UserMessageAttachmentSelectionDetailsStart(
             character=character,
             line=line,
@@ -4656,8 +4656,8 @@ class UserMessageAttachmentSelectionDetailsStart:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["character"] = to_float(self.character)
-        result["line"] = to_float(self.line)
+        result["character"] = to_int(self.character)
+        result["line"] = to_int(self.line)
         return result
 
 
