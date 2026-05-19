@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use github_copilot_sdk::generated::api_types::PlanUpdateRequest;
 use github_copilot_sdk::{
     Client, DirEntry, DirEntryKind, FileInfo, FsError, SessionConfig, SessionFsConfig,
-    SessionFsConventions, SessionFsProvider, SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
+    SessionFsConventions, SessionFsProvider,
 };
 
 use super::support::{assistant_message_content, wait_for_condition, with_e2e_context};
@@ -206,26 +206,6 @@ async fn should_map_all_sessionfs_handler_operations() {
         provider.stat("/workspace/nested/missing.txt").await,
         Err(FsError::NotFound(_))
     ));
-    let sqlite_params =
-        std::collections::HashMap::from([("answer".to_string(), serde_json::Value::from(42))]);
-    let sqlite_result = provider
-        .sqlite_query(
-            "handler-session",
-            "select :answer as answer",
-            SessionFsSqliteQueryType::Query,
-            Some(&sqlite_params),
-        )
-        .await
-        .expect("sqlite query");
-    assert_eq!(sqlite_result.columns[3], "answer");
-    assert_eq!(sqlite_result.rows[0]["answer"], 42);
-    assert_eq!(sqlite_result.rows_affected, 0);
-    assert!(
-        provider
-            .sqlite_exists("handler-session")
-            .await
-            .expect("sqlite exists")
-    );
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -621,52 +601,6 @@ impl SessionFsProvider for TestSessionFsProvider {
             std::fs::create_dir_all(parent).map_err(FsError::from)?;
         }
         std::fs::rename(src, dest).map_err(FsError::from)
-    }
-
-    async fn sqlite_query(
-        &self,
-        session_id: &str,
-        query: &str,
-        query_type: SessionFsSqliteQueryType,
-        params: Option<&std::collections::HashMap<String, serde_json::Value>>,
-    ) -> Result<SessionFsSqliteQueryResult, FsError> {
-        let mut row = std::collections::HashMap::new();
-        row.insert("sessionId".to_string(), session_id.to_string().into());
-        row.insert("query".to_string(), query.to_string().into());
-        row.insert(
-            "queryType".to_string(),
-            match query_type {
-                SessionFsSqliteQueryType::Exec => "exec",
-                SessionFsSqliteQueryType::Query => "query",
-                SessionFsSqliteQueryType::Run => "run",
-                SessionFsSqliteQueryType::Unknown => "unknown",
-            }
-            .into(),
-        );
-        row.insert(
-            "answer".to_string(),
-            params
-                .and_then(|params| params.get("answer"))
-                .cloned()
-                .unwrap_or(serde_json::Value::Null),
-        );
-
-        Ok(SessionFsSqliteQueryResult {
-            columns: vec![
-                "sessionId".to_string(),
-                "query".to_string(),
-                "queryType".to_string(),
-                "answer".to_string(),
-            ],
-            rows: vec![row],
-            rows_affected: 0,
-            last_insert_rowid: None,
-            error: None,
-        })
-    }
-
-    async fn sqlite_exists(&self, session_id: &str) -> Result<bool, FsError> {
-        Ok(session_id == self.session_id)
     }
 }
 
