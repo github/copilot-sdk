@@ -69,7 +69,7 @@ type SessionFsSqliteQueryResult struct {
 	Columns         []string         `json:"columns"`
 	Rows            []map[string]any `json:"rows"`
 	RowsAffected    int64            `json:"rowsAffected"`
-	LastInsertRowid *int64            `json:"lastInsertRowid,omitempty"`
+	LastInsertRowid *int64           `json:"lastInsertRowid,omitempty"`
 }
 
 // SessionFsFileInfo holds file metadata returned by SessionFsProvider.Stat.
