@@ -555,6 +555,7 @@ internal sealed class SessionsForkRequest
 }
 
 /// <summary>Repository associated with the connected remote session.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ConnectedRemoteSessionMetadataRepository
 {
     /// <summary>Branch associated with the remote session.</summary>
@@ -571,6 +572,7 @@ public sealed class ConnectedRemoteSessionMetadataRepository
 }
 
 /// <summary>Metadata for a connected remote session.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ConnectedRemoteSessionMetadata
 {
     /// <summary>Neutral SDK discriminator for the connected remote session kind.</summary>
@@ -1140,6 +1142,7 @@ internal sealed class FleetStartRequest
 }
 
 /// <summary>Schema for the `AgentInfo` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AgentInfo
 {
     /// <summary>Description of the agent's purpose.</summary>
@@ -1284,6 +1287,7 @@ internal sealed class TasksStartAgentRequest
 
 /// <summary>Schema for the `TaskInfo` type.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -1299,6 +1303,7 @@ public partial class TaskInfo
 
 /// <summary>Schema for the `TaskAgentInfo` type.</summary>
 /// <remarks>The <c>agent</c> variant of <see cref="TaskInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class TaskInfoAgent : TaskInfo
 {
     /// <inheritdoc />
@@ -1387,6 +1392,7 @@ public partial class TaskInfoAgent : TaskInfo
 
 /// <summary>Schema for the `TaskShellInfo` type.</summary>
 /// <remarks>The <c>shell</c> variant of <see cref="TaskInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class TaskInfoShell : TaskInfo
 {
     /// <inheritdoc />
@@ -1562,6 +1568,7 @@ internal sealed class TasksSendMessageRequest
 }
 
 /// <summary>Schema for the `Skill` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class Skill
 {
     /// <summary>Description of what the skill does.</summary>
@@ -1656,6 +1663,7 @@ internal sealed class SessionSkillsReloadRequest
 }
 
 /// <summary>Schema for the `McpServer` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class McpServer
 {
     /// <summary>Error message if the server failed to connect.</summary>
@@ -1777,6 +1785,7 @@ internal sealed class McpOauthLoginRequest
 }
 
 /// <summary>Schema for the `Plugin` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class Plugin
 {
     /// <summary>Whether the plugin is currently enabled.</summary>
@@ -1815,6 +1824,7 @@ internal sealed class SessionPluginsListRequest
 }
 
 /// <summary>Schema for the `Extension` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class Extension
 {
     /// <summary>Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper').</summary>
@@ -2730,6 +2740,7 @@ internal sealed class ShellKillRequest
 }
 
 /// <summary>Post-compaction context window usage breakdown.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class HistoryCompactContextWindow
 {
     /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
@@ -2819,6 +2830,7 @@ internal sealed class HistoryTruncateRequest
 }
 
 /// <summary>Aggregated code change metrics.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UsageMetricsCodeChanges
 {
     /// <summary>Number of distinct files modified.</summary>
@@ -2835,6 +2847,7 @@ public sealed class UsageMetricsCodeChanges
 }
 
 /// <summary>Request count and cost metrics for this model.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UsageMetricsModelMetricRequests
 {
     /// <summary>User-initiated premium request cost (with multiplier applied).</summary>
@@ -2847,6 +2860,7 @@ public sealed class UsageMetricsModelMetricRequests
 }
 
 /// <summary>Schema for the `UsageMetricsModelMetricTokenDetail` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UsageMetricsModelMetricTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
@@ -2856,6 +2870,7 @@ public sealed class UsageMetricsModelMetricTokenDetail
 }
 
 /// <summary>Token usage metrics for this model.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UsageMetricsModelMetricUsage
 {
     /// <summary>Total tokens read from prompt cache.</summary>
@@ -2885,6 +2900,7 @@ public sealed class UsageMetricsModelMetricUsage
 }
 
 /// <summary>Schema for the `UsageMetricsModelMetric` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UsageMetricsModelMetric
 {
     /// <summary>Request count and cost metrics for this model.</summary>
@@ -2906,6 +2922,7 @@ public sealed class UsageMetricsModelMetric
 }
 
 /// <summary>Schema for the `UsageMetricsTokenDetail` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UsageMetricsTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
@@ -3661,6 +3678,7 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
 
 
 /// <summary>Neutral SDK discriminator for the connected remote session kind.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ConnectedRemoteSessionMetadataKind : IEquatable<ConnectedRemoteSessionMetadataKind>
@@ -4066,6 +4084,7 @@ public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesT
 
 
 /// <summary>Whether task execution is synchronously awaited or managed in the background.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct TaskExecutionMode : IEquatable<TaskExecutionMode>
@@ -4128,6 +4147,7 @@ public readonly struct TaskExecutionMode : IEquatable<TaskExecutionMode>
 
 
 /// <summary>Current lifecycle status of the task.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct TaskStatus : IEquatable<TaskStatus>
@@ -4199,6 +4219,7 @@ public readonly struct TaskStatus : IEquatable<TaskStatus>
 
 
 /// <summary>Whether the shell runs inside a managed PTY session or as an independent background process.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAttachmentMode>
@@ -4261,6 +4282,7 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
 
 
 /// <summary>Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/).</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ExtensionSource : IEquatable<ExtensionSource>
@@ -4323,6 +4345,7 @@ public readonly struct ExtensionSource : IEquatable<ExtensionSource>
 
 
 /// <summary>Current status: running, disabled, failed, or starting.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
@@ -4645,6 +4668,7 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
 
 
 /// <summary>Per-session remote mode. "off" disables remote, "export" exports session events to GitHub without enabling remote steering, "on" enables both export and remote steering.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>

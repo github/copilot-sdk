@@ -20,7 +20,9 @@ import {
     writeGeneratedFile,
     collectExternalSchemaRefNames,
     collectDefinitionCollections,
+    collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
+    collectRpcMethodReferencedDefinitionNames,
     findSharedSchemaDefinitions,
     postProcessSchema,
     resolveRef,
@@ -779,7 +781,7 @@ function generatePolymorphicClasses(
     for (const { value, schema } of discriminatorInfo.mapping.values()) {
         const constValue = String(value);
         const derivedClassName = applyTypeRename(`${baseClassName}${toPascalCase(constValue)}`);
-        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, schema, knownTypes, nestedClasses, enumOutput, resolver, options);
+        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, schema, knownTypes, nestedClasses, enumOutput, resolver, experimental, options);
         nestedClasses.set(derivedClassName, derivedCode);
     }
 
@@ -799,13 +801,14 @@ function generateDerivedClass(
     nestedClasses: Map<string, string>,
     enumOutput: string[],
     propertyResolver: PropertyTypeResolver,
+    experimental = false,
     options: DiscriminatedUnionGenerationOptions = {}
 ): string {
     const lines: string[] = [];
     const required = new Set(schema.required || []);
 
     lines.push(...xmlDocCommentWithFallback(schema.description, `The <c>${escapeXml(discriminatorValue)}</c> variant of <see cref="${baseClassName}"/>.`, ""));
-    if (isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
+    if (experimental || isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
     if (isSchemaDeprecated(schema)) pushObsoleteAttributes(lines);
     lines.push(`public ${options.sealLeafTypes ? "sealed " : ""}partial class ${className} : ${baseClassName}`);
     lines.push(`{`);
@@ -1341,6 +1344,7 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
 let emittedRpcClassSchemas = new Map<string, string>();
 let emittedRpcEnumResultTypes = new Set<string>();
 let experimentalRpcTypes = new Set<string>();
+let nonExperimentalRpcTypes = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
 let externalRpcValueTypes = new Set<string>();
@@ -1430,7 +1434,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
         }
 
         if (refSchema.enum && Array.isArray(refSchema.enum)) {
-            const enumName = getOrCreateEnum(typeName, "", refSchema.enum as string[], rpcEnumOutput, refSchema.description, undefined, isSchemaDeprecated(refSchema), isSchemaExperimental(refSchema));
+            const enumName = getOrCreateEnum(typeName, "", refSchema.enum as string[], rpcEnumOutput, refSchema.description, undefined, isSchemaDeprecated(refSchema), isSchemaExperimental(refSchema) || experimentalRpcTypes.has(typeName));
             return isRequired ? enumName : `${enumName}?`;
         }
 
@@ -1473,7 +1477,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
                         }
                         return result;
                     };
-                    const polymorphicCode = generateDiscriminatedUnionClass(baseClassName, discriminatorInfo, variants, rpcKnownTypes, nestedMap, rpcEnumOutput, schema.description, rpcPropertyResolver, isSchemaExperimental(schema));
+                    const polymorphicCode = generateDiscriminatedUnionClass(baseClassName, discriminatorInfo, variants, rpcKnownTypes, nestedMap, rpcEnumOutput, schema.description, rpcPropertyResolver, isSchemaExperimental(schema) || experimentalRpcTypes.has(baseClassName));
                     classes.push(polymorphicCode);
                     for (const nested of nestedMap.values()) classes.push(nested);
                 }
@@ -1483,15 +1487,17 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
     }
     // Handle enums (string unions like "interactive" | "plan" | "autopilot")
     if (schema.enum && Array.isArray(schema.enum)) {
+        const explicitName = schema.title as string | undefined;
+        const generatedEnumName = explicitName ?? `${parentClassName}${propName}`;
         const enumName = getOrCreateEnum(
             parentClassName,
             propName,
             schema.enum as string[],
             rpcEnumOutput,
             schema.description,
-            schema.title as string | undefined,
+            explicitName,
             isSchemaDeprecated(schema),
-            isSchemaExperimental(schema),
+            isSchemaExperimental(schema) || experimentalRpcTypes.has(generatedEnumName),
         );
         return isRequired ? enumName : `${enumName}?`;
     }
@@ -1725,7 +1731,7 @@ function emitServerInstanceMethod(
     const methodVisibility = isInternal ? "internal" : "public";
     const resultSchema = getMethodResultSchema(method);
     let resultClassName = !isVoidSchema(resultSchema) ? resultTypeName(method) : "";
-    if (!isVoidSchema(resultSchema) && method.stability === "experimental") {
+    if (!isVoidSchema(resultSchema) && method.stability === "experimental" && !nonExperimentalRpcTypes.has(resultClassName)) {
         experimentalRpcTypes.add(resultClassName);
     }
     if (!isVoidSchema(resultSchema)) {
@@ -1746,7 +1752,7 @@ function emitServerInstanceMethod(
     let requestClassName: string | null = null;
     if (paramEntries.length > 0) {
         requestClassName = paramsTypeName(method);
-        if (method.stability === "experimental") {
+        if (method.stability === "experimental" && !nonExperimentalRpcTypes.has(requestClassName)) {
             experimentalRpcTypes.add(requestClassName);
         }
         const reqClass = emitRpcClass(requestClassName, effectiveParams!, "internal", classes);
@@ -1837,7 +1843,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     const methodVisibility = isInternal ? "internal" : "public";
     const resultSchema = getMethodResultSchema(method);
     let resultClassName = !isVoidSchema(resultSchema) ? resultTypeName(method) : "";
-    if (!isVoidSchema(resultSchema) && method.stability === "experimental") {
+    if (!isVoidSchema(resultSchema) && method.stability === "experimental" && !nonExperimentalRpcTypes.has(resultClassName)) {
         experimentalRpcTypes.add(resultClassName);
     }
     if (!isVoidSchema(resultSchema)) {
@@ -1861,9 +1867,9 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
 
     const requestClassName = paramsTypeName(method);
     const wireRequestClassName = useRequestParameter ? `${requestClassName}WithSession` : requestClassName;
-    if (method.stability === "experimental") {
+    if (method.stability === "experimental" && !nonExperimentalRpcTypes.has(requestClassName)) {
         experimentalRpcTypes.add(requestClassName);
-        if (useRequestParameter) {
+        if (useRequestParameter && !nonExperimentalRpcTypes.has(wireRequestClassName)) {
             experimentalRpcTypes.add(wireRequestClassName);
         }
     }
@@ -2120,11 +2126,26 @@ function generateRpcCode(
     emittedRpcClassSchemas.clear();
     emittedRpcEnumResultTypes.clear();
     experimentalRpcTypes.clear();
+    nonExperimentalRpcTypes.clear();
     rpcKnownTypes.clear();
     rpcEnumOutput = [];
     generatedEnums.clear(); // Clear shared enum deduplication map
     externalRpcValueTypes = new Set([...externalValueTypes].map(typeToClassName));
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    const allMethods = [
+        ...collectRpcMethods(schema.server || {}),
+        ...collectRpcMethods(schema.session || {}),
+        ...collectRpcMethods(schema.clientSession || {}),
+    ];
+    for (const name of collectRpcMethodReferencedDefinitionNames(
+        allMethods.filter((method) => method.stability !== "experimental"),
+        rpcDefinitions
+    )) {
+        nonExperimentalRpcTypes.add(typeToClassName(name));
+    }
+    for (const name of collectExperimentalOnlyRpcReferencedDefinitionNames(allMethods, rpcDefinitions)) {
+        experimentalRpcTypes.add(typeToClassName(name));
+    }
     for (const defs of [rpcDefinitions.definitions, rpcDefinitions.$defs]) {
         for (const [name, def] of Object.entries(defs ?? {})) {
             if (typeof def === "object" && def !== null && isSchemaExperimental(def as JSONSchema7)) {

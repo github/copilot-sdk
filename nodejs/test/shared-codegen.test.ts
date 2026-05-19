@@ -2,6 +2,8 @@ import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
 import {
+    collectDefinitionCollections,
+    collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
     findSharedSchemaDefinitions,
     inlineExternalSchemaDefinitions,
@@ -304,5 +306,72 @@ describe("shared schema definition codegen utilities", () => {
         );
         expect(inlinedDefinitions.ShutdownType.enum).toEqual(["api"]);
         expect(inlinedDefinitions.SessionEventsShutdownType.enum).toEqual(["session"]);
+    });
+
+    it("collects only definitions referenced exclusively by experimental RPC methods", () => {
+        const apiSchema = {
+            definitions: {
+                ExperimentalLeaf: {
+                    type: "object",
+                    properties: {
+                        value: { type: "string" },
+                    },
+                },
+                ExperimentalResult: {
+                    type: "object",
+                    properties: {
+                        leaf: { $ref: "#/definitions/ExperimentalLeaf" },
+                    },
+                },
+                ExperimentalSharedResult: {
+                    type: "object",
+                    properties: {
+                        leaf: { $ref: "#/definitions/SharedLeaf" },
+                    },
+                },
+                SharedLeaf: {
+                    type: "object",
+                    properties: {
+                        value: { type: "string" },
+                    },
+                },
+                StableResult: {
+                    type: "object",
+                    properties: {
+                        leaf: { $ref: "#/definitions/SharedLeaf" },
+                    },
+                },
+            },
+            server: {
+                stable: {
+                    rpcMethod: "stable",
+                    params: null,
+                    result: { $ref: "#/definitions/StableResult" },
+                },
+                experimental: {
+                    rpcMethod: "experimental",
+                    params: null,
+                    result: { $ref: "#/definitions/ExperimentalResult" },
+                    stability: "experimental",
+                },
+                experimentalShared: {
+                    rpcMethod: "experimental.shared",
+                    params: null,
+                    result: { $ref: "#/definitions/ExperimentalSharedResult" },
+                    stability: "experimental",
+                },
+            },
+        };
+
+        const referenced = collectExperimentalOnlyRpcReferencedDefinitionNames(
+            Object.values(apiSchema.server),
+            collectDefinitionCollections(apiSchema as Record<string, unknown>)
+        );
+
+        expect([...referenced].sort()).toEqual([
+            "ExperimentalLeaf",
+            "ExperimentalResult",
+            "ExperimentalSharedResult",
+        ]);
     });
 });

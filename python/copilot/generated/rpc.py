@@ -147,6 +147,7 @@ class AccountQuotaSnapshot:
             result["resetDate"] = from_union([from_str, from_none], self.reset_date)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AgentInfo:
     """Schema for the `AgentInfo` type.
@@ -413,12 +414,14 @@ class ConnectResult:
         result["version"] = from_str(self.version)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class ConnectedRemoteSessionMetadataKind(Enum):
     """Neutral SDK discriminator for the connected remote session kind."""
 
     CODING_AGENT = "coding-agent"
     REMOTE_SESSION = "remote-session"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ConnectedRemoteSessionMetadataRepository:
     """Repository associated with the connected remote session."""
@@ -483,12 +486,14 @@ class DiscoveredMCPServerType(Enum):
     SSE = "sse"
     STDIO = "stdio"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class ExtensionSource(Enum):
     """Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)"""
 
     PROJECT = "project"
     USER = "user"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class ExtensionStatus(Enum):
     """Current status: running, disabled, failed, or starting"""
 
@@ -631,6 +636,7 @@ class HandlePendingToolCallResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HistoryCompactContextWindow:
     """Post-compaction context window usage breakdown"""
@@ -848,6 +854,7 @@ class MCPConfigRemoveRequest:
         result["name"] = from_str(self.name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPDisableRequest:
     """Name of the MCP server to disable for the session."""
@@ -885,6 +892,7 @@ class MCPDiscoverRequest:
             result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPEnableRequest:
     """Name of the MCP server to enable for the session."""
@@ -903,6 +911,7 @@ class MCPEnableRequest:
         result["serverName"] = from_str(self.server_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPOauthLoginRequest:
     """Remote MCP server name and optional overrides controlling reauthentication, OAuth client
@@ -949,6 +958,7 @@ class MCPOauthLoginRequest:
             result["forceReauth"] = from_union([from_bool, from_none], self.force_reauth)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPOauthLoginResult:
     """OAuth authorization URL the caller should open, or empty when cached tokens already
@@ -974,6 +984,7 @@ class MCPOauthLoginResult:
             result["authorizationUrl"] = from_union([from_str, from_none], self.authorization_url)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPServer:
     """Schema for the `McpServer` type."""
@@ -1509,6 +1520,7 @@ class PlanUpdateRequest:
         result["content"] = from_str(self.content)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class Plugin:
     """Schema for the `Plugin` type."""
@@ -1585,6 +1597,7 @@ class QueuedCommandNotHandled:
         result["handled"] = from_bool(self.handled)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class RemoteSessionMode(Enum):
     """Per-session remote mode. "off" disables remote, "export" exports session events to GitHub
     without enabling remote steering, "on" enables both export and remote steering.
@@ -2205,6 +2218,7 @@ class ShellKillResult:
         result["killed"] = from_bool(self.killed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class Skill:
     """Schema for the `Skill` type."""
@@ -2347,12 +2361,14 @@ class SlashCommandInvocationResultKind(Enum):
     COMPLETED = "completed"
     TEXT = "text"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class TaskExecutionMode(Enum):
     """Whether task execution is synchronously awaited or managed in the background"""
 
     BACKGROUND = "background"
     SYNC = "sync"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class TaskStatus(Enum):
     """Current lifecycle status of the task"""
 
@@ -2365,6 +2381,7 @@ class TaskStatus(Enum):
 class TaskAgentInfoType(Enum):
     AGENT = "agent"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class TaskShellInfoAttachmentMode(Enum):
     """Whether the shell runs inside a managed PTY session or as an independent background
     process
@@ -2783,6 +2800,7 @@ class UIElicitationSchemaPropertyNumberType(Enum):
     INTEGER = "integer"
     NUMBER = "number"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UsageMetricsCodeChanges:
     """Aggregated code change metrics"""
@@ -2811,6 +2829,7 @@ class UsageMetricsCodeChanges:
         result["linesRemoved"] = from_int(self.lines_removed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UsageMetricsModelMetricRequests:
     """Request count and cost metrics for this model"""
@@ -2834,6 +2853,7 @@ class UsageMetricsModelMetricRequests:
         result["count"] = from_int(self.count)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UsageMetricsModelMetricTokenDetail:
     """Schema for the `UsageMetricsModelMetricTokenDetail` type."""
@@ -2852,6 +2872,7 @@ class UsageMetricsModelMetricTokenDetail:
         result["tokenCount"] = from_int(self.token_count)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UsageMetricsModelMetricUsage:
     """Token usage metrics for this model"""
@@ -2891,6 +2912,7 @@ class UsageMetricsModelMetricUsage:
             result["reasoningTokens"] = from_union([from_int, from_none], self.reasoning_tokens)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UsageMetricsTokenDetail:
     """Schema for the `UsageMetricsTokenDetail` type."""
@@ -3172,6 +3194,7 @@ class SlashCommandInput:
             result["required"] = from_union([from_bool, from_none], self.required)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ConnectedRemoteSessionMetadata:
     """Metadata for a connected remote session."""
@@ -3342,6 +3365,7 @@ class DiscoveredMCPServer:
             result["type"] = from_union([lambda x: to_enum(DiscoveredMCPServerType, x), from_none], self.type)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class Extension:
     """Schema for the `Extension` type."""
@@ -3951,6 +3975,7 @@ class MCPServerConfigHTTP:
             result["type"] = from_union([lambda x: to_enum(MCPServerConfigHTTPType, x), from_none], self.type)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPServerList:
     """MCP servers configured for the session, with their connection status."""
@@ -4872,6 +4897,7 @@ class SlashCommandCompletedResult:
             result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TaskShellInfo:
     """Schema for the `TaskShellInfo` type."""
@@ -5291,6 +5317,7 @@ class UIElicitationSchemaPropertyNumber:
             result["title"] = from_union([from_str, from_none], self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UsageMetricsModelMetric:
     """Schema for the `UsageMetricsModelMetric` type."""
@@ -7180,6 +7207,7 @@ class ModelSwitchToRequest:
             result["reasoningSummary"] = from_union([lambda x: to_enum(ReasoningSummary, x), from_none], self.reasoning_summary)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TaskAgentInfo:
     """Schema for the `TaskAgentInfo` type."""
@@ -7295,6 +7323,7 @@ class TaskAgentInfo:
             result["result"] = from_union([from_str, from_none], self.result)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TaskInfo:
     """Schema for the `TaskInfo` type.

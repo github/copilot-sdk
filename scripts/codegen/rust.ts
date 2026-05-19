@@ -23,7 +23,9 @@ import {
 	type RpcMethod,
 	collectDefinitionCollections,
 	collectDefinitions,
+	collectExperimentalOnlyRpcReferencedDefinitionNames,
 	collectReachableDefinitionNames,
+	collectRpcMethodReferencedDefinitionNames,
 	findSharedSchemaDefinitions,
 	getApiSchemaPath,
 	getNullableInner,
@@ -200,6 +202,8 @@ interface RustCodegenCtx {
 	 * so the property propagates transitively.
 	 */
 	nonDefaultableTypes: Set<string>;
+	/** Generated type names reached only through experimental RPC methods. */
+	experimentalTypeNames: Set<string>;
 	/** Schema definitions for $ref resolution. */
 	definitions?: DefinitionCollections;
 	/** When set, only these const-valued properties are accepted as union discriminators. */
@@ -353,7 +357,7 @@ function tryEmitRustUnion(
 			lines.push(`/// ${line}`);
 		}
 	}
-	pushRustExperimentalDocs(lines, isSchemaExperimental(schema));
+	pushRustExperimentalDocs(lines, isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(enumName));
 	lines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
 	lines.push("#[serde(untagged)]");
 	lines.push(`pub enum ${enumName} {`);
@@ -396,6 +400,7 @@ function makeCtx(
 		unionDiscriminatorProperties?: Set<string> | null;
 		allowUntaggedUnions?: boolean;
 		allowedUnionTypeNames?: Iterable<string>;
+		experimentalTypeNames?: Iterable<string>;
 	} = {},
 ): RustCodegenCtx {
 	return {
@@ -403,6 +408,7 @@ function makeCtx(
 		enums: [],
 		generatedNames: new Set(),
 		nonDefaultableTypes: new Set(),
+		experimentalTypeNames: new Set(options.experimentalTypeNames ?? []),
 		definitions,
 		unionDiscriminatorProperties:
 			options.unionDiscriminatorProperties === null
@@ -760,7 +766,7 @@ function emitRustStruct(
 			lines.push(`/// ${line}`);
 		}
 	}
-	pushRustExperimentalDocs(lines, isSchemaExperimental(schema));
+	pushRustExperimentalDocs(lines, isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(typeName));
 	if (isSchemaDeprecated(schema)) {
 		lines.push(...rustDeprecatedAttributes());
 	}
@@ -859,7 +865,7 @@ function emitRustStringEnum(
 			lines.push(`/// ${line}`);
 		}
 	}
-	pushRustExperimentalDocs(lines, experimental);
+	pushRustExperimentalDocs(lines, experimental || ctx.experimentalTypeNames.has(enumName));
 	lines.push(
 		"#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]",
 	);
@@ -1261,6 +1267,8 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	);
 	const ctx = makeCtx(defCollections);
 
+	// Collect all RPC methods before emitting shared definitions so method stability
+	// can propagate to referenced data types.
 	const methodEntries: { method: RpcMethod; isSession: boolean }[] = [];
 	for (const { group, isSession } of [
 		{ group: apiSchema.server, isSession: false },
@@ -1312,6 +1320,33 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 		const paramsName = rustParamsTypeName(method, defCollections);
 		if (paramsSchema && shouldPreferMethodParamSchema(paramsName, paramsSchema)) {
 			inlineMethodParamSchemas.set(paramsName, paramsSchema);
+		}
+	}
+	for (const name of collectExperimentalOnlyRpcReferencedDefinitionNames(allMethods, defCollections)) {
+		ctx.experimentalTypeNames.add(toPascalCase(name));
+	}
+	const nonExperimentalReferencedTypes = new Set(
+		[...collectRpcMethodReferencedDefinitionNames(
+			allMethods.filter((method) => method.stability !== "experimental"),
+			defCollections,
+		)].map((name) => toPascalCase(name)),
+	);
+	for (const { method, isSession } of methodEntries) {
+		if (method.stability !== "experimental") continue;
+		const paramsSchema =
+			getMethodParamsObjectSchema(method, defCollections, isSession) ??
+			(isSession && method.params ? asGeneratedObjectSchema(method.params, defCollections) : undefined);
+		if (paramsSchema) {
+			const paramsName = rustParamsTypeName(method, defCollections);
+			if (!nonExperimentalReferencedTypes.has(paramsName)) {
+				ctx.experimentalTypeNames.add(paramsName);
+			}
+		}
+		if (method.result && !isVoidSchema(method.result)) {
+			const resultName = rustResultTypeName(method, ctx);
+			if (!nonExperimentalReferencedTypes.has(resultName)) {
+				ctx.experimentalTypeNames.add(resultName);
+			}
 		}
 	}
 
