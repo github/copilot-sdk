@@ -66,10 +66,10 @@ type SessionFsSqliteProvider interface {
 // Same shape as the generated RPC type but without the Error field,
 // since providers signal errors by returning a Go error.
 type SessionFsSqliteQueryResult struct {
-	Columns        []string         `json:"columns"`
-	Rows           []map[string]any `json:"rows"`
-	RowsAffected   int64            `json:"rowsAffected"`
-	LastInsertRowid *float64        `json:"lastInsertRowid,omitempty"`
+	Columns         []string         `json:"columns"`
+	Rows            []map[string]any `json:"rows"`
+	RowsAffected    int64            `json:"rowsAffected"`
+	LastInsertRowid *float64         `json:"lastInsertRowid,omitempty"`
 }
 
 // SessionFsFileInfo holds file metadata returned by SessionFsProvider.Stat.
@@ -211,9 +211,9 @@ func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest)
 		}, nil
 	}
 	return &rpc.SessionFsSqliteQueryResult{
-		Columns:        result.Columns,
-		Rows:           result.Rows,
-		RowsAffected:   result.RowsAffected,
+		Columns:         result.Columns,
+		Rows:            result.Rows,
+		RowsAffected:    result.RowsAffected,
 		LastInsertRowid: result.LastInsertRowid,
 	}, nil
 }
