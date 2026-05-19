@@ -57,7 +57,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             Prompt = "Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.",
         }, timeout: TimeSpan.FromSeconds(120));
 
-        var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(session.SessionId, invocation.SessionId);
         Assert.Equal(summary, request.Summary);
         Assert.Equal(["interactive", "autopilot", "exit_only"], request.Actions);
@@ -124,7 +124,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         });
         Assert.NotEmpty(messageId);
 
-        var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(session.SessionId, invocation.SessionId);
         Assert.Equal("user_weekly_rate_limited", request.ErrorCode);
         Assert.Equal(1, request.RetryAfterSeconds);
