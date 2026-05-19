@@ -140,10 +140,12 @@ impl SessionFsProvider for InMemorySqliteProvider {
         let prefix = format!("{}/", path.trim_end_matches('/'));
         let mut names = std::collections::BTreeSet::new();
         for p in files.keys().chain(dirs.iter()) {
-            if let Some(rest) = p.strip_prefix(&prefix) {
-                if let Some(name) = rest.split('/').next().filter(|n| !n.is_empty()) {
-                    names.insert(name.to_string());
-                }
+            if let Some(name) = p
+                .strip_prefix(&prefix)
+                .and_then(|rest| rest.split('/').next())
+                .filter(|n| !n.is_empty())
+            {
+                names.insert(name.to_string());
             }
         }
         Ok(names.into_iter().collect())
@@ -155,19 +157,23 @@ impl SessionFsProvider for InMemorySqliteProvider {
         let prefix = format!("{}/", path.trim_end_matches('/'));
         let mut entries: HashMap<String, DirEntryKind> = HashMap::new();
         for d in dirs.iter() {
-            if let Some(rest) = d.strip_prefix(&prefix) {
-                if let Some(name) = rest.split('/').next().filter(|n| !n.is_empty()) {
-                    entries.insert(name.to_string(), DirEntryKind::Directory);
-                }
+            if let Some(name) = d
+                .strip_prefix(&prefix)
+                .and_then(|rest| rest.split('/').next())
+                .filter(|n| !n.is_empty())
+            {
+                entries.insert(name.to_string(), DirEntryKind::Directory);
             }
         }
         for f in files.keys() {
-            if let Some(rest) = f.strip_prefix(&prefix) {
-                if let Some(name) = rest.split('/').next().filter(|n| !n.is_empty()) {
-                    entries
-                        .entry(name.to_string())
-                        .or_insert(DirEntryKind::File);
-                }
+            if let Some(name) = f
+                .strip_prefix(&prefix)
+                .and_then(|rest| rest.split('/').next())
+                .filter(|n| !n.is_empty())
+            {
+                entries
+                    .entry(name.to_string())
+                    .or_insert(DirEntryKind::File);
             }
         }
         let mut result: Vec<DirEntry> = entries
