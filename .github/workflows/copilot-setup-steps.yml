@@ -36,6 +36,7 @@ jobs:
           cache-dependency-path: |
             ./nodejs/package-lock.json
             ./test/harness/package-lock.json
+            ./java/scripts/codegen/package-lock.json
 
       # Setup Python (for Python SDK)
       - name: Set up Python
@@ -60,6 +61,14 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
+
+      # Setup Java (for Java SDK)
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "microsoft"
+          java-version: "17"
+          cache: "maven"
 
       # Install just command runner
       - name: Install just
@@ -95,6 +104,11 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
 
+      # Install Java codegen dependencies
+      - name: Install Java codegen dependencies
+        working-directory: ./java/scripts/codegen
+        run: npm ci
+
       # Verify installations
       - name: Verify tool installations
         run: |
@@ -105,6 +119,8 @@ jobs:
           uv --version
           go version
           dotnet --version
+          java -version
+          mvn --version
           just --version
           gh --version
           gh aw version
