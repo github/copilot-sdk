@@ -189,16 +189,24 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
         },
         sqliteQuery: async ({ queryType, query, params: bindParams }) => {
             if (!provider.sqlite) {
-                throw new Error("SQLite is not supported by this provider");
+                return { rows: [], columns: [], rowsAffected: 0, error: { code: "UNKNOWN" as const, message: "SQLite is not supported by this provider" } };
             }
-            const result = await provider.sqlite.query(queryType, query, bindParams);
-            return result ?? { rows: [], columns: [], rowsAffected: 0 };
+            try {
+                const result = await provider.sqlite.query(queryType, query, bindParams);
+                return result ?? { rows: [], columns: [], rowsAffected: 0 };
+            } catch (err) {
+                return { rows: [], columns: [], rowsAffected: 0, error: toSessionFsError(err) };
+            }
         },
         sqliteExists: async () => {
             if (!provider.sqlite) {
-                throw new Error("SQLite is not supported by this provider");
+                return { exists: false };
             }
-            return { exists: await provider.sqlite.exists() };
+            try {
+                return { exists: await provider.sqlite.exists() };
+            } catch {
+                return { exists: false };
+            }
         },
     };
 }
