@@ -77,13 +77,13 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
                 columns.Add(reader.GetName(i));
             }
 
-            var rows = new List<IDictionary<string, object>>();
+            var rows = new List<object?[]>();
             while (reader.Read())
             {
-                var row = new Dictionary<string, object>();
+                var row = new object?[reader.FieldCount];
                 for (var i = 0; i < reader.FieldCount; i++)
                 {
-                    row[reader.GetName(i)] = reader.IsDBNull(i) ? null! : reader.GetValue(i);
+                    row[i] = reader.IsDBNull(i) ? null : reader.GetValue(i);
                 }
                 rows.Add(row);
             }
