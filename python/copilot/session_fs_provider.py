@@ -283,7 +283,9 @@ class _SessionFsAdapter:
         )
         if result is None:
             return _GeneratedSqliteQueryResult(
-                columns=[], rows=[], rows_affected=0,
+                columns=[],
+                rows=[],
+                rows_affected=0,
             )
         rowid = result.last_insert_rowid
         wire_rowid = float(rowid) if rowid is not None else None
