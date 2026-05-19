@@ -71,7 +71,9 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         var completedEvent = await completedEventTask;
         Assert.True(completedEvent.Data.Approved);
-        Assert.Equal("interactive", completedEvent.Data.SelectedAction?.Value);
+        var selectedAction = completedEvent.Data.SelectedAction;
+        Assert.NotNull(selectedAction);
+        Assert.Equal("interactive", selectedAction.Value.Value);
         Assert.Equal("Approved by the C# E2E test", completedEvent.Data.Feedback);
 
         Assert.NotNull(response);

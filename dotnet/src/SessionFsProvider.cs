@@ -252,7 +252,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
         {
             return await SqliteQueryAsync(request.SessionId, request.Query, request.QueryType, request.Params, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!IsCriticalException(ex))
         {
             return new SessionFsSqliteQueryResult { Error = ToSessionFsError(ex) };
         }
@@ -267,11 +267,21 @@ public abstract class SessionFsProvider : ISessionFsHandler
             var exists = await SqliteExistsAsync(request.SessionId, cancellationToken).ConfigureAwait(false);
             return new SessionFsSqliteExistsResult { Exists = exists };
         }
-        catch
+        catch (Exception ex) when (!IsCriticalException(ex))
         {
             return new SessionFsSqliteExistsResult { Exists = false };
         }
     }
+
+    private static bool IsCriticalException(Exception ex) =>
+        ex is OperationCanceledException
+            or OutOfMemoryException
+            or StackOverflowException
+            or AccessViolationException
+            or AppDomainUnloadedException
+            or BadImageFormatException
+            or CannotUnloadAppDomainException
+            or InvalidProgramException;
 
     private static SessionFsError ToSessionFsError(Exception ex)
     {
