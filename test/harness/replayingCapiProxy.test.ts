@@ -454,6 +454,48 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessages[1].content).toBe("[beta result]");
   });
 
+  test("normalizes read_agent timing metadata", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Help me" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: {
+                name: "read_agent",
+                arguments: '{"agent_id":"read-file","wait":true}',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 1.25s, total_turns: 0, duration: 2s\n\nDone.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessage?.content).toBe(
+      "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 0s, total_turns: 0, duration: 0s\n\nDone.",
+    );
+  });
+
   test("normalizes GitHub CLI proxy auth failures", async () => {
     const requestBody = JSON.stringify({
       messages: [
