@@ -49,6 +49,8 @@ func (p *inMemorySqliteProvider) getOrCreateDBLocked() (*sql.DB, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Force single connection so all queries share the same in-memory database.
+		db.SetMaxOpenConns(1)
 		_, err = db.Exec("PRAGMA busy_timeout = 5000")
 		if err != nil {
 			db.Close()
