@@ -770,7 +770,13 @@ public class CopilotSessionTest {
             long deadline = System.currentTimeMillis() + 10_000;
             while (System.currentTimeMillis() < deadline) {
                 long remaining = Math.max(1, deadline - System.currentTimeMillis());
-                lastId = client.getLastSessionId().get(remaining, TimeUnit.MILLISECONDS);
+                long iterationTimeout = Math.min(remaining, 500);
+                try {
+                    lastId = client.getLastSessionId().get(iterationTimeout, TimeUnit.MILLISECONDS);
+                } catch (java.util.concurrent.TimeoutException ignored) {
+                    // RPC call took longer than the per-iteration cap; retry
+                    continue;
+                }
                 if (sessionId.equals(lastId)) {
                     break;
                 }
@@ -863,7 +869,13 @@ public class CopilotSessionTest {
             long deadline = System.currentTimeMillis() + 10_000;
             while (System.currentTimeMillis() < deadline) {
                 long remaining = Math.max(1, deadline - System.currentTimeMillis());
-                metadata = client.getSessionMetadata(sessionId).get(remaining, TimeUnit.MILLISECONDS);
+                long iterationTimeout = Math.min(remaining, 500);
+                try {
+                    metadata = client.getSessionMetadata(sessionId).get(iterationTimeout, TimeUnit.MILLISECONDS);
+                } catch (java.util.concurrent.TimeoutException ignored) {
+                    // RPC call took longer than the per-iteration cap; retry
+                    continue;
+                }
                 if (metadata != null) {
                     break;
                 }
