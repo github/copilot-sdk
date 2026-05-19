@@ -86,6 +86,89 @@ describe("python session event codegen", () => {
         expect(code).toContain("count: int");
     });
 
+    it("strips Ms suffixes from duration member names while preserving JSON names", () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "session.synthetic" },
+                                data: {
+                                    type: "object",
+                                    required: ["durationMs", "integerDurationMs", "URLMs"],
+                                    properties: {
+                                        durationMs: { type: "number", format: "duration" },
+                                        integerDurationMs: { type: "integer", format: "duration" },
+                                        optionalDurationMs: {
+                                            type: ["number", "null"],
+                                            format: "duration",
+                                        },
+                                        nullableDurationMs: {
+                                            anyOf: [
+                                                { type: "number", format: "duration" },
+                                                { type: "null" },
+                                            ],
+                                        },
+                                        URLMs: { type: "number", format: "duration" },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+
+        const pythonCode = generatePythonSessionEventsCode(schema);
+
+        expect(pythonCode).toContain("duration: timedelta");
+        expect(pythonCode).toContain("integer_duration: timedelta");
+        expect(pythonCode).toContain("optional_duration: timedelta | None = None");
+        expect(pythonCode).toContain("nullable_duration: timedelta | None = None");
+        expect(pythonCode).toContain("urlms: timedelta");
+        expect(pythonCode).toContain('duration = from_timedelta(obj.get("durationMs"))');
+        expect(pythonCode).toContain('result["durationMs"] = to_timedelta(self.duration)');
+        expect(pythonCode).toContain('integer_duration = from_timedelta(obj.get("integerDurationMs"))');
+        expect(pythonCode).toContain(
+            'result["integerDurationMs"] = to_timedelta_int(self.integer_duration)'
+        );
+        expect(pythonCode).toContain(
+            'optional_duration = from_union([from_none, from_timedelta], obj.get("optionalDurationMs"))'
+        );
+        expect(pythonCode).toContain(
+            'result["optionalDurationMs"] = from_union([from_none, to_timedelta], self.optional_duration)'
+        );
+        expect(pythonCode).toContain(
+            'nullable_duration = from_union([from_none, from_timedelta], obj.get("nullableDurationMs"))'
+        );
+        expect(pythonCode).toContain(
+            'result["nullableDurationMs"] = from_union([from_none, to_timedelta], self.nullable_duration)'
+        );
+        expect(pythonCode).toContain('urlms = from_timedelta(obj.get("URLMs"))');
+        expect(pythonCode).toContain('result["URLMs"] = to_timedelta(self.urlms)');
+
+        const csharpCode = generateCSharpSessionEventsCode(schema);
+
+        expect(csharpCode).toContain(
+            '[JsonPropertyName("durationMs")]\n    public required TimeSpan Duration { get; set; }'
+        );
+        expect(csharpCode).toContain(
+            '[JsonPropertyName("integerDurationMs")]\n    public required TimeSpan IntegerDuration { get; set; }'
+        );
+        expect(csharpCode).toContain(
+            '[JsonPropertyName("optionalDurationMs")]\n    public TimeSpan? OptionalDuration { get; set; }'
+        );
+        expect(csharpCode).toContain(
+            '[JsonPropertyName("nullableDurationMs")]\n    public TimeSpan? NullableDuration { get; set; }'
+        );
+        expect(csharpCode).toContain(
+            '[JsonPropertyName("URLMs")]\n    public required TimeSpan URLMs { get; set; }'
+        );
+    });
+
     it("collapses redundant callable wrapper lambdas", () => {
         const schema: JSONSchema7 = {
             definitions: {

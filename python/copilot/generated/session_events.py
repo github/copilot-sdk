@@ -685,7 +685,7 @@ class AssistantUsageData:
     duration: timedelta | None = None
     initiator: str | None = None
     input_tokens: float | None = None
-    inter_token_latency_ms: timedelta | None = None
+    inter_token_latency: timedelta | None = None
     output_tokens: float | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
@@ -693,7 +693,7 @@ class AssistantUsageData:
     quota_snapshots: dict[str, AssistantUsageQuotaSnapshot] | None = None
     reasoning_effort: str | None = None
     reasoning_tokens: float | None = None
-    ttft_ms: timedelta | None = None
+    ttft: timedelta | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageData":
@@ -708,14 +708,14 @@ class AssistantUsageData:
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
         input_tokens = from_union([from_none, from_float], obj.get("inputTokens"))
-        inter_token_latency_ms = from_union([from_none, from_timedelta], obj.get("interTokenLatencyMs"))
+        inter_token_latency = from_union([from_none, from_timedelta], obj.get("interTokenLatencyMs"))
         output_tokens = from_union([from_none, from_float], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         quota_snapshots = from_union([from_none, lambda x: from_dict(AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_tokens = from_union([from_none, from_float], obj.get("reasoningTokens"))
-        ttft_ms = from_union([from_none, from_timedelta], obj.get("ttftMs"))
+        ttft = from_union([from_none, from_timedelta], obj.get("ttftMs"))
         return AssistantUsageData(
             model=model,
             api_call_id=api_call_id,
@@ -727,14 +727,14 @@ class AssistantUsageData:
             duration=duration,
             initiator=initiator,
             input_tokens=input_tokens,
-            inter_token_latency_ms=inter_token_latency_ms,
+            inter_token_latency=inter_token_latency,
             output_tokens=output_tokens,
             parent_tool_call_id=parent_tool_call_id,
             provider_call_id=provider_call_id,
             quota_snapshots=quota_snapshots,
             reasoning_effort=reasoning_effort,
             reasoning_tokens=reasoning_tokens,
-            ttft_ms=ttft_ms,
+            ttft=ttft,
         )
 
     def to_dict(self) -> dict:
@@ -758,8 +758,8 @@ class AssistantUsageData:
             result["initiator"] = from_union([from_none, from_str], self.initiator)
         if self.input_tokens is not None:
             result["inputTokens"] = from_union([from_none, to_float], self.input_tokens)
-        if self.inter_token_latency_ms is not None:
-            result["interTokenLatencyMs"] = from_union([from_none, to_timedelta], self.inter_token_latency_ms)
+        if self.inter_token_latency is not None:
+            result["interTokenLatencyMs"] = from_union([from_none, to_timedelta], self.inter_token_latency)
         if self.output_tokens is not None:
             result["outputTokens"] = from_union([from_none, to_float], self.output_tokens)
         if self.parent_tool_call_id is not None:
@@ -772,8 +772,8 @@ class AssistantUsageData:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_tokens is not None:
             result["reasoningTokens"] = from_union([from_none, to_float], self.reasoning_tokens)
-        if self.ttft_ms is not None:
-            result["ttftMs"] = from_union([from_none, to_timedelta], self.ttft_ms)
+        if self.ttft is not None:
+            result["ttftMs"] = from_union([from_none, to_timedelta], self.ttft)
         return result
 
 
@@ -1751,7 +1751,7 @@ class ModelCallFailureData:
     "Failed LLM API call metadata for telemetry"
     source: ModelCallFailureSource
     api_call_id: str | None = None
-    duration_ms: timedelta | None = None
+    duration: timedelta | None = None
     error_message: str | None = None
     initiator: str | None = None
     model: str | None = None
@@ -1763,7 +1763,7 @@ class ModelCallFailureData:
         assert isinstance(obj, dict)
         source = parse_enum(ModelCallFailureSource, obj.get("source"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
-        duration_ms = from_union([from_none, from_timedelta], obj.get("durationMs"))
+        duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
         error_message = from_union([from_none, from_str], obj.get("errorMessage"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
         model = from_union([from_none, from_str], obj.get("model"))
@@ -1772,7 +1772,7 @@ class ModelCallFailureData:
         return ModelCallFailureData(
             source=source,
             api_call_id=api_call_id,
-            duration_ms=duration_ms,
+            duration=duration,
             error_message=error_message,
             initiator=initiator,
             model=model,
@@ -1785,8 +1785,8 @@ class ModelCallFailureData:
         result["source"] = to_enum(ModelCallFailureSource, self.source)
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
-        if self.duration_ms is not None:
-            result["durationMs"] = from_union([from_none, to_timedelta], self.duration_ms)
+        if self.duration is not None:
+            result["durationMs"] = from_union([from_none, to_timedelta], self.duration)
         if self.error_message is not None:
             result["errorMessage"] = from_union([from_none, from_str], self.error_message)
         if self.initiator is not None:
@@ -3046,7 +3046,7 @@ class SessionScheduleCancelledData:
 class SessionScheduleCreatedData:
     "Scheduled prompt registered via /every or /after"
     id: int
-    interval_ms: timedelta
+    interval: timedelta
     prompt: str
     display_prompt: str | None = None
     recurring: bool | None = None
@@ -3055,13 +3055,13 @@ class SessionScheduleCreatedData:
     def from_dict(obj: Any) -> "SessionScheduleCreatedData":
         assert isinstance(obj, dict)
         id = from_int(obj.get("id"))
-        interval_ms = from_timedelta(obj.get("intervalMs"))
+        interval = from_timedelta(obj.get("intervalMs"))
         prompt = from_str(obj.get("prompt"))
         display_prompt = from_union([from_none, from_str], obj.get("displayPrompt"))
         recurring = from_union([from_none, from_bool], obj.get("recurring"))
         return SessionScheduleCreatedData(
             id=id,
-            interval_ms=interval_ms,
+            interval=interval,
             prompt=prompt,
             display_prompt=display_prompt,
             recurring=recurring,
@@ -3070,7 +3070,7 @@ class SessionScheduleCreatedData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["id"] = to_int(self.id)
-        result["intervalMs"] = to_timedelta_int(self.interval_ms)
+        result["intervalMs"] = to_timedelta_int(self.interval)
         result["prompt"] = from_str(self.prompt)
         if self.display_prompt is not None:
             result["displayPrompt"] = from_union([from_none, from_str], self.display_prompt)
@@ -3086,7 +3086,7 @@ class SessionShutdownData:
     model_metrics: dict[str, ShutdownModelMetric]
     session_start_time: float
     shutdown_type: ShutdownType
-    total_api_duration_ms: timedelta
+    total_api_duration: timedelta
     total_premium_requests: float
     conversation_tokens: float | None = None
     current_model: str | None = None
@@ -3104,7 +3104,7 @@ class SessionShutdownData:
         model_metrics = from_dict(ShutdownModelMetric.from_dict, obj.get("modelMetrics"))
         session_start_time = from_float(obj.get("sessionStartTime"))
         shutdown_type = parse_enum(ShutdownType, obj.get("shutdownType"))
-        total_api_duration_ms = from_timedelta(obj.get("totalApiDurationMs"))
+        total_api_duration = from_timedelta(obj.get("totalApiDurationMs"))
         total_premium_requests = from_float(obj.get("totalPremiumRequests"))
         conversation_tokens = from_union([from_none, from_float], obj.get("conversationTokens"))
         current_model = from_union([from_none, from_str], obj.get("currentModel"))
@@ -3119,7 +3119,7 @@ class SessionShutdownData:
             model_metrics=model_metrics,
             session_start_time=session_start_time,
             shutdown_type=shutdown_type,
-            total_api_duration_ms=total_api_duration_ms,
+            total_api_duration=total_api_duration,
             total_premium_requests=total_premium_requests,
             conversation_tokens=conversation_tokens,
             current_model=current_model,
@@ -3137,7 +3137,7 @@ class SessionShutdownData:
         result["modelMetrics"] = from_dict(lambda x: to_class(ShutdownModelMetric, x), self.model_metrics)
         result["sessionStartTime"] = to_float(self.session_start_time)
         result["shutdownType"] = to_enum(ShutdownType, self.shutdown_type)
-        result["totalApiDurationMs"] = to_timedelta(self.total_api_duration_ms)
+        result["totalApiDurationMs"] = to_timedelta(self.total_api_duration)
         result["totalPremiumRequests"] = to_float(self.total_premium_requests)
         if self.conversation_tokens is not None:
             result["conversationTokens"] = from_union([from_none, to_float], self.conversation_tokens)
@@ -3728,7 +3728,7 @@ class SubagentCompletedData:
     agent_display_name: str
     agent_name: str
     tool_call_id: str
-    duration_ms: timedelta | None = None
+    duration: timedelta | None = None
     model: str | None = None
     total_tokens: float | None = None
     total_tool_calls: float | None = None
@@ -3739,7 +3739,7 @@ class SubagentCompletedData:
         agent_display_name = from_str(obj.get("agentDisplayName"))
         agent_name = from_str(obj.get("agentName"))
         tool_call_id = from_str(obj.get("toolCallId"))
-        duration_ms = from_union([from_none, from_timedelta], obj.get("durationMs"))
+        duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
         model = from_union([from_none, from_str], obj.get("model"))
         total_tokens = from_union([from_none, from_float], obj.get("totalTokens"))
         total_tool_calls = from_union([from_none, from_float], obj.get("totalToolCalls"))
@@ -3747,7 +3747,7 @@ class SubagentCompletedData:
             agent_display_name=agent_display_name,
             agent_name=agent_name,
             tool_call_id=tool_call_id,
-            duration_ms=duration_ms,
+            duration=duration,
             model=model,
             total_tokens=total_tokens,
             total_tool_calls=total_tool_calls,
@@ -3758,8 +3758,8 @@ class SubagentCompletedData:
         result["agentDisplayName"] = from_str(self.agent_display_name)
         result["agentName"] = from_str(self.agent_name)
         result["toolCallId"] = from_str(self.tool_call_id)
-        if self.duration_ms is not None:
-            result["durationMs"] = from_union([from_none, to_timedelta], self.duration_ms)
+        if self.duration is not None:
+            result["durationMs"] = from_union([from_none, to_timedelta], self.duration)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.total_tokens is not None:
@@ -3788,7 +3788,7 @@ class SubagentFailedData:
     agent_name: str
     error: str
     tool_call_id: str
-    duration_ms: timedelta | None = None
+    duration: timedelta | None = None
     model: str | None = None
     total_tokens: float | None = None
     total_tool_calls: float | None = None
@@ -3800,7 +3800,7 @@ class SubagentFailedData:
         agent_name = from_str(obj.get("agentName"))
         error = from_str(obj.get("error"))
         tool_call_id = from_str(obj.get("toolCallId"))
-        duration_ms = from_union([from_none, from_timedelta], obj.get("durationMs"))
+        duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
         model = from_union([from_none, from_str], obj.get("model"))
         total_tokens = from_union([from_none, from_float], obj.get("totalTokens"))
         total_tool_calls = from_union([from_none, from_float], obj.get("totalToolCalls"))
@@ -3809,7 +3809,7 @@ class SubagentFailedData:
             agent_name=agent_name,
             error=error,
             tool_call_id=tool_call_id,
-            duration_ms=duration_ms,
+            duration=duration,
             model=model,
             total_tokens=total_tokens,
             total_tool_calls=total_tool_calls,
@@ -3821,8 +3821,8 @@ class SubagentFailedData:
         result["agentName"] = from_str(self.agent_name)
         result["error"] = from_str(self.error)
         result["toolCallId"] = from_str(self.tool_call_id)
-        if self.duration_ms is not None:
-            result["durationMs"] = from_union([from_none, to_timedelta], self.duration_ms)
+        if self.duration is not None:
+            result["durationMs"] = from_union([from_none, to_timedelta], self.duration)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.total_tokens is not None:

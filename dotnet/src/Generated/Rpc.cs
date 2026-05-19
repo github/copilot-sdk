@@ -1320,7 +1320,7 @@ public partial class TaskInfoAgent : TaskInfo
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("activeTimeMs")]
-    public TimeSpan? ActiveTimeMs { get; set; }
+    public TimeSpan? ActiveTime { get; set; }
 
     /// <summary>Type of agent running this task.</summary>
     [JsonPropertyName("agentType")]
@@ -2970,7 +2970,7 @@ public sealed class UsageGetMetricsResult
     [Range(0, double.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("totalApiDurationMs")]
-    public TimeSpan TotalApiDurationMs { get; set; }
+    public TimeSpan TotalApiDuration { get; set; }
 
     /// <summary>Session-wide accumulated nano-AI units cost.</summary>
     [Range((double)0, (double)long.MaxValue)]
