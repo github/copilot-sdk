@@ -455,3 +455,41 @@ describe("enum value description codegen", () => {
         expect(code).toContain('    #[serde(rename = "beta")]\n    Beta,');
     });
 });
+
+describe("csharp session event codegen", () => {
+    it("emits regular expression attributes for regex format properties with patterns", () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "session.synthetic" },
+                                data: {
+                                    type: "object",
+                                    required: ["pattern"],
+                                    properties: {
+                                        pattern: {
+                                            type: "string",
+                                            format: "regex",
+                                            pattern: "^foo\\d+$",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+
+        const code = generateCSharpSessionEventsCode(schema);
+
+        expect(code).toContain(`    [StringSyntax(StringSyntaxAttribute.Regex)]
+    [RegularExpression("^foo\\\\d+$")]
+    [JsonPropertyName("pattern")]`);
+        expect(code.split(`[RegularExpression("^foo\\\\d+$")]`)).toHaveLength(2);
+    });
+});

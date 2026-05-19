@@ -30,6 +30,8 @@ internal sealed class StringSyntaxAttribute : Attribute
 {
     public const string Uri = nameof(Uri);
 
+    public const string Regex = nameof(Regex);
+
     public StringSyntaxAttribute(string syntax)
     {
         Syntax = syntax;
