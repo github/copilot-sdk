@@ -47,7 +47,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             timeoutDescription: "exit_plan_mode.requested event");
         var completedEventTask = TestHelper.GetNextEventOfTypeAsync<ExitPlanModeCompletedEvent>(
             session,
-            evt => evt.Data.Approved == true && evt.Data.SelectedAction == "interactive",
+            evt => evt.Data.Approved == true && evt.Data.SelectedAction.GetValueOrDefault() == ExitPlanModeAction.Interactive,
             TimeSpan.FromSeconds(30),
             timeoutDescription: "exit_plan_mode.completed event");
 
@@ -66,12 +66,12 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         var requestedEvent = await requestedEventTask;
         Assert.Equal(request.Summary, requestedEvent.Data.Summary);
-        Assert.Equal(request.Actions, requestedEvent.Data.Actions);
-        Assert.Equal(request.RecommendedAction, requestedEvent.Data.RecommendedAction);
+        Assert.Equal(request.Actions, requestedEvent.Data.Actions.Select(action => action.Value));
+        Assert.Equal(request.RecommendedAction, requestedEvent.Data.RecommendedAction.Value);
 
         var completedEvent = await completedEventTask;
         Assert.True(completedEvent.Data.Approved);
-        Assert.Equal("interactive", completedEvent.Data.SelectedAction);
+        Assert.Equal("interactive", completedEvent.Data.SelectedAction?.Value);
         Assert.Equal("Approved by the C# E2E test", completedEvent.Data.Feedback);
 
         Assert.NotNull(response);
@@ -104,7 +104,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             timeoutDescription: "auto_mode_switch.requested event");
         var completedEventTask = GetNextEventOfTypeAllowingRateLimitAsync<AutoModeSwitchCompletedEvent>(
             session,
-            evt => evt.Data.Response == "yes",
+            evt => evt.Data.Response == AutoModeSwitchResponse.Yes,
             TimeSpan.FromSeconds(30),
             timeoutDescription: "auto_mode_switch.completed event");
         var modelChangeTask = GetNextEventOfTypeAllowingRateLimitAsync<SessionModelChangeEvent>(
@@ -134,7 +134,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         Assert.Equal(request.RetryAfterSeconds, requestedEvent.Data.RetryAfterSeconds);
 
         var completedEvent = await completedEventTask;
-        Assert.Equal("yes", completedEvent.Data.Response);
+        Assert.Equal(AutoModeSwitchResponse.Yes, completedEvent.Data.Response);
 
         var modelChange = await modelChangeTask;
         Assert.Equal("rate_limit_auto_switch", modelChange.Data.Cause);

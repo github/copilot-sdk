@@ -31,6 +31,9 @@ from .generated.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesResult,
     SessionFSReadFileResult,
+    SessionFSSqliteExistsResult,
+    SessionFSSqliteQueryResult,
+    SessionFSSqliteQueryType,
     SessionFSStatResult,
 )
 
@@ -94,6 +97,20 @@ class SessionFsProvider(abc.ABC):
     @abc.abstractmethod
     async def rename(self, src: str, dest: str) -> None:
         """Rename / move a file or directory."""
+
+    @abc.abstractmethod
+    async def sqlite_query(
+        self,
+        session_id: str,
+        query: str,
+        query_type: SessionFSSqliteQueryType,
+        params: dict[str, float | str | None] | None = None,
+    ) -> SessionFSSqliteQueryResult:
+        """Execute a SQLite query against the provider's per-session database."""
+
+    @abc.abstractmethod
+    async def sqlite_exists(self, session_id: str) -> bool:
+        """Return whether the provider has a SQLite database for *session_id*."""
 
 
 def create_session_fs_adapter(provider: SessionFsProvider) -> SessionFsHandler:
@@ -208,6 +225,29 @@ class _SessionFsAdapter:
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)
+
+    async def sqlite_query(self, params: object) -> SessionFSSqliteQueryResult:
+        try:
+            return await self._p.sqlite_query(  # type: ignore[attr-defined]
+                params.session_id,
+                params.query,
+                params.query_type,
+                getattr(params, "params", None),
+            )
+        except Exception as exc:
+            return SessionFSSqliteQueryResult(
+                columns=[],
+                rows=[],
+                rows_affected=0,
+                error=_to_session_fs_error(exc),
+            )
+
+    async def sqlite_exists(self, params: object) -> SessionFSSqliteExistsResult:
+        try:
+            result = await self._p.sqlite_exists(params.session_id)  # type: ignore[attr-defined]
+            return SessionFSSqliteExistsResult.from_dict({"exists": result})
+        except Exception:
+            return SessionFSSqliteExistsResult.from_dict({"exists": False})
 
 
 def _to_session_fs_error(exc: Exception) -> SessionFSError:

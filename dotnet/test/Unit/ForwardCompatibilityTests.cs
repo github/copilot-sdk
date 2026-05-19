@@ -240,7 +240,7 @@ public class ForwardCompatibilityTests
     [Fact]
     public void RpcEnum_DefaultValue_HasEmptyStringValue()
     {
-        GitHub.Copilot.SDK.Rpc.SessionMode mode = default;
+        GitHub.Copilot.SDK.SessionMode mode = default;
 
         Assert.Equal(string.Empty, mode.Value);
         Assert.Equal(string.Empty, mode.ToString());
@@ -249,7 +249,7 @@ public class ForwardCompatibilityTests
     [Fact]
     public void RpcEnum_DefaultValueSerialization_ThrowsJsonException()
     {
-        GitHub.Copilot.SDK.Rpc.SessionMode mode = default;
+        GitHub.Copilot.SDK.SessionMode mode = default;
 
         var exception = Assert.Throws<JsonException>(() => JsonSerializer.Serialize(
             mode,
@@ -304,5 +304,5 @@ public class ForwardCompatibilityTests
     }
 }
 
-[JsonSerializable(typeof(GitHub.Copilot.SDK.Rpc.SessionMode))]
+[JsonSerializable(typeof(GitHub.Copilot.SDK.SessionMode))]
 internal partial class ForwardCompatibilityJsonContext : JsonSerializerContext;

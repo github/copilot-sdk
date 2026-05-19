@@ -340,7 +340,7 @@ public sealed class DiscoveredMcpServer
 
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonPropertyName("source")]
-    public McpServerSource Source { get; set; } = null!;
+    public McpServerSource Source { get; set; }
 
     /// <summary>Server transport type: stdio, http, sse, or memory.</summary>
     [JsonPropertyName("type")]
@@ -453,7 +453,7 @@ public sealed class ServerSkill
 
     /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
     [JsonPropertyName("source")]
-    public SkillSource Source { get; set; } = null!;
+    public SkillSource Source { get; set; }
 
     /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
     [JsonPropertyName("userInvocable")]
@@ -846,7 +846,7 @@ internal sealed class ModeSetRequest
 {
     /// <summary>The session mode the agent is operating in.</summary>
     [JsonPropertyName("mode")]
-    public SessionMode Mode { get; set; } = null!;
+    public SessionMode Mode { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1582,7 +1582,7 @@ public sealed class Skill
 
     /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
     [JsonPropertyName("source")]
-    public SkillSource Source { get; set; } = null!;
+    public SkillSource Source { get; set; }
 
     /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
     [JsonPropertyName("userInvocable")]
@@ -1675,7 +1675,7 @@ public sealed class McpServer
 
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
-    public McpServerStatus Status { get; set; } = null!;
+    public McpServerStatus Status { get; set; }
 }
 
 /// <summary>MCP servers configured for the session, with their connection status.</summary>

@@ -17,12 +17,14 @@ from copilot.client import ExternalServerConfig, SubprocessConfig
 from copilot.generated.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
+    SessionFSSqliteQueryResult,
+    SessionFSSqliteQueryType,
 )
 from copilot.generated.session_events import SessionCompactionCompleteData, SessionEvent
 from copilot.session import PermissionHandler
 from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider
 
-from .testharness import E2ETestContext
+from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -44,15 +46,12 @@ SESSION_FS_CONFIG: SessionFsConfig = {
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def session_fs_client(ctx: E2ETestContext):
-    github_token = (
-        "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
-    )
     client = CopilotClient(
         SubprocessConfig(
             cli_path=ctx.cli_path,
             cwd=ctx.work_dir,
             env=ctx.get_env(),
-            github_token=github_token,
+            github_token=DEFAULT_GITHUB_TOKEN,
             session_fs=SESSION_FS_CONFIG,
         )
     )
@@ -119,16 +118,13 @@ class TestSessionFs:
         await session2.disconnect()
 
     async def test_should_reject_setprovider_when_sessions_already_exist(self, ctx: E2ETestContext):
-        github_token = (
-            "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
-        )
         client1 = CopilotClient(
             SubprocessConfig(
                 cli_path=ctx.cli_path,
                 cwd=ctx.work_dir,
                 env=ctx.get_env(),
                 use_stdio=False,
-                github_token=github_token,
+                github_token=DEFAULT_GITHUB_TOKEN,
             )
         )
         session = None
@@ -287,6 +283,8 @@ class TestSessionFs:
             SessionFSReadFileRequest,
             SessionFSRenameRequest,
             SessionFSRmRequest,
+            SessionFSSqliteExistsRequest,
+            SessionFSSqliteQueryRequest,
             SessionFSStatRequest,
             SessionFSWriteFileRequest,
         )
@@ -397,6 +395,31 @@ class TestSessionFs:
             from copilot.generated.rpc import SessionFSErrorCode
 
             assert missing.error.code == SessionFSErrorCode.ENOENT
+
+            sqlite_query = await handler.sqlite_query(
+                SessionFSSqliteQueryRequest(
+                    session_id=session_id,
+                    query="select :answer as answer",
+                    query_type=SessionFSSqliteQueryType.QUERY,
+                    params={"answer": 42},
+                )
+            )
+            assert "answer" in sqlite_query.columns
+            assert sqlite_query.rows == [
+                {
+                    "sessionId": session_id,
+                    "query": "select :answer as answer",
+                    "queryType": "query",
+                    "answer": 42,
+                }
+            ]
+            assert sqlite_query.rows_affected == 0
+            assert sqlite_query.error is None
+
+            sqlite_exists = await handler.sqlite_exists(
+                SessionFSSqliteExistsRequest(session_id=session_id)
+            )
+            assert sqlite_exists.exists is True
         finally:
             try:
                 import shutil
@@ -416,6 +439,8 @@ class TestSessionFs:
             SessionFSReadFileRequest,
             SessionFSRenameRequest,
             SessionFSRmRequest,
+            SessionFSSqliteExistsRequest,
+            SessionFSSqliteQueryRequest,
             SessionFSStatRequest,
             SessionFSWriteFileRequest,
         )
@@ -453,6 +478,12 @@ class TestSessionFs:
                 raise self._exc
 
             async def rename(self, src, dest):
+                raise self._exc
+
+            async def sqlite_query(self, session_id, query, query_type, params=None):
+                raise self._exc
+
+            async def sqlite_exists(self, session_id):
                 raise self._exc
 
         def assert_fs_error(error) -> None:
@@ -511,6 +542,17 @@ class TestSessionFs:
                 SessionFSRenameRequest(session_id=sid, src="missing.txt", dest="dest.txt")
             )
         )
+        sqlite_query = await handler.sqlite_query(
+            SessionFSSqliteQueryRequest(
+                session_id=sid, query="select 1", query_type=SessionFSSqliteQueryType.QUERY
+            )
+        )
+        assert_fs_error(sqlite_query.error)
+        assert sqlite_query.columns == []
+        assert sqlite_query.rows == []
+        assert sqlite_query.rows_affected == 0
+        sqlite_exists = await handler.sqlite_exists(SessionFSSqliteExistsRequest(session_id=sid))
+        assert sqlite_exists.exists is False
 
         unknown_handler = create_session_fs_adapter(_ThrowingProvider(RuntimeError("bad path")))
         unknown_error = await unknown_handler.write_file(
@@ -587,6 +629,29 @@ class _TestSessionFsProvider(SessionFsProvider):
         d = self._path(dest)
         d.parent.mkdir(parents=True, exist_ok=True)
         self._path(src).rename(d)
+
+    async def sqlite_query(
+        self,
+        session_id: str,
+        query: str,
+        query_type: SessionFSSqliteQueryType,
+        params: dict[str, float | str | None] | None = None,
+    ) -> SessionFSSqliteQueryResult:
+        return SessionFSSqliteQueryResult(
+            columns=["sessionId", "query", "queryType", "answer"],
+            rows=[
+                {
+                    "sessionId": session_id,
+                    "query": query,
+                    "queryType": query_type.value,
+                    "answer": params["answer"] if params else None,
+                }
+            ],
+            rows_affected=0,
+        )
+
+    async def sqlite_exists(self, session_id: str) -> bool:
+        return session_id == self._session_id
 
 
 def create_test_session_fs_handler(provider_root: Path):

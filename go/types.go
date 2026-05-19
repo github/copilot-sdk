@@ -327,18 +327,6 @@ type AutoModeSwitchRequest struct {
 	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
 }
 
-// AutoModeSwitchResponse is the user's response to an auto-mode-switch request.
-type AutoModeSwitchResponse string
-
-const (
-	// AutoModeSwitchResponseYes approves the switch for this rate-limit cycle.
-	AutoModeSwitchResponseYes AutoModeSwitchResponse = "yes"
-	// AutoModeSwitchResponseYesAlways approves and remembers the choice for this session.
-	AutoModeSwitchResponseYesAlways AutoModeSwitchResponse = "yes_always"
-	// AutoModeSwitchResponseNo declines the switch.
-	AutoModeSwitchResponseNo AutoModeSwitchResponse = "no"
-)
-
 // AutoModeSwitchInvocation provides context about an auto-mode-switch request.
 type AutoModeSwitchInvocation struct {
 	SessionID string

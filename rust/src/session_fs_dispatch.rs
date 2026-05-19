@@ -16,9 +16,11 @@ use crate::generated::api_types::{
     SessionFsMkdirRequest, SessionFsReadFileRequest, SessionFsReadFileResult,
     SessionFsReaddirRequest, SessionFsReaddirResult, SessionFsReaddirWithTypesRequest,
     SessionFsReaddirWithTypesResult, SessionFsRenameRequest, SessionFsRmRequest,
-    SessionFsStatRequest, SessionFsStatResult, SessionFsWriteFileRequest,
+    SessionFsSqliteExistsParams, SessionFsSqliteExistsResult, SessionFsSqliteQueryRequest,
+    SessionFsSqliteQueryResult, SessionFsStatRequest, SessionFsStatResult,
+    SessionFsWriteFileRequest,
 };
-use crate::session_fs::{FsError, SessionFsProvider};
+use crate::session_fs::SessionFsProvider;
 use crate::{Client, JsonRpcRequest, JsonRpcResponse, error_codes};
 
 /// Helper: serialize a typed result, send the response.
@@ -146,7 +148,6 @@ pub(crate) async fn exists(
         }
     };
     let id = request.id;
-    // Match Node's `createSessionFsAdapter`: errors collapse to `exists: false`.
     let exists_value = provider.exists(&params.path).await.unwrap_or(false);
     respond(
         client,
@@ -302,6 +303,55 @@ pub(crate) async fn rename(
     }
 }
 
+pub(crate) async fn sqlite_query(
+    client: &Client,
+    provider: &Arc<dyn SessionFsProvider>,
+    request: JsonRpcRequest,
+) {
+    let params: SessionFsSqliteQueryRequest = match parse_params(&request) {
+        Some(p) => p,
+        None => {
+            send_error(client, request.id, "invalid sessionFs.sqliteQuery params").await;
+            return;
+        }
+    };
+    let id = request.id;
+    let result = match provider
+        .sqlite_query(&params.query, params.query_type, &params.params)
+        .await
+    {
+        Ok(result) => result,
+        Err(e) => SessionFsSqliteQueryResult {
+            columns: Vec::new(),
+            error: Some(e.into_wire()),
+            last_insert_rowid: None,
+            rows: Vec::new(),
+            rows_affected: 0,
+        },
+    };
+    respond(client, id, result).await;
+}
+
+pub(crate) async fn sqlite_exists(
+    client: &Client,
+    provider: &Arc<dyn SessionFsProvider>,
+    request: JsonRpcRequest,
+) {
+    let params: SessionFsSqliteExistsParams = match parse_params(&request) {
+        Some(p) => p,
+        None => {
+            send_error(client, request.id, "invalid sessionFs.sqliteExists params").await;
+            return;
+        }
+    };
+    let id = request.id;
+    let result = match provider.sqlite_exists(params.session_id.as_ref()).await {
+        Ok(exists) => SessionFsSqliteExistsResult { exists },
+        Err(_) => SessionFsSqliteExistsResult { exists: false },
+    };
+    respond(client, id, result).await;
+}
+
 /// Dispatch a `sessionFs.*` request to the appropriate handler. Returns
 /// `true` if the request was a session-fs method (whether or not a provider
 /// was registered), `false` otherwise (caller should continue matching).
@@ -338,6 +388,8 @@ pub(crate) async fn dispatch(
         "sessionFs.readdirWithTypes" => readdir_with_types(client, &provider, request).await,
         "sessionFs.rm" => rm(client, &provider, request).await,
         "sessionFs.rename" => rename(client, &provider, request).await,
+        "sessionFs.sqliteQuery" => sqlite_query(client, &provider, request).await,
+        "sessionFs.sqliteExists" => sqlite_exists(client, &provider, request).await,
         _ => {
             warn!(method = %method, "unknown sessionFs.* method");
             send_error(client, request.id, "unknown sessionFs method").await;
@@ -345,7 +397,3 @@ pub(crate) async fn dispatch(
     }
     true
 }
-
-// FsError is used through `into_wire()` calls above.
-#[allow(dead_code)]
-fn _ensure_fs_error_used(_e: FsError) {}

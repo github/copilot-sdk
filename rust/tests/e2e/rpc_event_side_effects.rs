@@ -1,5 +1,6 @@
+use github_copilot_sdk::generated::SessionMode;
 use github_copilot_sdk::generated::api_types::{
-    HistoryTruncateRequest, ModeSetRequest, NameSetRequest, PlanUpdateRequest, SessionMode,
+    HistoryTruncateRequest, ModeSetRequest, NameSetRequest, PlanUpdateRequest,
     WorkspacesCreateFileRequest,
 };
 use github_copilot_sdk::generated::session_events::{
@@ -30,7 +31,8 @@ async fn should_emit_mode_changed_event_when_mode_set() {
                     let data = event
                         .typed_data::<SessionModeChangedData>()
                         .expect("mode changed data");
-                    data.previous_mode == "interactive" && data.new_mode == "plan"
+                    data.previous_mode == SessionMode::Interactive
+                        && data.new_mode == SessionMode::Plan
                 });
                 session
                     .rpc()

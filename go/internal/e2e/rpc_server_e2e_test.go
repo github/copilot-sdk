@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -117,7 +118,11 @@ func TestRpcServerE2E(t *testing.T) {
 		if !chat.OverageAllowedWithExhaustedQuota {
 			t.Errorf("Expected OverageAllowedWithExhaustedQuota=true")
 		}
-		if chat.ResetDate == nil || *chat.ResetDate != "2026-04-30T00:00:00Z" {
+		expectedResetDate, err := time.Parse(time.RFC3339, "2026-04-30T00:00:00Z")
+		if err != nil {
+			t.Fatalf("Parse expected reset date: %v", err)
+		}
+		if chat.ResetDate == nil || !chat.ResetDate.Equal(expectedResetDate) {
 			t.Errorf("Expected ResetDate='2026-04-30T00:00:00Z', got %v", chat.ResetDate)
 		}
 	})

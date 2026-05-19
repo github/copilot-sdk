@@ -4732,7 +4732,7 @@ class SessionFSSqliteQueryRequest:
     session_id: str
     """Target session identifier"""
 
-    params: dict[str, Optional[float | str]] | None = None
+    params: dict[str, float | str | None] | None = None
     """Optional named bind parameters"""
 
     @staticmethod

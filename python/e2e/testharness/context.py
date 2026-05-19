@@ -38,6 +38,7 @@ def get_cli_path_for_tests() -> str:
 
 CLI_PATH = get_cli_path_for_tests()
 SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
+DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests"
 
 
 class E2ETestContext:
@@ -64,19 +65,27 @@ class E2ETestContext:
 
         self._proxy = CapiProxy()
         self.proxy_url = await self._proxy.start()
+        await self._proxy.set_copilot_user_by_token(
+            DEFAULT_GITHUB_TOKEN,
+            {
+                "login": "e2e-test-user",
+                "copilot_plan": "individual_pro",
+                "endpoints": {
+                    "api": self.proxy_url,
+                    "telemetry": "https://localhost:1/telemetry",
+                },
+                "analytics_tracking_id": "e2e-test-tracking-id",
+            },
+        )
 
         # Create the shared client (like Node.js/Go do)
-        # Use fake token in CI to allow cached responses without real auth
-        github_token = (
-            "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
-        )
         self._client = CopilotClient(
             SubprocessConfig(
                 cli_path=self.cli_path,
                 cli_args=cli_args or [],
                 cwd=self.work_dir,
                 env=self.get_env(),
-                github_token=github_token,
+                github_token=DEFAULT_GITHUB_TOKEN,
             )
         )
 
@@ -140,14 +149,14 @@ class E2ETestContext:
             {
                 "COPILOT_API_URL": self.proxy_url,
                 "COPILOT_HOME": self.home_dir,
+                "COPILOT_SDK_AUTH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GH_CONFIG_DIR": self.home_dir,
+                "GH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
+                "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
             }
         )
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            env["GH_TOKEN"] = "fake-token-for-e2e-tests"
-            env["GITHUB_TOKEN"] = "fake-token-for-e2e-tests"
         return env
 
     @property

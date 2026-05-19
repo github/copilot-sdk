@@ -10,6 +10,8 @@ namespace GitHub.Copilot.SDK.Test.Harness;
 
 public sealed class E2ETestContext : IAsyncDisposable
 {
+    private const string DefaultGitHubToken = "fake-token-for-e2e-tests";
+
     public string HomeDir { get; }
     public string WorkDir { get; }
     public string ProxyUrl { get; }
@@ -49,6 +51,11 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         var proxy = new CapiProxy();
         var proxyUrl = await proxy.StartAsync();
+        await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
+            Login: "e2e-test-user",
+            CopilotPlan: "individual_pro",
+            Endpoints: new CopilotUserEndpoints(Api: proxyUrl, Telemetry: "https://localhost:1/telemetry"),
+            AnalyticsTrackingId: "e2e-test-tracking-id"));
 
         return new E2ETestContext(homeDir, workDir, proxyUrl, proxy, repoRoot);
     }
@@ -190,8 +197,8 @@ public sealed class E2ETestContext : IAsyncDisposable
         }
         if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
         {
-            env["GH_TOKEN"] = "fake-token-for-e2e-tests";
-            env["GITHUB_TOKEN"] = "fake-token-for-e2e-tests";
+            env["GH_TOKEN"] = DefaultGitHubToken;
+            env["GITHUB_TOKEN"] = DefaultGitHubToken;
         }
 
         return env!;
@@ -216,11 +223,10 @@ public sealed class E2ETestContext : IAsyncDisposable
         }
 
         if (autoInjectGitHubToken
-            && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"))
             && string.IsNullOrEmpty(options.GitHubToken)
             && string.IsNullOrEmpty(options.CliUrl))
         {
-            options.GitHubToken = "fake-token-for-e2e-tests";
+            options.GitHubToken = DefaultGitHubToken;
         }
 
         var client = new CopilotClient(options);

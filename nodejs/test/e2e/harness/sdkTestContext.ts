@@ -14,6 +14,7 @@ import { CapiProxy } from "./CapiProxy";
 import { retry, formatError } from "./sdkTestHelper";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
+export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -35,12 +36,24 @@ export async function createSdkTestContext({
 
     const openAiEndpoint = new CapiProxy();
     const proxyUrl = await openAiEndpoint.start();
+    await openAiEndpoint.setCopilotUserByToken(DEFAULT_GITHUB_TOKEN, {
+        login: "e2e-test-user",
+        copilot_plan: "individual_pro",
+        endpoints: {
+            api: proxyUrl,
+            telemetry: "https://localhost:1/telemetry",
+        },
+        analytics_tracking_id: "e2e-test-tracking-id",
+    });
     const env = {
         ...process.env,
         ...openAiEndpoint.getProxyEnv(),
         COPILOT_API_URL: proxyUrl,
         COPILOT_HOME: copilotHomeDir,
+        COPILOT_SDK_AUTH_TOKEN: DEFAULT_GITHUB_TOKEN,
         GH_CONFIG_DIR: homeDir,
+        GH_TOKEN: DEFAULT_GITHUB_TOKEN,
+        GITHUB_TOKEN: DEFAULT_GITHUB_TOKEN,
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
@@ -48,18 +61,13 @@ export async function createSdkTestContext({
         XDG_CONFIG_HOME: homeDir,
         XDG_STATE_HOME: homeDir,
     };
-    if (isCI) {
-        env.GH_TOKEN = "fake-token-for-e2e-tests";
-        env.GITHUB_TOKEN = "fake-token-for-e2e-tests";
-    }
 
     const copilotClient = new CopilotClient({
         cwd: workDir,
         env,
         logLevel: logLevel || "error",
         cliPath: process.env.COPILOT_CLI_PATH,
-        // Use fake token in CI to allow cached responses without real auth
-        gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+        gitHubToken: DEFAULT_GITHUB_TOKEN,
         useStdio: useStdio,
         ...copilotClientOptions,
     });

@@ -355,8 +355,6 @@ export type UIElicitationSchemaPropertyNumberType = "number" | "integer";
  */
 export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
 
-export type SessionMode = SessionMode;
-
 export interface AccountGetQuotaRequest {
   /**
    * GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.

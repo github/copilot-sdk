@@ -2912,6 +2912,7 @@ async fn command_execute_handler_error_propagates_to_ack() {
 
 use github_copilot_sdk::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConventions, SessionFsProvider,
+    SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
 };
 
 struct RecordingFsProvider {
@@ -2982,6 +2983,53 @@ impl SessionFsProvider for RecordingFsProvider {
             return Err(FsError::NotFound(path.to_string()));
         }
         Ok(())
+    }
+
+    async fn sqlite_query(
+        &self,
+        query: &str,
+        query_type: SessionFsSqliteQueryType,
+        params: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Result<SessionFsSqliteQueryResult, FsError> {
+        let mut row = std::collections::HashMap::new();
+        row.insert(
+            "query".to_string(),
+            serde_json::Value::String(query.to_string()),
+        );
+        row.insert(
+            "queryType".to_string(),
+            serde_json::Value::String(
+                match query_type {
+                    SessionFsSqliteQueryType::Exec => "exec",
+                    SessionFsSqliteQueryType::Query => "query",
+                    SessionFsSqliteQueryType::Run => "run",
+                    SessionFsSqliteQueryType::Unknown => "unknown",
+                }
+                .to_string(),
+            ),
+        );
+        row.insert(
+            "answer".to_string(),
+            params
+                .get("answer")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+        );
+        Ok(SessionFsSqliteQueryResult {
+            columns: vec![
+                "query".to_string(),
+                "queryType".to_string(),
+                "answer".to_string(),
+            ],
+            rows: vec![row],
+            rows_affected: 0,
+            last_insert_rowid: None,
+            error: None,
+        })
+    }
+
+    async fn sqlite_exists(&self, session_id: &str) -> Result<bool, FsError> {
+        Ok(!session_id.is_empty())
     }
 }
 
@@ -3100,6 +3148,116 @@ async fn session_fs_maps_other_to_unknown() {
             .unwrap()
             .contains("backing store unavailable")
     );
+}
+
+#[tokio::test]
+async fn session_fs_dispatches_sqlite_query_to_provider() {
+    let provider = Arc::new(RecordingFsProvider::new());
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), provider).await;
+
+    server
+        .send_request(
+            9,
+            "sessionFs.sqliteQuery",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "query": "select :answer as answer",
+                "queryType": "query",
+                "params": { "answer": 42 },
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 9);
+    assert_eq!(response["result"]["columns"][2], "answer");
+    assert_eq!(
+        response["result"]["rows"][0]["query"],
+        "select :answer as answer"
+    );
+    assert_eq!(response["result"]["rows"][0]["queryType"], "query");
+    assert_eq!(response["result"]["rows"][0]["answer"], 42);
+    assert_eq!(response["result"]["rowsAffected"], 0);
+    assert!(response["result"].get("error").is_none() || response["result"]["error"].is_null());
+}
+
+#[tokio::test]
+async fn session_fs_dispatches_sqlite_exists_to_provider() {
+    let provider = Arc::new(RecordingFsProvider::new());
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), provider).await;
+
+    server
+        .send_request(
+            13,
+            "sessionFs.sqliteExists",
+            serde_json::json!({ "sessionId": server.session_id }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 13);
+    assert_eq!(response["result"]["exists"], true);
+}
+
+#[tokio::test]
+async fn session_fs_maps_sqlite_errors_to_results() {
+    struct AlwaysFails;
+    #[async_trait]
+    impl SessionFsProvider for AlwaysFails {
+        async fn sqlite_query(
+            &self,
+            _query: &str,
+            _query_type: SessionFsSqliteQueryType,
+            _params: &std::collections::HashMap<String, serde_json::Value>,
+        ) -> Result<SessionFsSqliteQueryResult, FsError> {
+            Err(FsError::Other("sqlite unavailable".to_string()))
+        }
+
+        async fn sqlite_exists(&self, _session_id: &str) -> Result<bool, FsError> {
+            Err(FsError::Other("sqlite unavailable".to_string()))
+        }
+    }
+
+    let (_session, mut server) =
+        create_session_pair_with_fs_provider(Arc::new(NoopHandler), Arc::new(AlwaysFails)).await;
+
+    server
+        .send_request(
+            14,
+            "sessionFs.sqliteQuery",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "query": "select 1",
+                "queryType": "query",
+            }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 14);
+    assert_eq!(response["result"]["columns"].as_array().unwrap().len(), 0);
+    assert_eq!(response["result"]["rows"].as_array().unwrap().len(), 0);
+    assert_eq!(response["result"]["rowsAffected"], 0);
+    let error = &response["result"]["error"];
+    assert_eq!(error["code"], "UNKNOWN");
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .contains("sqlite unavailable")
+    );
+
+    server
+        .send_request(
+            15,
+            "sessionFs.sqliteExists",
+            serde_json::json!({ "sessionId": server.session_id }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 15);
+    assert_eq!(response["result"]["exists"], false);
 }
 
 #[tokio::test]

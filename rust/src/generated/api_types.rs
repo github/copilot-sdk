@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::session_events::{
     McpServerSource, McpServerStatus, ReasoningSummary, SessionMode, SkillSource,
 };
+
 use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.

@@ -1757,6 +1757,43 @@ function generateRpcCode(apiSchema: ApiSchema): string {
 	out.push("#![allow(clippy::too_many_arguments)]");
 	out.push("");
 	out.push("use super::api_types::{rpc_methods, *};");
+	const externalTypeRefs = new Map<string, Set<string>>();
+	const recordExternalTypeRef = (ref: string | undefined): void => {
+		if (!ref) return;
+		const externalRef = parseExternalSchemaRef(ref);
+		if (!externalRef) return;
+		let typeNames = externalTypeRefs.get(externalRef.schemaFile);
+		if (!typeNames) {
+			typeNames = new Set<string>();
+			externalTypeRefs.set(externalRef.schemaFile, typeNames);
+		}
+		typeNames.add(externalRef.definitionName);
+	};
+	for (const method of [...serverMethods, ...sessionMethods]) {
+		recordExternalTypeRef(method.params?.$ref);
+		recordExternalTypeRef(method.result?.$ref);
+		recordExternalTypeRef(getNullableInner(method.result)?.$ref);
+	}
+	const externalImports = new Map<string, Set<string>>();
+	for (const [schemaFile, typeNames] of externalTypeRefs) {
+		const defaultModule = EXTERNAL_SCHEMA_RUST_MODULE[schemaFile];
+		const typeModules = EXTERNAL_SCHEMA_RUST_TYPE_MODULE[schemaFile] ?? {};
+		for (const typeName of typeNames) {
+			const module = typeModules[typeName] ?? defaultModule;
+			if (!module) continue;
+			let names = externalImports.get(module);
+			if (!names) {
+				names = new Set<string>();
+				externalImports.set(module, names);
+			}
+			names.add(typeName);
+		}
+	}
+	for (const [module, typeNames] of [...externalImports].sort(([left], [right]) =>
+		left.localeCompare(right),
+	)) {
+		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
+	}
 	out.push("use crate::session::Session;");
 	out.push("use crate::{Client, Error};");
 	out.push("");

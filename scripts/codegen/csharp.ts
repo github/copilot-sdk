@@ -249,7 +249,7 @@ function isNonNullableCSharpValueType(typeName: string): boolean {
         "long",
         "DateTimeOffset",
         "TimeSpan",
-    ].includes(typeName) || generatedEnums.has(typeName) || emittedRpcEnumResultTypes.has(typeName);
+    ].includes(typeName) || generatedEnums.has(typeName) || emittedRpcEnumResultTypes.has(typeName) || externalRpcValueTypes.has(typeName);
 }
 
 async function formatCSharpFile(filePath: string): Promise<void> {
@@ -1343,6 +1343,7 @@ let emittedRpcEnumResultTypes = new Set<string>();
 let experimentalRpcTypes = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
+let externalRpcValueTypes = new Set<string>();
 
 /** Schema definitions available during RPC generation (for $ref resolution). */
 let rpcDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
@@ -2113,7 +2114,8 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
 
 function generateRpcCode(
     schema: ApiSchema,
-    externalJsonSerializableRefs: Map<string, Set<string>> = new Map()
+    externalJsonSerializableRefs: Map<string, Set<string>> = new Map(),
+    externalValueTypes: Set<string> = new Set()
 ): string {
     emittedRpcClassSchemas.clear();
     emittedRpcEnumResultTypes.clear();
@@ -2121,6 +2123,7 @@ function generateRpcCode(
     rpcKnownTypes.clear();
     rpcEnumOutput = [];
     generatedEnums.clear(); // Clear shared enum deduplication map
+    externalRpcValueTypes = new Set([...externalValueTypes].map(typeToClassName));
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
     for (const defs of [rpcDefinitions.definitions, rpcDefinitions.$defs]) {
         for (const [name, def] of Object.entries(defs ?? {})) {
@@ -2205,6 +2208,7 @@ export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSO
         schema = rewriteSharedDefinitionReferences(schema, sharedDefinitions, "session-events.schema.json");
     }
     const externalJsonSerializableRefs = new Map<string, Set<string>>();
+    const externalValueTypes = new Set<string>();
     if (sessionEventsSchema) {
         const sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
         const externalRefs = collectExternalSchemaRefNames(schema);
@@ -2221,6 +2225,10 @@ export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSO
                 if (declarationPattern.test(sessionEventsCode)) {
                     emittedDefinitions.add(name);
                 }
+                const valueTypeDeclarationPattern = new RegExp(`\\bpublic\\s+(?:(?:readonly)\\s+)?struct\\s+${typeName}\\b`);
+                if (valueTypeDeclarationPattern.test(sessionEventsCode)) {
+                    externalValueTypes.add(name);
+                }
             }
             externalJsonSerializableRefs.set(
                 "session-events.schema.json",
@@ -2228,7 +2236,7 @@ export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSO
             );
         }
     }
-    const code = generateRpcCode(schema, externalJsonSerializableRefs);
+    const code = generateRpcCode(schema, externalJsonSerializableRefs, externalValueTypes);
     const outPath = await writeGeneratedFile("dotnet/src/Generated/Rpc.cs", code);
     console.log(`  ✓ ${outPath}`);
     await formatCSharpFile(outPath);

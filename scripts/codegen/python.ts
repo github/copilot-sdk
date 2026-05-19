@@ -2127,6 +2127,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
     typesCode = postProcessExternalUnionAliasesForPython(typesCode, externalUnionAliases);
     typesCode = postProcessExternalRefsForPython(typesCode, externalRefs.placeholderNames);
+    typesCode = modernizePython(typesCode);
 
     // Fix quicktype's Enum-suffix renaming: quicktype sometimes renames "Xyz" to
     // "XyzEnum" to avoid internal collisions. Strip the suffix to match our schema

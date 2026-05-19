@@ -233,7 +233,7 @@ export type ToolResultType = "success" | "failure" | "rejected" | "denied" | "ti
 export type ToolBinaryResult = {
     data: string;
     mimeType: string;
-    type: string;
+    type: "image" | "resource";
     description?: string;
 };
 

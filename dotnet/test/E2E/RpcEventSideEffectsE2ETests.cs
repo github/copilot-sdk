@@ -28,15 +28,15 @@ public class RpcEventSideEffectsE2ETests(E2ETestFixture fixture, ITestOutputHelp
         // Subscribe before invoking RPC; events may arrive after the RPC completes.
         var modeChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModeChangedEvent>(
             session,
-            evt => evt.Data.NewMode == "plan" && evt.Data.PreviousMode == "interactive",
+            evt => evt.Data.NewMode == SessionMode.Plan && evt.Data.PreviousMode == SessionMode.Interactive,
             EventTimeout,
             timeoutDescription: "session.mode_changed event for interactive→plan");
 
         await session.Rpc.Mode.SetAsync(SessionMode.Plan);
 
         var evt = await modeChangedTask;
-        Assert.Equal("plan", evt.Data.NewMode);
-        Assert.Equal("interactive", evt.Data.PreviousMode);
+        Assert.Equal(SessionMode.Plan, evt.Data.NewMode);
+        Assert.Equal(SessionMode.Interactive, evt.Data.PreviousMode);
     }
 
     [Fact]
