@@ -206,12 +206,14 @@ async fn should_map_all_sessionfs_handler_operations() {
         provider.stat("/workspace/nested/missing.txt").await,
         Err(FsError::NotFound(_))
     ));
+    let sqlite_params =
+        std::collections::HashMap::from([("answer".to_string(), serde_json::Value::from(42))]);
     let sqlite_result = provider
         .sqlite_query(
             "handler-session",
             "select :answer as answer",
             SessionFsSqliteQueryType::Query,
-            &std::collections::HashMap::from([("answer".to_string(), serde_json::Value::from(42))]),
+            Some(&sqlite_params),
         )
         .await
         .expect("sqlite query");
@@ -626,7 +628,7 @@ impl SessionFsProvider for TestSessionFsProvider {
         session_id: &str,
         query: &str,
         query_type: SessionFsSqliteQueryType,
-        params: &std::collections::HashMap<String, serde_json::Value>,
+        params: Option<&std::collections::HashMap<String, serde_json::Value>>,
     ) -> Result<SessionFsSqliteQueryResult, FsError> {
         let mut row = std::collections::HashMap::new();
         row.insert("sessionId".to_string(), session_id.to_string().into());
@@ -644,7 +646,7 @@ impl SessionFsProvider for TestSessionFsProvider {
         row.insert(
             "answer".to_string(),
             params
-                .get("answer")
+                .and_then(|params| params.get("answer"))
                 .cloned()
                 .unwrap_or(serde_json::Value::Null),
         );

@@ -48,7 +48,6 @@ use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
     SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
 };
-
 pub use crate::generated::api_types::{SessionFsSqliteQueryResult, SessionFsSqliteQueryType};
 
 /// Configuration for a custom session filesystem provider.
@@ -354,7 +353,7 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         session_id: &str,
         query: &str,
         query_type: SessionFsSqliteQueryType,
-        params: &HashMap<String, serde_json::Value>,
+        params: Option<&HashMap<String, serde_json::Value>>,
     ) -> Result<SessionFsSqliteQueryResult, FsError> {
         let _ = (session_id, query, query_type, params);
         Err(FsError::Other("sqlite_query not supported".to_string()))

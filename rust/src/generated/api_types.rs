@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use super::session_events::{
     McpServerSource, McpServerStatus, ReasoningSummary, SessionMode, SkillSource,
 };
-
 use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
@@ -969,7 +968,7 @@ pub struct McpServer {
 pub struct McpServerConfigHttpAuth {
     /// Fixed port for the OAuth redirect callback server.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub redirect_port: Option<i64>,
+    pub redirect_port: Option<i32>,
 }
 
 /// Remote MCP server configuration accessed over HTTP or SSE.

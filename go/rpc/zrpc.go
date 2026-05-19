@@ -799,7 +799,7 @@ func (McpServerConfigStdio) mcpServerConfig() {}
 // Additional authentication configuration for this server.
 type McpServerConfigHTTPAuth struct {
 	// Fixed port for the OAuth redirect callback server.
-	RedirectPort *int64 `json:"redirectPort,omitempty"`
+	RedirectPort *int32 `json:"redirectPort,omitempty"`
 }
 
 // MCP servers configured for the session, with their connection status.
