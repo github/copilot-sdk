@@ -376,9 +376,12 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
         attrs.push(`${indent}[StringSyntax(StringSyntaxAttribute.Uri)]`);
     }
 
-    // [StringSyntax(StringSyntaxAttribute.Regex)] for format: "regex"
+    // [StringSyntax(StringSyntaxAttribute.Regex)] and [RegularExpression] for format: "regex"
     if (format === "regex") {
         attrs.push(`${indent}[StringSyntax(StringSyntaxAttribute.Regex)]`);
+        if (typeof schema.pattern === "string") {
+            attrs.push(`${indent}[RegularExpression("${escapeCSharpStringLiteral(schema.pattern)}")]`);
+        }
     }
 
     // [Base64String] for base64-encoded string properties
@@ -407,10 +410,9 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
         }
     }
 
-    // [RegularExpression] for pattern
-    if (typeof schema.pattern === "string") {
-        const escaped = schema.pattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-        attrs.push(`${indent}[RegularExpression("${escaped}")]`);
+    // [RegularExpression] for pattern constraints on non-regex-format properties
+    if (format !== "regex" && typeof schema.pattern === "string") {
+        attrs.push(`${indent}[RegularExpression("${escapeCSharpStringLiteral(schema.pattern)}")]`);
     }
 
     // [MinLength] / [MaxLength] for string constraints
