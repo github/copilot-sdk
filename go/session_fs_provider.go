@@ -69,7 +69,7 @@ type SessionFsSqliteQueryResult struct {
 	Columns         []string         `json:"columns"`
 	Rows            []map[string]any `json:"rows"`
 	RowsAffected    int64            `json:"rowsAffected"`
-	LastInsertRowid *float64         `json:"lastInsertRowid,omitempty"`
+	LastInsertRowid *int64            `json:"lastInsertRowid,omitempty"`
 }
 
 // SessionFsFileInfo holds file metadata returned by SessionFsProvider.Stat.
@@ -210,11 +210,23 @@ func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest)
 			Error:        toSessionFsError(err),
 		}, nil
 	}
+	if result == nil {
+		return &rpc.SessionFsSqliteQueryResult{
+			Columns:      []string{},
+			Rows:         []map[string]any{},
+			RowsAffected: 0,
+		}, nil
+	}
+	var wireRowid *float64
+	if result.LastInsertRowid != nil {
+		f := float64(*result.LastInsertRowid)
+		wireRowid = &f
+	}
 	return &rpc.SessionFsSqliteQueryResult{
 		Columns:         result.Columns,
 		Rows:            result.Rows,
 		RowsAffected:    result.RowsAffected,
-		LastInsertRowid: result.LastInsertRowid,
+		LastInsertRowid: wireRowid,
 	}, nil
 }
 

@@ -9,7 +9,7 @@ use github_copilot_sdk::{
 };
 use rusqlite::Connection;
 
-use super::support::{assistant_message_content, with_e2e_context};
+use super::support::with_e2e_context;
 
 #[derive(Debug)]
 struct SqliteCall {
@@ -216,7 +216,7 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
         query_type: SessionFsSqliteQueryType,
         query: &str,
         _params: Option<&HashMap<String, serde_json::Value>>,
-    ) -> Result<SessionFsSqliteQueryResult, FsError> {
+    ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
         let qt_str = match query_type {
             SessionFsSqliteQueryType::Exec => "exec",
             SessionFsSqliteQueryType::Query => "query",
@@ -233,24 +233,24 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
         let db = Self::get_or_create_db(&mut db_guard)?;
         let trimmed = query.trim();
         if trimmed.is_empty() {
-            return Ok(SessionFsSqliteQueryResult {
+            return Ok(Some(SessionFsSqliteQueryResult {
                 columns: vec![],
                 rows: vec![],
                 rows_affected: 0,
                 last_insert_rowid: None,
-            });
+            }));
         }
 
         match query_type {
             SessionFsSqliteQueryType::Exec => {
                 db.execute_batch(trimmed)
                     .map_err(|e| FsError::Other(e.to_string()))?;
-                Ok(SessionFsSqliteQueryResult {
+                Ok(Some(SessionFsSqliteQueryResult {
                     columns: vec![],
                     rows: vec![],
                     rows_affected: 0,
                     last_insert_rowid: None,
-                })
+                }))
             }
             SessionFsSqliteQueryType::Query => {
                 let mut stmt = db
@@ -287,31 +287,31 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                     }
                     rows.push(map);
                 }
-                Ok(SessionFsSqliteQueryResult {
+                Ok(Some(SessionFsSqliteQueryResult {
                     columns,
                     rows,
                     rows_affected: 0,
                     last_insert_rowid: None,
-                })
+                }))
             }
             SessionFsSqliteQueryType::Run => {
                 let affected = db
                     .execute(trimmed, [])
                     .map_err(|e| FsError::Other(e.to_string()))?;
                 let last_id = db.last_insert_rowid();
-                Ok(SessionFsSqliteQueryResult {
+                Ok(Some(SessionFsSqliteQueryResult {
                     columns: vec![],
                     rows: vec![],
                     rows_affected: affected as i64,
-                    last_insert_rowid: Some(last_id as f64),
-                })
+                    last_insert_rowid: Some(last_id),
+                }))
             }
-            _ => Ok(SessionFsSqliteQueryResult {
+            _ => Ok(Some(SessionFsSqliteQueryResult {
                 columns: vec![],
                 rows: vec![],
                 rows_affected: 0,
                 last_insert_rowid: None,
-            }),
+            })),
         }
     }
 

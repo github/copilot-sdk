@@ -2997,7 +2997,7 @@ impl SessionFsSqliteProvider for RecordingFsProvider {
         query_type: SessionFsSqliteQueryType,
         query: &str,
         params: Option<&std::collections::HashMap<String, serde_json::Value>>,
-    ) -> Result<SessionFsSqliteQueryResult, FsError> {
+    ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
         let mut row = std::collections::HashMap::new();
         row.insert(
             "query".to_string(),
@@ -3022,7 +3022,7 @@ impl SessionFsSqliteProvider for RecordingFsProvider {
                 .cloned()
                 .unwrap_or(serde_json::Value::Null),
         );
-        Ok(SessionFsSqliteQueryResult {
+        Ok(Some(SessionFsSqliteQueryResult {
             columns: vec![
                 "query".to_string(),
                 "queryType".to_string(),
@@ -3031,7 +3031,7 @@ impl SessionFsSqliteProvider for RecordingFsProvider {
             rows: vec![row],
             rows_affected: 0,
             last_insert_rowid: None,
-        })
+        }))
     }
 
     async fn sqlite_exists(&self) -> Result<bool, FsError> {
@@ -3223,7 +3223,7 @@ async fn session_fs_maps_sqlite_errors_to_results() {
             _query_type: SessionFsSqliteQueryType,
             _query: &str,
             _params: Option<&std::collections::HashMap<String, serde_json::Value>>,
-        ) -> Result<SessionFsSqliteQueryResult, FsError> {
+        ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
             Err(FsError::Other("sqlite unavailable".to_string()))
         }
 

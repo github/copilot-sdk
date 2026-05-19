@@ -151,7 +151,7 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
         query_type: SessionFSSqliteQueryType,
         query: str,
         params: dict[str, float | str | None] | None = None,
-    ) -> SessionFsSqliteQueryResult:
+    ) -> SessionFsSqliteQueryResult | None:
         self._sqlite_calls.append(
             {
                 "sessionId": self._session_id,
@@ -183,7 +183,7 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
             columns=[],
             rows=[],
             rows_affected=cursor.rowcount,
-            last_insert_rowid=float(cursor.lastrowid) if cursor.lastrowid else None,
+            last_insert_rowid=cursor.lastrowid if cursor.lastrowid else None,
         )
 
     async def sqlite_exists(self) -> bool:
@@ -225,7 +225,7 @@ class TestSessionFsSqlite:
             create_session_fs_handler=_create_sqlite_handler(sqlite_calls),
         )
 
-        msg = await session.send_and_wait(
+        await session.send_and_wait(
             'Use the sql tool to create a table called "items" with columns '
             "id (TEXT PRIMARY KEY) and name (TEXT). "
             'Then insert a row with id "a1" and name "Widget".'

@@ -123,8 +123,12 @@ class SessionFsSqliteProvider(abc.ABC):
         query_type: SessionFSSqliteQueryType,
         query: str,
         params: dict[str, float | str | None] | None = None,
-    ) -> SessionFsSqliteQueryResult:
-        """Execute a SQLite query against the provider's per-session database."""
+    ) -> SessionFsSqliteQueryResult | None:
+        """Execute a SQLite query against the provider's per-session database.
+
+        Return ``None`` for exec-type queries (DDL / multi-statement) where
+        no result set is produced; the adapter will substitute an empty result.
+        """
 
     @abc.abstractmethod
     async def sqlite_exists(self) -> bool:
@@ -142,7 +146,7 @@ class SessionFsSqliteQueryResult:
     columns: list[str]
     rows: list[dict[str, Any]]
     rows_affected: int
-    last_insert_rowid: float | None = None
+    last_insert_rowid: int | None = None
 
 
 def create_session_fs_adapter(provider: SessionFsProvider) -> SessionFsHandler:
@@ -277,11 +281,15 @@ class _SessionFsAdapter:
             params.query,
             getattr(params, "params", None),
         )
+        if result is None:
+            return _GeneratedSqliteQueryResult(
+                columns=[], rows=[], rows_affected=0,
+            )
         return _GeneratedSqliteQueryResult(
             columns=result.columns,
             rows=result.rows,
             rows_affected=result.rows_affected,
-            last_insert_rowid=result.last_insert_rowid,
+            last_insert_rowid=float(result.last_insert_rowid) if result.last_insert_rowid is not None else None,
         )
 
     async def sqlite_exists(self, params: Any) -> SessionFSSqliteExistsResult:

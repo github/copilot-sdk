@@ -346,11 +346,18 @@ pub(crate) async fn sqlite_query(
         .sqlite_query(params.query_type, &params.query, sqlite_params)
         .await
     {
-        Ok(result) => GeneratedSqliteQueryResult {
+        Ok(Some(result)) => GeneratedSqliteQueryResult {
             columns: result.columns,
             rows: result.rows,
             rows_affected: result.rows_affected,
-            last_insert_rowid: result.last_insert_rowid,
+            last_insert_rowid: result.last_insert_rowid.map(|v| v as f64),
+            error: None,
+        },
+        Ok(None) => GeneratedSqliteQueryResult {
+            columns: Vec::new(),
+            rows: Vec::new(),
+            rows_affected: 0,
+            last_insert_rowid: None,
             error: None,
         },
         Err(e) => GeneratedSqliteQueryResult {

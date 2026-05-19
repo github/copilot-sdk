@@ -214,7 +214,7 @@ func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFsSqliteQueryT
 	case rpc.SessionFsSqliteQueryTypeExec:
 		return &copilot.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
 	case rpc.SessionFsSqliteQueryTypeRun:
-		lastID := float64(1)
+		lastID := int64(1)
 		return &copilot.SessionFsSqliteQueryResult{
 			Columns:         []string{},
 			Rows:            []map[string]any{},

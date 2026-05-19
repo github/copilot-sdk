@@ -413,7 +413,7 @@ pub trait SessionFsSqliteProvider: Send + Sync {
         query_type: SessionFsSqliteQueryType,
         query: &str,
         params: Option<&HashMap<String, serde_json::Value>>,
-    ) -> Result<SessionFsSqliteQueryResult, FsError>;
+    ) -> Result<Option<SessionFsSqliteQueryResult>, FsError>;
 
     /// Check whether the provider has a SQLite database for this session.
     async fn sqlite_exists(&self) -> Result<bool, FsError>;
@@ -432,7 +432,7 @@ pub struct SessionFsSqliteQueryResult {
     /// Number of rows affected (for INSERT/UPDATE/DELETE).
     pub rows_affected: i64,
     /// Last inserted row ID (for INSERT).
-    pub last_insert_rowid: Option<f64>,
+    pub last_insert_rowid: Option<i64>,
 }
 
 #[cfg(test)]
