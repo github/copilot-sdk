@@ -50,6 +50,30 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task Disposing_Session_Remains_Rooted_Until_Destroy_Completes()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.DelayDestroy();
+        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        AssertSessionCount(client, sessions: 1);
+
+        var disposeTask = session.DisposeAsync().AsTask();
+        await server.DestroyStarted;
+
+        AssertSessionCount(client, sessions: 1);
+
+        server.CompleteDestroy();
+        await disposeTask;
+
+        AssertSessionCount(client, sessions: 0);
+    }
+
+    [Fact]
     public async Task StopAsync_Removes_Rooted_Sessions()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -62,6 +86,30 @@ public sealed class ClientSessionLifetimeTests
         AssertSessionCount(client, sessions: 1);
 
         await client.StopAsync();
+
+        AssertSessionCount(client, sessions: 0);
+    }
+
+    [Fact]
+    public async Task StopAsync_Keeps_Session_Rooted_Until_Destroy_Completes()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.DelayDestroy();
+        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+
+        _ = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        AssertSessionCount(client, sessions: 1);
+
+        var stopTask = client.StopAsync();
+        await server.DestroyStarted;
+
+        AssertSessionCount(client, sessions: 1);
+
+        server.CompleteDestroy();
+        await stopTask;
 
         AssertSessionCount(client, sessions: 0);
     }
@@ -148,8 +196,11 @@ public sealed class ClientSessionLifetimeTests
         private readonly TcpListener _listener;
         private readonly CancellationTokenSource _cts = new();
         private readonly SemaphoreSlim _writeLock = new(1, 1);
+        private readonly TaskCompletionSource _destroyStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _allowDestroy = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Task _serverTask;
         private string? _lastSessionId;
+        private bool _delayDestroy;
 
         private FakeCopilotServer(TcpListener listener)
         {
@@ -173,8 +224,21 @@ public sealed class ClientSessionLifetimeTests
             return Task.FromResult(new FakeCopilotServer(listener));
         }
 
+        public Task DestroyStarted => _destroyStarted.Task;
+
+        public void DelayDestroy()
+        {
+            _delayDestroy = true;
+        }
+
+        public void CompleteDestroy()
+        {
+            _allowDestroy.TrySetResult();
+        }
+
         public async ValueTask DisposeAsync()
         {
+            _allowDestroy.TrySetResult();
             _cts.Cancel();
             _listener.Stop();
 
@@ -234,7 +298,7 @@ public sealed class ClientSessionLifetimeTests
                 {
                     ["success"] = true
                 },
-                "session.destroy" => new Dictionary<string, object?>(),
+                "session.destroy" => await DestroySessionAsync(cancellationToken),
                 _ => throw new InvalidOperationException($"Unexpected RPC method '{method}'.")
             };
 
@@ -259,6 +323,17 @@ public sealed class ClientSessionLifetimeTests
                 ["workspacePath"] = null,
                 ["capabilities"] = null
             };
+        }
+
+        private async Task<Dictionary<string, object?>> DestroySessionAsync(CancellationToken cancellationToken)
+        {
+            if (_delayDestroy)
+            {
+                _destroyStarted.TrySetResult();
+                await _allowDestroy.Task.WaitAsync(cancellationToken);
+            }
+
+            return [];
         }
 
         private async Task WriteMessageAsync(Stream stream, object payload, CancellationToken cancellationToken)

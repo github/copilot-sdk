@@ -1464,9 +1464,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return;
         }
 
-        RemoveFromClient();
-        GC.SuppressFinalize(this);
-
         _eventChannel.Writer.TryComplete();
 
         try
@@ -1481,6 +1478,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
         catch (IOException)
         {
             // Connection is broken or closed
+        }
+        finally
+        {
+            RemoveFromClient();
+            GC.SuppressFinalize(this);
         }
 
         _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<SessionEventHandler>.Empty);

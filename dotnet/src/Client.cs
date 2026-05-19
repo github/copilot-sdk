@@ -330,18 +330,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         List<Exception> errors = [];
 
-        foreach (var (sessionId, _) in _sessions)
+        foreach (var session in _sessions.Values.ToArray())
         {
-            if (_sessions.TryRemove(sessionId, out var session))
+            try
             {
-                try
-                {
-                    await session.DisposeAsync();
-                }
-                catch (Exception ex)
-                {
-                    errors.Add(new IOException($"Failed to dispose session {session.SessionId}: {ex.Message}", ex));
-                }
+                await session.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                errors.Add(new IOException($"Failed to dispose session {session.SessionId}: {ex.Message}", ex));
             }
         }
 
