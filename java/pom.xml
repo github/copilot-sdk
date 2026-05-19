@@ -12,7 +12,7 @@
 
     <name>GitHub Copilot SDK :: Java</name>
     <description>SDK for programmatic control of GitHub Copilot CLI</description>
-    <url>https://github.com/github/copilot-sdk</url>
+    <url>https://github.com/github/copilot-sdk-java</url>
 
     <licenses>
         <license>
@@ -30,9 +30,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/github/copilot-sdk.git</connection>
-        <developerConnection>scm:git:https://github.com/github/copilot-sdk.git</developerConnection>
-        <url>https://github.com/github/copilot-sdk</url>
+        <connection>scm:git:https://github.com/github/copilot-sdk-java.git</connection>
+        <developerConnection>scm:git:https://github.com/github/copilot-sdk-java.git</developerConnection>
+        <url>https://github.com/github/copilot-sdk-java</url>
         <tag>HEAD</tag>
     </scm>
 
@@ -46,13 +46,13 @@
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Directory of the monorepo root (one level up from java/) -->
-        <copilot.sdk.clone.dir>${project.basedir}/..</copilot.sdk.clone.dir>
+        <!-- Directory where the copilot-sdk repo will be cloned for tests -->
+        <copilot.sdk.clone.dir>${project.build.directory}/copilot-sdk</copilot.sdk.clone.dir>
         <copilot.tests.dir>${copilot.sdk.clone.dir}/test</copilot.tests.dir>
         <!--
             Path to the Copilot CLI entry point used by the SDK tests. Defaults
-            to the CLI installed under ../nodejs (the monorepo's nodejs dir) by
-            the install-nodejs-cli-dependencies execution. Surefire injects this
+            to the CLI installed under target/copilot-sdk/nodejs by the
+            install-nodejs-cli-dependencies execution. Surefire injects this
             into the test JVM as the COPILOT_CLI_PATH environment variable, so
             `mvn verify` is self-contained and the developer never has to set
             it manually. Override on the command line to point at a different
@@ -60,7 +60,7 @@
               mvn verify -Dcopilot.cli.path=/some/other/copilot/index.js
         -->
         <copilot.cli.path>${copilot.sdk.clone.dir}/nodejs/node_modules/@github/copilot/index.js</copilot.cli.path>
-        <!-- Set to true (via -Pskip-test-harness) to skip npm install of test harness -->
+        <!-- Set to true (via -Pskip-test-harness) to skip git-clone + npm install of test harness -->
         <skip.test.harness>false</skip.test.harness>
         <!--
             Whether to skip the install-nodejs-cli-dependencies execution
@@ -76,17 +76,23 @@
         <!-- Extra JVM args for Surefire; overridden by the jdk21+ profile -->
         <surefire.jvm.args />
         <!--
-            The version of the @github/copilot npm package used by the monorepo.
-            Mirrors the value of dependencies."@github/copilot"
-            in ../nodejs/package.json.
+            The version of the @github/copilot npm package that the reference implementation
+            commit pinned in .lastmerge depends on. Mirrors the value of dependencies."@github/copilot"
+            in target/copilot-sdk/nodejs/package.json after the reference impl is cloned/reset to the
+            commit in .lastmerge.
 
             The previously mentioned package.json contains the SINGLE
             SOURCE OF TRUTH for the Copilot CLI version that all paths
             (build-test.yml, run-smoke-test.yml,
             update-copilot-dependency.yml, setup-copilot action) must
-            pin to.
+            pin to. It is updated automatically by
+            .github/scripts/reference-impl-sync/sync-cli-version-from-reference-impl.sh,
+            which is called from merge-reference-impl-finish.sh
+            whenever .lastmerge is updated.
 
-            DO NOT EDIT MANUALLY.
+            DO NOT EDIT MANUALLY. To update, run the
+            reference-impl-sync workflow and deal with the subsequent
+            PR.
         -->
         <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.49-1</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
 
@@ -167,6 +173,88 @@
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.5.0</version>
             </plugin>
+            <!-- Clone or update the official copilot-sdk repository for test resources, and copy image to site -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>clone-or-update-copilot-sdk</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.test.harness}</skip>
+                            <target xmlns:if="ant:if" xmlns:unless="ant:unless">
+                                <!-- Load the target commit from .lastmerge file -->
+                                <loadfile property="copilot.sdk.commit" srcFile="${project.basedir}/.lastmerge">
+                                    <filterchain>
+                                        <striplinebreaks />
+                                        <trim />
+                                    </filterchain>
+                                </loadfile>
+
+                                <!-- Check if .git directory exists -->
+                                <condition property="repo.exists">
+                                    <available file="${copilot.sdk.clone.dir}/.git" type="dir" />
+                                </condition>
+
+                                <!-- If repo exists, fetch and reset to the target commit -->
+                                <sequential if:set="repo.exists">
+                                    <echo message="Updating existing copilot-sdk repository to commit ${copilot.sdk.commit}..." />
+                                    <exec executable="git" dir="${copilot.sdk.clone.dir}" failonerror="true">
+                                        <arg value="fetch" />
+                                        <arg value="--depth" />
+                                        <arg value="1" />
+                                        <arg value="origin" />
+                                        <arg value="${copilot.sdk.commit}" />
+                                    </exec>
+                                    <exec executable="git" dir="${copilot.sdk.clone.dir}" failonerror="true">
+                                        <arg value="reset" />
+                                        <arg value="--hard" />
+                                        <arg value="FETCH_HEAD" />
+                                    </exec>
+                                </sequential>
+
+                                <!-- If repo doesn't exist, clone it at the specific commit -->
+                                <sequential unless:set="repo.exists">
+                                    <echo message="Cloning copilot-sdk repository at commit ${copilot.sdk.commit}..." />
+                                    <delete dir="${copilot.sdk.clone.dir}" quiet="true" />
+                                    <exec executable="git" failonerror="true">
+                                        <arg value="clone" />
+                                        <arg value="--depth" />
+                                        <arg value="1" />
+                                        <arg value="https://github.com/github/copilot-sdk.git" />
+                                        <arg value="${copilot.sdk.clone.dir}" />
+                                    </exec>
+                                    <exec executable="git" dir="${copilot.sdk.clone.dir}" failonerror="true">
+                                        <arg value="fetch" />
+                                        <arg value="--depth" />
+                                        <arg value="1" />
+                                        <arg value="origin" />
+                                        <arg value="${copilot.sdk.commit}" />
+                                    </exec>
+                                    <exec executable="git" dir="${copilot.sdk.clone.dir}" failonerror="true">
+                                        <arg value="reset" />
+                                        <arg value="--hard" />
+                                        <arg value="FETCH_HEAD" />
+                                    </exec>
+                                </sequential>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <!-- Required for if:set and unless:set -->
+                    <dependency>
+                        <groupId>org.apache.ant</groupId>
+                        <artifactId>ant</artifactId>
+                        <version>1.10.17</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
             <!-- Install harness dependencies -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -190,10 +278,16 @@
                     </execution>
                     <!--
                         Install the @github/copilot CLI declared by
-                        ../nodejs/package.json. This is the CLI version the SDK
-                        tests must run against (independent of the older pin in
-                        test/harness/package.json which is incidental to harness
-                        internals). Uses npm ci with the ignore-scripts flag.
+                        target/copilot-sdk/nodejs/package.json. This is the CLI
+                        version the SDK tests must run against (independent of
+                        the older pin in test/harness/package.json which is
+                        incidental to harness internals). Mirrors what
+                        .github/workflows/build-test.yml does manually so that
+                        `mvn clean verify` is self-contained: the prior
+                        target/copilot-sdk/nodejs/node_modules is wiped by
+                        clean, but this re-creates it before tests run.
+                        Uses npm ci with the ignore-scripts flag, matching
+                        build-test.yml.
                     -->
                     <execution>
                         <id>install-nodejs-cli-dependencies</id>
@@ -237,8 +331,8 @@
                     <!--
                         Set COPILOT_CLI_PATH for the forked test JVM so the SDK
                         tests transparently use the pinned CLI under
-                        ../nodejs/. See the copilot.cli.path property above for
-                        the override mechanism.
+                        target/copilot-sdk/nodejs/. See the copilot.cli.path
+                        property above for the override mechanism.
                     -->
                     <environmentVariables>
                         <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>
@@ -599,7 +693,7 @@
                 <surefire.jvm.args>-XX:+EnableDynamicAgentLoading</surefire.jvm.args>
             </properties>
         </profile>
-        <!-- Skip npm install of the copilot-sdk test harness -->
+        <!-- Skip git-clone + npm install of the copilot-sdk test harness -->
         <profile>
             <id>skip-test-harness</id>
             <properties>
