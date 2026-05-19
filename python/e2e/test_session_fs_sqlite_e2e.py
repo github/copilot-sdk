@@ -154,6 +154,7 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
     ) -> SessionFsSqliteQueryResult:
         self._sqlite_calls.append(
             {
+                "sessionId": self._session_id,
                 "queryType": query_type.value,
                 "query": query,
             }

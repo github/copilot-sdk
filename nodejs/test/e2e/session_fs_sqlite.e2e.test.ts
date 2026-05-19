@@ -40,9 +40,13 @@ describe("Session Fs SQLite", async () => {
     const provider = new MemoryProvider();
     /** Track which queries were received, per session */
     const sqliteCalls: { sessionId: string; queryType: string; query: string }[] = [];
+    /** Per-session SQLite databases, keyed by session ID.
+     *  Stored at describe scope so the database survives if the CLI
+     *  re-creates the handler (e.g., on reconnect). */
+    const sessionDbs = new Map<string, DatabaseSync>();
 
     const createSessionFsHandler = (session: CopilotSession) =>
-        createTestSessionFsHandlerWithSqlite(session, provider, sqliteCalls);
+        createTestSessionFsHandlerWithSqlite(session, provider, sqliteCalls, sessionDbs);
 
     // Helpers to build session-namespaced paths for direct provider assertions
     const p = (sessionId: string, path: string) =>
@@ -139,17 +143,17 @@ describe("Session Fs SQLite", async () => {
 function createTestSessionFsHandlerWithSqlite(
     session: CopilotSession,
     provider: VirtualProvider,
-    sqliteCalls: { sessionId: string; queryType: string; query: string }[]
+    sqliteCalls: { sessionId: string; queryType: string; query: string }[],
+    sessionDbs: Map<string, DatabaseSync>
 ): SessionFsProvider {
     const sp = (path: string) => `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
 
-    // Per-session SQLite database (in-memory)
-    let db: DatabaseSync | undefined;
-
     function getOrCreateDb(): DatabaseSync {
+        let db = sessionDbs.get(session.sessionId);
         if (!db) {
             db = new DatabaseSync(":memory:");
             db.exec("PRAGMA busy_timeout = 5000");
+            sessionDbs.set(session.sessionId, db);
         }
         return db;
     }
@@ -246,7 +250,7 @@ function createTestSessionFsHandlerWithSqlite(
                 }
             },
             async exists(): Promise<boolean> {
-                return db !== undefined;
+                return sessionDbs.has(session.sessionId);
             },
         },
     };

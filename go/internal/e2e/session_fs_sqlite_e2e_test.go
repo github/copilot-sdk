@@ -200,7 +200,7 @@ func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFsSqliteQueryT
 	defer p.mu.Unlock()
 	p.hadQuery = true
 	*p.sqliteCalls = append(*p.sqliteCalls, sqliteCall{
-		SessionID: "stub",
+		SessionID: p.sessionID,
 		QueryType: string(queryType),
 		Query:     query,
 	})

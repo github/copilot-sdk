@@ -19,6 +19,7 @@ struct SqliteCall {
 }
 
 struct InMemorySqliteProvider {
+    session_id: String,
     files: Mutex<HashMap<String, String>>,
     dirs: Mutex<std::collections::HashSet<String>>,
     db: Mutex<Option<Connection>>,
@@ -26,10 +27,11 @@ struct InMemorySqliteProvider {
 }
 
 impl InMemorySqliteProvider {
-    fn new(_session_id: &str, calls: Arc<Mutex<Vec<SqliteCall>>>) -> Self {
+    fn new(session_id: &str, calls: Arc<Mutex<Vec<SqliteCall>>>) -> Self {
         let mut dirs = std::collections::HashSet::new();
         dirs.insert("/".to_string());
         Self {
+            session_id: session_id.to_string(),
             files: Mutex::new(HashMap::new()),
             dirs: Mutex::new(dirs),
             db: Mutex::new(None),
@@ -222,7 +224,7 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
             SessionFsSqliteQueryType::Unknown => "unknown",
         };
         self.sqlite_calls.lock().unwrap().push(SqliteCall {
-            session_id: "session".to_string(),
+            session_id: self.session_id.clone(),
             query_type: qt_str.to_string(),
             query: query.to_string(),
         });
