@@ -317,7 +317,12 @@ pub(crate) async fn sqlite_query(
     };
     let id = request.id;
     let result = match provider
-        .sqlite_query(&params.query, params.query_type, &params.params)
+        .sqlite_query(
+            params.session_id.as_ref(),
+            &params.query,
+            params.query_type,
+            &params.params,
+        )
         .await
     {
         Ok(result) => result,

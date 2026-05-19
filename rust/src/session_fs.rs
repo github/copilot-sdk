@@ -351,11 +351,12 @@ pub trait SessionFsProvider: Send + Sync + 'static {
     /// Execute a SQLite query against the provider's per-session database.
     async fn sqlite_query(
         &self,
+        session_id: &str,
         query: &str,
         query_type: SessionFsSqliteQueryType,
         params: &HashMap<String, serde_json::Value>,
     ) -> Result<SessionFsSqliteQueryResult, FsError> {
-        let _ = (query, query_type, params);
+        let _ = (session_id, query, query_type, params);
         Err(FsError::Other("sqlite_query not supported".to_string()))
     }
 

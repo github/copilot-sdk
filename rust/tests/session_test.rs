@@ -2987,11 +2987,16 @@ impl SessionFsProvider for RecordingFsProvider {
 
     async fn sqlite_query(
         &self,
+        session_id: &str,
         query: &str,
         query_type: SessionFsSqliteQueryType,
         params: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Result<SessionFsSqliteQueryResult, FsError> {
         let mut row = std::collections::HashMap::new();
+        row.insert(
+            "sessionId".to_string(),
+            serde_json::Value::String(session_id.to_string()),
+        );
         row.insert(
             "query".to_string(),
             serde_json::Value::String(query.to_string()),
@@ -3017,6 +3022,7 @@ impl SessionFsProvider for RecordingFsProvider {
         );
         Ok(SessionFsSqliteQueryResult {
             columns: vec![
+                "sessionId".to_string(),
                 "query".to_string(),
                 "queryType".to_string(),
                 "answer".to_string(),
@@ -3171,10 +3177,14 @@ async fn session_fs_dispatches_sqlite_query_to_provider() {
 
     let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
     assert_eq!(response["id"], 9);
-    assert_eq!(response["result"]["columns"][2], "answer");
+    assert_eq!(response["result"]["columns"][3], "answer");
     assert_eq!(
         response["result"]["rows"][0]["query"],
         "select :answer as answer"
+    );
+    assert_eq!(
+        response["result"]["rows"][0]["sessionId"],
+        server.session_id.to_string()
     );
     assert_eq!(response["result"]["rows"][0]["queryType"], "query");
     assert_eq!(response["result"]["rows"][0]["answer"], 42);
@@ -3208,6 +3218,7 @@ async fn session_fs_maps_sqlite_errors_to_results() {
     impl SessionFsProvider for AlwaysFails {
         async fn sqlite_query(
             &self,
+            _session_id: &str,
             _query: &str,
             _query_type: SessionFsSqliteQueryType,
             _params: &std::collections::HashMap<String, serde_json::Value>,

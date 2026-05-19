@@ -1762,13 +1762,15 @@ pub struct SessionAuthStatus {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsAppendFileRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Path using SessionFs conventions
+    pub path: String,
     /// Content to append
     pub content: String,
     /// Optional POSIX-style mode for newly created files
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<i64>,
-    /// Path using SessionFs conventions
-    pub path: String,
 }
 
 /// Describes a filesystem error.
@@ -1786,6 +1788,8 @@ pub struct SessionFsError {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsExistsRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
     /// Path using SessionFs conventions
     pub path: String,
 }
@@ -1802,20 +1806,24 @@ pub struct SessionFsExistsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsMkdirRequest {
-    /// Optional POSIX-style mode for newly created directories
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<i64>,
+    /// Target session identifier
+    pub session_id: SessionId,
     /// Path using SessionFs conventions
     pub path: String,
     /// Create parent directories as needed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recursive: Option<bool>,
+    /// Optional POSIX-style mode for newly created directories
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<i64>,
 }
 
 /// Directory path whose entries should be listed from the client-provided session filesystem.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReaddirRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
     /// Path using SessionFs conventions
     pub path: String,
 }
@@ -1845,6 +1853,8 @@ pub struct SessionFsReaddirWithTypesEntry {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReaddirWithTypesRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
     /// Path using SessionFs conventions
     pub path: String,
 }
@@ -1864,6 +1874,8 @@ pub struct SessionFsReaddirWithTypesResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReadFileRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
     /// Path using SessionFs conventions
     pub path: String,
 }
@@ -1883,24 +1895,28 @@ pub struct SessionFsReadFileResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsRenameRequest {
-    /// Destination path using SessionFs conventions
-    pub dest: String,
+    /// Target session identifier
+    pub session_id: SessionId,
     /// Source path using SessionFs conventions
     pub src: String,
+    /// Destination path using SessionFs conventions
+    pub dest: String,
 }
 
 /// Path to remove from the client-provided session filesystem, with options for recursive removal and force.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsRmRequest {
-    /// Ignore errors if the path does not exist
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub force: Option<bool>,
+    /// Target session identifier
+    pub session_id: SessionId,
     /// Path using SessionFs conventions
     pub path: String,
     /// Remove directories and their contents recursively
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recursive: Option<bool>,
+    /// Ignore errors if the path does not exist
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub force: Option<bool>,
 }
 
 /// Optional capabilities declared by the provider
@@ -1947,13 +1963,15 @@ pub struct SessionFsSqliteExistsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSqliteQueryRequest {
-    /// Optional named bind parameters
-    #[serde(default)]
-    pub params: HashMap<String, serde_json::Value>,
+    /// Target session identifier
+    pub session_id: SessionId,
     /// SQL query to execute
     pub query: String,
     /// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
     pub query_type: SessionFsSqliteQueryType,
+    /// Optional named bind parameters
+    #[serde(default)]
+    pub params: HashMap<String, serde_json::Value>,
 }
 
 /// Query results including rows, columns, and rows affected, or a filesystem error if execution failed.
@@ -1978,6 +1996,8 @@ pub struct SessionFsSqliteQueryResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsStatRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
     /// Path using SessionFs conventions
     pub path: String,
 }
@@ -2005,13 +2025,15 @@ pub struct SessionFsStatResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsWriteFileRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Path using SessionFs conventions
+    pub path: String,
     /// Content to write
     pub content: String,
     /// Optional POSIX-style mode for newly created files
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<i64>,
-    /// Path using SessionFs conventions
-    pub path: String,
 }
 
 /// Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.

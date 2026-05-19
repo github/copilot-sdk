@@ -1261,10 +1261,64 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	);
 	const ctx = makeCtx(defCollections);
 
+	const methodEntries: { method: RpcMethod; isSession: boolean }[] = [];
+	for (const { group, isSession } of [
+		{ group: apiSchema.server, isSession: false },
+		{ group: apiSchema.session, isSession: true },
+		{ group: apiSchema.clientSession, isSession: false },
+	]) {
+		if (group) {
+			methodEntries.push(
+				...collectRpcMethods(group as Record<string, unknown>).map((method) => ({
+					method,
+					isSession,
+				})),
+			);
+		}
+	}
+	const allMethods = methodEntries.map(({ method }) => method);
+	const inlineMethodParamSchemas = new Map<string, JSONSchema7>();
+	const sortedNames = (names: Iterable<string> | undefined): string[] =>
+		[...(names ?? [])].sort();
+	const schemaPropertyNames = (schema: JSONSchema7): string[] =>
+		sortedNames(Object.keys(schema.properties ?? {}));
+	const shouldPreferMethodParamSchema = (
+		typeName: string,
+		paramsSchema: JSONSchema7,
+	): boolean => {
+		const definition = definitions[typeName];
+		if (typeof definition !== "object" || definition === null) return false;
+		const definitionSchema = asGeneratedObjectSchema(
+			definition as JSONSchema7,
+			defCollections,
+		);
+		if (!definitionSchema) return false;
+
+		return (
+			JSON.stringify(schemaPropertyNames(paramsSchema)) !==
+				JSON.stringify(schemaPropertyNames(definitionSchema)) ||
+			JSON.stringify(sortedNames(paramsSchema.required)) !==
+				JSON.stringify(sortedNames(definitionSchema.required))
+		);
+	};
+	for (const { method, isSession } of methodEntries) {
+		const params = method.params as (JSONSchema7 & { $ref?: string }) | undefined;
+		if (!params || typeof params.$ref === "string") continue;
+		const paramsSchema = getMethodParamsObjectSchema(
+			method,
+			defCollections,
+			isSession,
+		);
+		const paramsName = rustParamsTypeName(method, defCollections);
+		if (paramsSchema && shouldPreferMethodParamSchema(paramsName, paramsSchema)) {
+			inlineMethodParamSchemas.set(paramsName, paramsSchema);
+		}
+	}
+
 	// Generate shared definitions (structs & enums)
 	for (const [name, def] of Object.entries(definitions)) {
 		if (typeof def !== "object" || def === null) continue;
-		const schema = def as JSONSchema7;
+		const schema = inlineMethodParamSchemas.get(name) ?? (def as JSONSchema7);
 
 		if (schema.enum && Array.isArray(schema.enum)) {
 			emitRustStringEnum(
@@ -1293,24 +1347,6 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 			}
 		}
 	}
-
-	// Collect all RPC methods and generate request/response types
-	const methodEntries: { method: RpcMethod; isSession: boolean }[] = [];
-	for (const { group, isSession } of [
-		{ group: apiSchema.server, isSession: false },
-		{ group: apiSchema.session, isSession: true },
-		{ group: apiSchema.clientSession, isSession: false },
-	]) {
-		if (group) {
-			methodEntries.push(
-				...collectRpcMethods(group as Record<string, unknown>).map((method) => ({
-					method,
-					isSession,
-				})),
-			);
-		}
-	}
-	const allMethods = methodEntries.map(({ method }) => method);
 
 	// RPC method name constants
 	const methodConstLines: string[] = [];

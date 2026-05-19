@@ -208,6 +208,7 @@ async fn should_map_all_sessionfs_handler_operations() {
     ));
     let sqlite_result = provider
         .sqlite_query(
+            "handler-session",
             "select :answer as answer",
             SessionFsSqliteQueryType::Query,
             &std::collections::HashMap::from([("answer".to_string(), serde_json::Value::from(42))]),
@@ -622,12 +623,13 @@ impl SessionFsProvider for TestSessionFsProvider {
 
     async fn sqlite_query(
         &self,
+        session_id: &str,
         query: &str,
         query_type: SessionFsSqliteQueryType,
         params: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Result<SessionFsSqliteQueryResult, FsError> {
         let mut row = std::collections::HashMap::new();
-        row.insert("sessionId".to_string(), self.session_id.clone().into());
+        row.insert("sessionId".to_string(), session_id.to_string().into());
         row.insert("query".to_string(), query.to_string().into());
         row.insert(
             "queryType".to_string(),
