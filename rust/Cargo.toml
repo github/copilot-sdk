@@ -55,7 +55,6 @@ uuid = { version = "1", default-features = false, features = ["v4"] }
 zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]
-rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
 tempfile = "3"
