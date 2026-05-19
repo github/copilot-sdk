@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::session_events::ReasoningSummary;
-
 use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
