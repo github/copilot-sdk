@@ -11,6 +11,12 @@
 export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export {
+    buildMcpAppsAllowAttribute,
+    buildMcpAppsCspHeader,
+    type McpAppsCspInput,
+    type McpAppsPermissionsInput,
+} from "./mcpAppsSandbox.js";
+export {
     defineTool,
     approveAll,
     convertMcpCallToolResult,

@@ -1407,6 +1407,24 @@ export interface SessionConfig {
     onElicitationRequest?: ElicitationHandler;
 
     /**
+     * Enable MCP Apps (SEP-1865) UI passthrough on this session.
+     *
+     * When `true`, the runtime adds the `mcp-apps` capability to the session,
+     * which causes it to advertise the `extensions.io.modelcontextprotocol/ui`
+     * extension to MCP servers (so they expose `_meta.ui.resourceUri` on tools)
+     * and to expose the `session.rpc.mcp.apps.{listTools,callTool,readResource,
+     * setHostContext,getHostContext}` JSON-RPC methods.
+     *
+     * SDK consumers MUST set this to `true` only when they have an iframe
+     * renderer that can display `ui://` MCP App bundles. Setting it without a
+     * renderer will cause MCP servers to register UI-enabled tool variants
+     * the consumer cannot display.
+     *
+     * @default false
+     */
+    enableMcpApps?: boolean;
+
+    /**
      * Handler for exit-plan-mode requests from the agent.
      * When provided, enables `exitPlanMode.request` callbacks.
      */
@@ -1563,6 +1581,7 @@ export type ResumeSessionConfig = Pick<
     | "onPermissionRequest"
     | "onUserInputRequest"
     | "onElicitationRequest"
+    | "enableMcpApps"
     | "onExitPlanMode"
     | "onAutoModeSwitch"
     | "hooks"
