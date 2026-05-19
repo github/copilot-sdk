@@ -26,7 +26,7 @@ type AccountGetQuotaResult struct {
 
 // Schema for the `AccountQuotaSnapshot` type.
 type AccountQuotaSnapshot struct {
-	// Number of requests included in the entitlement
+	// Number of requests included in the entitlement, or -1 for unlimited entitlements
 	EntitlementRequests int64 `json:"entitlementRequests"`
 	// Whether the user has an unlimited usage entitlement
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
@@ -37,7 +37,7 @@ type AccountQuotaSnapshot struct {
 	// Percentage of entitlement remaining
 	RemainingPercentage float64 `json:"remainingPercentage"`
 	// Date when the quota resets (ISO 8601 string)
-	ResetDate *string `json:"resetDate,omitempty"`
+	ResetDate *time.Time `json:"resetDate,omitempty"`
 	// Whether usage is still permitted after quota exhaustion
 	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
 	// Number of requests used so far this period
@@ -53,6 +53,7 @@ type AgentGetCurrentResult struct {
 }
 
 // Schema for the `AgentInfo` type.
+// Experimental: AgentInfo is part of an experimental API and may change or be removed.
 type AgentInfo struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
@@ -149,6 +150,54 @@ type CommandsRespondToQueuedCommandResult struct {
 	Success bool `json:"success"`
 }
 
+// Metadata for a connected remote session.
+// Experimental: ConnectedRemoteSessionMetadata is part of an experimental API and may
+// change or be removed.
+type ConnectedRemoteSessionMetadata struct {
+	// Neutral SDK discriminator for the connected remote session kind.
+	Kind ConnectedRemoteSessionMetadataKind `json:"kind"`
+	// Last session update time as an ISO 8601 string.
+	ModifiedTime time.Time `json:"modifiedTime"`
+	// Optional friendly session name.
+	Name *string `json:"name,omitempty"`
+	// Pull request number associated with the session.
+	PullRequestNumber *int64 `json:"pullRequestNumber,omitempty"`
+	// Repository associated with the connected remote session.
+	Repository ConnectedRemoteSessionMetadataRepository `json:"repository"`
+	// Original remote resource identifier.
+	ResourceID *string `json:"resourceId,omitempty"`
+	// SDK session ID for the connected remote session.
+	SessionID string `json:"sessionId"`
+	// Remote session staleness deadline as an ISO 8601 string.
+	StaleAt *time.Time `json:"staleAt,omitempty"`
+	// Session start time as an ISO 8601 string.
+	StartTime time.Time `json:"startTime"`
+	// Remote session state returned by the backing service.
+	State *string `json:"state,omitempty"`
+	// Optional session summary.
+	Summary *string `json:"summary,omitempty"`
+}
+
+// Repository associated with the connected remote session.
+// Experimental: ConnectedRemoteSessionMetadataRepository is part of an experimental API and
+// may change or be removed.
+type ConnectedRemoteSessionMetadataRepository struct {
+	// Branch associated with the remote session.
+	Branch string `json:"branch"`
+	// Repository name.
+	Name string `json:"name"`
+	// Repository owner or organization login.
+	Owner string `json:"owner"`
+}
+
+// Remote session connection parameters.
+// Experimental: ConnectRemoteSessionParams is part of an experimental API and may change or
+// be removed.
+type ConnectRemoteSessionParams struct {
+	// Session ID to connect to.
+	SessionID string `json:"sessionId"`
+}
+
 // Optional connection token presented by the SDK client during the handshake.
 // Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
@@ -179,13 +228,14 @@ type DiscoveredMcpServer struct {
 	Enabled bool `json:"enabled"`
 	// Server name (config key)
 	Name string `json:"name"`
-	// Configuration source
-	Source DiscoveredMcpServerSource `json:"source"`
-	// Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+	// Configuration source: user, workspace, plugin, or builtin
+	Source McpServerSource `json:"source"`
+	// Server transport type: stdio, http, sse, or memory
 	Type *DiscoveredMcpServerType `json:"type,omitempty"`
 }
 
 // Schema for the `Extension` type.
+// Experimental: Extension is part of an experimental API and may change or be removed.
 type Extension struct {
 	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
 	ID string `json:"id"`
@@ -235,6 +285,8 @@ func (ExternalToolTextResultForLlm) externalToolResult() {}
 
 // Expanded external tool result payload
 type ExternalToolTextResultForLlm struct {
+	// Base64-encoded binary results returned to the model
+	BinaryResultsForLlm []ExternalToolTextResultForLlmBinaryResultsForLlm `json:"binaryResultsForLlm,omitempty"`
 	// Structured content blocks from the tool
 	Contents []ExternalToolTextResultForLlmContent `json:"contents,omitempty"`
 	// Optional error message for failed executions
@@ -248,6 +300,19 @@ type ExternalToolTextResultForLlm struct {
 	TextResultForLlm string `json:"textResultForLlm"`
 	// Optional tool-specific telemetry
 	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
+}
+
+// Binary result returned by a tool for the model
+type ExternalToolTextResultForLlmBinaryResultsForLlm struct {
+	// Base64-encoded binary data
+	Data string `json:"data"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// MIME type of the binary data
+	MIMEType string `json:"mimeType"`
+	// Binary result type discriminator. Use "image" for images and "resource" for other binary
+	// data.
+	Type ExternalToolTextResultForLlmBinaryResultsForLlmType `json:"type"`
 }
 
 // A content block within a tool result, which may be text, terminal output, image, audio,
@@ -407,11 +472,11 @@ type FilterMapping interface {
 	filterMapping()
 }
 
-type FilterMappingEnumMap map[string]FilterMappingValue
+func (ContentFilterMode) filterMapping() {}
+
+type FilterMappingEnumMap map[string]ContentFilterMode
 
 func (FilterMappingEnumMap) filterMapping() {}
-
-func (FilterMappingString) filterMapping() {}
 
 // Optional user prompt to combine with the fleet orchestration instructions.
 // Experimental: FleetStartRequest is part of an experimental API and may change or be
@@ -447,6 +512,8 @@ type HandlePendingToolCallResult struct {
 }
 
 // Post-compaction context window usage breakdown
+// Experimental: HistoryCompactContextWindow is part of an experimental API and may change
+// or be removed.
 type HistoryCompactContextWindow struct {
 	// Token count from non-system messages (user, assistant, tool)
 	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
@@ -540,7 +607,7 @@ type LogResult struct {
 
 // MCP server name and configuration to add to user configuration.
 type McpConfigAddRequest struct {
-	// MCP server configuration (local/stdio or remote/http)
+	// MCP server configuration (stdio process or remote HTTP/SSE)
 	Config McpServerConfig `json:"config"`
 	// Unique name for the MCP server
 	Name string `json:"name"`
@@ -587,7 +654,7 @@ type McpConfigRemoveResult struct {
 
 // MCP server name and replacement configuration to write to user configuration.
 type McpConfigUpdateRequest struct {
-	// MCP server configuration (local/stdio or remote/http)
+	// MCP server configuration (stdio process or remote HTTP/SSE)
 	Config McpServerConfig `json:"config"`
 	// Name of the MCP server to update
 	Name string `json:"name"`
@@ -661,6 +728,7 @@ type McpOauthLoginResult struct {
 }
 
 // Schema for the `McpServer` type.
+// Experimental: McpServer is part of an experimental API and may change or be removed.
 type McpServer struct {
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
@@ -672,7 +740,7 @@ type McpServer struct {
 	Status McpServerStatus `json:"status"`
 }
 
-// MCP server configuration (local/stdio or remote/http)
+// MCP server configuration (stdio process or remote HTTP/SSE)
 type McpServerConfig interface {
 	mcpServerConfig()
 }
@@ -685,6 +753,8 @@ func (RawMcpServerConfigData) mcpServerConfig() {}
 
 // Remote MCP server configuration accessed over HTTP or SSE.
 type McpServerConfigHTTP struct {
+	// Additional authentication configuration for this server.
+	Auth *McpServerConfigHTTPAuth `json:"auth,omitempty"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
 	// mode.
 	FilterMapping FilterMapping `json:"filterMapping,omitempty"`
@@ -711,15 +781,15 @@ type McpServerConfigHTTP struct {
 
 func (McpServerConfigHTTP) mcpServerConfig() {}
 
-// Local MCP server configuration launched as a child process.
-type McpServerConfigLocal struct {
-	// Command-line arguments passed to the local MCP server process.
-	Args []string `json:"args"`
-	// Executable command used to start the local MCP server process.
+// Stdio MCP server configuration launched as a child process.
+type McpServerConfigStdio struct {
+	// Command-line arguments passed to the Stdio MCP server process.
+	Args []string `json:"args,omitempty"`
+	// Executable command used to start the Stdio MCP server process.
 	Command string `json:"command"`
-	// Working directory for the local MCP server process.
+	// Working directory for the Stdio MCP server process.
 	Cwd *string `json:"cwd,omitempty"`
-	// Environment variables to pass to the local MCP server process.
+	// Environment variables to pass to the Stdio MCP server process.
 	Env map[string]string `json:"env,omitempty"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
 	// mode.
@@ -731,11 +801,15 @@ type McpServerConfigLocal struct {
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
 	Tools []string `json:"tools,omitempty"`
-	// Local transport type. Defaults to "local".
-	Type *McpServerConfigLocalType `json:"type,omitempty"`
 }
 
-func (McpServerConfigLocal) mcpServerConfig() {}
+func (McpServerConfigStdio) mcpServerConfig() {}
+
+// Additional authentication configuration for this server.
+type McpServerConfigHTTPAuth struct {
+	// Fixed port for the OAuth redirect callback server.
+	RedirectPort *int32 `json:"redirectPort,omitempty"`
+}
 
 // MCP servers configured for the session, with their connection status.
 // Experimental: McpServerList is part of an experimental API and may change or be removed.
@@ -875,7 +949,7 @@ type ModelList struct {
 // Policy state (if applicable)
 type ModelPolicy struct {
 	// Current policy state for this model
-	State string `json:"state"`
+	State ModelPolicyState `json:"state"`
 	// Usage terms or conditions for this model
 	Terms *string `json:"terms,omitempty"`
 }
@@ -906,7 +980,7 @@ type ModelSwitchToResult struct {
 
 // Agent interaction mode to apply to the session.
 type ModeSetRequest struct {
-	// The agent mode. Valid values: "interactive", "plan", "autopilot".
+	// The session mode the agent is operating in
 	Mode SessionMode `json:"mode"`
 }
 
@@ -1320,6 +1394,7 @@ type PlanUpdateRequest struct {
 }
 
 // Schema for the `Plugin` type.
+// Experimental: Plugin is part of an experimental API and may change or be removed.
 type Plugin struct {
 	// Whether the plugin is currently enabled
 	Enabled bool `json:"enabled"`
@@ -1384,6 +1459,16 @@ type RemoteEnableResult struct {
 	URL *string `json:"url,omitempty"`
 }
 
+// Remote session connection result.
+// Experimental: RemoteSessionConnectionResult is part of an experimental API and may change
+// or be removed.
+type RemoteSessionConnectionResult struct {
+	// Metadata for a connected remote session.
+	Metadata ConnectedRemoteSessionMetadata `json:"metadata"`
+	// SDK session ID for the connected remote session.
+	SessionID string `json:"sessionId"`
+}
+
 // Schema for the `ServerSkill` type.
 type ServerSkill struct {
 	// Description of what the skill does
@@ -1397,7 +1482,7 @@ type ServerSkill struct {
 	// The project path this skill belongs to (only for project/inherited skills)
 	ProjectPath *string `json:"projectPath,omitempty"`
 	// Source location type (e.g., project, personal-copilot, plugin, builtin)
-	Source string `json:"source"`
+	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`
 }
@@ -1574,9 +1659,17 @@ type SessionFsRmRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
+// Optional capabilities declared by the provider
+type SessionFsSetProviderCapabilities struct {
+	// Whether the provider supports SQLite query/exists operations
+	Sqlite *bool `json:"sqlite,omitempty"`
+}
+
 // Initial working directory, session-state path layout, and path conventions used to
 // register the calling SDK client as the session filesystem provider.
 type SessionFsSetProviderRequest struct {
+	// Optional capabilities declared by the provider
+	Capabilities *SessionFsSetProviderCapabilities `json:"capabilities,omitempty"`
 	// Path conventions used by this filesystem
 	Conventions SessionFsSetProviderConventions `json:"conventions"`
 	// Initial working directory for sessions
@@ -1591,11 +1684,21 @@ type SessionFsSetProviderResult struct {
 	Success bool `json:"success"`
 }
 
-// Database name, SQL query, query type, and optional bind parameters for executing a SQLite
-// query against a per-session database.
-type SessionFsSqliteRequest struct {
-	// Logical database name (e.g., 'session')
-	DbName string `json:"dbName"`
+// Identifies the target session.
+type SessionFsSqliteExistsRequest struct {
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Indicates whether the per-session SQLite database already exists.
+type SessionFsSqliteExistsResult struct {
+	// Whether the session database already exists
+	Exists bool `json:"exists"`
+}
+
+// SQL query, query type, and optional bind parameters for executing a SQLite query against
+// the per-session database.
+type SessionFsSqliteQueryRequest struct {
 	// Optional named bind parameters
 	Params map[string]any `json:"params,omitempty"`
 	// SQL query to execute
@@ -1609,7 +1712,7 @@ type SessionFsSqliteRequest struct {
 
 // Query results including rows, columns, and rows affected, or a filesystem error if
 // execution failed.
-type SessionFsSqliteResult struct {
+type SessionFsSqliteQueryResult struct {
 	// Column names from the result set
 	Columns []string `json:"columns"`
 	// Describes a filesystem error.
@@ -1763,6 +1866,7 @@ type ShellKillResult struct {
 }
 
 // Schema for the `Skill` type.
+// Experimental: Skill is part of an experimental API and may change or be removed.
 type Skill struct {
 	// Description of what the skill does
 	Description string `json:"description"`
@@ -1772,8 +1876,8 @@ type Skill struct {
 	Name string `json:"name"`
 	// Absolute path to the skill file
 	Path *string `json:"path,omitempty"`
-	// Source location type (e.g., project, personal, plugin)
-	Source string `json:"source"`
+	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`
 }
@@ -1882,8 +1986,8 @@ func (r RawSlashCommandInvocationResultData) Kind() SlashCommandInvocationResult
 type SlashCommandAgentPromptResult struct {
 	// Prompt text to display to the user
 	DisplayPrompt string `json:"displayPrompt"`
-	// Optional target session mode
-	Mode *SlashCommandAgentPromptMode `json:"mode,omitempty"`
+	// Optional target session mode for the agent prompt
+	Mode *SessionMode `json:"mode,omitempty"`
 	// Prompt to submit to the agent
 	Prompt string `json:"prompt"`
 	// True when the invocation mutated user runtime settings; consumers caching settings should
@@ -1929,6 +2033,7 @@ func (SlashCommandTextResult) Kind() SlashCommandInvocationResultKind {
 }
 
 // Schema for the `TaskInfo` type.
+// Experimental: TaskInfo is part of an experimental API and may change or be removed.
 type TaskInfo interface {
 	taskInfo()
 	Type() TaskInfoType
@@ -1945,6 +2050,7 @@ func (r RawTaskInfoData) Type() TaskInfoType {
 }
 
 // Schema for the `TaskAgentInfo` type.
+// Experimental: TaskAgentInfo is part of an experimental API and may change or be removed.
 type TaskAgentInfo struct {
 	// ISO 8601 timestamp when the current active period began
 	ActiveStartedAt *time.Time `json:"activeStartedAt,omitempty"`
@@ -1962,8 +2068,8 @@ type TaskAgentInfo struct {
 	Description string `json:"description"`
 	// Error message when the task failed
 	Error *string `json:"error,omitempty"`
-	// How the agent is currently being managed by the runtime
-	ExecutionMode *TaskAgentInfoExecutionMode `json:"executionMode,omitempty"`
+	// Whether task execution is synchronously awaited or managed in the background
+	ExecutionMode *TaskExecutionMode `json:"executionMode,omitempty"`
 	// Unique task identifier
 	ID string `json:"id"`
 	// ISO 8601 timestamp when the agent entered idle state
@@ -1979,7 +2085,7 @@ type TaskAgentInfo struct {
 	// ISO 8601 timestamp when the task was started
 	StartedAt time.Time `json:"startedAt"`
 	// Current lifecycle status of the task
-	Status TaskAgentInfoStatus `json:"status"`
+	Status TaskStatus `json:"status"`
 	// Tool call ID associated with this agent task
 	ToolCallID string `json:"toolCallId"`
 }
@@ -1990,6 +2096,7 @@ func (TaskAgentInfo) Type() TaskInfoType {
 }
 
 // Schema for the `TaskShellInfo` type.
+// Experimental: TaskShellInfo is part of an experimental API and may change or be removed.
 type TaskShellInfo struct {
 	// Whether the shell runs inside a managed PTY session or as an independent background
 	// process
@@ -2002,8 +2109,8 @@ type TaskShellInfo struct {
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 	// Short description of the task
 	Description string `json:"description"`
-	// Whether the shell command is currently sync-waited or background-managed
-	ExecutionMode *TaskShellInfoExecutionMode `json:"executionMode,omitempty"`
+	// Whether task execution is synchronously awaited or managed in the background
+	ExecutionMode *TaskExecutionMode `json:"executionMode,omitempty"`
 	// Unique task identifier
 	ID string `json:"id"`
 	// Path to the detached shell log, when available
@@ -2013,7 +2120,7 @@ type TaskShellInfo struct {
 	// ISO 8601 timestamp when the task was started
 	StartedAt time.Time `json:"startedAt"`
 	// Current lifecycle status of the task
-	Status TaskShellInfoStatus `json:"status"`
+	Status TaskStatus `json:"status"`
 }
 
 func (TaskShellInfo) taskInfo() {}
@@ -2433,6 +2540,8 @@ type UsageGetMetricsResult struct {
 }
 
 // Aggregated code change metrics
+// Experimental: UsageMetricsCodeChanges is part of an experimental API and may change or be
+// removed.
 type UsageMetricsCodeChanges struct {
 	// Number of distinct files modified
 	FilesModifiedCount int64 `json:"filesModifiedCount"`
@@ -2443,6 +2552,8 @@ type UsageMetricsCodeChanges struct {
 }
 
 // Schema for the `UsageMetricsModelMetric` type.
+// Experimental: UsageMetricsModelMetric is part of an experimental API and may change or be
+// removed.
 type UsageMetricsModelMetric struct {
 	// Request count and cost metrics for this model
 	Requests UsageMetricsModelMetricRequests `json:"requests"`
@@ -2455,6 +2566,8 @@ type UsageMetricsModelMetric struct {
 }
 
 // Request count and cost metrics for this model
+// Experimental: UsageMetricsModelMetricRequests is part of an experimental API and may
+// change or be removed.
 type UsageMetricsModelMetricRequests struct {
 	// User-initiated premium request cost (with multiplier applied)
 	Cost float64 `json:"cost"`
@@ -2463,12 +2576,16 @@ type UsageMetricsModelMetricRequests struct {
 }
 
 // Schema for the `UsageMetricsModelMetricTokenDetail` type.
+// Experimental: UsageMetricsModelMetricTokenDetail is part of an experimental API and may
+// change or be removed.
 type UsageMetricsModelMetricTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount int64 `json:"tokenCount"`
 }
 
 // Token usage metrics for this model
+// Experimental: UsageMetricsModelMetricUsage is part of an experimental API and may change
+// or be removed.
 type UsageMetricsModelMetricUsage struct {
 	// Total tokens read from prompt cache
 	CacheReadTokens int64 `json:"cacheReadTokens"`
@@ -2483,6 +2600,8 @@ type UsageMetricsModelMetricUsage struct {
 }
 
 // Schema for the `UsageMetricsTokenDetail` type.
+// Experimental: UsageMetricsTokenDetail is part of an experimental API and may change or be
+// removed.
 type UsageMetricsTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount int64 `json:"tokenCount"`
@@ -2552,17 +2671,28 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
-// Configuration source
-type DiscoveredMcpServerSource string
+// Neutral SDK discriminator for the connected remote session kind.
+// Experimental: ConnectedRemoteSessionMetadataKind is part of an experimental API and may
+// change or be removed.
+type ConnectedRemoteSessionMetadataKind string
 
 const (
-	DiscoveredMcpServerSourceBuiltin   DiscoveredMcpServerSource = "builtin"
-	DiscoveredMcpServerSourcePlugin    DiscoveredMcpServerSource = "plugin"
-	DiscoveredMcpServerSourceUser      DiscoveredMcpServerSource = "user"
-	DiscoveredMcpServerSourceWorkspace DiscoveredMcpServerSource = "workspace"
+	ConnectedRemoteSessionMetadataKindCodingAgent   ConnectedRemoteSessionMetadataKind = "coding-agent"
+	ConnectedRemoteSessionMetadataKindRemoteSession ConnectedRemoteSessionMetadataKind = "remote-session"
 )
 
-// Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+// Controls how MCP tool result content is filtered: none leaves content unchanged, markdown
+// sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes
+// characters that can hide directives.
+type ContentFilterMode string
+
+const (
+	ContentFilterModeHiddenCharacters ContentFilterMode = "hidden_characters"
+	ContentFilterModeMarkdown         ContentFilterMode = "markdown"
+	ContentFilterModeNone             ContentFilterMode = "none"
+)
+
+// Server transport type: stdio, http, sse, or memory
 type DiscoveredMcpServerType string
 
 const (
@@ -2573,6 +2703,7 @@ const (
 )
 
 // Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+// Experimental: ExtensionSource is part of an experimental API and may change or be removed.
 type ExtensionSource string
 
 const (
@@ -2581,6 +2712,7 @@ const (
 )
 
 // Current status: running, disabled, failed, or starting
+// Experimental: ExtensionStatus is part of an experimental API and may change or be removed.
 type ExtensionStatus string
 
 const (
@@ -2588,6 +2720,15 @@ const (
 	ExtensionStatusFailed   ExtensionStatus = "failed"
 	ExtensionStatusRunning  ExtensionStatus = "running"
 	ExtensionStatusStarting ExtensionStatus = "starting"
+)
+
+// Binary result type discriminator. Use "image" for images and "resource" for other binary
+// data.
+type ExternalToolTextResultForLlmBinaryResultsForLlmType string
+
+const (
+	ExternalToolTextResultForLlmBinaryResultsForLlmTypeImage    ExternalToolTextResultForLlmBinaryResultsForLlmType = "image"
+	ExternalToolTextResultForLlmBinaryResultsForLlmTypeResource ExternalToolTextResultForLlmBinaryResultsForLlmType = "resource"
 )
 
 // Theme variant this icon is intended for
@@ -2608,24 +2749,6 @@ const (
 	ExternalToolTextResultForLlmContentTypeResourceLink ExternalToolTextResultForLlmContentType = "resource_link"
 	ExternalToolTextResultForLlmContentTypeTerminal     ExternalToolTextResultForLlmContentType = "terminal"
 	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
-)
-
-// Allowed values for the `FilterMappingString` enumeration.
-type FilterMappingString string
-
-const (
-	FilterMappingStringHiddenCharacters FilterMappingString = "hidden_characters"
-	FilterMappingStringMarkdown         FilterMappingString = "markdown"
-	FilterMappingStringNone             FilterMappingString = "none"
-)
-
-// Allowed values for the `FilterMappingValue` enumeration.
-type FilterMappingValue string
-
-const (
-	FilterMappingValueHiddenCharacters FilterMappingValue = "hidden_characters"
-	FilterMappingValueMarkdown         FilterMappingValue = "markdown"
-	FilterMappingValueNone             FilterMappingValue = "none"
 )
 
 // Where this source lives — used for UI grouping
@@ -2665,14 +2788,6 @@ const (
 	McpServerConfigHTTPTypeSse  McpServerConfigHTTPType = "sse"
 )
 
-// Local transport type. Defaults to "local".
-type McpServerConfigLocalType string
-
-const (
-	McpServerConfigLocalTypeLocal McpServerConfigLocalType = "local"
-	McpServerConfigLocalTypeStdio McpServerConfigLocalType = "stdio"
-)
-
 // Configuration source: user, workspace, plugin, or builtin
 type McpServerSource string
 
@@ -2684,6 +2799,7 @@ const (
 )
 
 // Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+// Experimental: McpServerStatus is part of an experimental API and may change or be removed.
 type McpServerStatus string
 
 const (
@@ -2712,6 +2828,15 @@ const (
 	ModelPickerPriceCategoryLow      ModelPickerPriceCategory = "low"
 	ModelPickerPriceCategoryMedium   ModelPickerPriceCategory = "medium"
 	ModelPickerPriceCategoryVeryHigh ModelPickerPriceCategory = "very_high"
+)
+
+// Current policy state for this model
+type ModelPolicyState string
+
+const (
+	ModelPolicyStateDisabled     ModelPolicyState = "disabled"
+	ModelPolicyStateEnabled      ModelPolicyState = "enabled"
+	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
 )
 
 // Kind discriminator for PermissionDecisionApproveForLocationApproval.
@@ -2767,6 +2892,8 @@ const (
 
 // Per-session remote mode. "off" disables remote, "export" exports session events to GitHub
 // without enabling remote steering, "on" enables both export and remote steering.
+// Experimental: RemoteSessionMode is part of an experimental API and may change or be
+// removed.
 type RemoteSessionMode string
 
 const (
@@ -2819,7 +2946,7 @@ const (
 	SessionLogLevelWarning SessionLogLevel = "warning"
 )
 
-// The agent mode. Valid values: "interactive", "plan", "autopilot".
+// The session mode the agent is operating in
 type SessionMode string
 
 const (
@@ -2837,13 +2964,17 @@ const (
 	ShellKillSignalSIGTERM ShellKillSignal = "SIGTERM"
 )
 
-// Optional target session mode
-type SlashCommandAgentPromptMode string
+// Source location type (e.g., project, personal-copilot, plugin, builtin)
+type SkillSource string
 
 const (
-	SlashCommandAgentPromptModeAutopilot   SlashCommandAgentPromptMode = "autopilot"
-	SlashCommandAgentPromptModeInteractive SlashCommandAgentPromptMode = "interactive"
-	SlashCommandAgentPromptModePlan        SlashCommandAgentPromptMode = "plan"
+	SkillSourceBuiltin         SkillSource = "builtin"
+	SkillSourceCustom          SkillSource = "custom"
+	SkillSourceInherited       SkillSource = "inherited"
+	SkillSourcePersonalAgents  SkillSource = "personal-agents"
+	SkillSourcePersonalCopilot SkillSource = "personal-copilot"
+	SkillSourcePlugin          SkillSource = "plugin"
+	SkillSourceProject         SkillSource = "project"
 )
 
 // Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
@@ -2872,23 +3003,14 @@ const (
 	SlashCommandKindSkill   SlashCommandKind = "skill"
 )
 
-// How the agent is currently being managed by the runtime
-type TaskAgentInfoExecutionMode string
+// Whether task execution is synchronously awaited or managed in the background
+// Experimental: TaskExecutionMode is part of an experimental API and may change or be
+// removed.
+type TaskExecutionMode string
 
 const (
-	TaskAgentInfoExecutionModeBackground TaskAgentInfoExecutionMode = "background"
-	TaskAgentInfoExecutionModeSync       TaskAgentInfoExecutionMode = "sync"
-)
-
-// Current lifecycle status of the task
-type TaskAgentInfoStatus string
-
-const (
-	TaskAgentInfoStatusCancelled TaskAgentInfoStatus = "cancelled"
-	TaskAgentInfoStatusCompleted TaskAgentInfoStatus = "completed"
-	TaskAgentInfoStatusFailed    TaskAgentInfoStatus = "failed"
-	TaskAgentInfoStatusIdle      TaskAgentInfoStatus = "idle"
-	TaskAgentInfoStatusRunning   TaskAgentInfoStatus = "running"
+	TaskExecutionModeBackground TaskExecutionMode = "background"
+	TaskExecutionModeSync       TaskExecutionMode = "sync"
 )
 
 // Type discriminator for TaskInfo.
@@ -2901,6 +3023,8 @@ const (
 
 // Whether the shell runs inside a managed PTY session or as an independent background
 // process
+// Experimental: TaskShellInfoAttachmentMode is part of an experimental API and may change
+// or be removed.
 type TaskShellInfoAttachmentMode string
 
 const (
@@ -2908,23 +3032,16 @@ const (
 	TaskShellInfoAttachmentModeDetached TaskShellInfoAttachmentMode = "detached"
 )
 
-// Whether the shell command is currently sync-waited or background-managed
-type TaskShellInfoExecutionMode string
-
-const (
-	TaskShellInfoExecutionModeBackground TaskShellInfoExecutionMode = "background"
-	TaskShellInfoExecutionModeSync       TaskShellInfoExecutionMode = "sync"
-)
-
 // Current lifecycle status of the task
-type TaskShellInfoStatus string
+// Experimental: TaskStatus is part of an experimental API and may change or be removed.
+type TaskStatus string
 
 const (
-	TaskShellInfoStatusCancelled TaskShellInfoStatus = "cancelled"
-	TaskShellInfoStatusCompleted TaskShellInfoStatus = "completed"
-	TaskShellInfoStatusFailed    TaskShellInfoStatus = "failed"
-	TaskShellInfoStatusIdle      TaskShellInfoStatus = "idle"
-	TaskShellInfoStatusRunning   TaskShellInfoStatus = "running"
+	TaskStatusCancelled TaskStatus = "cancelled"
+	TaskStatusCompleted TaskStatus = "completed"
+	TaskStatusFailed    TaskStatus = "failed"
+	TaskStatusIdle      TaskStatus = "idle"
+	TaskStatusRunning   TaskStatus = "running"
 )
 
 // Type discriminator. Always "string".
@@ -2992,6 +3109,14 @@ type serverApi struct {
 
 type ServerAccountApi serverApi
 
+// GetQuota gets Copilot quota usage for the authenticated user or supplied GitHub token.
+//
+// RPC method: account.getQuota.
+//
+// Parameters: Optional GitHub token used to look up quota for a specific user instead of
+// the global auth context.
+//
+// Returns: Quota usage snapshots for the resolved user, keyed by quota type.
 func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuotaRequest) (*AccountGetQuotaResult, error) {
 	raw, err := a.client.Request("account.getQuota", params)
 	if err != nil {
@@ -3006,6 +3131,13 @@ func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuota
 
 type ServerMcpApi serverApi
 
+// Discovers MCP servers from user, workspace, plugin, and builtin sources.
+//
+// RPC method: mcp.discover.
+//
+// Parameters: Optional working directory used as context for MCP server discovery.
+//
+// Returns: MCP servers discovered from user, workspace, plugin, and built-in sources.
 func (a *ServerMcpApi) Discover(ctx context.Context, params *McpDiscoverRequest) (*McpDiscoverResult, error) {
 	raw, err := a.client.Request("mcp.discover", params)
 	if err != nil {
@@ -3020,6 +3152,11 @@ func (a *ServerMcpApi) Discover(ctx context.Context, params *McpDiscoverRequest)
 
 type ServerMcpConfigApi serverApi
 
+// Adds an MCP server to user configuration.
+//
+// RPC method: mcp.config.add.
+//
+// Parameters: MCP server name and configuration to add to user configuration.
 func (a *ServerMcpConfigApi) Add(ctx context.Context, params *McpConfigAddRequest) (*McpConfigAddResult, error) {
 	raw, err := a.client.Request("mcp.config.add", params)
 	if err != nil {
@@ -3032,6 +3169,11 @@ func (a *ServerMcpConfigApi) Add(ctx context.Context, params *McpConfigAddReques
 	return &result, nil
 }
 
+// Disables MCP servers in user configuration for new sessions.
+//
+// RPC method: mcp.config.disable.
+//
+// Parameters: MCP server names to disable for new sessions.
 func (a *ServerMcpConfigApi) Disable(ctx context.Context, params *McpConfigDisableRequest) (*McpConfigDisableResult, error) {
 	raw, err := a.client.Request("mcp.config.disable", params)
 	if err != nil {
@@ -3044,6 +3186,11 @@ func (a *ServerMcpConfigApi) Disable(ctx context.Context, params *McpConfigDisab
 	return &result, nil
 }
 
+// Enables MCP servers in user configuration for new sessions.
+//
+// RPC method: mcp.config.enable.
+//
+// Parameters: MCP server names to enable for new sessions.
 func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *McpConfigEnableRequest) (*McpConfigEnableResult, error) {
 	raw, err := a.client.Request("mcp.config.enable", params)
 	if err != nil {
@@ -3056,6 +3203,11 @@ func (a *ServerMcpConfigApi) Enable(ctx context.Context, params *McpConfigEnable
 	return &result, nil
 }
 
+// Lists MCP servers from user configuration.
+//
+// RPC method: mcp.config.list.
+//
+// Returns: User-configured MCP servers, keyed by server name.
 func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
 	raw, err := a.client.Request("mcp.config.list", nil)
 	if err != nil {
@@ -3068,6 +3220,11 @@ func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
 	return &result, nil
 }
 
+// Removes an MCP server from user configuration.
+//
+// RPC method: mcp.config.remove.
+//
+// Parameters: MCP server name to remove from user configuration.
 func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *McpConfigRemoveRequest) (*McpConfigRemoveResult, error) {
 	raw, err := a.client.Request("mcp.config.remove", params)
 	if err != nil {
@@ -3080,6 +3237,11 @@ func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *McpConfigRemove
 	return &result, nil
 }
 
+// Updates an MCP server in user configuration.
+//
+// RPC method: mcp.config.update.
+//
+// Parameters: MCP server name and replacement configuration to write to user configuration.
 func (a *ServerMcpConfigApi) Update(ctx context.Context, params *McpConfigUpdateRequest) (*McpConfigUpdateResult, error) {
 	raw, err := a.client.Request("mcp.config.update", params)
 	if err != nil {
@@ -3098,6 +3260,15 @@ func (s *ServerMcpApi) Config() *ServerMcpConfigApi {
 
 type ServerModelsApi serverApi
 
+// Lists Copilot models available to the authenticated user.
+//
+// RPC method: models.list.
+//
+// Parameters: Optional GitHub token used to list models for a specific user instead of the
+// global auth context.
+//
+// Returns: List of Copilot models available to the resolved user, including capabilities
+// and billing metadata.
 func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (*ModelList, error) {
 	raw, err := a.client.Request("models.list", params)
 	if err != nil {
@@ -3112,6 +3283,15 @@ func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (
 
 type ServerSessionFsApi serverApi
 
+// SetProvider registers an SDK client as the session filesystem provider.
+//
+// RPC method: sessionFs.setProvider.
+//
+// Parameters: Initial working directory, session-state path layout, and path conventions
+// used to register the calling SDK client as the session filesystem provider.
+//
+// Returns: Indicates whether the calling client was registered as the session filesystem
+// provider.
 func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFsSetProviderRequest) (*SessionFsSetProviderResult, error) {
 	raw, err := a.client.Request("sessionFs.setProvider", params)
 	if err != nil {
@@ -3127,6 +3307,33 @@ func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFsS
 // Experimental: ServerSessionsApi contains experimental APIs that may change or be removed.
 type ServerSessionsApi serverApi
 
+// Connects to an existing remote session and exposes it as an SDK session.
+//
+// RPC method: sessions.connect.
+//
+// Parameters: Remote session connection parameters.
+//
+// Returns: Remote session connection result.
+func (a *ServerSessionsApi) Connect(ctx context.Context, params *ConnectRemoteSessionParams) (*RemoteSessionConnectionResult, error) {
+	raw, err := a.client.Request("sessions.connect", params)
+	if err != nil {
+		return nil, err
+	}
+	var result RemoteSessionConnectionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Fork creates a new session by forking persisted history from an existing session.
+//
+// RPC method: sessions.fork.
+//
+// Parameters: Source session identifier to fork from, optional event-ID boundary, and
+// optional friendly name for the new session.
+//
+// Returns: Identifier and optional friendly name assigned to the newly forked session.
 func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkRequest) (*SessionsForkResult, error) {
 	raw, err := a.client.Request("sessions.fork", params)
 	if err != nil {
@@ -3141,6 +3348,14 @@ func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkReques
 
 type ServerSkillsApi serverApi
 
+// Discovers skills across global and project sources.
+//
+// RPC method: skills.discover.
+//
+// Parameters: Optional project paths and additional skill directories to include in
+// discovery.
+//
+// Returns: Skills discovered across global and project sources.
 func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRequest) (*ServerSkillList, error) {
 	raw, err := a.client.Request("skills.discover", params)
 	if err != nil {
@@ -3155,6 +3370,12 @@ func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRe
 
 type ServerSkillsConfigApi serverApi
 
+// SetDisabledSkills replaces the global list of disabled skills.
+//
+// RPC method: skills.config.setDisabledSkills.
+//
+// Parameters: Skill names to mark as disabled in global configuration, replacing any
+// previous list.
 func (a *ServerSkillsConfigApi) SetDisabledSkills(ctx context.Context, params *SkillsConfigSetDisabledSkillsRequest) (*SkillsConfigSetDisabledSkillsResult, error) {
 	raw, err := a.client.Request("skills.config.setDisabledSkills", params)
 	if err != nil {
@@ -3173,6 +3394,15 @@ func (s *ServerSkillsApi) Config() *ServerSkillsConfigApi {
 
 type ServerToolsApi serverApi
 
+// Lists built-in tools available for a model.
+//
+// RPC method: tools.list.
+//
+// Parameters: Optional model identifier whose tool overrides should be applied to the
+// listing.
+//
+// Returns: Built-in tools available for the requested model, with their parameters and
+// instructions.
 func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*ToolList, error) {
 	raw, err := a.client.Request("tools.list", params)
 	if err != nil {
@@ -3199,6 +3429,14 @@ type ServerRpc struct {
 	Tools     *ServerToolsApi
 }
 
+// Ping checks server responsiveness and returns protocol information.
+//
+// RPC method: ping.
+//
+// Parameters: Optional message to echo back to the caller.
+//
+// Returns: Server liveness response, including the echoed message, current timestamp, and
+// protocol version.
 func (a *ServerRpc) Ping(ctx context.Context, params *PingRequest) (*PingResult, error) {
 	raw, err := a.common.client.Request("ping", params)
 	if err != nil {
@@ -3235,6 +3473,15 @@ type InternalServerRpc struct {
 	common internalServerApi
 }
 
+// Connect performs the SDK server connection handshake and validates the optional
+// connection token.
+//
+// RPC method: connect.
+//
+// Parameters: Optional connection token presented by the SDK client during the handshake.
+//
+// Returns: Handshake result reporting the server's protocol version and package version on
+// success.
 // Internal: Connect is part of the SDK's internal handshake/plumbing; external callers
 // should not use it.
 func (a *InternalServerRpc) Connect(ctx context.Context, params *ConnectRequest) (*ConnectResult, error) {
@@ -3263,6 +3510,9 @@ type sessionApi struct {
 // Experimental: AgentApi contains experimental APIs that may change or be removed.
 type AgentApi sessionApi
 
+// Deselect clears the selected custom agent and returns the session to the default agent.
+//
+// RPC method: session.agent.deselect.
 func (a *AgentApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.deselect", req)
@@ -3276,6 +3526,11 @@ func (a *AgentApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult, e
 	return &result, nil
 }
 
+// GetCurrent gets the currently selected custom agent for the session.
+//
+// RPC method: session.agent.getCurrent.
+//
+// Returns: The currently selected custom agent, or null when using the default agent.
 func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.getCurrent", req)
@@ -3289,6 +3544,11 @@ func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, erro
 	return &result, nil
 }
 
+// Lists custom agents available to the session.
+//
+// RPC method: session.agent.list.
+//
+// Returns: Custom agents available to the session.
 func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.list", req)
@@ -3302,6 +3562,11 @@ func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
 	return &result, nil
 }
 
+// Reloads custom agent definitions and returns the refreshed list.
+//
+// RPC method: session.agent.reload.
+//
+// Returns: Custom agents available to the session after reloading definitions from disk.
 func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.reload", req)
@@ -3315,6 +3580,13 @@ func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
 	return &result, nil
 }
 
+// Selects a custom agent for subsequent turns in the session.
+//
+// RPC method: session.agent.select.
+//
+// Parameters: Name of the custom agent to select for subsequent turns.
+//
+// Returns: The newly selected custom agent.
 func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*AgentSelectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3333,6 +3605,11 @@ func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 
 type AuthApi sessionApi
 
+// GetStatus gets authentication status and account metadata for the session.
+//
+// RPC method: session.auth.getStatus.
+//
+// Returns: Authentication status and account metadata for the session.
 func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.auth.getStatus", req)
@@ -3348,6 +3625,13 @@ func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 
 type CommandsApi sessionApi
 
+// HandlePendingCommand reports completion of a pending client-handled slash command.
+//
+// RPC method: session.commands.handlePendingCommand.
+//
+// Parameters: Pending command request ID and an optional error if the client handler failed.
+//
+// Returns: Indicates whether the pending client-handled command was completed successfully.
 func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *CommandsHandlePendingCommandRequest) (*CommandsHandlePendingCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3367,6 +3651,14 @@ func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *Commands
 	return &result, nil
 }
 
+// Invokes a slash command in the session.
+//
+// RPC method: session.commands.invoke.
+//
+// Parameters: Slash command name and optional raw input string to invoke.
+//
+// Returns: Result of invoking the slash command (text output, prompt to send to the agent,
+// or completion).
 func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest) (SlashCommandInvocationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3386,6 +3678,14 @@ func (a *CommandsApi) Invoke(ctx context.Context, params *CommandsInvokeRequest)
 	return result, nil
 }
 
+// Lists slash commands available in the session.
+//
+// RPC method: session.commands.list.
+//
+// Parameters: Optional filters controlling which command sources to include in the listing.
+//
+// Returns: Slash commands available in the session, after applying any include/exclude
+// filters.
 func (a *CommandsApi) List(ctx context.Context, params ...*CommandsListRequest) (*CommandList, error) {
 	var requestParams *CommandsListRequest
 	if len(params) > 0 {
@@ -3414,6 +3714,14 @@ func (a *CommandsApi) List(ctx context.Context, params ...*CommandsListRequest) 
 	return &result, nil
 }
 
+// RespondToQueuedCommand responds to a queued command request from the session.
+//
+// RPC method: session.commands.respondToQueuedCommand.
+//
+// Parameters: Queued command request ID and the result indicating whether the client
+// handled it.
+//
+// Returns: Indicates whether the queued-command response was accepted by the session.
 func (a *CommandsApi) RespondToQueuedCommand(ctx context.Context, params *CommandsRespondToQueuedCommandRequest) (*CommandsRespondToQueuedCommandResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3434,6 +3742,11 @@ func (a *CommandsApi) RespondToQueuedCommand(ctx context.Context, params *Comman
 // Experimental: ExtensionsApi contains experimental APIs that may change or be removed.
 type ExtensionsApi sessionApi
 
+// Disables an extension for the session.
+//
+// RPC method: session.extensions.disable.
+//
+// Parameters: Source-qualified extension identifier to disable for the session.
 func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRequest) (*SessionExtensionsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3450,6 +3763,11 @@ func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRe
 	return &result, nil
 }
 
+// Enables an extension for the session.
+//
+// RPC method: session.extensions.enable.
+//
+// Parameters: Source-qualified extension identifier to enable for the session.
 func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequest) (*SessionExtensionsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3466,6 +3784,11 @@ func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequ
 	return &result, nil
 }
 
+// Lists extensions discovered for the session and their current status.
+//
+// RPC method: session.extensions.list.
+//
+// Returns: Extensions discovered for the session, with their current status.
 func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.extensions.list", req)
@@ -3479,6 +3802,9 @@ func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
 	return &result, nil
 }
 
+// Reloads extension definitions and processes for the session.
+//
+// RPC method: session.extensions.reload.
 func (a *ExtensionsApi) Reload(ctx context.Context) (*SessionExtensionsReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.extensions.reload", req)
@@ -3495,6 +3821,13 @@ func (a *ExtensionsApi) Reload(ctx context.Context) (*SessionExtensionsReloadRes
 // Experimental: FleetApi contains experimental APIs that may change or be removed.
 type FleetApi sessionApi
 
+// Starts fleet mode by submitting the fleet orchestration prompt to the session.
+//
+// RPC method: session.fleet.start.
+//
+// Parameters: Optional user prompt to combine with the fleet orchestration instructions.
+//
+// Returns: Indicates whether fleet mode was successfully activated.
 func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*FleetStartResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3516,6 +3849,12 @@ func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*Fleet
 // Experimental: HistoryApi contains experimental APIs that may change or be removed.
 type HistoryApi sessionApi
 
+// Compacts the session history to reduce context usage.
+//
+// RPC method: session.history.compact.
+//
+// Returns: Compaction outcome with the number of tokens and messages removed and the
+// resulting context window breakdown.
 func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.compact", req)
@@ -3529,6 +3868,14 @@ func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error)
 	return &result, nil
 }
 
+// Truncates persisted session history to a specific event.
+//
+// RPC method: session.history.truncate.
+//
+// Parameters: Identifier of the event to truncate to; this event and all later events are
+// removed.
+//
+// Returns: Number of events that were removed by the truncation.
 func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateRequest) (*HistoryTruncateResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3547,6 +3894,11 @@ func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateReques
 
 type InstructionsApi sessionApi
 
+// GetSources gets instruction sources loaded for the session.
+//
+// RPC method: session.instructions.getSources.
+//
+// Returns: Instruction sources loaded for the session, in merge order.
 func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourcesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.instructions.getSources", req)
@@ -3563,6 +3915,11 @@ func (a *InstructionsApi) GetSources(ctx context.Context) (*InstructionsGetSourc
 // Experimental: McpApi contains experimental APIs that may change or be removed.
 type McpApi sessionApi
 
+// Disables an MCP server for the session.
+//
+// RPC method: session.mcp.disable.
+//
+// Parameters: Name of the MCP server to disable for the session.
 func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*SessionMcpDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3579,6 +3936,11 @@ func (a *McpApi) Disable(ctx context.Context, params *McpDisableRequest) (*Sessi
 	return &result, nil
 }
 
+// Enables an MCP server for the session.
+//
+// RPC method: session.mcp.enable.
+//
+// Parameters: Name of the MCP server to enable for the session.
 func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*SessionMcpEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3595,6 +3957,11 @@ func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*Session
 	return &result, nil
 }
 
+// Lists MCP servers configured for the session and their connection status.
+//
+// RPC method: session.mcp.list.
+//
+// Returns: MCP servers configured for the session, with their connection status.
 func (a *McpApi) List(ctx context.Context) (*McpServerList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.list", req)
@@ -3608,6 +3975,9 @@ func (a *McpApi) List(ctx context.Context) (*McpServerList, error) {
 	return &result, nil
 }
 
+// Reloads MCP server connections for the session.
+//
+// RPC method: session.mcp.reload.
 func (a *McpApi) Reload(ctx context.Context) (*SessionMcpReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.reload", req)
@@ -3624,6 +3994,15 @@ func (a *McpApi) Reload(ctx context.Context) (*SessionMcpReloadResult, error) {
 // Experimental: McpOauthApi contains experimental APIs that may change or be removed.
 type McpOauthApi sessionApi
 
+// Login starts OAuth authentication for a remote MCP server.
+//
+// RPC method: session.mcp.oauth.login.
+//
+// Parameters: Remote MCP server name and optional overrides controlling reauthentication,
+// OAuth client display name, and the callback success-page copy.
+//
+// Returns: OAuth authorization URL the caller should open, or empty when cached tokens
+// already authenticated the server.
 func (a *McpOauthApi) Login(ctx context.Context, params *McpOauthLoginRequest) (*McpOauthLoginResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3656,6 +4035,11 @@ func (s *McpApi) Oauth() *McpOauthApi {
 
 type ModeApi sessionApi
 
+// Gets the current agent interaction mode.
+//
+// RPC method: session.mode.get.
+//
+// Returns: The session mode the agent is operating in
 func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mode.get", req)
@@ -3669,6 +4053,11 @@ func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
 	return &result, nil
 }
 
+// Sets the current agent interaction mode.
+//
+// RPC method: session.mode.set.
+//
+// Parameters: Agent interaction mode to apply to the session.
 func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionModeSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3687,6 +4076,11 @@ func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionMode
 
 type ModelApi sessionApi
 
+// GetCurrent gets the currently selected model for the session.
+//
+// RPC method: session.model.getCurrent.
+//
+// Returns: The currently selected model for the session.
 func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.model.getCurrent", req)
@@ -3700,6 +4094,14 @@ func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	return &result, nil
 }
 
+// SwitchTo switches the session to a model and optional reasoning configuration.
+//
+// RPC method: session.model.switchTo.
+//
+// Parameters: Target model identifier and optional reasoning effort, summary, and
+// capability overrides.
+//
+// Returns: The model identifier active on the session after the switch.
 func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (*ModelSwitchToResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3727,6 +4129,11 @@ func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (
 
 type NameApi sessionApi
 
+// Gets the session's friendly name.
+//
+// RPC method: session.name.get.
+//
+// Returns: The session's friendly name, or null when not yet set.
 func (a *NameApi) Get(ctx context.Context) (*NameGetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.name.get", req)
@@ -3740,6 +4147,11 @@ func (a *NameApi) Get(ctx context.Context) (*NameGetResult, error) {
 	return &result, nil
 }
 
+// Sets the session's friendly name.
+//
+// RPC method: session.name.set.
+//
+// Parameters: New friendly name to apply to the session.
 func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*SessionNameSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3758,6 +4170,15 @@ func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*SessionName
 
 type PermissionsApi sessionApi
 
+// HandlePendingPermissionRequest provides a decision for a pending tool permission request.
+//
+// RPC method: session.permissions.handlePendingPermissionRequest.
+//
+// Parameters: Pending permission request ID and the decision to apply (approve/reject and
+// scope).
+//
+// Returns: Indicates whether the permission decision was applied; false when the request
+// was already resolved.
 func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, params *PermissionDecisionRequest) (*PermissionRequestResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3775,6 +4196,11 @@ func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, par
 	return &result, nil
 }
 
+// ResetSessionApprovals clears session-scoped tool permission approvals.
+//
+// RPC method: session.permissions.resetSessionApprovals.
+//
+// Returns: Indicates whether the operation succeeded.
 func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*PermissionsResetSessionApprovalsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.permissions.resetSessionApprovals", req)
@@ -3788,6 +4214,15 @@ func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*Permission
 	return &result, nil
 }
 
+// SetApproveAll enables or disables automatic approval of tool permission requests for the
+// session.
+//
+// RPC method: session.permissions.setApproveAll.
+//
+// Parameters: Whether to auto-approve all tool permission requests for the rest of the
+// session.
+//
+// Returns: Indicates whether the operation succeeded.
 func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsSetApproveAllRequest) (*PermissionsSetApproveAllResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3806,6 +4241,9 @@ func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsS
 
 type PlanApi sessionApi
 
+// Deletes the session plan file from the workspace.
+//
+// RPC method: session.plan.delete.
 func (a *PlanApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.delete", req)
@@ -3819,6 +4257,11 @@ func (a *PlanApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) 
 	return &result, nil
 }
 
+// Reads the session plan file from the workspace.
+//
+// RPC method: session.plan.read.
+//
+// Returns: Existence, contents, and resolved path of the session plan file.
 func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.read", req)
@@ -3832,6 +4275,11 @@ func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
 	return &result, nil
 }
 
+// Update writes new content to the session plan file.
+//
+// RPC method: session.plan.update.
+//
+// Parameters: Replacement contents to write to the session plan file.
 func (a *PlanApi) Update(ctx context.Context, params *PlanUpdateRequest) (*SessionPlanUpdateResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3851,6 +4299,11 @@ func (a *PlanApi) Update(ctx context.Context, params *PlanUpdateRequest) (*Sessi
 // Experimental: PluginsApi contains experimental APIs that may change or be removed.
 type PluginsApi sessionApi
 
+// Lists plugins installed for the session.
+//
+// RPC method: session.plugins.list.
+//
+// Returns: Plugins installed for the session, with their enabled state and version metadata.
 func (a *PluginsApi) List(ctx context.Context) (*PluginList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plugins.list", req)
@@ -3867,6 +4320,9 @@ func (a *PluginsApi) List(ctx context.Context) (*PluginList, error) {
 // Experimental: RemoteApi contains experimental APIs that may change or be removed.
 type RemoteApi sessionApi
 
+// Disables remote session export and steering.
+//
+// RPC method: session.remote.disable.
 func (a *RemoteApi) Disable(ctx context.Context) (*SessionRemoteDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.remote.disable", req)
@@ -3880,6 +4336,15 @@ func (a *RemoteApi) Disable(ctx context.Context) (*SessionRemoteDisableResult, e
 	return &result, nil
 }
 
+// Enables remote session export or steering.
+//
+// RPC method: session.remote.enable.
+//
+// Parameters: Optional remote session mode ("off", "export", or "on"); defaults to enabling
+// both export and remote steering.
+//
+// Returns: GitHub URL for the session and a flag indicating whether remote steering is
+// enabled.
 func (a *RemoteApi) Enable(ctx context.Context, params *RemoteEnableRequest) (*RemoteEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3900,6 +4365,15 @@ func (a *RemoteApi) Enable(ctx context.Context, params *RemoteEnableRequest) (*R
 
 type ShellApi sessionApi
 
+// Exec starts a shell command and streams output through session notifications.
+//
+// RPC method: session.shell.exec.
+//
+// Parameters: Shell command to run, with optional working directory and timeout in
+// milliseconds.
+//
+// Returns: Identifier of the spawned process, used to correlate streamed output and exit
+// notifications.
 func (a *ShellApi) Exec(ctx context.Context, params *ShellExecRequest) (*ShellExecResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3922,6 +4396,15 @@ func (a *ShellApi) Exec(ctx context.Context, params *ShellExecRequest) (*ShellEx
 	return &result, nil
 }
 
+// Kill sends a signal to a shell process previously started via "shell.exec".
+//
+// RPC method: session.shell.kill.
+//
+// Parameters: Identifier of a process previously returned by "shell.exec" and the signal to
+// send.
+//
+// Returns: Indicates whether the signal was delivered; false if the process was unknown or
+// already exited.
 func (a *ShellApi) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKillResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3944,6 +4427,11 @@ func (a *ShellApi) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKi
 // Experimental: SkillsApi contains experimental APIs that may change or be removed.
 type SkillsApi sessionApi
 
+// Disables a skill for the session.
+//
+// RPC method: session.skills.disable.
+//
+// Parameters: Name of the skill to disable for the session.
 func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (*SessionSkillsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3960,6 +4448,11 @@ func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (
 	return &result, nil
 }
 
+// Enables a skill for the session.
+//
+// RPC method: session.skills.enable.
+//
+// Parameters: Name of the skill to enable for the session.
 func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*SessionSkillsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -3976,6 +4469,11 @@ func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*S
 	return &result, nil
 }
 
+// Lists skills available to the session.
+//
+// RPC method: session.skills.list.
+//
+// Returns: Skills available to the session, with their enabled state.
 func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.list", req)
@@ -3989,6 +4487,12 @@ func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
 	return &result, nil
 }
 
+// Reloads skill definitions for the session.
+//
+// RPC method: session.skills.reload.
+//
+// Returns: Diagnostics from reloading skill definitions, with warnings and errors as
+// separate lists.
 func (a *SkillsApi) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.reload", req)
@@ -4005,6 +4509,13 @@ func (a *SkillsApi) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) 
 // Experimental: TasksApi contains experimental APIs that may change or be removed.
 type TasksApi sessionApi
 
+// Cancels a background task.
+//
+// RPC method: session.tasks.cancel.
+//
+// Parameters: Identifier of the background task to cancel.
+//
+// Returns: Indicates whether the background task was successfully cancelled.
 func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*TasksCancelResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4021,6 +4532,11 @@ func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*Tas
 	return &result, nil
 }
 
+// Lists background tasks tracked by the session.
+//
+// RPC method: session.tasks.list.
+//
+// Returns: Background tasks currently tracked by the session.
 func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.list", req)
@@ -4034,6 +4550,14 @@ func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
 	return &result, nil
 }
 
+// PromoteToBackground promotes an eligible synchronously-waited task so it continues
+// running in the background.
+//
+// RPC method: session.tasks.promoteToBackground.
+//
+// Parameters: Identifier of the task to promote to background mode.
+//
+// Returns: Indicates whether the task was successfully promoted to background mode.
 func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromoteToBackgroundRequest) (*TasksPromoteToBackgroundResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4050,6 +4574,14 @@ func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromote
 	return &result, nil
 }
 
+// Removes a completed or cancelled background task from tracking.
+//
+// RPC method: session.tasks.remove.
+//
+// Parameters: Identifier of the completed or cancelled task to remove from tracking.
+//
+// Returns: Indicates whether the task was removed. False when the task does not exist or is
+// still running/idle.
 func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*TasksRemoveResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4066,6 +4598,15 @@ func (a *TasksApi) Remove(ctx context.Context, params *TasksRemoveRequest) (*Tas
 	return &result, nil
 }
 
+// SendMessage sends a message to a background agent task.
+//
+// RPC method: session.tasks.sendMessage.
+//
+// Parameters: Identifier of the target agent task, message content, and optional sender
+// agent ID.
+//
+// Returns: Indicates whether the message was delivered, with an error message when delivery
+// failed.
 func (a *TasksApi) SendMessage(ctx context.Context, params *TasksSendMessageRequest) (*TasksSendMessageResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4086,6 +4627,14 @@ func (a *TasksApi) SendMessage(ctx context.Context, params *TasksSendMessageRequ
 	return &result, nil
 }
 
+// StartAgent starts a background agent task in the session.
+//
+// RPC method: session.tasks.startAgent.
+//
+// Parameters: Agent type, prompt, name, and optional description and model override for the
+// new task.
+//
+// Returns: Identifier assigned to the newly started background agent task.
 func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentRequest) (*TasksStartAgentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4112,6 +4661,14 @@ func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentReques
 
 type ToolsApi sessionApi
 
+// HandlePendingToolCall provides the result for a pending external tool call.
+//
+// RPC method: session.tools.handlePendingToolCall.
+//
+// Parameters: Pending external tool call request ID, with the tool result or an error
+// describing why it failed.
+//
+// Returns: Indicates whether the external tool call result was handled successfully.
 func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePendingToolCallRequest) (*HandlePendingToolCallResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4136,6 +4693,14 @@ func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePend
 
 type UIApi sessionApi
 
+// Elicitation requests structured input from a UI-capable client.
+//
+// RPC method: session.ui.elicitation.
+//
+// Parameters: Prompt message and JSON schema describing the form fields to elicit from the
+// user.
+//
+// Returns: The elicitation response (accept with form values, decline, or cancel)
 func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (*UIElicitationResponse, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4153,6 +4718,15 @@ func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (
 	return &result, nil
 }
 
+// HandlePendingElicitation provides the user response for a pending elicitation request.
+//
+// RPC method: session.ui.handlePendingElicitation.
+//
+// Parameters: Pending elicitation request ID and the user's response (accept/decline/cancel
+// + form values).
+//
+// Returns: Indicates whether the elicitation response was accepted; false if it was already
+// resolved by another client.
 func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4173,6 +4747,12 @@ func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePe
 // Experimental: UsageApi contains experimental APIs that may change or be removed.
 type UsageApi sessionApi
 
+// GetMetrics gets accumulated usage metrics for the session.
+//
+// RPC method: session.usage.getMetrics.
+//
+// Returns: Accumulated session usage metrics, including premium request cost, token counts,
+// model breakdown, and code-change totals.
 func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.usage.getMetrics", req)
@@ -4188,6 +4768,11 @@ func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, erro
 
 type WorkspacesApi sessionApi
 
+// CreateFile creates or overwrites a file in the session workspace files directory.
+//
+// RPC method: session.workspaces.createFile.
+//
+// Parameters: Relative path and UTF-8 content for the workspace file to create or overwrite.
 func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreateFileRequest) (*SessionWorkspacesCreateFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4205,6 +4790,11 @@ func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreate
 	return &result, nil
 }
 
+// GetWorkspace gets current workspace metadata for the session.
+//
+// RPC method: session.workspaces.getWorkspace.
+//
+// Returns: Current workspace metadata for the session, or null when not available.
 func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspaceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspaces.getWorkspace", req)
@@ -4218,6 +4808,11 @@ func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspa
 	return &result, nil
 }
 
+// ListFiles lists files stored in the session workspace files directory.
+//
+// RPC method: session.workspaces.listFiles.
+//
+// Returns: Relative paths of files stored in the session workspace files directory.
 func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspaces.listFiles", req)
@@ -4231,6 +4826,13 @@ func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResu
 	return &result, nil
 }
 
+// ReadFile reads a file from the session workspace files directory.
+//
+// RPC method: session.workspaces.readFile.
+//
+// Parameters: Relative path of the workspace file to read.
+//
+// Returns: Contents of the requested workspace file as a UTF-8 string.
 func (a *WorkspacesApi) ReadFile(ctx context.Context, params *WorkspacesReadFileRequest) (*WorkspacesReadFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -4276,6 +4878,14 @@ type SessionRpc struct {
 	Workspaces   *WorkspacesApi
 }
 
+// Log emits a user-visible session log event.
+//
+// RPC method: session.log.
+//
+// Parameters: Message text, optional severity level, persistence flag, and optional
+// follow-up URL.
+//
+// Returns: Identifier of the session event that was emitted for the log message.
 func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
@@ -4301,6 +4911,9 @@ func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, e
 	return &result, nil
 }
 
+// Suspends the session while preserving persisted state for later resume.
+//
+// RPC method: session.suspend.
 func (a *SessionRpc) Suspend(ctx context.Context) (*SessionSuspendResult, error) {
 	req := map[string]any{"sessionId": a.common.sessionID}
 	raw, err := a.common.client.Request("session.suspend", req)
@@ -4343,16 +4956,117 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 }
 
 type SessionFsHandler interface {
+	// AppendFile appends content to a file in the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.appendFile.
+	//
+	// Parameters: File path, content to append, and optional mode for the client-provided
+	// session filesystem.
+	//
+	// Returns: Describes a filesystem error.
 	AppendFile(request *SessionFsAppendFileRequest) (*SessionFsError, error)
+	// Exists checks whether a path exists in the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.exists.
+	//
+	// Parameters: Path to test for existence in the client-provided session filesystem.
+	//
+	// Returns: Indicates whether the requested path exists in the client-provided session
+	// filesystem.
 	Exists(request *SessionFsExistsRequest) (*SessionFsExistsResult, error)
+	// Mkdir creates a directory in the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.mkdir.
+	//
+	// Parameters: Directory path to create in the client-provided session filesystem, with
+	// options for recursive creation and POSIX mode.
+	//
+	// Returns: Describes a filesystem error.
 	Mkdir(request *SessionFsMkdirRequest) (*SessionFsError, error)
+	// Readdir lists entry names in a directory from the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.readdir.
+	//
+	// Parameters: Directory path whose entries should be listed from the client-provided
+	// session filesystem.
+	//
+	// Returns: Names of entries in the requested directory, or a filesystem error if the read
+	// failed.
 	Readdir(request *SessionFsReaddirRequest) (*SessionFsReaddirResult, error)
+	// ReaddirWithTypes lists directory entries with type information from the client-provided
+	// session filesystem.
+	//
+	// RPC method: sessionFs.readdirWithTypes.
+	//
+	// Parameters: Directory path whose entries (with type information) should be listed from
+	// the client-provided session filesystem.
+	//
+	// Returns: Entries in the requested directory paired with file/directory type information,
+	// or a filesystem error if the read failed.
 	ReaddirWithTypes(request *SessionFsReaddirWithTypesRequest) (*SessionFsReaddirWithTypesResult, error)
+	// ReadFile reads a file from the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.readFile.
+	//
+	// Parameters: Path of the file to read from the client-provided session filesystem.
+	//
+	// Returns: File content as a UTF-8 string, or a filesystem error if the read failed.
 	ReadFile(request *SessionFsReadFileRequest) (*SessionFsReadFileResult, error)
+	// Renames or moves a path in the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.rename.
+	//
+	// Parameters: Source and destination paths for renaming or moving an entry in the
+	// client-provided session filesystem.
+	//
+	// Returns: Describes a filesystem error.
 	Rename(request *SessionFsRenameRequest) (*SessionFsError, error)
+	// Rm removes a file or directory from the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.rm.
+	//
+	// Parameters: Path to remove from the client-provided session filesystem, with options for
+	// recursive removal and force.
+	//
+	// Returns: Describes a filesystem error.
 	Rm(request *SessionFsRmRequest) (*SessionFsError, error)
-	Sqlite(request *SessionFsSqliteRequest) (*SessionFsSqliteResult, error)
+	// SqliteExists checks whether the per-session SQLite database already exists, without
+	// creating it.
+	//
+	// RPC method: sessionFs.sqliteExists.
+	//
+	// Parameters: Identifies the target session.
+	//
+	// Returns: Indicates whether the per-session SQLite database already exists.
+	SqliteExists(request *SessionFsSqliteExistsRequest) (*SessionFsSqliteExistsResult, error)
+	// SqliteQuery executes a SQLite query against the per-session database.
+	//
+	// RPC method: sessionFs.sqliteQuery.
+	//
+	// Parameters: SQL query, query type, and optional bind parameters for executing a SQLite
+	// query against the per-session database.
+	//
+	// Returns: Query results including rows, columns, and rows affected, or a filesystem error
+	// if execution failed.
+	SqliteQuery(request *SessionFsSqliteQueryRequest) (*SessionFsSqliteQueryResult, error)
+	// Stat gets metadata for a path in the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.stat.
+	//
+	// Parameters: Path whose metadata should be returned from the client-provided session
+	// filesystem.
+	//
+	// Returns: Filesystem metadata for the requested path, or a filesystem error if the stat
+	// failed.
 	Stat(request *SessionFsStatRequest) (*SessionFsStatResult, error)
+	// WriteFile writes a file in the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.writeFile.
+	//
+	// Parameters: File path, content to write, and optional mode for the client-provided
+	// session filesystem.
+	//
+	// Returns: Describes a filesystem error.
 	WriteFile(request *SessionFsWriteFileRequest) (*SessionFsError, error)
 }
 
@@ -4527,8 +5241,8 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		}
 		return raw, nil
 	})
-	client.SetRequestHandler("sessionFs.sqlite", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request SessionFsSqliteRequest
+	client.SetRequestHandler("sessionFs.sqliteExists", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFsSqliteExistsRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
 		}
@@ -4536,7 +5250,26 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		if handlers == nil || handlers.SessionFs == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.SessionFs.Sqlite(&request)
+		result, err := handlers.SessionFs.SqliteExists(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.sqliteQuery", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFsSqliteQueryRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.SqliteQuery(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
