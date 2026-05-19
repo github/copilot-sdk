@@ -1118,7 +1118,17 @@ impl Client {
         cwd: PathBuf,
         provider: Arc<dyn TraceContextProvider>,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, false, Some(provider), None)
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            cwd,
+            None,
+            false,
+            false,
+            Some(provider),
+            None,
+        )
     }
 
     /// Construct a [`Client`] from raw streams with a preset

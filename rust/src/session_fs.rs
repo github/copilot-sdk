@@ -44,11 +44,11 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 
+pub use crate::generated::api_types::SessionFsSqliteQueryType;
 use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
     SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
 };
-pub use crate::generated::api_types::SessionFsSqliteQueryType;
 
 /// Optional capabilities declared by a session filesystem provider.
 #[non_exhaustive]

@@ -328,7 +328,9 @@ pub(crate) async fn sqlite_query(
                     columns: Vec::new(),
                     error: Some(SessionFsError {
                         code: SessionFsErrorCode::UNKNOWN,
-                        message: Some("SQLite is not supported by this SessionFs provider".to_string()),
+                        message: Some(
+                            "SQLite is not supported by this SessionFs provider".to_string(),
+                        ),
                     }),
                     last_insert_rowid: None,
                     rows: Vec::new(),
@@ -341,11 +343,7 @@ pub(crate) async fn sqlite_query(
     };
     let sqlite_params = (!params.params.is_empty()).then_some(&params.params);
     let result = match sqlite
-        .sqlite_query(
-            params.query_type,
-            &params.query,
-            sqlite_params,
-        )
+        .sqlite_query(params.query_type, &params.query, sqlite_params)
         .await
     {
         Ok(result) => GeneratedSqliteQueryResult {
