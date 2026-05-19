@@ -328,7 +328,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task StopAsync()
     {
-        List<Exception>? errors = null;
+        List<Exception> errors = [];
 
         foreach (var (sessionId, _) in _sessions)
         {
@@ -340,10 +340,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
-                    (errors ??= []).Add(new IOException($"Failed to dispose session {session.SessionId}: {ex.Message}", ex));
+                    errors.Add(new IOException($"Failed to dispose session {session.SessionId}: {ex.Message}", ex));
                 }
             }
         }
+
+        _sessions.Clear();
 
         await CleanupConnectionAsync(errors);
 
