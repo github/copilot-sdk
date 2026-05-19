@@ -15,7 +15,9 @@ import {
     cloneSchemaForCodegen,
     collectExternalSchemaRefNames,
     collectDefinitionCollections,
+    collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
+    collectRpcMethodReferencedDefinitionNames,
     filterNodeByVisibility,
     fixNullableRequiredRefsInApiSchema,
     findSharedSchemaDefinitions,
@@ -73,6 +75,10 @@ function toPascalCase(s: string): string {
         .filter((word) => word.length > 0)
         .map((w) => goInitialisms.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))
         .join("");
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function toGoSchemaTypeName(s: string): string {
@@ -3510,18 +3516,28 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     // Annotate experimental data types
     const experimentalTypeNames = new Set<string>();
+    for (const name of collectExperimentalOnlyRpcReferencedDefinitionNames(allMethods, allDefinitionCollections)) {
+        experimentalTypeNames.add(name);
+    }
+    const nonExperimentalReferencedTypes = collectRpcMethodReferencedDefinitionNames(
+        allMethods.filter((method) => method.stability !== "experimental"),
+        allDefinitionCollections
+    );
     for (const method of allMethods) {
         if (method.stability !== "experimental") continue;
-        experimentalTypeNames.add(goResultTypeName(method));
+        if (!nonExperimentalReferencedTypes.has(goResultTypeName(method))) {
+            experimentalTypeNames.add(goResultTypeName(method));
+        }
         const paramsTypeName = goParamsTypeName(method);
-        if (allDefinitions[paramsTypeName]) {
+        if (allDefinitions[paramsTypeName] && !nonExperimentalReferencedTypes.has(paramsTypeName)) {
             experimentalTypeNames.add(paramsTypeName);
         }
     }
     for (const typeName of experimentalTypeNames) {
+        const emittedTypeName = resolveType(typeName);
         generatedTypeCode = generatedTypeCode.replace(
-            new RegExp(`^(type ${typeName} struct)`, "m"),
-            `// ${goExperimentalTypeComment(typeName)}\n$1`
+            new RegExp(`^(type ${escapeRegExp(emittedTypeName)}\\b)`, "m"),
+            `// ${goExperimentalTypeComment(emittedTypeName)}\n$1`
         );
     }
 

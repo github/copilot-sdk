@@ -19,7 +19,9 @@ import {
     writeGeneratedFile,
     collectExternalSchemaRefNames,
     collectDefinitionCollections,
+    collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
+    collectRpcMethodReferencedDefinitionNames,
     findSharedSchemaDefinitions,
     hasSchemaPayload,
     parseExternalSchemaRef,
@@ -457,6 +459,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});
+    const rpcMethods = [...allMethods, ...clientSessionMethods];
     const seenBlocks = new Map<string, string>();
 
     // Build a single combined schema with shared definitions and all method types.
@@ -472,6 +475,13 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     // Track which type names come from experimental methods for JSDoc annotations.
     const experimentalTypes = experimentalDefinitionNames(collectDefinitionCollections(combinedSchema as Record<string, unknown>));
+    for (const name of collectExperimentalOnlyRpcReferencedDefinitionNames(rpcMethods, rpcDefinitions)) {
+        experimentalTypes.add(name);
+    }
+    const nonExperimentalReferencedTypes = collectRpcMethodReferencedDefinitionNames(
+        rpcMethods.filter((method) => method.stability !== "experimental"),
+        rpcDefinitions
+    );
     // Track which type names come from deprecated methods for JSDoc annotations.
     const deprecatedTypes = new Set<string>();
     // Types are tagged @internal directly via `visibility: "internal"` on the JSON Schema
@@ -485,7 +495,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         }
     }
 
-    for (const method of [...allMethods, ...clientSessionMethods]) {
+    for (const method of rpcMethods) {
         const resultSchema = getMethodResultSchema(method);
         if (!isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
             const resultSource = schemaSourceForNamedDefinition(method.result, resultSchema);
@@ -493,7 +503,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                 resultSource,
                 resultTypeName(method)
             );
-            if (method.stability === "experimental" || isSchemaExperimental(resultSource)) {
+            if (isSchemaExperimental(resultSource) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(resultTypeName(method)))) {
                 experimentalTypes.add(resultTypeName(method));
             }
             if (method.deprecated && !method.result?.$ref) {
@@ -516,7 +526,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                         filtered,
                         paramsTypeName(method)
                     );
-                    if (method.stability === "experimental" || isSchemaExperimental(filtered)) {
+                    if (isSchemaExperimental(filtered) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(paramsTypeName(method)))) {
                         experimentalTypes.add(paramsTypeName(method));
                     }
                     if (method.deprecated) {
@@ -529,7 +539,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                     paramsSource,
                     paramsTypeName(method)
                 );
-                if (method.stability === "experimental" || isSchemaExperimental(paramsSource)) {
+                if (isSchemaExperimental(paramsSource) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(paramsTypeName(method)))) {
                     experimentalTypes.add(paramsTypeName(method));
                 }
                 if (method.deprecated && !method.params?.$ref) {

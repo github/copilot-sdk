@@ -834,6 +834,83 @@ export function collectReachableDefinitionNames(
     return reachable;
 }
 
+export function collectSchemaReferencedDefinitionNames(
+    schemas: Iterable<JSONSchema7 | null | undefined>,
+    definitionCollections: DefinitionCollections
+): Set<string> {
+    const definitions = collectDefinitions({
+        definitions: definitionCollections.definitions ?? {},
+        $defs: definitionCollections.$defs ?? {},
+    });
+    const reachable = new Set<string>();
+    const visiting = new Set<string>();
+
+    const visitDefinition = (name: string, ref?: string): void => {
+        if (reachable.has(name) || visiting.has(name)) return;
+        const definition = ref ? resolveRef(ref, definitionCollections) : definitions[name];
+        if (definition === undefined || typeof definition !== "object" || definition === null) return;
+
+        visiting.add(name);
+        reachable.add(name);
+        visitSchema(definition);
+        visiting.delete(name);
+    };
+
+    const visitSchema = (value: unknown): void => {
+        if (!value || typeof value !== "object") return;
+        if (Array.isArray(value)) {
+            for (const item of value) visitSchema(item);
+            return;
+        }
+
+        const record = value as Record<string, unknown>;
+        if (typeof record.$ref === "string") {
+            const localRef = parseLocalDefinitionRef(record.$ref);
+            if (localRef) visitDefinition(localRef, record.$ref);
+        }
+        for (const child of Object.values(record)) visitSchema(child);
+    };
+
+    for (const schema of schemas) {
+        visitSchema(schema);
+    }
+
+    return reachable;
+}
+
+export function collectRpcMethodReferencedDefinitionNames(
+    methods: Iterable<RpcMethod>,
+    definitionCollections: DefinitionCollections
+): Set<string> {
+    const schemas: Array<JSONSchema7 | null | undefined> = [];
+    for (const method of methods) {
+        schemas.push(method.params, method.result);
+    }
+
+    return collectSchemaReferencedDefinitionNames(schemas, definitionCollections);
+}
+
+export function collectExperimentalOnlyRpcReferencedDefinitionNames(
+    methods: Iterable<RpcMethod>,
+    definitionCollections: DefinitionCollections
+): Set<string> {
+    const methodList = [...methods];
+    const experimental = collectRpcMethodReferencedDefinitionNames(
+        methodList.filter((method) => method.stability === "experimental"),
+        definitionCollections
+    );
+    const nonExperimental = collectRpcMethodReferencedDefinitionNames(
+        methodList.filter((method) => method.stability !== "experimental"),
+        definitionCollections
+    );
+
+    for (const name of nonExperimental) {
+        experimental.delete(name);
+    }
+
+    return experimental;
+}
+
 export function rewriteSharedDefinitionReferences<T>(
     schema: T,
     sharedDefinitionNames: Iterable<string>,
