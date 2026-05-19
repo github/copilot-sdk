@@ -1329,6 +1329,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             _options.SessionFs.InitialCwd,
             _options.SessionFs.SessionStatePath,
             _options.SessionFs.Conventions,
+            _options.SessionFs.Capabilities,
             cancellationToken: cancellationToken);
     }
 
@@ -1345,8 +1346,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 "CreateSessionFsHandler is required in the session config when CopilotClientOptions.SessionFs is configured.");
         }
 
-        session.ClientSessionApis.SessionFs = createSessionFsHandler(session)
+        var provider = createSessionFsHandler(session)
             ?? throw new InvalidOperationException("CreateSessionFsHandler returned null.");
+
+        if (_options.SessionFs.Capabilities?.Sqlite == true && provider is not ISessionFsSqliteProvider)
+        {
+            throw new InvalidOperationException(
+                "SessionFsConfig declares capabilities.sqlite but the provider does not implement ISessionFsSqliteProvider.");
+        }
+
+        session.ClientSessionApis.SessionFs = provider;
     }
 
     private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)

@@ -79,10 +79,15 @@ ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
 SessionFsConventions = Literal["posix", "windows"]
 
 
+class SessionFsCapabilities(TypedDict, total=False):
+    sqlite: bool
+
+
 class SessionFsConfig(TypedDict):
     initial_cwd: str
     session_state_path: str
     conventions: SessionFsConventions
+    capabilities: NotRequired[SessionFsCapabilities]
 
 
 # ============================================================================

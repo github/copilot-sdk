@@ -45,22 +45,36 @@ describe("Session Fs", async () => {
         copilotClientOptions: { sessionFs: sessionFsConfig },
     });
 
-    it("should route file operations through the session fs provider", async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            createSessionFsHandler,
-        });
+    it(
+        "should route file operations through the session fs provider",
+        { timeout: 60000 },
+        async () => {
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                createSessionFsHandler,
+            });
 
-        const msg = await session.sendAndWait({ prompt: "What is 100 + 200?" });
-        expect(msg?.data.content).toContain("300");
-        await session.disconnect();
+            const errors: SessionEvent[] = [];
+            session.on((event) => {
+                if (event.type === "session.error") {
+                    errors.push(event);
+                }
+            });
 
-        const buf = await provider.readFile(
-            p(session.sessionId, `${sessionStatePath}/events.jsonl`)
-        );
-        const content = buf.toString("utf8");
-        expect(content).toContain("300");
-    });
+            const msg = await session.sendAndWait({ prompt: "What is 100 + 200?" });
+            expect(msg?.data.content).toContain("300");
+            await session.disconnect();
+
+            const buf = await provider.readFile(
+                p(session.sessionId, `${sessionStatePath}/events.jsonl`)
+            );
+            const content = buf.toString("utf8");
+            expect(content).toContain("300");
+
+            // No sqlite capabilities declared — verify no errors from missing sqlite
+            expect(errors).toHaveLength(0);
+        }
+    );
 
     it("should load session data from fs provider on resume", async () => {
         const session1 = await client.createSession({
@@ -269,15 +283,24 @@ describe("Session Fs Adapter", () => {
             async rename(src: string, dest: string): Promise<void> {
                 await provider.rename(src, dest);
             },
-            async sqliteQuery(sessionId, query, queryType, params) {
-                return {
-                    columns: ["sessionId", "query", "queryType", "answer"],
-                    rows: [{ sessionId, query, queryType, answer: params?.answer }],
-                    rowsAffected: 0,
-                };
-            },
-            async sqliteExists(sessionId) {
-                return sessionId === "handler-session";
+            sqlite: {
+                async query(queryType, query, params) {
+                    return {
+                        columns: ["sessionId", "query", "queryType", "answer"],
+                        rows: [
+                            {
+                                sessionId: "handler-session",
+                                query,
+                                queryType,
+                                answer: params?.answer,
+                            },
+                        ],
+                        rowsAffected: 0,
+                    };
+                },
+                async exists() {
+                    return true;
+                },
             },
         };
         const handler = createSessionFsAdapter(userProvider);
@@ -405,11 +428,13 @@ describe("Session Fs Adapter", () => {
             rename: async () => {
                 throw enoent;
             },
-            sqliteQuery: async () => {
-                throw enoent;
-            },
-            sqliteExists: async () => {
-                throw enoent;
+            sqlite: {
+                query: async () => {
+                    throw enoent;
+                },
+                exists: async () => {
+                    throw enoent;
+                },
             },
         };
 
@@ -445,18 +470,18 @@ describe("Session Fs Adapter", () => {
         assertEnoent((await handler.readdirWithTypes({ path: "missing-dir" } as never)).error);
         assertEnoent(await handler.rm({ path: "missing.txt" } as never));
         assertEnoent(await handler.rename({ src: "missing.txt", dest: "dest.txt" } as never));
-        const sqliteQuery = await handler.sqliteQuery({
-            sessionId: "throw-session",
-            query: "select 1",
-            queryType: "query",
-        });
-        assertEnoent(sqliteQuery.error);
-        expect(sqliteQuery.columns).toEqual([]);
-        expect(sqliteQuery.rows).toEqual([]);
-        expect(sqliteQuery.rowsAffected).toBe(0);
 
-        const sqliteExistsResult = await handler.sqliteExists({ sessionId: "throw-session" });
-        expect(sqliteExistsResult.exists).toBe(false);
+        // sqlite methods let errors propagate (no try/catch wrapping)
+        await expect(
+            handler.sqliteQuery({
+                sessionId: "throw-session",
+                query: "select 1",
+                queryType: "query",
+            })
+        ).rejects.toThrow("missing");
+        await expect(handler.sqliteExists({ sessionId: "throw-session" })).rejects.toThrow(
+            "missing"
+        );
 
         // Non-ENOENT errors map to UNKNOWN.
         const unknown: SessionFsProvider = {
@@ -555,15 +580,17 @@ function createTestSessionFsHandler(
         async rename(src: string, dest: string): Promise<void> {
             await provider.rename(sp(src), sp(dest));
         },
-        async sqliteQuery() {
-            return {
-                columns: [],
-                rows: [],
-                rowsAffected: 0,
-            };
-        },
-        async sqliteExists(sessionId) {
-            return sessionId === session.sessionId;
+        sqlite: {
+            async query() {
+                return {
+                    columns: [],
+                    rows: [],
+                    rowsAffected: 0,
+                };
+            },
+            async exists() {
+                return true;
+            },
         },
     };
 }

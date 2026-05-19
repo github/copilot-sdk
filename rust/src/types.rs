@@ -15,8 +15,9 @@ use serde_json::Value;
 use crate::handler::SessionHandler;
 use crate::hooks::SessionHooks;
 pub use crate::session_fs::{
-    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConfig, SessionFsConventions,
-    SessionFsProvider, SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
+    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
+    SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType,
 };
 pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;

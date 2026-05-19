@@ -16,6 +16,9 @@ export type SessionEvent = GeneratedSessionEvent;
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
+export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
+export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
+export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
 
 /**
  * Options for creating a CopilotClient
@@ -1793,6 +1796,20 @@ export interface SessionFsConfig {
      * Path conventions used by this filesystem provider.
      */
     conventions: "windows" | "posix";
+
+    /**
+     * Optional capabilities declared by this provider.
+     * The runtime uses these to determine which features are available.
+     */
+    capabilities?: {
+        /**
+         * Whether this provider supports SQLite query/exists operations.
+         * When false or omitted, the runtime will not offer SQL tools or
+         * todo tracking for sessions using this provider.
+         * @default false
+         */
+        sqlite?: boolean;
+    };
 }
 
 /**

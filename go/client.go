@@ -373,11 +373,18 @@ func (c *Client) Start(ctx context.Context) error {
 
 	// If a session filesystem provider was configured, register it.
 	if c.options.SessionFs != nil {
-		_, err := c.RPC.SessionFs.SetProvider(ctx, &rpc.SessionFsSetProviderRequest{
+		req := &rpc.SessionFsSetProviderRequest{
 			InitialCwd:       c.options.SessionFs.InitialCwd,
 			SessionStatePath: c.options.SessionFs.SessionStatePath,
 			Conventions:      c.options.SessionFs.Conventions,
-		})
+		}
+		if c.options.SessionFs.Capabilities != nil {
+			sqlite := c.options.SessionFs.Capabilities.Sqlite
+			req.Capabilities = &rpc.SessionFsSetProviderCapabilities{
+				Sqlite: &sqlite,
+			}
+		}
+		_, err := c.RPC.SessionFs.SetProvider(ctx, req)
 		if err != nil {
 			killErr := c.killProcess()
 			c.state = StateError
@@ -737,7 +744,16 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			c.sessionsMux.Unlock()
 			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
 		}
-		session.clientSessionApis.SessionFs = newSessionFsAdapter(config.CreateSessionFsHandler(session))
+		provider := config.CreateSessionFsHandler(session)
+		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
+			if _, ok := provider.(SessionFsSqliteProvider); !ok {
+				c.sessionsMux.Lock()
+				delete(c.sessions, sessionID)
+				c.sessionsMux.Unlock()
+				return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
+			}
+		}
+		session.clientSessionApis.SessionFs = newSessionFsAdapter(provider)
 	}
 
 	result, err := c.client.Request("session.create", req)
@@ -913,7 +929,16 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			c.sessionsMux.Unlock()
 			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
 		}
-		session.clientSessionApis.SessionFs = newSessionFsAdapter(config.CreateSessionFsHandler(session))
+		provider := config.CreateSessionFsHandler(session)
+		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
+			if _, ok := provider.(SessionFsSqliteProvider); !ok {
+				c.sessionsMux.Lock()
+				delete(c.sessions, sessionID)
+				c.sessionsMux.Unlock()
+				return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
+			}
+		}
+		session.clientSessionApis.SessionFs = newSessionFsAdapter(provider)
 	}
 
 	result, err := c.client.Request("session.resume", req)

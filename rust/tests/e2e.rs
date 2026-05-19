@@ -71,6 +71,8 @@ mod session;
 mod session_config;
 #[path = "e2e/session_fs.rs"]
 mod session_fs;
+#[path = "e2e/session_fs_sqlite.rs"]
+mod session_fs_sqlite;
 #[path = "e2e/session_lifecycle.rs"]
 mod session_lifecycle;
 #[path = "e2e/skills.rs"]

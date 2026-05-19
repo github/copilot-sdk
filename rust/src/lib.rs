@@ -884,6 +884,7 @@ struct ClientInner {
     on_list_models: Option<Arc<dyn ListModelsHandler>>,
     models_cache: parking_lot::Mutex<Arc<tokio::sync::OnceCell<Vec<Model>>>>,
     session_fs_configured: bool,
+    session_fs_sqlite_declared: bool,
     on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
     /// Token sent in the `connect` handshake. Auto-generated when the
     /// SDK spawns its own CLI in TCP mode and no explicit token is set;
@@ -962,6 +963,10 @@ impl Client {
             options.tcp_connection_token = effective_connection_token.clone();
         }
         let session_fs_config = options.session_fs.clone();
+        let session_fs_sqlite_declared = session_fs_config
+            .as_ref()
+            .and_then(|c| c.capabilities.as_ref())
+            .is_some_and(|caps| caps.sqlite);
         let program = match &options.program {
             CliProgram::Path(path) => {
                 info!(path = %path.display(), "using explicit copilot CLI path");
@@ -1006,6 +1011,7 @@ impl Client {
                     options.cwd,
                     options.on_list_models,
                     session_fs_config.is_some(),
+                    session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
                 )?
@@ -1028,6 +1034,7 @@ impl Client {
                     options.cwd,
                     options.on_list_models,
                     session_fs_config.is_some(),
+                    session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
                 )?
@@ -1044,6 +1051,7 @@ impl Client {
                     options.cwd,
                     options.on_list_models,
                     session_fs_config.is_some(),
+                    session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
                 )?
@@ -1061,8 +1069,13 @@ impl Client {
         );
         if let Some(cfg) = session_fs_config {
             let session_fs_start = Instant::now();
+            let capabilities = cfg.capabilities.as_ref().map(|c| {
+                crate::generated::api_types::SessionFsSetProviderCapabilities {
+                    sqlite: Some(c.sqlite),
+                }
+            });
             let request = crate::generated::api_types::SessionFsSetProviderRequest {
-                capabilities: None,
+                capabilities,
                 conventions: cfg.conventions.into_wire(),
                 initial_cwd: cfg.initial_cwd,
                 session_state_path: cfg.session_state_path,
@@ -1088,7 +1101,7 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, None, None)
+        Self::from_transport(reader, writer, None, cwd, None, false, false, None, None)
     }
 
     /// Construct a [`Client`] from raw streams with a
@@ -1105,7 +1118,17 @@ impl Client {
         cwd: PathBuf,
         provider: Arc<dyn TraceContextProvider>,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, Some(provider), None)
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            cwd,
+            None,
+            false,
+            false,
+            Some(provider),
+            None,
+        )
     }
 
     /// Construct a [`Client`] from raw streams with a preset
@@ -1118,7 +1141,7 @@ impl Client {
         cwd: PathBuf,
         token: Option<String>,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, None, token)
+        Self::from_transport(reader, writer, None, cwd, None, false, false, None, token)
     }
 
     /// Public test-only wrapper around the random connection-token
@@ -1139,6 +1162,7 @@ impl Client {
         cwd: PathBuf,
         on_list_models: Option<Arc<dyn ListModelsHandler>>,
         session_fs_configured: bool,
+        session_fs_sqlite_declared: bool,
         on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
         effective_connection_token: Option<String>,
     ) -> Result<Self, Error> {
@@ -1169,6 +1193,7 @@ impl Client {
                 on_list_models,
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured,
+                session_fs_sqlite_declared,
                 on_get_trace_context,
                 effective_connection_token,
             }),
@@ -2548,6 +2573,7 @@ mod tests {
                 on_list_models: Some(handler),
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured: false,
+                session_fs_sqlite_declared: false,
                 on_get_trace_context: None,
                 effective_connection_token: None,
             }),

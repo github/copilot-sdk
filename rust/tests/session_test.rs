@@ -2912,7 +2912,7 @@ async fn command_execute_handler_error_propagates_to_ack() {
 
 use github_copilot_sdk::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConventions, SessionFsProvider,
-    SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
+    SessionFsSqliteProvider, SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
 };
 
 struct RecordingFsProvider {
@@ -2985,18 +2985,20 @@ impl SessionFsProvider for RecordingFsProvider {
         Ok(())
     }
 
+    fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+        Some(self)
+    }
+}
+
+#[async_trait]
+impl SessionFsSqliteProvider for RecordingFsProvider {
     async fn sqlite_query(
         &self,
-        session_id: &str,
-        query: &str,
         query_type: SessionFsSqliteQueryType,
+        query: &str,
         params: Option<&std::collections::HashMap<String, serde_json::Value>>,
-    ) -> Result<SessionFsSqliteQueryResult, FsError> {
+    ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
         let mut row = std::collections::HashMap::new();
-        row.insert(
-            "sessionId".to_string(),
-            serde_json::Value::String(session_id.to_string()),
-        );
         row.insert(
             "query".to_string(),
             serde_json::Value::String(query.to_string()),
@@ -3020,9 +3022,8 @@ impl SessionFsProvider for RecordingFsProvider {
                 .cloned()
                 .unwrap_or(serde_json::Value::Null),
         );
-        Ok(SessionFsSqliteQueryResult {
+        Ok(Some(SessionFsSqliteQueryResult {
             columns: vec![
-                "sessionId".to_string(),
                 "query".to_string(),
                 "queryType".to_string(),
                 "answer".to_string(),
@@ -3030,12 +3031,11 @@ impl SessionFsProvider for RecordingFsProvider {
             rows: vec![row],
             rows_affected: 0,
             last_insert_rowid: None,
-            error: None,
-        })
+        }))
     }
 
-    async fn sqlite_exists(&self, session_id: &str) -> Result<bool, FsError> {
-        Ok(!session_id.is_empty())
+    async fn sqlite_exists(&self) -> Result<bool, FsError> {
+        Ok(true)
     }
 }
 
@@ -3177,14 +3177,10 @@ async fn session_fs_dispatches_sqlite_query_to_provider() {
 
     let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
     assert_eq!(response["id"], 9);
-    assert_eq!(response["result"]["columns"][3], "answer");
+    assert_eq!(response["result"]["columns"][2], "answer");
     assert_eq!(
         response["result"]["rows"][0]["query"],
         "select :answer as answer"
-    );
-    assert_eq!(
-        response["result"]["rows"][0]["sessionId"],
-        server.session_id.to_string()
     );
     assert_eq!(response["result"]["rows"][0]["queryType"], "query");
     assert_eq!(response["result"]["rows"][0]["answer"], 42);
@@ -3216,17 +3212,22 @@ async fn session_fs_maps_sqlite_errors_to_results() {
     struct AlwaysFails;
     #[async_trait]
     impl SessionFsProvider for AlwaysFails {
+        fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+            Some(self)
+        }
+    }
+    #[async_trait]
+    impl SessionFsSqliteProvider for AlwaysFails {
         async fn sqlite_query(
             &self,
-            _session_id: &str,
-            _query: &str,
             _query_type: SessionFsSqliteQueryType,
+            _query: &str,
             _params: Option<&std::collections::HashMap<String, serde_json::Value>>,
-        ) -> Result<SessionFsSqliteQueryResult, FsError> {
+        ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
             Err(FsError::Other("sqlite unavailable".to_string()))
         }
 
-        async fn sqlite_exists(&self, _session_id: &str) -> Result<bool, FsError> {
+        async fn sqlite_exists(&self) -> Result<bool, FsError> {
             Err(FsError::Other("sqlite unavailable".to_string()))
         }
     }

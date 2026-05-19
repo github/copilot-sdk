@@ -44,11 +44,32 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 
+pub use crate::generated::api_types::SessionFsSqliteQueryType;
 use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
     SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
 };
-pub use crate::generated::api_types::{SessionFsSqliteQueryResult, SessionFsSqliteQueryType};
+
+/// Optional capabilities declared by a session filesystem provider.
+#[non_exhaustive]
+#[derive(Debug, Clone, Default)]
+pub struct SessionFsCapabilities {
+    /// Whether the provider supports SQLite query/exists operations.
+    pub sqlite: bool,
+}
+
+impl SessionFsCapabilities {
+    /// Create a new capabilities struct with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Enable SQLite support.
+    pub fn with_sqlite(mut self, sqlite: bool) -> Self {
+        self.sqlite = sqlite;
+        self
+    }
+}
 
 /// Configuration for a custom session filesystem provider.
 ///
@@ -65,6 +86,8 @@ pub struct SessionFsConfig {
     pub session_state_path: String,
     /// Path conventions used by this filesystem provider.
     pub conventions: SessionFsConventions,
+    /// Optional capabilities such as SQLite support.
+    pub capabilities: Option<SessionFsCapabilities>,
 }
 
 impl SessionFsConfig {
@@ -78,7 +101,14 @@ impl SessionFsConfig {
             initial_cwd: initial_cwd.into(),
             session_state_path: session_state_path.into(),
             conventions,
+            capabilities: None,
         }
+    }
+
+    /// Set the capabilities on this config and return it (builder pattern).
+    pub fn with_capabilities(mut self, capabilities: SessionFsCapabilities) -> Self {
+        self.capabilities = Some(capabilities);
+        self
     }
 }
 
@@ -347,23 +377,62 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         Err(FsError::Other("rename not supported".to_string()))
     }
 
+    /// Return a reference to the SQLite provider, if this provider supports
+    /// SQLite operations. The default returns `None`. Providers that support
+    /// SQLite should also implement [`SessionFsSqliteProvider`] and override
+    /// this to return `Some(self)`.
+    fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+        None
+    }
+}
+
+/// Optional trait for providers that support SQLite operations.
+///
+/// Providers are already session-scoped (created per session by the factory),
+/// so these methods do not take a `session_id` parameter.
+///
+/// To opt in, implement this trait on your provider and override
+/// [`SessionFsProvider::sqlite`] to return `Some(self)`:
+///
+/// ```ignore
+/// impl SessionFsSqliteProvider for MyProvider { /* ... */ }
+///
+/// #[async_trait]
+/// impl SessionFsProvider for MyProvider {
+///     fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
+///         Some(self)
+///     }
+///     // ... other methods ...
+/// }
+/// ```
+#[async_trait]
+pub trait SessionFsSqliteProvider: Send + Sync {
     /// Execute a SQLite query against the provider's per-session database.
     async fn sqlite_query(
         &self,
-        session_id: &str,
-        query: &str,
         query_type: SessionFsSqliteQueryType,
+        query: &str,
         params: Option<&HashMap<String, serde_json::Value>>,
-    ) -> Result<SessionFsSqliteQueryResult, FsError> {
-        let _ = (session_id, query, query_type, params);
-        Err(FsError::Other("sqlite_query not supported".to_string()))
-    }
+    ) -> Result<Option<SessionFsSqliteQueryResult>, FsError>;
 
-    /// Check whether the provider has a SQLite database for the session.
-    async fn sqlite_exists(&self, session_id: &str) -> Result<bool, FsError> {
-        let _ = session_id;
-        Err(FsError::Other("sqlite_exists not supported".to_string()))
-    }
+    /// Check whether the provider has a SQLite database for this session.
+    async fn sqlite_exists(&self) -> Result<bool, FsError>;
+}
+
+/// Result of a SQLite query execution via [`SessionFsSqliteProvider::sqlite_query`].
+///
+/// Same shape as the generated RPC type but without the `error` field,
+/// since providers signal errors by returning `Err`.
+#[derive(Debug, Clone, Default)]
+pub struct SessionFsSqliteQueryResult {
+    /// Column names from the result set.
+    pub columns: Vec<String>,
+    /// For SELECT: array of row objects. For others: empty array.
+    pub rows: Vec<HashMap<String, serde_json::Value>>,
+    /// Number of rows affected (for INSERT/UPDATE/DELETE).
+    pub rows_affected: i64,
+    /// Last inserted row ID (for INSERT).
+    pub last_insert_rowid: Option<i64>,
 }
 
 #[cfg(test)]

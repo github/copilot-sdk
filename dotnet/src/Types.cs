@@ -323,6 +323,13 @@ public sealed class SessionFsConfig
     /// Path conventions used by this filesystem provider.
     /// </summary>
     public required SessionFsSetProviderConventions Conventions { get; init; }
+
+    /// <summary>
+    /// Optional capabilities that this filesystem provider supports.
+    /// When <see cref="SessionFsSetProviderCapabilities.Sqlite"/> is <c>true</c>,
+    /// the runtime routes SQLite queries through the provider instead of using a local database file.
+    /// </summary>
+    public SessionFsSetProviderCapabilities? Capabilities { get; init; }
 }
 
 /// <summary>

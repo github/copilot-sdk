@@ -34,6 +34,7 @@ from .session import (
     InputOptions,
     ProviderConfig,
     SessionCapabilities,
+    SessionFsCapabilities,
     SessionFsConfig,
     SessionUiApi,
     SessionUiCapabilities,
@@ -41,6 +42,8 @@ from .session import (
 from .session_fs_provider import (
     SessionFsFileInfo,
     SessionFsProvider,
+    SessionFsSqliteProvider,
+    SessionFsSqliteQueryResult,
     create_session_fs_adapter,
 )
 from .tools import (
@@ -81,9 +84,12 @@ __all__ = [
     "ProviderConfig",
     "RemoteSessionMode",
     "SessionCapabilities",
+    "SessionFsCapabilities",
     "SessionFsConfig",
     "SessionFsFileInfo",
     "SessionFsProvider",
+    "SessionFsSqliteProvider",
+    "SessionFsSqliteQueryResult",
     "create_session_fs_adapter",
     "SessionUiApi",
     "SessionUiCapabilities",

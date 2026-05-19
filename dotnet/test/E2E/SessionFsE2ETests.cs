@@ -576,7 +576,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         return normalized;
     }
 
-    private sealed class ThrowingSessionFsProvider(Exception exception) : SessionFsProvider
+    private sealed class ThrowingSessionFsProvider(Exception exception) : SessionFsProvider, ISessionFsSqliteProvider
     {
         protected override Task<string> ReadFileAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<string>(exception);
@@ -608,15 +608,10 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
             Task.FromException(exception);
 
-        protected override Task<SessionFsSqliteQueryResult> SqliteQueryAsync(
-            string sessionId,
-            string query,
-            SessionFsSqliteQueryType queryType,
-            IDictionary<string, object>? parameters,
-            CancellationToken cancellationToken) =>
-            Task.FromException<SessionFsSqliteQueryResult>(exception);
+        Task<SessionFsSqliteResult?> ISessionFsSqliteProvider.QueryAsync(SessionFsSqliteQueryType queryType, string query, IDictionary<string, object>? bindParams, CancellationToken cancellationToken) =>
+            Task.FromException<SessionFsSqliteResult?>(exception);
 
-        protected override Task<bool> SqliteExistsAsync(string sessionId, CancellationToken cancellationToken) =>
+        Task<bool> ISessionFsSqliteProvider.ExistsAsync(CancellationToken cancellationToken) =>
             Task.FromException<bool>(exception);
     }
 
@@ -750,18 +745,6 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
             return Task.CompletedTask;
         }
-
-        protected override Task<SessionFsSqliteQueryResult> SqliteQueryAsync(
-            string sessionId,
-            string query,
-            SessionFsSqliteQueryType queryType,
-            IDictionary<string, object>? parameters,
-            CancellationToken cancellationToken) =>
-            Task.FromException<SessionFsSqliteQueryResult>(
-                new NotSupportedException("SQLite session filesystem operations are not supported by this provider."));
-
-        protected override Task<bool> SqliteExistsAsync(string sessionId, CancellationToken cancellationToken) =>
-            Task.FromResult(false);
 
         private string ResolvePath(string sessionPath)
         {
