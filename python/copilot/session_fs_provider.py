@@ -106,8 +106,7 @@ class SessionFsSqliteProvider(abc.ABC):
     To add SQLite support, subclass *both* :class:`SessionFsProvider` and
     :class:`SessionFsSqliteProvider`::
 
-        class MyProvider(SessionFsProvider, SessionFsSqliteProvider):
-            ...
+        class MyProvider(SessionFsProvider, SessionFsSqliteProvider): ...
 
     The adapter checks ``isinstance(provider, SessionFsSqliteProvider)`` at
     runtime to decide whether SQLite calls should be dispatched.

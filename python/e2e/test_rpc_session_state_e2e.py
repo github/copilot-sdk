@@ -332,7 +332,6 @@ class TestRpcSessionState:
                 await session.disconnect()
 
     async def test_should_reject_workspace_file_path_traversal(self, ctx: E2ETestContext):
-
         for traversal_path in [
             "../escaped.txt",
             "../../escaped.txt",

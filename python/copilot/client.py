@@ -1631,9 +1631,7 @@ class CopilotClient:
                         "SessionFs capabilities declare SQLite support but the provider "
                         "does not implement SessionFsSqliteProvider"
                     )
-            session._client_session_apis.session_fs = create_session_fs_adapter(
-                provider
-            )
+            session._client_session_apis.session_fs = create_session_fs_adapter(provider)
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
@@ -1986,9 +1984,7 @@ class CopilotClient:
                         "SessionFs capabilities declare SQLite support but the provider "
                         "does not implement SessionFsSqliteProvider"
                     )
-            session._client_session_apis.session_fs = create_session_fs_adapter(
-                provider
-            )
+            session._client_session_apis.session_fs = create_session_fs_adapter(provider)
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
