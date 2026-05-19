@@ -1750,10 +1750,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private void RegisterSession(CopilotSession session)
     {
-        if (!_sessions.TryAdd(session.SessionId, session))
-        {
-            throw new InvalidOperationException($"Session {session.SessionId} is already in use on this {nameof(CopilotClient)}.");
-        }
+        _sessions[session.SessionId] = session;
     }
 
     private void RemoveSession(string sessionId)

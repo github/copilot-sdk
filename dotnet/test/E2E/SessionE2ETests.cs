@@ -28,8 +28,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         await session.DisposeAsync();
 
-        var ex = await Assert.ThrowsAsync<IOException>(() => session.GetMessagesAsync());
-        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => session.GetMessagesAsync());
     }
 
     [Fact]

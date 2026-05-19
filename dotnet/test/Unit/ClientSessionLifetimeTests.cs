@@ -67,7 +67,7 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task Disposing_Old_Session_Does_Not_Remove_Current_SameId_Session()
+    public async Task Disposing_Replaced_Session_Does_Not_Remove_Current_SameId_Session()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
@@ -80,12 +80,8 @@ public sealed class ClientSessionLifetimeTests
         });
         AssertSessionCount(client, sessions: 1);
 
-        await client.DeleteSessionAsync(sessionId);
-        AssertSessionCount(client, sessions: 0);
-
-        var currentSession = await client.CreateSessionAsync(new SessionConfig
+        var currentSession = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
-            SessionId = sessionId,
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
         AssertSessionCount(client, sessions: 1);
@@ -229,6 +225,7 @@ public sealed class ClientSessionLifetimeTests
                     ["version"] = "test"
                 },
                 "session.create" => CreateSessionResult(request),
+                "session.resume" => CreateSessionResult(request),
                 "session.send" => new Dictionary<string, object?>
                 {
                     ["messageId"] = "message-1"
