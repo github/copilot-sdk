@@ -21,7 +21,11 @@ from copilot.generated.rpc import (
     SessionFSSqliteQueryType,
 )
 from copilot.session import PermissionHandler
-from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider, SessionFsSqliteProvider
+from copilot.session_fs_provider import (
+    SessionFsFileInfo,
+    SessionFsProvider,
+    SessionFsSqliteProvider,
+)
 
 from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
 

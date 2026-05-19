@@ -283,6 +283,7 @@ class TestSessionFs:
             SessionFSRmRequest,
             SessionFSSqliteExistsRequest,
             SessionFSSqliteQueryRequest,
+            SessionFSSqliteQueryType,
             SessionFSStatRequest,
             SessionFSWriteFileRequest,
         )
@@ -431,6 +432,7 @@ class TestSessionFs:
             SessionFSRmRequest,
             SessionFSSqliteExistsRequest,
             SessionFSSqliteQueryRequest,
+            SessionFSSqliteQueryType,
             SessionFSStatRequest,
             SessionFSWriteFileRequest,
         )

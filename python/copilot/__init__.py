@@ -87,6 +87,7 @@ __all__ = [
     "SessionFsConfig",
     "SessionFsFileInfo",
     "SessionFsProvider",
+    "SessionFsSqliteProvider",
     "create_session_fs_adapter",
     "SessionUiApi",
     "SessionUiCapabilities",
