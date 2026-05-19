@@ -42,12 +42,6 @@ func newInMemorySqliteProvider(sessionID string, calls *[]sqliteCall) *inMemoryS
 	}
 }
 
-func (p *inMemorySqliteProvider) getOrCreateDB() (*sql.DB, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.getOrCreateDBLocked()
-}
-
 // getOrCreateDBLocked must be called while holding p.mu.
 func (p *inMemorySqliteProvider) getOrCreateDBLocked() (*sql.DB, error) {
 	if p.db == nil {

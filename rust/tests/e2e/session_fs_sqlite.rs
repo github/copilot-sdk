@@ -141,10 +141,8 @@ impl SessionFsProvider for InMemorySqliteProvider {
         let mut names = std::collections::BTreeSet::new();
         for p in files.keys().chain(dirs.iter()) {
             if let Some(rest) = p.strip_prefix(&prefix) {
-                if !rest.is_empty() {
-                    if let Some(name) = rest.split('/').next() {
-                        names.insert(name.to_string());
-                    }
+                if let Some(name) = rest.split('/').next().filter(|n| !n.is_empty()) {
+                    names.insert(name.to_string());
                 }
             }
         }
@@ -158,21 +156,17 @@ impl SessionFsProvider for InMemorySqliteProvider {
         let mut entries: HashMap<String, DirEntryKind> = HashMap::new();
         for d in dirs.iter() {
             if let Some(rest) = d.strip_prefix(&prefix) {
-                if !rest.is_empty() {
-                    if let Some(name) = rest.split('/').next() {
-                        entries.insert(name.to_string(), DirEntryKind::Directory);
-                    }
+                if let Some(name) = rest.split('/').next().filter(|n| !n.is_empty()) {
+                    entries.insert(name.to_string(), DirEntryKind::Directory);
                 }
             }
         }
         for f in files.keys() {
             if let Some(rest) = f.strip_prefix(&prefix) {
-                if !rest.is_empty() {
-                    if let Some(name) = rest.split('/').next() {
-                        entries
-                            .entry(name.to_string())
-                            .or_insert(DirEntryKind::File);
-                    }
+                if let Some(name) = rest.split('/').next().filter(|n| !n.is_empty()) {
+                    entries
+                        .entry(name.to_string())
+                        .or_insert(DirEntryKind::File);
                 }
             }
         }
@@ -392,43 +386,44 @@ async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
                     "expected 'Widget' in response"
                 );
 
-                let calls = sqlite_calls.lock().unwrap();
-                let session_calls: Vec<&SqliteCall> = calls
-                    .iter()
-                    .filter(|c| c.session_id == session_id)
-                    .collect();
-                assert!(!session_calls.is_empty(), "expected sqlite calls");
-                assert!(
-                    session_calls
+                {
+                    let calls = sqlite_calls.lock().unwrap();
+                    let session_calls: Vec<&SqliteCall> = calls
                         .iter()
-                        .any(|c| c.query.to_uppercase().contains("CREATE TABLE")),
-                    "expected CREATE TABLE"
-                );
-                assert!(
-                    session_calls
-                        .iter()
-                        .any(|c| c.query.to_uppercase().contains("INSERT")),
-                    "expected INSERT"
-                );
-                assert!(
-                    session_calls
-                        .iter()
-                        .any(|c| c.query.to_uppercase().contains("SELECT")),
-                    "expected SELECT"
-                );
-                assert!(
-                    session_calls.iter().any(|c| c.query_type == "exec"),
-                    "expected exec queryType"
-                );
-                assert!(
-                    session_calls.iter().any(|c| c.query_type == "query"),
-                    "expected query queryType"
-                );
-                assert!(
-                    session_calls.iter().any(|c| c.query_type == "run"),
-                    "expected run queryType"
-                );
-                drop(calls);
+                        .filter(|c| c.session_id == session_id)
+                        .collect();
+                    assert!(!session_calls.is_empty(), "expected sqlite calls");
+                    assert!(
+                        session_calls
+                            .iter()
+                            .any(|c| c.query.to_uppercase().contains("CREATE TABLE")),
+                        "expected CREATE TABLE"
+                    );
+                    assert!(
+                        session_calls
+                            .iter()
+                            .any(|c| c.query.to_uppercase().contains("INSERT")),
+                        "expected INSERT"
+                    );
+                    assert!(
+                        session_calls
+                            .iter()
+                            .any(|c| c.query.to_uppercase().contains("SELECT")),
+                        "expected SELECT"
+                    );
+                    assert!(
+                        session_calls.iter().any(|c| c.query_type == "exec"),
+                        "expected exec queryType"
+                    );
+                    assert!(
+                        session_calls.iter().any(|c| c.query_type == "query"),
+                        "expected query queryType"
+                    );
+                    assert!(
+                        session_calls.iter().any(|c| c.query_type == "run"),
+                        "expected run queryType"
+                    );
+                }
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -469,15 +464,16 @@ async fn should_allow_subagents_to_use_sql_tool_via_inherited_sessionfs() {
 
                 session.disconnect().await.expect("disconnect session");
 
-                let calls = sqlite_calls.lock().unwrap();
-                let session_calls: Vec<&SqliteCall> =
-                    calls.iter().filter(|c| c.session_id == session_id).collect();
-                let insert_calls: Vec<&&SqliteCall> = session_calls
-                    .iter()
-                    .filter(|c| c.query.to_uppercase().contains("INSERT"))
-                    .collect();
-                assert!(!insert_calls.is_empty(), "expected INSERT calls from subagent");
-                drop(calls);
+                {
+                    let calls = sqlite_calls.lock().unwrap();
+                    let session_calls: Vec<&SqliteCall> =
+                        calls.iter().filter(|c| c.session_id == session_id).collect();
+                    let insert_calls: Vec<&&SqliteCall> = session_calls
+                        .iter()
+                        .filter(|c| c.query.to_uppercase().contains("INSERT"))
+                        .collect();
+                    assert!(!insert_calls.is_empty(), "expected INSERT calls from subagent");
+                }
 
                 // Read events.jsonl from in-memory FS
                 let events_path = format!("{}/events.jsonl", session_state_path_sqlite());
