@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
 import { CopilotClient, CopilotClientOptions } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
-import { retry, formatError } from "./sdkTestHelper";
+import { formatError, retry } from "./sdkTestHelper";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
@@ -45,15 +45,19 @@ export async function createSdkTestContext({
         },
         analytics_tracking_id: "e2e-test-tracking-id",
     });
+    const authTokenToUse = isCI
+        ? DEFAULT_GITHUB_TOKEN
+        : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN);
+
     const env = {
         ...process.env,
         ...openAiEndpoint.getProxyEnv(),
         COPILOT_API_URL: proxyUrl,
         COPILOT_HOME: copilotHomeDir,
-        COPILOT_SDK_AUTH_TOKEN: DEFAULT_GITHUB_TOKEN,
+        COPILOT_SDK_AUTH_TOKEN: "",
         GH_CONFIG_DIR: homeDir,
-        GH_TOKEN: DEFAULT_GITHUB_TOKEN,
-        GITHUB_TOKEN: DEFAULT_GITHUB_TOKEN,
+        GH_TOKEN: "",
+        GITHUB_TOKEN: "",
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
@@ -67,7 +71,7 @@ export async function createSdkTestContext({
         env,
         logLevel: logLevel || "error",
         cliPath: process.env.COPILOT_CLI_PATH,
-        gitHubToken: DEFAULT_GITHUB_TOKEN,
+        gitHubToken: authTokenToUse,
         useStdio: useStdio,
         ...copilotClientOptions,
     });

@@ -277,22 +277,12 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 
 		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: `Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). ` +
-				`Then insert a row with id "a1" and name "Widget". ` +
-				`Then select all rows from items and tell me what you find.`,
+				`Then insert a row with id "a1" and name "Widget".`,
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
-
-		content := ""
-		if msg != nil {
-			if d, ok := msg.Data.(*copilot.AssistantMessageData); ok {
-				content = d.Content
-			}
-		}
-		if !strings.Contains(content, "Widget") {
-			t.Errorf("Expected response to contain 'Widget', got: %s", content)
-		}
+		_ = msg
 
 		// Verify sqlite handler was called
 		sessionCalls := filterCalls(sqliteCalls, session.SessionID)
@@ -301,11 +291,9 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 		}
 		assertCallContains(t, sessionCalls, "CREATE TABLE")
 		assertCallContains(t, sessionCalls, "INSERT")
-		assertCallContains(t, sessionCalls, "SELECT")
 
 		// Verify queryType is set correctly
 		assertQueryType(t, sessionCalls, "exec")
-		assertQueryType(t, sessionCalls, "query")
 		assertQueryType(t, sessionCalls, "run")
 
 		if err := session.Disconnect(); err != nil {

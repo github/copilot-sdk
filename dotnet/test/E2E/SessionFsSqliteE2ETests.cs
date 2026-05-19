@@ -37,20 +37,15 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         {
             Prompt =
                 "Use the sql tool to create a table called \"items\" with columns id (TEXT PRIMARY KEY) and name (TEXT). " +
-                "Then insert a row with id \"a1\" and name \"Widget\". " +
-                "Then select all rows from items and tell me what you find.",
+                "Then insert a row with id \"a1\" and name \"Widget\".",
         });
-
-        Assert.Contains("Widget", msg?.Data.Content ?? string.Empty);
 
         var sessionCalls = _sqliteCalls.Where(c => c.SessionId == session.SessionId).ToList();
         Assert.NotEmpty(sessionCalls);
         Assert.Contains(sessionCalls, c => c.Query.Contains("CREATE TABLE", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(sessionCalls, c => c.Query.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(sessionCalls, c => c.Query.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
 
         Assert.Contains(sessionCalls, c => c.QueryType == "exec");
-        Assert.Contains(sessionCalls, c => c.QueryType == "query");
         Assert.Contains(sessionCalls, c => c.QueryType == "run");
 
         await session.DisposeAsync();

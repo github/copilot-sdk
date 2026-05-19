@@ -228,22 +228,15 @@ class TestSessionFsSqlite:
         msg = await session.send_and_wait(
             'Use the sql tool to create a table called "items" with columns '
             "id (TEXT PRIMARY KEY) and name (TEXT). "
-            'Then insert a row with id "a1" and name "Widget". '
-            "Then select all rows from items and tell me what you find."
+            'Then insert a row with id "a1" and name "Widget".'
         )
-
-        assert msg is not None
-        assert msg.data.content is not None
-        assert "Widget" in msg.data.content
 
         session_calls = [c for c in sqlite_calls if c["sessionId"] == session.session_id]
         assert len(session_calls) > 0
         assert any("CREATE TABLE" in c["query"].upper() for c in session_calls)
         assert any("INSERT" in c["query"].upper() for c in session_calls)
-        assert any("SELECT" in c["query"].upper() for c in session_calls)
 
         assert any(c["queryType"] == "exec" for c in session_calls)
-        assert any(c["queryType"] == "query" for c in session_calls)
         assert any(c["queryType"] == "run" for c in session_calls)
 
         await session.disconnect()

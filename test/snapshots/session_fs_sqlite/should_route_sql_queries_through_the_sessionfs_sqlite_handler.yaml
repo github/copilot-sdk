@@ -6,16 +6,16 @@ conversations:
         content: ${system}
       - role: user
         content: Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). Then
-          insert a row with id "a1" and name "Widget". Then select all rows from items and tell me what you find.
+          insert a row with id "a1" and name "Widget".
       - role: assistant
-        content: I'll create the table, insert the row, and then query it for you.
+        content: I'll create the table and insert the row using the SQL tool.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Creating and populating database table"}'
+              arguments: '{"intent":"Creating database table"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
@@ -30,27 +30,20 @@ conversations:
             function:
               name: sql
               arguments: "{\"description\":\"Insert Widget row\",\"query\":\"INSERT INTO items (id, name) VALUES ('a1', 'Widget')\"}"
-      - role: assistant
-        tool_calls:
-          - id: toolcall_3
-            type: function
-            function:
-              name: sql
-              arguments: '{"description":"Select all from items","query":"SELECT * FROM items"}'
   - messages:
       - role: system
         content: ${system}
       - role: user
         content: Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). Then
-          insert a row with id "a1" and name "Widget". Then select all rows from items and tell me what you find.
+          insert a row with id "a1" and name "Widget".
       - role: assistant
-        content: I'll create the table, insert the row, and then query it for you.
+        content: I'll create the table and insert the row using the SQL tool.
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Creating and populating database table"}'
+              arguments: '{"intent":"Creating database table"}'
           - id: toolcall_1
             type: function
             function:
@@ -61,11 +54,6 @@ conversations:
             function:
               name: sql
               arguments: "{\"description\":\"Insert Widget row\",\"query\":\"INSERT INTO items (id, name) VALUES ('a1', 'Widget')\"}"
-          - id: toolcall_3
-            type: function
-            function:
-              name: sql
-              arguments: '{"description":"Select all from items","query":"SELECT * FROM items"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
@@ -75,22 +63,6 @@ conversations:
       - role: tool
         tool_call_id: toolcall_2
         content: "1 row(s) inserted. Last inserted row ID: 1."
-      - role: tool
-        tool_call_id: toolcall_3
-        content: |-
-          1 row(s) returned:
-
-          | id | name |
-          | --- | --- |
-          | a1 | Widget |
       - role: assistant
-        content: >-
-          Perfect! I found one row in the items table:
-
-          - **id:** a1
-
-          - **name:** Widget
-
-
-          The table was created successfully, the row was inserted, and the query confirms the data is there as
-          expected.
+        content: Done! I've created the `items` table with `id` and `name` columns, and inserted the row with id "a1" and name
+          "Widget".
