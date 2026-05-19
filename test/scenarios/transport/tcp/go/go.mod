@@ -1,6 +1,6 @@
 module github.com/github/copilot-sdk/samples/transport/tcp/go
 
-go 1.24.0
+go 1.24
 
 require github.com/github/copilot-sdk/go v0.0.0
 

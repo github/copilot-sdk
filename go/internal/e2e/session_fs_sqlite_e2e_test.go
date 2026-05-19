@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -13,8 +12,6 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
 	"github.com/github/copilot-sdk/go/rpc"
-
-	_ "modernc.org/sqlite"
 )
 
 type sqliteCall struct {
@@ -23,13 +20,16 @@ type sqliteCall struct {
 	Query     string
 }
 
-// inMemorySqliteProvider is a SessionFsProvider backed by in-memory maps and a real SQLite DB.
+// inMemorySqliteProvider is a SessionFsProvider backed by in-memory maps with a stub SQLite handler.
+// The stub returns canned responses based on query type rather than executing real SQL, since the
+// CAPI replay snapshots contain pre-recorded tool results. This avoids pulling in a real SQLite
+// dependency (which would force a go directive bump across all scenario go.mod files).
 type inMemorySqliteProvider struct {
 	mu          sync.Mutex
 	sessionID   string
 	files       map[string]string
 	dirs        map[string]bool
-	db          *sql.DB
+	hadQuery    bool
 	sqliteCalls *[]sqliteCall
 }
 
@@ -40,25 +40,6 @@ func newInMemorySqliteProvider(sessionID string, calls *[]sqliteCall) *inMemoryS
 		dirs:        map[string]bool{"/": true},
 		sqliteCalls: calls,
 	}
-}
-
-// getOrCreateDBLocked must be called while holding p.mu.
-func (p *inMemorySqliteProvider) getOrCreateDBLocked() (*sql.DB, error) {
-	if p.db == nil {
-		db, err := sql.Open("sqlite", ":memory:")
-		if err != nil {
-			return nil, err
-		}
-		// Force single connection so all queries share the same in-memory database.
-		db.SetMaxOpenConns(1)
-		_, err = db.Exec("PRAGMA busy_timeout = 5000")
-		if err != nil {
-			db.Close()
-			return nil, err
-		}
-		p.db = db
-	}
-	return p.db, nil
 }
 
 func (p *inMemorySqliteProvider) ensureParent(path string) {
@@ -217,80 +198,44 @@ func (p *inMemorySqliteProvider) Rename(src string, dest string) error {
 func (p *inMemorySqliteProvider) SqliteQuery(sessionID string, query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*rpc.SessionFsSqliteQueryResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.hadQuery = true
 	*p.sqliteCalls = append(*p.sqliteCalls, sqliteCall{
 		SessionID: sessionID,
 		QueryType: string(queryType),
 		Query:     query,
 	})
-	db, err := p.getOrCreateDBLocked()
-	if err != nil {
-		return nil, err
-	}
 
-	trimmed := strings.TrimSpace(query)
-	if trimmed == "" {
-		return &rpc.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
-	}
-
+	// Return canned results based on query type. The CLI formats tool results from the
+	// SessionFsSqliteQueryResult, and the CAPI replay snapshots contain the expected formatted
+	// output. These stubs produce results that match the snapshot expectations.
+	upper := strings.ToUpper(strings.TrimSpace(query))
 	switch queryType {
 	case rpc.SessionFsSqliteQueryTypeExec:
-		_, err := db.Exec(trimmed)
-		if err != nil {
-			return nil, err
-		}
 		return &rpc.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
-
-	case rpc.SessionFsSqliteQueryTypeQuery:
-		rows, err := db.Query(trimmed)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-		columns, _ := rows.Columns()
-		var result []map[string]any
-		for rows.Next() {
-			vals := make([]any, len(columns))
-			ptrs := make([]any, len(columns))
-			for i := range vals {
-				ptrs[i] = &vals[i]
-			}
-			if err := rows.Scan(ptrs...); err != nil {
-				return nil, err
-			}
-			row := make(map[string]any)
-			for i, col := range columns {
-				row[col] = vals[i]
-			}
-			result = append(result, row)
-		}
-		if result == nil {
-			result = []map[string]any{}
-		}
-		return &rpc.SessionFsSqliteQueryResult{Columns: columns, Rows: result}, nil
-
 	case rpc.SessionFsSqliteQueryTypeRun:
-		res, err := db.Exec(trimmed)
-		if err != nil {
-			return nil, err
-		}
-		affected, _ := res.RowsAffected()
-		lastID, _ := res.LastInsertId()
-		lastIDFloat := float64(lastID)
+		lastID := float64(1)
 		return &rpc.SessionFsSqliteQueryResult{
 			Columns:         []string{},
 			Rows:            []map[string]any{},
-			RowsAffected:    affected,
-			LastInsertRowid: &lastIDFloat,
+			RowsAffected:    1,
+			LastInsertRowid: &lastID,
 		}, nil
+	case rpc.SessionFsSqliteQueryTypeQuery:
+		if strings.Contains(upper, "SELECT") {
+			return &rpc.SessionFsSqliteQueryResult{
+				Columns: []string{"id", "name"},
+				Rows:    []map[string]any{{"id": "a1", "name": "Widget"}},
+			}, nil
+		}
+		return &rpc.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
 	}
-
 	return &rpc.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
 }
 
 func (p *inMemorySqliteProvider) SqliteExists(sessionID string) (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.db != nil, nil
+	return p.hadQuery, nil
 }
 
 func TestSessionFsSqliteE2E(t *testing.T) {
