@@ -607,17 +607,6 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
             Task.FromException(exception);
-
-        protected override Task<SessionFsSqliteQueryResult> SqliteQueryAsync(
-            string sessionId,
-            string query,
-            SessionFsSqliteQueryType queryType,
-            IDictionary<string, object>? parameters,
-            CancellationToken cancellationToken) =>
-            Task.FromException<SessionFsSqliteQueryResult>(exception);
-
-        protected override Task<bool> SqliteExistsAsync(string sessionId, CancellationToken cancellationToken) =>
-            Task.FromException<bool>(exception);
     }
 
     private sealed class TestSessionFsHandler(string sessionId, string rootDir) : SessionFsProvider
@@ -750,18 +739,6 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
             return Task.CompletedTask;
         }
-
-        protected override Task<SessionFsSqliteQueryResult> SqliteQueryAsync(
-            string sessionId,
-            string query,
-            SessionFsSqliteQueryType queryType,
-            IDictionary<string, object>? parameters,
-            CancellationToken cancellationToken) =>
-            Task.FromException<SessionFsSqliteQueryResult>(
-                new NotSupportedException("SQLite session filesystem operations are not supported by this provider."));
-
-        protected override Task<bool> SqliteExistsAsync(string sessionId, CancellationToken cancellationToken) =>
-            Task.FromResult(false);
 
         private string ResolvePath(string sessionPath)
         {

@@ -124,24 +124,6 @@ public abstract class SessionFsProvider : ISessionFsHandler
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task RenameAsync(string src, string dest, CancellationToken cancellationToken);
 
-    /// <summary>Executes a SQLite query against the per-session database.</summary>
-    /// <param name="sessionId">Target session identifier.</param>
-    /// <param name="query">SQL query to execute.</param>
-    /// <param name="queryType">How to execute the query.</param>
-    /// <param name="parameters">Optional named bind parameters.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task<SessionFsSqliteQueryResult> SqliteQueryAsync(
-        string sessionId,
-        string query,
-        SessionFsSqliteQueryType queryType,
-        IDictionary<string, object>? parameters,
-        CancellationToken cancellationToken);
-
-    /// <summary>Checks whether the per-session SQLite database already exists.</summary>
-    /// <param name="sessionId">Target session identifier.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task<bool> SqliteExistsAsync(string sessionId, CancellationToken cancellationToken);
-
     // ---- ISessionFsHandler implementation (private, handles error mapping) ----
 
     async Task<SessionFsReadFileResult> ISessionFsHandler.ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken)
