@@ -28,6 +28,7 @@ import {
     resolveSchema,
     refTypeName,
     isRpcMethod,
+    isIntegerSchemaBoundedToInt32,
     isNodeFullyExperimental,
     isNodeFullyDeprecated,
     isSchemaDeprecated,
@@ -305,7 +306,11 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
             if (format === "duration") {
                 return "TimeSpan?";
             }
-            return nonNullTypes[0] === "integer" ? "long?" : "double?";
+            if (nonNullTypes[0] === "integer") {
+                const integerType = isIntegerSchemaBoundedToInt32(schema) ? "int" : "long";
+                return `${integerType}?`;
+            }
+            return "double?";
         }
     }
     if (type === "string") {
@@ -317,7 +322,10 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
         if (format === "duration") {
             return required ? "TimeSpan" : "TimeSpan?";
         }
-        if (type === "integer") return required ? "long" : "long?";
+        if (type === "integer") {
+            const integerType = isIntegerSchemaBoundedToInt32(schema) ? "int" : "long";
+            return required ? integerType : `${integerType}?`;
+        }
         return required ? "double" : "double?";
     }
     if (type === "boolean") return required ? "bool" : "bool?";

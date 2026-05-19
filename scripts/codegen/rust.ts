@@ -29,6 +29,7 @@ import {
 	getNullableInner,
 	getRpcSchemaTypeName,
 	getSessionEventsSchemaPath,
+	isIntegerSchemaBoundedToInt32,
 	isObjectSchema,
 	isRpcMethod,
 	isSchemaDeprecated,
@@ -663,7 +664,12 @@ function resolveRustType(
 		return wrapOption("String", isRequired);
 	}
 	if (schemaType === "number") return wrapOption("f64", isRequired);
-	if (schemaType === "integer") return wrapOption("i64", isRequired);
+	if (schemaType === "integer") {
+		return wrapOption(
+			isIntegerSchemaBoundedToInt32(propSchema) ? "i32" : "i64",
+			isRequired,
+		);
+	}
 	if (schemaType === "boolean") return wrapOption("bool", isRequired);
 
 	// Array

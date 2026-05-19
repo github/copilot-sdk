@@ -5,10 +5,58 @@ import {
     collectReachableDefinitionNames,
     findSharedSchemaDefinitions,
     inlineExternalSchemaDefinitions,
+    isIntegerSchemaBoundedToInt32,
     rewriteSharedDefinitionReferences,
 } from "../../scripts/codegen/utils.ts";
 
 describe("shared schema definition codegen utilities", () => {
+    it("detects integer schemas bounded to the 32-bit signed range", () => {
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: -2147483648,
+                maximum: 2147483647,
+            })
+        ).toBe(true);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: 0,
+                maximum: 100,
+            })
+        ).toBe(true);
+        expect(isIntegerSchemaBoundedToInt32({ type: "integer", maximum: 100 })).toBe(false);
+        expect(isIntegerSchemaBoundedToInt32({ type: "integer", minimum: 0 })).toBe(false);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: -2147483649,
+                maximum: 100,
+            })
+        ).toBe(false);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: 0,
+                maximum: 2147483648,
+            })
+        ).toBe(false);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: 0.5,
+                maximum: 100,
+            })
+        ).toBe(false);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: 0,
+                maximum: 100.5,
+            })
+        ).toBe(false);
+    });
+
     it("rewrites reachable identical shared definitions without enum-only assumptions", () => {
         const sessionSchema: JSONSchema7 = {
             definitions: {
