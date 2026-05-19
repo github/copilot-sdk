@@ -43,6 +43,13 @@ func newInMemorySqliteProvider(sessionID string, calls *[]sqliteCall) *inMemoryS
 }
 
 func (p *inMemorySqliteProvider) getOrCreateDB() (*sql.DB, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.getOrCreateDBLocked()
+}
+
+// getOrCreateDBLocked must be called while holding p.mu.
+func (p *inMemorySqliteProvider) getOrCreateDBLocked() (*sql.DB, error) {
 	if p.db == nil {
 		db, err := sql.Open("sqlite", ":memory:")
 		if err != nil {
@@ -212,13 +219,14 @@ func (p *inMemorySqliteProvider) Rename(src string, dest string) error {
 }
 
 func (p *inMemorySqliteProvider) SqliteQuery(sessionID string, query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*rpc.SessionFsSqliteQueryResult, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	*p.sqliteCalls = append(*p.sqliteCalls, sqliteCall{
 		SessionID: sessionID,
 		QueryType: string(queryType),
 		Query:     query,
 	})
-
-	db, err := p.getOrCreateDB()
+	db, err := p.getOrCreateDBLocked()
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +292,8 @@ func (p *inMemorySqliteProvider) SqliteQuery(sessionID string, query string, que
 }
 
 func (p *inMemorySqliteProvider) SqliteExists(sessionID string) (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return p.db != nil, nil
 }
 

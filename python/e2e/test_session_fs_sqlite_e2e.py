@@ -110,7 +110,7 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider):
         names: set[str] = set()
         for p in list(self._files.keys()) + list(self._dirs):
             if p.startswith(prefix):
-                rest = p[len(prefix):]
+                rest = p[len(prefix) :]
                 if rest:
                     names.add(rest.split("/")[0])
         return sorted(names)
@@ -120,21 +120,18 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider):
         entries: dict[str, SessionFSReaddirWithTypesEntryType] = {}
         for p in self._dirs:
             if p.startswith(prefix):
-                rest = p[len(prefix):]
+                rest = p[len(prefix) :]
                 if rest:
                     name = rest.split("/")[0]
                     entries[name] = SessionFSReaddirWithTypesEntryType.DIRECTORY
         for p in self._files:
             if p.startswith(prefix):
-                rest = p[len(prefix):]
+                rest = p[len(prefix) :]
                 if rest:
                     name = rest.split("/")[0]
                     if name not in entries:
                         entries[name] = SessionFSReaddirWithTypesEntryType.FILE
-        return [
-            SessionFSReaddirWithTypesEntry(name=n, type=t)
-            for n, t in sorted(entries.items())
-        ]
+        return [SessionFSReaddirWithTypesEntry(name=n, type=t) for n, t in sorted(entries.items())]
 
     async def rm(self, path: str, recursive: bool, force: bool) -> None:
         self._files.pop(path, None)
@@ -152,18 +149,18 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider):
         query_type: SessionFSSqliteQueryType,
         params: dict[str, float | str | None] | None = None,
     ) -> SessionFSSqliteQueryResult:
-        self._sqlite_calls.append({
-            "sessionId": session_id,
-            "queryType": query_type.value,
-            "query": query,
-        })
+        self._sqlite_calls.append(
+            {
+                "sessionId": session_id,
+                "queryType": query_type.value,
+                "query": query,
+            }
+        )
 
         db = self._get_or_create_db()
         trimmed = query.strip()
         if not trimmed:
-            return SessionFSSqliteQueryResult(
-                columns=[], rows=[], rows_affected=0
-            )
+            return SessionFSSqliteQueryResult(columns=[], rows=[], rows_affected=0)
 
         if query_type == SessionFSSqliteQueryType.EXEC:
             db.executescript(trimmed)
@@ -174,9 +171,7 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider):
             cursor = db.execute(trimmed, params or {})
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
             rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            return SessionFSSqliteQueryResult(
-                columns=columns, rows=rows, rows_affected=0
-            )
+            return SessionFSSqliteQueryResult(columns=columns, rows=rows, rows_affected=0)
 
         # run (INSERT/UPDATE/DELETE)
         cursor = db.execute(trimmed, params or {})
@@ -195,6 +190,7 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider):
 def _create_sqlite_handler(sqlite_calls: list[dict]):
     def factory(session):
         return _InMemorySessionFsSqliteProvider(session.session_id, sqlite_calls)
+
     return factory
 
 
@@ -284,8 +280,10 @@ class TestSessionFsSqlite:
         lines = [line for line in content.split("\n") if line.strip()]
         parsed = [json.loads(line) for line in lines]
         sql_tool_events = [
-            e for e in parsed
-            if e.get("type") == "tool.execution_start" and e.get("data", {}).get("toolName") == "sql"
+            e
+            for e in parsed
+            if e.get("type") == "tool.execution_start"
+            and e.get("data", {}).get("toolName") == "sql"
         ]
         assert len(sql_tool_events) > 0
         assert all(e.get("agentId") for e in sql_tool_events)

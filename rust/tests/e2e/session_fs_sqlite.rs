@@ -51,8 +51,7 @@ impl InMemorySqliteProvider {
 
     fn get_or_create_db(db: &mut Option<Connection>) -> Result<&mut Connection, FsError> {
         if db.is_none() {
-            let conn =
-                Connection::open_in_memory().map_err(|e| FsError::Other(e.to_string()))?;
+            let conn = Connection::open_in_memory().map_err(|e| FsError::Other(e.to_string()))?;
             conn.execute_batch("PRAGMA busy_timeout = 5000;")
                 .map_err(|e| FsError::Other(e.to_string()))?;
             *db = Some(conn);
@@ -111,24 +110,13 @@ impl SessionFsProvider for InMemorySqliteProvider {
         if dirs.contains(path) {
             Ok(FileInfo::new(false, true, 0, now, now))
         } else if let Some(content) = files.get(path) {
-            Ok(FileInfo::new(
-                true,
-                false,
-                content.len() as i64,
-                now,
-                now,
-            ))
+            Ok(FileInfo::new(true, false, content.len() as i64, now, now))
         } else {
             Err(FsError::NotFound(path.to_string()))
         }
     }
 
-    async fn mkdir(
-        &self,
-        path: &str,
-        recursive: bool,
-        _mode: Option<i64>,
-    ) -> Result<(), FsError> {
+    async fn mkdir(&self, path: &str, recursive: bool, _mode: Option<i64>) -> Result<(), FsError> {
         let mut dirs = self.dirs.lock().unwrap();
         if recursive {
             let parts: Vec<&str> = path.trim_end_matches('/').split('/').collect();
@@ -181,7 +169,9 @@ impl SessionFsProvider for InMemorySqliteProvider {
             if let Some(rest) = f.strip_prefix(&prefix) {
                 if !rest.is_empty() {
                     if let Some(name) = rest.split('/').next() {
-                        entries.entry(name.to_string()).or_insert(DirEntryKind::File);
+                        entries
+                            .entry(name.to_string())
+                            .or_insert(DirEntryKind::File);
                     }
                 }
             }
@@ -261,21 +251,19 @@ impl SessionFsProvider for InMemorySqliteProvider {
                     .prepare(trimmed)
                     .map_err(|e| FsError::Other(e.to_string()))?;
                 let col_count = stmt.column_count();
-                let columns: Vec<String> =
-                    (0..col_count).map(|i| stmt.column_name(i).unwrap().to_string()).collect();
+                let columns: Vec<String> = (0..col_count)
+                    .map(|i| stmt.column_name(i).unwrap().to_string())
+                    .collect();
                 let mut rows = vec![];
-                let mut query_rows = stmt
-                    .query([])
-                    .map_err(|e| FsError::Other(e.to_string()))?;
+                let mut query_rows = stmt.query([]).map_err(|e| FsError::Other(e.to_string()))?;
                 while let Some(row) = query_rows
                     .next()
                     .map_err(|e| FsError::Other(e.to_string()))?
                 {
                     let mut map = HashMap::new();
                     for (i, col) in columns.iter().enumerate() {
-                        let val: rusqlite::types::Value = row
-                            .get(i)
-                            .map_err(|e| FsError::Other(e.to_string()))?;
+                        let val: rusqlite::types::Value =
+                            row.get(i).map_err(|e| FsError::Other(e.to_string()))?;
                         let json_val = match val {
                             rusqlite::types::Value::Null => serde_json::Value::Null,
                             rusqlite::types::Value::Integer(n) => {
@@ -285,9 +273,9 @@ impl SessionFsProvider for InMemorySqliteProvider {
                                 serde_json::Number::from_f64(f).unwrap_or(0.into()),
                             ),
                             rusqlite::types::Value::Text(s) => serde_json::Value::String(s),
-                            rusqlite::types::Value::Blob(b) => serde_json::Value::String(
-                                String::from_utf8_lossy(&b).into_owned(),
-                            ),
+                            rusqlite::types::Value::Blob(b) => {
+                                serde_json::Value::String(String::from_utf8_lossy(&b).into_owned())
+                            }
                         };
                         map.insert(col.clone(), json_val);
                     }
@@ -342,14 +330,21 @@ fn session_state_path_sqlite() -> String {
 }
 
 fn sqlite_session_fs_config() -> SessionFsConfig {
-    SessionFsConfig::new("/", session_state_path_sqlite(), SessionFsConventions::Posix)
-        .with_capabilities(SessionFsCapabilities::new().with_sqlite(true))
+    SessionFsConfig::new(
+        "/",
+        session_state_path_sqlite(),
+        SessionFsConventions::Posix,
+    )
+    .with_capabilities(SessionFsCapabilities::new().with_sqlite(true))
 }
 
 async fn start_sqlite_client(ctx: &super::support::E2eContext) -> Client {
-    Client::start(ctx.client_options().with_session_fs(sqlite_session_fs_config()))
-        .await
-        .expect("start sqlite client")
+    Client::start(
+        ctx.client_options()
+            .with_session_fs(sqlite_session_fs_config()),
+    )
+    .await
+    .expect("start sqlite client")
 }
 
 fn sqlite_session_config(
@@ -370,7 +365,10 @@ async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
                 ctx.set_default_copilot_user();
                 let session_id = "00000000-0000-4000-8000-000000000201";
                 let sqlite_calls = Arc::new(Mutex::new(Vec::new()));
-                let provider = Arc::new(InMemorySqliteProvider::new(session_id, sqlite_calls.clone()));
+                let provider = Arc::new(InMemorySqliteProvider::new(
+                    session_id,
+                    sqlite_calls.clone(),
+                ));
                 let client = start_sqlite_client(ctx).await;
                 let session = client
                     .create_session(
@@ -395,19 +393,27 @@ async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
                 );
 
                 let calls = sqlite_calls.lock().unwrap();
-                let session_calls: Vec<&SqliteCall> =
-                    calls.iter().filter(|c| c.session_id == session_id).collect();
+                let session_calls: Vec<&SqliteCall> = calls
+                    .iter()
+                    .filter(|c| c.session_id == session_id)
+                    .collect();
                 assert!(!session_calls.is_empty(), "expected sqlite calls");
                 assert!(
-                    session_calls.iter().any(|c| c.query.to_uppercase().contains("CREATE TABLE")),
+                    session_calls
+                        .iter()
+                        .any(|c| c.query.to_uppercase().contains("CREATE TABLE")),
                     "expected CREATE TABLE"
                 );
                 assert!(
-                    session_calls.iter().any(|c| c.query.to_uppercase().contains("INSERT")),
+                    session_calls
+                        .iter()
+                        .any(|c| c.query.to_uppercase().contains("INSERT")),
                     "expected INSERT"
                 );
                 assert!(
-                    session_calls.iter().any(|c| c.query.to_uppercase().contains("SELECT")),
+                    session_calls
+                        .iter()
+                        .any(|c| c.query.to_uppercase().contains("SELECT")),
                     "expected SELECT"
                 );
                 assert!(

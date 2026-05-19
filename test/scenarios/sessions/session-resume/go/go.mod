@@ -1,6 +1,6 @@
 module github.com/github/copilot-sdk/samples/sessions/session-resume/go
 
-go 1.24
+go 1.24.0
 
 require github.com/github/copilot-sdk/go v0.0.0
 
