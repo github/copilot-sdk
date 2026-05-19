@@ -1,0 +1,19 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Using only the GitHub reference metadata in this message, summarize the reference. Do not call any tools.
+
+
+
+          <github_references>
+          #1234 - Add E2E attachment coverage [issue] [open] (https://github.com/github/copilot-sdk/issues/1234)
+          </github_references>
+      - role: assistant
+        content: >-
+          The referenced GitHub issue is #1234, "Add E2E attachment coverage", in the github/copilot-sdk repository. It
+          is currently open and can be found at https://github.com/github/copilot-sdk/issues/1234.

@@ -1,7 +1,10 @@
 import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
+import { generateSessionEventsCode as generateCSharpSessionEventsCode } from "../../scripts/codegen/csharp.ts";
+import { generateGoSessionEventsCode } from "../../scripts/codegen/go.ts";
 import { generatePythonSessionEventsCode } from "../../scripts/codegen/python.ts";
+import { generateSessionEventsCode as generateRustSessionEventsCode } from "../../scripts/codegen/rust.ts";
 
 describe("python session event codegen", () => {
     it("maps special schema formats to the expected Python types", () => {
@@ -372,5 +375,83 @@ describe("python session event codegen", () => {
         expect(code).toContain(
             "class SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemType(Enum):"
         );
+    });
+});
+
+describe("enum value description codegen", () => {
+    const schema: JSONSchema7 = {
+        definitions: {
+            SessionEvent: {
+                anyOf: [
+                    {
+                        type: "object",
+                        required: ["type", "data"],
+                        properties: {
+                            type: { const: "session.synthetic" },
+                            data: {
+                                type: "object",
+                                required: ["mode", "fallback"],
+                                properties: {
+                                    mode: {
+                                        type: "string",
+                                        enum: ["alpha", "beta"],
+                                        title: "SyntheticMode",
+                                        description: "Synthetic mode.",
+                                        "x-enumDescriptions": {
+                                            alpha: "Use alpha mode.",
+                                        },
+                                    },
+                                    fallback: {
+                                        type: "string",
+                                        enum: ["plain"],
+                                        title: "FallbackMode",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+        },
+    };
+
+    it("emits Python comments for described enum values", () => {
+        const code = generatePythonSessionEventsCode(schema);
+
+        expect(code).toContain("class SyntheticMode(Enum):");
+        expect(code).toContain('    # Use alpha mode.\n    ALPHA = "alpha"');
+        expect(code).toContain('    BETA = "beta"');
+    });
+
+    it("emits C# XML docs for described enum values and keeps fallback docs", () => {
+        const code = generateCSharpSessionEventsCode(schema);
+
+        expect(code).toContain("public readonly struct SyntheticMode");
+        expect(code).toContain(
+            "    /// <summary>Use alpha mode.</summary>\n    public static SyntheticMode Alpha"
+        );
+        expect(code).toContain(
+            "    /// <summary>Gets the <c>plain</c> value.</summary>\n    public static FallbackMode Plain"
+        );
+    });
+
+    it("emits Go comments for described enum values", () => {
+        const code = generateGoSessionEventsCode(schema, "rpc").typeCode;
+
+        expect(code).toContain("type SyntheticMode string");
+        expect(code).toContain(
+            '\t// Use alpha mode.\n\tSyntheticModeAlpha SyntheticMode = "alpha"'
+        );
+        expect(code).toContain('\tSyntheticModeBeta SyntheticMode = "beta"');
+    });
+
+    it("emits Rust docs for described enum values", () => {
+        const code = generateRustSessionEventsCode(schema);
+
+        expect(code).toContain("pub enum SyntheticMode {");
+        expect(code).toContain(
+            '    /// Use alpha mode.\n    #[serde(rename = "alpha")]\n    Alpha,'
+        );
+        expect(code).toContain('    #[serde(rename = "beta")]\n    Beta,');
     });
 });

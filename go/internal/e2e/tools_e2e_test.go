@@ -1,0 +1,579 @@
+package e2e
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+
+	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+)
+
+func TestToolsE2E(t *testing.T) {
+	ctx := testharness.NewTestContext(t)
+	client := ctx.NewClient()
+	t.Cleanup(func() { client.ForceStop() })
+
+	t.Run("invokes built-in tools", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		// Write a test file
+		err := os.WriteFile(filepath.Join(ctx.WorkDir, "README.md"), []byte("# ELIZA, the only chatbot you'll ever need"), 0644)
+		if err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What's the first line of README.md in this directory?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "ELIZA") {
+			t.Errorf("Expected answer to contain 'ELIZA', got %v", answer.Data)
+		}
+	})
+
+	t.Run("invokes custom tool", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type EncryptParams struct {
+			Input string `json:"input" jsonschema:"String to encrypt"`
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("encrypt_string", "Encrypts a string",
+					func(params EncryptParams, inv copilot.ToolInvocation) (string, error) {
+						return strings.ToUpper(params.Input), nil
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "HELLO") {
+			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data)
+		}
+	})
+
+	t.Run("handles tool calling errors", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type EmptyParams struct{}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("get_user_location", "Gets the user's location",
+					func(params EmptyParams, inv copilot.ToolInvocation) (any, error) {
+						return nil, errors.New("Melbourne")
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "What is my location? If you can't find out, just say 'unknown'.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		// Check the underlying traffic
+		traffic, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("Failed to get exchanges: %v", err)
+		}
+
+		lastConversation := traffic[len(traffic)-1]
+
+		// Find tool calls
+		var toolCalls []testharness.ToolCall
+		for _, msg := range lastConversation.Request.Messages {
+			if msg.Role == "assistant" && msg.ToolCalls != nil {
+				toolCalls = append(toolCalls, msg.ToolCalls...)
+			}
+		}
+
+		if len(toolCalls) != 1 {
+			t.Fatalf("Expected 1 tool call, got %d", len(toolCalls))
+		}
+		toolCall := toolCalls[0]
+		if toolCall.Type != "function" {
+			t.Errorf("Expected tool call type 'function', got '%s'", toolCall.Type)
+		}
+		if toolCall.Function.Name != "get_user_location" {
+			t.Errorf("Expected tool call name 'get_user_location', got '%s'", toolCall.Function.Name)
+		}
+
+		// Find tool results
+		var toolResults []testharness.Message
+		for _, msg := range lastConversation.Request.Messages {
+			if msg.Role == "tool" {
+				toolResults = append(toolResults, msg)
+			}
+		}
+
+		if len(toolResults) != 1 {
+			t.Fatalf("Expected 1 tool result, got %d", len(toolResults))
+		}
+		toolResult := toolResults[0]
+		if toolResult.ToolCallID != toolCall.ID {
+			t.Errorf("Expected tool result ID '%s', got '%s'", toolCall.ID, toolResult.ToolCallID)
+		}
+
+		// The error message "Melbourne" should NOT be exposed to the LLM
+		if strings.Contains(toolResult.Content, "Melbourne") {
+			t.Errorf("Tool result should not contain error details 'Melbourne', got '%s'", toolResult.Content)
+		}
+
+		// The assistant should not see the exception information
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); ok && strings.Contains(md.Content, "Melbourne") {
+			t.Errorf("Assistant should not see error details 'Melbourne', got '%s'", md.Content)
+		}
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(strings.ToLower(md.Content), "unknown") {
+			t.Errorf("Expected answer to contain 'unknown', got %v", answer.Data)
+		}
+	})
+
+	t.Run("can receive and return complex types", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type DbQuery struct {
+			Table         string `json:"table"`
+			IDs           []int  `json:"ids"`
+			SortAscending bool   `json:"sortAscending"`
+		}
+
+		type DbQueryParams struct {
+			Query DbQuery `json:"query"`
+		}
+
+		type City struct {
+			CountryID  int    `json:"countryId"`
+			CityName   string `json:"cityName"`
+			Population int    `json:"population"`
+		}
+
+		var receivedInvocation *copilot.ToolInvocation
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("db_query", "Performs a database query",
+					func(params DbQueryParams, inv copilot.ToolInvocation) ([]City, error) {
+						receivedInvocation = &inv
+
+						if params.Query.Table != "cities" {
+							t.Errorf("Expected table 'cities', got '%s'", params.Query.Table)
+						}
+						if len(params.Query.IDs) != 2 || params.Query.IDs[0] != 12 || params.Query.IDs[1] != 19 {
+							t.Errorf("Expected IDs [12, 19], got %v", params.Query.IDs)
+						}
+						if !params.Query.SortAscending {
+							t.Errorf("Expected sortAscending to be true")
+						}
+
+						return []City{
+							{CountryID: 19, CityName: "Passos", Population: 135460},
+							{CountryID: 12, CityName: "San Lorenzo", Population: 204356},
+						}, nil
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "Perform a DB query for the 'cities' table using IDs 12 and 19, sorting ascending. " +
+				"Reply only with lines of the form: [cityname] [population]",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if answer == nil {
+			t.Fatalf("Expected assistant message with content")
+		}
+		ad, ok := answer.Data.(*copilot.AssistantMessageData)
+		if !ok {
+			t.Fatalf("Expected assistant message with content")
+		}
+
+		responseContent := ad.Content
+		if responseContent == "" {
+			t.Errorf("Expected non-empty response")
+		}
+		if !strings.Contains(responseContent, "Passos") {
+			t.Errorf("Expected response to contain 'Passos', got '%s'", responseContent)
+		}
+		if !strings.Contains(responseContent, "San Lorenzo") {
+			t.Errorf("Expected response to contain 'San Lorenzo', got '%s'", responseContent)
+		}
+		// Remove commas for number checking (e.g., "135,460" -> "135460")
+		responseWithoutCommas := strings.ReplaceAll(responseContent, ",", "")
+		if !strings.Contains(responseWithoutCommas, "135460") {
+			t.Errorf("Expected response to contain '135460', got '%s'", responseContent)
+		}
+		if !strings.Contains(responseWithoutCommas, "204356") {
+			t.Errorf("Expected response to contain '204356', got '%s'", responseContent)
+		}
+
+		// We can access the raw invocation if needed
+		if receivedInvocation == nil {
+			t.Fatalf("Expected to receive invocation")
+		}
+		if receivedInvocation.SessionID != session.SessionID {
+			t.Errorf("Expected session ID '%s', got '%s'", session.SessionID, receivedInvocation.SessionID)
+		}
+	})
+
+	t.Run("skipPermission sent in tool definition", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type LookupParams struct {
+			ID string `json:"id" jsonschema:"ID to look up"`
+		}
+
+		safeLookupTool := copilot.DefineTool("safe_lookup", "A safe lookup that skips permission",
+			func(params LookupParams, inv copilot.ToolInvocation) (string, error) {
+				return "RESULT: " + params.ID, nil
+			})
+		safeLookupTool.SkipPermission = true
+
+		didRunPermissionRequest := false
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+				didRunPermissionRequest = true
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindNoResult}, nil
+			},
+			Tools: []copilot.Tool{
+				safeLookupTool,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use safe_lookup to look up 'test123'"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "RESULT: test123") {
+			t.Errorf("Expected answer to contain 'RESULT: test123', got %v", answer.Data)
+		}
+
+		if didRunPermissionRequest {
+			t.Errorf("Expected permission handler to NOT be called for skipPermission tool")
+		}
+	})
+
+	t.Run("should execute multiple custom tools in parallel single turn", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type CityParams struct {
+			City string `json:"city" jsonschema:"City name"`
+		}
+		type CountryParams struct {
+			Country string `json:"country" jsonschema:"Country name"`
+		}
+
+		cityCalled := make(chan string, 1)
+		countryCalled := make(chan string, 1)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("lookup_city", "Looks up city information",
+					func(params CityParams, inv copilot.ToolInvocation) (string, error) {
+						select {
+						case cityCalled <- params.City:
+						default:
+						}
+						return "CITY_" + strings.ToUpper(params.City), nil
+					}),
+				copilot.DefineTool("lookup_country", "Looks up country information",
+					func(params CountryParams, inv copilot.ToolInvocation) (string, error) {
+						select {
+						case countryCalled <- params.Country:
+						default:
+						}
+						return "COUNTRY_" + strings.ToUpper(params.Country), nil
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Use lookup_city with 'Paris' and lookup_country with 'France' at the same time, then combine both results in your reply.",
+		})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		// Verify both tools were called
+		var cityArg, countryArg string
+		select {
+		case cityArg = <-cityCalled:
+		default:
+		}
+		select {
+		case countryArg = <-countryCalled:
+		default:
+		}
+
+		if cityArg == "" {
+			t.Error("lookup_city tool was not called")
+		}
+		if countryArg == "" {
+			t.Error("lookup_country tool was not called")
+		}
+
+		if answer == nil {
+			t.Error("Expected non-nil assistant message")
+		} else if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok {
+			t.Error("Expected AssistantMessageData")
+		} else {
+			if !strings.Contains(md.Content, "CITY_PARIS") {
+				t.Errorf("Expected content to contain 'CITY_PARIS', got %q", md.Content)
+			}
+			if !strings.Contains(md.Content, "COUNTRY_FRANCE") {
+				t.Errorf("Expected content to contain 'COUNTRY_FRANCE', got %q", md.Content)
+			}
+		}
+	})
+
+	t.Run("should respect availabletools and excludedtools combined", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type InputParams struct {
+			Input string `json:"input" jsonschema:"Input value"`
+		}
+
+		excludedToolCalled := false
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("allowed_tool", "An allowed tool",
+					func(params InputParams, inv copilot.ToolInvocation) (string, error) {
+						return "ALLOWED_" + strings.ToUpper(params.Input), nil
+					}),
+				copilot.DefineTool("excluded_tool", "A tool that should be excluded",
+					func(params InputParams, inv copilot.ToolInvocation) (string, error) {
+						excludedToolCalled = true
+						return "EXCLUDED_" + strings.ToUpper(params.Input), nil
+					}),
+			},
+			AvailableTools: []string{"allowed_tool", "excluded_tool"},
+			ExcludedTools:  []string{"excluded_tool"},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Use the allowed_tool with input 'test'. Do NOT use excluded_tool.",
+		})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		if answer == nil {
+			t.Error("Expected non-nil assistant message")
+		} else if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok {
+			t.Error("Expected AssistantMessageData")
+		} else if !strings.Contains(md.Content, "ALLOWED_TEST") {
+			t.Errorf("Expected content to contain 'ALLOWED_TEST', got %q", md.Content)
+		}
+
+		if excludedToolCalled {
+			t.Error("Excluded tool should not have been called")
+		}
+	})
+
+	t.Run("overrides built-in tool with custom tool", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type GrepParams struct {
+			Query string `json:"query" jsonschema:"Search query"`
+		}
+
+		grepTool := copilot.DefineTool("grep", "A custom grep implementation that overrides the built-in",
+			func(params GrepParams, inv copilot.ToolInvocation) (string, error) {
+				return "CUSTOM_GREP_RESULT: " + params.Query, nil
+			})
+		grepTool.OverridesBuiltInTool = true
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				grepTool,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use grep to search for the word 'hello'"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "CUSTOM_GREP_RESULT") {
+			t.Errorf("Expected answer to contain 'CUSTOM_GREP_RESULT', got %v", answer.Data)
+		}
+	})
+
+	t.Run("invokes custom tool with permission handler", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type EncryptParams struct {
+			Input string `json:"input" jsonschema:"String to encrypt"`
+		}
+
+		var permissionRequests []copilot.PermissionRequest
+		var mu sync.Mutex
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			Tools: []copilot.Tool{
+				copilot.DefineTool("encrypt_string", "Encrypts a string",
+					func(params EncryptParams, inv copilot.ToolInvocation) (string, error) {
+						return strings.ToUpper(params.Input), nil
+					}),
+			},
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+				mu.Lock()
+				permissionRequests = append(permissionRequests, request)
+				mu.Unlock()
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "HELLO") {
+			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data)
+		}
+
+		// Should have received a custom-tool permission request
+		mu.Lock()
+		customToolReqs := 0
+		for _, req := range permissionRequests {
+			if customReq, ok := req.(*copilot.PermissionRequestCustomTool); ok {
+				customToolReqs++
+				if customReq.ToolName != "encrypt_string" {
+					t.Errorf("Expected toolName 'encrypt_string', got '%v'", req)
+				}
+			}
+		}
+		mu.Unlock()
+		if customToolReqs == 0 {
+			t.Errorf("Expected at least one custom-tool permission request, got none")
+		}
+	})
+
+	t.Run("denies custom tool when permission denied", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type EncryptParams struct {
+			Input string `json:"input" jsonschema:"String to encrypt"`
+		}
+
+		toolHandlerCalled := false
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			Tools: []copilot.Tool{
+				copilot.DefineTool("encrypt_string", "Encrypts a string",
+					func(params EncryptParams, inv copilot.ToolInvocation) (string, error) {
+						toolHandlerCalled = true
+						return strings.ToUpper(params.Input), nil
+					}),
+			},
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if toolHandlerCalled {
+			t.Errorf("Tool handler should NOT have been called since permission was denied")
+		}
+	})
+}

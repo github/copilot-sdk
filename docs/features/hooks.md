@@ -1,6 +1,6 @@
-# Working with Hooks
+# Working with hooks
 
-Hooks let you plug custom logic into every stage of a Copilot session — from the moment it starts, through each user prompt and tool call, to the moment it ends. This guide walks through practical use cases so you can ship permissions, auditing, notifications, and more without modifying the core agent behavior.
+Hooks let you plug custom logic into every stage of a Copilot session—from the moment it starts, through each user prompt and tool call, to the moment it ends. This guide walks through practical use cases so you can ship permissions, auditing, notifications, and more without modifying the core agent behavior.
 
 ## Overview
 
@@ -28,9 +28,9 @@ flowchart LR
 | [`onSessionEnd`](../hooks/session-lifecycle.md#session-end) | Session ends | Clean up, record metrics |
 | [`onErrorOccurred`](../hooks/error-handling.md) | An error is raised | Custom logging, retry logic, alerts |
 
-All hooks are **optional** — register only the ones you need. Returning `null` (or the language equivalent) from any hook tells the SDK to continue with default behavior.
+All hooks are **optional**—register only the ones you need. Returning `null` (or the language equivalent) from any hook tells the SDK to continue with default behavior.
 
-## Registering Hooks
+## Registering hooks
 
 Pass a `hooks` object when you create (or resume) a session. Every example below follows this pattern.
 
@@ -50,7 +50,7 @@ const session = await client.createSession({
         onPostToolUse:  async (input, invocation) => { /* ... */ },
         // ... add only the hooks you need
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -61,12 +61,13 @@ const session = await client.createSession({
 
 ```python
 from copilot import CopilotClient
+from copilot.session import PermissionRequestResult
 
 client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     hooks={
         "on_session_start": on_session_start,
         "on_pre_tool_use":  on_pre_tool_use,
@@ -113,7 +114,7 @@ func main() {
 			OnPostToolUse:  onPostToolUse,
 		},
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: "approved"}, nil
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
 		},
 	})
 	_ = session
@@ -133,7 +134,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
         // ... add only the hooks you need
     },
     OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-        return copilot.PermissionRequestResult{Kind: "approved"}, nil
+        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
     },
 })
 ```
@@ -223,11 +224,10 @@ try (var client = new CopilotClient()) {
 
 </details>
 
-> **Tip:** Every hook handler receives an `invocation` parameter containing the `sessionId`, which is useful for correlating logs and maintaining per-session state.
+> [!TIP]
+> Every hook handler receives an `invocation` parameter containing the `sessionId`, which is useful for correlating logs and maintaining per-session state.
 
----
-
-## Use Case: Permission Control
+## Use case: permission control
 
 Use `onPreToolUse` to build a permission layer that decides which tools the agent may run, what arguments are allowed, and whether the user should be prompted before execution.
 
@@ -252,7 +252,7 @@ const session = await client.createSession({
             return { permissionDecision: "allow" };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -262,6 +262,8 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot.session import PermissionRequestResult
+
 READ_ONLY_TOOLS = ["read_file", "glob", "grep", "view"]
 
 async def on_pre_tool_use(input_data, invocation):
@@ -274,7 +276,7 @@ async def on_pre_tool_use(input_data, invocation):
     return {"permissionDecision": "allow"}
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     hooks={"on_pre_tool_use": on_pre_tool_use},
 )
 ```
@@ -464,7 +466,7 @@ const session = await client.createSession({
             return { permissionDecision: "allow" };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -482,15 +484,13 @@ const session = await client.createSession({
             return { permissionDecision: "allow" };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
-Returning `"ask"` delegates the decision to the user at runtime — useful for destructive actions where you want a human in the loop.
+Returning `"ask"` delegates the decision to the user at runtime—useful for destructive actions where you want a human in the loop.
 
----
-
-## Use Case: Auditing & Compliance
+## Use case: auditing and compliance
 
 Combine `onPreToolUse`, `onPostToolUse`, and the session lifecycle hooks to build a complete audit trail that records every action the agent takes.
 
@@ -566,7 +566,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -578,6 +578,7 @@ const session = await client.createSession({
 <!-- docs-validate: skip -->
 ```python
 import json, aiofiles
+from copilot.session import PermissionRequestResult
 
 audit_log = []
 
@@ -629,7 +630,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
@@ -664,15 +665,13 @@ const session = await client.createSession({
                 : null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
----
+## Use case: notifications and sounds
 
-## Use Case: Notifications & Sounds
-
-Hooks fire in your application's process, so you can trigger any side-effect — desktop notifications, sounds, Slack messages, or webhook calls.
+Hooks fire in your application's process, so you can trigger any side-effect—desktop notifications, sounds, Slack messages, or webhook calls.
 
 ### Desktop notification on session events
 
@@ -699,7 +698,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -710,6 +709,7 @@ const session = await client.createSession({
 
 ```python
 import subprocess
+from copilot.session import PermissionRequestResult
 
 async def on_session_end(input_data, invocation):
     sid = invocation["session_id"][:8]
@@ -728,7 +728,7 @@ async def on_error_occurred(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     hooks={
         "on_session_end": on_session_end,
         "on_error_occurred": on_error_occurred,
@@ -755,7 +755,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -779,13 +779,11 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
----
-
-## Use Case: Prompt Enrichment
+## Use case: prompt enrichment
 
 Use `onSessionStart` and `onUserPromptSubmitted` to automatically inject context so users don't have to repeat themselves.
 
@@ -807,7 +805,7 @@ const session = await client.createSession({
             };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -833,15 +831,13 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
----
+## Use case: error handling and recovery
 
-## Use Case: Error Handling & Recovery
-
-The `onErrorOccurred` hook gives you a chance to react to failures — whether that means retrying, notifying a human, or gracefully shutting down.
+The `onErrorOccurred` hook gives you a chance to react to failures—whether that means retrying, notifying a human, or gracefully shutting down.
 
 ### Retry transient model errors
 
@@ -859,7 +855,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -880,15 +876,13 @@ const session = await client.createSession({
             };
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
----
+## Use case: session metrics
 
-## Use Case: Session Metrics
-
-Track how long sessions run, how many tools are invoked, and why sessions end — useful for dashboards and cost monitoring.
+Track how long sessions run, how many tools are invoked, and why sessions end—useful for dashboards and cost monitoring.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -928,7 +922,7 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
@@ -938,6 +932,8 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot.session import PermissionRequestResult
+
 session_metrics = {}
 
 async def on_session_start(input_data, invocation):
@@ -967,7 +963,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
@@ -979,11 +975,9 @@ session = await client.create_session(
 
 </details>
 
----
+## Combining hooks
 
-## Combining Hooks
-
-Hooks compose naturally. A single `hooks` object can handle permissions **and** auditing **and** notifications — each hook does its own job.
+Hooks compose naturally. A single `hooks` object can handle permissions **and** auditing **and** notifications—each hook does its own job.
 
 ```typescript
 const session = await client.createSession({
@@ -1012,38 +1006,38 @@ const session = await client.createSession({
             return null;
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 
-## Best Practices
+## Best practices
 
-1. **Keep hooks fast.** Every hook runs inline — slow hooks delay the conversation. Offload heavy work (database writes, HTTP calls) to a background queue when possible.
+1. **Keep hooks fast.** Every hook runs inline—slow hooks delay the conversation. Offload heavy work (database writes, HTTP calls) to a background queue when possible.
 
-2. **Return `null` when you have nothing to change.** This tells the SDK to proceed with defaults and avoids unnecessary object allocation.
+1. **Return `null` when you have nothing to change.** This tells the SDK to proceed with defaults and avoids unnecessary object allocation.
 
-3. **Be explicit with permission decisions.** Returning `{ permissionDecision: "allow" }` is clearer than returning `null`, even though both allow the tool.
+1. **Be explicit with permission decisions.** Returning `{ permissionDecision: "allow" }` is clearer than returning `null`, even though both allow the tool.
 
-4. **Don't swallow critical errors.** It's fine to suppress recoverable tool errors, but always log or alert on unrecoverable ones.
+1. **Don't swallow critical errors.** It's fine to suppress recoverable tool errors, but always log or alert on unrecoverable ones.
 
-5. **Use `additionalContext` instead of `modifiedPrompt` when possible.** Appending context preserves the user's original intent while still guiding the model.
+1. **Use `additionalContext` instead of `modifiedPrompt` when possible.** Appending context preserves the user's original intent while still guiding the model.
 
-6. **Scope state by session ID.** If you track per-session data, key it on `invocation.sessionId` and clean up in `onSessionEnd`.
+1. **Scope state by session ID.** If you track per-session data, key it on `invocation.sessionId` and clean up in `onSessionEnd`.
 
 ## Reference
 
 For full type definitions, input/output field tables, and additional examples for every hook, see the API reference:
 
-- [Hooks Overview](../hooks/index.md)
-- [Pre-Tool Use](../hooks/pre-tool-use.md)
-- [Post-Tool Use](../hooks/post-tool-use.md)
-- [User Prompt Submitted](../hooks/user-prompt-submitted.md)
-- [Session Lifecycle](../hooks/session-lifecycle.md)
-- [Error Handling](../hooks/error-handling.md)
+* [Hooks Overview](../hooks/hooks-overview.md)
+* [Pre-Tool Use](../hooks/pre-tool-use.md)
+* [Post-Tool Use](../hooks/post-tool-use.md)
+* [User Prompt Submitted](../hooks/user-prompt-submitted.md)
+* [Session Lifecycle](../hooks/session-lifecycle.md)
+* [Error Handling](../hooks/error-handling.md)
 
-## See Also
+## See also
 
-- [Getting Started](../getting-started.md)
-- [Custom Agents & Sub-Agent Orchestration](./custom-agents.md)
-- [Streaming Session Events](./streaming-events.md)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Getting Started](../getting-started.md)
+* [Custom Agents & Sub-Agent Orchestration](./custom-agents.md)
+* [Streaming Session Events](./streaming-events.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

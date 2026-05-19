@@ -16,4 +16,4 @@ RUN chmod +x /usr/local/bin/copilot
 
 EXPOSE 3000
 
-ENTRYPOINT ["copilot", "--headless", "--port", "3000", "--bind", "0.0.0.0", "--auth-token-env", "GITHUB_TOKEN"]
+ENTRYPOINT ["copilot", "--headless", "--port", "3000", "--host", "0.0.0.0", "--auth-token-env", "GITHUB_TOKEN"]

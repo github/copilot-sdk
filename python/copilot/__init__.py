@@ -5,15 +5,21 @@ JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
 from .client import (
+    CloudSessionOptions,
+    CloudSessionRepository,
     CopilotClient,
     ExternalServerConfig,
     ModelCapabilitiesOverride,
     ModelLimitsOverride,
     ModelSupportsOverride,
     ModelVisionLimitsOverride,
+    RemoteSessionMode,
     SubprocessConfig,
 )
 from .session import (
+    AutoModeSwitchHandler,
+    AutoModeSwitchRequest,
+    AutoModeSwitchResponse,
     CommandContext,
     CommandDefinition,
     CopilotSession,
@@ -22,9 +28,13 @@ from .session import (
     ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
+    ExitPlanModeHandler,
+    ExitPlanModeRequest,
+    ExitPlanModeResult,
     InputOptions,
     ProviderConfig,
     SessionCapabilities,
+    SessionFsCapabilities,
     SessionFsConfig,
     SessionUiApi,
     SessionUiCapabilities,
@@ -32,15 +42,29 @@ from .session import (
 from .session_fs_provider import (
     SessionFsFileInfo,
     SessionFsProvider,
+    SessionFsSqliteProvider,
+    SessionFsSqliteQueryResult,
     create_session_fs_adapter,
 )
-from .tools import convert_mcp_call_tool_result, define_tool
+from .tools import (
+    Tool,
+    ToolBinaryResult,
+    ToolInvocation,
+    ToolResult,
+    convert_mcp_call_tool_result,
+    define_tool,
+)
 
 __version__ = "0.1.0"
 
 __all__ = [
     "CommandContext",
+    "AutoModeSwitchHandler",
+    "AutoModeSwitchRequest",
+    "AutoModeSwitchResponse",
     "CommandDefinition",
+    "CloudSessionOptions",
+    "CloudSessionRepository",
     "CopilotClient",
     "CopilotSession",
     "CreateSessionFsHandler",
@@ -48,6 +72,9 @@ __all__ = [
     "ElicitationParams",
     "ElicitationContext",
     "ElicitationResult",
+    "ExitPlanModeHandler",
+    "ExitPlanModeRequest",
+    "ExitPlanModeResult",
     "ExternalServerConfig",
     "InputOptions",
     "ModelCapabilitiesOverride",
@@ -55,14 +82,22 @@ __all__ = [
     "ModelSupportsOverride",
     "ModelVisionLimitsOverride",
     "ProviderConfig",
+    "RemoteSessionMode",
     "SessionCapabilities",
+    "SessionFsCapabilities",
     "SessionFsConfig",
     "SessionFsFileInfo",
     "SessionFsProvider",
+    "SessionFsSqliteProvider",
+    "SessionFsSqliteQueryResult",
     "create_session_fs_adapter",
     "SessionUiApi",
     "SessionUiCapabilities",
     "SubprocessConfig",
+    "Tool",
+    "ToolBinaryResult",
+    "ToolInvocation",
+    "ToolResult",
     "convert_mcp_call_tool_result",
     "define_tool",
 ]

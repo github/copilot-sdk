@@ -230,7 +230,9 @@ conversations:
         tool_call_id: toolcall_5
         content: STABLE_still_here
       - role: assistant
-        content: |-
+        content: >-
           The stable_tool returned: **STABLE_still_here**
 
-          The ephemeral_tool is not available anymore (it was removed), so I could only call the stable_tool.
+
+          The ephemeral_tool is not available anymore (it was removed as indicated in the tools_changed_notice), so I
+          could only call the stable_tool.

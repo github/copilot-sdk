@@ -8,6 +8,7 @@ from copilot.generated.rpc import (
     FleetApi,
     FleetStartRequest,
     ModeApi,
+    ModelsListRequest,
     ModeSetRequest,
     PlanApi,
     ServerModelsApi,
@@ -117,7 +118,7 @@ class TestRpcTimeout:
         client.request = AsyncMock(return_value={"models": []})
         api = ServerModelsApi(client)
 
-        await api.list(timeout=45.0)
+        await api.list(ModelsListRequest(), timeout=45.0)
 
         _, kwargs = client.request.call_args
         assert kwargs["timeout"] == 45.0
@@ -128,7 +129,7 @@ class TestRpcTimeout:
         client.request = AsyncMock(return_value={"models": []})
         api = ServerModelsApi(client)
 
-        await api.list()
+        await api.list(ModelsListRequest())
 
         _, kwargs = client.request.call_args
         assert "timeout" not in kwargs

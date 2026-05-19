@@ -17,10 +17,28 @@ export {
     createSessionFsAdapter,
     SYSTEM_PROMPT_SECTIONS,
 } from "./types.js";
+// Re-export the generated session-event types (every *Event interface and
+// its corresponding *Data payload type, plus supporting unions/aliases) so
+// consumers can import them directly from "@github/copilot-sdk" instead of
+// reaching into the package's internal dist layout. See issue #1156.
+//
+// Three names from this file are also explicitly exported elsewhere in this
+// module — `SessionEvent` (re-exported below from `./types.js`),
+// `PermissionRequest` (re-exported below from `./types.js`), and
+// `AssistantMessageEvent` (re-exported above from `./session.js`). Per the
+// ECMAScript module spec, the explicit named re-exports shadow the names
+// arriving via `export type *`, so the hand-authored public API surface for
+// those three identifiers is preserved unchanged.
+export type * from "./generated/session-events.js";
 export type {
     CommandContext,
     CommandDefinition,
     CommandHandler,
+    CloudSessionOptions,
+    CloudSessionRepository,
+    AutoModeSwitchHandler,
+    AutoModeSwitchRequest,
+    AutoModeSwitchResponse,
     ConnectionState,
     CopilotClientOptions,
     CustomAgentConfig,
@@ -31,6 +49,9 @@ export type {
     ElicitationResult,
     ElicitationSchema,
     ElicitationSchemaField,
+    ExitPlanModeHandler,
+    ExitPlanModeRequest,
+    ExitPlanModeResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
@@ -50,6 +71,7 @@ export type {
     PermissionRequest,
     PermissionRequestResult,
     ProviderConfig,
+    RemoteSessionMode,
     ResumeSessionConfig,
     SectionOverride,
     SectionOverrideAction,
@@ -70,6 +92,9 @@ export type {
     SessionFsConfig,
     SessionFsProvider,
     SessionFsFileInfo,
+    SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType,
+    SessionFsSqliteProvider,
     SystemMessageAppendConfig,
     SystemMessageConfig,
     SystemMessageCustomizeConfig,

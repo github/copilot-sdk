@@ -10,10 +10,15 @@
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
+import type { RemoteSessionMode } from "./generated/rpc.js";
+export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
+export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
+export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
+export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
 
 /**
  * Options for creating a CopilotClient
@@ -70,6 +75,15 @@ export interface CopilotClientOptions {
      * If not set, inherits the current process's working directory
      */
     cwd?: string;
+
+    /**
+     * Base directory for Copilot data (session state, config, etc.).
+     * Sets the COPILOT_HOME environment variable on the spawned CLI process.
+     * When not set, the CLI defaults to ~/.copilot.
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link cliUrl}.
+     */
+    copilotHome?: string;
 
     /**
      * Port for the CLI server (TCP mode only)
@@ -194,6 +208,24 @@ export interface CopilotClientOptions {
      * @default undefined (disabled)
      */
     sessionIdleTimeoutSeconds?: number;
+
+    /**
+     * Connection token for the headless CLI server (TCP only). When the SDK
+     * spawns its own CLI in TCP mode and this is omitted, a UUID is generated
+     * automatically so the loopback listener is safe by default. Rejected with
+     * `useStdio: true` (stdio is pre-authenticated by transport).
+     */
+    tcpConnectionToken?: string;
+
+    /**
+     * Enable remote session support (Mission Control integration).
+     * When true, sessions in a GitHub repository working directory are
+     * accessible from GitHub web and mobile.
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link cliUrl}.
+     * @default false
+     */
+    remote?: boolean;
 }
 
 /**
@@ -204,7 +236,7 @@ export type ToolResultType = "success" | "failure" | "rejected" | "denied" | "ti
 export type ToolBinaryResult = {
     data: string;
     mimeType: string;
-    type: string;
+    type: "image" | "resource";
     description?: string;
 };
 
@@ -218,6 +250,22 @@ export type ToolResultObject = {
 };
 
 export type ToolResult = string | ToolResultObject;
+
+/**
+ * GitHub repository metadata to associate with a cloud session.
+ */
+export interface CloudSessionRepository {
+    owner: string;
+    name: string;
+    branch?: string;
+}
+
+/**
+ * Options for creating a remote session in the cloud.
+ */
+export interface CloudSessionOptions {
+    repository?: CloudSessionRepository;
+}
 
 // ============================================================================
 // MCP CallToolResult support
@@ -295,9 +343,13 @@ export function convertMcpCallToolResult(callResult: McpCallToolResult): ToolRes
                     textParts.push(block.resource.text);
                 }
                 if (block.resource?.blob) {
+                    const mimeType = block.resource.mimeType;
                     binaryResults.push({
                         data: block.resource.blob,
-                        mimeType: block.resource.mimeType ?? "application/octet-stream",
+                        mimeType:
+                            typeof mimeType === "string" && mimeType
+                                ? mimeType
+                                : "application/octet-stream",
                         type: "resource",
                         description: block.resource.uri,
                     });
@@ -344,12 +396,16 @@ export interface ZodSchema<T = unknown> {
  * - A Zod schema (provides type inference for handler)
  * - A raw JSON schema object
  * - Omitted (no parameters)
+ *
+ * If `handler` is omitted, the SDK exposes the declaration but does not
+ * automatically invoke the tool. Consumers can resolve tool calls by observing
+ * external tool request events and calling the pending-tool RPC.
  */
 export interface Tool<TArgs = unknown> {
     name: string;
     description?: string;
     parameters?: ZodSchema<TArgs> | Record<string, unknown>;
-    handler: ToolHandler<TArgs>;
+    handler?: ToolHandler<TArgs>;
     /**
      * When true, explicitly indicates this tool is intended to override a built-in tool
      * of the same name. If not set and the name clashes with a built-in tool, the runtime
@@ -371,7 +427,7 @@ export function defineTool<T = unknown>(
     config: {
         description?: string;
         parameters?: ZodSchema<T> | Record<string, unknown>;
-        handler: ToolHandler<T>;
+        handler?: ToolHandler<T>;
         overridesBuiltInTool?: boolean;
         skipPermission?: boolean;
     }
@@ -819,6 +875,63 @@ export type UserInputHandler = (
     invocation: { sessionId: string }
 ) => Promise<UserInputResponse> | UserInputResponse;
 
+/**
+ * Request to exit plan mode and continue with a selected action.
+ */
+export interface ExitPlanModeRequest {
+    /** Summary of the plan or proposed next step. */
+    summary: string;
+    /** Full plan content, when available. */
+    planContent?: string;
+    /** Available actions the user can select. */
+    actions: string[];
+    /** The action recommended by the runtime. */
+    recommendedAction: string;
+}
+
+/**
+ * Response to an exit-plan-mode request.
+ */
+export interface ExitPlanModeResult {
+    /** Whether the user approved exiting plan mode. */
+    approved: boolean;
+    /** Selected action, if the user chose one. */
+    selectedAction?: string;
+    /** Optional feedback provided by the user. */
+    feedback?: string;
+}
+
+/**
+ * Handler for exit-plan-mode requests from the agent.
+ */
+export type ExitPlanModeHandler = (
+    request: ExitPlanModeRequest,
+    invocation: { sessionId: string }
+) => Promise<ExitPlanModeResult> | ExitPlanModeResult;
+
+/**
+ * Request to switch to auto mode after an eligible rate limit.
+ */
+export interface AutoModeSwitchRequest {
+    /** The rate-limit error code that triggered the request. */
+    errorCode?: string;
+    /** Seconds until the rate limit resets, when known. */
+    retryAfterSeconds?: number;
+}
+
+/**
+ * Response to an auto-mode-switch request.
+ */
+export type AutoModeSwitchResponse = "yes" | "yes_always" | "no";
+
+/**
+ * Handler for auto-mode-switch requests from the agent.
+ */
+export type AutoModeSwitchHandler = (
+    request: AutoModeSwitchRequest,
+    invocation: { sessionId: string }
+) => Promise<AutoModeSwitchResponse> | AutoModeSwitchResponse;
+
 // ============================================================================
 // Hook Types
 // ============================================================================
@@ -827,6 +940,9 @@ export type UserInputHandler = (
  * Base interface for all hook inputs
  */
 export interface BaseHookInput {
+    /** The runtime session ID of the session that triggered the hook.
+     * For sub-agent hooks this differs from `invocation.sessionId`. */
+    sessionId: string;
     timestamp: number;
     cwd: string;
 }
@@ -1123,6 +1239,12 @@ export interface CustomAgentConfig {
      * When omitted, no skills are injected (opt-in model).
      */
     skills?: string[];
+    /**
+     * Model identifier for this agent (e.g. "claude-haiku-4.5").
+     * When set, the runtime will attempt to use this model for the agent,
+     * falling back to the parent session model if unavailable.
+     */
+    model?: string;
 }
 
 /**
@@ -1220,7 +1342,8 @@ export interface SessionConfig {
     enableConfigDiscovery?: boolean;
 
     /**
-     * Tools exposed to the CLI server
+     * Tools exposed to the CLI server. Tools without a handler are declaration-only
+     * and must be resolved by the consumer via pending external tool request RPCs.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools?: Tool<any>[];
@@ -1257,10 +1380,21 @@ export interface SessionConfig {
     provider?: ProviderConfig;
 
     /**
-     * Handler for permission requests from the server.
-     * When provided, the server will call this handler to request permission for operations.
+     * Enables or disables internal session telemetry for this session.
+     * When `false`, disables session telemetry. When omitted (the default) or `true`,
+     * telemetry is enabled for GitHub-authenticated sessions.
+     * When a custom {@link provider} (BYOK) is configured, session telemetry is always
+     * disabled regardless of this setting.
+     * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
      */
-    onPermissionRequest: PermissionHandler;
+    enableSessionTelemetry?: boolean;
+
+    /**
+     * Optional handler for permission requests from the server.
+     * When omitted, permission requests are surfaced as events and left pending for
+     * the consumer to resolve via the pending permission RPC.
+     */
+    onPermissionRequest?: PermissionHandler;
 
     /**
      * Handler for user input requests from the agent.
@@ -1274,6 +1408,18 @@ export interface SessionConfig {
      * Also enables the `elicitation` capability on the session.
      */
     onElicitationRequest?: ElicitationHandler;
+
+    /**
+     * Handler for exit-plan-mode requests from the agent.
+     * When provided, enables `exitPlanMode.request` callbacks.
+     */
+    onExitPlanMode?: ExitPlanModeHandler;
+
+    /**
+     * Handler for auto-mode-switch requests from the agent.
+     * When provided, enables `autoModeSwitch.request` callbacks.
+     */
+    onAutoModeSwitch?: AutoModeSwitchHandler;
 
     /**
      * Hook handlers for intercepting session lifecycle events.
@@ -1339,6 +1485,11 @@ export interface SessionConfig {
     skillDirectories?: string[];
 
     /**
+     * Additional directories to search for custom instruction files.
+     */
+    instructionDirectories?: string[];
+
+    /**
      * List of skill names to disable.
      */
     disabledSkills?: string[];
@@ -1361,6 +1512,20 @@ export interface SessionConfig {
      * the identity used for content exclusion, model routing, and quota checks.
      */
     gitHubToken?: string;
+
+    /**
+     * Per-session remote behavior control:
+     * - `"off"` — local only, no remote export (default)
+     * - `"export"` — export session events to GitHub without enabling remote steering
+     * - `"on"` — export to GitHub AND enable remote steering
+     */
+    remoteSession?: RemoteSessionMode;
+
+    /**
+     * Creates a remote session in the cloud instead of a local session.
+     * The optional repository is associated with the cloud session.
+     */
+    cloud?: CloudSessionOptions;
 
     /**
      * Optional event handler that is registered on the session before the
@@ -1393,6 +1558,7 @@ export type ResumeSessionConfig = Pick<
     | "availableTools"
     | "excludedTools"
     | "provider"
+    | "enableSessionTelemetry"
     | "modelCapabilities"
     | "streaming"
     | "includeSubAgentStreamingEvents"
@@ -1400,6 +1566,8 @@ export type ResumeSessionConfig = Pick<
     | "onPermissionRequest"
     | "onUserInputRequest"
     | "onElicitationRequest"
+    | "onExitPlanMode"
+    | "onAutoModeSwitch"
     | "hooks"
     | "workingDirectory"
     | "configDir"
@@ -1409,9 +1577,11 @@ export type ResumeSessionConfig = Pick<
     | "defaultAgent"
     | "agent"
     | "skillDirectories"
+    | "instructionDirectories"
     | "disabledSkills"
     | "infiniteSessions"
     | "gitHubToken"
+    | "remoteSession"
     | "onEvent"
     | "createSessionFsHandler"
 > & {
@@ -1421,6 +1591,18 @@ export type ResumeSessionConfig = Pick<
      * @default false
      */
     disableResume?: boolean;
+    /**
+     * When true, the runtime continues any tool calls or permission prompts that were
+     * still pending when the session was last suspended. When false (the default), the
+     * runtime treats pending work as interrupted on resume.
+     *
+     * For permission requests, the runtime re-emits `permission.requested` so the
+     * registered `onPermissionRequest` handler can re-prompt; for external tool calls,
+     * the consumer is expected to supply the result via the corresponding low-level
+     * RPC method.
+     * @default false
+     */
+    continuePendingWork?: boolean;
 };
 
 /**
@@ -1468,6 +1650,36 @@ export interface ProviderConfig {
      * Custom HTTP headers to include in outbound provider requests.
      */
     headers?: Record<string, string>;
+
+    /**
+     * Well-known model name used by the runtime to look up agent configuration
+     * (tools, prompts, reasoning behavior) and default token limits. Also used
+     * as the wire model when {@link wireModel} is not set.
+     * Falls back to {@link SessionConfig.model}.
+     */
+    modelId?: string;
+
+    /**
+     * Model name sent to the provider API for inference. Use this when the
+     * provider's model name (e.g. an Azure deployment name or a custom
+     * fine-tune name) differs from {@link modelId}.
+     * Falls back to {@link modelId}, then {@link SessionConfig.model}.
+     */
+    wireModel?: string;
+
+    /**
+     * Overrides the resolved model's default max prompt tokens. The runtime
+     * triggers conversation compaction before sending a request when the
+     * prompt (system message, history, tool definitions, user message) would
+     * exceed this limit.
+     */
+    maxInputTokens?: number;
+
+    /**
+     * Overrides the resolved model's default max output tokens. When hit, the
+     * model stops generating and returns a truncated response.
+     */
+    maxOutputTokens?: number;
 }
 
 /**
@@ -1584,6 +1796,20 @@ export interface SessionFsConfig {
      * Path conventions used by this filesystem provider.
      */
     conventions: "windows" | "posix";
+
+    /**
+     * Optional capabilities declared by this provider.
+     * The runtime uses these to determine which features are available.
+     */
+    capabilities?: {
+        /**
+         * Whether this provider supports SQLite query/exists operations.
+         * When false or omitted, the runtime will not offer SQL tools or
+         * todo tracking for sessions using this provider.
+         * @default false
+         */
+        sqlite?: boolean;
+    };
 }
 
 /**
@@ -1681,7 +1907,7 @@ export interface ModelPolicy {
  * Model billing information
  */
 export interface ModelBilling {
-    multiplier: number;
+    multiplier?: number;
 }
 
 /**

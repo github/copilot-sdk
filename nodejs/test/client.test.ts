@@ -1,40 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
+import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
-    it("throws when createSession is called without onPermissionRequest", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
+    it("allows createSession without onPermissionRequest", async () => {
+        const client = new CopilotClient({ autoStart: false });
 
-        await expect((client as any).createSession({})).rejects.toThrow(
-            /onPermissionRequest.*is required/
-        );
+        await expect(client.createSession({})).rejects.toThrow(/Client not connected/);
     });
 
-    it("throws when resumeSession is called without onPermissionRequest", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
+    it("allows resumeSession without onPermissionRequest", async () => {
+        const client = new CopilotClient({ autoStart: false });
 
-        const session = await client.createSession({ onPermissionRequest: approveAll });
-        await expect((client as any).resumeSession(session.sessionId, {})).rejects.toThrow(
-            /onPermissionRequest.*is required/
-        );
+        await expect(client.resumeSession("session-1", {})).rejects.toThrow(/Client not connected/);
     });
 
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
-
-        const session = await client.createSession({
-            onPermissionRequest: () => ({ kind: "no-result" }),
-        });
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerPermissionHandler(() => ({ kind: "no-result" }));
         const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
 
         await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
@@ -43,13 +30,10 @@ describe("CopilotClient", () => {
     });
 
     it("throws when a v2 permission handler returns no-result", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerPermissionHandler(() => ({ kind: "no-result" }));
         const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
-
-        const session = await client.createSession({
-            onPermissionRequest: () => ({ kind: "no-result" }),
-        });
+        (client as any).sessions.set(session.sessionId, session);
 
         await expect(
             (client as any).handlePermissionRequestV2({
@@ -70,6 +54,31 @@ describe("CopilotClient", () => {
         expect(spy).toHaveBeenCalledWith(
             "session.create",
             expect.objectContaining({ clientName: "my-app" })
+        );
+    });
+
+    it("forwards cloud options in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockResolvedValue({ sessionId: "cloud-session" });
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            cloud: {
+                repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+            },
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({
+                cloud: {
+                    repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+                },
+            })
         );
     });
 
@@ -94,6 +103,47 @@ describe("CopilotClient", () => {
         expect(spy).toHaveBeenCalledWith(
             "session.resume",
             expect.objectContaining({ clientName: "my-app", sessionId: session.sessionId })
+        );
+        spy.mockRestore();
+    });
+
+    it("forwards enableSessionTelemetry in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({
+            enableSessionTelemetry: false,
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({ enableSessionTelemetry: false })
+        );
+    });
+
+    it("forwards enableSessionTelemetry in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, {
+            enableSessionTelemetry: false,
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({ enableSessionTelemetry: false, sessionId: session.sessionId })
         );
         spy.mockRestore();
     });
@@ -166,6 +216,47 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("forwards continuePendingWork in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            continuePendingWork: true,
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.continuePendingWork).toBe(true);
+        spy.mockRestore();
+    });
+
+    it("omits continuePendingWork from session.resume payload when not specified", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.continuePendingWork).toBeUndefined();
+        spy.mockRestore();
+    });
+
     it("forwards provider headers in session.create request", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -183,6 +274,10 @@ describe("CopilotClient", () => {
             provider: {
                 baseUrl: "https://example.com/provider",
                 headers: { Authorization: "Bearer provider-token" },
+                modelId: "gpt-4o",
+                wireModel: "my-finetune-v3",
+                maxInputTokens: 100_000,
+                maxOutputTokens: 4096,
             },
         });
 
@@ -191,6 +286,10 @@ describe("CopilotClient", () => {
             expect.objectContaining({
                 baseUrl: "https://example.com/provider",
                 headers: { Authorization: "Bearer provider-token" },
+                modelId: "gpt-4o",
+                wireModel: "my-finetune-v3",
+                maxPromptTokens: 100_000,
+                maxOutputTokens: 4096,
             })
         );
         spy.mockRestore();
@@ -214,6 +313,10 @@ describe("CopilotClient", () => {
             provider: {
                 baseUrl: "https://example.com/provider",
                 headers: { Authorization: "Bearer resume-token" },
+                modelId: "gpt-4o",
+                wireModel: "my-finetune-v3",
+                maxInputTokens: 100_000,
+                maxOutputTokens: 4096,
             },
         });
 
@@ -222,6 +325,10 @@ describe("CopilotClient", () => {
             expect.objectContaining({
                 baseUrl: "https://example.com/provider",
                 headers: { Authorization: "Bearer resume-token" },
+                modelId: "gpt-4o",
+                wireModel: "my-finetune-v3",
+                maxPromptTokens: 100_000,
+                maxOutputTokens: 4096,
             })
         );
         spy.mockRestore();
@@ -264,6 +371,52 @@ describe("CopilotClient", () => {
                 defaultAgent: { excludedTools: ["heavy-tool"] },
             })
         );
+    });
+
+    it("forwards instructionDirectories in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const instructionDirectories = ["C:\\extra-instructions", "C:\\more-instructions"];
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({
+            instructionDirectories,
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({ instructionDirectories })
+        );
+    });
+
+    it("forwards instructionDirectories in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const instructionDirectories = ["C:\\resume-instructions"];
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, {
+            instructionDirectories,
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({
+                instructionDirectories,
+                sessionId: session.sessionId,
+            })
+        );
+        spy.mockRestore();
     });
 
     it("does not request permissions on session.resume when using the default joinSession handler", async () => {
@@ -315,6 +468,36 @@ describe("CopilotClient", () => {
             expect.objectContaining({
                 sessionId: session.sessionId,
                 requestPermission: true,
+            })
+        );
+        spy.mockRestore();
+    });
+
+    it("forwards mode callback request flags in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            onExitPlanMode: () => ({ approved: true }),
+            onAutoModeSwitch: () => "yes",
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({
+                sessionId: session.sessionId,
+                requestExitPlanMode: true,
+                requestAutoModeSwitch: true,
             })
         );
         spy.mockRestore();
@@ -575,6 +758,23 @@ describe("CopilotClient", () => {
             expect((client as any).options.useLoggedInUser).toBe(false);
         });
 
+        it("should accept copilotHome option", () => {
+            const client = new CopilotClient({
+                copilotHome: "/custom/copilot/home",
+                logLevel: "error",
+            });
+
+            expect((client as any).options.copilotHome).toBe("/custom/copilot/home");
+        });
+
+        it("should leave copilotHome undefined when not provided", () => {
+            const client = new CopilotClient({
+                logLevel: "error",
+            });
+
+            expect((client as any).options.copilotHome).toBeUndefined();
+        });
+
         it("should throw error when gitHubToken is used with cliUrl", () => {
             expect(() => {
                 new CopilotClient({
@@ -675,6 +875,29 @@ describe("CopilotClient", () => {
             const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
             expect(payload.agent).toBe("test-agent");
             expect(payload.customAgents).toEqual([expect.objectContaining({ name: "test-agent" })]);
+        });
+
+        it("forwards custom agent model in session.create request", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                customAgents: [
+                    {
+                        name: "model-agent",
+                        prompt: "You are a model agent.",
+                        model: "claude-haiku-4.5",
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.customAgents).toEqual([
+                expect.objectContaining({ name: "model-agent", model: "claude-haiku-4.5" }),
+            ]);
         });
 
         it("forwards agent in session.resume request", async () => {
@@ -1222,6 +1445,89 @@ describe("CopilotClient", () => {
                 })
             );
             rpcSpy.mockRestore();
+        });
+
+        it("sends mode callback request flags based on handler presence", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const rpcSpy = vi.spyOn((client as any).connection!, "sendRequest");
+
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                onExitPlanMode: () => ({ approved: true }),
+                onAutoModeSwitch: () => "yes_always",
+            });
+
+            const createCallWithHandlers = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
+            expect(createCallWithHandlers![1]).toEqual(
+                expect.objectContaining({
+                    requestExitPlanMode: true,
+                    requestAutoModeSwitch: true,
+                })
+            );
+
+            rpcSpy.mockClear();
+            await client.createSession({ onPermissionRequest: approveAll });
+            const createCallWithoutHandlers = rpcSpy.mock.calls.find(
+                (c) => c[0] === "session.create"
+            );
+            expect(createCallWithoutHandlers![1]).toEqual(
+                expect.objectContaining({
+                    requestExitPlanMode: false,
+                    requestAutoModeSwitch: false,
+                })
+            );
+            rpcSpy.mockRestore();
+        });
+
+        it("dispatches mode callback requests to registered handlers", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                onExitPlanMode: (request, invocation) => {
+                    expect(invocation.sessionId).toBeDefined();
+                    expect(request.summary).toBe("Review the plan");
+                    expect(request.planContent).toBe("Plan body");
+                    expect(request.actions).toEqual(["interactive", "autopilot"]);
+                    expect(request.recommendedAction).toBe("autopilot");
+                    return {
+                        approved: true,
+                        selectedAction: "interactive",
+                        feedback: "Looks good",
+                    };
+                },
+                onAutoModeSwitch: (request, invocation) => {
+                    expect(invocation.sessionId).toBeDefined();
+                    expect(request.errorCode).toBe("user_weekly_rate_limited");
+                    expect(request.retryAfterSeconds).toBe(3600);
+                    return "yes_always";
+                },
+            });
+
+            const exitResult = await (client as any).handleExitPlanModeRequest({
+                sessionId: session.sessionId,
+                summary: "Review the plan",
+                planContent: "Plan body",
+                actions: ["interactive", "autopilot"],
+                recommendedAction: "autopilot",
+            });
+            expect(exitResult).toEqual({
+                approved: true,
+                selectedAction: "interactive",
+                feedback: "Looks good",
+            });
+
+            const autoResult = await (client as any).handleAutoModeSwitchRequest({
+                sessionId: session.sessionId,
+                errorCode: "user_weekly_rate_limited",
+                retryAfterSeconds: 3600,
+            });
+            expect(autoResult).toEqual({ response: "yes_always" });
         });
 
         it("sends cancel when elicitation handler throws", async () => {

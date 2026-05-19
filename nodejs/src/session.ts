@@ -14,10 +14,16 @@ import type { ClientSessionApiHandlers } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     CommandHandler,
+    AutoModeSwitchHandler,
+    AutoModeSwitchRequest,
+    AutoModeSwitchResponse,
     ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
     ElicitationContext,
+    ExitPlanModeHandler,
+    ExitPlanModeRequest,
+    ExitPlanModeResult,
     InputOptions,
     MessageOptions,
     PermissionHandler,
@@ -84,6 +90,8 @@ export class CopilotSession {
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
     private elicitationHandler?: ElicitationHandler;
+    private exitPlanModeHandler?: ExitPlanModeHandler;
+    private autoModeSwitchHandler?: AutoModeSwitchHandler;
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -572,8 +580,8 @@ export class CopilotSession {
     /**
      * Registers custom tool handlers for this session.
      *
-     * Tools allow the assistant to execute custom functions. When the assistant
-     * invokes a tool, the corresponding handler is called with the tool arguments.
+     * Tools with handlers allow the assistant to execute custom functions automatically.
+     * Declaration-only tools are surfaced as events and left pending for the consumer.
      *
      * @param tools - An array of tool definitions with their handlers, or undefined to clear all tools
      * @internal This method is typically called internally when creating a session with tools.
@@ -585,7 +593,9 @@ export class CopilotSession {
         }
 
         for (const tool of tools) {
-            this.toolHandlers.set(tool.name, tool.handler);
+            if (tool.handler) {
+                this.toolHandlers.set(tool.name, tool.handler);
+            }
         }
     }
 
@@ -627,6 +637,26 @@ export class CopilotSession {
     }
 
     /**
+     * Registers the exit-plan-mode handler for this session.
+     *
+     * @param handler - The handler to invoke when the server dispatches an exit-plan-mode request
+     * @internal This method is typically called internally when creating/resuming a session.
+     */
+    registerExitPlanModeHandler(handler?: ExitPlanModeHandler): void {
+        this.exitPlanModeHandler = handler;
+    }
+
+    /**
+     * Registers the auto-mode-switch handler for this session.
+     *
+     * @param handler - The handler to invoke when the server dispatches an auto-mode-switch request
+     * @internal This method is typically called internally when creating/resuming a session.
+     */
+    registerAutoModeSwitchHandler(handler?: AutoModeSwitchHandler): void {
+        this.autoModeSwitchHandler = handler;
+    }
+
+    /**
      * Handles an elicitation.requested broadcast event.
      * Invokes the registered handler and responds via handlePendingElicitation RPC.
      * @internal
@@ -652,6 +682,32 @@ export class CopilotSession {
                 // Connection lost or RPC error — nothing we can do
             }
         }
+    }
+
+    /**
+     * Handles an exitPlanMode.request callback from the runtime.
+     * @internal
+     */
+    async _handleExitPlanModeRequest(request: ExitPlanModeRequest): Promise<ExitPlanModeResult> {
+        if (!this.exitPlanModeHandler) {
+            return { approved: true };
+        }
+
+        return await this.exitPlanModeHandler(request, { sessionId: this.sessionId });
+    }
+
+    /**
+     * Handles an autoModeSwitch.request callback from the runtime.
+     * @internal
+     */
+    async _handleAutoModeSwitchRequest(
+        request: AutoModeSwitchRequest
+    ): Promise<AutoModeSwitchResponse> {
+        if (!this.autoModeSwitchHandler) {
+            return "no";
+        }
+
+        return await this.autoModeSwitchHandler(request, { sessionId: this.sessionId });
     }
 
     /**
@@ -972,6 +1028,10 @@ export class CopilotSession {
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;
+        this.userInputHandler = undefined;
+        this.elicitationHandler = undefined;
+        this.exitPlanModeHandler = undefined;
+        this.autoModeSwitchHandler = undefined;
     }
 
     /**

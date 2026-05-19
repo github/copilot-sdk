@@ -8,10 +8,10 @@
 
 import { execFile } from "child_process";
 import fs from "fs/promises";
+import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
-import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 
 export const execFileAsync = promisify(execFile);
 
@@ -27,6 +27,14 @@ export const EXCLUDED_EVENT_TYPES = new Set(["session.import_legacy"]);
 export interface DefinitionCollections {
     definitions?: Record<string, JSONSchema7Definition>;
     $defs?: Record<string, JSONSchema7Definition>;
+}
+
+export type EnumValueDescriptions = Record<string, string>;
+
+export interface SessionEventEnvelopeProperty {
+    name: string;
+    schema: JSONSchema7;
+    required: boolean;
 }
 
 export interface JSONSchema7WithDefs extends JSONSchema7, DefinitionCollections {}
@@ -59,7 +67,7 @@ export async function getApiSchemaPath(cliArg?: string): Promise<string> {
 // ── Schema processing ───────────────────────────────────────────────────────
 
 /**
- * Post-process JSON Schema for quicktype compatibility.
+ * Post-process JSON Schema for code generators that expect enum-style literals.
  * Converts boolean const values to enum.
  */
 export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
@@ -126,6 +134,38 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
     }
 
     return processed;
+}
+
+/**
+ * Strip boolean literal constraints (`const: true/false`, `enum: [true]`, `enum: [false]`)
+ * from a schema, recursively. quicktype's Python renderer attempts to derive
+ * identifier names from enum values; deriving a name from a boolean throws inside
+ * `snakeNameStyle` (TypeError: s.codePointAt is not a function).
+ *
+ * The literal narrowing isn't expressible in Python anyway, so we drop it and
+ * keep just `type: "boolean"`. Other codegen runs on the original schema.
+ */
+export function stripBooleanLiterals<T>(schema: T): T {
+    if (typeof schema !== "object" || schema === null) return schema;
+    if (Array.isArray(schema)) {
+        return schema.map((item) => stripBooleanLiterals(item)) as unknown as T;
+    }
+    const result: Record<string, unknown> = {};
+    const src = schema as unknown as Record<string, unknown>;
+    const isBooleanType = src.type === "boolean";
+    for (const [key, value] of Object.entries(src)) {
+        if (isBooleanType && key === "const" && typeof value === "boolean") continue;
+        if (
+            isBooleanType &&
+            key === "enum" &&
+            Array.isArray(value) &&
+            value.every((v) => typeof v === "boolean")
+        ) {
+            continue;
+        }
+        result[key] = stripBooleanLiterals(value);
+    }
+    return result as T;
 }
 
 /**
@@ -213,9 +253,11 @@ export async function writeGeneratedFile(relativePath: string, content: string):
 
 export interface RpcMethod {
     rpcMethod: string;
+    description?: string;
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
     stability?: string;
+    visibility?: string;
     deprecated?: boolean;
 }
 
@@ -284,6 +326,54 @@ export function cloneSchemaForCodegen<T>(value: T): T {
     }
 
     return value;
+}
+
+export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
+    if (!schema || typeof schema !== "object") return undefined;
+
+    const rawDescriptions = (schema as Record<string, unknown>)["x-enumDescriptions"];
+    if (!rawDescriptions || typeof rawDescriptions !== "object" || Array.isArray(rawDescriptions)) return undefined;
+
+    const descriptions: EnumValueDescriptions = {};
+    for (const [value, description] of Object.entries(rawDescriptions)) {
+        if (typeof description !== "string") continue;
+
+        const trimmedDescription = description.trim();
+        if (trimmedDescription.length > 0) {
+            descriptions[value] = trimmedDescription;
+        }
+    }
+
+    return Object.keys(descriptions).length > 0 ? descriptions : undefined;
+}
+
+const INT32_MIN = -(2 ** 31);
+const INT32_MAX = 2 ** 31 - 1;
+
+function isIntegerValue(value: unknown): value is number {
+    return Number.isInteger(value);
+}
+
+export function isIntegerSchemaBoundedToInt32(schema: JSONSchema7): boolean {
+    return (
+        isIntegerValue(schema.minimum) &&
+        isIntegerValue(schema.maximum) &&
+        schema.minimum >= INT32_MIN &&
+        schema.maximum <= INT32_MAX
+    );
+}
+
+export function stableStringify(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+    }
+
+    if (value && typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+        return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`).join(",")}}`;
+    }
+
+    return JSON.stringify(value) ?? "undefined";
 }
 
 export interface ApiSchema {
@@ -374,9 +464,41 @@ export function isNodeFullyDeprecated(node: Record<string, unknown>): boolean {
     return methods.length > 0 && methods.every(m => m.deprecated === true);
 }
 
+/**
+ * Returns a filtered copy of an API tree containing only methods whose visibility
+ * matches `keep`. Sub-groups that end up empty are pruned. Returns null if nothing
+ * survives the filter.
+ *
+ * `"public"` keeps methods without `visibility === "internal"`.
+ * `"internal"` keeps methods with `visibility === "internal"`.
+ */
+export function filterNodeByVisibility(
+    node: Record<string, unknown>,
+    keep: "public" | "internal",
+): Record<string, unknown> | null {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+        if (isRpcMethod(value)) {
+            const isInternal = (value as RpcMethod).visibility === "internal";
+            if (keep === "public" && isInternal) continue;
+            if (keep === "internal" && !isInternal) continue;
+            result[key] = value;
+        } else if (typeof value === "object" && value !== null) {
+            const sub = filterNodeByVisibility(value as Record<string, unknown>, keep);
+            if (sub) result[key] = sub;
+        }
+    }
+    return Object.keys(result).length === 0 ? null : result;
+}
+
 /** Returns true when a JSON Schema node is marked as deprecated. */
 export function isSchemaDeprecated(schema: JSONSchema7 | null | undefined): boolean {
     return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).deprecated === true;
+}
+
+/** Returns true when a JSON Schema node is marked as experimental. */
+export function isSchemaExperimental(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).stability === "experimental";
 }
 
 // ── $ref resolution ─────────────────────────────────────────────────────────
@@ -399,6 +521,42 @@ export function refTypeName(ref: string, definitions?: DefinitionCollections): s
     }
 
     return baseName;
+}
+
+export function parseExternalSchemaRef(ref: string): { schemaFile: string; definitionName: string } | undefined {
+    const match = ref.match(/^([^#]+)#\/(?:definitions|\$defs)\/(.+)$/);
+    return match ? { schemaFile: match[1], definitionName: match[2] } : undefined;
+}
+
+export function collectExternalSchemaRefNames(schema: unknown): Map<string, Set<string>> {
+    const refs = new Map<string, Set<string>>();
+
+    const visit = (value: unknown): void => {
+        if (Array.isArray(value)) {
+            for (const item of value) visit(item);
+            return;
+        }
+
+        if (!value || typeof value !== "object") return;
+
+        const node = value as Record<string, unknown>;
+        if (typeof node.$ref === "string") {
+            const externalRef = parseExternalSchemaRef(node.$ref);
+            if (externalRef) {
+                let bucket = refs.get(externalRef.schemaFile);
+                if (!bucket) {
+                    bucket = new Set<string>();
+                    refs.set(externalRef.schemaFile, bucket);
+                }
+                bucket.add(externalRef.definitionName);
+            }
+        }
+
+        for (const child of Object.values(node)) visit(child);
+    };
+
+    visit(schema);
+    return refs;
 }
 
 /** Resolve a `$ref` path against a definitions map, returning the referenced schema. */
@@ -431,54 +589,76 @@ export function resolveSchema(
     return current;
 }
 
+function hasObjectShape(schema: JSONSchema7): boolean {
+    return !!(schema.properties || schema.additionalProperties || schema.type === "object");
+}
+
+function isEmptyNotSchema(schema: JSONSchema7): boolean {
+    return !!schema.not && typeof schema.not === "object" && Object.keys(schema.not).length === 0;
+}
+
+function mergeObjectSchemas(schemas: JSONSchema7[]): JSONSchema7 | undefined {
+    const mergedProperties: Record<string, JSONSchema7Definition> = {};
+    const mergedRequired = new Set<string>();
+    const merged: JSONSchema7 = {
+        type: "object",
+    };
+    let hasShape = false;
+
+    for (const objectSchema of schemas) {
+        if (!merged.title && objectSchema.title) {
+            merged.title = objectSchema.title;
+        }
+        if (!merged.description && objectSchema.description) {
+            merged.description = objectSchema.description;
+        }
+        if (objectSchema.properties) {
+            Object.assign(mergedProperties, objectSchema.properties);
+            hasShape = true;
+        }
+        if (objectSchema.required) {
+            for (const name of objectSchema.required) {
+                mergedRequired.add(name);
+            }
+        }
+        if (objectSchema.additionalProperties !== undefined) {
+            merged.additionalProperties = objectSchema.additionalProperties;
+            hasShape = true;
+        }
+    }
+
+    if (!hasShape) return undefined;
+    if (Object.keys(mergedProperties).length > 0) {
+        merged.properties = mergedProperties;
+    }
+    if (mergedRequired.size > 0) {
+        merged.required = [...mergedRequired];
+    }
+    return merged;
+}
+
 export function resolveObjectSchema(
     schema: JSONSchema7 | null | undefined,
     definitions: DefinitionCollections | undefined
 ): JSONSchema7 | undefined {
     const resolved = resolveSchema(schema, definitions) ?? schema ?? undefined;
     if (!resolved) return undefined;
-    if (resolved.properties || resolved.additionalProperties || resolved.type === "object") return resolved;
+    const resolvedHasObjectShape = hasObjectShape(resolved);
 
     if (resolved.allOf) {
-        const mergedProperties: Record<string, JSONSchema7Definition> = {};
-        const mergedRequired = new Set<string>();
-        const merged: JSONSchema7 = {
-            type: "object",
-            description: resolved.description,
-        };
-        let hasObjectShape = false;
+        const objectSchemas: JSONSchema7[] = [];
+        if (resolvedHasObjectShape) {
+            objectSchemas.push(resolved);
+        }
 
         for (const item of resolved.allOf) {
             if (typeof item !== "object") continue;
             const objectSchema = resolveObjectSchema(item as JSONSchema7, definitions);
             if (!objectSchema) continue;
-
-            if (objectSchema.properties) {
-                Object.assign(mergedProperties, objectSchema.properties);
-                hasObjectShape = true;
-            }
-            if (objectSchema.required) {
-                for (const name of objectSchema.required) {
-                    mergedRequired.add(name);
-                }
-            }
-            if (objectSchema.additionalProperties !== undefined) {
-                merged.additionalProperties = objectSchema.additionalProperties;
-                hasObjectShape = true;
-            }
-            if (!merged.description && objectSchema.description) {
-                merged.description = objectSchema.description;
-            }
+            objectSchemas.push(objectSchema);
         }
 
-        if (!hasObjectShape) return resolved;
-        if (Object.keys(mergedProperties).length > 0) {
-            merged.properties = mergedProperties;
-        }
-        if (mergedRequired.size > 0) {
-            merged.required = [...mergedRequired];
-        }
-        return merged;
+        return mergeObjectSchemas(objectSchemas) ?? resolved;
     }
 
     const singleBranch = (resolved.anyOf ?? resolved.oneOf)
@@ -487,14 +667,81 @@ export function resolveObjectSchema(
             const s = item as JSONSchema7;
             // Filter out null types and `{ not: {} }` (Zod's representation of "nothing" in optional anyOf)
             if (s.type === "null") return false;
-            if (s.not && typeof s.not === "object" && Object.keys(s.not).length === 0) return false;
+            if (isEmptyNotSchema(s)) return false;
             return true;
         });
     if (singleBranch && singleBranch.length === 1) {
-        return resolveObjectSchema(singleBranch[0], definitions);
+        const objectSchema = resolveObjectSchema(singleBranch[0], definitions);
+        if (!objectSchema) return resolved;
+        if (resolvedHasObjectShape) {
+            return mergeObjectSchemas([resolved, objectSchema]) ?? objectSchema;
+        }
+        return objectSchema;
     }
 
+    if (resolvedHasObjectShape) return resolved;
+
     return resolved;
+}
+
+export function getSessionEventVariantSchemas(
+    schema: JSONSchema7,
+    definitionCollections: DefinitionCollections = collectDefinitionCollections(schema as Record<string, unknown>)
+): JSONSchema7[] {
+    const sessionEvent =
+        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
+        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
+    if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
+
+    return (sessionEvent.anyOf as JSONSchema7[]).map((variant) => {
+        const resolvedVariant =
+            resolveObjectSchema(variant, definitionCollections) ??
+            resolveSchema(variant, definitionCollections) ??
+            variant;
+        if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) throw new Error("Invalid event variant");
+        return resolvedVariant;
+    });
+}
+
+export function getSharedSessionEventEnvelopeProperties(
+    schema: JSONSchema7,
+    definitionCollections: DefinitionCollections = collectDefinitionCollections(schema as Record<string, unknown>)
+): SessionEventEnvelopeProperty[] {
+    const variants = getSessionEventVariantSchemas(schema, definitionCollections);
+    const firstVariant = variants[0];
+    const firstProperties = firstVariant.properties ?? {};
+
+    return Object.entries(firstProperties)
+        .filter(([name]) => name !== "type" && name !== "data")
+        .map(([name]) => {
+            const propertySchemas = variants
+                .map((variant) => variant.properties?.[name])
+                .filter((propSchema): propSchema is JSONSchema7 => typeof propSchema === "object" && propSchema !== null);
+
+            if (propertySchemas.length !== variants.length) return undefined;
+
+            return {
+                name,
+                schema: selectSessionEventEnvelopePropertySchema(propertySchemas),
+                required: variants.every((variant) => (variant.required ?? []).includes(name)),
+            };
+        })
+        .filter((property): property is SessionEventEnvelopeProperty => property !== undefined);
+}
+
+function selectSessionEventEnvelopePropertySchema(propertySchemas: JSONSchema7[]): JSONSchema7 {
+    // Some variants further constrain a shared envelope property, e.g. ephemeral const true.
+    // Generate the base property from the least restrictive schema that has useful metadata.
+    return (
+        propertySchemas.find((schema) => !isConstOrEnumSchema(schema) && schema.description) ??
+        propertySchemas.find((schema) => !isConstOrEnumSchema(schema)) ??
+        propertySchemas.find((schema) => schema.description) ??
+        propertySchemas[0]
+    );
+}
+
+function isConstOrEnumSchema(schema: JSONSchema7): boolean {
+    return "const" in schema || (Array.isArray(schema.enum) && schema.enum.length > 0);
 }
 
 export function hasSchemaPayload(schema: JSONSchema7 | null | undefined): boolean {
@@ -525,6 +772,389 @@ export function collectDefinitions(
 ): Record<string, JSONSchema7Definition> {
     const { definitions, $defs } = collectDefinitionCollections(schema);
     return { ...$defs, ...definitions };
+}
+
+export function findSharedSchemaDefinitions(
+    sourceSchema: Record<string, unknown>,
+    canonicalSchema: Record<string, unknown>
+): Set<string> {
+    const sourceDefinitions = collectDefinitions(sourceSchema);
+    const canonicalDefinitions = collectDefinitions(canonicalSchema);
+    const shared = new Set<string>();
+
+    for (const [name, sourceDefinition] of Object.entries(sourceDefinitions)) {
+        const canonicalDefinition = canonicalDefinitions[name];
+        if (
+            canonicalDefinition !== undefined &&
+            stableStringify(normalizeDefinitionForComparison(sourceDefinition)) ===
+                stableStringify(normalizeDefinitionForComparison(canonicalDefinition))
+        ) {
+            shared.add(name);
+        }
+    }
+
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const name of [...shared]) {
+            const refs = new Set([
+                ...collectLocalDefinitionRefNames(sourceDefinitions[name]),
+                ...collectLocalDefinitionRefNames(canonicalDefinitions[name]),
+            ]);
+            for (const refName of refs) {
+                if (refName !== name && !shared.has(refName)) {
+                    shared.delete(name);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    return shared;
+}
+
+export function collectReachableDefinitionNames(
+    schema: Record<string, unknown>,
+    rootDefinitionNames: Iterable<string> = ["SessionEvent"]
+): Set<string> {
+    const definitions = collectDefinitions(schema);
+    const reachable = new Set<string>();
+    const visiting = new Set<string>();
+
+    const visitDefinition = (name: string): void => {
+        if (reachable.has(name) || visiting.has(name)) return;
+        const definition = definitions[name];
+        if (definition === undefined) return;
+
+        visiting.add(name);
+        reachable.add(name);
+        visitSchema(definition);
+        visiting.delete(name);
+    };
+
+    const visitSchema = (value: unknown): void => {
+        if (!value || typeof value !== "object") return;
+        if (Array.isArray(value)) {
+            for (const item of value) visitSchema(item);
+            return;
+        }
+
+        const record = value as Record<string, unknown>;
+        if (typeof record.$ref === "string") {
+            const localRef = parseLocalDefinitionRef(record.$ref);
+            if (localRef) visitDefinition(localRef);
+        }
+        for (const child of Object.values(record)) visitSchema(child);
+    };
+
+    for (const rootName of rootDefinitionNames) {
+        visitDefinition(rootName);
+    }
+
+    return reachable;
+}
+
+export function collectSchemaReferencedDefinitionNames(
+    schemas: Iterable<JSONSchema7 | null | undefined>,
+    definitionCollections: DefinitionCollections
+): Set<string> {
+    const definitions = collectDefinitions({
+        definitions: definitionCollections.definitions ?? {},
+        $defs: definitionCollections.$defs ?? {},
+    });
+    const reachable = new Set<string>();
+    const visiting = new Set<string>();
+
+    const visitDefinition = (name: string, ref?: string): void => {
+        if (reachable.has(name) || visiting.has(name)) return;
+        const definition = ref ? resolveRef(ref, definitionCollections) : definitions[name];
+        if (definition === undefined || typeof definition !== "object" || definition === null) return;
+
+        visiting.add(name);
+        reachable.add(name);
+        visitSchema(definition);
+        visiting.delete(name);
+    };
+
+    const visitSchema = (value: unknown): void => {
+        if (!value || typeof value !== "object") return;
+        if (Array.isArray(value)) {
+            for (const item of value) visitSchema(item);
+            return;
+        }
+
+        const record = value as Record<string, unknown>;
+        if (typeof record.$ref === "string") {
+            const localRef = parseLocalDefinitionRef(record.$ref);
+            if (localRef) visitDefinition(localRef, record.$ref);
+        }
+        for (const child of Object.values(record)) visitSchema(child);
+    };
+
+    for (const schema of schemas) {
+        visitSchema(schema);
+    }
+
+    return reachable;
+}
+
+export function collectRpcMethodReferencedDefinitionNames(
+    methods: Iterable<RpcMethod>,
+    definitionCollections: DefinitionCollections
+): Set<string> {
+    const schemas: Array<JSONSchema7 | null | undefined> = [];
+    for (const method of methods) {
+        schemas.push(method.params, method.result);
+    }
+
+    return collectSchemaReferencedDefinitionNames(schemas, definitionCollections);
+}
+
+export function collectExperimentalOnlyRpcReferencedDefinitionNames(
+    methods: Iterable<RpcMethod>,
+    definitionCollections: DefinitionCollections
+): Set<string> {
+    const methodList = [...methods];
+    const experimental = collectRpcMethodReferencedDefinitionNames(
+        methodList.filter((method) => method.stability === "experimental"),
+        definitionCollections
+    );
+    const nonExperimental = collectRpcMethodReferencedDefinitionNames(
+        methodList.filter((method) => method.stability !== "experimental"),
+        definitionCollections
+    );
+
+    for (const name of nonExperimental) {
+        experimental.delete(name);
+    }
+
+    return experimental;
+}
+
+export function rewriteSharedDefinitionReferences<T>(
+    schema: T,
+    sharedDefinitionNames: Iterable<string>,
+    externalSchemaFile: string,
+    preserveDefinitions = false
+): T {
+    const sharedNames = new Set(sharedDefinitionNames);
+    if (sharedNames.size === 0) return cloneSchemaForCodegen(schema);
+
+    const rewriteRef = (ref: string): string => {
+        const localRef = parseLocalDefinitionRef(ref);
+        return localRef && sharedNames.has(localRef) ? `${externalSchemaFile}#/definitions/${localRef}` : ref;
+    };
+
+    const rewrite = (value: unknown): unknown => {
+        if (Array.isArray(value)) {
+            return value.map((item) => rewrite(item));
+        }
+
+        if (!value || typeof value !== "object") {
+            return value;
+        }
+
+        const source = value as Record<string, unknown>;
+        const result: Record<string, unknown> = {};
+        for (const [childKey, childValue] of Object.entries(source)) {
+            if ((childKey === "definitions" || childKey === "$defs") && childValue && typeof childValue === "object" && !Array.isArray(childValue)) {
+                const definitions: Record<string, unknown> = {};
+                for (const [definitionName, definitionValue] of Object.entries(childValue as Record<string, unknown>)) {
+                    if (preserveDefinitions || !sharedNames.has(definitionName)) {
+                        definitions[definitionName] = rewrite(definitionValue);
+                    }
+                }
+                result[childKey] = definitions;
+                continue;
+            }
+
+            result[childKey] = rewrite(childValue);
+        }
+
+        if (typeof result.$ref === "string") {
+            result.$ref = rewriteRef(result.$ref);
+        }
+
+        return result;
+    };
+
+    return rewrite(schema) as T;
+}
+
+export function inlineExternalSchemaDefinitions<T>(
+    schema: T,
+    externalSchema: Record<string, unknown>,
+    externalSchemaFile: string,
+    options: { conflictingDefinitionNamePrefix?: string } = {}
+): { schema: T; inlinedDefinitionNames: Set<string> } {
+    const cloned = cloneSchemaForCodegen(schema) as Record<string, unknown>;
+    const externalRefs = collectExternalSchemaRefNames(cloned).get(externalSchemaFile);
+    if (!externalRefs || externalRefs.size === 0) {
+        return { schema: cloned as T, inlinedDefinitionNames: new Set<string>() };
+    }
+
+    const externalDefinitions = collectDefinitions(externalSchema);
+    const reachableDefinitions = collectReachableDefinitionNames(externalSchema, externalRefs);
+    const inlinedDefinitionNames = new Set<string>();
+    const targetDefinitions = {
+        ...((cloned.definitions ?? {}) as Record<string, JSONSchema7Definition>),
+    };
+    const nameMap = new Map<string, string>();
+    const usedNames = new Set([...Object.keys(targetDefinitions), ...reachableDefinitions]);
+
+    for (const name of [...reachableDefinitions].sort()) {
+        const definition = externalDefinitions[name];
+        if (definition === undefined) continue;
+
+        const existing = targetDefinitions[name];
+        if (
+            existing !== undefined &&
+            stableStringify(normalizeDefinitionForComparison(existing)) !==
+                stableStringify(normalizeDefinitionForComparison(definition))
+        ) {
+            if (!options.conflictingDefinitionNamePrefix) {
+                throw new Error(
+                    `Cannot inline ${externalSchemaFile}#/definitions/${name}; api.schema.json already defines a different schema with that name.`
+                );
+            }
+
+            let renamed = `${options.conflictingDefinitionNamePrefix}${name}`;
+            let suffix = 2;
+            while (usedNames.has(renamed)) {
+                renamed = `${options.conflictingDefinitionNamePrefix}${name}${suffix++}`;
+            }
+            usedNames.add(renamed);
+            nameMap.set(name, renamed);
+        } else {
+            nameMap.set(name, name);
+        }
+    }
+
+    const rewriteInlinedRefs = (value: unknown): unknown => {
+        if (Array.isArray(value)) {
+            return value.map((item) => rewriteInlinedRefs(item));
+        }
+
+        if (!value || typeof value !== "object") {
+            return value;
+        }
+
+        const result: Record<string, unknown> = {};
+        for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+            result[key] = rewriteInlinedRefs(child);
+        }
+
+        if (typeof result.$ref === "string") {
+            const localRef = parseLocalDefinitionRef(result.$ref);
+            const externalRef = parseExternalSchemaRef(result.$ref);
+            const mappedName =
+                localRef ? nameMap.get(localRef) :
+                externalRef?.schemaFile === externalSchemaFile ? nameMap.get(externalRef.definitionName) :
+                undefined;
+            if (mappedName) {
+                result.$ref = `#/definitions/${mappedName}`;
+            }
+        }
+
+        return result;
+    };
+
+    for (const name of [...reachableDefinitions].sort()) {
+        const definition = externalDefinitions[name];
+        const targetName = nameMap.get(name);
+        if (definition === undefined || !targetName) continue;
+
+        targetDefinitions[targetName] = rewriteInlinedRefs(cloneSchemaForCodegen(definition)) as JSONSchema7Definition;
+        inlinedDefinitionNames.add(targetName);
+    }
+
+    cloned.definitions = targetDefinitions;
+
+    const rewrite = (value: unknown): unknown => {
+        if (Array.isArray(value)) {
+            return value.map((item) => rewrite(item));
+        }
+
+        if (!value || typeof value !== "object") {
+            return value;
+        }
+
+        const result: Record<string, unknown> = {};
+        for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+            result[key] = rewrite(child);
+        }
+
+        if (typeof result.$ref === "string") {
+            const externalRef = parseExternalSchemaRef(result.$ref);
+            const targetName = externalRef?.schemaFile === externalSchemaFile ? nameMap.get(externalRef.definitionName) : undefined;
+            if (targetName) {
+                result.$ref = `#/definitions/${targetName}`;
+            }
+        }
+
+        return result;
+    };
+
+    return { schema: rewrite(cloned) as T, inlinedDefinitionNames };
+}
+
+function normalizeDefinitionForComparison(definition: JSONSchema7Definition): unknown {
+    if (Array.isArray(definition)) {
+        return definition.map((item) =>
+            typeof item === "object" && item !== null ? normalizeDefinitionForComparison(item as JSONSchema7Definition) : item
+        );
+    }
+
+    if (!definition || typeof definition !== "object") {
+        return definition;
+    }
+
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(definition as Record<string, unknown>)) {
+        if (key === "description" || key === "markdownDescription" || key === "x-enumDescriptions") {
+            continue;
+        } else if (key === "$ref" && typeof value === "string") {
+            const localRef = parseLocalDefinitionRef(value);
+            result[key] = localRef ? `#/definitions/${localRef}` : value;
+        } else if (Array.isArray(value)) {
+            result[key] = value.map((item) =>
+                typeof item === "object" && item !== null ? normalizeDefinitionForComparison(item as JSONSchema7Definition) : item
+            );
+        } else if (value && typeof value === "object") {
+            result[key] = normalizeDefinitionForComparison(value as JSONSchema7Definition);
+        } else {
+            result[key] = value;
+        }
+    }
+    return result;
+}
+
+function collectLocalDefinitionRefNames(value: unknown): Set<string> {
+    const refs = new Set<string>();
+
+    const visit = (node: unknown): void => {
+        if (!node || typeof node !== "object") return;
+        if (Array.isArray(node)) {
+            for (const item of node) visit(item);
+            return;
+        }
+
+        const record = node as Record<string, unknown>;
+        if (typeof record.$ref === "string") {
+            const localRef = parseLocalDefinitionRef(record.$ref);
+            if (localRef) refs.add(localRef);
+        }
+        for (const child of Object.values(record)) visit(child);
+    };
+
+    visit(value);
+    return refs;
+}
+
+function parseLocalDefinitionRef(ref: string): string | undefined {
+    const match = ref.match(/^#\/(?:definitions|\$defs)\/(.+)$/);
+    return match?.[1];
 }
 
 export function withSharedDefinitions<T extends JSONSchema7>(

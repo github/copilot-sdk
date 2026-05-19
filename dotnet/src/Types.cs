@@ -2,16 +2,52 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Rpc;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using GitHub.Copilot.SDK.Rpc;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Logging;
 
 namespace GitHub.Copilot.SDK;
+
+internal static class GeneratedStringEnumJson
+{
+    internal static string ReadValue(ref Utf8JsonReader reader, Type typeToConvert)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            throw new JsonException($"Expected a string token when reading {typeToConvert.Name}, but found {reader.TokenType}.");
+        }
+
+        var value = reader.GetString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new JsonException($"Expected a non-empty string token when reading {typeToConvert.Name}.");
+        }
+
+        return value!;
+    }
+
+    internal static void WriteValue(Utf8JsonWriter writer, string value, Type typeToConvert)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new JsonException($"Expected a non-empty string value when writing {typeToConvert.Name}.");
+        }
+
+        writer.WriteStringValue(value);
+    }
+}
+
+/// <summary>Diagnostic IDs for the Copilot SDK.</summary>
+internal static class Diagnostics
+{
+    /// <summary>Indicates an experimental API that may change or be removed.</summary>
+    internal const string Experimental = "GHCP001";
+}
 
 /// <summary>
 /// Represents the connection state of the Copilot client.
@@ -59,6 +95,7 @@ public class CopilotClientOptions
         CliPath = other.CliPath;
         CliUrl = other.CliUrl;
         Cwd = other.Cwd;
+        CopilotHome = other.CopilotHome;
         Environment = other.Environment;
         GitHubToken = other.GitHubToken;
         Logger = other.Logger;
@@ -70,6 +107,8 @@ public class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
+        TcpConnectionToken = other.TcpConnectionToken;
+        Remote = other.Remote;
     }
 
     /// <summary>
@@ -85,13 +124,24 @@ public class CopilotClientOptions
     /// </summary>
     public string? Cwd { get; set; }
     /// <summary>
+    /// Base directory for Copilot data (session state, config, etc.).
+    /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned CLI process.
+    /// When <see langword="null"/>, the CLI defaults to <c>~/.copilot</c>.
+    /// This option is only used when the SDK spawns the CLI process; it is ignored
+    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// </summary>
+    public string? CopilotHome { get; set; }
+    /// <summary>
     /// Port number for the CLI server when not using stdio transport.
     /// </summary>
     public int Port { get; set; }
     /// <summary>
     /// Whether to use stdio transport for communication with the CLI server.
+    /// Defaults to <c>true</c> when neither <see cref="CliUrl"/> nor <see cref="Port"/>
+    /// switches the client into TCP mode. Setting this to <c>true</c> is mutually
+    /// exclusive with <see cref="CliUrl"/>.
     /// </summary>
-    public bool UseStdio { get; set; } = true;
+    public bool? UseStdio { get; set; }
     /// <summary>
     /// URL of an existing CLI server to connect to instead of starting a new one.
     /// </summary>
@@ -107,6 +157,7 @@ public class CopilotClientOptions
     /// <summary>
     /// Obsolete. This option has no effect.
     /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("AutoRestart has no effect and will be removed in a future release.")]
     public bool AutoRestart { get; set; }
     /// <summary>
@@ -174,6 +225,22 @@ public class CopilotClientOptions
     /// when connecting to an external server via <see cref="CliUrl"/>.
     /// </summary>
     public int? SessionIdleTimeoutSeconds { get; set; }
+
+    /// <summary>
+    /// Connection token for the headless CLI server (TCP only). When the SDK spawns its own
+    /// CLI in TCP mode and this is omitted, a GUID is generated automatically so the loopback
+    /// listener is safe by default. Cannot be combined with <see cref="UseStdio"/> = true.
+    /// </summary>
+    public string? TcpConnectionToken { get; set; }
+
+    /// <summary>
+    /// Enable remote session support (Mission Control integration).
+    /// When true, sessions in a GitHub repository working directory are
+    /// accessible from GitHub web and mobile.
+    /// This option is only used when the SDK spawns the CLI process; it is ignored
+    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// </summary>
+    public bool Remote { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
@@ -256,6 +323,13 @@ public sealed class SessionFsConfig
     /// Path conventions used by this filesystem provider.
     /// </summary>
     public required SessionFsSetProviderConventions Conventions { get; init; }
+
+    /// <summary>
+    /// Optional capabilities that this filesystem provider supports.
+    /// When <see cref="SessionFsSetProviderCapabilities.Sqlite"/> is <c>true</c>,
+    /// the runtime routes SQLite queries through the provider instead of using a local database file.
+    /// </summary>
+    public SessionFsSetProviderCapabilities? Capabilities { get; init; }
 }
 
 /// <summary>
@@ -471,14 +545,17 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
     public static PermissionRequestResultKind NoResult { get; } = new("no-result");
 
     /// <summary>Deprecated. Use <see cref="Rejected"/> instead.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Use Rejected instead.")]
     public static PermissionRequestResultKind DeniedInteractivelyByUser => Rejected;
 
     /// <summary>Deprecated. Use <see cref="UserNotAvailable"/> instead.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Use UserNotAvailable instead.")]
     public static PermissionRequestResultKind DeniedCouldNotRequestFromUser => UserNotAvailable;
 
     /// <summary>Deprecated. Use <see cref="UserNotAvailable"/> instead.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Use UserNotAvailable instead.")]
     public static PermissionRequestResultKind DeniedByRules => UserNotAvailable;
 
@@ -543,13 +620,13 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
 public class PermissionRequestResult
 {
     /// <summary>
-    /// Permission decision kind.
+    /// Permission decision kind. Use the static members of <see cref="PermissionRequestResultKind"/>
+    /// to construct values. Valid kinds are:
     /// <list type="bullet">
-    /// <item><description><c>"approved"</c> — the operation is allowed.</description></item>
-    /// <item><description><c>"denied-by-rules"</c> — denied by configured permission rules.</description></item>
-    /// <item><description><c>"denied-interactively-by-user"</c> — the user explicitly denied the request.</description></item>
-    /// <item><description><c>"denied-no-approval-rule-and-could-not-request-from-user"</c> — no rule matched and user approval was unavailable.</description></item>
-    /// <item><description><c>"no-result"</c> — leave the pending permission request unanswered.</description></item>
+    /// <item><description><c>"approve-once"</c> (<see cref="PermissionRequestResultKind.Approved"/>) — allow this single request.</description></item>
+    /// <item><description><c>"reject"</c> (<see cref="PermissionRequestResultKind.Rejected"/>) — deny the request.</description></item>
+    /// <item><description><c>"user-not-available"</c> (<see cref="PermissionRequestResultKind.UserNotAvailable"/>) — deny because no user is available to confirm.</description></item>
+    /// <item><description><c>"no-result"</c> (<see cref="PermissionRequestResultKind.NoResult"/>) — leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("kind")]
@@ -639,6 +716,110 @@ public class UserInputInvocation
 /// Handler for user input requests from the agent.
 /// </summary>
 public delegate Task<UserInputResponse> UserInputHandler(UserInputRequest request, UserInputInvocation invocation);
+
+/// <summary>
+/// Request to exit plan mode and continue with a selected action.
+/// </summary>
+public class ExitPlanModeRequest
+{
+    /// <summary>
+    /// Summary of the plan or proposed next step.
+    /// </summary>
+    [JsonPropertyName("summary")]
+    public string Summary { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Full plan content, when available.
+    /// </summary>
+    [JsonPropertyName("planContent")]
+    public string? PlanContent { get; set; }
+
+    /// <summary>
+    /// Available actions the user can select.
+    /// </summary>
+    [JsonPropertyName("actions")]
+    public IList<string> Actions { get => field ??= []; set; }
+
+    /// <summary>
+    /// The action recommended by the runtime.
+    /// </summary>
+    [JsonPropertyName("recommendedAction")]
+    public string RecommendedAction { get; set; } = "autopilot";
+}
+
+/// <summary>
+/// Response to an exit-plan-mode request.
+/// </summary>
+public class ExitPlanModeResult
+{
+    /// <summary>
+    /// Whether the user approved exiting plan mode.
+    /// </summary>
+    [JsonPropertyName("approved")]
+    public bool Approved { get; set; } = true;
+
+    /// <summary>
+    /// Selected action, if the user chose one.
+    /// </summary>
+    [JsonPropertyName("selectedAction")]
+    public string? SelectedAction { get; set; }
+
+    /// <summary>
+    /// Optional feedback provided by the user.
+    /// </summary>
+    [JsonPropertyName("feedback")]
+    public string? Feedback { get; set; }
+}
+
+/// <summary>
+/// Context for an exit-plan-mode request invocation.
+/// </summary>
+public class ExitPlanModeInvocation
+{
+    /// <summary>
+    /// Identifier of the session that triggered the request.
+    /// </summary>
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Handler for exit-plan-mode requests from the agent.
+/// </summary>
+public delegate Task<ExitPlanModeResult> ExitPlanModeHandler(ExitPlanModeRequest request, ExitPlanModeInvocation invocation);
+
+/// <summary>
+/// Request to switch to auto mode after an eligible rate limit.
+/// </summary>
+public class AutoModeSwitchRequest
+{
+    /// <summary>
+    /// The rate-limit error code that triggered the request.
+    /// </summary>
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
+    /// <summary>
+    /// Seconds until the rate limit resets, when known.
+    /// </summary>
+    [JsonPropertyName("retryAfterSeconds")]
+    public double? RetryAfterSeconds { get; set; }
+}
+
+/// <summary>
+/// Context for an auto-mode-switch request invocation.
+/// </summary>
+public class AutoModeSwitchInvocation
+{
+    /// <summary>
+    /// Identifier of the session that triggered the request.
+    /// </summary>
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Handler for auto-mode-switch requests from the agent.
+/// </summary>
+public delegate Task<AutoModeSwitchResponse> AutoModeSwitchHandler(AutoModeSwitchRequest request, AutoModeSwitchInvocation invocation);
 
 // ============================================================================
 // Command Handler Types
@@ -908,6 +1089,12 @@ public class HookInvocation
 public class PreToolUseHookInput
 {
     /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unix timestamp in milliseconds when the tool use was initiated.
     /// </summary>
     [JsonPropertyName("timestamp")]
@@ -984,6 +1171,12 @@ public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(PreToolUseHookInpu
 public class PostToolUseHookInput
 {
     /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unix timestamp in milliseconds when the tool execution completed.
     /// </summary>
     [JsonPropertyName("timestamp")]
@@ -1049,6 +1242,12 @@ public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(PostToolUseHookI
 public class UserPromptSubmittedHookInput
 {
     /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unix timestamp in milliseconds when the prompt was submitted.
     /// </summary>
     [JsonPropertyName("timestamp")]
@@ -1101,6 +1300,12 @@ public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
 /// </summary>
 public class SessionStartHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the session started.
     /// </summary>
@@ -1159,6 +1364,12 @@ public delegate Task<SessionStartHookOutput?> SessionStartHandler(SessionStartHo
 /// </summary>
 public class SessionEndHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the session ended.
     /// </summary>
@@ -1231,6 +1442,12 @@ public delegate Task<SessionEndHookOutput?> SessionEndHandler(SessionEndHookInpu
 /// </summary>
 public class ErrorOccurredHookInput
 {
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>
     /// Unix timestamp in milliseconds when the error occurred.
     /// </summary>
@@ -1508,6 +1725,40 @@ public class ProviderConfig
     /// </summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string>? Headers { get; set; }
+
+    /// <summary>
+    /// Well-known model name used by the runtime to look up agent configuration
+    /// (tools, prompts, reasoning behavior) and default token limits. Also used
+    /// as the wire model when <see cref="WireModel"/> is not set.
+    /// Falls back to <see cref="SessionConfig.Model"/>.
+    /// </summary>
+    [JsonPropertyName("modelId")]
+    public string? ModelId { get; set; }
+
+    /// <summary>
+    /// Model name sent to the provider API for inference. Use this when the
+    /// provider's model name (e.g. an Azure deployment name or a custom
+    /// fine-tune name) differs from <see cref="ModelId"/>.
+    /// Falls back to <see cref="ModelId"/>, then <see cref="SessionConfig.Model"/>.
+    /// </summary>
+    [JsonPropertyName("wireModel")]
+    public string? WireModel { get; set; }
+
+    /// <summary>
+    /// Overrides the resolved model's default max prompt tokens. The runtime
+    /// triggers conversation compaction before sending a request when the
+    /// prompt (system message, history, tool definitions, user message) would
+    /// exceed this limit.
+    /// </summary>
+    [JsonPropertyName("maxPromptTokens")]
+    public int? MaxInputTokens { get; set; }
+
+    /// <summary>
+    /// Overrides the resolved model's default max output tokens. When hit, the
+    /// model stops generating and returns a truncated response.
+    /// </summary>
+    [JsonPropertyName("maxOutputTokens")]
+    public int? MaxOutputTokens { get; set; }
 }
 
 /// <summary>
@@ -1525,6 +1776,21 @@ public class AzureOptions
 // ============================================================================
 // MCP Server Configuration Types
 // ============================================================================
+
+/// <summary>
+/// OAuth grant type for a remote MCP server.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<McpHttpServerConfigOauthGrantType>))]
+public enum McpHttpServerConfigOauthGrantType
+{
+    /// <summary>Use the authorization code OAuth flow.</summary>
+    [JsonStringEnumMemberName("authorization_code")]
+    AuthorizationCode,
+
+    /// <summary>Use the client credentials OAuth flow.</summary>
+    [JsonStringEnumMemberName("client_credentials")]
+    ClientCredentials
+}
 
 /// <summary>
 /// Abstract base class for MCP server configurations.
@@ -1611,6 +1877,24 @@ public sealed class McpHttpServerConfig : McpServerConfig
     /// </summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string>? Headers { get; set; }
+
+    /// <summary>
+    /// Optional OAuth client ID for the remote server.
+    /// </summary>
+    [JsonPropertyName("oauthClientId")]
+    public string? OauthClientId { get; set; }
+
+    /// <summary>
+    /// Whether this is a public OAuth client.
+    /// </summary>
+    [JsonPropertyName("oauthPublicClient")]
+    public bool? OauthPublicClient { get; set; }
+
+    /// <summary>
+    /// Optional OAuth grant type for the remote server.
+    /// </summary>
+    [JsonPropertyName("oauthGrantType")]
+    public McpHttpServerConfigOauthGrantType? OauthGrantType { get; set; }
 }
 
 // ============================================================================
@@ -1673,6 +1957,14 @@ public class CustomAgentConfig
     /// </summary>
     [JsonPropertyName("skills")]
     public IList<string>? Skills { get; set; }
+
+    /// <summary>
+    /// Model identifier for this agent (e.g. "claude-haiku-4.5").
+    /// When set, the runtime will attempt to use this model for the agent,
+    /// falling back to the parent session model if unavailable.
+    /// </summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
 }
 
 /// <summary>
@@ -1721,6 +2013,32 @@ public class InfiniteSessionConfig
 }
 
 /// <summary>
+/// GitHub repository metadata to associate with a cloud session.
+/// </summary>
+public class CloudSessionRepository
+{
+    /// <summary>Repository owner.</summary>
+    public required string Owner { get; set; }
+
+    /// <summary>Repository name.</summary>
+    public required string Name { get; set; }
+
+    /// <summary>Optional branch name.</summary>
+    public string? Branch { get; set; }
+}
+
+/// <summary>
+/// Options for creating a remote session in the cloud.
+/// </summary>
+public class CloudSessionOptions
+{
+    /// <summary>
+    /// Optional GitHub repository metadata to associate with the cloud session.
+    /// </summary>
+    public CloudSessionRepository? Repository { get; set; }
+}
+
+/// <summary>
 /// Configuration options for creating a new Copilot session.
 /// </summary>
 public class SessionConfig
@@ -1757,16 +2075,22 @@ public class SessionConfig
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
+        OnAutoModeSwitch = other.OnAutoModeSwitch;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
+        OnExitPlanMode = other.OnExitPlanMode;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
+        EnableSessionTelemetry = other.EnableSessionTelemetry;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
+        RemoteSession = other.RemoteSession;
+        Cloud = other.Cloud;
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -1822,9 +2146,11 @@ public class SessionConfig
     public bool? EnableConfigDiscovery { get; set; }
 
     /// <summary>
-    /// Custom tool functions available to the language model during the session.
+    /// Custom tool declarations available to the language model during the session.
+    /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
+    /// are left for the client to handle via external tool request events.
     /// </summary>
-    public ICollection<AIFunction>? Tools { get; set; }
+    public ICollection<AIFunctionDeclaration>? Tools { get; set; }
     /// <summary>
     /// System message configuration for the session.
     /// </summary>
@@ -1841,6 +2167,17 @@ public class SessionConfig
     /// Custom model provider configuration for the session.
     /// </summary>
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// Enables or disables internal session telemetry for this session.
+    /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
+    /// telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom <see cref="Provider"/> (BYOK) is configured, session telemetry is
+    /// always disabled regardless of this setting.
+    /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
+    /// OpenTelemetry export for observability.
+    /// </summary>
+    public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
     /// Handler for permission requests from the server.
@@ -1867,6 +2204,18 @@ public class SessionConfig
     /// and report elicitation as a supported capability.
     /// </summary>
     public ElicitationHandler? OnElicitationRequest { get; set; }
+
+    /// <summary>
+    /// Handler for exit-plan-mode requests from the server.
+    /// When provided, the server will route <c>exitPlanMode.request</c> callbacks to this handler.
+    /// </summary>
+    public ExitPlanModeHandler? OnExitPlanMode { get; set; }
+
+    /// <summary>
+    /// Handler for auto-mode-switch requests from the server.
+    /// When provided, the server will route <c>autoModeSwitch.request</c> callbacks to this handler.
+    /// </summary>
+    public AutoModeSwitchHandler? OnAutoModeSwitch { get; set; }
 
     /// <summary>
     /// Hook handlers for session lifecycle events.
@@ -1926,6 +2275,11 @@ public class SessionConfig
     public IList<string>? SkillDirectories { get; set; }
 
     /// <summary>
+    /// Additional directories to search for custom instruction files.
+    /// </summary>
+    public IList<string>? InstructionDirectories { get; set; }
+
+    /// <summary>
     /// List of skill names to disable.
     /// </summary>
     public IList<string>? DisabledSkills { get; set; }
@@ -1960,6 +2314,22 @@ public class SessionConfig
     /// and stores it on the session for content exclusion, model routing, and quota checks.
     /// </summary>
     public string? GitHubToken { get; set; }
+
+    /// <summary>
+    /// Per-session remote behavior control:
+    /// <list type="bullet">
+    /// <item><description><c>"off"</c> — local only, no remote export (default)</description></item>
+    /// <item><description><c>"export"</c> — export session events to GitHub without enabling remote steering</description></item>
+    /// <item><description><c>"on"</c> — export to GitHub AND enable remote steering</description></item>
+    /// </list>
+    /// </summary>
+    public RemoteSessionMode? RemoteSession { get; set; }
+
+    /// <summary>
+    /// Creates a remote session in the cloud instead of a local session.
+    /// The optional repository is associated with the cloud session.
+    /// </summary>
+    public CloudSessionOptions? Cloud { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
@@ -2005,6 +2375,7 @@ public class ResumeSessionConfig
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         DisableResume = other.DisableResume;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        ContinuePendingWork = other.ContinuePendingWork;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -2015,15 +2386,20 @@ public class ResumeSessionConfig
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
+        OnAutoModeSwitch = other.OnAutoModeSwitch;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
+        OnExitPlanMode = other.OnExitPlanMode;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
+        EnableSessionTelemetry = other.EnableSessionTelemetry;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
         GitHubToken = other.GitHubToken;
+        RemoteSession = other.RemoteSession;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -2043,9 +2419,11 @@ public class ResumeSessionConfig
     public string? Model { get; set; }
 
     /// <summary>
-    /// Custom tool functions available to the language model during the resumed session.
+    /// Custom tool declarations available to the language model during the resumed session.
+    /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
+    /// are left for the client to handle via external tool request events.
     /// </summary>
-    public ICollection<AIFunction>? Tools { get; set; }
+    public ICollection<AIFunctionDeclaration>? Tools { get; set; }
 
     /// <summary>
     /// System message configuration.
@@ -2068,6 +2446,17 @@ public class ResumeSessionConfig
     /// Custom model provider configuration for the resumed session.
     /// </summary>
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// Enables or disables internal session telemetry for this session.
+    /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
+    /// telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom <see cref="Provider"/> (BYOK) is configured, session telemetry is
+    /// always disabled regardless of this setting.
+    /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
+    /// OpenTelemetry export for observability.
+    /// </summary>
+    public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
     /// Reasoning effort level for models that support it.
@@ -2107,6 +2496,18 @@ public class ResumeSessionConfig
     public ElicitationHandler? OnElicitationRequest { get; set; }
 
     /// <summary>
+    /// Handler for exit-plan-mode requests from the server.
+    /// When provided, the server will route <c>exitPlanMode.request</c> callbacks to this handler.
+    /// </summary>
+    public ExitPlanModeHandler? OnExitPlanMode { get; set; }
+
+    /// <summary>
+    /// Handler for auto-mode-switch requests from the server.
+    /// When provided, the server will route <c>autoModeSwitch.request</c> callbacks to this handler.
+    /// </summary>
+    public AutoModeSwitchHandler? OnAutoModeSwitch { get; set; }
+
+    /// <summary>
     /// Hook handlers for session lifecycle events.
     /// </summary>
     public SessionHooks? Hooks { get; set; }
@@ -2139,6 +2540,20 @@ public class ResumeSessionConfig
     /// Default: false (resume event is emitted).
     /// </summary>
     public bool DisableResume { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, instructs the runtime to continue any tool calls
+    /// or permission prompts that were still pending when the session was last suspended.
+    /// When <see langword="false"/> (the default), the runtime treats pending work as
+    /// interrupted on resume.
+    /// <para>
+    /// For permission requests, the runtime re-emits <c>permission.requested</c> so the
+    /// registered <see cref="OnPermissionRequest"/> handler can re-prompt; for external
+    /// tool calls, the consumer is expected to supply the result via the corresponding
+    /// low-level RPC method.
+    /// </para>
+    /// </summary>
+    public bool? ContinuePendingWork { get; set; }
 
     /// <summary>
     /// Enable streaming of assistant message and reasoning chunks.
@@ -2188,6 +2603,11 @@ public class ResumeSessionConfig
     public IList<string>? SkillDirectories { get; set; }
 
     /// <summary>
+    /// Additional directories to search for custom instruction files.
+    /// </summary>
+    public IList<string>? InstructionDirectories { get; set; }
+
+    /// <summary>
     /// List of skill names to disable.
     /// </summary>
     public IList<string>? DisabledSkills { get; set; }
@@ -2215,6 +2635,12 @@ public class ResumeSessionConfig
     /// and stores it on the session for content exclusion, model routing, and quota checks.
     /// </summary>
     public string? GitHubToken { get; set; }
+
+    /// <summary>
+    /// Per-session remote behavior control.
+    /// See <see cref="SessionConfig.RemoteSession"/> for details.
+    /// </summary>
+    public RemoteSessionMode? RemoteSession { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.
@@ -2539,7 +2965,7 @@ public class ModelBilling
     /// Billing cost multiplier relative to the base model rate.
     /// </summary>
     [JsonPropertyName("multiplier")]
-    public double Multiplier { get; set; }
+    public double? Multiplier { get; set; }
 }
 
 /// <summary>
@@ -2723,7 +3149,11 @@ public class SystemMessageTransformRpcResponse
     NumberHandling = JsonNumberHandling.AllowReadingFromString,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AzureOptions))]
+[JsonSerializable(typeof(AutoModeSwitchRequest))]
+[JsonSerializable(typeof(AutoModeSwitchResponse))]
 [JsonSerializable(typeof(CustomAgentConfig))]
+[JsonSerializable(typeof(ExitPlanModeRequest))]
+[JsonSerializable(typeof(ExitPlanModeResult))]
 [JsonSerializable(typeof(GetAuthStatusResponse))]
 [JsonSerializable(typeof(GetForegroundSessionResponse))]
 [JsonSerializable(typeof(GetModelsResponse))]
@@ -2739,6 +3169,7 @@ public class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ModelSupports))]
 [JsonSerializable(typeof(ModelVisionLimits))]
 [JsonSerializable(typeof(PermissionRequestResult))]
+[JsonSerializable(typeof(PermissionRequestResultKind))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]

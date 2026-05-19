@@ -561,12 +561,12 @@ const session = await joinSession({
     onPermissionRequest: async (request) => {
         if (request.kind === "shell") {
             // request.fullCommandText has the shell command
-            return { kind: "approved" };
+            return { kind: "approve-once" };
         }
         if (request.kind === "write") {
-            return { kind: "approved" };
+            return { kind: "approve-once" };
         }
-        return { kind: "denied-by-rules" };
+        return { kind: "reject" };
     },
 });
 ```

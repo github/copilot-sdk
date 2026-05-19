@@ -6,25 +6,51 @@ namespace GitHub.Copilot.SDK.Test.Harness;
 
 public static class TestHelper
 {
+    // Default tolerates CLI / replay-proxy cold start on Windows GitHub Actions
+    // runners, where the first test in a fixture can take ~60s before the first
+    // assistant message arrives. Subsequent tests in the same fixture typically
+    // complete in well under a second.
+    private static readonly TimeSpan DefaultEventTimeout = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromMilliseconds(100);
+
     public static async Task<AssistantMessageEvent?> GetFinalAssistantMessageAsync(
         CopilotSession session,
         TimeSpan? timeout = null,
         bool alreadyIdle = false)
     {
         var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
+        // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
+        // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
+        // We complete only once we've observed both, regardless of which path saw which.
+        var stateLock = new object();
         AssistantMessageEvent? finalAssistantMessage = null;
+        bool sawIdle = false;
+
+        void TryComplete()
+        {
+            AssistantMessageEvent? snapshot;
+            bool idle;
+            lock (stateLock)
+            {
+                snapshot = finalAssistantMessage;
+                idle = sawIdle;
+            }
+            if (snapshot != null && idle) tcs.TrySetResult(snapshot);
+        }
 
         using var subscription = session.On(evt =>
         {
             switch (evt)
             {
                 case AssistantMessageEvent msg:
-                    finalAssistantMessage = msg;
+                    lock (stateLock) { finalAssistantMessage = msg; }
+                    TryComplete();
                     break;
-                case SessionIdleEvent when finalAssistantMessage != null:
-                    tcs.TrySetResult(finalAssistantMessage);
+                case SessionIdleEvent:
+                    lock (stateLock) { sawIdle = true; }
+                    TryComplete();
                     break;
                 case SessionErrorEvent error:
                     tcs.TrySetException(new Exception(error.Data.Message ?? "session error"));
@@ -32,7 +58,8 @@ public static class TestHelper
             }
         });
 
-        // Check existing messages
+        // Backfill from already-delivered messages so we don't lose events that arrived
+        // between SendAsync returning and the subscription being installed.
         CheckExistingMessages();
 
         cts.Token.Register(() => tcs.TrySetException(new TimeoutException("Timeout waiting for assistant message")));
@@ -43,8 +70,17 @@ public static class TestHelper
         {
             try
             {
-                var existing = await GetExistingFinalResponseAsync(session, alreadyIdle);
-                if (existing != null) tcs.TrySetResult(existing);
+                var (existingFinal, existingIdle) = await GetExistingMessagesAsync(session, alreadyIdle);
+                lock (stateLock)
+                {
+                    // Preserve a newer message captured by the subscription in the meantime.
+                    if (existingFinal != null && finalAssistantMessage == null)
+                    {
+                        finalAssistantMessage = existingFinal;
+                    }
+                    if (existingIdle) sawIdle = true;
+                }
+                TryComplete();
             }
             catch (Exception ex)
             {
@@ -53,7 +89,7 @@ public static class TestHelper
         }
     }
 
-    private static async Task<AssistantMessageEvent?> GetExistingFinalResponseAsync(CopilotSession session, bool alreadyIdle)
+    private static async Task<(AssistantMessageEvent? Final, bool SawIdle)> GetExistingMessagesAsync(CopilotSession session, bool alreadyIdle)
     {
         var messages = (await session.GetMessagesAsync()).ToList();
 
@@ -64,27 +100,36 @@ public static class TestHelper
         if (error != null) throw new Exception(error.Data.Message ?? "session error");
 
         var idleIdx = alreadyIdle ? currentTurn.Count : currentTurn.FindIndex(m => m is SessionIdleEvent);
-        if (idleIdx == -1) return null;
+        var sawIdle = alreadyIdle || idleIdx >= 0;
 
-        for (var i = idleIdx - 1; i >= 0; i--)
+        // Find the most recent assistant message in the turn (whether idle has arrived or not).
+        var searchEnd = idleIdx >= 0 ? idleIdx : currentTurn.Count;
+        for (var i = searchEnd - 1; i >= 0; i--)
         {
             if (currentTurn[i] is AssistantMessageEvent msg)
-                return msg;
+                return (msg, sawIdle);
         }
 
-        return null;
+        return (null, sawIdle);
     }
 
     public static async Task<T> GetNextEventOfTypeAsync<T>(
         CopilotSession session,
         TimeSpan? timeout = null) where T : SessionEvent
+        => await GetNextEventOfTypeAsync<T>(session, static _ => true, timeout);
+
+    public static async Task<T> GetNextEventOfTypeAsync<T>(
+        CopilotSession session,
+        Func<T, bool> predicate,
+        TimeSpan? timeout = null,
+        string? timeoutDescription = null) where T : SessionEvent
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
         using var subscription = session.On(evt =>
         {
-            if (evt is T matched)
+            if (evt is T matched && predicate(matched))
             {
                 tcs.TrySetResult(matched);
             }
@@ -95,8 +140,76 @@ public static class TestHelper
         });
 
         cts.Token.Register(() => tcs.TrySetException(
-            new TimeoutException($"Timeout waiting for event of type '{typeof(T).Name}'")));
+            new TimeoutException($"Timeout waiting for {timeoutDescription ?? $"event of type '{typeof(T).Name}'"}")));
 
         return await tcs.Task;
     }
+
+    public static Task WaitForConditionAsync(
+        Func<bool> condition,
+        TimeSpan? timeout = null,
+        string? timeoutMessage = null,
+        TimeSpan? pollInterval = null)
+        => WaitForConditionAsync(
+            () => Task.FromResult(condition()),
+            timeout,
+            timeoutMessage,
+            transientExceptionFilter: null,
+            pollInterval);
+
+    public static async Task WaitForConditionAsync(
+        Func<Task<bool>> condition,
+        TimeSpan? timeout = null,
+        string? timeoutMessage = null,
+        Func<Exception, bool>? transientExceptionFilter = null,
+        TimeSpan? pollInterval = null)
+    {
+        using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
+        Exception? lastTransientException = null;
+
+        while (true)
+        {
+            try
+            {
+                if (await condition())
+                {
+                    return;
+                }
+
+                lastTransientException = null;
+            }
+            catch (Exception ex) when (transientExceptionFilter?.Invoke(ex) == true)
+            {
+                lastTransientException = ex;
+            }
+
+            try
+            {
+                await Task.Delay(pollInterval ?? DefaultPollInterval, cts.Token);
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+
+        try
+        {
+            if (await condition())
+            {
+                return;
+            }
+        }
+        catch (Exception ex) when (transientExceptionFilter?.Invoke(ex) == true)
+        {
+            lastTransientException = ex;
+        }
+
+        throw lastTransientException is null
+            ? new TimeoutException(timeoutMessage ?? "Timed out waiting for condition.")
+            : new TimeoutException(timeoutMessage ?? "Timed out waiting for condition.", lastTransientException);
+    }
+
+    public static bool IsTransientFileSystemException(Exception exception)
+        => exception is IOException or UnauthorizedAccessException;
 }

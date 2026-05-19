@@ -11,9 +11,10 @@ import { fileURLToPath } from "url";
 import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
 import { CopilotClient, CopilotClientOptions } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
-import { retry } from "./sdkTestHelper";
+import { formatError, retry } from "./sdkTestHelper";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
+export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,13 +31,33 @@ export async function createSdkTestContext({
     copilotClientOptions?: CopilotClientOptions;
 } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
+    const copilotHomeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-home-")));
     const workDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-work-")));
 
     const openAiEndpoint = new CapiProxy();
     const proxyUrl = await openAiEndpoint.start();
+    await openAiEndpoint.setCopilotUserByToken(DEFAULT_GITHUB_TOKEN, {
+        login: "e2e-test-user",
+        copilot_plan: "individual_pro",
+        endpoints: {
+            api: proxyUrl,
+            telemetry: "https://localhost:1/telemetry",
+        },
+        analytics_tracking_id: "e2e-test-tracking-id",
+    });
+    const authTokenToUse = isCI
+        ? DEFAULT_GITHUB_TOKEN
+        : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN);
+
     const env = {
         ...process.env,
+        ...openAiEndpoint.getProxyEnv(),
         COPILOT_API_URL: proxyUrl,
+        COPILOT_HOME: copilotHomeDir,
+        COPILOT_SDK_AUTH_TOKEN: "",
+        GH_CONFIG_DIR: homeDir,
+        GH_TOKEN: "",
+        GITHUB_TOKEN: "",
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
@@ -50,8 +71,7 @@ export async function createSdkTestContext({
         env,
         logLevel: logLevel || "error",
         cliPath: process.env.COPILOT_CLI_PATH,
-        // Use fake token in CI to allow cached responses without real auth
-        gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+        gitHubToken: authTokenToUse,
         useStdio: useStdio,
         ...copilotClientOptions,
     });
@@ -86,6 +106,7 @@ export async function createSdkTestContext({
     afterAll(async () => {
         await copilotClient.stop();
         await openAiEndpoint.stop(anyTestFailed);
+        await rmDir("remove e2e test copilotHomeDir", copilotHomeDir);
         await rmDir("remove e2e test homeDir", homeDir);
         await rmDir("remove e2e test workDir", workDir);
     });
@@ -103,11 +124,26 @@ function getTrafficCapturePath(testContext: TestContext): string {
     }
 
     // Convert to snake_case for cross-SDK snapshot compatibility
-    const testFileName = basename(testFilePath, suffix).replace(/-/g, "_");
+    // Strip ".e2e" suffix so renamed "xxx.e2e.test.ts" still uses snapshot folder "xxx"
+    let testFileName = basename(testFilePath, suffix).replace(/-/g, "_");
+    if (testFileName.endsWith(".e2e")) {
+        testFileName = testFileName.slice(0, -".e2e".length);
+    }
     const taskNameAsFilename = testContext.task.name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     return join(SNAPSHOTS_DIR, testFileName, `${taskNameAsFilename}.yaml`);
 }
 
-function rmDir(message: string, path: string): Promise<void> {
-    return retry(message, () => rm(path, { recursive: true, force: true }), 5, 2000);
+async function rmDir(message: string, path: string): Promise<void> {
+    // Use longer retries to tolerate Windows holding SQLite session-store.db
+    // open briefly after the CLI subprocess exits. If the temp dir still can't
+    // be removed (e.g. CLI background writer racing with cleanup), warn and
+    // continue rather than failing the whole test run — the OS / CI runner
+    // will reclaim the temp dir on shutdown.
+    try {
+        await retry(message, () => rm(path, { recursive: true, force: true }), 30, 1000);
+    } catch (error) {
+        console.warn(
+            `WARN: ${message} failed; leaving temp dir for OS cleanup: ${formatError(error)}`
+        );
+    }
 }

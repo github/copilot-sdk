@@ -1,13 +1,13 @@
-# Pre-Tool Use Hook
+# Pre-tool use hook
 
 The `onPreToolUse` hook is called **before** a tool executes. Use it to:
 
-- Approve or deny tool execution
-- Modify tool arguments
-- Add context for the tool
-- Suppress tool output from the conversation
+* Approve or deny tool execution
+* Modify tool arguments
+* Add context for the tool
+* Suppress tool output from the conversation
 
-## Hook Signature
+## Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -131,7 +131,7 @@ Return `null` or `undefined` to allow the tool to execute with no changes. Other
 | `additionalContext` | string | Extra context injected into the conversation |
 | `suppressOutput` | boolean | If true, tool output won't appear in conversation |
 
-### Permission Decisions
+### Permission decisions
 
 | Decision | Behavior |
 |----------|----------|
@@ -141,7 +141,7 @@ Return `null` or `undefined` to allow the tool to execute with no changes. Other
 
 ## Examples
 
-### Allow All Tools (Logging Only)
+### Allow all tools (logging only)
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -296,7 +296,7 @@ var session = client.createSession(
 
 </details>
 
-### Block Specific Tools
+### Block specific tools
 
 ```typescript
 const BLOCKED_TOOLS = ["shell", "bash", "write_file", "delete_file"];
@@ -316,7 +316,7 @@ const session = await client.createSession({
 });
 ```
 
-### Modify Tool Arguments
+### Modify tool arguments
 
 ```typescript
 const session = await client.createSession({
@@ -339,7 +339,7 @@ const session = await client.createSession({
 });
 ```
 
-### Restrict File Access to Specific Directories
+### Restrict file access to specific directories
 
 ```typescript
 const ALLOWED_DIRECTORIES = ["/home/user/projects", "/tmp"];
@@ -366,7 +366,7 @@ const session = await client.createSession({
 });
 ```
 
-### Suppress Verbose Tool Output
+### Suppress verbose tool output
 
 ```typescript
 const VERBOSE_TOOLS = ["list_directory", "search_files"];
@@ -383,7 +383,7 @@ const session = await client.createSession({
 });
 ```
 
-### Add Context Based on Tool
+### Add context based on tool
 
 ```typescript
 const session = await client.createSession({
@@ -401,11 +401,11 @@ const session = await client.createSession({
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Always return a decision** - Returning `null` allows the tool, but being explicit with `{ permissionDecision: "allow" }` is clearer.
 
-2. **Provide helpful denial reasons** - When denying, explain why so users understand:
+1. **Provide helpful denial reasons** - When denying, explain why so users understand:
    ```typescript
    return {
      permissionDecision: "deny",
@@ -413,14 +413,14 @@ const session = await client.createSession({
    };
    ```
 
-3. **Be careful with argument modification** - Ensure modified args maintain the expected schema for the tool.
+1. **Be careful with argument modification** - Ensure modified args maintain the expected schema for the tool.
 
-4. **Consider performance** - Pre-tool hooks run synchronously before each tool call. Keep them fast.
+1. **Consider performance** - Pre-tool hooks run synchronously before each tool call. Keep them fast.
 
-5. **Use `suppressOutput` judiciously** - Suppressing output means the model won't see the result, which may affect conversation quality.
+1. **Use `suppressOutput` judiciously** - Suppressing output means the model won't see the result, which may affect conversation quality.
 
-## See Also
+## See also
 
-- [Hooks Overview](./index.md)
-- [Post-Tool Use Hook](./post-tool-use.md)
-- [Debugging Guide](../troubleshooting/debugging.md)
+* [Hooks Overview](./index.md)
+* [Post-Tool Use Hook](./post-tool-use.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

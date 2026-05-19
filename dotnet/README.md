@@ -10,13 +10,18 @@ SDK for programmatic control of GitHub Copilot CLI.
 dotnet add package GitHub.Copilot.SDK
 ```
 
-## Run the Sample
+## Run the Samples
 
 Try the interactive chat sample (from the repo root):
 
 ```bash
-cd dotnet/samples
-dotnet run
+dotnet run --file dotnet/samples/Chat.cs
+```
+
+The manual permission/tool-result resume sample can be run the same way:
+
+```bash
+dotnet run --file dotnet/samples/ManualToolResume.cs
 ```
 
 ## Quick Start
@@ -28,14 +33,14 @@ using GitHub.Copilot.SDK;
 await using var client = new CopilotClient();
 await client.StartAsync();
 
-// Create a session (OnPermissionRequest is required)
+// Create a session (OnPermissionRequest is optional; ApproveAll allows every tool)
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
     OnPermissionRequest = PermissionHandler.ApproveAll,
 });
 
-// Wait for response using session.idle event
+// Wait for the response using the session.idle event
 var done = new TaskCompletionSource();
 
 session.On(evt =>
@@ -75,6 +80,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `LogLevel` - Log level (default: "info")
 - `AutoStart` - Auto-start server (default: true)
 - `Cwd` - Working directory for the CLI process
+- `CopilotHome` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When not set, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `CliUrl`.
 - `Environment` - Environment variables to pass to the CLI process
 - `Logger` - `ILogger` instance for SDK logging
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
@@ -104,14 +110,14 @@ Create a new conversation session.
 - `SessionId` - Custom session ID
 - `Model` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
 - `ReasoningEffort` - Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModelsAsync()` to check which models support this option.
-- `Tools` - Custom tools exposed to the CLI
+- `Tools` - Custom tool declarations exposed to the CLI. Declarations without an invocable `AIFunction` are left pending for manual resolution.
 - `SystemMessage` - System message customization
 - `AvailableTools` - List of tool names to allow
 - `ExcludedTools` - List of tool names to disable
 - `Provider` - Custom API provider configuration (BYOK)
 - `Streaming` - Enable streaming of response chunks (default: false)
 - `InfiniteSessions` - Configure automatic context compaction (see below)
-- `OnPermissionRequest` - **Required.** Handler called before each tool execution to approve or deny it. Use `PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
@@ -121,7 +127,7 @@ Resume an existing session. Returns the session with `WorkspacePath` populated i
 
 **ResumeSessionConfig:**
 
-- `OnPermissionRequest` - **Required.** Handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 
 ##### `PingAsync(string? message = null): Task<PingResponse>`
 
@@ -424,7 +430,7 @@ await client.StopAsync();
 
 ### Tools
 
-You can let the CLI call back into your process when the model needs capabilities you own. Use `AIFunctionFactory.Create` from Microsoft.Extensions.AI for type-safe tool definitions:
+You can let the CLI call back into your process when the model needs capabilities you own. Use `CopilotTool.DefineTool` for type-safe tool definitions:
 
 ```csharp
 using Microsoft.Extensions.AI;
@@ -434,34 +440,39 @@ var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
     Tools = [
-        AIFunctionFactory.Create(
+        CopilotTool.DefineTool(
             async ([Description("Issue identifier")] string id) => {
                 var issue = await FetchIssueAsync(id);
                 return issue;
             },
-            "lookup_issue",
-            "Fetch issue details from our tracker"),
+            factoryOptions: new AIFunctionFactoryOptions
+            {
+                Name = "lookup_issue",
+                Description = "Fetch issue details from our tracker",
+            }),
     ]
 });
 ```
 
-When Copilot invokes `lookup_issue`, the client automatically runs your handler and responds to the CLI. Handlers can return any JSON-serializable value (automatically wrapped), or a `ToolResultAIContent` wrapping a `ToolResultObject` for full control over result metadata.
+When Copilot invokes `lookup_issue`, the client automatically runs your handler and responds to the CLI. Handlers can return any JSON-serializable value (automatically wrapped), or a `ToolResultAIContent` wrapping a `ToolResultObject` for full control over result metadata. Include a `ToolInvocation` parameter in your handler if you need the session ID, tool call ID, tool name, or raw arguments.
 
 #### Overriding Built-in Tools
 
-If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the runtime will return an error unless you explicitly opt in by setting `is_override` in the tool's `AdditionalProperties`. This flag signals that you intend to replace the built-in tool with your custom implementation.
+If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the runtime will return an error unless you explicitly opt in with `CopilotToolOptions.OverridesBuiltInTool`. This flag signals that you intend to replace the built-in tool with your custom implementation.
 
 ```csharp
-var editFile = AIFunctionFactory.Create(
+var editFile = CopilotTool.DefineTool(
     async ([Description("File path")] string path, [Description("New content")] string content) => {
         // your logic
     },
-    "edit_file",
-    "Custom file editor with project-specific validation",
-    new AIFunctionFactoryOptions
+    toolOptions: new CopilotToolOptions
     {
-        AdditionalProperties = new ReadOnlyDictionary<string, object?>(
-            new Dictionary<string, object?> { ["is_override"] = true })
+        OverridesBuiltInTool = true
+    },
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "edit_file",
+        Description = "Custom file editor with project-specific validation",
     });
 
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -473,21 +484,27 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 #### Skipping Permission Prompts
 
-Set `skip_permission` in the tool's `AdditionalProperties` to allow it to execute without triggering a permission prompt:
+Set `CopilotToolOptions.SkipPermission` to allow a tool to execute without triggering a permission prompt:
 
 ```csharp
-var safeLookup = AIFunctionFactory.Create(
+var safeLookup = CopilotTool.DefineTool(
     async ([Description("Lookup ID")] string id) => {
         // your logic
     },
-    "safe_lookup",
-    "A read-only lookup that needs no confirmation",
-    new AIFunctionFactoryOptions
+    toolOptions: new CopilotToolOptions
     {
-        AdditionalProperties = new ReadOnlyDictionary<string, object?>(
-            new Dictionary<string, object?> { ["skip_permission"] = true })
+        SkipPermission = true
+    },
+    factoryOptions: new AIFunctionFactoryOptions
+    {
+        Name = "safe_lookup",
+        Description = "A read-only lookup that needs no confirmation",
     });
 ```
+
+`DefineTool` delegates to `AIFunctionFactory.Create`, so advanced `AIFunctionFactoryOptions` remain available through the overload that accepts both `AIFunctionFactoryOptions` and `CopilotToolOptions`.
+
+If you want to use `AIFunctionFactory.Create` directly, you can set `skip_permission` in the tool's `AdditionalProperties`.
 
 ## Commands
 
@@ -714,7 +731,7 @@ No extra dependencies — uses built-in `System.Diagnostics.Activity`.
 
 ## Permission Handling
 
-An `OnPermissionRequest` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+An `OnPermissionRequest` handler is optional when you create or resume a session. When provided, it is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When omitted, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
 
 ### Approve All (simplest)
 
@@ -757,7 +774,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
         if (request.Kind == "shell")
         {
             // Deny shell commands
-            return new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser };
+            return new PermissionRequestResult { Kind = PermissionRequestResultKind.Rejected };
         }
 
         return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
@@ -767,17 +784,20 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ### Permission Result Kinds
 
-| Value                                                       | Meaning                                                                                                                                                |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PermissionRequestResultKind.Approved`                      | Allow the tool to run                                                                                                                                  |
-| `PermissionRequestResultKind.DeniedInteractivelyByUser`     | User explicitly denied the request                                                                                                                     |
-| `PermissionRequestResultKind.DeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked                                                                                                   |
-| `PermissionRequestResultKind.DeniedByRules`                 | Denied by a policy rule                                                                                                                                |
-| `PermissionRequestResultKind.NoResult`                      | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
+The `Kind` property must be one of the canonical `PermissionRequestResultKind` values. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+
+| Value                                       | Wire value             | Meaning                                                                                                                                                |
+| ------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PermissionRequestResultKind.Approved`      | `"approve-once"`       | Allow this single request                                                                                                                              |
+| `PermissionRequestResultKind.Rejected`      | `"reject"`             | Deny the request                                                                                                                                       |
+| `PermissionRequestResultKind.UserNotAvailable` | `"user-not-available"` | Deny the request because no user is available to confirm it                                                                                            |
+| `PermissionRequestResultKind.NoResult`      | `"no-result"`          | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
+
+> The past-tense names `PermissionRequestResultKind.DeniedInteractivelyByUser`, `PermissionRequestResultKind.DeniedCouldNotRequestFromUser`, and `PermissionRequestResultKind.DeniedByRules` remain as `[Obsolete]` aliases for backward compatibility — prefer the canonical members above in new code.
 
 ### Resuming Sessions
 
-Pass `OnPermissionRequest` when resuming a session too — it is required:
+You may pass `OnPermissionRequest` when resuming a session too:
 
 ```csharp
 var session = await client.ResumeSessionAsync("session-id", new ResumeSessionConfig
@@ -788,7 +808,7 @@ var session = await client.ResumeSessionAsync("session-id", new ResumeSessionCon
 
 ### Per-Tool Skip Permission
 
-To let a specific custom tool bypass the permission prompt entirely, set `skip_permission = true` in the tool's `AdditionalProperties`. See [Skipping Permission Prompts](#skipping-permission-prompts) under Tools.
+To let a specific custom tool bypass the permission prompt entirely, set `SkipPermission = true` in `CopilotToolOptions`. See [Skipping Permission Prompts](#skipping-permission-prompts) under Tools.
 
 ## User Input Requests
 

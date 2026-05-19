@@ -12,6 +12,8 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 )
 
+const defaultGitHubToken = "fake-token-for-e2e-tests"
+
 var (
 	cliPath     string
 	cliPathOnce sync.Once
@@ -59,11 +61,19 @@ func NewTestContext(t *testing.T) *TestContext {
 	if err != nil {
 		t.Fatalf("Failed to create temp home dir: %v", err)
 	}
+	if resolved, err := filepath.EvalSymlinks(homeDir); err == nil {
+		homeDir = resolved
+	}
 
 	workDir, err := os.MkdirTemp("", "copilot-test-work-")
 	if err != nil {
 		os.RemoveAll(homeDir)
 		t.Fatalf("Failed to create temp work dir: %v", err)
+	}
+	// Resolve symlinks (e.g., macOS /var -> /private/var) so paths
+	// match what spawned subprocesses see when they resolve their cwd.
+	if resolved, err := filepath.EvalSymlinks(workDir); err == nil {
+		workDir = resolved
 	}
 
 	proxy := NewCapiProxy()
@@ -72,6 +82,20 @@ func NewTestContext(t *testing.T) *TestContext {
 		os.RemoveAll(homeDir)
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to start proxy: %v", err)
+	}
+	if err := proxy.SetCopilotUserByToken(defaultGitHubToken, map[string]interface{}{
+		"login":        "e2e-test-user",
+		"copilot_plan": "individual_pro",
+		"endpoints": map[string]interface{}{
+			"api":       proxyURL,
+			"telemetry": "https://localhost:1/telemetry",
+		},
+		"analytics_tracking_id": "e2e-test-tracking-id",
+	}); err != nil {
+		proxy.StopWithOptions(true)
+		os.RemoveAll(homeDir)
+		os.RemoveAll(workDir)
+		t.Fatalf("Failed to configure default Copilot user: %v", err)
 	}
 
 	ctx := &TestContext{
@@ -103,8 +127,9 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 		t.Fatal("Failed to get caller information")
 	}
 
-	// Extract test file name: ask_user_test.go -> ask_user
+	// Extract test file name: ask_user_test.go -> ask_user, ask_user_e2e_test.go -> ask_user
 	testFile := strings.TrimSuffix(filepath.Base(callerFile), "_test.go")
+	testFile = strings.TrimSuffix(testFile, "_e2e")
 
 	// Extract and sanitize the subtest name from t.Name()
 	// t.Name() returns "TestAskUser/should_handle_freeform_user_input_response"
@@ -154,8 +179,14 @@ func (c *TestContext) Env() []string {
 	env := os.Environ()
 
 	// Add overrides (later values take precedence in most systems)
+	env = append(env, c.proxy.ProxyEnv()...)
 	env = append(env,
 		"COPILOT_API_URL="+c.ProxyURL,
+		"COPILOT_HOME="+c.HomeDir,
+		"COPILOT_SDK_AUTH_TOKEN="+defaultGitHubToken,
+		"GH_CONFIG_DIR="+c.HomeDir,
+		"GH_TOKEN="+defaultGitHubToken,
+		"GITHUB_TOKEN="+defaultGitHubToken,
 		"XDG_CONFIG_HOME="+c.HomeDir,
 		"XDG_STATE_HOME="+c.HomeDir,
 	)
@@ -175,9 +206,8 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 		opt(options)
 	}
 
-	// Use fake token in CI to allow cached responses without real auth for spawned subprocess clients.
-	if os.Getenv("GITHUB_ACTIONS") == "true" && options.GitHubToken == "" && options.CLIUrl == "" {
-		options.GitHubToken = "fake-token-for-e2e-tests"
+	if options.GitHubToken == "" && options.CLIUrl == "" {
+		options.GitHubToken = defaultGitHubToken
 	}
 
 	return copilot.NewClient(options)

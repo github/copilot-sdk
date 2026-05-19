@@ -1,3 +1,5 @@
+#:project ../src/GitHub.Copilot.SDK.csproj
+
 using GitHub.Copilot.SDK;
 
 await using var client = new CopilotClient();

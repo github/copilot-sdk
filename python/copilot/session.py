@@ -11,19 +11,24 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import logging
 import os
 import pathlib
 import threading
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
+from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
+    ExternalToolTextResultForLlm,
+    HandlePendingToolCallRequest,
     LogRequest,
     ModelSwitchToRequest,
     PermissionDecision,
@@ -31,8 +36,6 @@ from .generated.rpc import (
     PermissionDecisionRequest,
     SessionLogLevel,
     SessionRpc,
-    ToolCallResult,
-    ToolsHandlePendingToolCallRequest,
     UIElicitationRequest,
     UIElicitationResponse,
     UIElicitationResponseAction,
@@ -58,6 +61,9 @@ from .generated.session_events import (
 )
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
+logger = logging.getLogger(__name__)
+
+
 if TYPE_CHECKING:
     from .client import ModelCapabilitiesOverride
     from .session_fs_provider import SessionFsProvider
@@ -73,10 +79,15 @@ ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
 SessionFsConventions = Literal["posix", "windows"]
 
 
+class SessionFsCapabilities(TypedDict, total=False):
+    sqlite: bool
+
+
 class SessionFsConfig(TypedDict):
     initial_cwd: str
     session_state_path: str
     conventions: SessionFsConventions
+    capabilities: NotRequired[SessionFsCapabilities]
 
 
 # ============================================================================
@@ -272,6 +283,45 @@ class UserInputResponse(TypedDict):
 UserInputHandler = Callable[
     [UserInputRequest, dict[str, str]],
     UserInputResponse | Awaitable[UserInputResponse],
+]
+
+
+class ExitPlanModeRequest(TypedDict, total=False):
+    """Request to exit plan mode and continue with a selected action."""
+
+    summary: Required[str]
+    planContent: NotRequired[str]
+    actions: Required[list[str]]
+    recommendedAction: Required[str]
+
+
+class ExitPlanModeResult(TypedDict, total=False):
+    """Response to an exit-plan-mode request."""
+
+    approved: Required[bool]
+    selectedAction: NotRequired[str]
+    feedback: NotRequired[str]
+
+
+ExitPlanModeHandler = Callable[
+    [ExitPlanModeRequest, dict[str, str]],
+    ExitPlanModeResult | Awaitable[ExitPlanModeResult],
+]
+
+
+class AutoModeSwitchRequest(TypedDict, total=False):
+    """Request to switch to auto mode after an eligible rate limit."""
+
+    errorCode: NotRequired[str]
+    retryAfterSeconds: NotRequired[float]
+
+
+AutoModeSwitchResponse = Literal["yes", "yes_always", "no"]
+
+
+AutoModeSwitchHandler = Callable[
+    [AutoModeSwitchRequest, dict[str, str]],
+    AutoModeSwitchResponse | Awaitable[AutoModeSwitchResponse],
 ]
 
 # ============================================================================
@@ -565,16 +615,10 @@ class SessionUiApi:
 # ============================================================================
 
 
-class BaseHookInput(TypedDict):
-    """Base interface for all hook inputs"""
-
-    timestamp: int
-    cwd: str
-
-
 class PreToolUseHookInput(TypedDict):
     """Input for pre-tool-use hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     toolName: str
@@ -600,6 +644,7 @@ PreToolUseHandler = Callable[
 class PostToolUseHookInput(TypedDict):
     """Input for post-tool-use hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     toolName: str
@@ -624,6 +669,7 @@ PostToolUseHandler = Callable[
 class UserPromptSubmittedHookInput(TypedDict):
     """Input for user-prompt-submitted hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     prompt: str
@@ -646,6 +692,7 @@ UserPromptSubmittedHandler = Callable[
 class SessionStartHookInput(TypedDict):
     """Input for session-start hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     source: Literal["startup", "resume", "new"]
@@ -668,6 +715,7 @@ SessionStartHandler = Callable[
 class SessionEndHookInput(TypedDict):
     """Input for session-end hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     reason: Literal["complete", "error", "abort", "timeout", "user_exit"]
@@ -692,6 +740,7 @@ SessionEndHandler = Callable[
 class ErrorOccurredHookInput(TypedDict):
     """Input for error-occurred hook"""
 
+    sessionId: str
     timestamp: int
     cwd: str
     error: str
@@ -773,6 +822,8 @@ class CustomAgentConfig(TypedDict, total=False):
     infer: NotRequired[bool]  # Whether agent is available for model inference
     # Skill names to preload into this agent's context at startup (opt-in; omit for none)
     skills: NotRequired[list[str]]
+    # Model identifier (e.g. "claude-haiku-4.5"); runtime falls back to parent model if unavailable
+    model: NotRequired[str]
 
 
 class DefaultAgentConfig(TypedDict, total=False):
@@ -832,6 +883,24 @@ class ProviderConfig(TypedDict, total=False):
     bearer_token: str
     azure: AzureProviderOptions  # Azure-specific options
     headers: dict[str, str]
+    # Well-known model name used by the runtime to look up agent configuration
+    # (tools, prompts, reasoning behavior) and default token limits. Also used
+    # as the wire model when wire_model is not set.
+    # Falls back to SessionConfig.model.
+    model_id: str
+    # Model name sent to the provider API for inference. Use this when the
+    # provider's model name (e.g. an Azure deployment name or a custom
+    # fine-tune name) differs from model_id.
+    # Falls back to model_id, then SessionConfig.model.
+    wire_model: str
+    # Overrides the resolved model's default max prompt tokens. The runtime
+    # triggers conversation compaction before sending a request when the prompt
+    # (system message, history, tool definitions, user message) would exceed
+    # this limit.
+    max_input_tokens: int
+    # Overrides the resolved model's default max output tokens. When hit, the
+    # model stops generating and returns a truncated response.
+    max_output_tokens: int
 
 
 class SessionConfig(TypedDict, total=False):
@@ -847,12 +916,16 @@ class SessionConfig(TypedDict, total=False):
     reasoning_effort: ReasoningEffort
     tools: list[Tool]
     system_message: SystemMessageConfig  # System message configuration
-    # List of tool names to allow (takes precedence over excluded_tools)
+    # List of tool names to allow. When specified, only these tools will be available.
+    # Applies to the full merged tool catalog (built-in, MCP, and custom tools
+    # registered via tools=). Takes precedence over excluded_tools.
     available_tools: list[str]
-    # List of tool names to disable (ignored if available_tools is set)
+    # List of tool names to disable. Applies to all tools including custom tools
+    # registered via tools=. Ignored if available_tools is set.
     excluded_tools: list[str]
-    # Handler for permission requests from the server
-    on_permission_request: _PermissionHandlerFn
+    # Optional handler for permission requests from the server. When omitted,
+    # requests are surfaced as events and left pending for manual resolution.
+    on_permission_request: _PermissionHandlerFn | None
     # Handler for user input requests from the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
     # Hook handlers for intercepting session lifecycle events
@@ -861,6 +934,12 @@ class SessionConfig(TypedDict, total=False):
     working_directory: str
     # Custom provider configuration (BYOK - Bring Your Own Key)
     provider: ProviderConfig
+    # Enables or disables internal session telemetry for this session. When False,
+    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
+    # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
+    # session telemetry is always disabled regardless of this setting.
+    # This is independent of the client OpenTelemetry configuration.
+    enable_session_telemetry: bool
     # Enable streaming of assistant message and reasoning chunks
     # When True, assistant.message_delta and assistant.reasoning_delta events
     # with delta_content are sent as the response is generated
@@ -888,6 +967,8 @@ class SessionConfig(TypedDict, total=False):
     config_dir: str
     # Directories to load skills from
     skill_directories: list[str]
+    # Additional directories to search for custom instruction files.
+    instruction_directories: list[str]
     # List of skill names to disable
     disabled_skills: list[str]
     # Infinite session configuration for persistent workspaces and automatic compaction.
@@ -905,6 +986,10 @@ class SessionConfig(TypedDict, total=False):
     # Handler for elicitation requests from the server.
     # When provided, the server calls back to this client for form-based UI dialogs.
     on_elicitation_request: ElicitationHandler
+    # Handler for exit-plan-mode requests from the server.
+    on_exit_plan_mode: ExitPlanModeHandler
+    # Handler for auto-mode-switch requests from the server.
+    on_auto_mode_switch: AutoModeSwitchHandler
     # Handler factory for session-scoped sessionFs operations.
     create_session_fs_handler: CreateSessionFsHandler
 
@@ -919,14 +1004,25 @@ class ResumeSessionConfig(TypedDict, total=False):
     model: str
     tools: list[Tool]
     system_message: SystemMessageConfig  # System message configuration
-    # List of tool names to allow (takes precedence over excluded_tools)
+    # List of tool names to allow. When specified, only these tools will be available.
+    # Applies to the full merged tool catalog (built-in, MCP, and custom tools
+    # registered via tools=). Takes precedence over excluded_tools.
     available_tools: list[str]
-    # List of tool names to disable (ignored if available_tools is set)
+    # List of tool names to disable. Applies to all tools including custom tools
+    # registered via tools=. Ignored if available_tools is set.
     excluded_tools: list[str]
     provider: ProviderConfig
+    # Enables or disables internal session telemetry for this session. When False,
+    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
+    # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
+    # session telemetry is always disabled regardless of this setting.
+    # This is independent of the client OpenTelemetry configuration.
+    enable_session_telemetry: bool
     # Reasoning effort level for models that support it.
     reasoning_effort: ReasoningEffort
-    on_permission_request: _PermissionHandlerFn
+    # Optional handler for permission requests from the server. When omitted,
+    # requests are surfaced as events and left pending for manual resolution.
+    on_permission_request: _PermissionHandlerFn | None
     # Handler for user input requestsfrom the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
     # Hook handlers for intercepting session lifecycle events
@@ -955,6 +1051,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     agent: str
     # Directories to load skills from
     skill_directories: list[str]
+    # Additional directories to search for custom instruction files.
+    instruction_directories: list[str]
     # List of skill names to disable
     disabled_skills: list[str]
     # Infinite session configuration for persistent workspaces and automatic compaction.
@@ -962,6 +1060,15 @@ class ResumeSessionConfig(TypedDict, total=False):
     # When True, skips emitting the session.resume event.
     # Useful for reconnecting to a session without triggering resume-related side effects.
     disable_resume: bool
+    # When True, instructs the runtime to continue any tool calls or permission prompts
+    # that were still pending when the session was last suspended. When False (the
+    # default), the runtime treats pending work as interrupted on resume.
+    #
+    # For permission requests, the runtime re-emits ``permission.requested`` so the
+    # registered ``on_permission_request`` handler can re-prompt; for external tool
+    # calls, the consumer is expected to supply the result via the corresponding
+    # low-level RPC method.
+    continue_pending_work: bool
     # Optional event handler registered before the session.resume RPC is issued,
     # ensuring early events are delivered. See SessionConfig.on_event.
     on_event: Callable[[SessionEvent], None]
@@ -969,6 +1076,10 @@ class ResumeSessionConfig(TypedDict, total=False):
     commands: list[CommandDefinition]
     # Handler for elicitation requests from the server.
     on_elicitation_request: ElicitationHandler
+    # Handler for exit-plan-mode requests from the server.
+    on_exit_plan_mode: ExitPlanModeHandler
+    # Handler for auto-mode-switch requests from the server.
+    on_auto_mode_switch: AutoModeSwitchHandler
     # Handler factory for session-scoped sessionFs operations.
     create_session_fs_handler: CreateSessionFsHandler
 
@@ -1031,6 +1142,10 @@ class CopilotSession:
         self._permission_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
         self._user_input_handler_lock = threading.Lock()
+        self._exit_plan_mode_handler: ExitPlanModeHandler | None = None
+        self._exit_plan_mode_handler_lock = threading.Lock()
+        self._auto_mode_switch_handler: AutoModeSwitchHandler | None = None
+        self._auto_mode_switch_handler_lock = threading.Lock()
         self._hooks: SessionHooks | None = None
         self._hooks_lock = threading.Lock()
         self._transform_callbacks: dict[str, SectionTransformFn] | None = None
@@ -1132,8 +1247,18 @@ class CopilotSession:
             params["requestHeaders"] = request_headers
         params.update(get_trace_context())
 
+        rpc_start = time.perf_counter()
         response = await self._client.request("session.send", params)
-        return response["messageId"]
+        message_id = response["messageId"]
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotSession.send completed successfully",
+            rpc_start,
+            session_id=self.session_id,
+            message_id=message_id,
+        )
+        return message_id
 
     async def send_and_wait(
         self,
@@ -1176,16 +1301,34 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(data.content)
         """
+        total_start = time.perf_counter()
         idle_event = asyncio.Event()
         error_event: Exception | None = None
         last_assistant_message: SessionEvent | None = None
+        first_assistant_message_logged = False
 
         def handler(event: SessionEventTypeAlias) -> None:
-            nonlocal last_assistant_message, error_event
+            nonlocal first_assistant_message_logged, last_assistant_message, error_event
             match event.data:
                 case AssistantMessageData():
                     last_assistant_message = event
+                    if not first_assistant_message_logged:
+                        first_assistant_message_logged = True
+                        log_timing(
+                            logger,
+                            logging.DEBUG,
+                            "CopilotSession.send_and_wait first assistant message",
+                            total_start,
+                            session_id=self.session_id,
+                        )
                 case SessionIdleData():
+                    log_timing(
+                        logger,
+                        logging.DEBUG,
+                        "CopilotSession.send_and_wait idle received",
+                        total_start,
+                        session_id=self.session_id,
+                    )
                     idle_event.set()
                 case SessionErrorData() as data:
                     error_event = Exception(f"Session error: {data.message or str(data)}")
@@ -1201,9 +1344,34 @@ class CopilotSession:
             )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)
             if error_event:
+                log_timing(
+                    logger,
+                    logging.WARNING,
+                    "CopilotSession.send_and_wait failed",
+                    total_start,
+                    session_id=self.session_id,
+                    completed_by="error",
+                )
                 raise error_event
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession.send_and_wait complete",
+                total_start,
+                session_id=self.session_id,
+                completed_by="idle",
+                assistant_message_received=last_assistant_message is not None,
+            )
             return last_assistant_message
         except TimeoutError:
+            log_timing(
+                logger,
+                logging.WARNING,
+                "CopilotSession.send_and_wait failed",
+                total_start,
+                session_id=self.session_id,
+                completed_by="timeout",
+            )
             raise TimeoutError(f"Timeout after {timeout}s waiting for session.idle")
         finally:
             unsubscribe()
@@ -1257,6 +1425,7 @@ class CopilotSession:
         Args:
             event: The session event to dispatch to all handlers.
         """
+        dispatch_start = time.perf_counter()
         # Handle broadcast request events (protocol v3) before dispatching to user handlers.
         # Fire-and-forget: the response is sent asynchronously via RPC.
         self._handle_broadcast_event(event)
@@ -1267,8 +1436,16 @@ class CopilotSession:
         for handler in handlers:
             try:
                 handler(event)
-            except Exception as e:
-                print(f"Error in session event handler: {e}")
+            except Exception:
+                logger.error("Unhandled exception in session event handler", exc_info=True)
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotSession._dispatch_event dispatch",
+            dispatch_start,
+            session_id=self.session_id,
+            event_type=event.type,
+        )
 
     def _handle_broadcast_event(self, event: SessionEvent) -> None:
         """Handle broadcast request events by executing local handlers and responding via RPC.
@@ -1298,6 +1475,14 @@ class CopilotSession:
                 )
 
             case PermissionRequestedData() as data:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "CopilotSession._dispatch_event permission request received",
+                        extra={
+                            "session_id": self.session_id,
+                            "event_type": event.type.value,
+                        },
+                    )
                 request_id = data.request_id
                 permission_request = data.permission_request
                 if not request_id or not permission_request:
@@ -1382,9 +1567,20 @@ class CopilotSession:
             )
 
             with trace_context(traceparent, tracestate):
+                handler_start = time.perf_counter()
                 result = handler(invocation)
                 if inspect.isawaitable(result):
                     result = await result
+                log_timing(
+                    logger,
+                    logging.DEBUG,
+                    "CopilotSession._execute_tool_and_respond tool dispatch",
+                    handler_start,
+                    session_id=self.session_id,
+                    request_id=request_id,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                )
 
             tool_result: ToolResult
             if result is None:
@@ -1402,17 +1598,29 @@ class CopilotSession:
             # standard "Failed to execute..." message. Deliberate user-returned
             # failures send the full structured result to preserve metadata.
             if tool_result._from_exception:
+                rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
-                    ToolsHandlePendingToolCallRequest(
+                    HandlePendingToolCallRequest(
                         request_id=request_id,
                         error=tool_result.error,
                     )
                 )
+                log_timing(
+                    logger,
+                    logging.DEBUG,
+                    "CopilotSession._execute_tool_and_respond response sent successfully",
+                    rpc_start,
+                    session_id=self.session_id,
+                    request_id=request_id,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                )
             else:
+                rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
-                    ToolsHandlePendingToolCallRequest(
+                    HandlePendingToolCallRequest(
                         request_id=request_id,
-                        result=ToolCallResult(
+                        result=ExternalToolTextResultForLlm(
                             text_result_for_llm=tool_result.text_result_for_llm,
                             error=tool_result.error,
                             result_type=tool_result.result_type,
@@ -1420,10 +1628,20 @@ class CopilotSession:
                         ),
                     )
                 )
+                log_timing(
+                    logger,
+                    logging.DEBUG,
+                    "CopilotSession._execute_tool_and_respond response sent successfully",
+                    rpc_start,
+                    session_id=self.session_id,
+                    request_id=request_id,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                )
         except Exception as exc:
             try:
                 await self.rpc.tools.handle_pending_tool_call(
-                    ToolsHandlePendingToolCallRequest(
+                    HandlePendingToolCallRequest(
                         request_id=request_id,
                         error=str(exc),
                     )
@@ -1439,9 +1657,18 @@ class CopilotSession:
     ) -> None:
         """Execute a permission handler and respond via RPC."""
         try:
+            handler_start = time.perf_counter()
             result = handler(permission_request, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._execute_permission_and_respond dispatch",
+                handler_start,
+                session_id=self.session_id,
+                request_id=request_id,
+            )
 
             result = cast(PermissionRequestResult, result)
             if result.kind == "no-result":
@@ -1451,11 +1678,20 @@ class CopilotSession:
                 kind=PermissionDecisionKind(result.kind),
             )
 
+            rpc_start = time.perf_counter()
             await self.rpc.permissions.handle_pending_permission_request(
                 PermissionDecisionRequest(
                     request_id=request_id,
                     result=perm_result,
                 )
+            )
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._execute_permission_and_respond response sent successfully",
+                rpc_start,
+                session_id=self.session_id,
+                request_id=request_id,
             )
         except Exception:
             try:
@@ -1500,11 +1736,31 @@ class CopilotSession:
                 command_name=command_name,
                 args=args,
             )
+            handler_start = time.perf_counter()
             result = handler(ctx)
             if inspect.isawaitable(result):
                 await result
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._execute_command_and_respond dispatch",
+                handler_start,
+                session_id=self.session_id,
+                request_id=request_id,
+                command_name=command_name,
+            )
+            rpc_start = time.perf_counter()
             await self.rpc.commands.handle_pending_command(
                 CommandsHandlePendingCommandRequest(request_id=request_id)
+            )
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._execute_command_and_respond response sent successfully",
+                rpc_start,
+                session_id=self.session_id,
+                request_id=request_id,
+                command_name=command_name,
             )
         except Exception as exc:
             message = str(exc)
@@ -1533,20 +1789,38 @@ class CopilotSession:
         if not handler:
             return
         try:
+            handler_start = time.perf_counter()
             result = handler(context)
             if inspect.isawaitable(result):
                 result = await result
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._handle_elicitation_request dispatch",
+                handler_start,
+                session_id=self.session_id,
+                request_id=request_id,
+            )
             result = cast(ElicitationResult, result)
             action_val = result.get("action", "cancel")
             rpc_result = UIElicitationResponse(
                 action=UIElicitationResponseAction(action_val),
                 content=result.get("content"),
             )
+            rpc_start = time.perf_counter()
             await self.rpc.ui.handle_pending_elicitation(
                 UIHandlePendingElicitationRequest(
                     request_id=request_id,
                     result=rpc_result,
                 )
+            )
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._handle_elicitation_request response sent successfully",
+                rpc_start,
+                session_id=self.session_id,
+                request_id=request_id,
             )
         except Exception:
             # Handler failed — attempt to cancel so the request doesn't hang
@@ -1594,6 +1868,16 @@ class CopilotSession:
         with self._elicitation_handler_lock:
             self._elicitation_handler = handler
 
+    def _register_exit_plan_mode_handler(self, handler: ExitPlanModeHandler | None) -> None:
+        """Register the exit-plan-mode handler for this session."""
+        with self._exit_plan_mode_handler_lock:
+            self._exit_plan_mode_handler = handler
+
+    def _register_auto_mode_switch_handler(self, handler: AutoModeSwitchHandler | None) -> None:
+        """Register the auto-mode-switch handler for this session."""
+        with self._auto_mode_switch_handler_lock:
+            self._auto_mode_switch_handler = handler
+
     def _set_capabilities(self, capabilities: SessionCapabilities | None) -> None:
         """Set the host capabilities for this session.
 
@@ -1606,8 +1890,8 @@ class CopilotSession:
         """
         Register custom tool handlers for this session.
 
-        Tools allow the assistant to execute custom functions. When the assistant
-        invokes a tool, the corresponding handler is called with the tool arguments.
+        Tools with handlers allow the assistant to execute custom functions automatically.
+        Declaration-only tools are surfaced as events and left pending for the consumer.
 
         Note:
             This method is internal. Tools are typically registered when creating
@@ -1683,12 +1967,25 @@ class CopilotSession:
             return PermissionRequestResult()
 
         try:
+            handler_start = time.perf_counter()
             result = handler(request, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._handle_permission_request dispatch",
+                handler_start,
+                session_id=self.session_id,
+            )
             return cast(PermissionRequestResult, result)
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission
+            logger.debug(
+                "Error handling permission request",
+                extra={"session_id": self.session_id},
+                exc_info=True,
+            )
             return PermissionRequestResult()
 
     def _register_user_input_handler(self, handler: UserInputHandler | None) -> None:
@@ -1728,6 +2025,7 @@ class CopilotSession:
             raise RuntimeError("User input requested but no handler registered")
 
         try:
+            handler_start = time.perf_counter()
             result = handler(
                 UserInputRequest(
                     question=request.get("question", ""),
@@ -1738,9 +2036,72 @@ class CopilotSession:
             )
             if inspect.isawaitable(result):
                 result = await result
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._handle_user_input_request dispatch",
+                handler_start,
+                session_id=self.session_id,
+            )
             return cast(UserInputResponse, result)
         except Exception:
             raise
+
+    async def _handle_exit_plan_mode_request(self, request: dict) -> ExitPlanModeResult:
+        """Handle an exitPlanMode.request callback from the runtime."""
+        with self._exit_plan_mode_handler_lock:
+            handler = self._exit_plan_mode_handler
+
+        if not handler:
+            return {"approved": True}
+
+        handler_start = time.perf_counter()
+        typed_request = ExitPlanModeRequest(
+            summary=request.get("summary", ""),
+            actions=request.get("actions") or [],
+            recommendedAction=request.get("recommendedAction", "autopilot"),
+        )
+        if request.get("planContent") is not None:
+            typed_request["planContent"] = request["planContent"]
+
+        result = handler(typed_request, {"session_id": self.session_id})
+        if inspect.isawaitable(result):
+            result = await result
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotSession._handle_exit_plan_mode_request dispatch",
+            handler_start,
+            session_id=self.session_id,
+        )
+        return cast(ExitPlanModeResult, result)
+
+    async def _handle_auto_mode_switch_request(self, request: dict) -> AutoModeSwitchResponse:
+        """Handle an autoModeSwitch.request callback from the runtime."""
+        with self._auto_mode_switch_handler_lock:
+            handler = self._auto_mode_switch_handler
+
+        if not handler:
+            return "no"
+
+        handler_start = time.perf_counter()
+        typed_request = AutoModeSwitchRequest()
+        if request.get("errorCode") is not None:
+            typed_request["errorCode"] = request["errorCode"]
+        if request.get("retryAfterSeconds") is not None:
+            typed_request["retryAfterSeconds"] = request["retryAfterSeconds"]
+
+        result = handler(typed_request, {"session_id": self.session_id})
+        if inspect.isawaitable(result):
+            result = await result
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotSession._handle_auto_mode_switch_request dispatch",
+            handler_start,
+            session_id=self.session_id,
+        )
+        return result
 
     def _register_transform_callbacks(
         self, callbacks: dict[str, SectionTransformFn] | None
@@ -1770,6 +2131,7 @@ class CopilotSession:
         self, sections: dict[str, dict[str, str]]
     ) -> dict[str, dict[str, dict[str, str]]]:
         """Handle a systemMessage.transform request from the runtime."""
+        transform_start = time.perf_counter()
         with self._transform_callbacks_lock:
             callbacks = self._transform_callbacks
 
@@ -1787,6 +2149,13 @@ class CopilotSession:
                     result[section_id] = {"content": content}
             else:
                 result[section_id] = {"content": content}
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotSession._handle_system_message_transform dispatch",
+            transform_start,
+            session_id=self.session_id,
+        )
         return {"sections": result}
 
     async def _handle_hooks_invoke(self, hook_type: str, input_data: Any) -> Any:
@@ -1823,12 +2192,26 @@ class CopilotSession:
             return None
 
         try:
+            handler_start = time.perf_counter()
             result = handler(input_data, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotSession._handle_hooks_invoke dispatch",
+                handler_start,
+                session_id=self.session_id,
+                hook_type=hook_type,
+            )
             return result
         except Exception:  # pylint: disable=broad-except
             # Hook failed, return None
+            logger.warning(
+                "Hook handler failed",
+                extra={"session_id": self.session_id, "hook_type": hook_type},
+                exc_info=True,
+            )
             return None
 
     async def get_messages(self) -> list[SessionEvent]:
@@ -1901,6 +2284,10 @@ class CopilotSession:
                 self._command_handlers.clear()
             with self._elicitation_handler_lock:
                 self._elicitation_handler = None
+            with self._exit_plan_mode_handler_lock:
+                self._exit_plan_mode_handler = None
+            with self._auto_mode_switch_handler_lock:
+                self._auto_mode_switch_handler = None
 
     async def destroy(self) -> None:
         """

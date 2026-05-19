@@ -10,6 +10,8 @@ import pytest
 
 from copilot import CopilotClient, define_tool
 from copilot.client import (
+    CloudSessionOptions,
+    CloudSessionRepository,
     ExternalServerConfig,
     ModelCapabilities,
     ModelInfo,
@@ -21,24 +23,24 @@ from copilot.session import PermissionHandler, PermissionRequestResult
 from e2e.testharness import CLI_PATH
 
 
-class TestPermissionHandlerRequired:
+class TestPermissionHandlerOptional:
     @pytest.mark.asyncio
-    async def test_create_session_raises_without_permission_handler(self):
+    async def test_create_session_allows_missing_permission_handler(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
         try:
-            with pytest.raises(TypeError, match="on_permission_request"):
-                await client.create_session()  # type: ignore[call-arg]
+            session = await client.create_session()
+            assert session.session_id
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_create_session_raises_with_none_permission_handler(self):
+    async def test_create_session_allows_none_permission_handler(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
         try:
-            with pytest.raises(ValueError, match="on_permission_request handler is required"):
-                await client.create_session(on_permission_request=None)  # type: ignore[arg-type]
+            session = await client.create_session(on_permission_request=None)
+            assert session.session_id
         finally:
             await client.force_stop()
 
@@ -63,15 +65,52 @@ class TestPermissionHandlerRequired:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_resume_session_raises_without_permission_handler(self):
+    async def test_resume_session_allows_none_permission_handler(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
         try:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all
             )
-            with pytest.raises(ValueError, match="on_permission_request.*is required"):
-                await client.resume_session(session.session_id, on_permission_request=None)
+            resumed = await client.resume_session(session.session_id, on_permission_request=None)
+            assert resumed.session_id == session.session_id
+        finally:
+            await client.force_stop()
+
+
+class TestCreateSessionConfig:
+    @pytest.mark.asyncio
+    async def test_create_session_forwards_cloud_options(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                cloud=CloudSessionOptions(
+                    repository=CloudSessionRepository(
+                        owner="github",
+                        name="copilot-sdk",
+                        branch="main",
+                    )
+                ),
+            )
+
+            assert captured["session.create"]["cloud"] == {
+                "repository": {
+                    "owner": "github",
+                    "name": "copilot-sdk",
+                    "branch": "main",
+                }
+            }
         finally:
             await client.force_stop()
 
@@ -222,6 +261,29 @@ class TestSessionIdleTimeoutSeconds:
         assert client._config.session_idle_timeout_seconds is None
 
 
+class TestCopilotHome:
+    def test_accepts_copilot_home(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                copilot_home="/custom/copilot/home",
+                log_level="error",
+            )
+        )
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.copilot_home == "/custom/copilot/home"
+
+    def test_default_copilot_home_is_none(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                log_level="error",
+            )
+        )
+        assert isinstance(client._config, SubprocessConfig)
+        assert client._config.copilot_home is None
+
+
 class TestOverridesBuiltInTool:
     @pytest.mark.asyncio
     async def test_overrides_built_in_tool_sent_in_tool_definition(self):
@@ -284,6 +346,64 @@ class TestOverridesBuiltInTool:
             tool_defs = captured["session.resume"]["tools"]
             assert len(tool_defs) == 1
             assert tool_defs[0]["overridesBuiltInTool"] is True
+        finally:
+            await client.force_stop()
+
+
+class TestInstructionDirectories:
+    @pytest.mark.asyncio
+    async def test_create_session_sends_instruction_directories(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                instruction_directories=["C:\\extra-instructions", "C:\\more-instructions"],
+            )
+
+            assert captured["session.create"]["instructionDirectories"] == [
+                "C:\\extra-instructions",
+                "C:\\more-instructions",
+            ]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_sends_instruction_directories(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+
+            await client.resume_session(
+                "session-id",
+                on_permission_request=PermissionHandler.approve_all,
+                instruction_directories=["C:\\resume-instructions"],
+            )
+
+            assert captured["session.resume"]["instructionDirectories"] == [
+                "C:\\resume-instructions"
+            ]
         finally:
             await client.force_stop()
 
@@ -463,6 +583,57 @@ class TestSessionConfigForwarding:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_session_forwards_enable_session_telemetry(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                enable_session_telemetry=False,
+            )
+            assert captured["session.create"]["enableSessionTelemetry"] is False
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_forwards_enable_session_telemetry(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                enable_session_telemetry=False,
+            )
+            assert captured["session.resume"]["enableSessionTelemetry"] is False
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_session_forwards_provider_headers(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
@@ -483,12 +654,20 @@ class TestSessionConfigForwarding:
                 provider={
                     "base_url": "https://example.com/provider",
                     "headers": {"Authorization": "Bearer provider-token"},
+                    "model_id": "gpt-4o",
+                    "wire_model": "my-finetune-v3",
+                    "max_input_tokens": 100_000,
+                    "max_output_tokens": 4096,
                 },
             )
 
             provider = captured["session.create"]["provider"]
             assert provider["baseUrl"] == "https://example.com/provider"
             assert provider["headers"] == {"Authorization": "Bearer provider-token"}
+            assert provider["modelId"] == "gpt-4o"
+            assert provider["wireModel"] == "my-finetune-v3"
+            assert provider["maxPromptTokens"] == 100_000
+            assert provider["maxOutputTokens"] == 4096
         finally:
             await client.force_stop()
 
@@ -518,12 +697,20 @@ class TestSessionConfigForwarding:
                 provider={
                     "base_url": "https://example.com/provider",
                     "headers": {"Authorization": "Bearer resume-token"},
+                    "model_id": "gpt-4o",
+                    "wire_model": "my-finetune-v3",
+                    "max_input_tokens": 100_000,
+                    "max_output_tokens": 4096,
                 },
             )
 
             provider = captured["session.resume"]["provider"]
             assert provider["baseUrl"] == "https://example.com/provider"
             assert provider["headers"] == {"Authorization": "Bearer resume-token"}
+            assert provider["modelId"] == "gpt-4o"
+            assert provider["wireModel"] == "my-finetune-v3"
+            assert provider["maxPromptTokens"] == 100_000
+            assert provider["maxOutputTokens"] == 4096
         finally:
             await client.force_stop()
 
@@ -717,6 +904,63 @@ class TestSessionConfigForwarding:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_resume_session_forwards_continue_pending_work(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured: dict = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                continue_pending_work=True,
+            )
+            assert captured["session.resume"]["continuePendingWork"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_omits_continue_pending_work_by_default(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured: dict = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "continuePendingWork" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_set_model_sends_correct_rpc(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
@@ -777,3 +1021,34 @@ class TestCopilotSessionContextManager:
         with patch.object(session, "disconnect", new_callable=AsyncMock) as mock_disconnect:
             await session.__aexit__(None, None, None)
             mock_disconnect.assert_awaited_once()
+
+
+class TestCustomAgentWireFormat:
+    def test_model_field_is_forwarded_in_wire_format(self):
+        """The model key in CustomAgentConfig should appear as 'model' in the wire payload."""
+        from copilot.client import CopilotClient
+        from copilot.session import CustomAgentConfig
+
+        client = CopilotClient.__new__(CopilotClient)
+        agent: CustomAgentConfig = {
+            "name": "model-agent",
+            "prompt": "You are a model agent.",
+            "model": "claude-haiku-4.5",
+        }
+        wire = client._convert_custom_agent_to_wire_format(agent)
+        assert wire["model"] == "claude-haiku-4.5"
+        assert wire["name"] == "model-agent"
+        assert wire["prompt"] == "You are a model agent."
+
+    def test_model_field_is_omitted_when_absent(self):
+        """When model is not set, it should not appear in the wire payload."""
+        from copilot.client import CopilotClient
+        from copilot.session import CustomAgentConfig
+
+        client = CopilotClient.__new__(CopilotClient)
+        agent: CustomAgentConfig = {
+            "name": "no-model-agent",
+            "prompt": "You are an agent without a model.",
+        }
+        wire = client._convert_custom_agent_to_wire_format(agent)
+        assert "model" not in wire

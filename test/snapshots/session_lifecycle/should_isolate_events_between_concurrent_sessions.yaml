@@ -1,0 +1,17 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say 'session_one_response'.
+      - role: assistant
+        content: session_one_response
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say 'session_two_response'.
+      - role: assistant
+        content: session_two_response

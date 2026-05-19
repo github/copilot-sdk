@@ -1,0 +1,326 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+using GitHub.Copilot.SDK.Test.Harness;
+using Xunit;
+
+namespace GitHub.Copilot.SDK.Test.E2E;
+
+// These tests bypass E2ETestBase because they are about how the CLI subprocess is started
+// Other test classes should instead inherit from E2ETestBase
+public class ClientE2ETests
+{
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Start_And_Connect_To_Server(bool useStdio)
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+
+        try
+        {
+            await client.StartAsync();
+            Assert.Equal(ConnectionState.Connected, client.State);
+
+            var pong = await client.PingAsync("test message");
+            Assert.Equal("pong: test message", pong.Message);
+            Assert.True(pong.Timestamp >= 0);
+
+            await client.StopAsync();
+            Assert.Equal(ConnectionState.Disconnected, client.State);
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Force_Stop_Without_Cleanup(bool useStdio)
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+
+        await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+        await client.ForceStopAsync();
+
+        Assert.Equal(ConnectionState.Disconnected, client.State);
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Get_Status_With_Version_And_Protocol_Info(bool useStdio)
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+
+        try
+        {
+            await client.StartAsync();
+
+            var status = await client.GetStatusAsync();
+            Assert.NotNull(status.Version);
+            Assert.NotEmpty(status.Version);
+            Assert.True(status.ProtocolVersion >= 1);
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Get_Auth_Status(bool useStdio)
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+
+        try
+        {
+            await client.StartAsync();
+
+            var authStatus = await client.GetAuthStatusAsync();
+            // isAuthenticated is a bool, just verify we got a response
+            if (authStatus.IsAuthenticated)
+            {
+                Assert.NotNull(authStatus.AuthType);
+                Assert.NotNull(authStatus.StatusMessage);
+            }
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_List_Models_When_Authenticated(bool useStdio)
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+
+        try
+        {
+            await client.StartAsync();
+
+            var authStatus = await client.GetAuthStatusAsync();
+            if (!authStatus.IsAuthenticated)
+            {
+                // Skip if not authenticated - models.list requires auth
+                await client.StopAsync();
+                return;
+            }
+
+            var models = await client.ListModelsAsync();
+            Assert.NotNull(models);
+            if (models.Count > 0)
+            {
+                var model = models[0];
+                Assert.NotNull(model.Id);
+                Assert.NotEmpty(model.Id);
+                Assert.NotNull(model.Name);
+                Assert.NotNull(model.Capabilities);
+            }
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client(bool useStdio)
+    {
+        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+
+        await client.StopAsync();
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Report_Error_With_Stderr_When_CLI_Fails_To_Start(bool useStdio)
+    {
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            CliArgs = ["--nonexistent-flag-for-testing"],
+            UseStdio = useStdio
+        });
+
+        var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
+
+        var errorMessage = ex.Message;
+        // Verify we get the stderr output in the error message
+        Assert.Contains("stderr", errorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("nonexistent", errorMessage, StringComparison.OrdinalIgnoreCase);
+
+        // Verify subsequent calls also fail (don't hang)
+        var ex2 = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+            await session.SendAsync(new MessageOptions { Prompt = "test" });
+        });
+        Assert.Contains("exited", ex2.Message, StringComparison.OrdinalIgnoreCase);
+
+        // Cleanup - ForceStop should handle the disconnected state gracefully
+        try { await client.ForceStopAsync(); } catch (Exception) { /* Expected */ }
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task Should_Allow_CreateSession_Called_Without_PermissionHandler(bool useStdio)
+    {
+        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+
+        Assert.NotNull(session.SessionId);
+    }
+
+    [Fact]
+    public async Task Should_Allow_ResumeSession_Called_Without_PermissionHandler()
+    {
+        const string connectionToken = "client-e2e-resume-token";
+
+        await using var ctx = await E2ETestContext.CreateAsync();
+        await using var client = ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
+        {
+            TcpConnectionToken = connectionToken,
+        });
+        await using var originalSession = await client.CreateSessionAsync(new SessionConfig());
+
+        var port = client.ActualPort
+            ?? throw new InvalidOperationException("Client must be using TCP transport to support multi-client resume.");
+
+        await using var resumeClient = ctx.CreateClient(options: new CopilotClientOptions
+        {
+            CliUrl = $"localhost:{port}",
+            TcpConnectionToken = connectionToken,
+        });
+        await using var resumedSession = await resumeClient.ResumeSessionAsync(originalSession.SessionId, new());
+
+        Assert.Equal(originalSession.SessionId, resumedSession.SessionId);
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task ListModels_WithCustomHandler_CallsHandler(bool useStdio)
+    {
+        IList<ModelInfo> customModels = new List<ModelInfo>
+        {
+            new()
+            {
+                Id = "my-custom-model",
+                Name = "My Custom Model",
+                Capabilities = new ModelCapabilities
+                {
+                    Supports = new ModelSupports { Vision = false, ReasoningEffort = false },
+                    Limits = new ModelLimits { MaxContextWindowTokens = 128000 }
+                }
+            }
+        };
+
+        var callCount = 0;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            UseStdio = useStdio,
+            OnListModels = (ct) =>
+            {
+                callCount++;
+                return Task.FromResult(customModels);
+            }
+        });
+        await client.StartAsync();
+
+        var models = await client.ListModelsAsync();
+        Assert.Equal(1, callCount);
+        Assert.Single(models);
+        Assert.Equal("my-custom-model", models[0].Id);
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task ListModels_WithCustomHandler_CachesResults(bool useStdio)
+    {
+        IList<ModelInfo> customModels = new List<ModelInfo>
+        {
+            new()
+            {
+                Id = "cached-model",
+                Name = "Cached Model",
+                Capabilities = new ModelCapabilities
+                {
+                    Supports = new ModelSupports { Vision = false, ReasoningEffort = false },
+                    Limits = new ModelLimits { MaxContextWindowTokens = 128000 }
+                }
+            }
+        };
+
+        var callCount = 0;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            UseStdio = useStdio,
+            OnListModels = (ct) =>
+            {
+                callCount++;
+                return Task.FromResult(customModels);
+            }
+        });
+        await client.StartAsync();
+
+        await client.ListModelsAsync();
+        await client.ListModelsAsync();
+        Assert.Equal(1, callCount); // Only called once due to caching
+    }
+
+    [Theory]
+    [InlineData(true)]   // stdio transport
+    [InlineData(false)]  // TCP transport
+    public async Task ListModels_WithCustomHandler_WorksWithoutStart(bool useStdio)
+    {
+        IList<ModelInfo> customModels = new List<ModelInfo>
+        {
+            new()
+            {
+                Id = "no-start-model",
+                Name = "No Start Model",
+                Capabilities = new ModelCapabilities
+                {
+                    Supports = new ModelSupports { Vision = false, ReasoningEffort = false },
+                    Limits = new ModelLimits { MaxContextWindowTokens = 128000 }
+                }
+            }
+        };
+
+        var callCount = 0;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            UseStdio = useStdio,
+            OnListModels = (ct) =>
+            {
+                callCount++;
+                return Task.FromResult(customModels);
+            }
+        });
+
+        var models = await client.ListModelsAsync();
+        Assert.Equal(1, callCount);
+        Assert.Single(models);
+        Assert.Equal("no-start-model", models[0].Id);
+    }
+}

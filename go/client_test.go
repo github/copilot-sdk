@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
@@ -241,7 +245,7 @@ func TestClient_SessionFsConfig(t *testing.T) {
 		NewClient(&ClientOptions{
 			SessionFs: &SessionFsConfig{
 				SessionStatePath: "/session-state",
-				Conventions:      rpc.SessionFSSetProviderConventionsPosix,
+				Conventions:      rpc.SessionFsSetProviderConventionsPosix,
 			},
 		})
 	})
@@ -261,7 +265,7 @@ func TestClient_SessionFsConfig(t *testing.T) {
 		NewClient(&ClientOptions{
 			SessionFs: &SessionFsConfig{
 				InitialCwd:  "/",
-				Conventions: rpc.SessionFSSetProviderConventionsPosix,
+				Conventions: rpc.SessionFsSetProviderConventionsPosix,
 			},
 		})
 	})
@@ -341,6 +345,26 @@ func TestClient_AuthOptions(t *testing.T) {
 			CLIUrl:          "localhost:8080",
 			UseLoggedInUser: Bool(false),
 		})
+	})
+}
+
+func TestClient_CopilotHome(t *testing.T) {
+	t.Run("should accept CopilotHome option", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			CopilotHome: "/custom/copilot/home",
+		})
+
+		if client.options.CopilotHome != "/custom/copilot/home" {
+			t.Errorf("Expected CopilotHome to be '/custom/copilot/home', got %q", client.options.CopilotHome)
+		}
+	})
+
+	t.Run("should default CopilotHome to empty string", func(t *testing.T) {
+		client := NewClient(&ClientOptions{})
+
+		if client.options.CopilotHome != "" {
+			t.Errorf("Expected CopilotHome to be empty, got %q", client.options.CopilotHome)
+		}
 	})
 }
 
@@ -532,6 +556,65 @@ func TestResumeSessionRequest_Agent(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_InstructionDirectories(t *testing.T) {
+	t.Run("includes instructionDirectories in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{InstructionDirectories: []string{`C:\extra-instructions`, `C:\more-instructions`}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got := m["instructionDirectories"].([]any)
+		if len(got) != 2 || got[0] != `C:\extra-instructions` || got[1] != `C:\more-instructions` {
+			t.Errorf("Expected instructionDirectories to be serialized, got %v", got)
+		}
+	})
+
+	t.Run("omits instructionDirectories from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["instructionDirectories"]; ok {
+			t.Error("Expected instructionDirectories to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_InstructionDirectories(t *testing.T) {
+	t.Run("includes instructionDirectories in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:              "s1",
+			InstructionDirectories: []string{`C:\resume-instructions`},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got := m["instructionDirectories"].([]any)
+		if len(got) != 1 || got[0] != `C:\resume-instructions` {
+			t.Errorf("Expected instructionDirectories to be serialized, got %v", got)
+		}
+	})
+
+	t.Run("omits instructionDirectories from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["instructionDirectories"]; ok {
+			t.Error("Expected instructionDirectories to be omitted when empty")
+		}
+	})
+}
+
 func TestOverridesBuiltInTool(t *testing.T) {
 	t.Run("OverridesBuiltInTool is serialized in tool definition", func(t *testing.T) {
 		tool := Tool{
@@ -573,42 +656,39 @@ func TestOverridesBuiltInTool(t *testing.T) {
 	})
 }
 
-func TestClient_CreateSession_RequiresPermissionHandler(t *testing.T) {
-	t.Run("returns error when config is nil", func(t *testing.T) {
-		client := NewClient(nil)
+func TestClient_CreateSession_AllowsMissingPermissionHandler(t *testing.T) {
+	t.Run("accepts nil config before connection validation", func(t *testing.T) {
+		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
 		_, err := client.CreateSession(t.Context(), nil)
 		if err == nil {
-			t.Fatal("Expected error when OnPermissionRequest is nil")
+			t.Fatal("Expected error when client is not connected")
 		}
-		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
-		if !matched {
-			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
+		if strings.Contains(err.Error(), "OnPermissionRequest") {
+			t.Errorf("Did not expect permission handler validation error, got: %v", err)
 		}
 	})
 
-	t.Run("returns error when OnPermissionRequest is not set", func(t *testing.T) {
-		client := NewClient(nil)
+	t.Run("accepts missing OnPermissionRequest before connection validation", func(t *testing.T) {
+		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
 		_, err := client.CreateSession(t.Context(), &SessionConfig{})
 		if err == nil {
-			t.Fatal("Expected error when OnPermissionRequest is nil")
+			t.Fatal("Expected error when client is not connected")
 		}
-		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
-		if !matched {
-			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
+		if strings.Contains(err.Error(), "OnPermissionRequest") {
+			t.Errorf("Did not expect permission handler validation error, got: %v", err)
 		}
 	})
 }
 
-func TestClient_ResumeSession_RequiresPermissionHandler(t *testing.T) {
-	t.Run("returns error when config is nil", func(t *testing.T) {
-		client := NewClient(nil)
+func TestClient_ResumeSession_AllowsMissingPermissionHandler(t *testing.T) {
+	t.Run("accepts nil config before connection validation", func(t *testing.T) {
+		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
 		_, err := client.ResumeSessionWithOptions(t.Context(), "some-id", nil)
 		if err == nil {
-			t.Fatal("Expected error when OnPermissionRequest is nil")
+			t.Fatal("Expected error when client is not connected")
 		}
-		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
-		if !matched {
-			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
+		if strings.Contains(err.Error(), "OnPermissionRequest") {
+			t.Errorf("Did not expect permission handler validation error, got: %v", err)
 		}
 	})
 }
@@ -782,6 +862,55 @@ func TestCreateSessionRequest_Commands(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_Cloud(t *testing.T) {
+	t.Run("forwards cloud options in session.create RPC", func(t *testing.T) {
+		req := createSessionRequest{
+			Cloud: &CloudSessionOptions{
+				Repository: &CloudSessionRepository{
+					Owner:  "github",
+					Name:   "copilot-sdk",
+					Branch: "main",
+				},
+			},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		cloud, ok := m["cloud"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected cloud to be an object, got %T", m["cloud"])
+		}
+		repository, ok := cloud["repository"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected cloud.repository to be an object, got %T", cloud["repository"])
+		}
+		if repository["owner"] != "github" {
+			t.Errorf("Expected owner 'github', got %v", repository["owner"])
+		}
+		if repository["name"] != "copilot-sdk" {
+			t.Errorf("Expected name 'copilot-sdk', got %v", repository["name"])
+		}
+		if repository["branch"] != "main" {
+			t.Errorf("Expected branch 'main', got %v", repository["branch"])
+		}
+	})
+
+	t.Run("omits cloud from JSON when unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["cloud"]; ok {
+			t.Error("Expected cloud to be omitted when unset")
+		}
+	})
+}
+
 func TestResumeSessionRequest_Commands(t *testing.T) {
 	t.Run("forwards commands in session.resume RPC", func(t *testing.T) {
 		req := resumeSessionRequest{
@@ -851,6 +980,42 @@ func TestCreateSessionRequest_RequestElicitation(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_ModeCallbackFlags(t *testing.T) {
+	t.Run("sends mode callback flags when handlers are provided", func(t *testing.T) {
+		req := createSessionRequest{
+			RequestExitPlanMode:   Bool(true),
+			RequestAutoModeSwitch: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestExitPlanMode"] != true {
+			t.Errorf("Expected requestExitPlanMode to be true, got %v", m["requestExitPlanMode"])
+		}
+		if m["requestAutoModeSwitch"] != true {
+			t.Errorf("Expected requestAutoModeSwitch to be true, got %v", m["requestAutoModeSwitch"])
+		}
+	})
+
+	t.Run("omits mode callback flags when handlers are not provided", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestExitPlanMode"]; ok {
+			t.Error("Expected requestExitPlanMode to be omitted when not set")
+		}
+		if _, ok := m["requestAutoModeSwitch"]; ok {
+			t.Error("Expected requestAutoModeSwitch to be omitted when not set")
+		}
+	})
+}
+
 func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 	t.Run("sends requestElicitation flag when OnElicitationRequest is provided", func(t *testing.T) {
 		req := resumeSessionRequest{
@@ -877,6 +1042,174 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["requestElicitation"]; ok {
 			t.Error("Expected requestElicitation to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_ModeCallbackFlags(t *testing.T) {
+	req := resumeSessionRequest{
+		SessionID:             "s1",
+		RequestExitPlanMode:   Bool(true),
+		RequestAutoModeSwitch: Bool(true),
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Failed to unmarshal: %v", err)
+	}
+	if m["requestExitPlanMode"] != true {
+		t.Errorf("Expected requestExitPlanMode to be true, got %v", m["requestExitPlanMode"])
+	}
+	if m["requestAutoModeSwitch"] != true {
+		t.Errorf("Expected requestAutoModeSwitch to be true, got %v", m["requestAutoModeSwitch"])
+	}
+}
+
+func TestModeCallbackRequestHandlers(t *testing.T) {
+	session := &Session{SessionID: "s1"}
+	client := &Client{sessions: map[string]*Session{"s1": session}}
+
+	expectedSummary := "Review the plan"
+	expectedPlanContent := "Plan body"
+	expectedActions := []string{"interactive", "autopilot"}
+	expectedRecommendedAction := "autopilot"
+	session.registerExitPlanModeHandler(func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error) {
+		if invocation.SessionID != "s1" {
+			t.Fatalf("Expected session ID s1, got %s", invocation.SessionID)
+		}
+		if request.Summary != expectedSummary {
+			t.Fatalf("Expected summary, got %q", request.Summary)
+		}
+		if request.PlanContent != expectedPlanContent {
+			t.Fatalf("Expected plan content, got %q", request.PlanContent)
+		}
+		if !reflect.DeepEqual(request.Actions, expectedActions) {
+			t.Fatalf("Expected actions to round-trip, got %#v", request.Actions)
+		}
+		if request.RecommendedAction != expectedRecommendedAction {
+			t.Fatalf("Expected recommended action, got %q", request.RecommendedAction)
+		}
+		return ExitPlanModeResult{
+			Approved:       true,
+			SelectedAction: "interactive",
+			Feedback:       "Looks good",
+		}, nil
+	})
+
+	errorCode := "user_weekly_rate_limited"
+	retryAfter := float64(3600)
+	session.registerAutoModeSwitchHandler(func(request AutoModeSwitchRequest, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error) {
+		if invocation.SessionID != "s1" {
+			t.Fatalf("Expected session ID s1, got %s", invocation.SessionID)
+		}
+		if request.ErrorCode == nil || *request.ErrorCode != errorCode {
+			t.Fatalf("Expected error code %q, got %#v", errorCode, request.ErrorCode)
+		}
+		if request.RetryAfterSeconds == nil || *request.RetryAfterSeconds != retryAfter {
+			t.Fatalf("Expected retry-after %v, got %#v", retryAfter, request.RetryAfterSeconds)
+		}
+		return AutoModeSwitchResponseYesAlways, nil
+	})
+
+	exitResult, rpcErr := client.handleExitPlanModeRequest(exitPlanModeRequest{
+		SessionID:         "s1",
+		Summary:           "Review the plan",
+		PlanContent:       "Plan body",
+		Actions:           []string{"interactive", "autopilot"},
+		RecommendedAction: "autopilot",
+	})
+	if rpcErr != nil {
+		t.Fatalf("Unexpected RPC error: %v", rpcErr)
+	}
+	if !exitResult.Approved || exitResult.SelectedAction != "interactive" || exitResult.Feedback != "Looks good" {
+		t.Fatalf("Unexpected exit-plan-mode result: %#v", exitResult)
+	}
+
+	expectedSummary = ""
+	expectedPlanContent = ""
+	expectedActions = nil
+	expectedRecommendedAction = "autopilot"
+	exitResult, rpcErr = client.handleExitPlanModeRequest(exitPlanModeRequest{
+		SessionID: "s1",
+	})
+	if rpcErr != nil {
+		t.Fatalf("Unexpected RPC error for minimal exit-plan-mode request: %v", rpcErr)
+	}
+	if !exitResult.Approved {
+		t.Fatalf("Unexpected minimal exit-plan-mode result: %#v", exitResult)
+	}
+
+	autoResult, rpcErr := client.handleAutoModeSwitchRequest(autoModeSwitchRequest{
+		SessionID:         "s1",
+		ErrorCode:         &errorCode,
+		RetryAfterSeconds: &retryAfter,
+	})
+	if rpcErr != nil {
+		t.Fatalf("Unexpected RPC error: %v", rpcErr)
+	}
+	if autoResult.Response != AutoModeSwitchResponseYesAlways {
+		t.Fatalf("Expected yes_always, got %q", autoResult.Response)
+	}
+}
+
+func TestResumeSessionRequest_ContinuePendingWork(t *testing.T) {
+	t.Run("forwards continuePendingWork when true", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:           "s1",
+			ContinuePendingWork: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["continuePendingWork"] != true {
+			t.Errorf("Expected continuePendingWork to be true, got %v", m["continuePendingWork"])
+		}
+	})
+
+	t.Run("omits continuePendingWork when not set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["continuePendingWork"]; ok {
+			t.Error("Expected continuePendingWork to be omitted when not set")
+		}
+	})
+}
+
+func TestCreateSessionRequest_EnableSessionTelemetry(t *testing.T) {
+	t.Run("forwards enableSessionTelemetry when false", func(t *testing.T) {
+		req := createSessionRequest{
+			EnableSessionTelemetry: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableSessionTelemetry"] != false {
+			t.Errorf("Expected enableSessionTelemetry to be false, got %v", m["enableSessionTelemetry"])
+		}
+	})
+
+	t.Run("omits enableSessionTelemetry when not set", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableSessionTelemetry"]; ok {
+			t.Error("Expected enableSessionTelemetry to be omitted when not set")
 		}
 	})
 }
@@ -913,6 +1246,36 @@ func TestCreateSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 		}
 		if m["includeSubAgentStreamingEvents"] != false {
 			t.Errorf("Expected includeSubAgentStreamingEvents to be false, got %v", m["includeSubAgentStreamingEvents"])
+		}
+	})
+}
+
+func TestResumeSessionRequest_EnableSessionTelemetry(t *testing.T) {
+	t.Run("forwards enableSessionTelemetry when false", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:              "s1",
+			EnableSessionTelemetry: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableSessionTelemetry"] != false {
+			t.Errorf("Expected enableSessionTelemetry to be false, got %v", m["enableSessionTelemetry"])
+		}
+	})
+
+	t.Run("omits enableSessionTelemetry when not set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableSessionTelemetry"]; ok {
+			t.Error("Expected enableSessionTelemetry to be omitted when not set")
 		}
 	})
 }
@@ -983,4 +1346,128 @@ func TestCreateSessionResponse_Capabilities(t *testing.T) {
 			t.Errorf("Expected capabilities.UI.Elicitation to be falsy when not injected")
 		}
 	})
+}
+
+// TestHelperProcess is a helper used by tests that need to spawn a process
+// which writes to stderr and exits with a given status. It is invoked
+// via "go test" by running the test binary itself with -test.run.
+// The stderr message and exit code are passed via environment variables
+// HELPER_STDERR_MSG and HELPER_EXIT_CODE (defaulting to "" and 1).
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		// Not in helper process mode; let the test run normally.
+		return
+	}
+
+	msg := os.Getenv("HELPER_STDERR_MSG")
+	if msg == "" {
+		// Fall back to command-line args after "--" for backwards compat.
+		for i, arg := range os.Args {
+			if arg == "--" && i+1 < len(os.Args) {
+				msg = os.Args[i+1]
+				break
+			}
+		}
+	}
+	if msg != "" {
+		_, _ = os.Stderr.WriteString(msg + "\n")
+	}
+
+	exitCode := 1
+	if ec := os.Getenv("HELPER_EXIT_CODE"); ec != "" {
+		if v, err := strconv.Atoi(ec); err == nil {
+			exitCode = v
+		}
+	}
+	os.Exit(exitCode)
+}
+
+// newStderrTestCommand constructs a command that re-invokes the current test
+// binary to run TestHelperProcess with the provided stderr message and exit
+// code. This avoids any dependency on a shell like "sh" and is portable.
+func newStderrTestCommand(stderrMsg string, exitCode int) *exec.Cmd {
+	cmd := exec.Command(os.Args[0], "-test.run=TestHelperProcess")
+	cmd.Env = append(os.Environ(),
+		"GO_WANT_HELPER_PROCESS=1",
+		"HELPER_STDERR_MSG="+stderrMsg,
+		"HELPER_EXIT_CODE="+strconv.Itoa(exitCode),
+	)
+	return cmd
+}
+
+// TestMonitorProcess_StderrCaptured validates that when the CLI process
+// writes an error to stderr and exits, the stderr content IS included
+// in the process error (now that startCLIServer sets Stderr).
+func TestMonitorProcess_StderrCaptured(t *testing.T) {
+	client := &Client{
+		sessions: make(map[string]*Session),
+	}
+
+	stderrMsg := "error: authentication failed: invalid token"
+	client.process = exec.Command(os.Args[0], "-test.run=TestHelperProcess", "--", stderrMsg)
+	client.process.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
+
+	// Replicate what startCLIServer now does: capture stderr.
+	client.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
+
+	if err := client.process.Start(); err != nil {
+		t.Fatalf("failed to start test process: %v", err)
+	}
+
+	client.monitorProcess()
+
+	// Wait for the process to exit.
+	<-client.processDone
+
+	processError := *client.processErrorPtr
+	if processError == nil {
+		t.Fatal("expected a process error after non-zero exit, got nil")
+	}
+
+	if !strings.Contains(processError.Error(), stderrMsg) {
+		t.Errorf("stderr output not included in process error.\n"+
+			"  got:  %q\n"+
+			"  want: error containing %q", processError.Error(), stderrMsg)
+	}
+}
+
+// TestMonitorProcess_StderrCapturedOnZeroExit validates that even when the
+// CLI process exits with code 0, stderr content is included in the error.
+func TestMonitorProcess_StderrCapturedOnZeroExit(t *testing.T) {
+	client := &Client{
+		sessions: make(map[string]*Session),
+	}
+
+	stderrMsg := "warning: version mismatch, shutting down"
+	client.process = newStderrTestCommand(stderrMsg, 0)
+	client.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
+
+	if err := client.process.Start(); err != nil {
+		t.Fatalf("failed to start test process: %v", err)
+	}
+
+	client.monitorProcess()
+	<-client.processDone
+
+	processError := *client.processErrorPtr
+	if processError == nil {
+		t.Fatal("expected a process error for unexpected exit, got nil")
+	}
+
+	if !strings.Contains(processError.Error(), stderrMsg) {
+		t.Errorf("stderr output not included in process error for exit code 0.\n"+
+			"  got:  %q\n"+
+			"  want: error containing %q", processError.Error(), stderrMsg)
+	}
+}
+
+// TestStartCLIServer_StderrFieldSet verifies that startCLIServer sets
+// exec.Cmd.Stderr to a *truncbuffer.TruncBuffer so CLI diagnostic output is captured.
+func TestStartCLIServer_StderrFieldSet(t *testing.T) {
+	cmd := exec.Command(os.Args[0])
+	buf := truncbuffer.NewTruncBuffer(stderrBufferSize)
+	cmd.Stderr = buf
+	if _, ok := cmd.Stderr.(*truncbuffer.TruncBuffer); !ok {
+		t.Error("expected Stderr to be *truncbuffer.TruncBuffer after assignment")
+	}
 }

@@ -20,22 +20,33 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
+    ErrorCodes,
     MessageConnection,
+    ResponseError,
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
-import { createServerRpc, registerClientSessionApiHandlers } from "./generated/rpc.js";
+import {
+    createServerRpc,
+    createInternalServerRpc,
+    registerClientSessionApiHandlers,
+} from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
-import { createSessionFsAdapter } from "./sessionFsProvider.js";
+import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
+    AutoModeSwitchRequest,
+    AutoModeSwitchResponse,
     ConnectionState,
     CopilotClientOptions,
+    ExitPlanModeRequest,
+    ExitPlanModeResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
     ModelInfo,
+    ProviderConfig,
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
@@ -57,6 +68,17 @@ import type {
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
+
+/**
+ * Convert a {@link ProviderConfig} to its JSON-RPC wire shape, remapping
+ * camelCase SDK property names to the wire keys expected by the runtime
+ * (e.g. `maxInputTokens` → `maxPromptTokens`).
+ */
+function toWireProviderConfig(provider: ProviderConfig): Record<string, unknown> {
+    const { maxInputTokens, ...rest } = provider;
+    if (maxInputTokens === undefined) return rest;
+    return { ...rest, maxPromptTokens: maxInputTokens };
+}
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -221,6 +243,8 @@ export class CopilotClient {
             | "telemetry"
             | "onGetTraceContext"
             | "sessionFs"
+            | "tcpConnectionToken"
+            | "copilotHome"
         >
     > & {
         cliPath?: string;
@@ -228,9 +252,12 @@ export class CopilotClient {
         gitHubToken?: string;
         useLoggedInUser?: boolean;
         telemetry?: TelemetryConfig;
+        copilotHome?: string;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
+    /** Token sent in `connect`; auto-generated when the SDK spawns its own CLI in TCP mode. */
+    private effectiveConnectionToken?: string;
     private onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
     private onGetTraceContext?: TraceContextProvider;
     private modelsCache: ModelInfo[] | null = null;
@@ -241,6 +268,7 @@ export class CopilotClient {
         Set<(event: SessionLifecycleEvent) => void>
     > = new Map();
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
+    private _internalRpc: ReturnType<typeof createInternalServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
@@ -258,6 +286,20 @@ export class CopilotClient {
             this._rpc = createServerRpc(this.connection);
         }
         return this._rpc;
+    }
+
+    /**
+     * Internal RPC surface (e.g. handshake helpers). Not part of the public API.
+     * @internal
+     */
+    private get internalRpc(): ReturnType<typeof createInternalServerRpc> {
+        if (!this.connection) {
+            throw new Error("Client is not connected. Call start() first.");
+        }
+        if (!this._internalRpc) {
+            this._internalRpc = createInternalServerRpc(this.connection);
+        }
+        return this._internalRpc;
     }
 
     /**
@@ -300,6 +342,23 @@ export class CopilotClient {
             );
         }
 
+        if (options.tcpConnectionToken !== undefined) {
+            if (
+                typeof options.tcpConnectionToken !== "string" ||
+                options.tcpConnectionToken.length === 0
+            ) {
+                throw new Error("tcpConnectionToken must be a non-empty string");
+            }
+            if (options.useStdio === true) {
+                throw new Error("tcpConnectionToken cannot be used with useStdio: true");
+            }
+        }
+
+        const willUseStdio = options.cliUrl ? false : (options.useStdio ?? true);
+        const sdkSpawnsCli = !willUseStdio && !options.cliUrl && !options.isChildProcess;
+        this.effectiveConnectionToken =
+            options.tcpConnectionToken ?? (sdkSpawnsCli ? randomUUID() : undefined);
+
         if (options.sessionFs) {
             this.validateSessionFsConfig(options.sessionFs);
         }
@@ -340,7 +399,9 @@ export class CopilotClient {
             // Default useLoggedInUser to false when gitHubToken is provided, otherwise true
             useLoggedInUser: options.useLoggedInUser ?? (options.gitHubToken ? false : true),
             telemetry: options.telemetry,
+            copilotHome: options.copilotHome,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
+            remote: options.remote ?? false,
         };
     }
 
@@ -389,6 +450,27 @@ export class CopilotClient {
         }
     }
 
+    private setupSessionFs(
+        session: CopilotSession,
+        config: { createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider }
+    ): void {
+        if (!this.sessionFsConfig) {
+            return;
+        }
+        if (!config.createSessionFsHandler) {
+            throw new Error(
+                "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
+            );
+        }
+        const provider = config.createSessionFsHandler(session);
+        if (this.sessionFsConfig.capabilities?.sqlite && !provider.sqlite) {
+            throw new Error(
+                "SessionFsConfig declares capabilities.sqlite but the provider does not implement sqlite."
+            );
+        }
+        session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
+    }
+
     /**
      * Starts the CLI server and establishes a connection.
      *
@@ -432,6 +514,7 @@ export class CopilotClient {
                     initialCwd: this.sessionFsConfig.initialCwd,
                     sessionStatePath: this.sessionFsConfig.sessionStatePath,
                     conventions: this.sessionFsConfig.conventions,
+                    capabilities: this.sessionFsConfig.capabilities,
                 });
             }
 
@@ -662,12 +745,6 @@ export class CopilotClient {
      * ```
      */
     async createSession(config: SessionConfig): Promise<CopilotSession> {
-        if (!config?.onPermissionRequest) {
-            throw new Error(
-                "An onPermissionRequest handler is required when creating a session. For example, to allow all permissions, use { onPermissionRequest: approveAll }."
-            );
-        }
-
         if (!this.connection) {
             if (this.options.autoStart) {
                 await this.start();
@@ -695,6 +772,12 @@ export class CopilotClient {
         if (config.onElicitationRequest) {
             session.registerElicitationHandler(config.onElicitationRequest);
         }
+        if (config.onExitPlanMode) {
+            session.registerExitPlanModeHandler(config.onExitPlanMode);
+        }
+        if (config.onAutoModeSwitch) {
+            session.registerAutoModeSwitchHandler(config.onAutoModeSwitch);
+        }
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
@@ -711,17 +794,7 @@ export class CopilotClient {
             session.on(config.onEvent);
         }
         this.sessions.set(sessionId, session);
-        if (this.sessionFsConfig) {
-            if (config.createSessionFsHandler) {
-                session.clientSessionApis.sessionFs = createSessionFsAdapter(
-                    config.createSessionFsHandler(session)
-                );
-            } else {
-                throw new Error(
-                    "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
-                );
-            }
-        }
+        this.setupSessionFs(session, config);
 
         try {
             const response = await this.connection!.sendRequest("session.create", {
@@ -744,11 +817,14 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
-                provider: config.provider,
+                provider: config.provider ? toWireProviderConfig(config.provider) : undefined,
+                enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                requestExitPlanMode: !!config.onExitPlanMode,
+                requestAutoModeSwitch: !!config.onAutoModeSwitch,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
@@ -761,9 +837,12 @@ export class CopilotClient {
                 configDir: config.configDir,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 skillDirectories: config.skillDirectories,
+                instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
                 gitHubToken: config.gitHubToken,
+                remoteSession: config.remoteSession,
+                cloud: config.cloud,
             });
 
             const { workspacePath, capabilities } = response as {
@@ -806,12 +885,6 @@ export class CopilotClient {
      * ```
      */
     async resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession> {
-        if (!config?.onPermissionRequest) {
-            throw new Error(
-                "An onPermissionRequest handler is required when resuming a session. For example, to allow all permissions, use { onPermissionRequest: approveAll }."
-            );
-        }
-
         if (!this.connection) {
             if (this.options.autoStart) {
                 await this.start();
@@ -837,6 +910,12 @@ export class CopilotClient {
         if (config.onElicitationRequest) {
             session.registerElicitationHandler(config.onElicitationRequest);
         }
+        if (config.onExitPlanMode) {
+            session.registerExitPlanModeHandler(config.onExitPlanMode);
+        }
+        if (config.onAutoModeSwitch) {
+            session.registerAutoModeSwitchHandler(config.onAutoModeSwitch);
+        }
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
@@ -853,17 +932,7 @@ export class CopilotClient {
             session.on(config.onEvent);
         }
         this.sessions.set(sessionId, session);
-        if (this.sessionFsConfig) {
-            if (config.createSessionFsHandler) {
-                session.clientSessionApis.sessionFs = createSessionFsAdapter(
-                    config.createSessionFsHandler(session)
-                );
-            } else {
-                throw new Error(
-                    "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
-                );
-            }
-        }
+        this.setupSessionFs(session, config);
 
         try {
             const response = await this.connection!.sendRequest("session.resume", {
@@ -875,6 +944,7 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
+                enableSessionTelemetry: config.enableSessionTelemetry,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,
@@ -886,12 +956,14 @@ export class CopilotClient {
                     name: cmd.name,
                     description: cmd.description,
                 })),
-                provider: config.provider,
+                provider: config.provider ? toWireProviderConfig(config.provider) : undefined,
                 modelCapabilities: config.modelCapabilities,
                 requestPermission:
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                requestExitPlanMode: !!config.onExitPlanMode,
+                requestAutoModeSwitch: !!config.onAutoModeSwitch,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 configDir: config.configDir,
@@ -904,10 +976,13 @@ export class CopilotClient {
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
+                instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
                 disableResume: config.disableResume,
+                continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
+                remoteSession: config.remoteSession,
             });
 
             const { workspacePath, capabilities } = response as {
@@ -1063,21 +1138,37 @@ export class CopilotClient {
     }
 
     /**
-     * Verify that the server's protocol version is within the supported range
-     * and store the negotiated version.
+     * Send the `connect` handshake (carrying the optional token) and verify the
+     * server's protocol version. Falls back to `ping` against legacy servers
+     * that don't implement `connect`.
      */
     private async verifyProtocolVersion(): Promise<void> {
-        const maxVersion = getSdkProtocolVersion();
-
-        // Race ping against process exit to detect early CLI failures
-        let pingResult: Awaited<ReturnType<typeof this.ping>>;
-        if (this.processExitPromise) {
-            pingResult = await Promise.race([this.ping(), this.processExitPromise]);
-        } else {
-            pingResult = await this.ping();
+        if (!this.connection) {
+            throw new Error("Client not connected");
         }
+        const maxVersion = getSdkProtocolVersion();
+        const raceAgainstExit = <T>(p: Promise<T>): Promise<T> =>
+            this.processExitPromise ? Promise.race([p, this.processExitPromise]) : p;
 
-        const serverVersion = pingResult.protocolVersion;
+        let serverVersion: number | undefined;
+        try {
+            const result = await raceAgainstExit(
+                this.internalRpc.connect({ token: this.effectiveConnectionToken })
+            );
+            serverVersion = result.protocolVersion;
+        } catch (err) {
+            if (
+                err instanceof ResponseError &&
+                (err.code === ErrorCodes.MethodNotFound ||
+                    err.message === "Unhandled method connect")
+            ) {
+                // Legacy server without `connect`; fall back to `ping`. A token, if any,
+                // is silently dropped — the legacy server can't enforce one.
+                serverVersion = (await raceAgainstExit(this.ping())).protocolVersion;
+            } else {
+                throw err;
+            }
+        }
 
         if (serverVersion === undefined) {
             throw new Error(
@@ -1427,6 +1518,10 @@ export class CopilotClient {
                 );
             }
 
+            if (this.options.remote) {
+                args.push("--remote");
+            }
+
             // Suppress debug/trace output that might pollute stdout
             const envWithoutNodeDebug = { ...this.options.env };
             delete envWithoutNodeDebug.NODE_DEBUG;
@@ -1434,6 +1529,14 @@ export class CopilotClient {
             // Set auth token in environment if provided
             if (this.options.gitHubToken) {
                 envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
+            }
+
+            if (this.effectiveConnectionToken) {
+                envWithoutNodeDebug.COPILOT_CONNECTION_TOKEN = this.effectiveConnectionToken;
+            }
+
+            if (this.options.copilotHome) {
+                envWithoutNodeDebug.COPILOT_HOME = this.options.copilotHome;
             }
 
             if (!this.options.cliPath) {
@@ -1716,6 +1819,21 @@ export class CopilotClient {
         );
 
         this.connection.onRequest(
+            "exitPlanMode.request",
+            async (
+                params: ExitPlanModeRequest & { sessionId: string }
+            ): Promise<ExitPlanModeResult> => await this.handleExitPlanModeRequest(params)
+        );
+
+        this.connection.onRequest(
+            "autoModeSwitch.request",
+            async (
+                params: AutoModeSwitchRequest & { sessionId: string }
+            ): Promise<{ response: AutoModeSwitchResponse }> =>
+                await this.handleAutoModeSwitchRequest(params)
+        );
+
+        this.connection.onRequest(
             "hooks.invoke",
             async (params: {
                 sessionId: string;
@@ -1828,6 +1946,51 @@ export class CopilotClient {
             allowFreeform: params.allowFreeform,
         });
         return result;
+    }
+
+    private async handleExitPlanModeRequest(
+        params: ExitPlanModeRequest & { sessionId: string }
+    ): Promise<ExitPlanModeResult> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            typeof params.summary !== "string" ||
+            !Array.isArray(params.actions) ||
+            typeof params.recommendedAction !== "string"
+        ) {
+            throw new Error("Invalid exit plan mode request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        return await session._handleExitPlanModeRequest({
+            summary: params.summary,
+            planContent: params.planContent,
+            actions: params.actions,
+            recommendedAction: params.recommendedAction,
+        });
+    }
+
+    private async handleAutoModeSwitchRequest(
+        params: AutoModeSwitchRequest & { sessionId: string }
+    ): Promise<{ response: AutoModeSwitchResponse }> {
+        if (!params || typeof params.sessionId !== "string") {
+            throw new Error("Invalid auto mode switch request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        const response = await session._handleAutoModeSwitchRequest({
+            errorCode: params.errorCode,
+            retryAfterSeconds: params.retryAfterSeconds,
+        });
+        return { response };
     }
 
     private async handleHooksInvoke(params: {

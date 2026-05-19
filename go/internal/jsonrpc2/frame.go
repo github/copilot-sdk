@@ -82,7 +82,7 @@ func newHeaderWriter(w io.Writer) *headerWriter {
 	return &headerWriter{out: w}
 }
 
-// Write sends a single frame with Content-Length header.
+// Write sends a single frame with a Content-Length header.
 func (w *headerWriter) Write(data []byte) error {
 	if _, err := fmt.Fprintf(w.out, "Content-Length: %d\r\n\r\n", len(data)); err != nil {
 		return err

@@ -7,10 +7,59 @@ using GitHub.Copilot.SDK.Rpc;
 namespace GitHub.Copilot.SDK;
 
 /// <summary>
+/// Result of a SQLite query execution via <see cref="ISessionFsSqliteProvider"/>.
+/// Same shape as <see cref="SessionFsSqliteQueryResult"/> but without the <c>Error</c> field,
+/// since providers signal errors by throwing.
+/// </summary>
+public class SessionFsSqliteResult
+{
+    /// <summary>Column names from the result set.</summary>
+    public IList<string> Columns { get; set; } = [];
+
+    /// <summary>For SELECT: rows as column-keyed dictionaries. For others: empty.</summary>
+    public IList<IDictionary<string, object>> Rows { get; set; } = [];
+
+    /// <summary>Number of rows affected (for INSERT/UPDATE/DELETE).</summary>
+    public long RowsAffected { get; set; }
+
+    /// <summary>Last inserted row ID (for INSERT).</summary>
+    public long? LastInsertRowid { get; set; }
+}
+
+/// <summary>
+/// Optional interface for <see cref="SessionFsProvider"/> subclasses that support
+/// per-session SQLite databases. Implement this interface on your provider to enable
+/// the runtime's SQL tool to route queries through your SessionFs implementation.
+/// </summary>
+public interface ISessionFsSqliteProvider
+{
+    /// <summary>
+    /// Executes a SQLite query against the per-session database.
+    /// </summary>
+    /// <param name="queryType">How to execute: <c>"exec"</c> for DDL/multi-statement, <c>"query"</c> for SELECT, <c>"run"</c> for INSERT/UPDATE/DELETE.</param>
+    /// <param name="query">SQL query to execute.</param>
+    /// <param name="bindParams">Optional named bind parameters.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The query result, or <c>null</c> for exec-type queries.</returns>
+    Task<SessionFsSqliteResult?> QueryAsync(
+        SessionFsSqliteQueryType queryType,
+        string query,
+        IDictionary<string, object>? bindParams,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Checks whether the per-session SQLite database already exists, without creating it.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<bool> ExistsAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// Base class for session filesystem providers. Subclasses override the
 /// virtual methods and use normal C# patterns (return values, throw exceptions).
 /// The base class catches exceptions and converts them to <see cref="SessionFsError"/>
 /// results expected by the runtime.
+/// To add SQLite support, also implement <see cref="ISessionFsSqliteProvider"/>.
 /// </summary>
 public abstract class SessionFsProvider : ISessionFsHandler
 {
@@ -79,6 +128,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsReadFileResult> ISessionFsHandler.ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             var content = await ReadFileAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -92,6 +143,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await WriteFileAsync(request.Path, request.Content, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
@@ -105,6 +158,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await AppendFileAsync(request.Path, request.Content, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
@@ -118,6 +173,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsExistsResult> ISessionFsHandler.ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             var exists = await ExistsAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -131,6 +188,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsStatResult> ISessionFsHandler.StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             return await StatAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -143,6 +202,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await MkdirAsync(request.Path, request.Recursive ?? false, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
@@ -156,6 +217,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsReaddirResult> ISessionFsHandler.ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             var entries = await ReaddirAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -169,6 +232,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsReaddirWithTypesResult> ISessionFsHandler.ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             var entries = await ReaddirWithTypesAsync(request.Path, cancellationToken).ConfigureAwait(false);
@@ -182,6 +247,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await RmAsync(request.Path, request.Recursive ?? false, request.Force ?? false, cancellationToken).ConfigureAwait(false);
@@ -195,6 +262,8 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsError?> ISessionFsHandler.RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             await RenameAsync(request.Src, request.Dest, cancellationToken).ConfigureAwait(false);
@@ -205,6 +274,53 @@ public abstract class SessionFsProvider : ISessionFsHandler
             return ToSessionFsError(ex);
         }
     }
+
+    async Task<SessionFsSqliteQueryResult> ISessionFsHandler.SqliteQueryAsync(SessionFsSqliteQueryRequest request, CancellationToken cancellationToken)
+    {
+        if (this is not ISessionFsSqliteProvider sqliteProvider)
+        {
+            return new SessionFsSqliteQueryResult
+            {
+                Error = new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = "SQLite is not supported by this provider." },
+            };
+        }
+
+        try
+        {
+            var result = await sqliteProvider.QueryAsync(request.QueryType, request.Query, request.Params, cancellationToken).ConfigureAwait(false);
+
+            return new SessionFsSqliteQueryResult
+            {
+                Rows = result?.Rows ?? [],
+                Columns = result?.Columns ?? [],
+                RowsAffected = result?.RowsAffected ?? 0,
+                LastInsertRowid = result?.LastInsertRowid,
+            };
+        }
+        catch (Exception ex)
+        {
+            return new SessionFsSqliteQueryResult { Error = ToSessionFsError(ex) };
+        }
+    }
+
+    async Task<SessionFsSqliteExistsResult> ISessionFsHandler.SqliteExistsAsync(SessionFsSqliteExistsRequest request, CancellationToken cancellationToken)
+    {
+        if (this is not ISessionFsSqliteProvider sqliteProvider)
+        {
+            return new SessionFsSqliteExistsResult { Exists = false };
+        }
+
+        try
+        {
+            var exists = await sqliteProvider.ExistsAsync(cancellationToken).ConfigureAwait(false);
+            return new SessionFsSqliteExistsResult { Exists = exists };
+        }
+        catch
+        {
+            return new SessionFsSqliteExistsResult { Exists = false };
+        }
+    }
+
 
     private static SessionFsError ToSessionFsError(Exception ex)
     {

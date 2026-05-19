@@ -302,6 +302,28 @@ describe("ReplayingCapiProxy", () => {
     );
   });
 
+  test("strips system_reminder from user messages", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content:
+            "What is 2+2?\n\n<system_reminder>\n<sql_tables>No tables currently exist.</sql_tables>\n</system_reminder>",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "4" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe("What is 2+2?");
+  });
+
   test("strips agent_instructions from user messages", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -348,6 +370,45 @@ describe("ReplayingCapiProxy", () => {
     expect(result.conversations[0].messages[0].content).toBe("Say hello.");
   });
 
+  test("strips skill metadata frontmatter from skill-context user messages", async () => {
+    const skillDir = path.join(workDir, ".test_skills", "test-skill");
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: `<skill-context name="test-skill">
+Base directory for this skill: ${skillDir}
+
+---
+name: test-skill
+description: A test skill that adds a marker to responses
+---
+
+# Test Skill Instructions
+
+Always include PINEAPPLE_COCONUT_42.
+</skill-context>`,
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "OK!" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(`<skill-context name="test-skill">
+Base directory for this skill: ${workingDirPlaceholder}/.test_skills/test-skill
+
+# Test Skill Instructions
+
+Always include PINEAPPLE_COCONUT_42.
+</skill-context>`);
+  });
+
   test("applies tool result normalizers to tool response content", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -391,6 +452,102 @@ describe("ReplayingCapiProxy", () => {
     );
     expect(toolMessages[0].content).toBe("ALPHA RESULT");
     expect(toolMessages[1].content).toBe("[beta result]");
+  });
+
+  test("normalizes read_agent timing metadata", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Help me" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: {
+                name: "read_agent",
+                arguments: '{"agent_id":"read-file","wait":true}',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 1.25s, total_turns: 0, duration: 2s\n\nDone.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessage?.content).toBe(
+      "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 0s, total_turns: 0, duration: 0s\n\nDone.",
+    );
+  });
+
+  test("normalizes GitHub CLI proxy auth failures", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Summarize this issue" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: { name: "web_fetch", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            'Post "https://api.github.com/graphql": tls: failed to verify certificate: x509: certificate signed by unknown authority\n<exited with exit code 1>',
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            "\u28fe\u28fdHTTP 401: Requires authentication (https://api.github.com/graphql)\nTry authenticating with:  gh auth login\n<exited with exit code 1>",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessages = result.conversations[0].messages.filter(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessages).toEqual([
+      {
+        role: "tool",
+        tool_call_id: "toolcall_0",
+        content: "${gh_auth_required}\n<exited with exit code 4>",
+      },
+      {
+        role: "tool",
+        tool_call_id: "toolcall_0",
+        content: "${gh_auth_required}\n<exited with exit code 4>",
+      },
+    ]);
   });
 
   test("ignores non-chat-completion endpoints", async () => {
@@ -649,6 +806,108 @@ describe("ReplayingCapiProxy", () => {
           (JSON.parse(response2.body) as ChatCompletion).choices[0].message
             .content,
         ).toBe("I am fine!");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches parallel tool results regardless of arrival order", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Lookup city and country" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: {
+                      name: "lookup_city",
+                      arguments: '{"city":"Paris"}',
+                    },
+                  },
+                  {
+                    id: "toolcall_1",
+                    type: "function",
+                    function: {
+                      name: "lookup_country",
+                      arguments: '{"country":"France"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_1",
+                content: "COUNTRY_FRANCE",
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content: "CITY_PARIS",
+              },
+              { role: "assistant", content: "Paris is in France." },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "Be helpful" },
+              { role: "user", content: "Lookup city and country" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "city-id",
+                    type: "function",
+                    function: {
+                      name: "lookup_city",
+                      arguments: '{"city":"Paris"}',
+                    },
+                  },
+                  {
+                    id: "country-id",
+                    type: "function",
+                    function: {
+                      name: "lookup_country",
+                      arguments: '{"country":"France"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "country-id",
+                content: "COUNTRY_FRANCE",
+              },
+              { role: "tool", tool_call_id: "city-id", content: "CITY_PARIS" },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Paris is in France.");
       } finally {
         await proxy.stop();
       }

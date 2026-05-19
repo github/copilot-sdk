@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Session start hook context.
+      - role: user
+        content: Say hi
+      - role: assistant
+        content: >-
+          Hi! 👋 
+
+
+          I'm GitHub Copilot CLI, powered by claude-sonnet-4.5. I'm here to help you with software engineering tasks
+          like exploring codebases, running commands, making code changes, and more. 
+
+
+          What can I help you with today?

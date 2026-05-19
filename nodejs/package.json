@@ -40,7 +40,7 @@
         "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" --ignore-path .prettierignore",
         "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
         "lint:fix": "eslint --fix \"src/**/*.ts\" \"test/**/*.ts\"",
-        "typecheck": "tsc --noEmit",
+        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
         "generate": "cd ../scripts/codegen && npm run generate",
         "update:protocol-version": "tsx scripts/update-protocol-version.ts",
         "prepublishOnly": "npm run build",
@@ -56,7 +56,7 @@
     "author": "GitHub",
     "license": "MIT",
     "dependencies": {
-        "@github/copilot": "^1.0.36-0",
+        "@github/copilot": "^1.0.49",
         "vscode-jsonrpc": "^8.2.1",
         "zod": "^4.3.6"
     },

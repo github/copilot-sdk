@@ -9,6 +9,8 @@
 import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
+import path from "path";
+import { fileURLToPath } from "url";
 import {
     getApiSchemaPath,
     fixNullableRequiredRefsInApiSchema,
@@ -17,22 +19,133 @@ import {
     getSessionEventsSchemaPath,
     postProcessSchema,
     writeGeneratedFile,
+    collectExternalSchemaRefNames,
     collectDefinitionCollections,
+    collectExperimentalOnlyRpcReferencedDefinitionNames,
+    collectReachableDefinitionNames,
+    collectRpcMethodReferencedDefinitionNames,
+    findSharedSchemaDefinitions,
     hasSchemaPayload,
+    parseExternalSchemaRef,
     resolveObjectSchema,
     resolveSchema,
+    rewriteSharedDefinitionReferences,
     withSharedDefinitions,
     isRpcMethod,
     isNodeFullyExperimental,
     isNodeFullyDeprecated,
     isVoidSchema,
+    isSchemaExperimental,
+    getEnumValueDescriptions,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
 
+const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
+const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
+    "session-events.schema.json": "./session-events.js",
+};
+
+function tsExperimentalJSDoc(indent = ""): string {
+    return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
+}
+
+function sanitizeJsDocText(text: string): string {
+    return text.trim().replace(/\*\//g, "* /");
+}
+
+function tsDocCommentText(text: string): string {
+    const lines = sanitizeJsDocText(text).split(/\r?\n/);
+    if (lines.length === 1) return `/** ${lines[0]} */`;
+    return ["/**", ...lines.map((line) => ` * ${line}`), " */"].join("\n");
+}
+
+function pushTsJsDoc(lines: string[], indent: string, entries: string[]): void {
+    const cleaned = entries.map(sanitizeJsDocText).filter((entry) => entry.length > 0);
+    if (cleaned.length === 0) return;
+
+    lines.push(`${indent}/**`);
+    for (const [index, entry] of cleaned.entries()) {
+        if (index > 0) {
+            lines.push(`${indent} *`);
+        }
+        for (const line of entry.split(/\r?\n/)) {
+            lines.push(`${indent} * ${line}`);
+        }
+    }
+    lines.push(`${indent} */`);
+}
+
+function rpcResultDescription(method: RpcMethod): string | undefined {
+    const resultSchema = getMethodResultSchema(method);
+    if (isVoidSchema(resultSchema)) return undefined;
+    return method.result?.description ?? resultSchema?.description;
+}
+
+function rpcParamsDescription(method: RpcMethod, effectiveParams: JSONSchema7 | undefined): string | undefined {
+    return method.params?.description ?? effectiveParams?.description;
+}
+
+function pushTsRpcMethodJsDoc(
+    lines: string[],
+    indent: string,
+    method: RpcMethod,
+    options: {
+        summaryFallback?: string;
+        paramsName?: string;
+        paramsDescription?: string;
+        includeDeprecated?: boolean;
+        includeExperimental?: boolean;
+    } = {}
+): void {
+    const entries: string[] = [];
+    entries.push(method.description ?? options.summaryFallback ?? `Calls \`${method.rpcMethod}\`.`);
+    if (options.paramsName && options.paramsDescription) {
+        entries.push(`@param ${options.paramsName} ${options.paramsDescription}`);
+    }
+    const resultDescription = rpcResultDescription(method);
+    if (resultDescription) {
+        entries.push(`@returns ${resultDescription}`);
+    }
+    if (options.includeDeprecated) {
+        entries.push("@deprecated");
+    }
+    if (options.includeExperimental) {
+        entries.push("@experimental");
+    }
+    pushTsJsDoc(lines, indent, entries);
+}
+
 function toPascalCase(s: string): string {
     return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function experimentalDefinitionNames(definitions: DefinitionCollections): Set<string> {
+    const names = new Set<string>();
+    for (const defs of [definitions.definitions, definitions.$defs]) {
+        for (const [name, def] of Object.entries(defs ?? {})) {
+            if (typeof def === "object" && def !== null && isSchemaExperimental(def as JSONSchema7)) {
+                names.add(name);
+            }
+        }
+    }
+    return names;
+}
+
+function annotateTypeScriptTypes(code: string, typeNames: Iterable<string>, annotation: string): string {
+    let annotated = code;
+    for (const typeName of typeNames) {
+        annotated = annotated.replace(
+            new RegExp(`(^|\\n)(export (?:interface|type|enum) ${escapeRegExp(typeName)}\\b)`, "m"),
+            `$1${annotation}\n$2`
+        );
+    }
+    return annotated;
 }
 
 function appendUniqueExportBlocks(output: string[], compiled: string, seenBlocks: Map<string, string>): void {
@@ -133,7 +246,7 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
-function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
+export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     const root = structuredClone(schema) as JSONSchema7 & {
         definitions?: Record<string, unknown>;
         $defs?: Record<string, unknown>;
@@ -167,17 +280,39 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
             Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
         ) as Record<string, unknown>;
 
+        const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
+        if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
+            rewritten.tsType = (rewritten.enum as string[])
+                .map((entry) => {
+                    const comment = enumValueDescriptions[entry];
+                    const literal = JSON.stringify(entry);
+                    return comment ? `${tsDocCommentText(comment)}\n| ${literal}` : `| ${literal}`;
+                })
+                .join("\n");
+            delete rewritten.type;
+            delete rewritten.enum;
+            delete rewritten["x-enumDescriptions"];
+        }
+
         if (typeof rewritten.$ref === "string") {
-            if (rewritten.$ref.startsWith("#/$defs/")) {
+            const externalRef = parseExternalSchemaRef(rewritten.$ref);
+            if (externalRef && EXTERNAL_SCHEMA_TS_IMPORT[externalRef.schemaFile]) {
+                rewritten.tsType = externalRef.definitionName;
+                for (const key of Object.keys(rewritten)) {
+                    if (key !== "tsType") {
+                        delete rewritten[key];
+                    }
+                }
+            } else if (rewritten.$ref.startsWith("#/$defs/")) {
                 const definitionName = rewritten.$ref.slice("#/$defs/".length);
                 rewritten.$ref = `#/definitions/${draftDefinitionAliases.get(definitionName) ?? definitionName}`;
             }
             // json-schema-to-typescript treats sibling keywords alongside $ref as a
             // new inline type instead of reusing the referenced definition.  Strip
             // siblings so that $ref-only objects compile to a single shared type.
-            for (const key of Object.keys(rewritten)) {
-                if (key !== "$ref") {
-                    delete rewritten[key];
+            if ("$ref" in rewritten) {
+                for (const key of Object.keys(rewritten)) {
+                    if (key !== "$ref") delete rewritten[key];
                 }
             }
         }
@@ -212,7 +347,8 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
         additionalProperties: false,
     });
 
-    const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", ts);
+    const annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
+    const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", annotatedTs);
     console.log(`  ✓ ${outPath}`);
 }
 
@@ -271,10 +407,9 @@ function isParamsOptional(method: RpcMethod): boolean {
 }
 
 function resultTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(
-        getMethodResultSchema(method),
-        method.rpcMethod.split(".").map(toPascalCase).join("") + "Result"
-    );
+    const schema = getMethodResultSchema(method);
+    const externalRef = schema?.$ref ? parseExternalSchemaRef(schema.$ref) : undefined;
+    return externalRef?.definitionName ?? getRpcSchemaTypeName(schema, method.rpcMethod.split(".").map(toPascalCase).join("") + "Result");
 }
 
 function tsNullableResultTypeName(method: RpcMethod): string | undefined {
@@ -301,14 +436,29 @@ function paramsTypeName(method: RpcMethod): string {
     if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
         return fallback;
     }
-    return getRpcSchemaTypeName(getMethodParamsSchema(method), fallback);
+    const schema = getMethodParamsSchema(method);
+    const externalRef = schema?.$ref ? parseExternalSchemaRef(schema.$ref) : undefined;
+    return externalRef?.definitionName ?? getRpcSchemaTypeName(schema, fallback);
 }
 
-async function generateRpc(schemaPath?: string): Promise<void> {
+async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("TypeScript: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = fixNullableRequiredRefsInApiSchema(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    let schema = fixNullableRequiredRefsInApiSchema(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
+    if (sessionEventsSchema) {
+        const sharedDefinitions = findSharedSchemaDefinitions(
+            schema as unknown as Record<string, unknown>,
+            sessionEventsSchema as unknown as Record<string, unknown>
+        );
+        const reachableDefinitions = collectReachableDefinitionNames(sessionEventsSchema as unknown as Record<string, unknown>);
+        for (const name of [...sharedDefinitions]) {
+            if (!reachableDefinitions.has(name)) {
+                sharedDefinitions.delete(name);
+            }
+        }
+        schema = rewriteSharedDefinitionReferences(schema, sharedDefinitions, "session-events.schema.json");
+    }
 
     const lines: string[] = [];
     lines.push(`/**
@@ -319,8 +469,20 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
+    const externalSchemaRefs = collectExternalSchemaRefNames(schema);
+    for (const [schemaFile, typeNames] of externalSchemaRefs) {
+        const importPath = EXTERNAL_SCHEMA_TS_IMPORT[schemaFile];
+        if (importPath) {
+            lines.push(`import type { ${[...typeNames].sort().join(", ")} } from "${importPath}";`);
+        }
+    }
+    if (externalSchemaRefs.size > 0) {
+        lines.push("");
+    }
+
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});
+    const rpcMethods = [...allMethods, ...clientSessionMethods];
     const seenBlocks = new Map<string, string>();
 
     // Build a single combined schema with shared definitions and all method types.
@@ -335,18 +497,37 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     );
 
     // Track which type names come from experimental methods for JSDoc annotations.
-    const experimentalTypes = new Set<string>();
+    const experimentalTypes = experimentalDefinitionNames(collectDefinitionCollections(combinedSchema as Record<string, unknown>));
+    for (const name of collectExperimentalOnlyRpcReferencedDefinitionNames(rpcMethods, rpcDefinitions)) {
+        experimentalTypes.add(name);
+    }
+    const nonExperimentalReferencedTypes = collectRpcMethodReferencedDefinitionNames(
+        rpcMethods.filter((method) => method.stability !== "experimental"),
+        rpcDefinitions
+    );
     // Track which type names come from deprecated methods for JSDoc annotations.
     const deprecatedTypes = new Set<string>();
+    // Types are tagged @internal directly via `visibility: "internal"` on the JSON Schema
+    // definition (set by `.asInternal()` on the originating Zod schema). The runtime
+    // schema generator enforces that no public method references an internal type, so
+    // there's no transitive propagation to do here.
+    const internalTypes = new Set<string>();
+    for (const [name, def] of Object.entries(combinedSchema.definitions ?? {})) {
+        if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+            internalTypes.add(name);
+        }
+    }
 
-    for (const method of [...allMethods, ...clientSessionMethods]) {
+    for (const method of rpcMethods) {
         const resultSchema = getMethodResultSchema(method);
-        if (!isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
+        const resultExternalRef = method.result?.$ref ? parseExternalSchemaRef(method.result.$ref) : undefined;
+        if (!resultExternalRef && !isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
+            const resultSource = schemaSourceForNamedDefinition(method.result, resultSchema);
             combinedSchema.definitions![resultTypeName(method)] = withRootTitle(
-                schemaSourceForNamedDefinition(method.result, resultSchema),
+                resultSource,
                 resultTypeName(method)
             );
-            if (method.stability === "experimental") {
+            if (isSchemaExperimental(resultSource) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(resultTypeName(method)))) {
                 experimentalTypes.add(resultTypeName(method));
             }
             if (method.deprecated && !method.result?.$ref) {
@@ -356,6 +537,10 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
         const resolvedParams = getMethodParamsSchema(method);
         if (method.params && hasSchemaPayload(resolvedParams)) {
+            const paramsExternalRef = method.params.$ref ? parseExternalSchemaRef(method.params.$ref) : undefined;
+            if (paramsExternalRef) {
+                continue;
+            }
             if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
                 const filtered: JSONSchema7 = {
                     ...resolvedParams,
@@ -369,7 +554,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                         filtered,
                         paramsTypeName(method)
                     );
-                    if (method.stability === "experimental") {
+                    if (isSchemaExperimental(filtered) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(paramsTypeName(method)))) {
                         experimentalTypes.add(paramsTypeName(method));
                     }
                     if (method.deprecated) {
@@ -377,11 +562,12 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                     }
                 }
             } else {
+                const paramsSource = schemaSourceForNamedDefinition(method.params, resolvedParams);
                 combinedSchema.definitions![paramsTypeName(method)] = withRootTitle(
-                    schemaSourceForNamedDefinition(method.params, resolvedParams),
+                    paramsSource,
                     paramsTypeName(method)
                 );
-                if (method.stability === "experimental") {
+                if (isSchemaExperimental(paramsSource) || (method.stability === "experimental" && !nonExperimentalReferencedTypes.has(paramsTypeName(method)))) {
                     experimentalTypes.add(paramsTypeName(method));
                 }
                 if (method.deprecated && !method.params?.$ref) {
@@ -410,14 +596,8 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         .trim();
 
     if (strippedTs) {
-        // Add @experimental JSDoc annotations for types from experimental methods
-        let annotatedTs = strippedTs;
-        for (const expType of experimentalTypes) {
-            annotatedTs = annotatedTs.replace(
-                new RegExp(`(^|\\n)(export (?:interface|type) ${expType}\\b)`, "m"),
-                `$1/** @experimental */\n$2`
-            );
-        }
+        // Add @experimental JSDoc annotations for types from experimental methods or schemas.
+        let annotatedTs = annotateTypeScriptTypes(strippedTs, experimentalTypes, TS_EXPERIMENTAL_JSDOC);
         // Add @deprecated JSDoc annotations for types from deprecated methods
         for (const depType of deprecatedTypes) {
             annotatedTs = annotatedTs.replace(
@@ -425,29 +605,75 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                 `$1/** @deprecated */\n$2`
             );
         }
+        // Add @internal JSDoc annotations for types from internal methods
+        for (const intType of internalTypes) {
+            annotatedTs = annotatedTs.replace(
+                new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
+                `$1/** @internal */\n$2`
+            );
+        }
         lines.push(annotatedTs);
         lines.push("");
     }
 
     // Generate factory functions
+function hasInternalMethods(node: Record<string, unknown>): boolean {
+    for (const value of Object.values(node)) {
+        if (isRpcMethod(value)) {
+            if ((value as RpcMethod).visibility === "internal") return true;
+        } else if (typeof value === "object" && value !== null) {
+            if (hasInternalMethods(value as Record<string, unknown>)) return true;
+        }
+    }
+    return false;
+}
+
     if (schema.server) {
         lines.push(`/** Create typed server-scoped RPC methods (no session required). */`);
         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
         lines.push(`    return {`);
-        lines.push(...emitGroup(schema.server, "        ", false));
+        lines.push(...emitGroup(schema.server, "        ", false, false, false, "public"));
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
+
+        if (hasInternalMethods(schema.server)) {
+            lines.push(`/**`);
+            lines.push(` * Create typed server-scoped RPC methods that are part of the SDK's internal`);
+            lines.push(` * surface (e.g. handshake helpers). Not exported on the public client API.`);
+            lines.push(` * @internal`);
+            lines.push(` */`);
+            lines.push(`export function createInternalServerRpc(connection: MessageConnection) {`);
+            lines.push(`    return {`);
+            lines.push(...emitGroup(schema.server, "        ", false, false, false, "internal"));
+            lines.push(`    };`);
+            lines.push(`}`);
+            lines.push("");
+        }
     }
 
     if (schema.session) {
         lines.push(`/** Create typed session-scoped RPC methods. */`);
         lines.push(`export function createSessionRpc(connection: MessageConnection, sessionId: string) {`);
         lines.push(`    return {`);
-        lines.push(...emitGroup(schema.session, "        ", true));
+        lines.push(...emitGroup(schema.session, "        ", true, false, false, "public"));
         lines.push(`    };`);
         lines.push(`}`);
         lines.push("");
+
+        if (hasInternalMethods(schema.session)) {
+            lines.push(`/**`);
+            lines.push(` * Create typed session-scoped RPC methods that are part of the SDK's internal`);
+            lines.push(` * surface. Not exported on the public client API.`);
+            lines.push(` * @internal`);
+            lines.push(` */`);
+            lines.push(`export function createInternalSessionRpc(connection: MessageConnection, sessionId: string) {`);
+            lines.push(`    return {`);
+            lines.push(...emitGroup(schema.session, "        ", true, false, false, "internal"));
+            lines.push(`    };`);
+            lines.push(`}`);
+            lines.push("");
+        }
     }
 
     // Generate client session API handler interfaces and registration function
@@ -459,10 +685,20 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     console.log(`  ✓ ${outPath}`);
 }
 
-function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean, parentExperimental = false, parentDeprecated = false): string[] {
+function emitGroup(
+    node: Record<string, unknown>,
+    indent: string,
+    isSession: boolean,
+    parentExperimental = false,
+    parentDeprecated = false,
+    visibilityFilter?: "public" | "internal",
+): string[] {
     const lines: string[] = [];
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
+            const isInternalMethod = (value as RpcMethod).visibility === "internal";
+            if (visibilityFilter === "public" && isInternalMethod) continue;
+            if (visibilityFilter === "internal" && !isInternalMethod) continue;
             const { rpcMethod, params } = value;
             const resultType = tsResultType(value);
             const paramsType = paramsTypeName(value);
@@ -497,25 +733,35 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
                 }
             }
 
-            if ((value as RpcMethod).deprecated && !parentDeprecated) {
-                lines.push(`${indent}/** @deprecated */`);
-            }
-            if ((value as RpcMethod).stability === "experimental" && !parentExperimental) {
-                lines.push(`${indent}/** @experimental */`);
-            }
+            pushTsRpcMethodJsDoc(lines, indent, value, {
+                paramsName: sigParams.length > 0 ? "params" : undefined,
+                paramsDescription: rpcParamsDescription(value, effectiveParams),
+                includeDeprecated: (value as RpcMethod).deprecated && !parentDeprecated,
+                includeExperimental: (value as RpcMethod).stability === "experimental" && !parentExperimental,
+            });
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
             lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
         } else if (typeof value === "object" && value !== null) {
             const groupExperimental = isNodeFullyExperimental(value as Record<string, unknown>);
             const groupDeprecated = isNodeFullyDeprecated(value as Record<string, unknown>);
+            const childLines = emitGroup(
+                value as Record<string, unknown>,
+                indent + "    ",
+                isSession,
+                groupExperimental,
+                groupDeprecated,
+                visibilityFilter,
+            );
+            // Skip the wrapper if the visibility filter dropped every method in this subtree.
+            if (childLines.length === 0) continue;
             if (groupDeprecated) {
                 lines.push(`${indent}/** @deprecated */`);
             }
             if (groupExperimental) {
-                lines.push(`${indent}/** @experimental */`);
+                lines.push(tsExperimentalJSDoc(indent));
             }
             lines.push(`${indent}${key}: {`);
-            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession, groupExperimental, groupDeprecated));
+            lines.push(...childLines);
             lines.push(`${indent}},`);
         }
     }
@@ -563,6 +809,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
     for (const [groupName, methods] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
         const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
+        const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
         if (groupDeprecated) {
             lines.push(`/** @deprecated Handler for \`${groupName}\` client session API methods. */`);
         } else {
@@ -575,9 +822,13 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
             const pType = hasParams ? paramsTypeName(method) : "";
             const rType = tsResultType(method);
 
-            if (method.deprecated && !groupDeprecated) {
-                lines.push(`    /** @deprecated */`);
-            }
+            pushTsRpcMethodJsDoc(lines, "    ", method, {
+                summaryFallback: `Handles \`${method.rpcMethod}\`.`,
+                paramsName: hasParams ? "params" : undefined,
+                paramsDescription: rpcParamsDescription(method, getMethodParamsSchema(method)),
+                includeDeprecated: method.deprecated && !groupDeprecated,
+                includeExperimental: method.stability === "experimental" && !groupExperimental,
+            });
             if (hasParams) {
                 lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
             } else {
@@ -641,7 +892,9 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
 async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
     await generateSessionEvents(sessionSchemaPath);
     try {
-        await generateRpc(apiSchemaPath);
+        const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
+        const sessionSchema = postProcessSchema(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7);
+        await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {
             console.log("TypeScript: skipping RPC (api.schema.json not found)");
@@ -651,9 +904,13 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     }
 }
 
-const sessionArg = process.argv[2] || undefined;
-const apiArg = process.argv[3] || undefined;
-generate(sessionArg, apiArg).catch((err) => {
-    console.error("TypeScript generation failed:", err);
-    process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    const sessionArg = process.argv[2] || undefined;
+    const apiArg = process.argv[3] || undefined;
+    generate(sessionArg, apiArg).catch((err) => {
+        console.error("TypeScript generation failed:", err);
+        process.exit(1);
+    });
+}

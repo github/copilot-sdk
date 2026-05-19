@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Data;
-using System.Reflection;
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.Logging;
+using System.Data;
+using System.Reflection;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -47,7 +47,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         }
     }
 
-    private static string GetTestName(ITestOutputHelper output)
+    internal static string GetTestName(ITestOutputHelper output)
     {
         // xUnit doesn't provide a public API to get the current test name.
         var type = output.GetType();
@@ -58,12 +58,13 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     public async Task InitializeAsync()
     {
+        await Ctx.CleanupAfterTestAsync();
         await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName);
     }
 
     public Task DisposeAsync()
     {
-        return Task.CompletedTask;
+        return Ctx.CleanupAfterTestAsync();
     }
 
     /// <summary>
@@ -81,11 +82,21 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     /// Resumes a session with a default config that approves all permissions.
     /// Convenience wrapper for E2E tests.
     /// </summary>
-    protected Task<CopilotSession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null)
+    protected async Task<CopilotSession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null)
     {
         config ??= new ResumeSessionConfig();
         config.OnPermissionRequest ??= PermissionHandler.ApproveAll;
-        return Client.ResumeSessionAsync(sessionId, config);
+
+        await Client.StartAsync();
+        var port = Client.ActualPort
+            ?? throw new InvalidOperationException("The shared E2E client must use TCP transport to support multi-client resume.");
+
+        var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            CliUrl = $"localhost:{port}",
+            TcpConnectionToken = E2ETestFixture.SharedTcpConnectionToken,
+        });
+        return await client.ResumeSessionAsync(sessionId, config);
     }
 
     protected static string GetSystemMessage(ParsedHttpExchange exchange)
