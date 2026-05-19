@@ -211,7 +211,6 @@ impl SessionFsProvider for InMemorySqliteProvider {
 impl SessionFsSqliteProvider for InMemorySqliteProvider {
     async fn sqlite_query(
         &self,
-        session_id: &str,
         query: &str,
         query_type: SessionFsSqliteQueryType,
         _params: Option<&HashMap<String, serde_json::Value>>,
@@ -223,7 +222,7 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
             SessionFsSqliteQueryType::Unknown => "unknown",
         };
         self.sqlite_calls.lock().unwrap().push(SqliteCall {
-            session_id: session_id.to_string(),
+            session_id: "session".to_string(),
             query_type: qt_str.to_string(),
             query: query.to_string(),
         });
@@ -237,7 +236,6 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                 rows: vec![],
                 rows_affected: 0,
                 last_insert_rowid: None,
-                error: None,
             });
         }
 
@@ -250,7 +248,6 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                     rows: vec![],
                     rows_affected: 0,
                     last_insert_rowid: None,
-                    error: None,
                 })
             }
             SessionFsSqliteQueryType::Query => {
@@ -293,7 +290,6 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                     rows,
                     rows_affected: 0,
                     last_insert_rowid: None,
-                    error: None,
                 })
             }
             SessionFsSqliteQueryType::Run => {
@@ -306,7 +302,6 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                     rows: vec![],
                     rows_affected: affected as i64,
                     last_insert_rowid: Some(last_id as f64),
-                    error: None,
                 })
             }
             _ => Ok(SessionFsSqliteQueryResult {
@@ -314,12 +309,11 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                 rows: vec![],
                 rows_affected: 0,
                 last_insert_rowid: None,
-                error: None,
             }),
         }
     }
 
-    async fn sqlite_exists(&self, _session_id: &str) -> Result<bool, FsError> {
+    async fn sqlite_exists(&self) -> Result<bool, FsError> {
         Ok(self.db.lock().unwrap().is_some())
     }
 }

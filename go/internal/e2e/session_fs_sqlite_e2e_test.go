@@ -195,12 +195,12 @@ func (p *inMemorySqliteProvider) Rename(src string, dest string) error {
 	return nil
 }
 
-func (p *inMemorySqliteProvider) SqliteQuery(sessionID string, query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*rpc.SessionFsSqliteQueryResult, error) {
+func (p *inMemorySqliteProvider) SqliteQuery(query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*copilot.SessionFsSqliteQueryResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.hadQuery = true
 	*p.sqliteCalls = append(*p.sqliteCalls, sqliteCall{
-		SessionID: sessionID,
+		SessionID: "stub",
 		QueryType: string(queryType),
 		Query:     query,
 	})
@@ -212,10 +212,10 @@ func (p *inMemorySqliteProvider) SqliteQuery(sessionID string, query string, que
 	upper := strings.ToUpper(strings.TrimSpace(query))
 	switch queryType {
 	case rpc.SessionFsSqliteQueryTypeExec:
-		return &rpc.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+		return &copilot.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
 	case rpc.SessionFsSqliteQueryTypeRun:
 		lastID := float64(1)
-		return &rpc.SessionFsSqliteQueryResult{
+		return &copilot.SessionFsSqliteQueryResult{
 			Columns:         []string{},
 			Rows:            []map[string]any{},
 			RowsAffected:    1,
@@ -223,17 +223,17 @@ func (p *inMemorySqliteProvider) SqliteQuery(sessionID string, query string, que
 		}, nil
 	case rpc.SessionFsSqliteQueryTypeQuery:
 		if strings.Contains(upper, "SELECT") {
-			return &rpc.SessionFsSqliteQueryResult{
+			return &copilot.SessionFsSqliteQueryResult{
 				Columns: []string{"id", "name"},
 				Rows:    []map[string]any{{"id": "a1", "name": "Widget"}},
 			}, nil
 		}
-		return &rpc.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+		return &copilot.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
 	}
-	return &rpc.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+	return &copilot.SessionFsSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
 }
 
-func (p *inMemorySqliteProvider) SqliteExists(sessionID string) (bool, error) {
+func (p *inMemorySqliteProvider) SqliteExists() (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.hadQuery, nil

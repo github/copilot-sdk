@@ -52,11 +52,24 @@ type SessionFsProvider interface {
 // may also implement to support per-session SQLite databases. The adapter
 // checks for this interface at runtime using a type assertion. If the
 // provider does not implement it, SQLite requests return an "unsupported" error.
+//
+// Providers are already session-scoped (created per session by the factory),
+// so these methods do not take a session ID parameter.
 type SessionFsSqliteProvider interface {
 	// SqliteQuery executes a SQLite query against the provider's per-session database.
-	SqliteQuery(sessionID string, query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*rpc.SessionFsSqliteQueryResult, error)
+	SqliteQuery(query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*SessionFsSqliteQueryResult, error)
 	// SqliteExists checks whether the provider has a SQLite database for the session.
-	SqliteExists(sessionID string) (bool, error)
+	SqliteExists() (bool, error)
+}
+
+// SessionFsSqliteQueryResult holds the result of a SQLite query execution.
+// Same shape as the generated RPC type but without the Error field,
+// since providers signal errors by returning a Go error.
+type SessionFsSqliteQueryResult struct {
+	Columns        []string         `json:"columns"`
+	Rows           []map[string]any `json:"rows"`
+	RowsAffected   int64            `json:"rowsAffected"`
+	LastInsertRowid *float64        `json:"lastInsertRowid,omitempty"`
 }
 
 // SessionFsFileInfo holds file metadata returned by SessionFsProvider.Stat.
@@ -188,7 +201,7 @@ func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest)
 			Error:        &rpc.SessionFsError{Code: rpc.SessionFsErrorCodeUNKNOWN, Message: &msg},
 		}, nil
 	}
-	result, err := sp.SqliteQuery(request.SessionID, request.Query, request.QueryType, request.Params)
+	result, err := sp.SqliteQuery(request.Query, request.QueryType, request.Params)
 	if err != nil {
 		return &rpc.SessionFsSqliteQueryResult{
 			Columns:      []string{},
@@ -197,7 +210,12 @@ func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest)
 			Error:        toSessionFsError(err),
 		}, nil
 	}
-	return result, nil
+	return &rpc.SessionFsSqliteQueryResult{
+		Columns:        result.Columns,
+		Rows:           result.Rows,
+		RowsAffected:   result.RowsAffected,
+		LastInsertRowid: result.LastInsertRowid,
+	}, nil
 }
 
 func (a *sessionFsAdapter) SqliteExists(request *rpc.SessionFsSqliteExistsRequest) (*rpc.SessionFsSqliteExistsResult, error) {
@@ -205,7 +223,7 @@ func (a *sessionFsAdapter) SqliteExists(request *rpc.SessionFsSqliteExistsReques
 	if !ok {
 		return &rpc.SessionFsSqliteExistsResult{Exists: false}, nil
 	}
-	exists, err := sp.SqliteExists(request.SessionID)
+	exists, err := sp.SqliteExists()
 	if err != nil {
 		return &rpc.SessionFsSqliteExistsResult{Exists: false}, nil
 	}

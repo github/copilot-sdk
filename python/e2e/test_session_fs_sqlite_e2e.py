@@ -17,7 +17,6 @@ from copilot.client import SubprocessConfig
 from copilot.generated.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
-    SessionFSSqliteQueryResult,
     SessionFSSqliteQueryType,
 )
 from copilot.session import PermissionHandler
@@ -25,6 +24,7 @@ from copilot.session_fs_provider import (
     SessionFsFileInfo,
     SessionFsProvider,
     SessionFsSqliteProvider,
+    SessionFsSqliteQueryResult,
 )
 
 from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
@@ -148,14 +148,12 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
 
     async def sqlite_query(
         self,
-        session_id: str,
         query: str,
         query_type: SessionFSSqliteQueryType,
         params: dict[str, float | str | None] | None = None,
-    ) -> SessionFSSqliteQueryResult:
+    ) -> SessionFsSqliteQueryResult:
         self._sqlite_calls.append(
             {
-                "sessionId": session_id,
                 "queryType": query_type.value,
                 "query": query,
             }
@@ -164,30 +162,30 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
         db = self._get_or_create_db()
         trimmed = query.strip()
         if not trimmed:
-            return SessionFSSqliteQueryResult(columns=[], rows=[], rows_affected=0)
+            return SessionFsSqliteQueryResult(columns=[], rows=[], rows_affected=0)
 
         if query_type == SessionFSSqliteQueryType.EXEC:
             db.executescript(trimmed)
             db.commit()
-            return SessionFSSqliteQueryResult(columns=[], rows=[], rows_affected=0)
+            return SessionFsSqliteQueryResult(columns=[], rows=[], rows_affected=0)
 
         if query_type == SessionFSSqliteQueryType.QUERY:
             cursor = db.execute(trimmed, params or {})
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
             rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            return SessionFSSqliteQueryResult(columns=columns, rows=rows, rows_affected=0)
+            return SessionFsSqliteQueryResult(columns=columns, rows=rows, rows_affected=0)
 
         # run (INSERT/UPDATE/DELETE)
         cursor = db.execute(trimmed, params or {})
         db.commit()
-        return SessionFSSqliteQueryResult(
+        return SessionFsSqliteQueryResult(
             columns=[],
             rows=[],
             rows_affected=cursor.rowcount,
             last_insert_rowid=float(cursor.lastrowid) if cursor.lastrowid else None,
         )
 
-    async def sqlite_exists(self, session_id: str) -> bool:
+    async def sqlite_exists(self) -> bool:
         return self._db is not None
 
 

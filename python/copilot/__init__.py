@@ -43,6 +43,7 @@ from .session_fs_provider import (
     SessionFsFileInfo,
     SessionFsProvider,
     SessionFsSqliteProvider,
+    SessionFsSqliteQueryResult,
     create_session_fs_adapter,
 )
 from .tools import (
@@ -88,6 +89,7 @@ __all__ = [
     "SessionFsFileInfo",
     "SessionFsProvider",
     "SessionFsSqliteProvider",
+    "SessionFsSqliteQueryResult",
     "create_session_fs_adapter",
     "SessionUiApi",
     "SessionUiCapabilities",

@@ -17,8 +17,8 @@ use crate::generated::api_types::{
     SessionFsReadFileResult, SessionFsReaddirRequest, SessionFsReaddirResult,
     SessionFsReaddirWithTypesRequest, SessionFsReaddirWithTypesResult, SessionFsRenameRequest,
     SessionFsRmRequest, SessionFsSqliteExistsParams, SessionFsSqliteExistsResult,
-    SessionFsSqliteQueryRequest, SessionFsSqliteQueryResult, SessionFsStatRequest,
-    SessionFsStatResult, SessionFsWriteFileRequest,
+    SessionFsSqliteQueryRequest, SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
+    SessionFsStatRequest, SessionFsStatResult, SessionFsWriteFileRequest,
 };
 use crate::session_fs::SessionFsProvider;
 use crate::{Client, JsonRpcRequest, JsonRpcResponse, error_codes};
@@ -324,7 +324,7 @@ pub(crate) async fn sqlite_query(
             respond(
                 client,
                 id,
-                SessionFsSqliteQueryResult {
+                GeneratedSqliteQueryResult {
                     columns: Vec::new(),
                     error: Some(SessionFsError {
                         code: SessionFsErrorCode::UNKNOWN,
@@ -342,15 +342,20 @@ pub(crate) async fn sqlite_query(
     let sqlite_params = (!params.params.is_empty()).then_some(&params.params);
     let result = match sqlite
         .sqlite_query(
-            params.session_id.as_ref(),
             &params.query,
             params.query_type,
             sqlite_params,
         )
         .await
     {
-        Ok(result) => result,
-        Err(e) => SessionFsSqliteQueryResult {
+        Ok(result) => GeneratedSqliteQueryResult {
+            columns: result.columns,
+            rows: result.rows,
+            rows_affected: result.rows_affected,
+            last_insert_rowid: result.last_insert_rowid,
+            error: None,
+        },
+        Err(e) => GeneratedSqliteQueryResult {
             columns: Vec::new(),
             error: Some(e.into_wire()),
             last_insert_rowid: None,
@@ -366,7 +371,7 @@ pub(crate) async fn sqlite_exists(
     provider: &Arc<dyn SessionFsProvider>,
     request: JsonRpcRequest,
 ) {
-    let params: SessionFsSqliteExistsParams = match parse_params(&request) {
+    let _params: SessionFsSqliteExistsParams = match parse_params(&request) {
         Some(p) => p,
         None => {
             send_error(client, request.id, "invalid sessionFs.sqliteExists params").await;
@@ -375,7 +380,7 @@ pub(crate) async fn sqlite_exists(
     };
     let id = request.id;
     let result = match provider.sqlite() {
-        Some(sqlite) => match sqlite.sqlite_exists(params.session_id.as_ref()).await {
+        Some(sqlite) => match sqlite.sqlite_exists().await {
             Ok(exists) => SessionFsSqliteExistsResult { exists },
             Err(_) => SessionFsSqliteExistsResult { exists: false },
         },

@@ -48,7 +48,7 @@ use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
     SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
 };
-pub use crate::generated::api_types::{SessionFsSqliteQueryResult, SessionFsSqliteQueryType};
+pub use crate::generated::api_types::SessionFsSqliteQueryType;
 
 /// Optional capabilities declared by a session filesystem provider.
 #[non_exhaustive]
@@ -388,6 +388,9 @@ pub trait SessionFsProvider: Send + Sync + 'static {
 
 /// Optional trait for providers that support SQLite operations.
 ///
+/// Providers are already session-scoped (created per session by the factory),
+/// so these methods do not take a `session_id` parameter.
+///
 /// To opt in, implement this trait on your provider and override
 /// [`SessionFsProvider::sqlite`] to return `Some(self)`:
 ///
@@ -407,14 +410,29 @@ pub trait SessionFsSqliteProvider: Send + Sync {
     /// Execute a SQLite query against the provider's per-session database.
     async fn sqlite_query(
         &self,
-        session_id: &str,
         query: &str,
         query_type: SessionFsSqliteQueryType,
         params: Option<&HashMap<String, serde_json::Value>>,
     ) -> Result<SessionFsSqliteQueryResult, FsError>;
 
-    /// Check whether the provider has a SQLite database for the session.
-    async fn sqlite_exists(&self, session_id: &str) -> Result<bool, FsError>;
+    /// Check whether the provider has a SQLite database for this session.
+    async fn sqlite_exists(&self) -> Result<bool, FsError>;
+}
+
+/// Result of a SQLite query execution via [`SessionFsSqliteProvider::sqlite_query`].
+///
+/// Same shape as the generated RPC type but without the `error` field,
+/// since providers signal errors by returning `Err`.
+#[derive(Debug, Clone, Default)]
+pub struct SessionFsSqliteQueryResult {
+    /// Column names from the result set.
+    pub columns: Vec<String>,
+    /// For SELECT: array of row objects. For others: empty array.
+    pub rows: Vec<HashMap<String, serde_json::Value>>,
+    /// Number of rows affected (for INSERT/UPDATE/DELETE).
+    pub rows_affected: i64,
+    /// Last inserted row ID (for INSERT).
+    pub last_insert_rowid: Option<f64>,
 }
 
 #[cfg(test)]

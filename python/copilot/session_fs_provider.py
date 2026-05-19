@@ -33,9 +33,11 @@ from .generated.rpc import (
     SessionFSReaddirWithTypesResult,
     SessionFSReadFileResult,
     SessionFSSqliteExistsResult,
-    SessionFSSqliteQueryResult,
     SessionFSSqliteQueryType,
     SessionFSStatResult,
+)
+from .generated.rpc import (
+    SessionFSSqliteQueryResult as _GeneratedSqliteQueryResult,
 )
 
 
@@ -110,21 +112,37 @@ class SessionFsSqliteProvider(abc.ABC):
 
     The adapter checks ``isinstance(provider, SessionFsSqliteProvider)`` at
     runtime to decide whether SQLite calls should be dispatched.
+
+    Providers are already session-scoped (created per session by the factory),
+    so these methods do not take a ``session_id`` parameter.
     """
 
     @abc.abstractmethod
     async def sqlite_query(
         self,
-        session_id: str,
         query: str,
         query_type: SessionFSSqliteQueryType,
         params: dict[str, float | str | None] | None = None,
-    ) -> SessionFSSqliteQueryResult:
+    ) -> SessionFsSqliteQueryResult:
         """Execute a SQLite query against the provider's per-session database."""
 
     @abc.abstractmethod
-    async def sqlite_exists(self, session_id: str) -> bool:
-        """Return whether the provider has a SQLite database for *session_id*."""
+    async def sqlite_exists(self) -> bool:
+        """Return whether the provider has a SQLite database for this session."""
+
+
+@dataclass
+class SessionFsSqliteQueryResult:
+    """Result of a SQLite query execution.
+
+    Same shape as the generated RPC type but without the ``error`` field,
+    since providers signal errors by raising exceptions.
+    """
+
+    columns: list[str]
+    rows: list[dict[str, Any]]
+    rows_affected: int
+    last_insert_rowid: float | None = None
 
 
 def create_session_fs_adapter(provider: SessionFsProvider) -> SessionFsHandler:
@@ -240,12 +258,12 @@ class _SessionFsAdapter:
         except Exception as exc:
             return _to_session_fs_error(exc)
 
-    async def sqlite_query(self, params: Any) -> SessionFSSqliteQueryResult:
+    async def sqlite_query(self, params: Any) -> _GeneratedSqliteQueryResult:
         # SQLite methods intentionally skip toSessionFsError wrapping — FS errno
         # mapping (ENOENT) isn't meaningful for SQL errors and the JSON-RPC layer
         # already handles uncaught exceptions.
         if not isinstance(self._p, SessionFsSqliteProvider):
-            return SessionFSSqliteQueryResult(
+            return _GeneratedSqliteQueryResult(
                 columns=[],
                 rows=[],
                 rows_affected=0,
@@ -254,18 +272,23 @@ class _SessionFsAdapter:
                     message="SQLite is not supported by this SessionFs provider",
                 ),
             )
-        return await self._p.sqlite_query(
-            params.session_id,
+        result = await self._p.sqlite_query(
             params.query,
             params.query_type,
             getattr(params, "params", None),
+        )
+        return _GeneratedSqliteQueryResult(
+            columns=result.columns,
+            rows=result.rows,
+            rows_affected=result.rows_affected,
+            last_insert_rowid=result.last_insert_rowid,
         )
 
     async def sqlite_exists(self, params: Any) -> SessionFSSqliteExistsResult:
         if not isinstance(self._p, SessionFsSqliteProvider):
             return SessionFSSqliteExistsResult.from_dict({"exists": False})
         try:
-            result = await self._p.sqlite_exists(params.session_id)  # type: ignore[attr-defined]
+            result = await self._p.sqlite_exists()
             return SessionFSSqliteExistsResult.from_dict({"exists": result})
         except Exception:
             return SessionFSSqliteExistsResult.from_dict({"exists": False})
