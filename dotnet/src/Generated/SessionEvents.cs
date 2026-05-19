@@ -149,7 +149,7 @@ public partial class SessionEvent
 
 /// <summary>Session initialization metadata including context and configuration.</summary>
 /// <remarks>Represents the <c>session.start</c> event.</remarks>
-public partial class SessionStartEvent : SessionEvent
+public sealed partial class SessionStartEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -162,7 +162,7 @@ public partial class SessionStartEvent : SessionEvent
 
 /// <summary>Session resume metadata including current context and event count.</summary>
 /// <remarks>Represents the <c>session.resume</c> event.</remarks>
-public partial class SessionResumeEvent : SessionEvent
+public sealed partial class SessionResumeEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -175,7 +175,7 @@ public partial class SessionResumeEvent : SessionEvent
 
 /// <summary>Notifies that the session's remote steering capability has changed.</summary>
 /// <remarks>Represents the <c>session.remote_steerable_changed</c> event.</remarks>
-public partial class SessionRemoteSteerableChangedEvent : SessionEvent
+public sealed partial class SessionRemoteSteerableChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -188,7 +188,7 @@ public partial class SessionRemoteSteerableChangedEvent : SessionEvent
 
 /// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
 /// <remarks>Represents the <c>session.error</c> event.</remarks>
-public partial class SessionErrorEvent : SessionEvent
+public sealed partial class SessionErrorEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -201,7 +201,7 @@ public partial class SessionErrorEvent : SessionEvent
 
 /// <summary>Payload indicating the session is idle with no background agents in flight.</summary>
 /// <remarks>Represents the <c>session.idle</c> event.</remarks>
-public partial class SessionIdleEvent : SessionEvent
+public sealed partial class SessionIdleEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -214,7 +214,7 @@ public partial class SessionIdleEvent : SessionEvent
 
 /// <summary>Session title change payload containing the new display title.</summary>
 /// <remarks>Represents the <c>session.title_changed</c> event.</remarks>
-public partial class SessionTitleChangedEvent : SessionEvent
+public sealed partial class SessionTitleChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -227,7 +227,7 @@ public partial class SessionTitleChangedEvent : SessionEvent
 
 /// <summary>Scheduled prompt registered via /every or /after.</summary>
 /// <remarks>Represents the <c>session.schedule_created</c> event.</remarks>
-public partial class SessionScheduleCreatedEvent : SessionEvent
+public sealed partial class SessionScheduleCreatedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -240,7 +240,7 @@ public partial class SessionScheduleCreatedEvent : SessionEvent
 
 /// <summary>Scheduled prompt cancelled from the schedule manager dialog.</summary>
 /// <remarks>Represents the <c>session.schedule_cancelled</c> event.</remarks>
-public partial class SessionScheduleCancelledEvent : SessionEvent
+public sealed partial class SessionScheduleCancelledEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -253,7 +253,7 @@ public partial class SessionScheduleCancelledEvent : SessionEvent
 
 /// <summary>Informational message for timeline display with categorization.</summary>
 /// <remarks>Represents the <c>session.info</c> event.</remarks>
-public partial class SessionInfoEvent : SessionEvent
+public sealed partial class SessionInfoEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -266,7 +266,7 @@ public partial class SessionInfoEvent : SessionEvent
 
 /// <summary>Warning message for timeline display with categorization.</summary>
 /// <remarks>Represents the <c>session.warning</c> event.</remarks>
-public partial class SessionWarningEvent : SessionEvent
+public sealed partial class SessionWarningEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -279,7 +279,7 @@ public partial class SessionWarningEvent : SessionEvent
 
 /// <summary>Model change details including previous and new model identifiers.</summary>
 /// <remarks>Represents the <c>session.model_change</c> event.</remarks>
-public partial class SessionModelChangeEvent : SessionEvent
+public sealed partial class SessionModelChangeEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -292,7 +292,7 @@ public partial class SessionModelChangeEvent : SessionEvent
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
 /// <remarks>Represents the <c>session.mode_changed</c> event.</remarks>
-public partial class SessionModeChangedEvent : SessionEvent
+public sealed partial class SessionModeChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -305,7 +305,7 @@ public partial class SessionModeChangedEvent : SessionEvent
 
 /// <summary>Plan file operation details indicating what changed.</summary>
 /// <remarks>Represents the <c>session.plan_changed</c> event.</remarks>
-public partial class SessionPlanChangedEvent : SessionEvent
+public sealed partial class SessionPlanChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -318,7 +318,7 @@ public partial class SessionPlanChangedEvent : SessionEvent
 
 /// <summary>Workspace file change details including path and operation type.</summary>
 /// <remarks>Represents the <c>session.workspace_file_changed</c> event.</remarks>
-public partial class SessionWorkspaceFileChangedEvent : SessionEvent
+public sealed partial class SessionWorkspaceFileChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -331,7 +331,7 @@ public partial class SessionWorkspaceFileChangedEvent : SessionEvent
 
 /// <summary>Session handoff metadata including source, context, and repository information.</summary>
 /// <remarks>Represents the <c>session.handoff</c> event.</remarks>
-public partial class SessionHandoffEvent : SessionEvent
+public sealed partial class SessionHandoffEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -344,7 +344,7 @@ public partial class SessionHandoffEvent : SessionEvent
 
 /// <summary>Conversation truncation statistics including token counts and removed content metrics.</summary>
 /// <remarks>Represents the <c>session.truncation</c> event.</remarks>
-public partial class SessionTruncationEvent : SessionEvent
+public sealed partial class SessionTruncationEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -357,7 +357,7 @@ public partial class SessionTruncationEvent : SessionEvent
 
 /// <summary>Session rewind details including target event and count of removed events.</summary>
 /// <remarks>Represents the <c>session.snapshot_rewind</c> event.</remarks>
-public partial class SessionSnapshotRewindEvent : SessionEvent
+public sealed partial class SessionSnapshotRewindEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -370,7 +370,7 @@ public partial class SessionSnapshotRewindEvent : SessionEvent
 
 /// <summary>Session termination metrics including usage statistics, code changes, and shutdown reason.</summary>
 /// <remarks>Represents the <c>session.shutdown</c> event.</remarks>
-public partial class SessionShutdownEvent : SessionEvent
+public sealed partial class SessionShutdownEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -383,7 +383,7 @@ public partial class SessionShutdownEvent : SessionEvent
 
 /// <summary>Working directory and git context at session start.</summary>
 /// <remarks>Represents the <c>session.context_changed</c> event.</remarks>
-public partial class SessionContextChangedEvent : SessionEvent
+public sealed partial class SessionContextChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -396,7 +396,7 @@ public partial class SessionContextChangedEvent : SessionEvent
 
 /// <summary>Current context window usage statistics including token and message counts.</summary>
 /// <remarks>Represents the <c>session.usage_info</c> event.</remarks>
-public partial class SessionUsageInfoEvent : SessionEvent
+public sealed partial class SessionUsageInfoEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -409,7 +409,7 @@ public partial class SessionUsageInfoEvent : SessionEvent
 
 /// <summary>Context window breakdown at the start of LLM-powered conversation compaction.</summary>
 /// <remarks>Represents the <c>session.compaction_start</c> event.</remarks>
-public partial class SessionCompactionStartEvent : SessionEvent
+public sealed partial class SessionCompactionStartEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -422,7 +422,7 @@ public partial class SessionCompactionStartEvent : SessionEvent
 
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
 /// <remarks>Represents the <c>session.compaction_complete</c> event.</remarks>
-public partial class SessionCompactionCompleteEvent : SessionEvent
+public sealed partial class SessionCompactionCompleteEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -435,7 +435,7 @@ public partial class SessionCompactionCompleteEvent : SessionEvent
 
 /// <summary>Task completion notification with summary from the agent.</summary>
 /// <remarks>Represents the <c>session.task_complete</c> event.</remarks>
-public partial class SessionTaskCompleteEvent : SessionEvent
+public sealed partial class SessionTaskCompleteEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -448,7 +448,7 @@ public partial class SessionTaskCompleteEvent : SessionEvent
 
 /// <summary>Schema for the `UserMessageData` type.</summary>
 /// <remarks>Represents the <c>user.message</c> event.</remarks>
-public partial class UserMessageEvent : SessionEvent
+public sealed partial class UserMessageEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -461,7 +461,7 @@ public partial class UserMessageEvent : SessionEvent
 
 /// <summary>Empty payload; the event signals that the pending message queue has changed.</summary>
 /// <remarks>Represents the <c>pending_messages.modified</c> event.</remarks>
-public partial class PendingMessagesModifiedEvent : SessionEvent
+public sealed partial class PendingMessagesModifiedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -474,7 +474,7 @@ public partial class PendingMessagesModifiedEvent : SessionEvent
 
 /// <summary>Turn initialization metadata including identifier and interaction tracking.</summary>
 /// <remarks>Represents the <c>assistant.turn_start</c> event.</remarks>
-public partial class AssistantTurnStartEvent : SessionEvent
+public sealed partial class AssistantTurnStartEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -487,7 +487,7 @@ public partial class AssistantTurnStartEvent : SessionEvent
 
 /// <summary>Agent intent description for current activity or plan.</summary>
 /// <remarks>Represents the <c>assistant.intent</c> event.</remarks>
-public partial class AssistantIntentEvent : SessionEvent
+public sealed partial class AssistantIntentEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -500,7 +500,7 @@ public partial class AssistantIntentEvent : SessionEvent
 
 /// <summary>Assistant reasoning content for timeline display with complete thinking text.</summary>
 /// <remarks>Represents the <c>assistant.reasoning</c> event.</remarks>
-public partial class AssistantReasoningEvent : SessionEvent
+public sealed partial class AssistantReasoningEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -513,7 +513,7 @@ public partial class AssistantReasoningEvent : SessionEvent
 
 /// <summary>Streaming reasoning delta for incremental extended thinking updates.</summary>
 /// <remarks>Represents the <c>assistant.reasoning_delta</c> event.</remarks>
-public partial class AssistantReasoningDeltaEvent : SessionEvent
+public sealed partial class AssistantReasoningDeltaEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -526,7 +526,7 @@ public partial class AssistantReasoningDeltaEvent : SessionEvent
 
 /// <summary>Streaming response progress with cumulative byte count.</summary>
 /// <remarks>Represents the <c>assistant.streaming_delta</c> event.</remarks>
-public partial class AssistantStreamingDeltaEvent : SessionEvent
+public sealed partial class AssistantStreamingDeltaEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -539,7 +539,7 @@ public partial class AssistantStreamingDeltaEvent : SessionEvent
 
 /// <summary>Assistant response containing text content, optional tool requests, and interaction metadata.</summary>
 /// <remarks>Represents the <c>assistant.message</c> event.</remarks>
-public partial class AssistantMessageEvent : SessionEvent
+public sealed partial class AssistantMessageEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -552,7 +552,7 @@ public partial class AssistantMessageEvent : SessionEvent
 
 /// <summary>Streaming assistant message start metadata.</summary>
 /// <remarks>Represents the <c>assistant.message_start</c> event.</remarks>
-public partial class AssistantMessageStartEvent : SessionEvent
+public sealed partial class AssistantMessageStartEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -565,7 +565,7 @@ public partial class AssistantMessageStartEvent : SessionEvent
 
 /// <summary>Streaming assistant message delta for incremental response updates.</summary>
 /// <remarks>Represents the <c>assistant.message_delta</c> event.</remarks>
-public partial class AssistantMessageDeltaEvent : SessionEvent
+public sealed partial class AssistantMessageDeltaEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -578,7 +578,7 @@ public partial class AssistantMessageDeltaEvent : SessionEvent
 
 /// <summary>Turn completion metadata including the turn identifier.</summary>
 /// <remarks>Represents the <c>assistant.turn_end</c> event.</remarks>
-public partial class AssistantTurnEndEvent : SessionEvent
+public sealed partial class AssistantTurnEndEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -591,7 +591,7 @@ public partial class AssistantTurnEndEvent : SessionEvent
 
 /// <summary>LLM API call usage metrics including tokens, costs, quotas, and billing information.</summary>
 /// <remarks>Represents the <c>assistant.usage</c> event.</remarks>
-public partial class AssistantUsageEvent : SessionEvent
+public sealed partial class AssistantUsageEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -604,7 +604,7 @@ public partial class AssistantUsageEvent : SessionEvent
 
 /// <summary>Failed LLM API call metadata for telemetry.</summary>
 /// <remarks>Represents the <c>model.call_failure</c> event.</remarks>
-public partial class ModelCallFailureEvent : SessionEvent
+public sealed partial class ModelCallFailureEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -617,7 +617,7 @@ public partial class ModelCallFailureEvent : SessionEvent
 
 /// <summary>Turn abort information including the reason for termination.</summary>
 /// <remarks>Represents the <c>abort</c> event.</remarks>
-public partial class AbortEvent : SessionEvent
+public sealed partial class AbortEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -630,7 +630,7 @@ public partial class AbortEvent : SessionEvent
 
 /// <summary>User-initiated tool invocation request with tool name and arguments.</summary>
 /// <remarks>Represents the <c>tool.user_requested</c> event.</remarks>
-public partial class ToolUserRequestedEvent : SessionEvent
+public sealed partial class ToolUserRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -643,7 +643,7 @@ public partial class ToolUserRequestedEvent : SessionEvent
 
 /// <summary>Tool execution startup details including MCP server information when applicable.</summary>
 /// <remarks>Represents the <c>tool.execution_start</c> event.</remarks>
-public partial class ToolExecutionStartEvent : SessionEvent
+public sealed partial class ToolExecutionStartEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -656,7 +656,7 @@ public partial class ToolExecutionStartEvent : SessionEvent
 
 /// <summary>Streaming tool execution output for incremental result display.</summary>
 /// <remarks>Represents the <c>tool.execution_partial_result</c> event.</remarks>
-public partial class ToolExecutionPartialResultEvent : SessionEvent
+public sealed partial class ToolExecutionPartialResultEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -669,7 +669,7 @@ public partial class ToolExecutionPartialResultEvent : SessionEvent
 
 /// <summary>Tool execution progress notification with status message.</summary>
 /// <remarks>Represents the <c>tool.execution_progress</c> event.</remarks>
-public partial class ToolExecutionProgressEvent : SessionEvent
+public sealed partial class ToolExecutionProgressEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -682,7 +682,7 @@ public partial class ToolExecutionProgressEvent : SessionEvent
 
 /// <summary>Tool execution completion results including success status, detailed output, and error information.</summary>
 /// <remarks>Represents the <c>tool.execution_complete</c> event.</remarks>
-public partial class ToolExecutionCompleteEvent : SessionEvent
+public sealed partial class ToolExecutionCompleteEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -695,7 +695,7 @@ public partial class ToolExecutionCompleteEvent : SessionEvent
 
 /// <summary>Skill invocation details including content, allowed tools, and plugin metadata.</summary>
 /// <remarks>Represents the <c>skill.invoked</c> event.</remarks>
-public partial class SkillInvokedEvent : SessionEvent
+public sealed partial class SkillInvokedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -708,7 +708,7 @@ public partial class SkillInvokedEvent : SessionEvent
 
 /// <summary>Sub-agent startup details including parent tool call and agent information.</summary>
 /// <remarks>Represents the <c>subagent.started</c> event.</remarks>
-public partial class SubagentStartedEvent : SessionEvent
+public sealed partial class SubagentStartedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -721,7 +721,7 @@ public partial class SubagentStartedEvent : SessionEvent
 
 /// <summary>Sub-agent completion details for successful execution.</summary>
 /// <remarks>Represents the <c>subagent.completed</c> event.</remarks>
-public partial class SubagentCompletedEvent : SessionEvent
+public sealed partial class SubagentCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -734,7 +734,7 @@ public partial class SubagentCompletedEvent : SessionEvent
 
 /// <summary>Sub-agent failure details including error message and agent information.</summary>
 /// <remarks>Represents the <c>subagent.failed</c> event.</remarks>
-public partial class SubagentFailedEvent : SessionEvent
+public sealed partial class SubagentFailedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -747,7 +747,7 @@ public partial class SubagentFailedEvent : SessionEvent
 
 /// <summary>Custom agent selection details including name and available tools.</summary>
 /// <remarks>Represents the <c>subagent.selected</c> event.</remarks>
-public partial class SubagentSelectedEvent : SessionEvent
+public sealed partial class SubagentSelectedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -760,7 +760,7 @@ public partial class SubagentSelectedEvent : SessionEvent
 
 /// <summary>Empty payload; the event signals that the custom agent was deselected, returning to the default agent.</summary>
 /// <remarks>Represents the <c>subagent.deselected</c> event.</remarks>
-public partial class SubagentDeselectedEvent : SessionEvent
+public sealed partial class SubagentDeselectedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -773,7 +773,7 @@ public partial class SubagentDeselectedEvent : SessionEvent
 
 /// <summary>Hook invocation start details including type and input data.</summary>
 /// <remarks>Represents the <c>hook.start</c> event.</remarks>
-public partial class HookStartEvent : SessionEvent
+public sealed partial class HookStartEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -786,7 +786,7 @@ public partial class HookStartEvent : SessionEvent
 
 /// <summary>Hook invocation completion details including output, success status, and error information.</summary>
 /// <remarks>Represents the <c>hook.end</c> event.</remarks>
-public partial class HookEndEvent : SessionEvent
+public sealed partial class HookEndEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -799,7 +799,7 @@ public partial class HookEndEvent : SessionEvent
 
 /// <summary>System/developer instruction content with role and optional template metadata.</summary>
 /// <remarks>Represents the <c>system.message</c> event.</remarks>
-public partial class SystemMessageEvent : SessionEvent
+public sealed partial class SystemMessageEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -812,7 +812,7 @@ public partial class SystemMessageEvent : SessionEvent
 
 /// <summary>System-generated notification for runtime events like background task completion.</summary>
 /// <remarks>Represents the <c>system.notification</c> event.</remarks>
-public partial class SystemNotificationEvent : SessionEvent
+public sealed partial class SystemNotificationEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -825,7 +825,7 @@ public partial class SystemNotificationEvent : SessionEvent
 
 /// <summary>Permission request notification requiring client approval with request details.</summary>
 /// <remarks>Represents the <c>permission.requested</c> event.</remarks>
-public partial class PermissionRequestedEvent : SessionEvent
+public sealed partial class PermissionRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -838,7 +838,7 @@ public partial class PermissionRequestedEvent : SessionEvent
 
 /// <summary>Permission request completion notification signaling UI dismissal.</summary>
 /// <remarks>Represents the <c>permission.completed</c> event.</remarks>
-public partial class PermissionCompletedEvent : SessionEvent
+public sealed partial class PermissionCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -851,7 +851,7 @@ public partial class PermissionCompletedEvent : SessionEvent
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
 /// <remarks>Represents the <c>user_input.requested</c> event.</remarks>
-public partial class UserInputRequestedEvent : SessionEvent
+public sealed partial class UserInputRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -864,7 +864,7 @@ public partial class UserInputRequestedEvent : SessionEvent
 
 /// <summary>User input request completion with the user's response.</summary>
 /// <remarks>Represents the <c>user_input.completed</c> event.</remarks>
-public partial class UserInputCompletedEvent : SessionEvent
+public sealed partial class UserInputCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -877,7 +877,7 @@ public partial class UserInputCompletedEvent : SessionEvent
 
 /// <summary>Elicitation request; may be form-based (structured input) or URL-based (browser redirect).</summary>
 /// <remarks>Represents the <c>elicitation.requested</c> event.</remarks>
-public partial class ElicitationRequestedEvent : SessionEvent
+public sealed partial class ElicitationRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -890,7 +890,7 @@ public partial class ElicitationRequestedEvent : SessionEvent
 
 /// <summary>Elicitation request completion with the user's response.</summary>
 /// <remarks>Represents the <c>elicitation.completed</c> event.</remarks>
-public partial class ElicitationCompletedEvent : SessionEvent
+public sealed partial class ElicitationCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -903,7 +903,7 @@ public partial class ElicitationCompletedEvent : SessionEvent
 
 /// <summary>Sampling request from an MCP server; contains the server name and a requestId for correlation.</summary>
 /// <remarks>Represents the <c>sampling.requested</c> event.</remarks>
-public partial class SamplingRequestedEvent : SessionEvent
+public sealed partial class SamplingRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -916,7 +916,7 @@ public partial class SamplingRequestedEvent : SessionEvent
 
 /// <summary>Sampling request completion notification signaling UI dismissal.</summary>
 /// <remarks>Represents the <c>sampling.completed</c> event.</remarks>
-public partial class SamplingCompletedEvent : SessionEvent
+public sealed partial class SamplingCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -929,7 +929,7 @@ public partial class SamplingCompletedEvent : SessionEvent
 
 /// <summary>OAuth authentication request for an MCP server.</summary>
 /// <remarks>Represents the <c>mcp.oauth_required</c> event.</remarks>
-public partial class McpOauthRequiredEvent : SessionEvent
+public sealed partial class McpOauthRequiredEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -942,7 +942,7 @@ public partial class McpOauthRequiredEvent : SessionEvent
 
 /// <summary>MCP OAuth request completion notification.</summary>
 /// <remarks>Represents the <c>mcp.oauth_completed</c> event.</remarks>
-public partial class McpOauthCompletedEvent : SessionEvent
+public sealed partial class McpOauthCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -955,7 +955,7 @@ public partial class McpOauthCompletedEvent : SessionEvent
 
 /// <summary>Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.</summary>
 /// <remarks>Represents the <c>session.custom_notification</c> event.</remarks>
-public partial class SessionCustomNotificationEvent : SessionEvent
+public sealed partial class SessionCustomNotificationEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -968,7 +968,7 @@ public partial class SessionCustomNotificationEvent : SessionEvent
 
 /// <summary>External tool invocation request for client-side tool execution.</summary>
 /// <remarks>Represents the <c>external_tool.requested</c> event.</remarks>
-public partial class ExternalToolRequestedEvent : SessionEvent
+public sealed partial class ExternalToolRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -981,7 +981,7 @@ public partial class ExternalToolRequestedEvent : SessionEvent
 
 /// <summary>External tool completion notification signaling UI dismissal.</summary>
 /// <remarks>Represents the <c>external_tool.completed</c> event.</remarks>
-public partial class ExternalToolCompletedEvent : SessionEvent
+public sealed partial class ExternalToolCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -994,7 +994,7 @@ public partial class ExternalToolCompletedEvent : SessionEvent
 
 /// <summary>Queued slash command dispatch request for client execution.</summary>
 /// <remarks>Represents the <c>command.queued</c> event.</remarks>
-public partial class CommandQueuedEvent : SessionEvent
+public sealed partial class CommandQueuedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1007,7 +1007,7 @@ public partial class CommandQueuedEvent : SessionEvent
 
 /// <summary>Registered command dispatch request routed to the owning client.</summary>
 /// <remarks>Represents the <c>command.execute</c> event.</remarks>
-public partial class CommandExecuteEvent : SessionEvent
+public sealed partial class CommandExecuteEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1020,7 +1020,7 @@ public partial class CommandExecuteEvent : SessionEvent
 
 /// <summary>Queued command completion notification signaling UI dismissal.</summary>
 /// <remarks>Represents the <c>command.completed</c> event.</remarks>
-public partial class CommandCompletedEvent : SessionEvent
+public sealed partial class CommandCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1033,7 +1033,7 @@ public partial class CommandCompletedEvent : SessionEvent
 
 /// <summary>Auto mode switch request notification requiring user approval.</summary>
 /// <remarks>Represents the <c>auto_mode_switch.requested</c> event.</remarks>
-public partial class AutoModeSwitchRequestedEvent : SessionEvent
+public sealed partial class AutoModeSwitchRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1046,7 +1046,7 @@ public partial class AutoModeSwitchRequestedEvent : SessionEvent
 
 /// <summary>Auto mode switch completion notification.</summary>
 /// <remarks>Represents the <c>auto_mode_switch.completed</c> event.</remarks>
-public partial class AutoModeSwitchCompletedEvent : SessionEvent
+public sealed partial class AutoModeSwitchCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1059,7 +1059,7 @@ public partial class AutoModeSwitchCompletedEvent : SessionEvent
 
 /// <summary>SDK command registration change notification.</summary>
 /// <remarks>Represents the <c>commands.changed</c> event.</remarks>
-public partial class CommandsChangedEvent : SessionEvent
+public sealed partial class CommandsChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1072,7 +1072,7 @@ public partial class CommandsChangedEvent : SessionEvent
 
 /// <summary>Session capability change notification.</summary>
 /// <remarks>Represents the <c>capabilities.changed</c> event.</remarks>
-public partial class CapabilitiesChangedEvent : SessionEvent
+public sealed partial class CapabilitiesChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1085,7 +1085,7 @@ public partial class CapabilitiesChangedEvent : SessionEvent
 
 /// <summary>Plan approval request with plan content and available user actions.</summary>
 /// <remarks>Represents the <c>exit_plan_mode.requested</c> event.</remarks>
-public partial class ExitPlanModeRequestedEvent : SessionEvent
+public sealed partial class ExitPlanModeRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1098,7 +1098,7 @@ public partial class ExitPlanModeRequestedEvent : SessionEvent
 
 /// <summary>Plan mode exit completion with the user's approval decision and optional feedback.</summary>
 /// <remarks>Represents the <c>exit_plan_mode.completed</c> event.</remarks>
-public partial class ExitPlanModeCompletedEvent : SessionEvent
+public sealed partial class ExitPlanModeCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1111,7 +1111,7 @@ public partial class ExitPlanModeCompletedEvent : SessionEvent
 
 /// <summary>Schema for the `ToolsUpdatedData` type.</summary>
 /// <remarks>Represents the <c>session.tools_updated</c> event.</remarks>
-public partial class SessionToolsUpdatedEvent : SessionEvent
+public sealed partial class SessionToolsUpdatedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1124,7 +1124,7 @@ public partial class SessionToolsUpdatedEvent : SessionEvent
 
 /// <summary>Schema for the `BackgroundTasksChangedData` type.</summary>
 /// <remarks>Represents the <c>session.background_tasks_changed</c> event.</remarks>
-public partial class SessionBackgroundTasksChangedEvent : SessionEvent
+public sealed partial class SessionBackgroundTasksChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1137,7 +1137,7 @@ public partial class SessionBackgroundTasksChangedEvent : SessionEvent
 
 /// <summary>Schema for the `SkillsLoadedData` type.</summary>
 /// <remarks>Represents the <c>session.skills_loaded</c> event.</remarks>
-public partial class SessionSkillsLoadedEvent : SessionEvent
+public sealed partial class SessionSkillsLoadedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1150,7 +1150,7 @@ public partial class SessionSkillsLoadedEvent : SessionEvent
 
 /// <summary>Schema for the `CustomAgentsUpdatedData` type.</summary>
 /// <remarks>Represents the <c>session.custom_agents_updated</c> event.</remarks>
-public partial class SessionCustomAgentsUpdatedEvent : SessionEvent
+public sealed partial class SessionCustomAgentsUpdatedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1163,7 +1163,7 @@ public partial class SessionCustomAgentsUpdatedEvent : SessionEvent
 
 /// <summary>Schema for the `McpServersLoadedData` type.</summary>
 /// <remarks>Represents the <c>session.mcp_servers_loaded</c> event.</remarks>
-public partial class SessionMcpServersLoadedEvent : SessionEvent
+public sealed partial class SessionMcpServersLoadedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1176,7 +1176,7 @@ public partial class SessionMcpServersLoadedEvent : SessionEvent
 
 /// <summary>Schema for the `McpServerStatusChangedData` type.</summary>
 /// <remarks>Represents the <c>session.mcp_server_status_changed</c> event.</remarks>
-public partial class SessionMcpServerStatusChangedEvent : SessionEvent
+public sealed partial class SessionMcpServerStatusChangedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1189,7 +1189,7 @@ public partial class SessionMcpServerStatusChangedEvent : SessionEvent
 
 /// <summary>Schema for the `ExtensionsLoadedData` type.</summary>
 /// <remarks>Represents the <c>session.extensions_loaded</c> event.</remarks>
-public partial class SessionExtensionsLoadedEvent : SessionEvent
+public sealed partial class SessionExtensionsLoadedEvent : SessionEvent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -1201,7 +1201,7 @@ public partial class SessionExtensionsLoadedEvent : SessionEvent
 }
 
 /// <summary>Session initialization metadata including context and configuration.</summary>
-public partial class SessionStartData
+public sealed partial class SessionStartData
 {
     /// <summary>Whether the session was already in use by another client at start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1260,7 +1260,7 @@ public partial class SessionStartData
 }
 
 /// <summary>Session resume metadata including current context and event count.</summary>
-public partial class SessionResumeData
+public sealed partial class SessionResumeData
 {
     /// <summary>Whether the session was already in use by another client at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1312,7 +1312,7 @@ public partial class SessionResumeData
 }
 
 /// <summary>Notifies that the session's remote steering capability has changed.</summary>
-public partial class SessionRemoteSteerableChangedData
+public sealed partial class SessionRemoteSteerableChangedData
 {
     /// <summary>Whether this session now supports remote steering via GitHub.</summary>
     [JsonPropertyName("remoteSteerable")]
@@ -1320,7 +1320,7 @@ public partial class SessionRemoteSteerableChangedData
 }
 
 /// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
-public partial class SessionErrorData
+public sealed partial class SessionErrorData
 {
     /// <summary>Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1364,7 +1364,7 @@ public partial class SessionErrorData
 }
 
 /// <summary>Payload indicating the session is idle with no background agents in flight.</summary>
-public partial class SessionIdleData
+public sealed partial class SessionIdleData
 {
     /// <summary>True when the preceding agentic loop was cancelled via abort signal.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1373,7 +1373,7 @@ public partial class SessionIdleData
 }
 
 /// <summary>Session title change payload containing the new display title.</summary>
-public partial class SessionTitleChangedData
+public sealed partial class SessionTitleChangedData
 {
     /// <summary>The new display title for the session.</summary>
     [JsonPropertyName("title")]
@@ -1381,7 +1381,7 @@ public partial class SessionTitleChangedData
 }
 
 /// <summary>Scheduled prompt registered via /every or /after.</summary>
-public partial class SessionScheduleCreatedData
+public sealed partial class SessionScheduleCreatedData
 {
     /// <summary>Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1407,7 +1407,7 @@ public partial class SessionScheduleCreatedData
 }
 
 /// <summary>Scheduled prompt cancelled from the schedule manager dialog.</summary>
-public partial class SessionScheduleCancelledData
+public sealed partial class SessionScheduleCancelledData
 {
     /// <summary>Id of the scheduled prompt that was cancelled.</summary>
     [JsonPropertyName("id")]
@@ -1415,7 +1415,7 @@ public partial class SessionScheduleCancelledData
 }
 
 /// <summary>Informational message for timeline display with categorization.</summary>
-public partial class SessionInfoData
+public sealed partial class SessionInfoData
 {
     /// <summary>Category of informational message (e.g., "notification", "timing", "context_window", "mcp", "snapshot", "configuration", "authentication", "model").</summary>
     [JsonPropertyName("infoType")]
@@ -1439,7 +1439,7 @@ public partial class SessionInfoData
 }
 
 /// <summary>Warning message for timeline display with categorization.</summary>
-public partial class SessionWarningData
+public sealed partial class SessionWarningData
 {
     /// <summary>Human-readable warning message for display in the timeline.</summary>
     [JsonPropertyName("message")]
@@ -1458,7 +1458,7 @@ public partial class SessionWarningData
 }
 
 /// <summary>Model change details including previous and new model identifiers.</summary>
-public partial class SessionModelChangeData
+public sealed partial class SessionModelChangeData
 {
     /// <summary>Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1496,7 +1496,7 @@ public partial class SessionModelChangeData
 }
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
-public partial class SessionModeChangedData
+public sealed partial class SessionModeChangedData
 {
     /// <summary>Agent mode after the change (e.g., "interactive", "plan", "autopilot").</summary>
     [JsonPropertyName("newMode")]
@@ -1508,7 +1508,7 @@ public partial class SessionModeChangedData
 }
 
 /// <summary>Plan file operation details indicating what changed.</summary>
-public partial class SessionPlanChangedData
+public sealed partial class SessionPlanChangedData
 {
     /// <summary>The type of operation performed on the plan file.</summary>
     [JsonPropertyName("operation")]
@@ -1516,7 +1516,7 @@ public partial class SessionPlanChangedData
 }
 
 /// <summary>Workspace file change details including path and operation type.</summary>
-public partial class SessionWorkspaceFileChangedData
+public sealed partial class SessionWorkspaceFileChangedData
 {
     /// <summary>Whether the file was newly created or updated.</summary>
     [JsonPropertyName("operation")]
@@ -1528,7 +1528,7 @@ public partial class SessionWorkspaceFileChangedData
 }
 
 /// <summary>Session handoff metadata including source, context, and repository information.</summary>
-public partial class SessionHandoffData
+public sealed partial class SessionHandoffData
 {
     /// <summary>Additional context information for the handoff.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1565,7 +1565,7 @@ public partial class SessionHandoffData
 }
 
 /// <summary>Conversation truncation statistics including token counts and removed content metrics.</summary>
-public partial class SessionTruncationData
+public sealed partial class SessionTruncationData
 {
     /// <summary>Number of messages removed by truncation.</summary>
     [JsonPropertyName("messagesRemovedDuringTruncation")]
@@ -1601,7 +1601,7 @@ public partial class SessionTruncationData
 }
 
 /// <summary>Session rewind details including target event and count of removed events.</summary>
-public partial class SessionSnapshotRewindData
+public sealed partial class SessionSnapshotRewindData
 {
     /// <summary>Number of events that were removed by the rewind.</summary>
     [JsonPropertyName("eventsRemoved")]
@@ -1613,7 +1613,7 @@ public partial class SessionSnapshotRewindData
 }
 
 /// <summary>Session termination metrics including usage statistics, code changes, and shutdown reason.</summary>
-public partial class SessionShutdownData
+public sealed partial class SessionShutdownData
 {
     /// <summary>Aggregate code change metrics for the session.</summary>
     [JsonPropertyName("codeChanges")]
@@ -1681,7 +1681,7 @@ public partial class SessionShutdownData
 }
 
 /// <summary>Working directory and git context at session start.</summary>
-public partial class SessionContextChangedData
+public sealed partial class SessionContextChangedData
 {
     /// <summary>Base commit of current git branch at session start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1724,7 +1724,7 @@ public partial class SessionContextChangedData
 }
 
 /// <summary>Current context window usage statistics including token and message counts.</summary>
-public partial class SessionUsageInfoData
+public sealed partial class SessionUsageInfoData
 {
     /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1760,7 +1760,7 @@ public partial class SessionUsageInfoData
 }
 
 /// <summary>Context window breakdown at the start of LLM-powered conversation compaction.</summary>
-public partial class SessionCompactionStartData
+public sealed partial class SessionCompactionStartData
 {
     /// <summary>Token count from non-system messages (user, assistant, tool) at compaction start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1779,7 +1779,7 @@ public partial class SessionCompactionStartData
 }
 
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
-public partial class SessionCompactionCompleteData
+public sealed partial class SessionCompactionCompleteData
 {
     /// <summary>Checkpoint snapshot number created for recovery.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1857,7 +1857,7 @@ public partial class SessionCompactionCompleteData
 }
 
 /// <summary>Task completion notification with summary from the agent.</summary>
-public partial class SessionTaskCompleteData
+public sealed partial class SessionTaskCompleteData
 {
     /// <summary>Whether the tool call succeeded. False when validation failed (e.g., invalid arguments).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1871,7 +1871,7 @@ public partial class SessionTaskCompleteData
 }
 
 /// <summary>Schema for the `UserMessageData` type.</summary>
-public partial class UserMessageData
+public sealed partial class UserMessageData
 {
     /// <summary>The agent mode that was active when this message was sent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1924,12 +1924,12 @@ public partial class UserMessageData
 }
 
 /// <summary>Empty payload; the event signals that the pending message queue has changed.</summary>
-public partial class PendingMessagesModifiedData
+public sealed partial class PendingMessagesModifiedData
 {
 }
 
 /// <summary>Turn initialization metadata including identifier and interaction tracking.</summary>
-public partial class AssistantTurnStartData
+public sealed partial class AssistantTurnStartData
 {
     /// <summary>CAPI interaction ID for correlating this turn with upstream telemetry.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1942,7 +1942,7 @@ public partial class AssistantTurnStartData
 }
 
 /// <summary>Agent intent description for current activity or plan.</summary>
-public partial class AssistantIntentData
+public sealed partial class AssistantIntentData
 {
     /// <summary>Short description of what the agent is currently doing or planning to do.</summary>
     [JsonPropertyName("intent")]
@@ -1950,7 +1950,7 @@ public partial class AssistantIntentData
 }
 
 /// <summary>Assistant reasoning content for timeline display with complete thinking text.</summary>
-public partial class AssistantReasoningData
+public sealed partial class AssistantReasoningData
 {
     /// <summary>The complete extended thinking text from the model.</summary>
     [JsonPropertyName("content")]
@@ -1962,7 +1962,7 @@ public partial class AssistantReasoningData
 }
 
 /// <summary>Streaming reasoning delta for incremental extended thinking updates.</summary>
-public partial class AssistantReasoningDeltaData
+public sealed partial class AssistantReasoningDeltaData
 {
     /// <summary>Incremental text chunk to append to the reasoning content.</summary>
     [JsonPropertyName("deltaContent")]
@@ -1974,7 +1974,7 @@ public partial class AssistantReasoningDeltaData
 }
 
 /// <summary>Streaming response progress with cumulative byte count.</summary>
-public partial class AssistantStreamingDeltaData
+public sealed partial class AssistantStreamingDeltaData
 {
     /// <summary>Cumulative total bytes received from the streaming response so far.</summary>
     [JsonPropertyName("totalResponseSizeBytes")]
@@ -1982,7 +1982,7 @@ public partial class AssistantStreamingDeltaData
 }
 
 /// <summary>Assistant response containing text content, optional tool requests, and interaction metadata.</summary>
-public partial class AssistantMessageData
+public sealed partial class AssistantMessageData
 {
     /// <summary>Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2061,7 +2061,7 @@ public partial class AssistantMessageData
 }
 
 /// <summary>Streaming assistant message start metadata.</summary>
-public partial class AssistantMessageStartData
+public sealed partial class AssistantMessageStartData
 {
     /// <summary>Message ID this start event belongs to, matching subsequent deltas and assistant.message.</summary>
     [JsonPropertyName("messageId")]
@@ -2074,7 +2074,7 @@ public partial class AssistantMessageStartData
 }
 
 /// <summary>Streaming assistant message delta for incremental response updates.</summary>
-public partial class AssistantMessageDeltaData
+public sealed partial class AssistantMessageDeltaData
 {
     /// <summary>Incremental text chunk to append to the message content.</summary>
     [JsonPropertyName("deltaContent")]
@@ -2093,7 +2093,7 @@ public partial class AssistantMessageDeltaData
 }
 
 /// <summary>Turn completion metadata including the turn identifier.</summary>
-public partial class AssistantTurnEndData
+public sealed partial class AssistantTurnEndData
 {
     /// <summary>Identifier of the turn that has ended, matching the corresponding assistant.turn_start event.</summary>
     [JsonPropertyName("turnId")]
@@ -2101,7 +2101,7 @@ public partial class AssistantTurnEndData
 }
 
 /// <summary>LLM API call usage metrics including tokens, costs, quotas, and billing information.</summary>
-public partial class AssistantUsageData
+public sealed partial class AssistantUsageData
 {
     /// <summary>Completion ID from the model provider (e.g., chatcmpl-abc123).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2196,7 +2196,7 @@ public partial class AssistantUsageData
 }
 
 /// <summary>Failed LLM API call metadata for telemetry.</summary>
-public partial class ModelCallFailureData
+public sealed partial class ModelCallFailureData
 {
     /// <summary>Completion ID from the model provider (e.g., chatcmpl-abc123).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2239,7 +2239,7 @@ public partial class ModelCallFailureData
 }
 
 /// <summary>Turn abort information including the reason for termination.</summary>
-public partial class AbortData
+public sealed partial class AbortData
 {
     /// <summary>Finite reason code describing why the current turn was aborted.</summary>
     [JsonPropertyName("reason")]
@@ -2247,7 +2247,7 @@ public partial class AbortData
 }
 
 /// <summary>User-initiated tool invocation request with tool name and arguments.</summary>
-public partial class ToolUserRequestedData
+public sealed partial class ToolUserRequestedData
 {
     /// <summary>Arguments for the tool invocation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2264,7 +2264,7 @@ public partial class ToolUserRequestedData
 }
 
 /// <summary>Tool execution startup details including MCP server information when applicable.</summary>
-public partial class ToolExecutionStartData
+public sealed partial class ToolExecutionStartData
 {
     /// <summary>Arguments passed to the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2303,7 +2303,7 @@ public partial class ToolExecutionStartData
 }
 
 /// <summary>Streaming tool execution output for incremental result display.</summary>
-public partial class ToolExecutionPartialResultData
+public sealed partial class ToolExecutionPartialResultData
 {
     /// <summary>Incremental output chunk from the running tool.</summary>
     [JsonPropertyName("partialOutput")]
@@ -2315,7 +2315,7 @@ public partial class ToolExecutionPartialResultData
 }
 
 /// <summary>Tool execution progress notification with status message.</summary>
-public partial class ToolExecutionProgressData
+public sealed partial class ToolExecutionProgressData
 {
     /// <summary>Human-readable progress status message (e.g., from an MCP server).</summary>
     [JsonPropertyName("progressMessage")]
@@ -2327,7 +2327,7 @@ public partial class ToolExecutionProgressData
 }
 
 /// <summary>Tool execution completion results including success status, detailed output, and error information.</summary>
-public partial class ToolExecutionCompleteData
+public sealed partial class ToolExecutionCompleteData
 {
     /// <summary>Error details when the tool execution failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2381,7 +2381,7 @@ public partial class ToolExecutionCompleteData
 }
 
 /// <summary>Skill invocation details including content, allowed tools, and plugin metadata.</summary>
-public partial class SkillInvokedData
+public sealed partial class SkillInvokedData
 {
     /// <summary>Tool names that should be auto-approved when this skill is active.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2417,7 +2417,7 @@ public partial class SkillInvokedData
 }
 
 /// <summary>Sub-agent startup details including parent tool call and agent information.</summary>
-public partial class SubagentStartedData
+public sealed partial class SubagentStartedData
 {
     /// <summary>Description of what the sub-agent does.</summary>
     [JsonPropertyName("agentDescription")]
@@ -2442,7 +2442,7 @@ public partial class SubagentStartedData
 }
 
 /// <summary>Sub-agent completion details for successful execution.</summary>
-public partial class SubagentCompletedData
+public sealed partial class SubagentCompletedData
 {
     /// <summary>Human-readable display name of the sub-agent.</summary>
     [JsonPropertyName("agentDisplayName")]
@@ -2478,7 +2478,7 @@ public partial class SubagentCompletedData
 }
 
 /// <summary>Sub-agent failure details including error message and agent information.</summary>
-public partial class SubagentFailedData
+public sealed partial class SubagentFailedData
 {
     /// <summary>Human-readable display name of the sub-agent.</summary>
     [JsonPropertyName("agentDisplayName")]
@@ -2518,7 +2518,7 @@ public partial class SubagentFailedData
 }
 
 /// <summary>Custom agent selection details including name and available tools.</summary>
-public partial class SubagentSelectedData
+public sealed partial class SubagentSelectedData
 {
     /// <summary>Human-readable display name of the selected custom agent.</summary>
     [JsonPropertyName("agentDisplayName")]
@@ -2534,12 +2534,12 @@ public partial class SubagentSelectedData
 }
 
 /// <summary>Empty payload; the event signals that the custom agent was deselected, returning to the default agent.</summary>
-public partial class SubagentDeselectedData
+public sealed partial class SubagentDeselectedData
 {
 }
 
 /// <summary>Hook invocation start details including type and input data.</summary>
-public partial class HookStartData
+public sealed partial class HookStartData
 {
     /// <summary>Unique identifier for this hook invocation.</summary>
     [JsonPropertyName("hookInvocationId")]
@@ -2556,7 +2556,7 @@ public partial class HookStartData
 }
 
 /// <summary>Hook invocation completion details including output, success status, and error information.</summary>
-public partial class HookEndData
+public sealed partial class HookEndData
 {
     /// <summary>Error details when the hook failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2582,7 +2582,7 @@ public partial class HookEndData
 }
 
 /// <summary>System/developer instruction content with role and optional template metadata.</summary>
-public partial class SystemMessageData
+public sealed partial class SystemMessageData
 {
     /// <summary>The system or developer prompt text sent as model input.</summary>
     [JsonPropertyName("content")]
@@ -2604,7 +2604,7 @@ public partial class SystemMessageData
 }
 
 /// <summary>System-generated notification for runtime events like background task completion.</summary>
-public partial class SystemNotificationData
+public sealed partial class SystemNotificationData
 {
     /// <summary>The notification text, typically wrapped in &lt;system_notification&gt; XML tags.</summary>
     [JsonPropertyName("content")]
@@ -2616,7 +2616,7 @@ public partial class SystemNotificationData
 }
 
 /// <summary>Permission request notification requiring client approval with request details.</summary>
-public partial class PermissionRequestedData
+public sealed partial class PermissionRequestedData
 {
     /// <summary>Details of the permission being requested.</summary>
     [JsonPropertyName("permissionRequest")]
@@ -2638,7 +2638,7 @@ public partial class PermissionRequestedData
 }
 
 /// <summary>Permission request completion notification signaling UI dismissal.</summary>
-public partial class PermissionCompletedData
+public sealed partial class PermissionCompletedData
 {
     /// <summary>Request ID of the resolved permission request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
@@ -2655,7 +2655,7 @@ public partial class PermissionCompletedData
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
-public partial class UserInputRequestedData
+public sealed partial class UserInputRequestedData
 {
     /// <summary>Whether the user can provide a free-form text response in addition to predefined choices.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2682,7 +2682,7 @@ public partial class UserInputRequestedData
 }
 
 /// <summary>User input request completion with the user's response.</summary>
-public partial class UserInputCompletedData
+public sealed partial class UserInputCompletedData
 {
     /// <summary>The user's answer to the input request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2700,7 +2700,7 @@ public partial class UserInputCompletedData
 }
 
 /// <summary>Elicitation request; may be form-based (structured input) or URL-based (browser redirect).</summary>
-public partial class ElicitationRequestedData
+public sealed partial class ElicitationRequestedData
 {
     /// <summary>The source that initiated the request (MCP server name, or absent for agent-initiated).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2737,7 +2737,7 @@ public partial class ElicitationRequestedData
 }
 
 /// <summary>Elicitation request completion with the user's response.</summary>
-public partial class ElicitationCompletedData
+public sealed partial class ElicitationCompletedData
 {
     /// <summary>The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2755,7 +2755,7 @@ public partial class ElicitationCompletedData
 }
 
 /// <summary>Sampling request from an MCP server; contains the server name and a requestId for correlation.</summary>
-public partial class SamplingRequestedData
+public sealed partial class SamplingRequestedData
 {
     /// <summary>The JSON-RPC request ID from the MCP protocol.</summary>
     [JsonPropertyName("mcpRequestId")]
@@ -2771,7 +2771,7 @@ public partial class SamplingRequestedData
 }
 
 /// <summary>Sampling request completion notification signaling UI dismissal.</summary>
-public partial class SamplingCompletedData
+public sealed partial class SamplingCompletedData
 {
     /// <summary>Request ID of the resolved sampling request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
@@ -2779,7 +2779,7 @@ public partial class SamplingCompletedData
 }
 
 /// <summary>OAuth authentication request for an MCP server.</summary>
-public partial class McpOauthRequiredData
+public sealed partial class McpOauthRequiredData
 {
     /// <summary>Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth().</summary>
     [JsonPropertyName("requestId")]
@@ -2800,7 +2800,7 @@ public partial class McpOauthRequiredData
 }
 
 /// <summary>MCP OAuth request completion notification.</summary>
-public partial class McpOauthCompletedData
+public sealed partial class McpOauthCompletedData
 {
     /// <summary>Request ID of the resolved OAuth request.</summary>
     [JsonPropertyName("requestId")]
@@ -2808,7 +2808,7 @@ public partial class McpOauthCompletedData
 }
 
 /// <summary>Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.</summary>
-public partial class SessionCustomNotificationData
+public sealed partial class SessionCustomNotificationData
 {
     /// <summary>Source-defined custom notification name.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
@@ -2838,7 +2838,7 @@ public partial class SessionCustomNotificationData
 }
 
 /// <summary>External tool invocation request for client-side tool execution.</summary>
-public partial class ExternalToolRequestedData
+public sealed partial class ExternalToolRequestedData
 {
     /// <summary>Arguments to pass to the external tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2873,7 +2873,7 @@ public partial class ExternalToolRequestedData
 }
 
 /// <summary>External tool completion notification signaling UI dismissal.</summary>
-public partial class ExternalToolCompletedData
+public sealed partial class ExternalToolCompletedData
 {
     /// <summary>Request ID of the resolved external tool request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
@@ -2881,7 +2881,7 @@ public partial class ExternalToolCompletedData
 }
 
 /// <summary>Queued slash command dispatch request for client execution.</summary>
-public partial class CommandQueuedData
+public sealed partial class CommandQueuedData
 {
     /// <summary>The slash command text to be executed (e.g., /help, /clear).</summary>
     [JsonPropertyName("command")]
@@ -2893,7 +2893,7 @@ public partial class CommandQueuedData
 }
 
 /// <summary>Registered command dispatch request routed to the owning client.</summary>
-public partial class CommandExecuteData
+public sealed partial class CommandExecuteData
 {
     /// <summary>Raw argument string after the command name.</summary>
     [JsonPropertyName("args")]
@@ -2913,7 +2913,7 @@ public partial class CommandExecuteData
 }
 
 /// <summary>Queued command completion notification signaling UI dismissal.</summary>
-public partial class CommandCompletedData
+public sealed partial class CommandCompletedData
 {
     /// <summary>Request ID of the resolved command request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
@@ -2921,7 +2921,7 @@ public partial class CommandCompletedData
 }
 
 /// <summary>Auto mode switch request notification requiring user approval.</summary>
-public partial class AutoModeSwitchRequestedData
+public sealed partial class AutoModeSwitchRequestedData
 {
     /// <summary>The rate limit error code that triggered this request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2939,7 +2939,7 @@ public partial class AutoModeSwitchRequestedData
 }
 
 /// <summary>Auto mode switch completion notification.</summary>
-public partial class AutoModeSwitchCompletedData
+public sealed partial class AutoModeSwitchCompletedData
 {
     /// <summary>Request ID of the resolved request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
@@ -2951,7 +2951,7 @@ public partial class AutoModeSwitchCompletedData
 }
 
 /// <summary>SDK command registration change notification.</summary>
-public partial class CommandsChangedData
+public sealed partial class CommandsChangedData
 {
     /// <summary>Current list of registered SDK commands.</summary>
     [JsonPropertyName("commands")]
@@ -2959,7 +2959,7 @@ public partial class CommandsChangedData
 }
 
 /// <summary>Session capability change notification.</summary>
-public partial class CapabilitiesChangedData
+public sealed partial class CapabilitiesChangedData
 {
     /// <summary>UI capability changes.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2968,7 +2968,7 @@ public partial class CapabilitiesChangedData
 }
 
 /// <summary>Plan approval request with plan content and available user actions.</summary>
-public partial class ExitPlanModeRequestedData
+public sealed partial class ExitPlanModeRequestedData
 {
     /// <summary>Available actions the user can take (e.g., approve, edit, reject).</summary>
     [JsonPropertyName("actions")]
@@ -2992,7 +2992,7 @@ public partial class ExitPlanModeRequestedData
 }
 
 /// <summary>Plan mode exit completion with the user's approval decision and optional feedback.</summary>
-public partial class ExitPlanModeCompletedData
+public sealed partial class ExitPlanModeCompletedData
 {
     /// <summary>Whether the plan was approved by the user.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3020,7 +3020,7 @@ public partial class ExitPlanModeCompletedData
 }
 
 /// <summary>Schema for the `ToolsUpdatedData` type.</summary>
-public partial class SessionToolsUpdatedData
+public sealed partial class SessionToolsUpdatedData
 {
     /// <summary>Identifier of the model the resolved tools apply to.</summary>
     [JsonPropertyName("model")]
@@ -3028,12 +3028,12 @@ public partial class SessionToolsUpdatedData
 }
 
 /// <summary>Schema for the `BackgroundTasksChangedData` type.</summary>
-public partial class SessionBackgroundTasksChangedData
+public sealed partial class SessionBackgroundTasksChangedData
 {
 }
 
 /// <summary>Schema for the `SkillsLoadedData` type.</summary>
-public partial class SessionSkillsLoadedData
+public sealed partial class SessionSkillsLoadedData
 {
     /// <summary>Array of resolved skill metadata.</summary>
     [JsonPropertyName("skills")]
@@ -3041,7 +3041,7 @@ public partial class SessionSkillsLoadedData
 }
 
 /// <summary>Schema for the `CustomAgentsUpdatedData` type.</summary>
-public partial class SessionCustomAgentsUpdatedData
+public sealed partial class SessionCustomAgentsUpdatedData
 {
     /// <summary>Array of loaded custom agent metadata.</summary>
     [JsonPropertyName("agents")]
@@ -3057,7 +3057,7 @@ public partial class SessionCustomAgentsUpdatedData
 }
 
 /// <summary>Schema for the `McpServersLoadedData` type.</summary>
-public partial class SessionMcpServersLoadedData
+public sealed partial class SessionMcpServersLoadedData
 {
     /// <summary>Array of MCP server status summaries.</summary>
     [JsonPropertyName("servers")]
@@ -3065,7 +3065,7 @@ public partial class SessionMcpServersLoadedData
 }
 
 /// <summary>Schema for the `McpServerStatusChangedData` type.</summary>
-public partial class SessionMcpServerStatusChangedData
+public sealed partial class SessionMcpServerStatusChangedData
 {
     /// <summary>Name of the MCP server whose status changed.</summary>
     [JsonPropertyName("serverName")]
@@ -3077,7 +3077,7 @@ public partial class SessionMcpServerStatusChangedData
 }
 
 /// <summary>Schema for the `ExtensionsLoadedData` type.</summary>
-public partial class SessionExtensionsLoadedData
+public sealed partial class SessionExtensionsLoadedData
 {
     /// <summary>Array of discovered extensions and their status.</summary>
     [JsonPropertyName("extensions")]
@@ -3086,7 +3086,7 @@ public partial class SessionExtensionsLoadedData
 
 /// <summary>Working directory and git context at session start.</summary>
 /// <remarks>Nested data type for <c>WorkingDirectoryContext</c>.</remarks>
-public partial class WorkingDirectoryContext
+public sealed partial class WorkingDirectoryContext
 {
     /// <summary>Base commit of current git branch at session start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3130,7 +3130,7 @@ public partial class WorkingDirectoryContext
 
 /// <summary>Repository context for the handed-off session.</summary>
 /// <remarks>Nested data type for <c>HandoffRepository</c>.</remarks>
-public partial class HandoffRepository
+public sealed partial class HandoffRepository
 {
     /// <summary>Git branch name, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3148,7 +3148,7 @@ public partial class HandoffRepository
 
 /// <summary>Aggregate code change metrics for the session.</summary>
 /// <remarks>Nested data type for <c>ShutdownCodeChanges</c>.</remarks>
-public partial class ShutdownCodeChanges
+public sealed partial class ShutdownCodeChanges
 {
     /// <summary>List of file paths that were modified during the session.</summary>
     [JsonPropertyName("filesModified")]
@@ -3165,7 +3165,7 @@ public partial class ShutdownCodeChanges
 
 /// <summary>Request count and cost metrics.</summary>
 /// <remarks>Nested data type for <c>ShutdownModelMetricRequests</c>.</remarks>
-public partial class ShutdownModelMetricRequests
+public sealed partial class ShutdownModelMetricRequests
 {
     /// <summary>Cumulative cost multiplier for requests to this model.</summary>
     [JsonPropertyName("cost")]
@@ -3178,7 +3178,7 @@ public partial class ShutdownModelMetricRequests
 
 /// <summary>Schema for the `ShutdownModelMetricTokenDetail` type.</summary>
 /// <remarks>Nested data type for <c>ShutdownModelMetricTokenDetail</c>.</remarks>
-public partial class ShutdownModelMetricTokenDetail
+public sealed partial class ShutdownModelMetricTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
     [JsonPropertyName("tokenCount")]
@@ -3187,7 +3187,7 @@ public partial class ShutdownModelMetricTokenDetail
 
 /// <summary>Token usage breakdown.</summary>
 /// <remarks>Nested data type for <c>ShutdownModelMetricUsage</c>.</remarks>
-public partial class ShutdownModelMetricUsage
+public sealed partial class ShutdownModelMetricUsage
 {
     /// <summary>Total tokens read from prompt cache across all requests.</summary>
     [JsonPropertyName("cacheReadTokens")]
@@ -3213,7 +3213,7 @@ public partial class ShutdownModelMetricUsage
 
 /// <summary>Schema for the `ShutdownModelMetric` type.</summary>
 /// <remarks>Nested data type for <c>ShutdownModelMetric</c>.</remarks>
-public partial class ShutdownModelMetric
+public sealed partial class ShutdownModelMetric
 {
     /// <summary>Request count and cost metrics.</summary>
     [JsonPropertyName("requests")]
@@ -3236,7 +3236,7 @@ public partial class ShutdownModelMetric
 
 /// <summary>Schema for the `ShutdownTokenDetail` type.</summary>
 /// <remarks>Nested data type for <c>ShutdownTokenDetail</c>.</remarks>
-public partial class ShutdownTokenDetail
+public sealed partial class ShutdownTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
     [JsonPropertyName("tokenCount")]
@@ -3245,7 +3245,7 @@ public partial class ShutdownTokenDetail
 
 /// <summary>Token usage detail for a single billing category.</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail</c>.</remarks>
-public partial class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail
+public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail
 {
     /// <summary>Number of tokens in this billing batch.</summary>
     [JsonPropertyName("batchSize")]
@@ -3266,7 +3266,7 @@ public partial class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDeta
 
 /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsedCopilotUsage</c>.</remarks>
-public partial class CompactionCompleteCompactionTokensUsedCopilotUsage
+public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsage
 {
     /// <summary>Itemized token usage breakdown.</summary>
     [JsonPropertyName("tokenDetails")]
@@ -3279,7 +3279,7 @@ public partial class CompactionCompleteCompactionTokensUsedCopilotUsage
 
 /// <summary>Token usage breakdown for the compaction LLM call (aligned with assistant.usage format).</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsed</c>.</remarks>
-public partial class CompactionCompleteCompactionTokensUsed
+public sealed partial class CompactionCompleteCompactionTokensUsed
 {
     /// <summary>Cached input tokens reused in the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3319,7 +3319,7 @@ public partial class CompactionCompleteCompactionTokensUsed
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
 /// <remarks>Nested data type for <c>UserMessageAttachmentFileLineRange</c>.</remarks>
-public partial class UserMessageAttachmentFileLineRange
+public sealed partial class UserMessageAttachmentFileLineRange
 {
     /// <summary>End line number (1-based, inclusive).</summary>
     [JsonPropertyName("end")]
@@ -3332,7 +3332,7 @@ public partial class UserMessageAttachmentFileLineRange
 
 /// <summary>File attachment.</summary>
 /// <remarks>The <c>file</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public partial class UserMessageAttachmentFile : UserMessageAttachment
+public sealed partial class UserMessageAttachmentFile : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3354,7 +3354,7 @@ public partial class UserMessageAttachmentFile : UserMessageAttachment
 
 /// <summary>Directory attachment.</summary>
 /// <remarks>The <c>directory</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public partial class UserMessageAttachmentDirectory : UserMessageAttachment
+public sealed partial class UserMessageAttachmentDirectory : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3371,7 +3371,7 @@ public partial class UserMessageAttachmentDirectory : UserMessageAttachment
 
 /// <summary>End position of the selection.</summary>
 /// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsEnd</c>.</remarks>
-public partial class UserMessageAttachmentSelectionDetailsEnd
+public sealed partial class UserMessageAttachmentSelectionDetailsEnd
 {
     /// <summary>End character offset within the line (0-based).</summary>
     [JsonPropertyName("character")]
@@ -3384,7 +3384,7 @@ public partial class UserMessageAttachmentSelectionDetailsEnd
 
 /// <summary>Start position of the selection.</summary>
 /// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsStart</c>.</remarks>
-public partial class UserMessageAttachmentSelectionDetailsStart
+public sealed partial class UserMessageAttachmentSelectionDetailsStart
 {
     /// <summary>Start character offset within the line (0-based).</summary>
     [JsonPropertyName("character")]
@@ -3397,7 +3397,7 @@ public partial class UserMessageAttachmentSelectionDetailsStart
 
 /// <summary>Position range of the selection within the file.</summary>
 /// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetails</c>.</remarks>
-public partial class UserMessageAttachmentSelectionDetails
+public sealed partial class UserMessageAttachmentSelectionDetails
 {
     /// <summary>End position of the selection.</summary>
     [JsonPropertyName("end")]
@@ -3410,7 +3410,7 @@ public partial class UserMessageAttachmentSelectionDetails
 
 /// <summary>Code selection attachment from an editor.</summary>
 /// <remarks>The <c>selection</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public partial class UserMessageAttachmentSelection : UserMessageAttachment
+public sealed partial class UserMessageAttachmentSelection : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3435,7 +3435,7 @@ public partial class UserMessageAttachmentSelection : UserMessageAttachment
 
 /// <summary>GitHub issue, pull request, or discussion reference.</summary>
 /// <remarks>The <c>github_reference</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public partial class UserMessageAttachmentGithubReference : UserMessageAttachment
+public sealed partial class UserMessageAttachmentGithubReference : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3464,7 +3464,7 @@ public partial class UserMessageAttachmentGithubReference : UserMessageAttachmen
 
 /// <summary>Blob attachment with inline base64-encoded data.</summary>
 /// <remarks>The <c>blob</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
-public partial class UserMessageAttachmentBlob : UserMessageAttachment
+public sealed partial class UserMessageAttachmentBlob : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3505,7 +3505,7 @@ public partial class UserMessageAttachment
 
 /// <summary>A tool invocation request from the assistant.</summary>
 /// <remarks>Nested data type for <c>AssistantMessageToolRequest</c>.</remarks>
-public partial class AssistantMessageToolRequest
+public sealed partial class AssistantMessageToolRequest
 {
     /// <summary>Arguments to pass to the tool, format depends on the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3548,7 +3548,7 @@ public partial class AssistantMessageToolRequest
 
 /// <summary>Token usage detail for a single billing category.</summary>
 /// <remarks>Nested data type for <c>AssistantUsageCopilotUsageTokenDetail</c>.</remarks>
-public partial class AssistantUsageCopilotUsageTokenDetail
+public sealed partial class AssistantUsageCopilotUsageTokenDetail
 {
     /// <summary>Number of tokens in this billing batch.</summary>
     [JsonPropertyName("batchSize")]
@@ -3569,7 +3569,7 @@ public partial class AssistantUsageCopilotUsageTokenDetail
 
 /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
 /// <remarks>Nested data type for <c>AssistantUsageCopilotUsage</c>.</remarks>
-public partial class AssistantUsageCopilotUsage
+public sealed partial class AssistantUsageCopilotUsage
 {
     /// <summary>Itemized token usage breakdown.</summary>
     [JsonPropertyName("tokenDetails")]
@@ -3582,7 +3582,7 @@ public partial class AssistantUsageCopilotUsage
 
 /// <summary>Schema for the `AssistantUsageQuotaSnapshot` type.</summary>
 /// <remarks>Nested data type for <c>AssistantUsageQuotaSnapshot</c>.</remarks>
-public partial class AssistantUsageQuotaSnapshot
+public sealed partial class AssistantUsageQuotaSnapshot
 {
     /// <summary>Total requests allowed by the entitlement.</summary>
     [JsonPropertyName("entitlementRequests")]
@@ -3620,7 +3620,7 @@ public partial class AssistantUsageQuotaSnapshot
 
 /// <summary>Error details when the tool execution failed.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteError</c>.</remarks>
-public partial class ToolExecutionCompleteError
+public sealed partial class ToolExecutionCompleteError
 {
     /// <summary>Machine-readable error code.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3634,7 +3634,7 @@ public partial class ToolExecutionCompleteError
 
 /// <summary>Plain text content block.</summary>
 /// <remarks>The <c>text</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
-public partial class ToolExecutionCompleteContentText : ToolExecutionCompleteContent
+public sealed partial class ToolExecutionCompleteContentText : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3647,7 +3647,7 @@ public partial class ToolExecutionCompleteContentText : ToolExecutionCompleteCon
 
 /// <summary>Terminal/shell output content block with optional exit code and working directory.</summary>
 /// <remarks>The <c>terminal</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
-public partial class ToolExecutionCompleteContentTerminal : ToolExecutionCompleteContent
+public sealed partial class ToolExecutionCompleteContentTerminal : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3670,7 +3670,7 @@ public partial class ToolExecutionCompleteContentTerminal : ToolExecutionComplet
 
 /// <summary>Image content block with base64-encoded data.</summary>
 /// <remarks>The <c>image</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
-public partial class ToolExecutionCompleteContentImage : ToolExecutionCompleteContent
+public sealed partial class ToolExecutionCompleteContentImage : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3688,7 +3688,7 @@ public partial class ToolExecutionCompleteContentImage : ToolExecutionCompleteCo
 
 /// <summary>Audio content block with base64-encoded data.</summary>
 /// <remarks>The <c>audio</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
-public partial class ToolExecutionCompleteContentAudio : ToolExecutionCompleteContent
+public sealed partial class ToolExecutionCompleteContentAudio : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3706,7 +3706,7 @@ public partial class ToolExecutionCompleteContentAudio : ToolExecutionCompleteCo
 
 /// <summary>Icon image for a resource.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteContentResourceLinkIcon</c>.</remarks>
-public partial class ToolExecutionCompleteContentResourceLinkIcon
+public sealed partial class ToolExecutionCompleteContentResourceLinkIcon
 {
     /// <summary>MIME type of the icon image.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3730,7 +3730,7 @@ public partial class ToolExecutionCompleteContentResourceLinkIcon
 
 /// <summary>Resource link content block referencing an external resource.</summary>
 /// <remarks>The <c>resource_link</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
-public partial class ToolExecutionCompleteContentResourceLink : ToolExecutionCompleteContent
+public sealed partial class ToolExecutionCompleteContentResourceLink : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3772,7 +3772,7 @@ public partial class ToolExecutionCompleteContentResourceLink : ToolExecutionCom
 
 /// <summary>Schema for the `EmbeddedTextResourceContents` type.</summary>
 /// <remarks>Nested data type for <c>EmbeddedTextResourceContents</c>.</remarks>
-public partial class EmbeddedTextResourceContents
+public sealed partial class EmbeddedTextResourceContents
 {
     /// <summary>MIME type of the text content.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3790,7 +3790,7 @@ public partial class EmbeddedTextResourceContents
 
 /// <summary>Schema for the `EmbeddedBlobResourceContents` type.</summary>
 /// <remarks>Nested data type for <c>EmbeddedBlobResourceContents</c>.</remarks>
-public partial class EmbeddedBlobResourceContents
+public sealed partial class EmbeddedBlobResourceContents
 {
     /// <summary>Base64-encoded binary content of the resource.</summary>
     [Base64String]
@@ -3887,7 +3887,7 @@ public sealed partial class ToolExecutionCompleteContentResourceDetails
 
 /// <summary>Embedded resource content block with inline text or binary data.</summary>
 /// <remarks>The <c>resource</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
-public partial class ToolExecutionCompleteContentResource : ToolExecutionCompleteContent
+public sealed partial class ToolExecutionCompleteContentResource : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3919,7 +3919,7 @@ public partial class ToolExecutionCompleteContent
 
 /// <summary>Tool execution result on success.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteResult</c>.</remarks>
-public partial class ToolExecutionCompleteResult
+public sealed partial class ToolExecutionCompleteResult
 {
     /// <summary>Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency.</summary>
     [JsonPropertyName("content")]
@@ -3938,7 +3938,7 @@ public partial class ToolExecutionCompleteResult
 
 /// <summary>Error details when the hook failed.</summary>
 /// <remarks>Nested data type for <c>HookEndError</c>.</remarks>
-public partial class HookEndError
+public sealed partial class HookEndError
 {
     /// <summary>Human-readable error message.</summary>
     [JsonPropertyName("message")]
@@ -3952,7 +3952,7 @@ public partial class HookEndError
 
 /// <summary>Metadata about the prompt template and its construction.</summary>
 /// <remarks>Nested data type for <c>SystemMessageMetadata</c>.</remarks>
-public partial class SystemMessageMetadata
+public sealed partial class SystemMessageMetadata
 {
     /// <summary>Version identifier of the prompt template used.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3967,7 +3967,7 @@ public partial class SystemMessageMetadata
 
 /// <summary>Schema for the `SystemNotificationAgentCompleted` type.</summary>
 /// <remarks>The <c>agent_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
-public partial class SystemNotificationAgentCompleted : SystemNotification
+public sealed partial class SystemNotificationAgentCompleted : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3998,7 +3998,7 @@ public partial class SystemNotificationAgentCompleted : SystemNotification
 
 /// <summary>Schema for the `SystemNotificationAgentIdle` type.</summary>
 /// <remarks>The <c>agent_idle</c> variant of <see cref="SystemNotification"/>.</remarks>
-public partial class SystemNotificationAgentIdle : SystemNotification
+public sealed partial class SystemNotificationAgentIdle : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4020,7 +4020,7 @@ public partial class SystemNotificationAgentIdle : SystemNotification
 
 /// <summary>Schema for the `SystemNotificationNewInboxMessage` type.</summary>
 /// <remarks>The <c>new_inbox_message</c> variant of <see cref="SystemNotification"/>.</remarks>
-public partial class SystemNotificationNewInboxMessage : SystemNotification
+public sealed partial class SystemNotificationNewInboxMessage : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4045,7 +4045,7 @@ public partial class SystemNotificationNewInboxMessage : SystemNotification
 
 /// <summary>Schema for the `SystemNotificationShellCompleted` type.</summary>
 /// <remarks>The <c>shell_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
-public partial class SystemNotificationShellCompleted : SystemNotification
+public sealed partial class SystemNotificationShellCompleted : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4068,7 +4068,7 @@ public partial class SystemNotificationShellCompleted : SystemNotification
 
 /// <summary>Schema for the `SystemNotificationShellDetachedCompleted` type.</summary>
 /// <remarks>The <c>shell_detached_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
-public partial class SystemNotificationShellDetachedCompleted : SystemNotification
+public sealed partial class SystemNotificationShellDetachedCompleted : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4086,7 +4086,7 @@ public partial class SystemNotificationShellDetachedCompleted : SystemNotificati
 
 /// <summary>Schema for the `SystemNotificationInstructionDiscovered` type.</summary>
 /// <remarks>The <c>instruction_discovered</c> variant of <see cref="SystemNotification"/>.</remarks>
-public partial class SystemNotificationInstructionDiscovered : SystemNotification
+public sealed partial class SystemNotificationInstructionDiscovered : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4131,7 +4131,7 @@ public partial class SystemNotification
 
 /// <summary>Schema for the `PermissionRequestShellCommand` type.</summary>
 /// <remarks>Nested data type for <c>PermissionRequestShellCommand</c>.</remarks>
-public partial class PermissionRequestShellCommand
+public sealed partial class PermissionRequestShellCommand
 {
     /// <summary>Command identifier (e.g., executable name).</summary>
     [JsonPropertyName("identifier")]
@@ -4144,7 +4144,7 @@ public partial class PermissionRequestShellCommand
 
 /// <summary>Schema for the `PermissionRequestShellPossibleUrl` type.</summary>
 /// <remarks>Nested data type for <c>PermissionRequestShellPossibleUrl</c>.</remarks>
-public partial class PermissionRequestShellPossibleUrl
+public sealed partial class PermissionRequestShellPossibleUrl
 {
     /// <summary>URL that may be accessed by the command.</summary>
     [JsonPropertyName("url")]
@@ -4153,7 +4153,7 @@ public partial class PermissionRequestShellPossibleUrl
 
 /// <summary>Shell command permission request.</summary>
 /// <remarks>The <c>shell</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestShell : PermissionRequest
+public sealed partial class PermissionRequestShell : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4200,7 +4200,7 @@ public partial class PermissionRequestShell : PermissionRequest
 
 /// <summary>File write permission request.</summary>
 /// <remarks>The <c>write</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestWrite : PermissionRequest
+public sealed partial class PermissionRequestWrite : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4235,7 +4235,7 @@ public partial class PermissionRequestWrite : PermissionRequest
 
 /// <summary>File or directory read permission request.</summary>
 /// <remarks>The <c>read</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestRead : PermissionRequest
+public sealed partial class PermissionRequestRead : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4257,7 +4257,7 @@ public partial class PermissionRequestRead : PermissionRequest
 
 /// <summary>MCP tool invocation permission request.</summary>
 /// <remarks>The <c>mcp</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestMcp : PermissionRequest
+public sealed partial class PermissionRequestMcp : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4292,7 +4292,7 @@ public partial class PermissionRequestMcp : PermissionRequest
 
 /// <summary>URL access permission request.</summary>
 /// <remarks>The <c>url</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestUrl : PermissionRequest
+public sealed partial class PermissionRequestUrl : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4314,7 +4314,7 @@ public partial class PermissionRequestUrl : PermissionRequest
 
 /// <summary>Memory operation permission request.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestMemory : PermissionRequest
+public sealed partial class PermissionRequestMemory : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4357,7 +4357,7 @@ public partial class PermissionRequestMemory : PermissionRequest
 
 /// <summary>Custom tool invocation permission request.</summary>
 /// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestCustomTool : PermissionRequest
+public sealed partial class PermissionRequestCustomTool : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4384,7 +4384,7 @@ public partial class PermissionRequestCustomTool : PermissionRequest
 
 /// <summary>Hook confirmation permission request.</summary>
 /// <remarks>The <c>hook</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestHook : PermissionRequest
+public sealed partial class PermissionRequestHook : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4412,7 +4412,7 @@ public partial class PermissionRequestHook : PermissionRequest
 
 /// <summary>Extension management permission request.</summary>
 /// <remarks>The <c>extension-management</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestExtensionManagement : PermissionRequest
+public sealed partial class PermissionRequestExtensionManagement : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4435,7 +4435,7 @@ public partial class PermissionRequestExtensionManagement : PermissionRequest
 
 /// <summary>Extension permission access request.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionRequest"/>.</remarks>
-public partial class PermissionRequestExtensionPermissionAccess : PermissionRequest
+public sealed partial class PermissionRequestExtensionPermissionAccess : PermissionRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4480,7 +4480,7 @@ public partial class PermissionRequest
 
 /// <summary>Shell command permission prompt.</summary>
 /// <remarks>The <c>commands</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestCommands : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestCommands : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4515,7 +4515,7 @@ public partial class PermissionPromptRequestCommands : PermissionPromptRequest
 
 /// <summary>File write permission prompt.</summary>
 /// <remarks>The <c>write</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestWrite : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestWrite : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4550,7 +4550,7 @@ public partial class PermissionPromptRequestWrite : PermissionPromptRequest
 
 /// <summary>File read permission prompt.</summary>
 /// <remarks>The <c>read</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestRead : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestRead : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4572,7 +4572,7 @@ public partial class PermissionPromptRequestRead : PermissionPromptRequest
 
 /// <summary>MCP tool invocation permission prompt.</summary>
 /// <remarks>The <c>mcp</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestMcp : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestMcp : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4603,7 +4603,7 @@ public partial class PermissionPromptRequestMcp : PermissionPromptRequest
 
 /// <summary>URL access permission prompt.</summary>
 /// <remarks>The <c>url</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestUrl : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4625,7 +4625,7 @@ public partial class PermissionPromptRequestUrl : PermissionPromptRequest
 
 /// <summary>Memory operation permission prompt.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestMemory : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestMemory : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4668,7 +4668,7 @@ public partial class PermissionPromptRequestMemory : PermissionPromptRequest
 
 /// <summary>Custom tool invocation permission prompt.</summary>
 /// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestCustomTool : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestCustomTool : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4695,7 +4695,7 @@ public partial class PermissionPromptRequestCustomTool : PermissionPromptRequest
 
 /// <summary>Path access permission prompt.</summary>
 /// <remarks>The <c>path</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestPath : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestPath : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4717,7 +4717,7 @@ public partial class PermissionPromptRequestPath : PermissionPromptRequest
 
 /// <summary>Hook confirmation permission prompt.</summary>
 /// <remarks>The <c>hook</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestHook : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestHook : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4745,7 +4745,7 @@ public partial class PermissionPromptRequestHook : PermissionPromptRequest
 
 /// <summary>Extension management permission prompt.</summary>
 /// <remarks>The <c>extension-management</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestExtensionManagement : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestExtensionManagement : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4768,7 +4768,7 @@ public partial class PermissionPromptRequestExtensionManagement : PermissionProm
 
 /// <summary>Extension permission access prompt.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
-public partial class PermissionPromptRequestExtensionPermissionAccess : PermissionPromptRequest
+public sealed partial class PermissionPromptRequestExtensionPermissionAccess : PermissionPromptRequest
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4814,7 +4814,7 @@ public partial class PermissionPromptRequest
 
 /// <summary>Schema for the `PermissionApproved` type.</summary>
 /// <remarks>The <c>approved</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultApproved : PermissionResult
+public sealed partial class PermissionResultApproved : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4823,7 +4823,7 @@ public partial class PermissionResultApproved : PermissionResult
 
 /// <summary>Schema for the `UserToolSessionApprovalCommands` type.</summary>
 /// <remarks>The <c>commands</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public partial class UserToolSessionApprovalCommands : UserToolSessionApproval
+public sealed partial class UserToolSessionApprovalCommands : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4836,7 +4836,7 @@ public partial class UserToolSessionApprovalCommands : UserToolSessionApproval
 
 /// <summary>Schema for the `UserToolSessionApprovalRead` type.</summary>
 /// <remarks>The <c>read</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public partial class UserToolSessionApprovalRead : UserToolSessionApproval
+public sealed partial class UserToolSessionApprovalRead : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4845,7 +4845,7 @@ public partial class UserToolSessionApprovalRead : UserToolSessionApproval
 
 /// <summary>Schema for the `UserToolSessionApprovalWrite` type.</summary>
 /// <remarks>The <c>write</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public partial class UserToolSessionApprovalWrite : UserToolSessionApproval
+public sealed partial class UserToolSessionApprovalWrite : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4854,7 +4854,7 @@ public partial class UserToolSessionApprovalWrite : UserToolSessionApproval
 
 /// <summary>Schema for the `UserToolSessionApprovalMcp` type.</summary>
 /// <remarks>The <c>mcp</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public partial class UserToolSessionApprovalMcp : UserToolSessionApproval
+public sealed partial class UserToolSessionApprovalMcp : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4871,7 +4871,7 @@ public partial class UserToolSessionApprovalMcp : UserToolSessionApproval
 
 /// <summary>Schema for the `UserToolSessionApprovalMemory` type.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public partial class UserToolSessionApprovalMemory : UserToolSessionApproval
+public sealed partial class UserToolSessionApprovalMemory : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4880,7 +4880,7 @@ public partial class UserToolSessionApprovalMemory : UserToolSessionApproval
 
 /// <summary>Schema for the `UserToolSessionApprovalCustomTool` type.</summary>
 /// <remarks>The <c>custom-tool</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public partial class UserToolSessionApprovalCustomTool : UserToolSessionApproval
+public sealed partial class UserToolSessionApprovalCustomTool : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4893,7 +4893,7 @@ public partial class UserToolSessionApprovalCustomTool : UserToolSessionApproval
 
 /// <summary>Schema for the `UserToolSessionApprovalExtensionManagement` type.</summary>
 /// <remarks>The <c>extension-management</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public partial class UserToolSessionApprovalExtensionManagement : UserToolSessionApproval
+public sealed partial class UserToolSessionApprovalExtensionManagement : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4907,7 +4907,7 @@ public partial class UserToolSessionApprovalExtensionManagement : UserToolSessio
 
 /// <summary>Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
-public partial class UserToolSessionApprovalExtensionPermissionAccess : UserToolSessionApproval
+public sealed partial class UserToolSessionApprovalExtensionPermissionAccess : UserToolSessionApproval
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4941,7 +4941,7 @@ public partial class UserToolSessionApproval
 
 /// <summary>Schema for the `PermissionApprovedForSession` type.</summary>
 /// <remarks>The <c>approved-for-session</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultApprovedForSession : PermissionResult
+public sealed partial class PermissionResultApprovedForSession : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4954,7 +4954,7 @@ public partial class PermissionResultApprovedForSession : PermissionResult
 
 /// <summary>Schema for the `PermissionApprovedForLocation` type.</summary>
 /// <remarks>The <c>approved-for-location</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultApprovedForLocation : PermissionResult
+public sealed partial class PermissionResultApprovedForLocation : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4971,7 +4971,7 @@ public partial class PermissionResultApprovedForLocation : PermissionResult
 
 /// <summary>Schema for the `PermissionCancelled` type.</summary>
 /// <remarks>The <c>cancelled</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultCancelled : PermissionResult
+public sealed partial class PermissionResultCancelled : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -4985,7 +4985,7 @@ public partial class PermissionResultCancelled : PermissionResult
 
 /// <summary>Schema for the `PermissionRule` type.</summary>
 /// <remarks>Nested data type for <c>PermissionRule</c>.</remarks>
-public partial class PermissionRule
+public sealed partial class PermissionRule
 {
     /// <summary>Optional rule argument matched against the request.</summary>
     [JsonPropertyName("argument")]
@@ -4998,7 +4998,7 @@ public partial class PermissionRule
 
 /// <summary>Schema for the `PermissionDeniedByRules` type.</summary>
 /// <remarks>The <c>denied-by-rules</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultDeniedByRules : PermissionResult
+public sealed partial class PermissionResultDeniedByRules : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -5011,7 +5011,7 @@ public partial class PermissionResultDeniedByRules : PermissionResult
 
 /// <summary>Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.</summary>
 /// <remarks>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionResult
+public sealed partial class PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -5020,7 +5020,7 @@ public partial class PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromU
 
 /// <summary>Schema for the `PermissionDeniedInteractivelyByUser` type.</summary>
 /// <remarks>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultDeniedInteractivelyByUser : PermissionResult
+public sealed partial class PermissionResultDeniedInteractivelyByUser : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -5039,7 +5039,7 @@ public partial class PermissionResultDeniedInteractivelyByUser : PermissionResul
 
 /// <summary>Schema for the `PermissionDeniedByContentExclusionPolicy` type.</summary>
 /// <remarks>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultDeniedByContentExclusionPolicy : PermissionResult
+public sealed partial class PermissionResultDeniedByContentExclusionPolicy : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -5056,7 +5056,7 @@ public partial class PermissionResultDeniedByContentExclusionPolicy : Permission
 
 /// <summary>Schema for the `PermissionDeniedByPermissionRequestHook` type.</summary>
 /// <remarks>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionResult"/>.</remarks>
-public partial class PermissionResultDeniedByPermissionRequestHook : PermissionResult
+public sealed partial class PermissionResultDeniedByPermissionRequestHook : PermissionResult
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -5097,7 +5097,7 @@ public partial class PermissionResult
 
 /// <summary>JSON Schema describing the form fields to present to the user (form mode only).</summary>
 /// <remarks>Nested data type for <c>ElicitationRequestedSchema</c>.</remarks>
-public partial class ElicitationRequestedSchema
+public sealed partial class ElicitationRequestedSchema
 {
     /// <summary>Form field definitions, keyed by field name.</summary>
     [JsonPropertyName("properties")]
@@ -5115,7 +5115,7 @@ public partial class ElicitationRequestedSchema
 
 /// <summary>Static OAuth client configuration, if the server specifies one.</summary>
 /// <remarks>Nested data type for <c>McpOauthRequiredStaticClientConfig</c>.</remarks>
-public partial class McpOauthRequiredStaticClientConfig
+public sealed partial class McpOauthRequiredStaticClientConfig
 {
     /// <summary>OAuth client ID for the server.</summary>
     [JsonPropertyName("clientId")]
@@ -5134,7 +5134,7 @@ public partial class McpOauthRequiredStaticClientConfig
 
 /// <summary>Schema for the `CommandsChangedCommand` type.</summary>
 /// <remarks>Nested data type for <c>CommandsChangedCommand</c>.</remarks>
-public partial class CommandsChangedCommand
+public sealed partial class CommandsChangedCommand
 {
     /// <summary>Optional human-readable command description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5148,7 +5148,7 @@ public partial class CommandsChangedCommand
 
 /// <summary>UI capability changes.</summary>
 /// <remarks>Nested data type for <c>CapabilitiesChangedUI</c>.</remarks>
-public partial class CapabilitiesChangedUI
+public sealed partial class CapabilitiesChangedUI
 {
     /// <summary>Whether elicitation is now supported.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5158,7 +5158,7 @@ public partial class CapabilitiesChangedUI
 
 /// <summary>Schema for the `SkillsLoadedSkill` type.</summary>
 /// <remarks>Nested data type for <c>SkillsLoadedSkill</c>.</remarks>
-public partial class SkillsLoadedSkill
+public sealed partial class SkillsLoadedSkill
 {
     /// <summary>Description of what the skill does.</summary>
     [JsonPropertyName("description")]
@@ -5188,7 +5188,7 @@ public partial class SkillsLoadedSkill
 
 /// <summary>Schema for the `CustomAgentsUpdatedAgent` type.</summary>
 /// <remarks>Nested data type for <c>CustomAgentsUpdatedAgent</c>.</remarks>
-public partial class CustomAgentsUpdatedAgent
+public sealed partial class CustomAgentsUpdatedAgent
 {
     /// <summary>Description of what the agent does.</summary>
     [JsonPropertyName("description")]
@@ -5226,7 +5226,7 @@ public partial class CustomAgentsUpdatedAgent
 
 /// <summary>Schema for the `McpServersLoadedServer` type.</summary>
 /// <remarks>Nested data type for <c>McpServersLoadedServer</c>.</remarks>
-public partial class McpServersLoadedServer
+public sealed partial class McpServersLoadedServer
 {
     /// <summary>Error message if the server failed to connect.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5249,7 +5249,7 @@ public partial class McpServersLoadedServer
 
 /// <summary>Schema for the `ExtensionsLoadedExtension` type.</summary>
 /// <remarks>Nested data type for <c>ExtensionsLoadedExtension</c>.</remarks>
-public partial class ExtensionsLoadedExtension
+public sealed partial class ExtensionsLoadedExtension
 {
     /// <summary>Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper').</summary>
     [JsonPropertyName("id")]
@@ -7186,4 +7186,4 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(UserToolSessionApprovalWrite))]
 [JsonSerializable(typeof(WorkingDirectoryContext))]
 [JsonSerializable(typeof(JsonElement))]
-internal partial class SessionEventsJsonContext : JsonSerializerContext;
+internal sealed partial class SessionEventsJsonContext : JsonSerializerContext;

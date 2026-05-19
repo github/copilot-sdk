@@ -72,7 +72,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    # Create a session (on_permission_request is required)
+    # Create a session (on_permission_request is optional; approve_all allows every tool)
     session = await client.create_session(
         on_permission_request=PermissionHandler.approve_all,
         model="gpt-5",
@@ -175,12 +175,12 @@ These are passed as keyword arguments to `create_session()`:
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
-- `tools` (list): Custom tools exposed to the CLI
+- `tools` (list): Custom tools exposed to the CLI. Tools with `handler=None` are declaration-only and must be resolved via pending tool-call RPCs.
 - `system_message` (SystemMessageConfig): System message configuration
 - `streaming` (bool): Enable streaming delta events
 - `provider` (ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `infinite_sessions` (InfiniteSessionConfig): Automatic context compaction configuration
-- `on_permission_request` (callable): **Required.** Handler called before each tool execution to approve or deny it. Use `PermissionHandler.approve_all` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `PermissionHandler.approve_all` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
@@ -279,7 +279,17 @@ async with await client.create_session(
     ...
 ```
 
-The SDK automatically handles `tool.call`, executes your handler (sync or async), and responds with the final result when the tool completes.
+The SDK automatically handles `tool.call`, executes your handler (sync or async), and responds with the final result when the tool completes. If a tool has no handler, it is exposed as a declaration only; observe `external_tool.requested` events and resolve the call with the pending tool RPC.
+
+You can also create a declaration-only tool with generated Pydantic parameters:
+
+```python
+tool = define_tool(
+    "lookup_issue",
+    description="Fetch issue details from our tracker",
+    params_type=LookupIssueParams,
+)
+```
 
 #### Overriding Built-in Tools
 
@@ -544,7 +554,7 @@ Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `o
 
 ## Permission Handling
 
-An `on_permission_request` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+An `on_permission_request` handler is optional when you create or resume a session. When provided, it is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When omitted, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
 
 ### Approve All (simplest)
 
@@ -587,9 +597,9 @@ def on_permission_request(
 
     if request.kind.value == "shell":
         # Deny shell commands
-        return PermissionRequestResult(kind="denied-interactively-by-user")
+        return PermissionRequestResult(kind="reject")
 
-    return PermissionRequestResult(kind="approved")
+    return PermissionRequestResult(kind="approve-once")
 
 session = await client.create_session(
     on_permission_request=on_permission_request,
@@ -605,23 +615,23 @@ async def on_permission_request(
 ) -> PermissionRequestResult:
     # Simulate an async approval check (e.g., prompting a user over a network)
     await asyncio.sleep(0)
-    return PermissionRequestResult(kind="approved")
+    return PermissionRequestResult(kind="approve-once")
 ```
 
 ### Permission Result Kinds
 
-| `kind` value                                                | Meaning                                                                                  |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `"approved"`                                                | Allow the tool to run                                                                    |
-| `"denied-interactively-by-user"`                            | User explicitly denied the request                                                       |
-| `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked (default when no kind is specified) |
-| `"denied-by-rules"`                                         | Denied by a policy rule                                                                  |
-| `"denied-by-content-exclusion-policy"`                      | Denied due to a content exclusion policy                                                 |
-| `"no-result"`                                               | Leave the request unanswered (not allowed for protocol v2 permission requests)           |
+The handler must return a `PermissionRequestResult` with one of the kinds declared by the `PermissionRequestResultKind` type. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+
+| `kind` value           | Meaning                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| `"approve-once"`       | Allow this single request                                                                   |
+| `"reject"`             | Deny the request                                                                            |
+| `"user-not-available"` | Deny the request because no user is available to confirm it (the default)                   |
+| `"no-result"`          | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
 
 ### Resuming Sessions
 
-Pass `on_permission_request` when resuming a session too — it is required:
+You may pass `on_permission_request` when resuming a session too:
 
 ```python
 session = await client.resume_session(

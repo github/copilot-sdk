@@ -2,6 +2,7 @@ import asyncio
 import os
 from copilot import CopilotClient, define_tool
 from copilot.client import SubprocessConfig
+from copilot.session import PermissionRequestResult
 from pydantic import BaseModel, Field
 
 # In-memory virtual filesystem
@@ -39,7 +40,7 @@ def list_files() -> str:
 
 
 async def auto_approve_permission(request, invocation):
-    return {"kind": "approved"}
+    return PermissionRequestResult(kind="approve-once")
 
 
 async def auto_approve_tool(input_data, invocation):

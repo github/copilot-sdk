@@ -517,7 +517,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Creates a new Copilot session with the specified configuration.
     /// </summary>
-    /// <param name="config">Configuration for the session, including the required <see cref="SessionConfig.OnPermissionRequest"/> handler.</param>
+    /// <param name="config">Configuration for the session.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves to provide the <see cref="CopilotSession"/>.</returns>
     /// <remarks>
@@ -542,13 +542,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task<CopilotSession> CreateSessionAsync(SessionConfig config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(config);
-
-        if (config.OnPermissionRequest == null)
-        {
-            throw new ArgumentException(
-                "An OnPermissionRequest handler is required when creating a session. " +
-                "For example, to allow all permissions, use CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });");
-        }
 
         var connection = await EnsureConnectedAsync(cancellationToken);
         var totalTimestamp = Stopwatch.GetTimestamp();
@@ -684,10 +677,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Resumes an existing Copilot session with the specified configuration.
     /// </summary>
     /// <param name="sessionId">The ID of the session to resume.</param>
-    /// <param name="config">Configuration for the resumed session, including the required <see cref="ResumeSessionConfig.OnPermissionRequest"/> handler.</param>
+    /// <param name="config">Configuration for the resumed session.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves to provide the <see cref="CopilotSession"/>.</returns>
-    /// <exception cref="ArgumentException">Thrown when <see cref="ResumeSessionConfig.OnPermissionRequest"/> is not set.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the session does not exist or the client is not connected.</exception>
     /// <remarks>
     /// This allows you to continue a previous conversation, maintaining all conversation history.
@@ -710,13 +702,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(sessionId);
         ArgumentNullException.ThrowIfNull(config);
-
-        if (config.OnPermissionRequest == null)
-        {
-            throw new ArgumentException(
-                "An OnPermissionRequest handler is required when resuming a session. " +
-                "For example, to allow all permissions, use new() { OnPermissionRequest = PermissionHandler.ApproveAll }.");
-        }
 
         var connection = await EnsureConnectedAsync(cancellationToken);
         var totalTimestamp = Stopwatch.GetTimestamp();
@@ -1894,6 +1879,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             if (session.GetTool(toolName) is not { } tool)
             {
+                // Support for not providing the tool handler is only available in the v3+ model.
+                // For v2, it must have been provided.
                 return new ToolCallResponseV2(new ToolResultObject
                 {
                     TextResultForLlm = $"Tool '{toolName}' is not supported.",
@@ -2053,7 +2040,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? OverridesBuiltInTool = null,
         bool? SkipPermission = null)
     {
-        public static ToolDefinition FromAIFunction(AIFunction function)
+        public static ToolDefinition FromAIFunction(AIFunctionDeclaration function)
         {
             var overrides = function.AdditionalProperties.TryGetValue(CopilotTool.OverridesBuiltInToolKey, out var val) && val is true;
             var skipPerm = function.AdditionalProperties.TryGetValue(CopilotTool.SkipPermissionKey, out var skipVal) && skipVal is true;

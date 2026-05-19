@@ -1322,7 +1322,7 @@ class CopilotClient:
     async def create_session(
         self,
         *,
-        on_permission_request: _PermissionHandlerFn,
+        on_permission_request: _PermissionHandlerFn | None = None,
         model: str | None = None,
         session_id: str | None = None,
         client_name: str | None = None,
@@ -1367,8 +1367,9 @@ class CopilotClient:
         automatically start the connection.
 
         Args:
-            on_permission_request: Handler for permission requests. Use
-                ``PermissionHandler.approve_all`` to allow all permissions.
+            on_permission_request: Optional handler for permission requests. When
+                omitted, permission requests are surfaced as events and left pending
+                for the consumer to resolve via the pending permission RPC.
             model: The model to use for the session (e.g. ``"gpt-4"``).
             session_id: Optional session ID. If not provided, a UUID is generated.
             client_name: Optional client name for identification.
@@ -1429,7 +1430,7 @@ class CopilotClient:
 
         Raises:
             RuntimeError: If the client is not connected and auto_start is disabled.
-            ValueError: If ``on_permission_request`` is not a valid callable.
+            ValueError: If ``on_permission_request`` is provided but not callable.
 
         Example:
             >>> session = await client.create_session(
@@ -1443,11 +1444,8 @@ class CopilotClient:
             ...     streaming=True,
             ... )
         """
-        if not on_permission_request or not callable(on_permission_request):
-            raise ValueError(
-                "A valid on_permission_request handler is required. "
-                "Use PermissionHandler.approve_all or provide a custom handler."
-            )
+        if on_permission_request is not None and not callable(on_permission_request):
+            raise ValueError("on_permission_request must be callable when provided.")
         if not self._client:
             if self._auto_start:
                 await self.start()
@@ -1696,7 +1694,7 @@ class CopilotClient:
         self,
         session_id: str,
         *,
-        on_permission_request: _PermissionHandlerFn,
+        on_permission_request: _PermissionHandlerFn | None = None,
         model: str | None = None,
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
@@ -1741,8 +1739,9 @@ class CopilotClient:
 
         Args:
             session_id: The ID of the session to resume.
-            on_permission_request: Handler for permission requests. Use
-                ``PermissionHandler.approve_all`` to allow all permissions.
+            on_permission_request: Optional handler for permission requests. When
+                omitted, permission requests are surfaced as events and left pending
+                for the consumer to resolve via the pending permission RPC.
             model: The model to use for the resumed session.
             client_name: Optional client name for identification.
             reasoning_effort: Reasoning effort level for the model.
@@ -1818,11 +1817,8 @@ class CopilotClient:
             ...     tools=[my_new_tool],
             ... )
         """
-        if not on_permission_request or not callable(on_permission_request):
-            raise ValueError(
-                "A valid on_permission_request handler is required. "
-                "Use PermissionHandler.approve_all or provide a custom handler."
-            )
+        if on_permission_request is not None and not callable(on_permission_request):
+            raise ValueError("on_permission_request must be callable when provided.")
         if not self._client:
             if self._auto_start:
                 await self.start()

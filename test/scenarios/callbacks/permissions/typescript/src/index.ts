@@ -15,7 +15,7 @@ async function main() {
       model: "claude-haiku-4.5",
       onPermissionRequest: async (request) => {
         permissionLog.push(`approved:${request.toolName}`);
-        return { kind: "approved" as const };
+        return { kind: "approve-once" as const };
       },
       hooks: {
         onPreToolUse: async () => ({ permissionDecision: "allow" as const }),

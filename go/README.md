@@ -19,6 +19,12 @@ cd go/samples
 go run chat.go
 ```
 
+The manual permission/tool-result resume sample can be run from the same directory:
+
+```bash
+go run ./manual_tool_resume
+```
+
 ## Quick Start
 
 ```go
@@ -44,7 +50,7 @@ func main() {
     }
     defer client.Stop()
 
-    // Create a session (OnPermissionRequest is required)
+    // Create a session (OnPermissionRequest is optional; ApproveAll allows every tool)
     session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Model:               "gpt-5",
         OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -156,7 +162,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
-- `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
@@ -164,7 +170,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 **ResumeSessionConfig:**
 
-- `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 - `Tools` ([]Tool): Tools to expose when resuming
 - `ReasoningEffort` (string): Reasoning effort level for models that support it
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
@@ -569,7 +575,7 @@ Dependency: `go.opentelemetry.io/otel`
 
 ## Permission Handling
 
-An `OnPermissionRequest` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+An `OnPermissionRequest` handler is optional when you create or resume a session. When provided, it is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When nil, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
 
 ### Approve All (simplest)
 
@@ -606,7 +612,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 
         if request.Kind == copilot.KindShell {
             // Deny shell commands
-            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
+            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
         }
 
         return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
@@ -616,17 +622,20 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 
 ### Permission Result Kinds
 
-| Constant                                                   | Meaning                                                                                 |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `PermissionRequestResultKindApproved`                      | Allow the tool to run                                                                   |
-| `PermissionRequestResultKindDeniedInteractivelyByUser`     | User explicitly denied the request                                                      |
-| `PermissionRequestResultKindDeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked                                    |
-| `PermissionRequestResultKindDeniedByRules`                 | Denied by a policy rule                                                                 |
-| `PermissionRequestResultKindNoResult`                      | Leave the permission request unanswered (protocol v1 only; not allowed for protocol v2) |
+The `Kind` field must be one of the canonical `PermissionRequestResultKind` constants. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+
+| Constant                                      | Wire value             | Meaning                                                                                     |
+| --------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| `PermissionRequestResultKindApproved`         | `"approve-once"`       | Allow this single request                                                                   |
+| `PermissionRequestResultKindRejected`         | `"reject"`             | Deny the request                                                                            |
+| `PermissionRequestResultKindUserNotAvailable` | `"user-not-available"` | Deny the request because no user is available to confirm it                                 |
+| `PermissionRequestResultKindNoResult`         | `"no-result"`          | Leave the permission request unanswered (protocol v1 only; rejected by protocol v2 servers) |
+
+> The past-tense names `PermissionRequestResultKindDeniedInteractivelyByUser`, `PermissionRequestResultKindDeniedCouldNotRequestFromUser`, and `PermissionRequestResultKindDeniedByRules` remain as deprecated aliases for backward compatibility — prefer the canonical constants above in new code.
 
 ### Resuming Sessions
 
-Pass `OnPermissionRequest` when resuming a session too — it is required:
+You may pass `OnPermissionRequest` when resuming a session too:
 
 ```go
 session, err := client.ResumeSession(context.Background(), sessionID, &copilot.ResumeSessionConfig{

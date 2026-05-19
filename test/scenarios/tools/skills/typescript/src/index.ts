@@ -16,7 +16,7 @@ async function main() {
     const session = await client.createSession({
       model: "claude-haiku-4.5",
       skillDirectories: [skillsDir],
-      onPermissionRequest: async () => ({ kind: "approved" as const }),
+      onPermissionRequest: async () => ({ kind: "approve-once" as const }),
       hooks: {
         onPreToolUse: async () => ({ permissionDecision: "allow" as const }),
       },

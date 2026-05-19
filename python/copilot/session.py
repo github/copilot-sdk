@@ -918,8 +918,9 @@ class SessionConfig(TypedDict, total=False):
     # List of tool names to disable. Applies to all tools including custom tools
     # registered via tools=. Ignored if available_tools is set.
     excluded_tools: list[str]
-    # Handler for permission requests from the server
-    on_permission_request: _PermissionHandlerFn
+    # Optional handler for permission requests from the server. When omitted,
+    # requests are surfaced as events and left pending for manual resolution.
+    on_permission_request: _PermissionHandlerFn | None
     # Handler for user input requests from the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
     # Hook handlers for intercepting session lifecycle events
@@ -1014,7 +1015,9 @@ class ResumeSessionConfig(TypedDict, total=False):
     enable_session_telemetry: bool
     # Reasoning effort level for models that support it.
     reasoning_effort: ReasoningEffort
-    on_permission_request: _PermissionHandlerFn
+    # Optional handler for permission requests from the server. When omitted,
+    # requests are surfaced as events and left pending for manual resolution.
+    on_permission_request: _PermissionHandlerFn | None
     # Handler for user input requestsfrom the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
     # Hook handlers for intercepting session lifecycle events
@@ -1882,8 +1885,8 @@ class CopilotSession:
         """
         Register custom tool handlers for this session.
 
-        Tools allow the assistant to execute custom functions. When the assistant
-        invokes a tool, the corresponding handler is called with the tool arguments.
+        Tools with handlers allow the assistant to execute custom functions automatically.
+        Declaration-only tools are surfaced as events and left pending for the consumer.
 
         Note:
             This method is internal. Tools are typically registered when creating

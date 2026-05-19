@@ -326,6 +326,22 @@ export function cloneSchemaForCodegen<T>(value: T): T {
     return value;
 }
 
+const INT32_MIN = -(2 ** 31);
+const INT32_MAX = 2 ** 31 - 1;
+
+function isIntegerValue(value: unknown): value is number {
+    return Number.isInteger(value);
+}
+
+export function isIntegerSchemaBoundedToInt32(schema: JSONSchema7): boolean {
+    return (
+        isIntegerValue(schema.minimum) &&
+        isIntegerValue(schema.maximum) &&
+        schema.minimum >= INT32_MIN &&
+        schema.maximum <= INT32_MAX
+    );
+}
+
 export function stableStringify(value: unknown): string {
     if (Array.isArray(value)) {
         return `[${value.map((item) => stableStringify(item)).join(",")}]`;

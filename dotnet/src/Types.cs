@@ -613,13 +613,13 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
 public class PermissionRequestResult
 {
     /// <summary>
-    /// Permission decision kind.
+    /// Permission decision kind. Use the static members of <see cref="PermissionRequestResultKind"/>
+    /// to construct values. Valid kinds are:
     /// <list type="bullet">
-    /// <item><description><c>"approved"</c> — the operation is allowed.</description></item>
-    /// <item><description><c>"denied-by-rules"</c> — denied by configured permission rules.</description></item>
-    /// <item><description><c>"denied-interactively-by-user"</c> — the user explicitly denied the request.</description></item>
-    /// <item><description><c>"denied-no-approval-rule-and-could-not-request-from-user"</c> — no rule matched and user approval was unavailable.</description></item>
-    /// <item><description><c>"no-result"</c> — leave the pending permission request unanswered.</description></item>
+    /// <item><description><c>"approve-once"</c> (<see cref="PermissionRequestResultKind.Approved"/>) — allow this single request.</description></item>
+    /// <item><description><c>"reject"</c> (<see cref="PermissionRequestResultKind.Rejected"/>) — deny the request.</description></item>
+    /// <item><description><c>"user-not-available"</c> (<see cref="PermissionRequestResultKind.UserNotAvailable"/>) — deny because no user is available to confirm.</description></item>
+    /// <item><description><c>"no-result"</c> (<see cref="PermissionRequestResultKind.NoResult"/>) — leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("kind")]
@@ -2158,9 +2158,11 @@ public class SessionConfig
     public bool? EnableConfigDiscovery { get; set; }
 
     /// <summary>
-    /// Custom tool functions available to the language model during the session.
+    /// Custom tool declarations available to the language model during the session.
+    /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
+    /// are left for the client to handle via external tool request events.
     /// </summary>
-    public ICollection<AIFunction>? Tools { get; set; }
+    public ICollection<AIFunctionDeclaration>? Tools { get; set; }
     /// <summary>
     /// System message configuration for the session.
     /// </summary>
@@ -2429,9 +2431,11 @@ public class ResumeSessionConfig
     public string? Model { get; set; }
 
     /// <summary>
-    /// Custom tool functions available to the language model during the resumed session.
+    /// Custom tool declarations available to the language model during the resumed session.
+    /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
+    /// are left for the client to handle via external tool request events.
     /// </summary>
-    public ICollection<AIFunction>? Tools { get; set; }
+    public ICollection<AIFunctionDeclaration>? Tools { get; set; }
 
     /// <summary>
     /// System message configuration.
